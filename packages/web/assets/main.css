@@ -1,6 +1,24 @@
+html,
+body {
+    height: 100%;
+    margin: 0;
+}
+
 body {
     background-color: #0f1116;
     color: #ffffff;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* The editor workbench takes whatever height is left below the navbar. */
+#home {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+#blog {
+    padding: 0 20px;
 }

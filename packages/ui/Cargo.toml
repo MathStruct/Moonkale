@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 dioxus = { workspace = true }
+dioxus-workbench = { workspace = true }
 api = { workspace = true }
 
 [features]

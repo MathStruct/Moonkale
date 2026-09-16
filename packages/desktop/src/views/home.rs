@@ -1,10 +1,11 @@
 use dioxus::prelude::*;
-use ui::{Hero, Echo};
+use ui::EditorWorkbench;
 
 #[component]
 pub fn Home() -> Element {
     rsx! {
-        Hero {}
-        Echo {}
+        div { id: "home",
+            EditorWorkbench {}
+        }
     }
 }
