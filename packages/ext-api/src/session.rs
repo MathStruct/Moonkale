@@ -23,7 +23,7 @@ impl WindowId {
 
 impl fmt::Display for WindowId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0[..8])
+        f.write_str(&self.0[..self.0.len().min(8)])
     }
 }
 
@@ -32,6 +32,10 @@ impl fmt::Display for WindowId {
 pub enum SessionMessage {
     /// A window came up and wants to know the session state.
     Hello {
+        from: WindowId,
+    },
+    /// Reply to `Hello`: "I exist" (so the newcomer can count its peers).
+    Welcome {
         from: WindowId,
     },
     /// Reply to `Hello` (and broadcast whenever a source is opened).
@@ -63,6 +67,7 @@ impl SessionMessage {
     pub fn sender(&self) -> &WindowId {
         match self {
             SessionMessage::Hello { from }
+            | SessionMessage::Welcome { from }
             | SessionMessage::SourceOpened { from, .. }
             | SessionMessage::DragStarted { from, .. }
             | SessionMessage::DragEnded { from } => from,

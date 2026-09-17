@@ -6183,6 +6183,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-editor-code",
  "moonkale-ext-api",
+ "serde",
 ]
 
 [[package]]

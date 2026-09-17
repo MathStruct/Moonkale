@@ -113,6 +113,14 @@ impl SessionBus for InProcessBus {
 fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
     let me = WindowId::fresh();
     let (tx, mut rx) = mpsc::unbounded();
+    // Sources are process-wide: hand the new window everything already open
+    // without waiting for a peer to answer `Hello`.
+    for descriptor in registry().descriptors() {
+        let _ = tx.unbounded_send(SessionMessage::SourceOpened {
+            from: WindowId("process-registry".into()),
+            descriptor,
+        });
+    }
     PEERS.with(|peers| peers.borrow_mut().push((me.clone(), tx)));
     spawn(async move {
         while let Some(msg) = rx.next().await {

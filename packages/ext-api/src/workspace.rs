@@ -10,6 +10,7 @@
 
 use crate::session::{SessionBus, SessionMessage, WindowId};
 use crate::Document;
+use dioxus::logger::tracing;
 use dioxus::prelude::*;
 use moonkale_core::{
     Node, NodeId, Query, QueryResult, Source, SourceDescriptor, SourceError, SourceId, Transaction,
@@ -102,6 +103,8 @@ pub struct Workspace {
     pub foreign_drag: Signal<Option<ForeignDrag>>,
     /// The node this window is currently dragging out, if any.
     pub own_drag: Signal<Option<NodeId>>,
+    /// Other windows we have heard from (diagnostic: shown in the status bar).
+    pub peers: Signal<Vec<WindowId>>,
     bus: Signal<Option<Rc<dyn SessionBus>>>,
     config: WorkspaceConfig,
 }
@@ -127,6 +130,7 @@ impl Workspace {
             window: Signal::new_in_scope(WindowId::fresh(), ScopeId::ROOT),
             foreign_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             own_drag: Signal::new_in_scope(None, ScopeId::ROOT),
+            peers: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
@@ -141,8 +145,28 @@ impl Workspace {
     }
 
     fn send(&self, msg: SessionMessage) {
+        tracing::info!("session[{}] send {}", self.window.peek(), summary(&msg));
         if let Some(bus) = self.bus.peek().as_ref() {
             bus.send(msg);
+        }
+    }
+
+    /// Start a cross-window drag from a workbench tab. `tab_id` is the DOM id
+    /// of the dragged tab (`wb-tab-<panel id>`); any open document whose node
+    /// id appears in it is the one being dragged, whatever the panel scheme.
+    pub fn start_drag_from_tab(&mut self, tab_id: &str) -> bool {
+        let node = self
+            .documents
+            .peek()
+            .iter()
+            .map(|(id, _)| *id)
+            .find(|id| tab_id.contains(&id.to_string()));
+        match node {
+            Some(node) => {
+                self.start_drag(node);
+                true
+            }
+            None => false,
         }
     }
 
@@ -152,8 +176,15 @@ impl Workspace {
         if msg.sender() == &me {
             return;
         }
+        tracing::info!("session[{me}] recv {}", summary(&msg));
+        let sender = msg.sender().clone();
+        if !self.peers.peek().contains(&sender) {
+            self.peers.with_mut(|p| p.push(sender));
+        }
         match msg {
+            SessionMessage::Welcome { .. } => {}
             SessionMessage::Hello { .. } => {
+                self.send(SessionMessage::Welcome { from: me.clone() });
                 // Tell the newcomer what we have open.
                 let sources: Vec<_> = self
                     .sources
@@ -414,5 +445,21 @@ impl Workspace {
         doc.set(Document::new(n, text, version));
         self.set_status("Reloaded from disk");
         Ok(())
+    }
+}
+
+/// One-line description for the session log (no document bodies).
+fn summary(msg: &SessionMessage) -> String {
+    match msg {
+        SessionMessage::Hello { from } => format!("Hello from {from}"),
+        SessionMessage::Welcome { from } => format!("Welcome from {from}"),
+        SessionMessage::SourceOpened { from, descriptor } => {
+            format!("SourceOpened {} from {from}", descriptor.id)
+        }
+        SessionMessage::DragStarted { from, node, .. } => {
+            format!("DragStarted {} from {from}", node.native_key)
+        }
+        SessionMessage::DragEnded { from } => format!("DragEnded from {from}"),
+        SessionMessage::Moved { node, from, to } => format!("Moved {node} {from} → {to}"),
     }
 }

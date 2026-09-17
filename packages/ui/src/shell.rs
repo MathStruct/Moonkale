@@ -82,6 +82,8 @@ pub fn Shell() -> Element {
     };
 
     let status = ws.status.read().clone();
+    let windows = ws.peers.read().len() + 1;
+    let window_id = ws.window.read().to_string();
     let source_name = ws
         .sources
         .read()
@@ -111,6 +113,9 @@ pub fn Shell() -> Element {
                         },
                         message: rsx! { StatusMessage { "{status}" } },
                         right: rsx! {
+                            StatusItem { title: "This window: {window_id}. Other windows of this session are counted once they answer.",
+                                if windows > 1 { "{windows} windows" } else { "1 window" }
+                            }
                             if let Some((path, dirty)) = active_doc {
                                 StatusItem { tone: if dirty { StatusTone::Caution } else { StatusTone::Neutral },
                                     if dirty { "● " } "{path}"

@@ -10,6 +10,7 @@ moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
 moonkale-editor-code = { workspace = true }
 api = { workspace = true }
+serde = { version = "1", features = ["derive"] }
 
 [features]
 server = ["api/server"]

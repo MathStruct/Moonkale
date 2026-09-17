@@ -30,8 +30,12 @@ try {
     const editorsB = await b.$$eval(".cm-content", (e) => e.length);
     if (editorsB !== 0) throw new Error("B should have no editors yet");
   });
-  await step("dragstart in A → B shows a drop target", async () => {
-    await a.dispatchEvent(".mk-editor-path", "dragstart");
+  await step("status bar counts both windows", async () => {
+    await a.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("2 windows"), null, { timeout: 10000 });
+    await b.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("2 windows"), null, { timeout: 10000 });
+  });
+  await step("dragstart on the TAB in A → B shows a drop target", async () => {
+    await a.dispatchEvent(".wb-tab[id^='wb-tab-editor-']", "dragstart");
     await b.waitForSelector(".mk-drop-target", { timeout: 10000 });
     const label = await b.$eval(".mk-drop-target-label", (e) => e.textContent);
     if (!label.includes("README.md")) throw new Error(`label: ${label}`);
@@ -50,7 +54,7 @@ try {
   });
   await step("real mouse drag in B that ends without a drop → A shows a 'Move it here' banner", async () => {
     // Uses the browser's own DnD: dragstart only fires in Firefox if dataTransfer data was set.
-    const h = await b.locator(".mk-editor-path").boundingBox();
+    const h = await b.locator(".wb-tab[id^='wb-tab-editor-']").boundingBox();
     await b.mouse.move(h.x + 10, h.y + h.height / 2);
     await b.mouse.down();
     await b.mouse.move(h.x + 60, h.y + 40, { steps: 8 });
@@ -66,9 +70,20 @@ try {
     await b.waitForFunction(() => document.querySelectorAll(".cm-content").length === 0, null, { timeout: 15000 });
     await a.waitForSelector(".mk-drop-banner", { state: "detached", timeout: 5000 });
   });
+  await step("a stray tab drop on the page does not navigate away", async () => {
+    // Simulate what Firefox did for the user: drop the tab's text on B's page.
+    await b.evaluate(() => {
+      const dt = new DataTransfer(); dt.setData("text/plain", "wb-tab-editor-xyz");
+      document.body.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+      document.body.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await b.waitForTimeout(500);
+    if (!b.url().startsWith("http://127.0.0.1:8080")) throw new Error(`navigated to ${b.url()}`);
+    await b.waitForSelector(".wb-workspace");
+  });
   await step("dismiss works", async () => {
-    await a.dispatchEvent(".mk-editor-path", "dragstart");
-    await a.dispatchEvent(".mk-editor-path", "dragend");
+    await a.dispatchEvent(".wb-tab[id^='wb-tab-editor-']", "dragstart");
+    await a.dispatchEvent(".wb-tab[id^='wb-tab-editor-']", "dragend");
     await b.waitForSelector(".mk-drop-banner", { timeout: 10000 });
     await b.click(".mk-drop-banner button[title=Dismiss]");
     await b.waitForSelector(".mk-drop-banner", { state: "detached", timeout: 5000 });

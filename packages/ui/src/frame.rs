@@ -85,6 +85,44 @@ pub fn Frame(
         ws.connect_bus(bus);
     });
 
+    // Native drag plumbing, once per window:
+    // - a workbench tab is an HTML5 drag carrying its element id (Firefox needs
+    //   data to start one at all); when a tab drag starts, start a session drag
+    //   so the other windows offer to take the document;
+    // - stray drops must never navigate the page (Firefox loads dropped text
+    //   as a URL — "Server Not Found: wb-tab-editor-…").
+    use_hook(move || {
+        let mut rx = document::eval(
+            r#"
+            window.addEventListener("dragover", (e) => e.preventDefault());
+            window.addEventListener("drop", (e) => e.preventDefault());
+            document.addEventListener("dragstart", (e) => {
+                const tab = e.target && e.target.closest ? e.target.closest(".wb-tab") : null;
+                if (tab && tab.id) dioxus.send({ kind: "start", tab: tab.id });
+            });
+            document.addEventListener("dragend", () => dioxus.send({ kind: "end" }));
+            "#,
+        );
+        spawn(async move {
+            #[derive(serde::Deserialize)]
+            #[serde(tag = "kind", rename_all = "lowercase")]
+            enum DragMsg {
+                Start { tab: String },
+                End,
+            }
+            loop {
+                match rx.recv::<DragMsg>().await {
+                    Ok(DragMsg::Start { tab }) => {
+                        ws.start_drag_from_tab(&tab);
+                    }
+                    Ok(DragMsg::End) => ws.end_drag(),
+                    Err(dioxus::document::EvalError::Serialization(_)) => continue,
+                    Err(_) => break,
+                }
+            }
+        });
+    });
+
     // Frame-level commands.
     use_effect(move || {
         let (_, cmd) = *ws.commands.read();
