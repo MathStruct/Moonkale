@@ -18,7 +18,7 @@ const config: QuartzConfig = {
     baseUrl: "mathstruct.github.io/Moonkale",
     // `Prompt*` are the working prompts that drove the design sessions; kept in the
     // vault for provenance, not published.
-    ignorePatterns: ["private", ".obsidian", ".tikz-cache", "Prompt*"],
+    ignorePatterns: ["private", ".obsidian", ".tikz-cache", "Prompt*", "prompts"],
     // design notes show when they were last touched
     defaultDateType: "modified",
     theme: {

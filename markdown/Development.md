@@ -10,7 +10,7 @@ Everything that used to be in the README about building lives here.
 - Rust stable (the workspace is checked on 1.98) — `rustup` recommended.
 - The Dioxus CLI: `curl -sSL http://dioxus.dev/install.sh | sh` (installs `dx`).
 - For the web target: `rustup target add wasm32-unknown-unknown`.
-- Linux desktop: WebKitGTK and GTK dev packages — see [[Linux Desktop Setup]] (also covers NVIDIA/Wayland quirks).
+- Linux desktop: WebKitGTK, GTK and **xdotool** (`libxdo`, linked by Dioxus's menu crate) — see [[Linux Desktop Setup]] (also covers NVIDIA/Wayland quirks).
 - For the website: Node ≥ 22 (`site/.node-version`).
 
 ## Workspace layout
@@ -100,6 +100,10 @@ Conventions:
 - `templates/` and `Prompt*.md` are not published (`ignorePatterns` in `site/quartz.config.ts`).
 - Diagrams: Mermaid fences render everywhere. ```` ```tikz ```` and ```` ```typst ```` fences and `$…$` math also render on the site (Typst first, KaTeX fallback — see the MathStruct [authoring guide](https://mathstruct.github.io/guides/authoring) for the rules).
 - Every problem hit during implementation gets a note via [[Problem Template]] and a row in [[Problem Log]].
+
+## Packaging
+
+How the app becomes a package — Arch PKGBUILD, Nix flake, Android APK/AAB — is in [[Packaging Overview]]. Short version: always build with `dx build --release --platform linux --package desktop` (never bare `cargo build`: assets are collected by dx), then install `moonkale` to `bin/` and `assets/` to `lib/Moonkale/`. The desktop binary is named `moonkale` (`[[bin]]` in `packages/desktop/Cargo.toml`) for exactly this reason.
 
 ## Repository hygiene
 - `.obsidian/workspace.json` is ignored (per-user state); plugin folders are tracked so a fresh clone opens with the same plugins.

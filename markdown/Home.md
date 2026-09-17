@@ -29,6 +29,10 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 ## Platform
 - [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why
 
+## Packaging
+- [[Packaging Overview]] — what `dx build` produces and where the binary looks for assets
+- [[Arch Linux]] (PKGBUILD) · [[NixOS]] (flake) · [[Android]] (APK/AAB)
+
 ## Testing
 - [[Testing Strategy]] · [[How to Write Tests]]
 
@@ -67,4 +71,4 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Development]] — build, run, test, and how this vault becomes the website
 
 ## History
-- [[old/rough goal|Rough goal (Lumino/Tauri era)]] · the `Prompt*.md` files in this folder are the working prompts behind each design session (kept in the vault, not published)
+- [[old/rough goal|Rough goal (Lumino/Tauri era)]] · the working prompts behind each design session live in `prompts/` (kept in the vault, not published)

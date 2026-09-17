@@ -3,6 +3,12 @@ name = "desktop"
 version = "0.1.0"
 edition = "2021"
 
+# The binary (and therefore dx's product name, "Moonkale") is what packages
+# install as /usr/bin/moonkale with assets in /usr/lib/Moonkale/assets.
+[[bin]]
+name = "moonkale"
+path = "src/main.rs"
+
 [dependencies]
 dioxus = { workspace = true, features = ["router", "fullstack"] }
 ui = { workspace = true }

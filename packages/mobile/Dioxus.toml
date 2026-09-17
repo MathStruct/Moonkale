@@ -1,0 +1,23 @@
+# dx configuration for the mobile app. Read by `dx build/bundle/serve`.
+# Keys verified against dioxus-cli 0.7.10 (src/config/*.rs).
+
+[application]
+name = "Moonkale"
+
+[bundle]
+identifier = "io.github.mathstruct.moonkale"
+publisher = "MathStruct"
+short_description = "Graph-native code and knowledge editor"
+
+[android]
+min_sdk = 24
+target_sdk = 35
+
+# Release signing: keep the keystore and passwords OUT of git. Either fill this
+# block in a CI-generated Dioxus.toml, or point jks_file at a .gitignored file
+# and load passwords from a secrets manager. See markdown/packaging/Android.md.
+# [android.signing]
+# jks_file = "release.jks"
+# jks_password = "…"
+# key_alias = "moonkale"
+# key_password = "…"

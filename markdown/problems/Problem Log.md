@@ -14,6 +14,7 @@ Running log of problems hit during implementation. One note per problem (`P-nnn 
 | P-034 Hydration mismatch from `cfg!` in markup | Fullstack SSR renders on the server; a `cfg!(wasm32)` placeholder showed the native text on web. Rule: no compile-time platform branches in rendered output ([[Milestone 1 - Implementation Log]]) | resolved | 1 |
 | P-035 `.gitignore` ignored outside git repos | `ignore` crate defaults to `require_git(true)`; set `false` so an editor behaves the same before `git init` | resolved | 1 |
 | P-036 Server-function name clash | `#[post] fn query(.., query: Query)` fails: the generated stub calls `query(...)` and the parameter shadows it; renamed with suffixes | resolved | 1 |
+| P-038 Desktop link error `-lxdo` | `dx run` in `packages/desktop` fails at link time: `muda` needs `libxdo.so`; install `xdotool` (Arch) / `libxdo-dev` (Debian). Docs had it as optional — corrected in [[Linux Desktop Setup]] | resolved | 1 |
 | P-037 Whole-document change events | JS reports full text per keystroke and save sends one splice; O(n) per key. Upgrade to real splices once the index needs them | open | 2 |
 
 ## Conventions

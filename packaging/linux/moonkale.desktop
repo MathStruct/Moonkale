@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Moonkale
+GenericName=Code and knowledge editor
+Comment=Graph-native code and knowledge editor
+Exec=moonkale %F
+Icon=moonkale
+Terminal=false
+Categories=Development;IDE;TextEditor;
+Keywords=editor;graph;database;markdown;typst;
+StartupWMClass=moonkale

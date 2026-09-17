@@ -1,0 +1,58 @@
+# Maintainer: Daniel Boigk <dn.boigk@gmail.com>
+#
+# Builds Moonkale's desktop app from a git checkout with the Dioxus CLI.
+# Status: written against dioxus-cli 0.7.10 and the dx output layout
+# (target/dx/desktop/release/linux/app/{moonkale,assets/}); not yet run on a
+# clean chroot. See markdown/packaging/Arch Linux.md for the reasoning.
+
+pkgname=moonkale-git
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc="Graph-native code and knowledge editor (git)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/MathStruct/Moonkale"
+license=('MIT OR Apache-2.0')
+# Runtime: what the binary links (see the -l flags in a failed link log).
+depends=('webkit2gtk-4.1' 'gtk3' 'libappindicator-gtk3' 'xdotool' 'openssl' 'gcc-libs' 'glibc')
+# Build: dioxus-cli is in the AUR (dioxus-cli or dioxus-cli-bin); it must be
+# >= 0.7.10 to match the workspace's dioxus version.
+makedepends=('git' 'cargo' 'rust' 'dioxus-cli' 'pkgconf')
+provides=('moonkale')
+conflicts=('moonkale')
+source=("git+https://github.com/MathStruct/Moonkale.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd Moonkale
+  printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  cd Moonkale
+  # Fetch everything now so build() can run offline (makepkg policy).
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd Moonkale/packages/desktop
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_NET_OFFLINE=true
+  export CARGO_TARGET_DIR="$srcdir/Moonkale/target"
+  # dx (not plain cargo): it collects the hashed `asset!()` files next to the
+  # binary. `--platform linux` is dx's name for the desktop webview target.
+  dx build --release --platform linux --package desktop --cargo-args "--frozen"
+}
+
+package() {
+  cd Moonkale
+  local app="target/dx/desktop/release/linux/app"
+  # Layout the binary's asset resolver expects: bin/<exe> + lib/<ProductName>/assets.
+  # ProductName is the PascalCase binary name dx bakes in (DIOXUS_PRODUCT_NAME).
+  install -Dm755 "$app/moonkale" "$pkgdir/usr/bin/moonkale"
+  install -d "$pkgdir/usr/lib/Moonkale"
+  cp -r "$app/assets" "$pkgdir/usr/lib/Moonkale/assets"
+  install -Dm644 packaging/linux/moonkale.desktop "$pkgdir/usr/share/applications/moonkale.desktop"
+  # install -Dm644 packages/desktop/assets/icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/moonkale.png"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

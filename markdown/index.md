@@ -28,6 +28,7 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | Extensions | [[Writing an Extension]] · [[Contribution Points]] · [[Manifest Reference]] · [[Host API Reference]] |
 | Decisions | [[ADR-0001 Dioxus instead of Lumino and Tauri]] … [[ADR-0011 Desktop graph surface strategy]] |
 | Platform | [[Linux Desktop Setup]] |
+| Packaging | [[Packaging Overview]] · [[Arch Linux]] · [[NixOS]] · [[Android]] |
 | Testing | [[Testing Strategy]] · [[How to Write Tests]] |
 | Research | [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] |
 | Milestones | [[Milestone 1 - Walking Skeleton]] · [[Milestone 1 - Implementation Log]] |

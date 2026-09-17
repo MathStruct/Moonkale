@@ -1,0 +1,19 @@
+# dx configuration for the desktop app. Read by `dx build/bundle/serve`.
+# Keys verified against dioxus-cli 0.7.10 (src/config/*.rs).
+
+[application]
+name = "Moonkale"
+
+[bundle]
+identifier = "io.github.mathstruct.moonkale"
+publisher = "MathStruct"
+category = "DeveloperTool"
+short_description = "Graph-native code and knowledge editor"
+long_description = "Moonkale opens folders and databases as one graph and edits them with dockable code, markdown, table, graph and flow editors."
+copyright = "MIT OR Apache-2.0"
+# icon = ["assets/icon.png"]   # add a 512x512 PNG before running `dx bundle`
+
+# Used by `dx bundle --package-types deb` (Debian/Ubuntu). Arch and Nix
+# packages declare their own runtime deps — see markdown/packaging/.
+[bundle.deb]
+depends = ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1", "libxdo3"]

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/Prompt2.md",
+                "file": "markdown/prompts/error 1.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Prompt2"
+              "title": "error 1"
             }
           }
         ]
@@ -193,8 +193,27 @@
   },
   "active": "e809ffc8e5acdf7d",
   "lastOpenFiles": [
+    "markdown/sedNz4B6x",
+    "site/public/tags/testing.html",
+    "site/public/tags/research.html",
+    "site/public/tags/problems.html",
+    "site/public/tags/theme.html",
+    "site/public/tags/ui.html",
+    "site/public/index.html",
+    "site/public/tags/problem.html",
+    "site/public/tags/desktop.html",
+    "site/public/tags/linux.html",
+    "site/public/tags/nix.html",
+    "site/public/static/og-image.png",
+    "site/public/static/icon.png",
+    "markdown/packaging/Android.md",
+    "markdown/packaging/NixOS.md",
+    "markdown/packaging/Arch Linux.md",
+    "markdown/packaging/Packaging Overview.md",
+    "markdown/prompts/Prompt4.md",
+    "markdown/prompts/error 1.md",
+    "markdown/prompts/Prompt2.md",
     "markdown/old/rough goal.md",
-    "AGENTS.md",
-    "markdown/Prompt2.md"
+    "AGENTS.md"
   ]
 }

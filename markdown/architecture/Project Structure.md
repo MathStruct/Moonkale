@@ -40,6 +40,9 @@ packages/
 │
 └─ js/                       TypeScript packages, one per dependency
    ├─ codemirror/  milkdown/  xterm/     each: src/index.ts, PROTOCOL.md, dist/
+
+packaging/                   PKGBUILD, .desktop entry  (see markdown/packaging/)
+flake.nix                    Nix package + dev shell
 ```
 
 **Status after Milestone 1** ([[Milestone 1 - Implementation Log]]): `core`, `project-fs`, `sources` (registry), `api`, `ext-api`, `editors/code`, `ui` and the three platform crates contain real code with tests; every other crate is still doc comments. Each implemented crate has a `<crate>.md` next to its `Cargo.toml` with implementation notes. `cargo check --workspace`, `cargo test --workspace`, clippy and fmt pass.

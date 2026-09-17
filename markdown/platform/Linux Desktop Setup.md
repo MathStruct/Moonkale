@@ -24,7 +24,10 @@ Consequences:
 
 ```sh
 # runtime + build deps for dioxus desktop (wry/WebKitGTK)
-sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 xdotool  # xdotool optional (global shortcuts)
+sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 xdotool
+# xdotool is NOT optional: it provides libxdo.so, which `muda` (Dioxus's native
+# menu crate) links on Linux. Without it the desktop build fails at link time
+# with `rust-lld: error: unable to find library -lxdo` (P-038).
 # already present here: webkit2gtk-4.1 2.52.6, webkitgtk-6.0 2.52.6
 
 # native graph overlay plan (ADR-0011) + wgpu on Vulkan
@@ -35,7 +38,7 @@ sudo pacman -S --needed vulkan-icd-loader vulkan-tools   # `vulkaninfo --summary
 sudo pacman -S --needed cmake gcc make
 ```
 
-Debian/Ubuntu equivalents: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev`.
+Debian/Ubuntu equivalents: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev`. Fedora: `webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel xdotool`.
 
 ## Environment variables you may need
 
