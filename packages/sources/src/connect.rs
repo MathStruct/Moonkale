@@ -1,6 +1,3 @@
-//! Connection lifecycle.
+//! Connection lifecycle (design note — Milestone 1 sources are opened synchronously and never reconnect).
 //!
-//! `ConnectParams` (dialect + host/port/db or file path + options) →
-//! `SourceFactory::connect` → `ConnectionState` transitions with backoff.
-//! Health checks are dialect-specific and provided by the driver crates.
-//! The UI subscribes to state changes to draw the status dot.
+//! Planned: `ConnectParams` → `SourceFactory::connect` → `ConnectionState` transitions (Connecting → Ready ↔ Degraded → Closed) with backoff; the UI draws the status dot from it.

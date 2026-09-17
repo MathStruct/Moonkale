@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 dioxus = { workspace = true }
 dioxus-workbench = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }
+moonkale-editor-code = { workspace = true }
 api = { workspace = true }
 
 [features]

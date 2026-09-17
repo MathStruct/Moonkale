@@ -45,7 +45,9 @@ sequenceDiagram
 `ConnectParams` are persisted with a `SecretRef` name, never a password. Resolution per platform: keychain (desktop), server env (web), Keystore (mobile). The connection state machine (`Connecting → Ready ↔ Degraded → Closed`) feeds the status bar dot.
 
 ## Remote source ([[ADR-0005 Server functions as the remote backend]])
-`api` exposes `query/fetch/apply` as server functions and `subscribe` as a websocket, per `SourceId`, after auth. The web/mobile builds have one factory: `RemoteSource`. The desktop build has it too ("connect to a team server").
+`api` exposes `query/fetch/apply` as server functions and (later) `subscribe` as a websocket, per `SourceId`. The web/mobile builds have one factory: `api::RemoteSource`. The desktop build has it too ("connect to a team server").
+
+**As built (Milestone 1):** `RemoteSource` lives in the `api` crate, not `sources`, to avoid a dependency cycle (it calls `api`'s server functions; `api` holds the registry). The server confines `open_folder` to `MOONKALE_ROOT`; there is no auth yet. Errors are nested `Result<Result<T, SourceError>, ServerFnError>` so a remote `Conflict` is a local `Conflict`.
 
 ## Order of implementation (from [[Roadmap]])
 1. Folder (native) — everything else needs files.

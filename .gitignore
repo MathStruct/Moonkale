@@ -16,3 +16,6 @@ site/tsconfig.tsbuildinfo
 # Obsidian per-user state (the vault root is the repo root)
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+
+# JS interop packages
+packages/js/*/node_modules/

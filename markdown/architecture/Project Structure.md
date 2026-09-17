@@ -10,7 +10,7 @@ This is the "parallel markdown file" for the Rust skeleton in `packages/`. Every
 packages/
 ├─ web/ desktop/ mobile/     entrypoints (existing; routers + platform assets)
 ├─ ui/                       the shell: workbench, panel registry, command palette
-├─ api/                      server: fullstack functions = the remote backend
+├─ api/                      server: fullstack functions = the remote backend; also `RemoteSource`
 │
 ├─ core/                     moonkale-core         domain model, no I/O            [layer]
 ├─ ext-api/                  moonkale-ext-api      the extension contract          [layer]
@@ -42,7 +42,7 @@ packages/
    ├─ codemirror/  milkdown/  xterm/     each: src/index.ts, PROTOCOL.md, dist/
 ```
 
-All crates currently contain **only doc comments**: `lib.rs` declares modules, each module file says what it will hold and why. `cargo check --workspace` passes.
+**Status after Milestone 1** ([[Milestone 1 - Implementation Log]]): `core`, `project-fs`, `sources` (registry), `api`, `ext-api`, `editors/code`, `ui` and the three platform crates contain real code with tests; every other crate is still doc comments. Each implemented crate has a `<crate>.md` next to its `Cargo.toml` with implementation notes. `cargo check --workspace`, `cargo test --workspace`, clippy and fmt pass.
 
 ## Why these boundaries
 

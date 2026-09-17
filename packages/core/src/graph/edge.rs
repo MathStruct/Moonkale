@@ -1,23 +1,38 @@
-//! `Edge` — a typed, directed, optionally weighted relation between nodes.
+//! `Edge` — a typed, directed relation between nodes.
 //!
-//! ```ignore
-//! pub struct Edge {
-//!     pub id: EdgeId,
-//!     pub source: SourceId,
-//!     pub from: NodeId,
-//!     pub to: NodeId,
-//!     pub kind: EdgeKind,          // Contains, References, Links, Calls,
-//!                                  // ForeignKey, Custom(ExtensionId, String)
-//!     pub props: PropertyMap,
-//!     pub weight: Option<f32>,     // for layout / ranking, not semantics
-//! }
-//! ```
-//!
-//! Why edges carry a `source`: an edge can span two sources (a markdown page
-//! in a folder links to a row in Postgres). The source that *stores* the edge
-//! is its owner; the target may be foreign. Cross-source edges are what make
-//! "mixed knowledge and code graphs" possible and are also the hardest thing
-//! to keep consistent — see `markdown/problems/Problem Ranking.md`.
-//!
-//! Direction is semantic (`from` contains `to`), but the graph view is free to
-//! draw it any way it likes (arrow colour, bidirectional style, etc.).
+//! Direction is semantic (`from` contains `to`); the graph view is free to
+//! draw it any way it likes. An edge can span two sources; the source that
+//! *stores* it is its owner.
+
+use crate::id::{NodeId, SourceId};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EdgeKind {
+    Contains,
+    References,
+    Links,
+    Calls,
+    ForeignKey,
+    Defines,
+    Custom(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Edge {
+    pub source: SourceId,
+    pub from: NodeId,
+    pub to: NodeId,
+    pub kind: EdgeKind,
+}
+
+impl Edge {
+    pub fn contains(source: &SourceId, parent: NodeId, child: NodeId) -> Self {
+        Self {
+            source: source.clone(),
+            from: parent,
+            to: child,
+            kind: EdgeKind::Contains,
+        }
+    }
+}

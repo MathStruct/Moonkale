@@ -1,36 +1,46 @@
 //! # moonkale-ext-api
 //!
 //! **This crate is the contract.** Everything an extension can see or do is
-//! declared here, and nothing else in the workspace is visible to an
-//! extension. Its version is the extension API version; breaking it means a
-//! major bump and a migration note in the vault.
+//! declared here. The built-in editors are extensions that happen to be
+//! compiled in; there is no privileged path.
 //!
-//! Moonkale is extension-driven: the built-in editors (`packages/editors/*`)
-//! are themselves extensions that happen to be compiled in. There is no
-//! privileged path — if the code editor can do it, a third-party extension
-//! can do it.
+//! **Milestone 1 scope** — the *static* half of the design, sized for two
+//! extensions (an explorer and a code editor):
 //!
-//! Two kinds of extension share this one API:
+//! - [`manifest::Manifest`] — id and name.
+//! - [`contrib::PanelContribution`] — dockable panels; the only contribution
+//!   point so far.
+//! - [`extension::Extension`] — `manifest()`, `panels()`, `render()`.
+//! - [`workspace::Workspace`] — the host handle: open sources, open
+//!   documents, the active document, status. It is the design's `Host`
+//!   reduced to what M1 needs. Documents live *here*, not in panels, so a
+//!   dock/undock (which remounts panel content) cannot lose edits.
 //!
-//! | kind      | how it runs                            | where                    |
-//! |-----------|----------------------------------------|--------------------------|
-//! | `static`  | a Rust crate linked into the binary    | all platforms            |
-//! | `wasm`    | a WASM *component* loaded at runtime   | desktop, server; web via |
-//! |           | (`wasmtime` natively, `wasm_component_layer` on web) | the browser |
+//! Not started: WASM extensions and the declarative `ui::Tree`, permissions,
+//! commands/keybindings/languages as contributions. Their design notes are
+//! in the vault (`architecture/Extension System.md`).
 //!
-//! A static extension implements [`Extension`] directly. A wasm extension
-//! implements the same trait via bindings generated from `wit/moonkale.wit`
-//! (the WIT world is *generated from* the Rust types in this crate so the two
-//! can't drift).
-//!
-//! Extensions never get a raw `Source`, file handle or socket. They get a
-//! [`host::Host`] handle whose methods are capability-checked against the
-//! permissions declared in the [`manifest::Manifest`].
-//!
-//! See the vault: `markdown/extensions/Writing an Extension.md`.
+//! This crate depends on `dioxus` because static extensions return
+//! `Element`s. The WASM path will not; it will render through `ui::Tree`.
 
-pub mod capability;
 pub mod contrib;
+pub mod document;
 pub mod extension;
-pub mod host;
 pub mod manifest;
+pub mod workspace;
+
+pub use contrib::{PanelContribution, PanelHome};
+pub use document::Document;
+pub use extension::Extension;
+pub use manifest::Manifest;
+pub use workspace::{OpenFolder, OpenFolderFuture, SourceHandle, Workspace};
+
+/// Everything an extension typically needs.
+pub mod prelude {
+    pub use crate::{
+        Document, Extension, Manifest, PanelContribution, PanelHome, SourceHandle, Workspace,
+    };
+    pub use moonkale_core::{
+        Node, NodeId, NodeKind, Query, Source, SourceError, SourceId, Version,
+    };
+}

@@ -1,33 +1,27 @@
 //! # moonkale-editor-code
 //!
-//! The code editing "window". Registered as a static extension contributing
-//! an `Editor` for `NodeKind::File` (any text) with priority below the
-//! specialised editors.
+//! The code editing "window", registered as a static extension that
+//! contributes one closable panel per open document.
 //!
-//! **The document lives in Rust.** The editor keeps a `ropey::Rope` per open
-//! node, applies `core::Transaction` patches to it, and treats the visual
-//! editor as a *view* that receives the text and sends back edits. That is
-//! the seam that makes the backend swappable:
+//! **The document lives in Rust** (`moonkale_ext_api::Document`, owned by the
+//! `Workspace`). The visual editor is a *view* that receives text and sends
+//! back edits. That is the seam that makes the backend swappable:
 //!
 //! ```text
-//!   Rope (Rust, truth) ◄──── edits ────  Backend view
-//!        │                                  ├─ CodeMirror 6 (TS, today)
-//!        └──── text/decorations ───────►    └─ Rust-native (tomorrow: a Dioxus
-//!                                               virtualised text view or a
-//!                                               wgpu text renderer)
+//!   Document (Rust, truth) ◄──── change ────  Backend view
+//!          │                                     ├─ CodeMirror 6 (TS, today)
+//!          └──── setText / focus ───────────►    └─ Rust-native (later)
 //! ```
 //!
-//! Highlighting, folding, and structure come from tree-sitter in
-//! `moonkale-index` and are *pushed* to the backend as decorations, so a
-//! backend needs no language knowledge of its own. LSP features come through
-//! `moonkale-lsp::features` in neutral types. This means the CodeMirror
-//! bundle is small (core + view + minimal keymap), and replacing it does not
-//! touch languages, LSP, or the document model.
-//!
-//! See vault: `editors/Code Editor.md`, `architecture/JS Interop Boundary.md`.
+//! Milestone 1: [`backend::codemirror`] over `assets/codemirror.js` (built
+//! from `packages/js/codemirror`), whole-document changes, Ctrl+S / Save
+//! button, dirty marker, conflict → reload. No highlighting or LSP yet —
+//! those arrive as *decorations* pushed from the index, never as language
+//! packages inside the bundle.
 
 pub mod backend;
-pub mod decorations;
-pub mod document;
-pub mod languages;
+pub mod extension;
 pub mod panel;
+
+pub use extension::CodeEditorExtension;
+pub use panel::CodeEditorPanel;

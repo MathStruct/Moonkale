@@ -1,0 +1,22 @@
+.mk-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-editor-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 4px 8px;
+  font-size: 12px; border-bottom: 1px solid var(--wb-line, #2a2e3a);
+  background: var(--wb-surface, #161922); color: var(--wb-ink-soft, #a3a9b8);
+}
+.mk-editor-path { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--wb-ink, #e6e8ee); }
+.mk-editor-dirty { color: var(--wb-caution, #c9a75f); }
+.mk-editor-spacer { flex: 1; }
+.mk-editor-meta { opacity: 0.7; }
+.mk-btn {
+  font: inherit; padding: 2px 10px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: var(--wb-ink, #e6e8ee);
+}
+.mk-btn:disabled { opacity: 0.4; cursor: default; }
+.mk-btn:not(:disabled):hover { background: var(--wb-hover, rgba(255,255,255,0.06)); }
+.mk-editor-error { padding: 6px 8px; font-size: 12px; color: var(--wb-danger, #e07a75); background: var(--wb-danger-soft, rgba(224,122,117,0.14)); }
+.mk-editor-host { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.mk-editor-host .cm-editor { height: 100%; }
+.mk-editor-host .cm-scroller { overflow: auto; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; font-size: 13px; }
+.mk-editor-loading { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0.6; font-size: 12px; }
+.mk-editor-missing { padding: 12px; opacity: 0.7; }

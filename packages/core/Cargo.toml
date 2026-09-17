@@ -6,8 +6,7 @@ license.workspace = true
 description = "Platform-agnostic domain model: the graph-native document, sources, commands and events. No I/O."
 
 [dependencies]
-# Intended (not yet added, to keep the skeleton dependency-free):
-# serde = { version = "1", features = ["derive"] }   # every model type is serializable
-# uuid  = { version = "1", features = ["v7", "serde"] } # time-ordered ids
-# petgraph = "0.8"                                     # in-memory graph algorithms
-# thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v5", "serde", "js"] }
+async-trait = "0.1"
+thiserror = "2"

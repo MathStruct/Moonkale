@@ -1,21 +1,35 @@
 //! `SourceDescriptor` — the static shape of a source.
 //!
-//! ```ignore
-//! pub struct SourceDescriptor {
-//!     pub id: SourceId,
-//!     pub display_name: String,
-//!     pub family: SourceFamily,     // Folder | Sql | Graph | KeyValue | Remote | Custom
-//!     pub dialect: Option<Dialect>, // Postgres | Sqlite | DuckDb | Turso | TypeQl | Cypher | ...
-//!     pub capabilities: Capabilities,
-//!     pub schema: Option<Schema>,   // tables/columns, node/edge types, key patterns
-//! }
-//! ```
-//!
-//! `Schema` is itself expressed as a tiny graph (types are nodes, "has column"
-//! / "has property" are edges), which means the schema of a database can be
-//! shown in the same graph view as its data. That is not a gimmick — it is
-//! exactly the picture people draw on whiteboards.
-//!
-//! Connection *secrets* are NOT in the descriptor. They live in the platform
-//! keychain (desktop), server env (web) or secure storage (mobile); see
-//! `moonkale-sources::credentials`.
+//! Connection *secrets* are NOT in the descriptor.
+
+use crate::id::{NodeId, SourceId};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SourceFamily {
+    Folder,
+    Sql,
+    Graph,
+    KeyValue,
+    Remote,
+    Custom(String),
+}
+
+/// What a source can do. Editors and the LLM policy feature-detect against
+/// this instead of matching on the brand.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Capabilities {
+    pub read: bool,
+    pub write: bool,
+    pub watch: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceDescriptor {
+    pub id: SourceId,
+    pub display_name: String,
+    pub family: SourceFamily,
+    pub capabilities: Capabilities,
+    /// The node to start browsing from (the folder itself, the schema root).
+    pub root: NodeId,
+}

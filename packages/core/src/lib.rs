@@ -22,10 +22,22 @@
 //! up. The reason is that `core` is what extensions compiled to WASM see, and it
 //! must stay tiny, stable and free of host assumptions.
 //!
-//! See the vault: `markdown/architecture/Graph-Native Model.md`.
+//! **Milestone 1 status**: `id`, `graph::{node,edge}`, `source::{query,
+//! transaction, descriptor}` and the `Source` trait are implemented at the
+//! size the walking skeleton needs. `graph::{property,view}`, `command` and
+//! `source::event` are still design stubs. See `core.md` next to this crate.
 
 pub mod command;
 pub mod error;
 pub mod graph;
 pub mod id;
 pub mod source;
+
+pub use error::SourceError;
+pub use graph::{ContentRef, Edge, EdgeKind, Node, NodeKind, Version};
+pub use id::{NodeId, SourceId};
+pub use source::async_trait;
+pub use source::{
+    Applied, Capabilities, Op, Query, QueryResult, Source, SourceDescriptor, SourceFamily, Splice,
+    TextPatch, Transaction,
+};

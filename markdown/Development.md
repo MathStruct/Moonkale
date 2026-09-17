@@ -65,9 +65,18 @@ firefox --headless --profile /tmp/ffp --window-size=1400,900 --screenshot /tmp/s
 ## Test
 
 ```sh
-cargo test --workspace --exclude web    # native suite
-cargo nextest run --workspace --exclude web   # parallel, per-process (cargo install cargo-nextest)
+cargo test --workspace                  # native suite (core, project-fs, …)
+cargo nextest run --workspace           # parallel, per-process (cargo install cargo-nextest)
 ```
+
+End-to-end (real browser against the web build): `packages/web/tests/e2e/README.md`.
+
+## Running Milestone 1
+
+- **Web**: `cd packages/web && MOONKALE_ROOT=/some/folder dx serve`, open <http://127.0.0.1:8080>, leave the path blank and click *Open* (or type a path under `MOONKALE_ROOT`). The folder lives on the server.
+- **Desktop**: `cd packages/desktop && dx serve --platform desktop`, type any local path, *Open*. The folder is read in-process.
+- Ctrl+S saves; a file changed outside the editor makes *Save* fail with a conflict banner — *Reload* takes the external version.
+- The CodeMirror bundle is committed (`packages/editors/code/assets/codemirror.js`); rebuild it after changing `packages/js/codemirror/src` with `npm run build` there.
 
 Strategy and per-layer recipes: [[Testing Strategy]], [[How to Write Tests]].
 

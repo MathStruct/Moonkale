@@ -1,0 +1,29 @@
+/* The shell fills its parent; the parent (#home) is sized by the platform's main.css. */
+.mk-shell { width: 100%; height: 100%; min-height: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13px; }
+.mk-shell .wb-shell { height: 100%; }
+
+/* The app body is always dark: pin the workbench palette. The crate declares
+   its variables on both .wb-shell and .wb-workspace, so override both. */
+.mk-shell .wb-shell,
+.mk-shell .wb-workspace {
+  --wb-canvas: #0f1116; --wb-surface: #161922; --wb-sunken: #0b0d12; --wb-viewport: #12141b;
+  --wb-hover: rgb(255 255 255 / 0.06); --wb-pressed: rgb(255 255 255 / 0.11);
+  --wb-line: #2a2e3a; --wb-ink: #e6e8ee; --wb-ink-soft: #a3a9b8; --wb-ink-faint: #7f8595;
+  --wb-accent: #6ea8fe; --wb-selected: rgb(110 168 254 / 0.16);
+  --wb-good: #6cb28c; --wb-caution: #c9a75f; --wb-danger: #e07a75; --wb-danger-soft: rgb(224 122 117 / 0.14);
+  --wb-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
+}
+
+.mk-icon { width: 22px; height: 22px; }
+.mk-tab-dirty { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--wb-caution); }
+.mk-muted { opacity: 0.6; }
+.mk-input {
+  flex: 1; min-width: 0; font: inherit; padding: 4px 8px; border-radius: 4px;
+  border: 1px solid var(--wb-line); background: var(--wb-sunken); color: var(--wb-ink);
+}
+.mk-btn {
+  font: inherit; padding: 3px 10px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--wb-line); background: var(--wb-sunken); color: var(--wb-ink);
+}
+.mk-btn:disabled { opacity: 0.4; cursor: default; }
+.mk-btn:not(:disabled):hover { background: var(--wb-hover); }

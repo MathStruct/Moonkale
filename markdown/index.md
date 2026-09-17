@@ -7,8 +7,8 @@ description: A graph-native code and knowledge editor — folders and databases 
 
 It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, web and mobile from one codebase, and is extension-driven: the built-in editors are themselves extensions with no privileged access.
 
-> [!info] Status — early design
-> The repository holds a dockable-workbench prototype, a comment-only crate skeleton for the full architecture, and this vault, which is the design record. Nothing beyond the workbench shell is implemented yet. See [[Roadmap]] for what comes next and [[Problem Ranking]] for what is hard.
+> [!info] Status — Milestone 1 done
+> The **walking skeleton** works: open a folder, browse it, open files in dockable CodeMirror tabs, edit, save (with conflict detection) — on the web build against a server-side folder, and compiled for desktop/mobile with an in-process folder source. Everything else in the architecture is still a comment-only skeleton. See [[Milestone 1 - Implementation Log]], then [[Roadmap]] for what comes next.
 
 ## Start here
 
@@ -30,6 +30,7 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | Platform | [[Linux Desktop Setup]] |
 | Testing | [[Testing Strategy]] · [[How to Write Tests]] |
 | Research | [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] |
+| Milestones | [[Milestone 1 - Walking Skeleton]] · [[Milestone 1 - Implementation Log]] |
 | Contributing | [[Development]] — building, running, and how this site is published |
 
 Source: [github.com/MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) · Part of [MathStruct](https://mathstruct.github.io/).

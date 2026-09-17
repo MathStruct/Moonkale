@@ -52,6 +52,9 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[ADR-0010 dioxus-workbench for layout]]
 - [[ADR-0011 Desktop graph surface strategy]] — proposed: in-webview canvas, native overlay fallback
 
+## Milestones
+- [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
+
 ## Problems & planning
 - [[Problem Ranking]] — difficulty × risk, ranked
 - [[Roadmap]] — phases and order

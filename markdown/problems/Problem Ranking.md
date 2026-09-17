@@ -6,16 +6,16 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 
 | # | Problem | Diff | Risk | Order | Why this position |
 |---|---|---|---|---|---|
-| P-01 | Core graph model + `Source` trait + query IR | 3 | **very high** | 1 | Everything depends on it. Get it wrong and every crate churns. Design it with the folder + SQLite sources in hand. |
-| P-02 | Folder source (native) + explorer panel | 2 | low | 2 | First real source; cheap; unblocks the code editor. |
-| P-03 | JS interop protocol (`eval` + events) on all 3 webviews | 3 | medium | 3 | Mobile/WebKitGTK quirks unknown; must be proven before three editors depend on it. |
-| P-04 | Code editor with CodeMirror behind `CodeEditorBackend` | 3 | medium | 4 | First editor; validates P-03 and [[ADR-0008 Rust owns the document, JS is a view]]. |
-| P-05 | Extension API + static registry; built-ins become extensions | 3 | **high** | 5 | API lock-in. Doing it *after* one real editor exists keeps it honest; before the second editor keeps it from being retrofitted. |
+| P-01 ✅ | Core graph model + `Source` trait + query IR | 3 | **very high** | 1 | Everything depends on it. Get it wrong and every crate churns. Design it with the folder + SQLite sources in hand. |
+| P-02 ✅ | Folder source (native) + explorer panel | 2 | low | 2 | First real source; cheap; unblocks the code editor. |
+| P-03 ✅ (web verified; desktop compile only) | JS interop protocol (`eval` + events) on all 3 webviews | 3 | medium | 3 | Mobile/WebKitGTK quirks unknown; must be proven before three editors depend on it. |
+| P-04 ✅ | Code editor with CodeMirror behind `CodeEditorBackend` | 3 | medium | 4 | First editor; validates P-03 and [[ADR-0008 Rust owns the document, JS is a view]]. |
+| P-05 ✅ (minimal: panels only) | Extension API + static registry; built-ins become extensions | 3 | **high** | 5 | API lock-in. Doing it *after* one real editor exists keeps it honest; before the second editor keeps it from being retrofitted. |
 | P-06 | tree-sitter index (wasm grammars) + wiki-link extraction | 3 | medium | 6 | Turns files into a graph — the first moment the "graph-native" promise is visible. |
 | P-07 | Graph view v1: wgpu 2D, WebGL2+WebGPU, CPU layout, pick/popup | 4 | **high** | 7 | Flagship; needs P-06 for interesting data. ≤10k nodes target. |
 | P-08 | SQLite + DuckDB sources + table editor | 3 | low | 8 | Embedded, no server; proves SQL lifting; DuckDB gives CSV folders. |
 | P-09 | Markdown editor: source mode, links, backlinks, local graph | 2 | low | 9 | Mostly composition of P-04, P-06, P-07. |
-| P-10 | Remote source via `api` (web/mobile parity) | 3 | medium | 10 | Auth + streaming; first time the server matters. |
+| P-10 ✅ (folder only, no auth) | Remote source via `api` (web/mobile parity) | 3 | medium | 10 | Auth + streaming; first time the server matters. |
 | P-11 | Milkdown WYSIWYG behind `RichTextBackend` | 3 | medium | 11 | Second interop package; round-trip fidelity is the risk. |
 | P-12 | Typst preview | 2 | low | 12 | Pure Rust; `World` impl over folder source. |
 | P-13 | Terminal: PTY + xterm view + links | 2 | low | 13 | Contained; high user value. |

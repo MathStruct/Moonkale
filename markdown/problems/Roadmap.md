@@ -12,11 +12,11 @@ gantt
   section 0 Skeleton
   Crate skeleton + vault (done)        :done, p0, 0, 1
   section 1 Walking skeleton
-  P-01 core model + Source            :p1a, 1, 3
-  P-02 folder source + explorer       :p1b, after p1a, 1
-  P-03 JS interop protocol            :p1c, after p1a, 1
-  P-04 code editor (CodeMirror)       :p1d, after p1c, 2
-  P-05 extension API + static reg     :p1e, after p1d, 2
+  P-01 core model + Source            :done, p1a, 1, 3
+  P-02 folder source + explorer       :done, p1b, after p1a, 1
+  P-03 JS interop protocol            :done, p1c, after p1a, 1
+  P-04 code editor (CodeMirror)       :done, p1d, after p1c, 2
+  P-05 extension API + static reg     :done, p1e, after p1d, 2
   section 2 Graph appears
   P-06 index + wiki-links             :p2a, after p1e, 2
   P-07 graph view v1                  :p2b, after p2a, 3
@@ -52,7 +52,7 @@ gantt
 
 | Phase | You can… | Proves |
 |---|---|---|
-| **1 Walking skeleton** | open a folder, edit and save files in a dockable workbench, on desktop and web (server-side folder) | the model, the interop boundary, the extension API |
+| **1 Walking skeleton** ✅ | open a folder, edit and save files in a dockable workbench, on desktop and web (server-side folder) | the model, the interop boundary, the extension API — **done 2026-09-17**, see [[Milestone 1 - Walking Skeleton]] / [[Milestone 1 - Implementation Log]] |
 | **2 Graph appears** | see your folder + wiki-links + symbols as a graph; open a SQLite/DuckDB file and browse tables; edit markdown with backlinks | "graph-native" is real; wgpu works in webviews |
 | **3 Databases & tools** | connect Postgres-class and graph DBs (via server on web), get LSP features, use a terminal, preview Typst, WYSIWYG markdown | server-as-backend; second/third interop packages |
 | **4 Agents** | chat with an agent that queries your sources under policy; hybrid search; click a stack trace into a graph | LLM-as-user |

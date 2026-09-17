@@ -20,8 +20,8 @@ flowchart LR
   subgraph JS["packages/js/codemirror (one bundle)"]
     W[window.moonkale.codemirror: mount/apply/destroy]
   end
-  CM -- "document::eval(JSON)" --> W
-  W -- "CustomEvent moonkale:codemirror" --> CM
+  CM -- "eval.send / dioxus.recv" --> W
+  W -- "dioxus.send → eval.recv" --> CM
 ```
 
 Same shape for `milkdown` ↔ `RichTextBackend` and `xterm` ↔ `TerminalBackend`.
@@ -34,7 +34,7 @@ Same shape for `milkdown` ↔ `RichTextBackend` and `xterm` ↔ `TerminalBackend
 5. Replacement = flip the crate feature (`backend-codemirror` → `backend-native`), delete the folder.
 
 ## Transport
-`document::eval` (Dioxus, renderer-agnostic — works in browser, WebView2, WKWebView, WebKitGTK, and the mobile webviews) carries JSON both ways; `CustomEvent`s on the mount element carry JS → Rust. Binary (terminal output) uses base64 initially; a `SharedArrayBuffer` path is an optimisation.
+`document::eval` (Dioxus, renderer-agnostic — works in browser, WebView2, WKWebView, WebKitGTK, and the mobile webviews). **As built in Milestone 1**: one eval per mounted editor; JS → Rust with `dioxus.send(value)`, Rust → JS with `eval.send(value)` / `await dioxus.recv()` — Dioxus's own channel, no `CustomEvent`s and no global listeners. The initial text is sent over the channel, never formatted into the script. See `packages/js/codemirror/PROTOCOL.md` and `packages/editors/code/editor-code.md`. Binary (terminal output) will use base64 initially; a `SharedArrayBuffer` path is an optimisation.
 
 ## Cost we accept
 Latency of a JSON hop per keystroke. CodeMirror applies the edit locally first (optimistic) and Rust reconciles; conflicts are rare (single user) and resolved by Rust re-sending the canonical text. This is the same trade Zed's remote mode and VS Code's extension host make.

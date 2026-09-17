@@ -22,21 +22,22 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Early design phase.** What exists today:
+**Milestone 1 — the walking skeleton — is done** (2026-09-17). You can open a
+folder, browse it in a dockable workbench, open files in CodeMirror tabs,
+edit, and save with conflict detection. On the web build the folder lives on
+the server; on desktop it is read in-process. The same shell and editor code
+runs on both, which is the point: the graph model, the JS interop boundary and
+the extension API all exist and are exercised by an automated end-to-end test.
 
-- a dockable workbench prototype (tabs, splits, drag-to-dock, activity rail,
-  status bar) running on desktop and web, with placeholder panels;
-- a complete **crate skeleton** for the architecture — 22 crates under
-  `packages/`, each documented in comments describing what it will hold and
-  why, compiling as empty modules;
-- the **design vault** in `markdown/`: architecture, per-editor designs, an
-  extension-authoring guide, eleven decision records, a ranked problem list
-  and a phased roadmap. It is published at
-  **<https://mathstruct.github.io/Moonkale/>**.
+Everything else in the architecture — databases, indexing, the GPU graph view,
+LSP, terminal, LLM tools, WASM extensions — is a documented crate skeleton
+(22 crates under `packages/`, comment-only). The **design vault** in
+`markdown/` records every decision and is published at
+**<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
+a `<crate>.md` next to its code.
 
-Nothing beyond the workbench shell is implemented yet. The next step is Phase 1
-of the roadmap: the core graph model, a folder source, and the first code
-editor.
+Next: Phase 2 of the roadmap — the index (tree-sitter, wiki-links) and the
+first graph view.
 
 ## Learn more
 

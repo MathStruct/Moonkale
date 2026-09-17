@@ -5,6 +5,12 @@ edition = "2021"
 
 [dependencies]
 dioxus = { workspace = true, features = ["fullstack"] }
+moonkale-core = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+moonkale-sources = { workspace = true, optional = true }
+moonkale-project-fs = { workspace = true, optional = true }
 
 [features]
-server = ["dioxus/server"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs"]
