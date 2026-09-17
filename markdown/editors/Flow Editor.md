@@ -22,7 +22,7 @@ flowchart LR
 `flow.generate` produces files (`model.jl` with a `Chain(...)` and a training scaffold; MTK: `@named` components + `connect` equations). Being a command, it's also an LLM tool ([[LLM and RAG]]) — "wire a CNN for MNIST" becomes a transaction on the flow graph plus a codegen call.
 
 ## Rendering
-SVG/Dioxus for typical flows (blocks need rich editable content: parameter fields, previews). Very large flows can fall back to the graph renderer's surface later.
+**Candidate canvas: [[dioxus-flow]]** (react-flow for Dioxus, same author as `dioxus-workbench`): handles, connections, layered auto-layout, custom node views — evaluated 2026-09-17, recommended for Phase 5. Otherwise SVG/Dioxus for typical flows (blocks need rich editable content: parameter fields, previews). Very large flows can fall back to the graph renderer's surface later.
 
 ## Phases
 1. Canvas, palette, wires, validation, save/load as nodes.

@@ -32,6 +32,7 @@ use moonkale_ext_api::Extension;
 pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     vec![
         Box::new(ExplorerExtension::new()),
+        Box::new(moonkale_editor_graph::GraphExtension),
         Box::new(moonkale_editor_code::CodeEditorExtension),
     ]
 }

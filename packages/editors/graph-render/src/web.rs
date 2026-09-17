@@ -53,16 +53,24 @@ fn emit(state: &State, value: serde_json::Value) {
 }
 
 #[wasm_bindgen]
-pub async fn create(canvas: web_sys::HtmlCanvasElement, overlay: web_sys::HtmlCanvasElement, on_event: js_sys::Function) -> Result<GraphView, JsValue> {
+pub async fn create(
+    canvas: web_sys::HtmlCanvasElement,
+    overlay: web_sys::HtmlCanvasElement,
+    on_event: js_sys::Function,
+) -> Result<GraphView, JsValue> {
     console_error_panic_hook::set_once();
-    let dpr = web_sys::window().map(|w| w.device_pixel_ratio()).unwrap_or(1.0) as f32;
+    let dpr = web_sys::window()
+        .map(|w| w.device_pixel_ratio())
+        .unwrap_or(1.0) as f32;
     let rect = canvas.get_bounding_client_rect();
     let (w, h) = (rect.width().max(1.0) as f32, rect.height().max(1.0) as f32);
     canvas.set_width((w * dpr) as u32);
     canvas.set_height((h * dpr) as u32);
     overlay.set_width((w * dpr) as u32);
     overlay.set_height((h * dpr) as u32);
-    let renderer = Renderer::new(canvas.clone(), (w * dpr) as u32, (h * dpr) as u32).await.map_err(|e| JsValue::from_str(&e))?;
+    let renderer = Renderer::new(canvas.clone(), (w * dpr) as u32, (h * dpr) as u32)
+        .await
+        .map_err(|e| JsValue::from_str(&e))?;
     let ctx = overlay
         .get_context("2d")
         .ok()
@@ -72,7 +80,11 @@ pub async fn create(canvas: web_sys::HtmlCanvasElement, overlay: web_sys::HtmlCa
     let graph = Graph::default();
     let layout = Layout::new(&graph);
     let state = Rc::new(RefCell::new(State {
-        camera: Camera { width: w, height: h, ..Default::default() },
+        camera: Camera {
+            width: w,
+            height: h,
+            ..Default::default()
+        },
         graph,
         layout,
         renderer,
@@ -86,7 +98,10 @@ pub async fn create(canvas: web_sys::HtmlCanvasElement, overlay: web_sys::HtmlCa
         last_click_ms: 0.0,
     }));
     let backend = state.borrow().renderer.backend.clone();
-    emit(&state.borrow(), serde_json::json!({ "kind": "ready", "backend": backend }));
+    emit(
+        &state.borrow(),
+        serde_json::json!({ "kind": "ready", "backend": backend }),
+    );
     install_pointer_handlers(&overlay, state.clone());
     start_loop(state.clone());
     Ok(GraphView { state })
@@ -95,7 +110,8 @@ pub async fn create(canvas: web_sys::HtmlCanvasElement, overlay: web_sys::HtmlCa
 #[wasm_bindgen]
 impl GraphView {
     pub fn set_graph(&self, json: &str) -> Result<(), JsValue> {
-        let input: InGraph = serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let input: InGraph =
+            serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
         s.graph = Graph::from_input(input);
         s.layout = Layout::new(&s.graph);
@@ -129,7 +145,8 @@ impl GraphView {
         s.camera.width = width.max(1.0);
         s.camera.height = height.max(1.0);
         s.dpr = dpr;
-        s.renderer.resize((width * dpr) as u32, (height * dpr) as u32);
+        s.renderer
+            .resize((width * dpr) as u32, (height * dpr) as u32);
         let canvas = s.overlay.canvas();
         if let Some(c) = canvas {
             c.set_width((width * dpr) as u32);
@@ -150,7 +167,9 @@ impl GraphView {
     pub fn node_screen_position(&self, id: &str) -> Option<Vec<f32>> {
         let s = self.state.borrow();
         let i = s.graph.nodes.iter().position(|n| n.id == id)?;
-        let (x, y) = s.camera.world_to_screen(s.graph.nodes[i].x, s.graph.nodes[i].y);
+        let (x, y) = s
+            .camera
+            .world_to_screen(s.graph.nodes[i].x, s.graph.nodes[i].y);
         Some(vec![x, y])
     }
 
@@ -171,7 +190,13 @@ fn start_loop(state: Rc<RefCell<State>>) {
         // Layout: more iterations per frame for small graphs.
         if s.layout.running {
             let n = s.graph.nodes.len();
-            let iters = if n < 300 { 4 } else if n < 1500 { 2 } else { 1 };
+            let iters = if n < 300 {
+                4
+            } else if n < 1500 {
+                2
+            } else {
+                1
+            };
             let mut g = std::mem::take(&mut s.graph);
             for _ in 0..iters {
                 s.layout.step(&mut g);
@@ -187,7 +212,13 @@ fn start_loop(state: Rc<RefCell<State>>) {
         }
         if s.dirty {
             s.dirty = false;
-            let State { graph, camera, renderer, hovered, .. } = &mut *s;
+            let State {
+                graph,
+                camera,
+                renderer,
+                hovered,
+                ..
+            } = &mut *s;
             renderer.draw(graph, camera, *hovered);
             draw_labels(&s);
         }
@@ -205,7 +236,10 @@ fn request_frame(f: &Closure<dyn FnMut()>) {
 
 fn draw_labels(s: &State) {
     let ctx = &s.overlay;
-    let (w, h) = (s.camera.width as f64 * s.dpr as f64, s.camera.height as f64 * s.dpr as f64);
+    let (w, h) = (
+        s.camera.width as f64 * s.dpr as f64,
+        s.camera.height as f64 * s.dpr as f64,
+    );
     ctx.clear_rect(0.0, 0.0, w, h);
     let _ = ctx.reset_transform();
     let _ = ctx.scale(s.dpr as f64, s.dpr as f64);
@@ -228,7 +262,11 @@ fn draw_labels(s: &State) {
             break;
         }
         let r = n.radius * scale.max(0.6);
-        ctx.set_fill_style_str(if hovered { "#ffffff" } else { "rgba(230,232,238,0.85)" });
+        ctx.set_fill_style_str(if hovered {
+            "#ffffff"
+        } else {
+            "rgba(230,232,238,0.85)"
+        });
         let _ = ctx.fill_text(&n.label, (x + r + 4.0) as f64, y as f64);
         drawn += 1;
     }
@@ -239,7 +277,10 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
     let el = overlay.clone();
     let local = move |e: &web_sys::MouseEvent| -> (f32, f32) {
         let r = el.get_bounding_client_rect();
-        ((e.client_x() as f64 - r.left()) as f32, (e.client_y() as f64 - r.top()) as f32)
+        (
+            (e.client_x() as f64 - r.left()) as f32,
+            (e.client_y() as f64 - r.top()) as f32,
+        )
     };
 
     // pointer down: start pan or node drag
@@ -322,7 +363,10 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 let dbl = now - s.last_click_ms < 350.0;
                 s.last_click_ms = if dbl { 0.0 } else { now };
                 let id = s.graph.nodes[i].id.clone();
-                emit(&s, serde_json::json!({ "kind": if dbl { "dblclick" } else { "click" }, "id": id }));
+                emit(
+                    &s,
+                    serde_json::json!({ "kind": if dbl { "dblclick" } else { "click" }, "id": id }),
+                );
             }
         });
         let _ = target.add_event_listener_with_callback("pointerup", cb.as_ref().unchecked_ref());
@@ -339,7 +383,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 emit(&s, serde_json::json!({ "kind": "hover", "id": null }));
             }
         });
-        let _ = target.add_event_listener_with_callback("pointerleave", cb.as_ref().unchecked_ref());
+        let _ =
+            target.add_event_listener_with_callback("pointerleave", cb.as_ref().unchecked_ref());
         cb.forget();
     }
     // wheel: zoom at pointer
@@ -349,7 +394,10 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
         let cb = Closure::<dyn FnMut(web_sys::WheelEvent)>::new(move |e: web_sys::WheelEvent| {
             e.prevent_default();
             let r = el.get_bounding_client_rect();
-            let (x, y) = ((e.client_x() as f64 - r.left()) as f32, (e.client_y() as f64 - r.top()) as f32);
+            let (x, y) = (
+                (e.client_x() as f64 - r.left()) as f32,
+                (e.client_y() as f64 - r.top()) as f32,
+            );
             let factor = if e.delta_y() < 0.0 { 1.12 } else { 1.0 / 1.12 };
             let mut s = st.borrow_mut();
             s.camera.zoom_at(factor, x, y);

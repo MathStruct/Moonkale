@@ -36,7 +36,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(canvas: web_sys::HtmlCanvasElement, width: u32, height: u32) -> Result<Self, String> {
+    pub async fn new(
+        canvas: web_sys::HtmlCanvasElement,
+        width: u32,
+        height: u32,
+    ) -> Result<Self, String> {
         // WebGPU where the browser really has it, WebGL2 otherwise.
         let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
         desc.backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
@@ -56,7 +60,8 @@ impl Renderer {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("moonkale-graph"),
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits()),
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                    .using_resolution(adapter.limits()),
                 ..Default::default()
             })
             .await
@@ -94,7 +99,10 @@ impl Renderer {
         let camera_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera bind"),
             layout: &camera_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera_buf.as_entire_binding() }],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buf.as_entire_binding(),
+            }],
         });
         let pipe_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
@@ -107,33 +115,37 @@ impl Renderer {
             write_mask: wgpu::ColorWrites::ALL,
         })];
 
-        let make = |name: &str, vs: &str, fs: &str, stride: u64, attrs: &[wgpu::VertexAttribute]| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(name),
-                layout: Some(&pipe_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some(vs),
-                    compilation_options: Default::default(),
-                    buffers: &[Some(wgpu::VertexBufferLayout {
-                        array_stride: stride,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: attrs,
-                    })],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some(fs),
-                    compilation_options: Default::default(),
-                    targets: &targets,
-                }),
-                primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleStrip, ..Default::default() },
-                depth_stencil: None,
-                multisample: Default::default(),
-                multiview_mask: None,
-                cache: None,
-            })
-        };
+        let make =
+            |name: &str, vs: &str, fs: &str, stride: u64, attrs: &[wgpu::VertexAttribute]| {
+                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some(name),
+                    layout: Some(&pipe_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: Some(vs),
+                        compilation_options: Default::default(),
+                        buffers: &[Some(wgpu::VertexBufferLayout {
+                            array_stride: stride,
+                            step_mode: wgpu::VertexStepMode::Instance,
+                            attributes: attrs,
+                        })],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: Some(fs),
+                        compilation_options: Default::default(),
+                        targets: &targets,
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleStrip,
+                        ..Default::default()
+                    },
+                    depth_stencil: None,
+                    multisample: Default::default(),
+                    multiview_mask: None,
+                    cache: None,
+                })
+            };
         let node_pipe = make(
             "nodes",
             "node_vs",
@@ -149,7 +161,17 @@ impl Renderer {
             &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4],
         );
 
-        Ok(Self { surface, device, queue, config, camera_buf, camera_bind, node_pipe, edge_pipe, backend })
+        Ok(Self {
+            surface,
+            device,
+            queue,
+            config,
+            camera_buf,
+            camera_bind,
+            node_pipe,
+            edge_pipe,
+            backend,
+        })
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -169,9 +191,17 @@ impl Renderer {
             .enumerate()
             .map(|(i, n)| NodeInst {
                 pos: [n.x, n.y],
-                radius: if Some(i) == hovered { n.radius * 1.4 } else { n.radius },
+                radius: if Some(i) == hovered {
+                    n.radius * 1.4
+                } else {
+                    n.radius
+                },
                 _pad: 0.0,
-                color: if Some(i) == hovered { [1.0, 1.0, 1.0, 1.0] } else { n.color },
+                color: if Some(i) == hovered {
+                    [1.0, 1.0, 1.0, 1.0]
+                } else {
+                    n.color
+                },
             })
             .collect();
         let edges: Vec<EdgeInst> = graph
@@ -183,20 +213,26 @@ impl Renderer {
                 color: e.color,
             })
             .collect();
-        let node_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("nodes"),
-            contents: bytemuck::cast_slice(&nodes),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let edge_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("edges"),
-            contents: bytemuck::cast_slice(&edges),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        self.queue.write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
+        let node_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("nodes"),
+                contents: bytemuck::cast_slice(&nodes),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let edge_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("edges"),
+                contents: bytemuck::cast_slice(&edges),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.queue
+            .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
 
         let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(t) | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
+            wgpu::CurrentSurfaceTexture::Success(t)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(t) => t,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                 self.surface.configure(&self.device, &self.config);
                 return;
@@ -213,7 +249,12 @@ impl Renderer {
                     depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.047, g: 0.055, b: 0.075, a: 1.0 }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.047,
+                            g: 0.055,
+                            b: 0.075,
+                            a: 1.0,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],

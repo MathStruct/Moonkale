@@ -17,7 +17,12 @@ impl Layout {
         let n = graph.nodes.len().max(1) as f32;
         // Ideal edge length grows slowly with graph size.
         let k = 28.0 + 6.0 * n.ln();
-        Self { temperature: 10.0 * n.sqrt(), k, running: true, iterations: 0 }
+        Self {
+            temperature: 10.0 * n.sqrt(),
+            k,
+            running: true,
+            iterations: 0,
+        }
     }
 
     /// One iteration. Returns the largest displacement, so callers can stop
@@ -106,8 +111,21 @@ mod tests {
     use crate::graph::{InEdge, InGraph, InNode};
 
     fn chain(n: usize) -> Graph {
-        let nodes = (0..n).map(|i| InNode { id: i.to_string(), label: i.to_string(), kind: "file".into(), key: String::new() }).collect();
-        let edges = (1..n).map(|i| InEdge { a: i - 1, b: i, kind: "links".into() }).collect();
+        let nodes = (0..n)
+            .map(|i| InNode {
+                id: i.to_string(),
+                label: i.to_string(),
+                kind: "file".into(),
+                key: String::new(),
+            })
+            .collect();
+        let edges = (1..n)
+            .map(|i| InEdge {
+                a: i - 1,
+                b: i,
+                kind: "links".into(),
+            })
+            .collect();
         Graph::from_input(InGraph { nodes, edges })
     }
 

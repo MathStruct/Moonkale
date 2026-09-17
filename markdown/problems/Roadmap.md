@@ -18,8 +18,8 @@ gantt
   P-04 code editor (CodeMirror)       :done, p1d, after p1c, 2
   P-05 extension API + static reg     :done, p1e, after p1d, 2
   section 2 Graph appears
-  P-06 index + wiki-links             :p2a, after p1e, 2
-  P-07 graph view v1                  :p2b, after p2a, 3
+  P-06 index + wiki-links             :done, p2a, after p1e, 2
+  P-07 graph view v1                  :active, p2b, after p2a, 3
   P-08 SQLite/DuckDB + table          :p2c, after p1e, 2
   P-09 markdown source mode           :p2d, after p2a, 1
   section 3 Databases & tools

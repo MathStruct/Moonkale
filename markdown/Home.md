@@ -61,6 +61,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
+- [[Milestone 2 - Graph Appears]] (plan) → [[Milestone 2 - Implementation Log]] (in progress)
 
 ## Problems & planning
 - [[Problem Ranking]] — difficulty × risk, ranked
@@ -68,7 +69,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Problem Log]] — running log; use [[Problem Template]]
 
 ## Research
-- [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]]
+- [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]]
 
 ## Contributing
 - [[Development]] — build, run, test, and how this vault becomes the website

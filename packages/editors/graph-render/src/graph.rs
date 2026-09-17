@@ -57,9 +57,9 @@ pub struct Graph {
 
 pub fn color_for(kind: &str) -> [f32; 4] {
     match kind {
-        "file" => [0.43, 0.66, 1.0, 1.0],      // blue
-        "page" => [0.79, 0.65, 0.37, 1.0],     // amber: phantom / unresolved
-        "symbol" => [0.42, 0.70, 0.55, 1.0],   // green
+        "file" => [0.43, 0.66, 1.0, 1.0],    // blue
+        "page" => [0.79, 0.65, 0.37, 1.0],   // amber: phantom / unresolved
+        "symbol" => [0.42, 0.70, 0.55, 1.0], // green
         "directory" => [0.50, 0.53, 0.58, 1.0],
         "table" => [0.80, 0.50, 0.75, 1.0],
         _ => [0.64, 0.66, 0.72, 1.0],
@@ -113,7 +113,11 @@ impl Graph {
             .edges
             .into_iter()
             .filter(|e| e.a < degree.len() && e.b < degree.len() && e.a != e.b)
-            .map(|e| Edge { a: e.a, b: e.b, color: edge_color(&e.kind) })
+            .map(|e| Edge {
+                a: e.a,
+                b: e.b,
+                color: edge_color(&e.kind),
+            })
             .collect();
         Self { nodes, edges }
     }
