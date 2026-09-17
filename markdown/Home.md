@@ -26,6 +26,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[LSP and Terminal]]
 - [[Debugging and Logging]] — where output goes on each platform, and in compiled builds
 - [[Version Management]] — git for files, an append-only UUID+timestamp entity log for the graph
+- [[Collaboration]] — session bus (multi-window today) → presence/cursors → server hub → shared editing
 
 ## Platform
 - [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why

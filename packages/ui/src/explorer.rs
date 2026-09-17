@@ -127,6 +127,30 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     let sources = ws.sources.read().clone();
     let has_dialog = ws.has_folder_dialog();
 
+    // Sources that arrived from elsewhere (another window of the session, a
+    // reconnect) have no tree yet: load and expand their root once.
+    use_effect(move || {
+        let pending: Vec<_> = ws
+            .sources
+            .read()
+            .iter()
+            .filter(|s| !state.children.peek().contains_key(&s.descriptor.root))
+            .map(|s| (s.descriptor.id.clone(), s.descriptor.root))
+            .collect();
+        for (id, root) in pending {
+            spawn(async move {
+                if let Ok(res) = ws.query(&id, Query::Children(root)).await {
+                    state.children.with_mut(|c| {
+                        c.insert(root, res.nodes);
+                    });
+                    state.expanded.with_mut(|e| {
+                        e.insert(root);
+                    });
+                }
+            });
+        }
+    });
+
     rsx! {
         document::Stylesheet { href: EXPLORER_CSS }
         div { class: "mk-explorer",

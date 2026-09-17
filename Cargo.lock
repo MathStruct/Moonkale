@@ -1025,8 +1025,11 @@ name = "desktop"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "futures-channel",
+ "futures-util",
  "moonkale-core",
  "moonkale-project-fs",
+ "moonkale-sources",
  "rfd",
  "ui",
 ]
@@ -3566,6 +3569,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "serde",
+ "serde_json",
  "thiserror 2.0.20",
  "uuid",
 ]
@@ -3611,6 +3615,8 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "moonkale-core",
+ "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -6239,6 +6245,7 @@ version = "1.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
 dependencies = [
+ "getrandom 0.4.3",
  "js-sys",
  "serde_core",
  "sha1_smol",
@@ -6471,6 +6478,7 @@ dependencies = [
  "api",
  "dioxus",
  "moonkale-core",
+ "tracing",
  "ui",
 ]
 

@@ -7,12 +7,44 @@ use std::fmt;
 /// Monotonic-per-node change marker used for optimistic concurrency and undo.
 /// Sources decide how to compute it (a content hash, an mtime, a row version);
 /// consumers only compare for equality.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// Serialized as a hex **string**, not a number: versions are 64-bit hashes
+/// and JavaScript numbers lose precision above 2⁵³, which would corrupt them
+/// on any JSON path through the browser (`BroadcastChannel`, `eval`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Version(pub u64);
 
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "v{:x}", self.0)
+    }
+}
+
+impl Serialize for Version {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&format!("{:x}", self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for Version {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let text = <std::borrow::Cow<'de, str>>::deserialize(d)?;
+        u64::from_str_radix(&text, 16)
+            .map(Version)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::Version;
+
+    #[test]
+    fn version_survives_json_as_a_string() {
+        let v = Version(u64::MAX - 12345);
+        let json = serde_json::to_string(&v).unwrap();
+        assert!(json.starts_with('"'), "must be a string, got {json}");
+        assert_eq!(serde_json::from_str::<Version>(&json).unwrap(), v);
     }
 }
 

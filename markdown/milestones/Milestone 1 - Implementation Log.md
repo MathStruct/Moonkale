@@ -52,6 +52,10 @@ The plan was [[Milestone 1 - Walking Skeleton]]. This is what happened, step by 
 
 After the milestone: the template's Home/Blog router and navbar were replaced by `ui::Frame` + `ui::TitleBar` (File/Edit/View/Help, centered title, and on desktop minimize/maximize/close on the same bar with drag and edge-resize on an undecorated window). A small **command bus** on `Workspace` connects menus, keybindings and buttons to the active editor and the shell. The desktop crate gained a **native folder dialog** (`rfd`, xdg-portal backend) — the answer to "why doesn't Open show the Linux dialog": M1 shipped a text field by design. Verified on web by the E2E script plus `packages/web/tests/e2e/menubar.mjs`; the desktop window chrome itself is untested here (no display). P-039, P-040.
 
+## Addendum: multi-window session
+
+*View → New Window* (desktop: a second `dioxus::desktop` window in the same process; web: a new tab) joins a **session bus** (`ext-api::session`): peers exchange `Hello`/`SourceOpened` so a new window shows the same folder, and an editor's path label is an HTML5 drag handle — drop it on another window to **move** the document there (`DragStarted` → drop overlay → `Moved` → origin closes). Transports: in-process channels + a process-wide `SourceRegistry` on desktop, `BroadcastChannel` on web. Verified on web with `packages/web/tests/e2e/session.mjs` (two tabs; the drag is simulated by dispatching the HTML5 events — the OS-level drag between two browser windows is a manual check, as is the desktop). Problems: P-041, P-042, P-043. Design continuation: [[Collaboration]].
+
 ## What Milestone 1 does *not* do (on purpose)
 
 File watching · syntax highlighting · LSP · search · more than one source at a time · layout persistence · native folder picker · auth · mobile layout adaptation · streaming/capping large files over server functions. All listed in the plan as out of scope; all still in [[Problem Ranking]].

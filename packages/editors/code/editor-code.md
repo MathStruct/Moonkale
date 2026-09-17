@@ -17,6 +17,9 @@ Notes for `moonkale-editor-code` (Milestone 1). Design: [[Code Editor]], [[JS In
 - **Panel holds only the backend handle.** Text/version/dirty live in `Workspace`'s `Document`; a remount re-mounts CodeMirror with the current text.
 - **No language packages in the bundle** (284 kB: state, view, commands, one-dark). Highlighting will be pushed from Rust as decorations.
 
+## Cross-window drag handle
+The toolbar's `⋮⋮ path` label is `draggable`; `dragstart`/`dragend` call `Workspace::start_drag/end_drag`. A native `dragstart` listener (installed by eval on mount) sets `dataTransfer` data and `effectAllowed = "move"` — Firefox refuses to start a drag otherwise (P-044).
+
 ## Known limitations
 - The `Reload` button pushes text into CodeMirror via `setText`, which also fires `change` — harmless because `Document` is set first.
 - If the bundle fails to load, the panel shows "Loading editor…" forever; a timeout + error message belongs with P-032 (release observability).

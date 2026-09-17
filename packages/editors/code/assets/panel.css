@@ -4,7 +4,7 @@
   font-size: 12px; border-bottom: 1px solid var(--wb-line, #2a2e3a);
   background: var(--wb-surface, #161922); color: var(--wb-ink-soft, #a3a9b8);
 }
-.mk-editor-path { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--wb-ink, #e6e8ee); }
+.mk-editor-path { cursor: grab; font-family: 'JetBrains Mono', Consolas, monospace; color: var(--wb-ink, #e6e8ee); }
 .mk-editor-dirty { color: var(--wb-caution, #c9a75f); }
 .mk-editor-spacer { flex: 1; }
 .mk-editor-meta { opacity: 0.7; }

@@ -27,15 +27,17 @@ pub mod contrib;
 pub mod document;
 pub mod extension;
 pub mod manifest;
+pub mod session;
 pub mod workspace;
 
 pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub use manifest::Manifest;
+pub use session::{SessionBus, SessionMessage, WindowId};
 pub use workspace::{
-    Command, OpenFolder, OpenFolderFuture, PickFolder, PickFolderFuture, SourceHandle, Workspace,
-    WorkspaceConfig,
+    AttachSource, Command, ForeignDrag, OpenFolder, OpenFolderFuture, PickFolder, PickFolderFuture,
+    SourceHandle, Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.

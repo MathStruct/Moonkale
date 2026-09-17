@@ -76,6 +76,7 @@ End-to-end (real browser against the web build): `packages/web/tests/e2e/README.
 - **Web**: `cd packages/web && MOONKALE_ROOT=/some/folder dx serve`, open <http://127.0.0.1:8080>, leave the path blank and click *Open* (or type a path under `MOONKALE_ROOT`). The folder lives on the server.
 - **Desktop**: `cd packages/desktop && dx serve --platform desktop`, type any local path, *Open*. The folder is read in-process.
 - Ctrl+S saves; a file changed outside the editor makes *Save* fail with a conflict banner — *Reload* takes the external version.
+- Windows: **View → New Window** (`Ctrl+Shift+N`). Drag an editor's `⋮⋮ path` label onto another window to move it there; if the drop doesn't land, release anyway — the other window shows a *Move it here* banner.
 - Menus: **File** (Open Folder… `Ctrl+O` — native dialog on desktop, Save, Close Editor `Ctrl+W`, Exit), **Edit** (Undo/Redo), **View** (Reset Layout, Toggle Developer Tools in debug builds), **Help** (About). On desktop the window is undecorated and the bar carries minimize/maximize/close; drag the empty bar area to move, double-click to maximize, edges to resize.
 - The CodeMirror bundle is committed (`packages/editors/code/assets/codemirror.js`); rebuild it after changing `packages/js/codemirror/src` with `npm run build` there.
 

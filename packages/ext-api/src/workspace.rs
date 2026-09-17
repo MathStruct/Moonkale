@@ -8,6 +8,7 @@
 //! a keystroke re-renders only the editor of that document, not every reader
 //! of the open-document list.
 
+use crate::session::{SessionBus, SessionMessage, WindowId};
 use crate::Document;
 use dioxus::prelude::*;
 use moonkale_core::{
@@ -15,6 +16,7 @@ use moonkale_core::{
 };
 use std::future::Future;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// A source the workspace has open.
@@ -42,11 +44,29 @@ pub type OpenFolder = fn(String) -> OpenFolderFuture;
 pub type PickFolderFuture = Pin<Box<dyn Future<Output = Option<String>>>>;
 pub type PickFolder = fn() -> PickFolderFuture;
 
+/// Re-open a source another window already has, from its descriptor:
+/// the process registry on desktop, `RemoteSource::from_descriptor` on web.
+pub type AttachSource = fn(SourceDescriptor) -> OpenFolderFuture;
+
 /// What the platform hands the workspace at startup.
 #[derive(Clone, Copy)]
 pub struct WorkspaceConfig {
     pub open_folder: OpenFolder,
     pub pick_folder: Option<PickFolder>,
+    pub attach_source: AttachSource,
+}
+
+/// A document being dragged out of another window of this session.
+#[derive(Clone, PartialEq)]
+pub struct ForeignDrag {
+    pub from: WindowId,
+    pub node: Node,
+    pub source: SourceDescriptor,
+    /// `true` while the mouse button is still down in the origin window (a
+    /// real HTML5 drop can land here); `false` after the drag ended without
+    /// a drop — the offer stays as a banner until accepted or dismissed, so
+    /// platforms whose OS drag never crosses windows still get the move.
+    pub live: bool,
 }
 
 /// Application-level commands: what menus, keybindings and (later) the
@@ -61,6 +81,7 @@ pub enum Command {
     Undo,
     Redo,
     ResetLayout,
+    NewWindow,
     About,
 }
 
@@ -75,6 +96,13 @@ pub struct Workspace {
     /// The last dispatched command with a sequence number, so consumers can
     /// tell a new dispatch of the same command from a re-render.
     pub commands: Signal<(u64, Option<Command>)>,
+    /// This window's id in the session.
+    pub window: Signal<WindowId>,
+    /// A drag coming from another window, while it lasts.
+    pub foreign_drag: Signal<Option<ForeignDrag>>,
+    /// The node this window is currently dragging out, if any.
+    pub own_drag: Signal<Option<NodeId>>,
+    bus: Signal<Option<Rc<dyn SessionBus>>>,
     config: WorkspaceConfig,
 }
 
@@ -96,8 +124,153 @@ impl Workspace {
             active: Signal::new_in_scope(None, ScopeId::ROOT),
             status: Signal::new_in_scope("Ready".into(), ScopeId::ROOT),
             commands: Signal::new_in_scope((0, None), ScopeId::ROOT),
+            window: Signal::new_in_scope(WindowId::fresh(), ScopeId::ROOT),
+            foreign_drag: Signal::new_in_scope(None, ScopeId::ROOT),
+            own_drag: Signal::new_in_scope(None, ScopeId::ROOT),
+            bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
+    }
+
+    /// Install the platform's session transport and announce this window.
+    pub fn connect_bus(&mut self, bus: Rc<dyn SessionBus>) {
+        bus.send(SessionMessage::Hello {
+            from: self.window.peek().clone(),
+        });
+        self.bus.set(Some(bus));
+    }
+
+    fn send(&self, msg: SessionMessage) {
+        if let Some(bus) = self.bus.peek().as_ref() {
+            bus.send(msg);
+        }
+    }
+
+    /// React to a message from another window of this session.
+    pub async fn handle_message(mut self, msg: SessionMessage) {
+        let me = self.window.peek().clone();
+        if msg.sender() == &me {
+            return;
+        }
+        match msg {
+            SessionMessage::Hello { .. } => {
+                // Tell the newcomer what we have open.
+                let sources: Vec<_> = self
+                    .sources
+                    .peek()
+                    .iter()
+                    .map(|s| s.descriptor.clone())
+                    .collect();
+                for descriptor in sources {
+                    self.send(SessionMessage::SourceOpened {
+                        from: me.clone(),
+                        descriptor,
+                    });
+                }
+            }
+            SessionMessage::SourceOpened { descriptor, .. } => {
+                let _ = self.attach_source(descriptor).await;
+            }
+            SessionMessage::DragStarted { from, node, source } => {
+                self.foreign_drag.set(Some(ForeignDrag {
+                    from,
+                    node,
+                    source,
+                    live: true,
+                }));
+            }
+            SessionMessage::DragEnded { from } => {
+                // Keep the offer, but mark it as no longer a live drag.
+                let pending = self.foreign_drag.peek().clone();
+                if let Some(mut d) = pending {
+                    if d.from == from && d.live {
+                        d.live = false;
+                        self.foreign_drag.set(Some(d));
+                    }
+                }
+            }
+            SessionMessage::Moved { node, to, .. } => {
+                // Our document landed in another window: close it here.
+                if self.document(node).is_some() {
+                    self.close_node(node);
+                    self.set_status(format!("Moved to window {to}"));
+                }
+                // Someone accepted the offer: withdraw it everywhere.
+                if self.foreign_drag.peek().as_ref().map(|d| d.node.id) == Some(node) {
+                    self.foreign_drag.set(None);
+                }
+            }
+        }
+    }
+
+    /// Open a source another window already has (no-op if we have it).
+    pub async fn attach_source(mut self, descriptor: SourceDescriptor) -> Result<(), SourceError> {
+        if self.source(&descriptor.id).is_some() {
+            return Ok(());
+        }
+        let source = (self.config.attach_source)(descriptor.clone()).await?;
+        self.sources
+            .with_mut(|v| v.push(SourceHandle { descriptor, source }));
+        Ok(())
+    }
+
+    /// Begin dragging one of our documents out (HTML5 `dragstart`).
+    pub fn start_drag(&mut self, node: NodeId) {
+        let Some((doc, source)) = self.document(node).and_then(|d| {
+            let d = d.read();
+            let src = self
+                .sources
+                .peek()
+                .iter()
+                .find(|s| s.descriptor.id == d.node.source)?
+                .descriptor
+                .clone();
+            Some((d.node.clone(), src))
+        }) else {
+            return;
+        };
+        self.own_drag.set(Some(node));
+        self.set_status(format!(
+            "Dragging {} — drop it on another Moonkale window to move it there",
+            doc.native_key
+        ));
+        self.send(SessionMessage::DragStarted {
+            from: self.window.peek().clone(),
+            node: doc,
+            source,
+        });
+    }
+
+    /// Decline an offer from another window.
+    pub fn dismiss_drop(&mut self) {
+        self.foreign_drag.set(None);
+    }
+
+    /// The drag ended without a drop elsewhere (`dragend`).
+    pub fn end_drag(&mut self) {
+        if self.own_drag.peek().is_some() {
+            self.own_drag.set(None);
+            self.send(SessionMessage::DragEnded {
+                from: self.window.peek().clone(),
+            });
+        }
+    }
+
+    /// A foreign drag was dropped on this window: open the document here
+    /// and tell the origin to close its copy.
+    pub async fn accept_drop(mut self) -> Result<(), SourceError> {
+        let Some(drag) = self.foreign_drag.peek().clone() else {
+            return Ok(());
+        };
+        self.foreign_drag.set(None);
+        self.attach_source(drag.source).await?;
+        self.open_node(drag.node.clone()).await?;
+        self.send(SessionMessage::Moved {
+            node: drag.node.id,
+            from: drag.from,
+            to: self.window.peek().clone(),
+        });
+        Ok(())
     }
 
     /// Whether this platform has a native folder dialog.

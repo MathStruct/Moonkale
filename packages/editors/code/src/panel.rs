@@ -17,6 +17,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId) -> Element {
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
     let element_id = format!("mk-editor-{node}");
+    let handle_id = format!("mk-drag-{node}");
     let mut backend: Signal<Option<Box<dyn CodeEditorBackend>>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut last_error: Signal<Option<SourceError>> = use_signal(|| None);
@@ -24,10 +25,21 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId) -> Element {
     // Mount the backend once the host element exists (after first render).
     use_effect({
         let element_id = element_id.clone();
+        let handle_id = handle_id.clone();
         move || {
             if backend.read().is_some() {
                 return;
             }
+            // Firefox only starts an HTML5 drag if `dragstart` sets data, and
+            // Dioxus's synthetic event can't; a native listener does it.
+            document::eval(&format!(
+                r#"const h = document.getElementById({id});
+                   if (h) h.addEventListener("dragstart", (e) => {{
+                       e.dataTransfer.setData("text/plain", "moonkale-document:" + {id});
+                       e.dataTransfer.effectAllowed = "move";
+                   }});"#,
+                id = serde_json::to_string(&handle_id).unwrap()
+            ));
             let initial = doc.peek().text.clone();
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
                 BackendEvent::Ready => ready.set(true),
@@ -82,6 +94,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId) -> Element {
         }
     };
 
+    let mut ws = ws;
     let d = doc.read();
     let dirty = d.dirty();
     let title = d.node.native_key.clone();
@@ -108,7 +121,16 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId) -> Element {
                 }
             },
             div { class: "mk-editor-toolbar",
-                span { class: "mk-editor-path", "{title}" }
+                // Drag this label into another window of the session to move the document there.
+                span {
+                    id: "{handle_id}",
+                    class: "mk-editor-path",
+                    draggable: true,
+                    title: "Drag into another Moonkale window to move this editor there",
+                    ondragstart: move |_| ws.start_drag(node),
+                    ondragend: move |_| ws.end_drag(),
+                    "⋮⋮ {title}"
+                }
                 if dirty { span { class: "mk-editor-dirty", title: "Unsaved changes", "●" } }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", "{lang} · {version}" }

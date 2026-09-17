@@ -11,7 +11,11 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - `Document { node, saved, text, version }` — `dirty()` is `text != saved`; `patch()` is one whole-document splice for now.
 - `Workspace` — the host handle. `Copy`; every field is a `Signal` created at `ScopeId::ROOT` so it lives for the app. Operations: `open_folder`, `query`, `open_node`, `close_node`, `save`, `reload`, `set_status`.
 
+- `session.rs` — `WindowId`, `SessionMessage` (`Hello`, `SourceOpened`, `DragStarted/Ended`, `Moved`), `trait SessionBus`. `Workspace` gains `window`, `foreign_drag`, `own_drag`, `connect_bus`, `handle_message`, `attach_source`, `start_drag/end_drag/accept_drop`, and `WorkspaceConfig::attach_source`. This is the seed of presence/collaboration (vault `architecture/Collaboration.md`).
+
 ## Critical decisions
+- **`Version` serialises as a hex string** (P-041): 64-bit hashes don't survive a JavaScript `Number`.
+- **`SessionMessage::sender()`** is what echo-suppression keys on; for `Moved` the sender is `to` (P-042).
 - **Documents are owned by the workspace**, one `Signal<Document>` each in `documents: Signal<Vec<(NodeId, Signal<Document>)>>`. A keystroke re-renders only readers of that document's signal; opening/closing re-renders readers of the list. Panel remounts (docking) cannot lose text — proven by the E2E split step.
 - **`OpenFolder` is a `fn` pointer** (`fn(String) -> OpenFolderFuture`), installed by the platform crate. Desktop passes an in-process `FolderSource` factory, web a `RemoteSource` factory; the shell can't tell them apart.
 - **Depends on `dioxus`** because static extensions return `Element`. The WASM path (`ui::Tree`) is not started and will not.

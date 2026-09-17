@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/prompts/error 1.md",
+                "file": "markdown/prompts/error2.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "error 1"
+              "title": "error2"
             }
           }
         ]
@@ -193,17 +193,19 @@
   },
   "active": "e809ffc8e5acdf7d",
   "lastOpenFiles": [
-    "packages/desktop/Dioxus.toml.moonkale-tmp",
-    "target/dx/moonkale/debug/linux/app/moonkale-03783af6",
-    "target/dx/moonkale/debug/web/server-8d019cdc",
-    "target/dx/moonkale/debug/linux/app/assets/codemirror-dxhd5f4602d81ebfd85.js",
-    "target/dx/moonkale/debug/linux/app/assets/panel-dxh417b3f84bf5132c8.css",
-    "target/dx/moonkale/debug/linux/app/assets/shell-dxh2bf3160587bf6b.css",
-    "target/dx/moonkale/debug/linux/app/assets/explorer-dxh8eba7cb8e7b95d2.css",
-    "target/dx/moonkale/debug/linux/app/assets/navbar-dxhf45537b851cfaa9.css",
-    "target/dx/moonkale/debug/linux/app/assets/main-dxhacc9e7dfcb619fa.css",
-    "target/dx/moonkale/debug/linux/app/assets/blog-dxhae573f176fe1992.css",
-    "target/dx/moonkale/debug/linux/app/moonkale",
+    "target/dx/moonkale/debug/web/server-0400c265",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/work-products.bin",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/query-cache.bin",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/f49kkr5zi4cvvegtzknpcxhnf.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/f43cp2296rjm4klqvkicvuimt.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/f3nr9sulr8uznnjj49qtri2gq.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/f2kejv9lf411gajju0ytg4vqz.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/eov9ad8qws3iv8msjl82zzz7b.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/el18d8dn6mkrd3bmfaaz0schl.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/ebn7t42mdouyj7urzx7jhopni.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-3b538ns9usvcv/s-hmds8ecbcx-1s4r0ur-28jpa5zavoxzxs8yhrnhtbnzw/e88648h60w6a3oo9bkwgdjc0x.o",
+    "markdown/prompts/error 1.md",
+    "markdown/prompts/error2.md",
     "site/public/static/og-image.png",
     "site/public/static/icon.png",
     "markdown/packaging/Android.md",
@@ -211,7 +213,6 @@
     "markdown/packaging/Arch Linux.md",
     "markdown/packaging/Packaging Overview.md",
     "markdown/prompts/Prompt4.md",
-    "markdown/prompts/error 1.md",
     "markdown/prompts/Prompt2.md",
     "markdown/old/rough goal.md",
     "AGENTS.md"

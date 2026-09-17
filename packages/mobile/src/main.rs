@@ -3,9 +3,12 @@
 //! native dialog yet.
 
 use dioxus::prelude::*;
-use moonkale_core::{Source, SourceError};
+use moonkale_core::{Source, SourceDescriptor, SourceError};
+use std::rc::Rc;
 use std::sync::Arc;
-use ui::{Frame, OpenFolderFuture, Shell, ShellConfig, WorkspaceConfig};
+use ui::{
+    Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig, WorkspaceConfig,
+};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
@@ -26,6 +29,25 @@ fn open_local(path: String) -> OpenFolderFuture {
     })
 }
 
+fn attach_local(descriptor: SourceDescriptor) -> OpenFolderFuture {
+    let path = descriptor
+        .id
+        .as_str()
+        .strip_prefix("folder:")
+        .unwrap_or(".")
+        .to_string();
+    open_local(path)
+}
+
+/// One window on mobile: a bus with nobody to talk to.
+struct NoBus;
+impl SessionBus for NoBus {
+    fn send(&self, _msg: SessionMessage) {}
+}
+fn session(_deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
+    Rc::new(NoBus)
+}
+
 #[component]
 fn App() -> Element {
     rsx! {
@@ -33,7 +55,9 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None, attach_source: attach_local },
+                session,
+                new_window: None,
             },
             Shell {}
         }

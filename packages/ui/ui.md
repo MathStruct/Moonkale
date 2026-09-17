@@ -12,6 +12,9 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `assets/styling/shell.css`, `explorer.css` — the dark palette pinned on both `.wb-shell` and `.wb-workspace` (P-003).
 - `default_extensions()` — `[Explorer, CodeEditor]`; the platform passes this `fn` in `ShellConfig`.
 
+## Session (multi-window)
+`Frame` joins the platform's session bus (`ShellConfig::session`) and delivers incoming `SessionMessage`s to `Workspace::handle_message`; while another window is dragging a document, it renders a full-window drop target (`.mk-drop-target`, drop *or click*) whose acceptance calls `Workspace::accept_drop`; once the drag ends without a drop the offer stays as a `.mk-drop-banner` ("Move it here" / dismiss) because OS drags don't reach other windows on every platform (P-044). *View → New Window* dispatches `Command::NewWindow`, handled with `ShellConfig::new_window`. The Explorer lazily loads root trees for sources that arrive from peers.
+
 ## Critical decisions
 - **Command bus** (`Workspace::commands`, `dispatch(Command)`): menus, keybindings and buttons all go through one `Signal<(seq, Option<Command>)>`; the active editor panel handles `Save/Undo/Redo/CloseEditor`, the shell handles the rest. It is the seed of the command registry in the design (`core::command`).
 - **Platform separation for the window**: `ui` renders controls but only ever calls `WindowControls` callbacks; web/mobile pass `None` and get a bar without window buttons. No `cfg` in rendered markup (P-034) — the difference is a prop.

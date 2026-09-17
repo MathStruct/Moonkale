@@ -56,11 +56,19 @@ fn menus(controls: Option<WindowControls>) -> Vec<(&'static str, Vec<Item>)> {
             kind: Native::Exit,
         });
     }
-    let mut view = vec![Item::Cmd {
-        label: "Reset Layout",
-        shortcut: "",
-        cmd: Command::ResetLayout,
-    }];
+    let mut view = vec![
+        Item::Cmd {
+            label: "New Window",
+            shortcut: "Ctrl+Shift+N",
+            cmd: Command::NewWindow,
+        },
+        Item::Sep,
+        Item::Cmd {
+            label: "Reset Layout",
+            shortcut: "",
+            cmd: Command::ResetLayout,
+        },
+    ];
     if controls.and_then(|c| c.devtools).is_some() {
         view.push(Item::Sep);
         view.push(Item::Native {

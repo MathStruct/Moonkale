@@ -5,8 +5,14 @@
 
 use crate::titlebar::TitleBar;
 use dioxus::prelude::*;
-use moonkale_ext_api::{Command, Extension, Workspace, WorkspaceConfig};
+use moonkale_ext_api::{
+    Command, Extension, SessionBus, SessionMessage, Workspace, WorkspaceConfig,
+};
 use std::rc::Rc;
+
+/// Creates the platform's session transport. It receives a callback to
+/// deliver incoming messages into this window and returns the sender.
+pub type SessionFactory = fn(Callback<SessionMessage>) -> Rc<dyn SessionBus>;
 
 /// Builds the extension list. A plain `fn` so it can be a prop.
 pub type Extensions = fn() -> Vec<Box<dyn Extension>>;
@@ -18,6 +24,9 @@ pub type Extensions = fn() -> Vec<Box<dyn Extension>>;
 pub struct ShellConfig {
     pub extensions: Extensions,
     pub workspace: WorkspaceConfig,
+    pub session: SessionFactory,
+    /// Open another window/tab of this session (View → New Window).
+    pub new_window: Option<fn()>,
 }
 
 impl PartialEq for ShellConfig {
@@ -67,6 +76,28 @@ pub fn Frame(
     let mut ws = use_context_provider(|| Workspace::new(config.workspace));
     use_context_provider(|| Extensions_(Rc::new((config.extensions)())));
 
+    // Join the session: incoming messages are handled by the workspace.
+    use_hook(move || {
+        let deliver = Callback::new(move |msg: SessionMessage| {
+            spawn(ws.handle_message(msg));
+        });
+        let bus = (config.session)(deliver);
+        ws.connect_bus(bus);
+    });
+
+    // Frame-level commands.
+    use_effect(move || {
+        let (_, cmd) = *ws.commands.read();
+        if cmd == Some(Command::NewWindow) {
+            match config.new_window {
+                Some(open) => open(),
+                None => ws.set_status("New window is not available on this platform"),
+            }
+        }
+    });
+
+    let foreign = ws.foreign_drag.read().clone();
+
     rsx! {
         div {
             class: "mk-frame",
@@ -81,12 +112,57 @@ pub fn Frame(
                 let key = match e.key() { Key::Character(c) => c.to_ascii_lowercase(), _ => return };
                 match (key.as_str(), m.shift()) {
                     ("w", false) => { e.prevent_default(); ws.dispatch(Command::CloseEditor); }
+                    ("n", true) => {
+                        e.prevent_default();
+                        ws.dispatch(Command::NewWindow);
+                    }
                     ("o", false) => { e.prevent_default(); ws.dispatch(Command::OpenFolder); }
                     _ => {}
                 }
             },
             TitleBar { controls }
             div { class: "mk-frame-body", {children} }
+            // Another window of this session is dragging a document: become a
+            // drop target while the drag is live, and keep a banner afterwards
+            // (an OS drag doesn't reach other windows on every platform).
+            if let Some(drag) = foreign {
+                if drag.live {
+                    div {
+                        class: "mk-drop-target",
+                        ondragover: move |e| e.prevent_default(),
+                        ondragenter: move |e| e.prevent_default(),
+                        ondrop: move |e| {
+                            e.prevent_default();
+                            spawn(async move {
+                                if let Err(err) = ws.accept_drop().await {
+                                    ws.set_status(format!("Could not move document here: {err}"));
+                                }
+                            });
+                        },
+                        onclick: move |_| {
+                            spawn(async move {
+                                let _ = ws.accept_drop().await;
+                            });
+                        },
+                        div { class: "mk-drop-target-label", "Drop (or click) to move " b { "{drag.node.native_key}" } " into this window" }
+                    }
+                } else {
+                    div { class: "mk-drop-banner", role: "status",
+                        span { b { "{drag.node.native_key}" } " was dragged from another window." }
+                        button { class: "mk-btn mk-btn-accent", r#type: "button",
+                            onclick: move |_| {
+                                spawn(async move {
+                                    if let Err(err) = ws.accept_drop().await {
+                                        ws.set_status(format!("Could not move document here: {err}"));
+                                    }
+                                });
+                            },
+                            "Move it here"
+                        }
+                        button { class: "mk-btn", r#type: "button", title: "Dismiss", onclick: move |_| ws.dismiss_drop(), "✕" }
+                    }
+                }
+            }
             if let Some(c) = controls {
                 ResizeHandles { controls: c }
             }
