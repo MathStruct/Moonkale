@@ -1,8 +1,7 @@
 ---
+title: "Writing an Extension"
 tags: [extensions, guide]
 ---
-# Writing an Extension
-
 Moonkale is extension-driven: the built-in editors are extensions. This guide takes you from an empty folder to a panel, a command, a language and a data source. Reference material: [[Manifest Reference]], [[Contribution Points]], [[Host API Reference]], [[Publishing and Platforms]].
 
 > [!note] Status

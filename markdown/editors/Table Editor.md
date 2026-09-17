@@ -1,8 +1,7 @@
 ---
+title: "Table Editor"
 tags: [editor, table, sql]
 ---
-# Table Editor
-
 Crate: `editors/table`. Fully Rust/Dioxus — no JS dependency. Two panels:
 
 **Query panel** — a [[Code Editor]] embedding with `lang: sql | cypher | typeql`, a source picker, Run/Cancel, history (stored as nodes → linkable from wiki pages), and a warning ribbon when the statement is classified as a write ([[LLM and RAG]] uses the same classifier).

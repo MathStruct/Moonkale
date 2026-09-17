@@ -1,8 +1,7 @@
 ---
+title: "Problem Log"
 tags: [problems, log]
 ---
-# Problem Log
-
 Running log of problems hit during implementation. One note per problem (`P-nnn Title`), created from [[Problem Template]]. Numbers continue from the [[Problem Ranking]] where the problem was anticipated, or take the next free number.
 
 | ID | Title | Status | Phase |

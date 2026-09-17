@@ -1,10 +1,9 @@
 ---
+title: "P-003 — dioxus-workbench theme variables"
 tags: [problem, ui, theme]
 status: resolved
 phase: 0
 ---
-# P-003 — dioxus-workbench theme variables
-
 **Status:** resolved (2026-09-17)
 
 ## Problem

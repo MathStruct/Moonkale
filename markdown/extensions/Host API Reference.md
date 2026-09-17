@@ -1,8 +1,7 @@
 ---
+title: "Host API Reference"
 tags: [extensions, reference]
 ---
-# Host API Reference
-
 The `Host` handle is the only door. Every method is capability-checked (see `ext-api/src/capability.rs`) and representable across the WASM boundary.
 
 ## Graph (`permissions.sources`)

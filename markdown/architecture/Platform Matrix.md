@@ -1,8 +1,7 @@
 ---
+title: "Platform Matrix"
 tags: [architecture, platform]
 ---
-# Platform Matrix
-
 The brief: *all targets are served; the apps need not be identical; single-platform features are separated.* This note is the source of truth for "what runs where" and drives the crate split in [[Project Structure]].
 
 ## Capability matrix

@@ -1,8 +1,7 @@
 ---
+title: "Rust-native Editor Candidates"
 tags: [research, interop]
 ---
-# Rust-native Editor Candidates
-
 What could replace each TS package behind its trait ([[JS Interop Boundary]]).
 
 ## Code editor (`CodeEditorBackend`)

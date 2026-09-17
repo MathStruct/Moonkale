@@ -1,8 +1,7 @@
 ---
+title: "Flow Editor"
 tags: [editor, flow, nocode]
 ---
-# Flow Editor
-
 Crate: `editors/flow`. Drag-and-drop blocks wired by typed ports. First target from the brief: **build Lux.jl models by drag and drop**; then ModelingToolkit.jl acausal components.
 
 ## Model

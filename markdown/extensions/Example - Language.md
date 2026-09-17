@@ -1,8 +1,7 @@
 ---
+title: "Example — Language"
 tags: [extensions, example]
 ---
-# Example — Language
-
 Languages are **data-only** contributions. This is the Unison entry that will live in `editors/code/src/languages/unison.rs` (as a static contribution) — a third-party extension would put the same in `moonkale.toml`:
 
 ```toml

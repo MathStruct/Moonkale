@@ -1,8 +1,7 @@
 ---
+title: "JS Interop Boundary"
 tags: [architecture, interop]
 ---
-# JS Interop Boundary
-
 The brief allows TypeScript packages (CodeMirror, Milkdown) but wants them **modular and replaceable** by Rust. This note is the mechanism; the principle is [[ADR-0002 Rust first, TypeScript behind traits]] and [[ADR-0008 Rust owns the document, JS is a view]].
 
 ## The shape

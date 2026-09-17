@@ -1,10 +1,9 @@
 ---
+title: "ADR-0009 — Patches, not snapshots"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0009 — Patches, not snapshots
-
 **Status:** accepted
 
 ## Context

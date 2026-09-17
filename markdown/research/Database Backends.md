@@ -1,8 +1,7 @@
 ---
+title: "Database Backends — driver survey (2026-09-17)"
 tags: [research, sources]
 ---
-# Database Backends — driver survey (2026-09-17)
-
 Verified on crates.io at time of writing. Re-verify before implementation.
 
 | Target | Crate | Version | Maturity | Notes |

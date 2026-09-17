@@ -1,10 +1,9 @@
 ---
+title: "ADR-0003 — wgpu for graph rendering"
 tags: [adr]
 status: accepted-with-open-question
 date: 2026-09-17
 ---
-# ADR-0003 — wgpu for graph rendering
-
 **Status:** accepted-with-open-question
 
 ## Context

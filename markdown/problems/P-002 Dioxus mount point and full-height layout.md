@@ -1,10 +1,9 @@
 ---
+title: "P-002 — Dioxus mount point and full-height layout"
 tags: [problem, ui]
 status: resolved
 phase: 0
 ---
-# P-002 — Dioxus mount point and full-height layout
-
 **Status:** resolved (2026-09-17)
 
 ## Problem

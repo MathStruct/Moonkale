@@ -1,8 +1,7 @@
 ---
+title: "WASM Extension Runtimes"
 tags: [research, extensions]
 ---
-# WASM Extension Runtimes
-
 Decision: [[ADR-0004 WASM components for extensions]].
 
 | Option | Sandbox | Portability | Languages | Notes |

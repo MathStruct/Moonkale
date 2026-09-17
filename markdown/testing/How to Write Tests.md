@@ -1,8 +1,7 @@
 ---
+title: "How to Write Tests"
 tags: [testing, guide]
 ---
-# How to Write Tests
-
 Concrete recipes for each layer, in the order you'll meet them. Strategy and rationale: [[Testing Strategy]]. All snippets target Dioxus 0.7.10 (APIs checked: `VirtualDom::rebuild_in_place`, `dioxus_ssr::render`).
 
 ## 0. Where tests live and how to run them

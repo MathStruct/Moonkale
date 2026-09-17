@@ -1,8 +1,7 @@
 ---
+title: "Graph-Native Model"
 tags: [architecture, core]
 ---
-# Graph-Native Model
-
 Crate: `packages/core`. The model is the contract between sources, editors, the index, extensions and agents.
 
 ## Entities

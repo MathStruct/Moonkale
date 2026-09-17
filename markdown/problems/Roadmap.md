@@ -1,8 +1,7 @@
 ---
+title: "Roadmap"
 tags: [problems, planning]
 ---
-# Roadmap
-
 Phases group the [[Problem Ranking]] into deliverables a user can touch. Each phase ends with something runnable on **desktop and web** (mobile catches up in Phase 5).
 
 ```mermaid

@@ -1,8 +1,7 @@
 ---
+title: "Indexing"
 tags: [architecture, index]
 ---
-# Indexing
-
 Crate: `index`. The index turns *files and rows* into a *graph* by deriving what sources don't know: symbols, links, outlines, embeddings, stack frames. It is exposed as `IndexSource`, so its output is just more nodes and edges.
 
 ```mermaid

@@ -1,10 +1,9 @@
 ---
+title: "P-nnn — Title"
 tags: [problem]
 status: open
 phase:
 ---
-# P-nnn — Title
-
 **Status:** open · **Related:** [[ ]]
 
 ## Problem

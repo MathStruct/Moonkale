@@ -1,10 +1,9 @@
 ---
+title: "ADR-0005 — Server functions as the remote backend"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0005 — Server functions as the remote backend
-
 **Status:** accepted
 
 ## Context

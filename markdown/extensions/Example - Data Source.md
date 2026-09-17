@@ -1,8 +1,7 @@
 ---
+title: "Example — Data Source"
 tags: [extensions, example]
 ---
-# Example — Data Source
-
 A **static** extension (native driver ⇒ desktop/server) adding a hypothetical "CSV directory" source. Shows the `source` contribution point ([[Contribution Points]]) and the lifting rules ([[Data Sources]]).
 
 ```toml

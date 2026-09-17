@@ -1,8 +1,7 @@
 ---
+title: "Terminal"
 tags: [editor, terminal]
 ---
-# Terminal
-
 Crates: `terminal` (session, VT grid, links), `terminal-pty` (desktop/server PTY), `editors/terminal` (view). Design in [[LSP and Terminal]].
 
 - **View backend**: xterm.js first via [[JS Interop Boundary]] (`packages/js/xterm`, with the WebGL addon); a Rust renderer over `alacritty_terminal`'s grid later — the grid already exists for links/search, so the native path is "just drawing" and can share the [[Graph View]]'s text renderer.

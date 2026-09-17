@@ -1,8 +1,7 @@
 ---
+title: "Moonkale — Vault Home"
 tags: [moc]
 ---
-# Moonkale — Vault Home
-
 Moonkale is a **graph-native code and knowledge editor**: it opens folders *and* database connections, shows everything as one graph, and is driven by extensions. This vault is the design record. Every choice has a note; every problem hit during implementation gets logged in [[Problem Log]].
 
 > [!info] Start here
@@ -61,5 +60,8 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 ## Research
 - [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]]
 
+## Contributing
+- [[Development]] — build, run, test, and how this vault becomes the website
+
 ## History
-- [[old/rough goal|Rough goal (Lumino/Tauri era)]] · [[Prompt1]] · [[Prompt2]]
+- [[old/rough goal|Rough goal (Lumino/Tauri era)]] · the `Prompt*.md` files in this folder are the working prompts behind each design session (kept in the vault, not published)

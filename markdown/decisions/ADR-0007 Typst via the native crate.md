@@ -1,10 +1,9 @@
 ---
+title: "ADR-0007 — Typst via the native crate"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0007 — Typst via the native crate
-
 **Status:** accepted
 
 ## Context

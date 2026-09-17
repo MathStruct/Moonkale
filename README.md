@@ -1,75 +1,48 @@
-# Development
+# Moonkale
 
-Your new workspace contains a member crate for each of the web, desktop and mobile platforms, a `ui` crate for shared components and a `api` crate for shared backend logic:
+**A graph-native code and knowledge editor.**
 
-```
-your_project/
-├─ README.md
-├─ Cargo.toml
-└─ packages/
-   ├─ web/
-   │  └─ ... # Web specific UI/logic
-   ├─ desktop/
-   │  └─ ... # Desktop specific UI/logic
-   ├─ mobile/
-   │  └─ ... # Mobile specific UI/logic
-   ├─ api/
-   │  └─ ... # All shared server logic
-   └─  ui/
-      └─ ... # Component shared between multiple platforms
-```
+Moonkale opens *folders and databases* — a source tree, a Postgres schema, a
+TypeDB or LadybugDB graph, a Redis keyspace, an Obsidian-style wiki — and shows
+them as **one graph**. Every editor is a view on that graph: a code editor with
+language-server support, a WYSIWYG Markdown/Typst editor with wiki-links, a
+table/SQL editor, a GPU-rendered 2D/3D graph view that stays fluid at 100k+
+nodes, a drag-and-drop flow editor (first target: building Lux.jl models), and
+a terminal whose stack traces become clickable subgraphs. Language servers,
+indexers and LLM agents all work on the same graph through the same doors.
 
-## Platform crates
+It is built in **Rust** with [Dioxus](https://dioxuslabs.com) for desktop, web
+and mobile from a single codebase, and it is **extension-driven**: the built-in
+editors are extensions with no privileged access, so anything they can do, a
+third-party extension can do.
 
-Each platform crate contains the entry point for the platform, and any assets, components and dependencies that are specific to that platform. For example, the desktop crate in the workspace looks something like this:
+Moonkale grew out of the frustration that code editors, knowledge editors,
+database tools and no-code tools are separate worlds — and that none of them
+were built with graph databases or retrieval-augmented agents in mind.
 
-```
-desktop/ # The desktop crate contains all platform specific UI, logic and dependencies for the desktop app
-├─ assets/ # Assets used by the desktop app - Any platform specific assets should go in this folder
-├─ src/
-│  ├─ main.rs # The entrypoint for the desktop app. It also defines the routes for the desktop platform
-│  ├─ views/ # The views each route will render in the desktop version of the app
-│  │  ├─ mod.rs # Defines the module for the views route and re-exports the components for each route
-│  │  ├─ blog.rs # The component that will render at the /blog/:id route
-│  │  ├─ home.rs # The component that will render at the / route
-├─ Cargo.toml # The desktop crate's Cargo.toml - This should include all desktop specific dependencies
-```
+## Where it stands
 
-When you start developing with the workspace setup each of the platform crates will look almost identical. The UI starts out exactly the same on all platforms. However, as you continue developing your application, this setup makes it easy to let the views for each platform change independently.
+**Early design phase.** What exists today:
 
-## Shared UI crate
+- a dockable workbench prototype (tabs, splits, drag-to-dock, activity rail,
+  status bar) running on desktop and web, with placeholder panels;
+- a complete **crate skeleton** for the architecture — 22 crates under
+  `packages/`, each documented in comments describing what it will hold and
+  why, compiling as empty modules;
+- the **design vault** in `markdown/`: architecture, per-editor designs, an
+  extension-authoring guide, eleven decision records, a ranked problem list
+  and a phased roadmap. It is published at
+  **<https://mathstruct.github.io/Moonkale/>**.
 
-The workspace contains a `ui` crate with components that are shared between multiple platforms. You should put any UI elements you want to use in multiple platforms in this crate. You can also put some shared client side logic in this crate, but be careful to not pull in platform specific dependencies. The `ui` crate starts out something like this:
+Nothing beyond the workbench shell is implemented yet. The next step is Phase 1
+of the roadmap: the core graph model, a folder source, and the first code
+editor.
 
-```
-ui/
-├─ src/
-│  ├─ lib.rs # The entrypoint for the ui crate
-│  ├─ hero.rs # The Hero component that will be used in every platform
-│  ├─ echo.rs # The shared echo component that communicates with the server
-│  ├─ navbar.rs # The Navbar component that will be used in the layout of every platform's router
-```
+## Learn more
 
-## Shared backend logic
+- Website / design docs: <https://mathstruct.github.io/Moonkale/>
+- Start with *Overview*, then *Project Structure*, then *Roadmap*.
+- Building, running, testing and how the site is published: the
+  [Development](markdown/Development.md) page.
 
-The workspace contains a `api` crate with shared backend logic. This crate defines all of the shared server functions for all platforms. Server functions are async functions that expose a public API on the server. They can be called like a normal async function from the client. When you run `dx serve`, all of the server functions will be collected in the server build and hosted on a public API for the client to call. The `api` crate starts out something like this:
-
-```
-api/
-├─ src/
-│  ├─ lib.rs # Exports a server function that echos the input string
-```
-
-### Serving Your App
-
-Navigate to the platform crate of your choice:
-```bash
-cd web
-```
-
-and serve:
-
-```bash
-dx serve
-```
-
+Moonkale is a [MathStruct](https://mathstruct.github.io/) project.

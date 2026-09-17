@@ -1,10 +1,9 @@
 ---
+title: "P-001 — Graph surface in the desktop webview"
 tags: [problem, graph, platform]
 status: open
 phase: 2 → 5
 ---
-# P-001 — Graph surface in the desktop webview
-
 **Status:** open · **Related:** [[ADR-0003 wgpu for graph rendering]], [[Graph View]], [[Platform Matrix]]
 
 ## Problem

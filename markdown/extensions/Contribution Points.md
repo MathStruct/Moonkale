@@ -1,8 +1,7 @@
 ---
+title: "Contribution Points"
 tags: [extensions, reference]
 ---
-# Contribution Points
-
 Each maps to `[[contributes.<name>]]` in the manifest and a type in `ext-api/src/contrib/`. Adding a *point* is an API change; adding a *contribution* is not.
 
 | point | fields | notes |

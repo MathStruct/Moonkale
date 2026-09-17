@@ -1,8 +1,7 @@
 ---
+title: "Problem Ranking"
 tags: [problems, planning]
 ---
-# Problem Ranking
-
 Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes wrong. **Order** is the recommended implementation order, justified in [[Roadmap]]. Each problem gets a `P-nnn` note in [[Problem Log]] when work starts.
 
 | # | Problem | Diff | Risk | Order | Why this position |

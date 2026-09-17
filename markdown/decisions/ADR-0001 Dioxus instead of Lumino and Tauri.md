@@ -1,10 +1,9 @@
 ---
+title: "ADR-0001 — Dioxus instead of Lumino + Tauri"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0001 — Dioxus instead of Lumino + Tauri
-
 **Status:** accepted
 
 ## Context

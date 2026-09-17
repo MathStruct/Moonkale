@@ -1,8 +1,7 @@
 ---
+title: "LLM and RAG"
 tags: [architecture, llm]
 ---
-# LLM and RAG
-
 Crate: `llm`. Premise from the brief: *LLMs are querying the opened projects, running SQL/Cypher, and requesting embeddings.* Design premise here: **an LLM is a user**, with the same doors and one extra gate.
 
 ```mermaid

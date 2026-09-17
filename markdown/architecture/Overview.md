@@ -1,8 +1,7 @@
 ---
+title: "Overview"
 tags: [architecture]
 ---
-# Overview
-
 Moonkale unifies code editing and knowledge editing around one idea: **everything you open becomes a graph**, and every editor is a view on that graph.
 
 ```mermaid

@@ -1,8 +1,7 @@
 ---
+title: "LSP and Terminal"
 tags: [architecture, lsp, terminal]
 ---
-# LSP and Terminal
-
 Both follow the same split: a **protocol/session crate that runs everywhere** and a **platform crate that owns the process**.
 
 | | everywhere | desktop / server only |

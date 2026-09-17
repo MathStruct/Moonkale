@@ -1,8 +1,7 @@
 ---
+title: "Manifest Reference — `moonkale.toml`"
 tags: [extensions, reference]
 ---
-# Manifest Reference — `moonkale.toml`
-
 ```toml
 [extension]
 id          = "dev.example.unison"     # reverse-DNS, stable forever

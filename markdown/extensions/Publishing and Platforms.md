@@ -1,8 +1,7 @@
 ---
+title: "Publishing and Platforms"
 tags: [extensions, guide]
 ---
-# Publishing and Platforms
-
 ## Layout of an installed extension
 ```text
 <id>/

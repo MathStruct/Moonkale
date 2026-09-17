@@ -1,10 +1,9 @@
 ---
+title: "ADR-0008 — Rust owns the document; JS is a view"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0008 — Rust owns the document; JS is a view
-
 **Status:** accepted
 
 ## Context

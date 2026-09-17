@@ -1,8 +1,7 @@
 ---
+title: "Extension System"
 tags: [architecture, extensions]
 ---
-# Extension System
-
 Crates: `ext-api` (the contract), `ext-host` (the implementation). The user-facing guide is [[Writing an Extension]].
 
 ## Principles

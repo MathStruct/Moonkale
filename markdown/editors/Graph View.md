@@ -1,8 +1,7 @@
 ---
+title: "Graph View"
 tags: [editor, graph, gpu]
 ---
-# Graph View
-
 Crate: `editors/graph`. The requirement that shapes it: **fluid at 100k+ nodes** — the brief calls out that Obsidian's graph becomes slow past a certain size. See [[Graph Rendering Options]] for the option survey and [[ADR-0003 wgpu for graph rendering]] for the decision.
 
 ## Pipeline

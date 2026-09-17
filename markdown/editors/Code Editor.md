@@ -1,8 +1,7 @@
 ---
+title: "Code Editor"
 tags: [editor, code]
 ---
-# Code Editor
-
 Crate: `editors/code`. Opens any `File{Text}` node; lowest priority so specialised editors (markdown WYSIWYG, flow) win for their kinds, with "Open with…" to override.
 
 ## Architecture

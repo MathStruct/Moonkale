@@ -1,10 +1,9 @@
 ---
+title: "ADR-0002 — Rust first, TypeScript behind traits"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0002 — Rust first, TypeScript behind traits
-
 **Status:** accepted
 
 ## Context

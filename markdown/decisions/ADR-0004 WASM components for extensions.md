@@ -1,10 +1,9 @@
 ---
+title: "ADR-0004 — WASM components for extensions"
 tags: [adr]
 status: accepted
 date: 2026-09-17
 ---
-# ADR-0004 — WASM components for extensions
-
 **Status:** accepted
 
 ## Context

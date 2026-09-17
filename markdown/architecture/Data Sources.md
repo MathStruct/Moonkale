@@ -1,8 +1,7 @@
 ---
+title: "Data Sources"
 tags: [architecture, sources]
 ---
-# Data Sources
-
 Crates: `sources` (abstraction, registry, lifting, remote proxy), `sources-sql`, `sources-graph`, `sources-kv`, `project-fs`. Driver availability is in [[Database Backends]].
 
 ## Query path

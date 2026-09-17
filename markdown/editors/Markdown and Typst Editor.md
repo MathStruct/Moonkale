@@ -1,8 +1,7 @@
 ---
+title: "Markdown and Typst Editor"
 tags: [editor, markdown, typst]
 ---
-# Markdown and Typst Editor
-
 Crate: `editors/markdown`. The knowledge half of the project.
 
 ## Markdown (Obsidian conventions)

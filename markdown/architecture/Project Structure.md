@@ -1,8 +1,7 @@
 ---
+title: "Project Structure"
 tags: [architecture, rationale]
 ---
-# Project Structure
-
 This is the "parallel markdown file" for the Rust skeleton in `packages/`. Every crate exists for one of three reasons: it is a **layer boundary**, a **platform boundary**, or a **swap point**. If a crate is none of those, it should be a module instead.
 
 ## Layout

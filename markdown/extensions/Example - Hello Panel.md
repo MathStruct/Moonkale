@@ -1,8 +1,7 @@
 ---
+title: "Example — Hello Panel"
 tags: [extensions, example]
 ---
-# Example — Hello Panel
-
 A wasm extension contributing one panel and one command; the full walkthrough is in [[Writing an Extension]] §2–3. Key points the example demonstrates:
 
 - **Manifest-first**: the "Hello" panel and "Hello: Greet" command appear in the workbench and palette *before* the wasm is instantiated.

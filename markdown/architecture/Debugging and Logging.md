@@ -1,8 +1,7 @@
 ---
+title: "Debugging and Logging"
 tags: [architecture, debugging]
 ---
-# Debugging and Logging
-
 *"In a browser I hit F12. When this is compiled, how do I see what went wrong?"* — Per platform, per build type. Verified against Dioxus 0.7.10 sources on 2026-09-17.
 
 ## The mental model

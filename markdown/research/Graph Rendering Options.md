@@ -1,8 +1,7 @@
 ---
+title: "Graph Rendering Options"
 tags: [research, graph]
 ---
-# Graph Rendering Options
-
 Requirement: fluid at 100k+ nodes, popups, coloured/directed edges, subgraphs, 3D. Decision: [[ADR-0003 wgpu for graph rendering]].
 
 | Option | Scale ceiling (interactive) | Compute layouts | Platforms | Verdict |

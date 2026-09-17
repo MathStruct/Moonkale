@@ -1,8 +1,7 @@
 ---
+title: "Testing Strategy"
 tags: [testing]
 ---
-# Testing Strategy
-
 A fullstack Dioxus workspace has five different kinds of code, and each is tested differently. Knowing which kind you're looking at tells you which tool to reach for. The companion note [[How to Write Tests]] is the hands-on walkthrough.
 
 ## The pyramid, mapped to this repo

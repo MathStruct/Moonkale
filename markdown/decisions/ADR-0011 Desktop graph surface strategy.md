@@ -1,10 +1,9 @@
 ---
+title: "ADR-0011 — Desktop graph surface strategy"
 tags: [adr, graph, platform]
 status: proposed
 date: 2026-09-17
 ---
-# ADR-0011 — Desktop graph surface strategy
-
 **Status:** proposed (decide after measurements in [[P-001 Graph surface in desktop webview]]) · Extends [[ADR-0003 wgpu for graph rendering]]
 
 ## Context

@@ -1,8 +1,7 @@
 ---
+title: "Linux Desktop Setup"
 tags: [platform, linux, desktop]
 ---
-# Linux Desktop Setup
-
 What Moonkale's desktop build needs from a Linux system, why Linux is the odd one out, and what to change on this machine. Facts below were checked on the dev box (Arch, kernel 7.2, **WebKitGTK 2.52.6**, NVIDIA RTX 3080 + AMD Raphael iGPU) on 2026-09-17.
 
 ## Why Linux is the way it is
