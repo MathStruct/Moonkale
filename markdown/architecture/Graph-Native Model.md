@@ -63,6 +63,7 @@ classDiagram
 ## What the model is *not*
 - Not a database. Nothing is persisted by `core`; sources and the index persist.
 - Not a CRDT. Versions + patches leave the door open ([[ADR-0009 Patches not snapshots]]).
+- Not yet versioned. `Version` is a change marker; the append-only entity log that gives nodes and edges a history (added/removed by UUID, with timestamps) is designed in [[Version Management]] / [[ADR-0012 Two histories]].
 - Not typed beyond kinds. Schema (TypeDB types, SQL columns) is exposed as a *schema graph* in `SourceDescriptor`, not enforced by `core`.
 
 ## Worked example: a Rust crate in a folder

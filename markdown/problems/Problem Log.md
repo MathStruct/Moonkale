@@ -15,6 +15,8 @@ Running log of problems hit during implementation. One note per problem (`P-nnn 
 | P-035 `.gitignore` ignored outside git repos | `ignore` crate defaults to `require_git(true)`; set `false` so an editor behaves the same before `git init` | resolved | 1 |
 | P-036 Server-function name clash | `#[post] fn query(.., query: Query)` fails: the generated stub calls `query(...)` and the parameter shadows it; renamed with suffixes | resolved | 1 |
 | P-038 Desktop link error `-lxdo` | `dx run` in `packages/desktop` fails at link time: `muda` needs `libxdo.so`; install `xdotool` (Arch) / `libxdo-dev` (Debian). Docs had it as optional — corrected in [[Linux Desktop Setup]] | resolved | 1 |
+| P-039 No native folder dialog in Milestone 1 | By design (out of scope); now `rfd` (xdg-portal backend) behind `WorkspaceConfig::pick_folder` on desktop, wired to File → Open Folder…, Ctrl+O and the Explorer button. Requires `xdg-desktop-portal` + a backend on Linux ([[Linux Desktop Setup]]) | resolved | 1 |
+| P-040 Custom title bar on an undecorated window | Decorations off; drag/resize/minimize/maximize/close via `dioxus::desktop::window()` callbacks passed into `ui::Frame`. Maximize icon doesn't flip; Wayland resize depends on the compositor | resolved (gaps noted) | 1 |
 | P-037 Whole-document change events | JS reports full text per keystroke and save sends one splice; O(n) per key. Upgrade to real splices once the index needs them | open | 2 |
 
 ## Conventions

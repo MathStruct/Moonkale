@@ -37,6 +37,8 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-29 | Rust-native backends (terminal → code → rich text) | 5 | research | 29 | Replaces the JS packages; unlocks `dioxus-native` desktop. |
 | P-30 | Collaborative editing (CRDT over the op stream) | 5 | research | 30 | [[ADR-0009 Patches not snapshots]] keeps the door open. |
 | P-31 | Structured Typst / Excalidraw-in-flow | 4 | research | 31 | |
+| P-32 | Git integration: status/diff decorations, commit/log, history-as-graph (`vcs-git`, `gix`) | 3 | medium | after P-06 | Folder sources are git repos in practice; server-side on web. [[Version Management]] |
+| P-33 | Entity log: append-only Add/Remove/SetProps/Content events, fold, snapshots, tombstones, checkpoints ↔ commits | 4 | **high** | before P-06 emits derived nodes | Shape must exist before the index creates nodes with no history. [[ADR-0012 Two histories]] |
 
 ## Reading the table
 - Top-risk items are **P-01, P-05, P-07, P-16, P-20, P-22, P-28**. They are spaced across phases so that each is attempted with the most information available.

@@ -1,30 +1,13 @@
 //! `Shell` — extensions in, workbench out.
 
+use crate::frame::Extensions_;
 use dioxus::prelude::*;
 use dioxus_workbench::prelude::*;
-use moonkale_ext_api::{Extension, OpenFolder, Workspace};
+use moonkale_ext_api::{Command, Extension, Workspace};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 const SHELL_CSS: Asset = asset!("/assets/styling/shell.css");
-
-/// Builds the extension list. A plain `fn` so it can be a prop.
-pub type Extensions = fn() -> Vec<Box<dyn Extension>>;
-
-/// What the platform hands the shell. Set once at startup; comparing
-/// function pointers is meaningless, so two configs are always "equal" and
-/// the shell never re-mounts because of them.
-#[derive(Clone, Copy)]
-pub struct ShellConfig {
-    pub extensions: Extensions,
-    pub open_folder: OpenFolder,
-}
-
-impl PartialEq for ShellConfig {
-    fn eq(&self, _other: &Self) -> bool {
-        true
-    }
-}
 
 fn default_layout() -> PanelLayout {
     PanelLayout::new(LayoutNode::split(
@@ -37,9 +20,28 @@ fn default_layout() -> PanelLayout {
 }
 
 #[component]
-pub fn Shell(config: ShellConfig) -> Element {
-    let ws = use_hook(|| Workspace::new(config.open_folder));
-    let exts: Rc<Vec<Box<dyn Extension>>> = use_hook(|| Rc::new((config.extensions)()));
+pub fn Shell() -> Element {
+    let mut ws = use_context::<Workspace>();
+    let exts: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
+    // Controlled layout so "View → Reset Layout" can put it back.
+    let mut layout = use_signal(default_layout);
+
+    // Shell-level commands.
+    use_effect(move || {
+        let (_, cmd) = *ws.commands.read();
+        match cmd {
+            Some(Command::ResetLayout) => layout.set(default_layout()),
+            Some(Command::OpenFolder) => {
+                spawn(async move {
+                    if let Err(e) = ws.open_folder_dialog().await {
+                        ws.set_status(format!("Open folder failed: {e}"));
+                    }
+                });
+            }
+            Some(Command::About) => ws.set_status("Moonkale 0.1.0 — graph-native code and knowledge editor · mathstruct.github.io/Moonkale"),
+            _ => {}
+        }
+    });
 
     // Collect panels from every extension. `panels()` reads workspace
     // signals, so this render re-runs when documents open/close or turn dirty.
@@ -119,7 +121,7 @@ pub fn Shell(config: ShellConfig) -> Element {
                 },
                 PanelWorkspace {
                     panels,
-                    initial_layout: default_layout(),
+                    layout,
                     reset_layout: default_layout(),
                     active_panel,
                     on_panel_close: on_close,

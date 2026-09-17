@@ -36,6 +36,34 @@ impl PartialEq for SourceHandle {
 pub type OpenFolderFuture = Pin<Box<dyn Future<Output = Result<Arc<dyn Source>, SourceError>>>>;
 pub type OpenFolder = fn(String) -> OpenFolderFuture;
 
+/// A native folder picker: resolves to the chosen path, or `None` if the
+/// user cancelled (or no dialog is available). Desktop provides one; web
+/// and mobile pass `None` and fall back to typing a path.
+pub type PickFolderFuture = Pin<Box<dyn Future<Output = Option<String>>>>;
+pub type PickFolder = fn() -> PickFolderFuture;
+
+/// What the platform hands the workspace at startup.
+#[derive(Clone, Copy)]
+pub struct WorkspaceConfig {
+    pub open_folder: OpenFolder,
+    pub pick_folder: Option<PickFolder>,
+}
+
+/// Application-level commands: what menus, keybindings and (later) the
+/// palette and LLM tools dispatch. Consumers watch [`Workspace::commands`]
+/// and act on the commands that concern them (the active editor handles
+/// `Undo`; the shell handles `ResetLayout`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Command {
+    OpenFolder,
+    Save,
+    CloseEditor,
+    Undo,
+    Redo,
+    ResetLayout,
+    About,
+}
+
 #[derive(Clone, Copy)]
 pub struct Workspace {
     pub sources: Signal<Vec<SourceHandle>>,
@@ -44,7 +72,10 @@ pub struct Workspace {
     pub active: Signal<Option<NodeId>>,
     /// One line for the status bar.
     pub status: Signal<String>,
-    open_folder: OpenFolder,
+    /// The last dispatched command with a sequence number, so consumers can
+    /// tell a new dispatch of the same command from a re-render.
+    pub commands: Signal<(u64, Option<Command>)>,
+    config: WorkspaceConfig,
 }
 
 impl PartialEq for Workspace {
@@ -58,14 +89,45 @@ impl PartialEq for Workspace {
 impl Workspace {
     /// Create the workspace. Call once, in the shell's `use_hook`, so the
     /// signals live for the app's lifetime.
-    pub fn new(open_folder: OpenFolder) -> Self {
+    pub fn new(config: WorkspaceConfig) -> Self {
         Self {
             sources: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             documents: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             active: Signal::new_in_scope(None, ScopeId::ROOT),
             status: Signal::new_in_scope("Ready".into(), ScopeId::ROOT),
-            open_folder,
+            commands: Signal::new_in_scope((0, None), ScopeId::ROOT),
+            config,
         }
+    }
+
+    /// Whether this platform has a native folder dialog.
+    pub fn has_folder_dialog(&self) -> bool {
+        self.config.pick_folder.is_some()
+    }
+
+    /// Dispatch an application command to whoever handles it.
+    pub fn dispatch(&mut self, cmd: Command) {
+        let seq = self.commands.peek().0 + 1;
+        self.commands.set((seq, Some(cmd)));
+    }
+
+    /// Show the native folder dialog (if any) and open the chosen folder.
+    /// `Ok(None)` means cancelled or no dialog on this platform.
+    pub async fn open_folder_dialog(mut self) -> Result<Option<SourceDescriptor>, SourceError> {
+        let Some(pick) = self.config.pick_folder else {
+            self.set_status("No folder dialog on this platform — type a path in the Explorer");
+            return Ok(None);
+        };
+        match pick().await {
+            Some(path) => self.open_folder(path).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// The active document, if any.
+    pub fn active_document(&self) -> Option<(NodeId, Signal<Document>)> {
+        let id = (*self.active.read())?;
+        self.document(id).map(|d| (id, d))
     }
 
     pub fn source(&self, id: &SourceId) -> Option<Arc<dyn Source>> {
@@ -90,7 +152,7 @@ impl Workspace {
 
     /// Open a folder through the platform's factory and add it to `sources`.
     pub async fn open_folder(mut self, path: String) -> Result<SourceDescriptor, SourceError> {
-        let source = (self.open_folder)(path).await?;
+        let source = (self.config.open_folder)(path).await?;
         let descriptor = source.descriptor();
         self.sources.with_mut(|v| {
             v.retain(|s| s.descriptor.id != descriptor.id);

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dioxus = { workspace = true, features = ["router", "fullstack"] }
+dioxus = { workspace = true, features = ["fullstack"] }
 ui = { workspace = true }
 api = { workspace = true }
 moonkale-core = { workspace = true }

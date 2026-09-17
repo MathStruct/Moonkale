@@ -21,6 +21,8 @@ enum ToJs<'a> {
     Init { text: &'a str },
     SetText { text: &'a str },
     Focus,
+    Undo,
+    Redo,
     Destroy,
 }
 
@@ -45,6 +47,8 @@ for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "setText") cm.setText(el, msg.text);
     else if (msg.kind === "focus") cm.focus(el);
+    else if (msg.kind === "undo") cm.undo(el);
+    else if (msg.kind === "redo") cm.redo(el);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
 "#;
@@ -81,6 +85,14 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn focus(&self) {
         let _ = self.eval.send(ToJs::Focus);
+    }
+
+    fn undo(&self) {
+        let _ = self.eval.send(ToJs::Undo);
+    }
+
+    fn redo(&self) {
+        let _ = self.eval.send(ToJs::Redo);
     }
 }
 

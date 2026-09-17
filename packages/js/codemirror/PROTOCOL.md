@@ -13,6 +13,7 @@ the same messages.
 | `setText(el, text)` | replace the whole document (reload / revert); fires `onChange` |
 | `getText(el)` | current document text |
 | `focus(el)` | focus the editor |
+| `undo(el)` / `redo(el)` | step the editor's history (menu Edit → Undo/Redo; Ctrl+Z/Y work inside the view already) |
 | `destroy(el)` | tear down; safe to call twice |
 
 ## Messages Rust → JS (`eval.send`)
@@ -20,6 +21,8 @@ the same messages.
 ```json
 { "kind": "setText", "text": "…" }
 { "kind": "focus" }
+{ "kind": "undo" }
+{ "kind": "redo" }
 { "kind": "destroy" }
 ```
 

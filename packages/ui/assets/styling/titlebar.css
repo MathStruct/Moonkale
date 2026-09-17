@@ -1,0 +1,54 @@
+:root { --mk-titlebar-h: 34px; }
+
+.mk-frame { display: flex; flex-direction: column; height: 100%; min-height: 0; position: relative; }
+.mk-frame-body { flex: 1; min-height: 0; display: flex; }
+
+.mk-titlebar {
+  display: flex; align-items: center; height: var(--mk-titlebar-h); flex-shrink: 0;
+  background: #0b0d12; color: #a3a9b8; font-size: 13px; user-select: none;
+  border-bottom: 1px solid #2a2e3a;
+}
+.mk-frame-undecorated .mk-titlebar { -webkit-app-region: drag; }
+.mk-titlebar-left { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
+.mk-titlebar-logo { padding: 0 10px 0 12px; color: #6ea8fe; font-size: 14px; }
+.mk-titlebar-title {
+  flex: 1; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  padding: 0 12px; color: #7f8595; font-size: 12px;
+}
+
+.mk-menu { position: relative; height: 100%; }
+.mk-menu-button {
+  height: 100%; padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; cursor: default;
+}
+.mk-menu-button:hover, .mk-menu-button-open { background: rgba(255,255,255,0.08); color: #e6e8ee; }
+.mk-menu-popup {
+  position: absolute; top: 100%; left: 0; min-width: 220px; z-index: 1001; padding: 4px 0;
+  background: #161922; border: 1px solid #2a2e3a; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.mk-menu-item {
+  display: flex; justify-content: space-between; gap: 24px; width: 100%; padding: 5px 14px;
+  border: 0; background: transparent; color: #e6e8ee; font: inherit; text-align: left; cursor: default;
+}
+.mk-menu-item:hover { background: #6ea8fe; color: #0b0d12; }
+.mk-menu-item:hover .mk-menu-shortcut { color: #0b0d12; }
+.mk-menu-shortcut { color: #7f8595; font-size: 12px; }
+.mk-menu-sep { height: 1px; margin: 4px 0; background: #2a2e3a; }
+.mk-menu-backdrop { position: fixed; inset: 0; z-index: 1000; }
+
+.mk-window-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
+.mk-wc {
+  width: 46px; height: 100%; border: 0; background: transparent; color: #a3a9b8; display: grid; place-items: center; cursor: default;
+}
+.mk-wc:hover { background: rgba(255,255,255,0.1); color: #e6e8ee; }
+.mk-wc-close:hover { background: #c42b1c; color: #fff; }
+
+/* Invisible resize handles for the undecorated desktop window. */
+.mk-resize { position: absolute; z-index: 2000; }
+.mk-resize-n  { top: 0; left: 6px; right: 6px; height: 4px; cursor: n-resize; }
+.mk-resize-s  { bottom: 0; left: 6px; right: 6px; height: 4px; cursor: s-resize; }
+.mk-resize-e  { top: 6px; bottom: 6px; right: 0; width: 4px; cursor: e-resize; }
+.mk-resize-w  { top: 6px; bottom: 6px; left: 0; width: 4px; cursor: w-resize; }
+.mk-resize-ne { top: 0; right: 0; width: 8px; height: 8px; cursor: ne-resize; }
+.mk-resize-nw { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
+.mk-resize-se { bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize; }
+.mk-resize-sw { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }

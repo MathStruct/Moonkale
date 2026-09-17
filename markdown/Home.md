@@ -25,6 +25,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[LLM and RAG]]
 - [[LSP and Terminal]]
 - [[Debugging and Logging]] — where output goes on each platform, and in compiled builds
+- [[Version Management]] — git for files, an append-only UUID+timestamp entity log for the graph
 
 ## Platform
 - [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why
@@ -55,6 +56,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[ADR-0009 Patches not snapshots]]
 - [[ADR-0010 dioxus-workbench for layout]]
 - [[ADR-0011 Desktop graph surface strategy]] — proposed: in-webview canvas, native overlay fallback
+- [[ADR-0012 Two histories]] — proposed: git for text, entity log for the graph, checkpoints between them
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
@@ -65,7 +67,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Problem Log]] — running log; use [[Problem Template]]
 
 ## Research
-- [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]]
+- [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]]
 
 ## Contributing
 - [[Development]] — build, run, test, and how this vault becomes the website

@@ -23,6 +23,8 @@ pub trait CodeEditorBackend {
     /// Replace the document text (reload / revert).
     fn set_text(&self, text: &str);
     fn focus(&self);
+    fn undo(&self);
+    fn redo(&self);
 }
 
 /// How the panel mounts a backend. `element_id` is the id of the host `div`;

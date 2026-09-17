@@ -28,6 +28,11 @@ sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 xdotool
 # xdotool is NOT optional: it provides libxdo.so, which `muda` (Dioxus's native
 # menu crate) links on Linux. Without it the desktop build fails at link time
 # with `rust-lld: error: unable to find library -lxdo` (P-038).
+
+# native file/folder dialogs: rfd's xdg-portal backend needs a portal daemon
+# plus one backend matching your desktop (gtk for GNOME/Xfce/most WMs, kde, hyprland…)
+sudo pacman -S --needed xdg-desktop-portal xdg-desktop-portal-gtk
+# present here: xdg-desktop-portal 1.22.1, -gtk 1.15.3, -kde 6.7.5
 # already present here: webkit2gtk-4.1 2.52.6, webkitgtk-6.0 2.52.6
 
 # native graph overlay plan (ADR-0011) + wgpu on Vulkan

@@ -22,6 +22,7 @@ packages/
 ├─ sources-kv/               moonkale-sources-kv   redis dragonfly                 [platform: native]
 ├─ project-fs/               moonkale-project-fs   folders; per-platform backends  [platform]
 ├─ index/                    moonkale-index        tree-sitter, links, embeddings  [layer]
+├─ vcs-git/                  (planned)             git status/diff/commit/log      [platform: native]
 │
 ├─ llm/                      moonkale-llm          providers, tools, policy        [layer]
 ├─ lsp/                      moonkale-lsp          protocol client, any transport  [layer]

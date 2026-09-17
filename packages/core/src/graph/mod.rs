@@ -25,6 +25,7 @@
 //! *loaded*.
 
 pub mod edge;
+pub mod history;
 pub mod node;
 pub mod property;
 pub mod view;

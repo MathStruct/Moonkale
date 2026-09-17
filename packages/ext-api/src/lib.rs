@@ -33,7 +33,10 @@ pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub use manifest::Manifest;
-pub use workspace::{OpenFolder, OpenFolderFuture, SourceHandle, Workspace};
+pub use workspace::{
+    Command, OpenFolder, OpenFolderFuture, PickFolder, PickFolderFuture, SourceHandle, Workspace,
+    WorkspaceConfig,
+};
 
 /// Everything an extension typically needs.
 pub mod prelude {

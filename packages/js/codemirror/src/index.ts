@@ -15,7 +15,7 @@ import {
   rectangularSelection,
   crosshairCursor,
 } from "@codemirror/view"
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands"
+import { defaultKeymap, history, historyKeymap, indentWithTab, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
 import { oneDark } from "@codemirror/theme-one-dark"
 
 type OnChange = (text: string) => void
@@ -64,6 +64,16 @@ function focus(el: HTMLElement): void {
   views.get(el)?.focus()
 }
 
+function undo(el: HTMLElement): void {
+  const view = views.get(el)
+  if (view) cmUndo(view)
+}
+
+function redo(el: HTMLElement): void {
+  const view = views.get(el)
+  if (view) cmRedo(view)
+}
+
 function destroy(el: HTMLElement): void {
   const view = views.get(el)
   if (view) {
@@ -79,4 +89,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, destroy }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy }

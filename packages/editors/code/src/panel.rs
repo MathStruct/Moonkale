@@ -7,7 +7,7 @@
 use crate::backend::{self, BackendEvent, CodeEditorBackend};
 use dioxus::prelude::*;
 use moonkale_core::{NodeId, SourceError};
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{Command, Workspace};
 
 const PANEL_CSS: Asset = asset!("/assets/panel.css");
 
@@ -34,6 +34,36 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId) -> Element {
                 BackendEvent::Changed(text) => doc.with_mut(|d| d.text = text),
             });
             backend.set(Some(backend::mount(element_id.clone(), initial, on_event)));
+        }
+    });
+
+    // Application commands aimed at the active editor (menus, keybindings).
+    use_effect(move || {
+        let (_, cmd) = *ws.commands.read();
+        if ws.active.peek().as_ref() != Some(&node) {
+            return;
+        }
+        match cmd {
+            Some(Command::Save) => {
+                spawn(async move {
+                    match ws.save(node).await {
+                        Ok(()) => last_error.set(None),
+                        Err(e) => last_error.set(Some(e)),
+                    }
+                });
+            }
+            Some(Command::Undo) => {
+                if let Some(b) = backend.peek().as_ref() {
+                    b.undo();
+                }
+            }
+            Some(Command::Redo) => {
+                if let Some(b) = backend.peek().as_ref() {
+                    b.redo();
+                }
+            }
+            Some(Command::CloseEditor) => ws.close_node(node),
+            _ => {}
         }
     });
 

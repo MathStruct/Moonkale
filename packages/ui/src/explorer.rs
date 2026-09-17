@@ -8,6 +8,7 @@
 use dioxus::prelude::*;
 use moonkale_core::{ContentRef, Node, NodeId, NodeKind, Query, SourceError};
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::Command;
 use std::collections::{HashMap, HashSet};
 
 const EXPLORER_CSS: Asset = asset!("/assets/styling/explorer.css");
@@ -124,11 +125,18 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     };
 
     let sources = ws.sources.read().clone();
+    let has_dialog = ws.has_folder_dialog();
 
     rsx! {
         document::Stylesheet { href: EXPLORER_CSS }
         div { class: "mk-explorer",
+            if has_dialog {
+                div { class: "mk-explorer-open",
+                    button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: move |_| ws.dispatch(Command::OpenFolder), "Open Folder…" }
+                }
+            }
             form { class: "mk-explorer-open",
+                class: if has_dialog { "mk-explorer-open-secondary" },
                 onsubmit: move |e| { e.prevent_default(); spawn(open(())); },
                 input {
                     class: "mk-input",

@@ -1,8 +1,4 @@
-html,
-body {
-    height: 100%;
-    margin: 0;
-}
+html, body { height: 100%; margin: 0; overflow: hidden; }
 
 body {
     background-color: #0f1116;
@@ -12,21 +8,5 @@ body {
     flex-direction: column;
 }
 
-/* Dioxus mounts the app into #main; make it and the home view fill the
-   height left below the navbar so the editor workbench can stretch. */
-#main {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-#home {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-}
-
-#blog {
-    padding: 0 20px;
-}
+/* Dioxus mounts the app into #main; let the frame fill the window. */
+#main { flex: 1; min-height: 0; display: flex; flex-direction: column; }

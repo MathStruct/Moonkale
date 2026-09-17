@@ -48,6 +48,10 @@ The plan was [[Milestone 1 - Walking Skeleton]]. This is what happened, step by 
 - **`MOONKALE_ROOT` confines `open_folder` on the server**; default is the server's cwd. No auth. `dx serve` is a local dev tool until [[Platform Matrix]]'s security list is done.
 - **Extensions are constructed by a `fn() -> Vec<Box<dyn Extension>>`** the platform passes in (`ui::default_extensions`). No `inventory` magic yet; explicit is fine for two extensions.
 
+## Addendum (same day): VS Code-style frame
+
+After the milestone: the template's Home/Blog router and navbar were replaced by `ui::Frame` + `ui::TitleBar` (File/Edit/View/Help, centered title, and on desktop minimize/maximize/close on the same bar with drag and edge-resize on an undecorated window). A small **command bus** on `Workspace` connects menus, keybindings and buttons to the active editor and the shell. The desktop crate gained a **native folder dialog** (`rfd`, xdg-portal backend) — the answer to "why doesn't Open show the Linux dialog": M1 shipped a text field by design. Verified on web by the E2E script plus `packages/web/tests/e2e/menubar.mjs`; the desktop window chrome itself is untested here (no display). P-039, P-040.
+
 ## What Milestone 1 does *not* do (on purpose)
 
 File watching · syntax highlighting · LSP · search · more than one source at a time · layout persistence · native folder picker · auth · mobile layout adaptation · streaming/capping large files over server functions. All listed in the plan as out of scope; all still in [[Problem Ranking]].

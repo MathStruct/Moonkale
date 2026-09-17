@@ -1,19 +1,11 @@
+//! Mobile entrypoint. Reads folders in-process (the app sandbox until the
+//! Storage Access Framework lands — see markdown/packaging/Android.md); no
+//! native dialog yet.
+
 use dioxus::prelude::*;
-
-use ui::Navbar;
-use views::{Blog, Home};
-
-mod views;
-
-#[derive(Debug, Clone, Routable, PartialEq)]
-#[rustfmt::skip]
-enum Route {
-    #[layout(MobileNavbar)]
-    #[route("/")]
-    Home {},
-    #[route("/blog/:id")]
-    Blog { id: i32 },
-}
+use moonkale_core::{Source, SourceError};
+use std::sync::Arc;
+use ui::{Frame, OpenFolderFuture, Shell, ShellConfig, WorkspaceConfig};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
@@ -21,34 +13,29 @@ fn main() {
     dioxus::launch(App);
 }
 
-#[component]
-fn App() -> Element {
-    // Build cool things ✌️
-
-    rsx! {
-        // Global app resources
-        document::Link { rel: "stylesheet", href: MAIN_CSS }
-
-        Router::<Route> {}
-    }
+fn open_local(path: String) -> OpenFolderFuture {
+    Box::pin(async move {
+        let path = if path.trim().is_empty() {
+            ".".to_string()
+        } else {
+            path
+        };
+        moonkale_project_fs::FolderSource::open(&path)
+            .map(|s| Arc::new(s) as Arc<dyn Source>)
+            .map_err(SourceError::from)
+    })
 }
 
-/// A mobile-specific Router around the shared `Navbar` component
-/// which allows us to use the mobile-specific `Route` enum.
 #[component]
-fn MobileNavbar() -> Element {
+fn App() -> Element {
     rsx! {
-        Navbar {
-            Link {
-                to: Route::Home {},
-                "Home"
-            }
-            Link {
-                to: Route::Blog { id: 1 },
-                "Blog"
-            }
+        document::Link { rel: "stylesheet", href: MAIN_CSS }
+        Frame {
+            config: ShellConfig {
+                extensions: ui::default_extensions,
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None },
+            },
+            Shell {}
         }
-
-        Outlet::<Route> {}
     }
 }
