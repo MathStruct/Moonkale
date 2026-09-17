@@ -27,6 +27,9 @@ Running log of problems hit during implementation. One note per problem (`P-nnn 
 | P-048 dx serve misses Rust changes (3×) | Non-rsx changes to a `const &str` script were not rebuilt; restart dx each time (~3 min) | open (tooling) | 2 |
 | P-049 No GL in headless Firefox; wgpu hangs without a context | Probe WebGL2/WebGPU before `create()`, show the reason; rendering verified only in real browsers | resolved (fallback) | 2 |
 | P-050 wgpu 30 API drift | Several descriptor fields/enums changed; read the registry source | resolved | 2 |
+| P-051 Graph view jumped back after dragging | Every layout settle re-fit the camera, and node drags reheat the layout; dragged nodes were also unpinned and drifted. Auto-fit now only after a new graph/relayout until the user moves the view; dragged nodes stay pinned | resolved | 2 |
+| P-052 New side panel stole the active tab | Attaching a late panel activates it; default layout lists `explorer, links` explicitly | resolved | 2 |
+| P-053 `dragend` missing after a workbench drop | Firefox drops the tab on the workbench's own drop zone and never fires `dragend`; a `drop` in the source window now ends the session drag too | resolved | 2 |
 | P-037 Whole-document change events | JS reports full text per keystroke and save sends one splice; O(n) per key. Upgrade to real splices once the index needs them | open | 2 |
 
 ## Conventions

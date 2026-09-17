@@ -348,7 +348,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 if !has_index {
                     div { class: "mk-graph-empty", "Open a folder to see its graph." }
                 }
-                if let Some(err) = error() {
+                if let (true, Some(err)) = (has_index, error()) {
                     div { class: "mk-graph-empty mk-graph-error", "Renderer failed to start: {err}" }
                 }
                 if let Some(FromJs::Hover { id: Some(_), label, node_kind, key, x, y }) = hover() {

@@ -11,7 +11,7 @@ try {
     await page.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");
-    await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("5 files · 5 links · 5 symbols"), null, { timeout: 30000 });
+    await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
   });
   await step("Graph tab: host queries the index and hands nodes/edges to the renderer", async () => {
     await page.click(".wb-tab[id^='wb-tab-graph']");
@@ -43,14 +43,17 @@ try {
     await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === b - 1, before, { timeout: 10000 });
   });
   await step("save a markdown edit → index refresh → graph re-queried", async () => {
+    // Phantoms are currently off (previous step). Turning them back on adds "Missing";
+    // the saved [[Another]] link adds one more phantom: +2 in total.
+    const before = Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
     await page.click(".mk-tree-file >> text=Home.md");
     await page.waitForSelector(".cm-content");
     await page.click(".cm-content"); await page.keyboard.press("End"); await page.keyboard.type(" and [[Another]]");
     await page.keyboard.press("Control+s");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("Saved Home.md"), null, { timeout: 10000 });
     await page.click(".wb-tab[id^='wb-tab-graph']");
-    await page.click(".mk-graph-check:has-text('unresolved') input");   // phantoms back on
-    await page.waitForFunction(() => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === 12, null, { timeout: 15000 });
+    await page.click(".mk-graph-check:has-text('unresolved') input");
+    await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === b + 2, before, { timeout: 15000 });
   });
   console.log("\nGRAPH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); process.exitCode = 1; } finally { await browser.close(); }

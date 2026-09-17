@@ -1,31 +1,32 @@
 //! # moonkale-sources-sql
 //!
-//! One `Source` implementation per dialect behind a feature flag. All share:
-//! - [`schema`]: introspection into `core::source::descriptor::Schema`,
-//! - [`text`]: pass-through of `TextQuery` with streaming rows,
-//! - [`structured`]: translation of the structured `Query` IR to SQL.
+//! One `Source` implementation per dialect behind a feature flag. All share
+//! [`text`] (statement classification for the read-only gate) and the same
+//! lifting: database → `Database` node, tables → `Table` nodes, columns →
+//! `Column` nodes, `Contains` edges between them — so a database's *schema*
+//! is a graph the graph view can draw.
 //!
-//! Compiles only on native targets — the drivers link C libraries. The
-//! `api` crate enables these features on the server so web/mobile users get
-//! them through `moonkale-sources::remote`.
-//!
-//! Dialect notes (see vault `research/Database Backends.md`):
-//! - **Postgres/Supabase**: `sqlx`. Supabase additionally exposes REST/RPC
-//!   which *would* work from a browser — deferred; treat as Postgres.
-//! - **SQLite**: `sqlx` sqlite feature (async) — `rusqlite` if we need
-//!   extensions like `sqlite-vec`.
-//! - **DuckDB**: `duckdb` crate; columnar, great for the "open a folder of
-//!   CSV/parquet" use case; single-writer — surface that in capabilities.
-//! - **Turso**: `libsql` for both embedded replicas and remote.
+//! **Milestone 2**: SQLite via `rusqlite` (bundled). Read-only: `Query::Text`
+//! accepts `SELECT`/`WITH`/`PRAGMA`/`EXPLAIN` only; writes come with the
+//! primary-key lifting in `structured`. Compiles only on native targets; the
+//! `api` server enables the feature so web/mobile reach it through
+//! `RemoteSource`.
 
-#[cfg(feature = "duckdb")]
-pub mod duckdb;
-#[cfg(feature = "postgres")]
-pub mod postgres;
 pub mod schema;
-#[cfg(feature = "sqlite")]
-pub mod sqlite;
 pub mod structured;
 pub mod text;
-#[cfg(feature = "turso")]
-pub mod turso;
+
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+pub mod sqlite;
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+pub use sqlite::SqliteSource;
+
+/// File extensions that open as a SQLite database.
+pub const SQLITE_EXTENSIONS: &[&str] = &["sqlite", "sqlite3", "db", "db3"];
+
+pub fn is_sqlite_path(path: &str) -> bool {
+    path.rsplit('.')
+        .next()
+        .map(|e| SQLITE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}

@@ -4,7 +4,7 @@ tags: [adr, graph, platform]
 status: proposed
 date: 2026-09-17
 ---
-**Status:** proposed (decide after measurements in [[P-001 Graph surface in desktop webview]]) · Extends [[ADR-0003 wgpu for graph rendering]]
+**Status:** proposed → **plan A confirmed working on Linux/WebKitGTK (2026-09-18)**; measurements still pending in [[P-001 Graph surface in desktop webview]] · Extends [[ADR-0003 wgpu for graph rendering]]
 
 ## Context
 The graph renderer is `wgpu`. On desktop the UI lives in a system webview. WebView2 and WKWebView expose WebGPU; WebKitGTK (Linux) does not by default ([[Linux Desktop Setup]]). A WebGL2 fallback works everywhere but has no compute shaders, so GPU force layouts — the feature that makes 100k nodes fluid — are unavailable there. The brief explicitly allows a **different implementation for desktop**.

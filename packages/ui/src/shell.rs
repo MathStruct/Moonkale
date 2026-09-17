@@ -14,7 +14,7 @@ fn default_layout() -> PanelLayout {
         "root",
         SplitAxis::Horizontal,
         0.22,
-        LayoutNode::tile("side", ["explorer"]),
+        LayoutNode::tile("side", ["explorer", "links"]),
         LayoutNode::empty_tile("main"),
     ))
 }

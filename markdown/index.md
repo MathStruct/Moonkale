@@ -7,8 +7,8 @@ description: A graph-native code and knowledge editor — folders and databases 
 
 It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, web and mobile from one codebase, and is extension-driven: the built-in editors are themselves extensions with no privileged access.
 
-> [!info] Status — Milestone 1 done
-> The **walking skeleton** works: open a folder, browse it, open files in dockable CodeMirror tabs, edit, save (with conflict detection) — on the web build against a server-side folder, and compiled for desktop/mobile with an in-process folder source. Everything else in the architecture is still a comment-only skeleton. See [[Milestone 1 - Implementation Log]], then [[Roadmap]] for what comes next.
+> [!info] Status — Milestone 2 done
+> **The graph appears.** Opening a folder builds an index (wiki-links, Rust symbols via tree-sitter); a **wgpu graph view** draws it in the browser and the desktop webview; a **Links panel** shows backlinks; a `.sqlite` file opens as a database whose tables show in a **read-only table editor**. On top of Milestone 1's dockable workbench with CodeMirror editing, multi-window sessions and a VS Code-style frame. See [[Milestone 2 - Implementation Log]], then [[Roadmap]] for Phase 3.
 
 ## Start here
 
@@ -31,7 +31,7 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | Packaging | [[Packaging Overview]] · [[Arch Linux]] · [[NixOS]] · [[Android]] |
 | Testing | [[Testing Strategy]] · [[How to Write Tests]] |
 | Research | [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] |
-| Milestones | [[Milestone 1 - Walking Skeleton]] · [[Milestone 1 - Implementation Log]] |
+| Milestones | [[Milestone 1 - Walking Skeleton]] · [[Milestone 1 - Implementation Log]] · [[Milestone 2 - Graph Appears]] · [[Milestone 2 - Implementation Log]] |
 | Contributing | [[Development]] — building, running, and how this site is published |
 
 Source: [github.com/MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) · Part of [MathStruct](https://mathstruct.github.io/).

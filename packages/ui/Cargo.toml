@@ -10,6 +10,9 @@ moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
 moonkale-editor-code = { workspace = true }
 moonkale-editor-graph = { workspace = true }
+moonkale-editor-markdown = { workspace = true }
+moonkale-editor-table = { workspace = true }
+moonkale-sources-sql = { workspace = true }
 api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 

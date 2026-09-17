@@ -33,6 +33,8 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     vec![
         Box::new(ExplorerExtension::new()),
         Box::new(moonkale_editor_graph::GraphExtension),
+        Box::new(moonkale_editor_markdown::LinksExtension),
         Box::new(moonkale_editor_code::CodeEditorExtension),
+        Box::new(moonkale_editor_table::TableExtension),
     ]
 }

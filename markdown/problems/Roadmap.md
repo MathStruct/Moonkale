@@ -19,9 +19,9 @@ gantt
   P-05 extension API + static reg     :done, p1e, after p1d, 2
   section 2 Graph appears
   P-06 index + wiki-links             :done, p2a, after p1e, 2
-  P-07 graph view v1                  :active, p2b, after p2a, 3
-  P-08 SQLite/DuckDB + table          :p2c, after p1e, 2
-  P-09 markdown source mode           :p2d, after p2a, 1
+  P-07 graph view v1                  :done, p2b, after p2a, 3
+  P-08 SQLite/DuckDB + table          :done, p2c, after p1e, 2
+  P-09 markdown source mode           :done, p2d, after p2a, 1
   section 3 Databases & tools
   P-10 remote source (web parity)     :p3a, after p2c, 2
   P-11 Milkdown WYSIWYG               :p3b, after p2d, 2
@@ -53,7 +53,7 @@ gantt
 | Phase | You can… | Proves |
 |---|---|---|
 | **1 Walking skeleton** ✅ | open a folder, edit and save files in a dockable workbench, on desktop and web (server-side folder) | the model, the interop boundary, the extension API — **done 2026-09-17**, see [[Milestone 1 - Walking Skeleton]] / [[Milestone 1 - Implementation Log]] |
-| **2 Graph appears** | see your folder + wiki-links + symbols as a graph; open a SQLite/DuckDB file and browse tables; edit markdown with backlinks | "graph-native" is real; wgpu works in webviews |
+| **2 Graph appears** ✅ | see your folder + wiki-links + symbols as a graph; open a SQLite file and browse tables; edit markdown with backlinks | "graph-native" is real; wgpu works in webviews — **done 2026-09-18** (DuckDB deferred), see [[Milestone 2 - Implementation Log]] |
 | **3 Databases & tools** | connect Postgres-class and graph DBs (via server on web), get LSP features, use a terminal, preview Typst, WYSIWYG markdown | server-as-backend; second/third interop packages |
 | **4 Agents** | chat with an agent that queries your sources under policy; hybrid search; click a stack trace into a graph | LLM-as-user |
 | **5 Scale & extend** | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets |

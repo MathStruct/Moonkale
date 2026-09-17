@@ -1,0 +1,13 @@
+.mk-table { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-table-query { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-bottom: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-surface, #161922); }
+.mk-table-sql { flex: 1; font: 12.5px 'JetBrains Mono', Consolas, monospace; padding: 6px 8px; border-radius: 4px; resize: vertical; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: var(--wb-ink, #e6e8ee); }
+.mk-table-grid-host { flex: 1; min-height: 0; overflow: auto; }
+.mk-table-meta { padding: 4px 8px; font-size: 11px; opacity: 0.7; }
+.mk-table-msg { padding: 12px; opacity: 0.7; }
+.mk-table-error { color: var(--wb-danger, #e07a75); opacity: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap; }
+.mk-table-grid { border-collapse: collapse; font-size: 12.5px; font-family: 'JetBrains Mono', Consolas, monospace; }
+.mk-table-grid th { position: sticky; top: 0; background: var(--wb-surface, #161922); text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--wb-line, #2a2e3a); font-weight: 600; }
+.mk-table-grid td { padding: 3px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+.mk-table-grid tr:hover td { background: var(--wb-hover, rgba(255,255,255,0.06)); }
+.mk-cell-null { opacity: 0.4; font-style: italic; }
+.mk-cell-num { text-align: right; }

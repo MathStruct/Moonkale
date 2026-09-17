@@ -59,9 +59,19 @@ try {
     await b.mouse.down();
     await b.mouse.move(h.x + 60, h.y + 40, { steps: 8 });
     await b.mouse.move(h.x + 200, h.y + 200, { steps: 8 });
-    await a.waitForSelector(".mk-drop-target", { timeout: 10000 });          // live drag
+    try {
+      await a.waitForSelector(".mk-drop-target", { timeout: 10000 });        // live drag
+    } catch (e) {
+      console.log("\n  B status:", await b.$eval(".wb-status-bar", (el) => el.textContent.trim()), "| B tabs:", await b.$$eval(".wb-tab", (els) => els.map((x) => x.id)), "| B viewport:", await b.evaluate(() => [innerWidth, innerHeight]));
+      throw e;
+    }
     await b.mouse.up();                                                        // dragend in B
-    await a.waitForSelector(".mk-drop-banner", { timeout: 10000 });           // pending offer
+    try {
+      await a.waitForSelector(".mk-drop-banner", { timeout: 10000 });         // pending offer
+    } catch (e) {
+      console.log("\n  after mouse.up → A live target:", !!(await a.$(".mk-drop-target")), "| A banner:", !!(await a.$(".mk-drop-banner")), "| B status:", await b.$eval(".wb-status-bar", (el) => el.textContent.trim()));
+      throw e;
+    }
     await a.screenshot({ path: `${S}/session-banner.png` });
   });
   await step("'Move it here' in A moves the document back", async () => {

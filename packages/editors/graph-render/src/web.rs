@@ -33,6 +33,9 @@ struct State {
     dirty: bool,
     alive: bool,
     last_click_ms: f64,
+    /// Fit the view when the layout settles — only until the user has moved
+    /// the camera or a node; after that, their view is theirs.
+    auto_fit: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -96,6 +99,7 @@ pub async fn create(
         dirty: true,
         alive: true,
         last_click_ms: 0.0,
+        auto_fit: true,
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -116,6 +120,7 @@ impl GraphView {
         s.graph = Graph::from_input(input);
         s.layout = Layout::new(&s.graph);
         s.hovered = None;
+        s.auto_fit = true;
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -134,6 +139,10 @@ impl GraphView {
 
     pub fn relayout(&self) {
         let mut s = self.state.borrow_mut();
+        s.auto_fit = true;
+        for n in &mut s.graph.nodes {
+            n.pinned = false;
+        }
         let g = std::mem::take(&mut s.graph);
         s.layout.reheat(&g);
         s.graph = g;
@@ -204,9 +213,11 @@ fn start_loop(state: Rc<RefCell<State>>) {
             s.graph = g;
             s.dirty = true;
             if !s.layout.running {
-                let g = std::mem::take(&mut s.graph);
-                s.camera.fit(&g, 40.0);
-                s.graph = g;
+                if s.auto_fit {
+                    let g = std::mem::take(&mut s.graph);
+                    s.camera.fit(&g, 40.0);
+                    s.graph = g;
+                }
                 emit(&s, serde_json::json!({ "kind": "settled" }));
             }
         }
@@ -312,11 +323,13 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
             let mut s = st.borrow_mut();
             match s.dragging {
                 Drag::Pan { last } => {
+                    s.auto_fit = false;
                     s.camera.pan(x - last.0, y - last.1);
                     s.dragging = Drag::Pan { last: (x, y) };
                     s.dirty = true;
                 }
                 Drag::Node { index } => {
+                    s.auto_fit = false;
                     let (wx, wy) = s.camera.screen_to_world(x, y);
                     s.graph.nodes[index].x = wx;
                     s.graph.nodes[index].y = wy;
@@ -353,11 +366,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
         let cb = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
             let (x, y) = local(&e);
             let mut s = st.borrow_mut();
-            let was = s.dragging;
+            // A node the user placed stays put (pinned) until Relayout.
             s.dragging = Drag::None;
-            if let Drag::Node { index } = was {
-                s.graph.nodes[index].pinned = false;
-            }
             if let Some(i) = s.camera.hit(&s.graph, x, y) {
                 let now = js_sys::Date::now();
                 let dbl = now - s.last_click_ms < 350.0;
@@ -400,6 +410,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
             );
             let factor = if e.delta_y() < 0.0 { 1.12 } else { 1.0 / 1.12 };
             let mut s = st.borrow_mut();
+            s.auto_fit = false;
             s.camera.zoom_at(factor, x, y);
             s.dirty = true;
         });

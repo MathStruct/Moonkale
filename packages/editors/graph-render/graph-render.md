@@ -11,6 +11,7 @@ Notes for `moonkale-graph-render` (Milestone 2). Design: [[Graph View]], [[ADR-0
 - `camera.rs` — world↔screen, pan, zoom-at-pointer, fit, nearest-node hit test. Native unit tests.
 - `render.rs` — wgpu 30: `new_instance_with_webgpu_detection` (WebGPU when real, else WebGL2), surface on the canvas, two instanced pipelines (edges as thin quads, nodes as SDF circles), alpha blending, camera uniform. `shaders.wgsl`.
 - `web.rs` — `create(canvas, overlay, onEvent)` → `GraphView { set_graph, fit, relayout, resize, backend, node_count, node_screen_position, destroy }`; rAF loop (more layout iterations per frame for small graphs); pointer handlers (pan, drag node, hover, click/dblclick, wheel zoom); labels on a 2D-canvas overlay with LOD.
+- Camera policy: auto-fit after `set_graph`/`relayout` once the layout settles, **never** after the user has panned, zoomed or dragged (P-051). Dragged nodes stay pinned until Relayout.
 - Events: `ready{backend}`, `hover{id,label,nodeKind,key,x,y}`, `click{id}`, `dblclick{id}`, `settled`.
 
 Known: `create()` hangs if the canvas can't get a GL context — the host probes first (P-049). No GPU text, no picking buffer (CPU hit test), O(n²) layout: all listed in [[Problem Ranking]] P-22.

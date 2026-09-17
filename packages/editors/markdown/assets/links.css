@@ -1,0 +1,12 @@
+.mk-links { height: 100%; overflow: auto; font-size: 13px; }
+.mk-links-title { padding: 8px 10px 4px; font-family: 'JetBrains Mono', monospace; color: var(--wb-ink, #e6e8ee); border-bottom: 1px solid var(--wb-line, #2a2e3a); }
+.mk-links-section { padding: 6px 0; }
+.mk-links-heading { padding: 4px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.7; }
+.mk-links-count { opacity: 0.6; font-weight: 400; margin-left: 4px; }
+.mk-links-empty { margin: 4px 10px; opacity: 0.6; }
+.mk-links-list { list-style: none; margin: 0; padding: 0; }
+.mk-links-item { display: flex; flex-direction: column; padding: 4px 10px; cursor: pointer; border-radius: 3px; }
+.mk-links-item:hover { background: var(--wb-hover, rgba(255,255,255,0.06)); }
+.mk-links-label { color: var(--wb-ink, #e6e8ee); }
+.mk-links-path { font-size: 11px; opacity: 0.55; font-family: 'JetBrains Mono', monospace; }
+.mk-links-phantom .mk-links-label { color: var(--wb-caution, #c9a75f); font-style: italic; cursor: default; }

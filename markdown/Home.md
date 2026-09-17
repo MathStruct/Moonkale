@@ -61,7 +61,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
-- [[Milestone 2 - Graph Appears]] (plan) → [[Milestone 2 - Implementation Log]] (in progress)
+- [[Milestone 2 - Graph Appears]] (plan) → [[Milestone 2 - Implementation Log]] (what happened) ✅
 
 ## Problems & planning
 - [[Problem Ranking]] — difficulty × risk, ranked

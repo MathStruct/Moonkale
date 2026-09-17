@@ -49,7 +49,8 @@ mod state {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")))
     }
 
-    pub fn open(path: &str) -> std::io::Result<Arc<FolderSource>> {
+    /// A `.sqlite`/`.db` path opens as a database; anything else as a folder.
+    pub fn open_any(path: &str) -> std::io::Result<Vec<Arc<dyn moonkale_core::Source>>> {
         let allowed = std::fs::canonicalize(allowed_root())?;
         let requested: PathBuf = if path.trim().is_empty() {
             allowed.clone()
@@ -69,7 +70,13 @@ mod state {
                 ),
             ));
         }
-        Ok(Arc::new(FolderSource::open(canonical)?))
+        if canonical.is_file() && moonkale_sources_sql::is_sqlite_path(&canonical.to_string_lossy())
+        {
+            let db = moonkale_sources_sql::SqliteSource::open(&canonical)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            return Ok(vec![Arc::new(db)]);
+        }
+        Ok(vec![Arc::new(FolderSource::open(canonical)?)])
     }
 }
 
@@ -89,16 +96,19 @@ pub async fn echo(input: String) -> Result<String, ServerFnError> {
 /// Returns the folder's descriptor first, then the index's.
 #[post("/api/sources/open_folder")]
 pub async fn open_folder(path: String) -> Result<Vec<SourceDescriptor>, ServerFnError> {
-    let folder = state::open(&path).map_err(server_error)?;
-    let folder: std::sync::Arc<dyn moonkale_core::Source> = folder;
-    let index = moonkale_index::IndexSource::build(folder.clone())
-        .await
-        .map_err(server_error)?;
     let reg = state::registry();
-    Ok(vec![
-        reg.insert(folder),
-        reg.insert(std::sync::Arc::new(index)),
-    ])
+    let mut out = Vec::new();
+    for source in state::open_any(&path).map_err(server_error)? {
+        let is_folder = source.descriptor().family == moonkale_core::SourceFamily::Folder;
+        out.push(reg.insert(source.clone()));
+        if is_folder {
+            let index = moonkale_index::IndexSource::build(source)
+                .await
+                .map_err(server_error)?;
+            out.push(reg.insert(std::sync::Arc::new(index)));
+        }
+    }
+    Ok(out)
 }
 
 /// A node was written; let a derived source re-read it.

@@ -56,7 +56,9 @@ mod version_tests {
 pub enum NodeKind {
     Directory,
     File,
+    Database,
     Table,
+    Column,
     Row,
     Vertex,
     Key,

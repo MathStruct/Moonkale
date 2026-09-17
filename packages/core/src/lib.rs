@@ -34,7 +34,7 @@ pub mod id;
 pub mod source;
 
 pub use error::SourceError;
-pub use graph::{ContentRef, Edge, EdgeKind, Node, NodeKind, Version};
+pub use graph::{ContentRef, Edge, EdgeKind, Node, NodeKind, Value, Version};
 pub use id::{NodeId, SourceId};
 pub use source::async_trait;
 pub use source::{

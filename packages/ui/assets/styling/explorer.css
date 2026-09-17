@@ -16,3 +16,4 @@
 .mk-explorer-open-secondary { border-bottom: 1px solid var(--wb-line); padding-top: 0; }
 .mk-explorer-open-secondary .mk-input { font-size: 12px; }
 .mk-btn-wide { flex: 1; padding: 6px 10px; }
+.mk-tree-db .mk-tree-label { color: #cc80bf; }

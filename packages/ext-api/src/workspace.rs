@@ -13,7 +13,8 @@ use crate::Document;
 use dioxus::logger::tracing;
 use dioxus::prelude::*;
 use moonkale_core::{
-    Node, NodeId, Query, QueryResult, Source, SourceDescriptor, SourceError, SourceId, Transaction,
+    Node, NodeId, NodeKind, Query, QueryResult, Source, SourceDescriptor, SourceError, SourceId,
+    Transaction,
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -95,6 +96,9 @@ pub struct Workspace {
     pub sources: Signal<Vec<SourceHandle>>,
     /// Open documents in opening order (this is the tab order).
     pub documents: Signal<Vec<(NodeId, Signal<Document>)>>,
+    /// Open non-text nodes (tables, later graphs/rows): shown by the editor
+    /// extension that claims their kind.
+    pub views: Signal<Vec<Node>>,
     pub active: Signal<Option<NodeId>>,
     /// One line for the status bar.
     pub status: Signal<String>,
@@ -131,6 +135,7 @@ impl Workspace {
         Self {
             sources: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             documents: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            views: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             active: Signal::new_in_scope(None, ScopeId::ROOT),
             status: Signal::new_in_scope("Ready".into(), ScopeId::ROOT),
             commands: Signal::new_in_scope((0, None), ScopeId::ROOT),
@@ -413,6 +418,15 @@ impl Workspace {
     /// Load a node's text (if not already open) and make it the active
     /// document.
     pub async fn open_node(mut self, node: Node) -> Result<(), SourceError> {
+        // Nodes without a text body (tables) open as views, not documents.
+        if matches!(node.kind, NodeKind::Table) {
+            if !self.views.peek().iter().any(|n| n.id == node.id) {
+                self.views.with_mut(|v| v.push(node.clone()));
+            }
+            self.active.set(Some(node.id));
+            self.set_status(format!("Opened table {}", node.label));
+            return Ok(());
+        }
         if self.document(node.id).is_none() {
             let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
             let (text, version) = source.fetch_text(node.id).await?;
@@ -427,6 +441,7 @@ impl Workspace {
 
     pub fn close_node(mut self, node: NodeId) {
         self.documents.with_mut(|v| v.retain(|(id, _)| *id != node));
+        self.views.with_mut(|v| v.retain(|n| n.id != node));
         if self.active.read().as_ref() == Some(&node) {
             let next = self.documents.read().last().map(|(id, _)| *id);
             self.active.set(next);

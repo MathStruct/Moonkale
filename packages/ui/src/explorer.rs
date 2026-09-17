@@ -212,18 +212,39 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     let is_dir = node.kind == NodeKind::Directory;
                     let open = expanded.contains(&node.id);
                     let is_text = matches!(node.content, Some(ContentRef::Text { .. }));
+                    let is_db = node.kind == NodeKind::Table
+                        || (node.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&node.native_key));
                     let n = node.clone();
                     let mut ws2 = ws;
                     rsx! {
                         li { key: "{node.id}",
                             div {
                                 class: if is_dir { "mk-tree-row mk-tree-dir" } else { "mk-tree-row mk-tree-file" },
-                                class: if !is_dir && !is_text { "mk-tree-binary" },
+                                class: if !is_dir && !is_text && !is_db { "mk-tree-binary" },
+                                class: if is_db { "mk-tree-db" },
                                 title: "{node.native_key}",
                                 onclick: move |_| {
                                     let n = n.clone();
                                     if is_dir {
                                         spawn(toggle(ws, state, n));
+                                    } else if n.kind == NodeKind::Table {
+                                        // Database tables open in the table editor.
+                                        spawn(async move {
+                                            if let Err(e) = ws.open_node(n).await {
+                                                ws2.set_status(e.to_string());
+                                            }
+                                        });
+                                    } else if n.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&n.native_key) {
+                                        // A SQLite file inside the folder: open it as a database source.
+                                        let path = match n.source.as_str().strip_prefix("folder:") {
+                                            Some(root) => format!("{root}/{}", n.native_key),
+                                            None => n.native_key.clone(),
+                                        };
+                                        spawn(async move {
+                                            if let Err(e) = ws.open_folder(path).await {
+                                                ws2.set_status(format!("Could not open database: {e}"));
+                                            }
+                                        });
                                     } else if is_text {
                                         spawn(async move {
                                             if let Err(e) = ws.open_node(n).await {

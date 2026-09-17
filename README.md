@@ -22,22 +22,22 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 1 — the walking skeleton — is done** (2026-09-17). You can open a
-folder, browse it in a dockable workbench, open files in CodeMirror tabs,
-edit, and save with conflict detection. On the web build the folder lives on
-the server; on desktop it is read in-process. The same shell and editor code
-runs on both, which is the point: the graph model, the JS interop boundary and
-the extension API all exist and are exercised by an automated end-to-end test.
+**Milestone 2 — "Graph appears" — is done** (2026-09-18). Opening a folder
+builds an index of wiki-links and Rust symbols; a wgpu-rendered graph view
+draws it in the browser and inside the desktop webview; a Links panel shows
+backlinks; a `.sqlite` file opens as a database whose tables show in a
+read-only table editor with a SQL box. That sits on Milestone 1's dockable
+workbench with CodeMirror editing, multi-window sessions and a VS Code-style
+frame, on desktop and web from one codebase. Five automated browser suites
+cover it.
 
-Everything else in the architecture — databases, indexing, the GPU graph view,
-LSP, terminal, LLM tools, WASM extensions — is a documented crate skeleton
-(22 crates under `packages/`, comment-only). The **design vault** in
-`markdown/` records every decision and is published at
+Still comment-only skeleton: Postgres/graph/KV drivers, LSP, terminal, LLM
+tools, WASM extensions, the flow editor. The **design vault** in `markdown/`
+records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 2 of the roadmap — the index (tree-sitter, wiki-links) and the
-first graph view.
+Next: Phase 3 of the roadmap — remote parity, more sources, LSP, terminal.
 
 ## Learn more
 

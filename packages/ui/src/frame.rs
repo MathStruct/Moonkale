@@ -100,7 +100,11 @@ pub fn Frame(
                 const tab = e.target && e.target.closest ? e.target.closest(".wb-tab") : null;
                 if (tab && tab.id) dioxus.send({ kind: "start", tab: tab.id });
             });
+            // `dragend` is not always delivered (a drop on the workbench's own
+            // drop zone swallows it in Firefox): a drop anywhere in this
+            // window ends our drag as well.
             document.addEventListener("dragend", () => dioxus.send({ kind: "end" }));
+            document.addEventListener("drop", () => dioxus.send({ kind: "end" }), true);
             "#,
         );
         spawn(async move {

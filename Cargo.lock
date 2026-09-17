@@ -65,6 +65,7 @@ dependencies = [
  "moonkale-index",
  "moonkale-project-fs",
  "moonkale-sources",
+ "moonkale-sources-sql",
  "serde",
 ]
 
@@ -1082,6 +1083,7 @@ dependencies = [
  "moonkale-index",
  "moonkale-project-fs",
  "moonkale-sources",
+ "moonkale-sources-sql",
  "rfd",
  "ui",
 ]
@@ -1986,6 +1988,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fallible-iterator"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
+
+[[package]]
+name = "fallible-streaming-iterator"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2692,6 +2706,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashlink"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a596f1b20ed2cc5ecac41a164aaebc7258057060f06c0cf7a2ba3991ee7990fb"
+dependencies = [
+ "hashbrown 0.17.1",
+]
+
+[[package]]
 name = "headers"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3371,6 +3394,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "libsqlite3-sys"
+version = "0.38.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "libxdo"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3712,10 +3746,20 @@ version = "0.1.0"
 [[package]]
 name = "moonkale-editor-markdown"
 version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "moonkale-core",
+ "moonkale-ext-api",
+]
 
 [[package]]
 name = "moonkale-editor-table"
 version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "moonkale-core",
+ "moonkale-ext-api",
+]
 
 [[package]]
 name = "moonkale-editor-terminal"
@@ -3803,6 +3847,12 @@ version = "0.1.0"
 [[package]]
 name = "moonkale-sources-sql"
 version = "0.1.0"
+dependencies = [
+ "moonkale-core",
+ "rusqlite",
+ "tempfile",
+ "tokio",
+]
 
 [[package]]
 name = "moonkale-terminal"
@@ -5185,6 +5235,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsqlite-vfs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c"
+dependencies = [
+ "hashbrown 0.16.1",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "rusqlite"
+version = "0.40.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3"
+dependencies = [
+ "bitflags 2.13.2",
+ "fallible-iterator",
+ "fallible-streaming-iterator",
+ "hashlink",
+ "libsqlite3-sys",
+ "smallvec",
+ "sqlite-wasm-rs",
+]
+
+[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5668,6 +5743,18 @@ name = "spin"
 version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+
+[[package]]
+name = "sqlite-wasm-rs"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc3efc0da82635d7e1ced0053bbbfa8c7ab9645d0bf36ceb4f7127bb85315d75"
+dependencies = [
+ "cc",
+ "js-sys",
+ "rsqlite-vfs",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "stable_deref_trait"
@@ -6441,7 +6528,10 @@ dependencies = [
  "moonkale-core",
  "moonkale-editor-code",
  "moonkale-editor-graph",
+ "moonkale-editor-markdown",
+ "moonkale-editor-table",
  "moonkale-ext-api",
+ "moonkale-sources-sql",
  "serde",
 ]
 

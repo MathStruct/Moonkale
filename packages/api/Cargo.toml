@@ -12,6 +12,7 @@ serde = { version = "1", features = ["derive"] }
 moonkale-sources = { workspace = true, optional = true }
 moonkale-project-fs = { workspace = true, optional = true }
 moonkale-index = { workspace = true, optional = true }
+moonkale-sources-sql = { workspace = true, optional = true, features = ["sqlite"] }
 
 [features]
-server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql"]
