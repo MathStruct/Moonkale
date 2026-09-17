@@ -1,0 +1,15 @@
+[package]
+name = "moonkale-sources-kv"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Key/value sources: Redis, Dragonfly (RESP-compatible). Native only."
+
+[features]
+default = []
+redis = []
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# moonkale-sources = { workspace = true }
+# redis = { version = "1", features = ["tokio-comp"], optional = true }

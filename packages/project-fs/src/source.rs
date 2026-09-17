@@ -1,0 +1,1 @@
+//! The `Source` impl: paths ↔ `NodeId` (deterministic from `(SourceId, relative path)`), `query` over the cached tree, `fetch` streams file bytes, `apply` writes patches atomically (write-temp-then-rename).

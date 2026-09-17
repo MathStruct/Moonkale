@@ -1,0 +1,1 @@
+//! Subgraphs: expand/collapse neighbourhoods (issues `Query::Neighbours`), kind/source/property filters, path highlighting, saved views (a `GraphView` + camera + pins stored as a node), and "isolate selection".

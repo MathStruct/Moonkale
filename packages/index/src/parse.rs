@@ -1,0 +1,1 @@
+//! tree-sitter parsing with grammars loaded as wasm (portable across desktop/web). Produces syntax trees kept in an LRU cache keyed by node id + version; also serves the code editor's highlighting/folding and the "AST of a function" visualisation.

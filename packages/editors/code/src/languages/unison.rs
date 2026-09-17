@@ -1,0 +1,1 @@
+//! Unison: tree-sitter grammar (community, verify maturity); LSP built into `ucm`. Unison is the poster child for a *database-backed* codebase — the `.unison` codebase can itself become a `Source` (definitions as nodes, dependencies as edges), which is a strong reason this project exists.

@@ -1,0 +1,1 @@
+//! CodeMirror 6 backend. Loads the `packages/js/codemirror` bundle as an asset, drives it via `document::eval` + a JSON message protocol (see `packages/js/README.md`), and maps CM transactions back into `Patch`es. No language packages are bundled — decorations come from Rust.

@@ -1,12 +1,44 @@
 [workspace]
 resolver = "2"
 members = [
-    "packages/ui",
+    # Platform entrypoints
     "packages/web",
     "packages/desktop",
     "packages/mobile",
+    # Shell + server
+    "packages/ui",
     "packages/api",
+    # Foundation
+    "packages/core",
+    "packages/ext-api",
+    "packages/ext-host",
+    # Data access
+    "packages/sources",
+    "packages/sources-sql",
+    "packages/sources-graph",
+    "packages/sources-kv",
+    "packages/project-fs",
+    "packages/index",
+    # Services
+    "packages/llm",
+    "packages/lsp",
+    "packages/lsp-local",
+    "packages/terminal",
+    "packages/terminal-pty",
+    # Editors ("windows")
+    "packages/editors/code",
+    "packages/editors/markdown",
+    "packages/editors/table",
+    "packages/editors/graph",
+    "packages/editors/flow",
+    "packages/editors/terminal",
+    "packages/editors/graph-desktop",
 ]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 # dioxus-workbench requires >= 0.7.10
@@ -16,3 +48,24 @@ dioxus-workbench = { version = "0.1.0" }
 # workspace
 ui = { path = "packages/ui" }
 api = { path = "packages/api" }
+moonkale-core = { path = "packages/core" }
+moonkale-ext-api = { path = "packages/ext-api" }
+moonkale-ext-host = { path = "packages/ext-host" }
+moonkale-sources = { path = "packages/sources" }
+moonkale-sources-sql = { path = "packages/sources-sql" }
+moonkale-sources-graph = { path = "packages/sources-graph" }
+moonkale-sources-kv = { path = "packages/sources-kv" }
+moonkale-project-fs = { path = "packages/project-fs" }
+moonkale-index = { path = "packages/index" }
+moonkale-llm = { path = "packages/llm" }
+moonkale-lsp = { path = "packages/lsp" }
+moonkale-lsp-local = { path = "packages/lsp-local" }
+moonkale-terminal = { path = "packages/terminal" }
+moonkale-terminal-pty = { path = "packages/terminal-pty" }
+moonkale-editor-code = { path = "packages/editors/code" }
+moonkale-editor-markdown = { path = "packages/editors/markdown" }
+moonkale-editor-table = { path = "packages/editors/table" }
+moonkale-editor-graph = { path = "packages/editors/graph" }
+moonkale-editor-flow = { path = "packages/editors/flow" }
+moonkale-editor-terminal = { path = "packages/editors/terminal" }
+moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }

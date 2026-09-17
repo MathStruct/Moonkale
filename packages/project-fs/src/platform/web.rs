@@ -1,0 +1,1 @@
+//! Browser backend. Three modes: OPFS (always available, app-private), File System Access API (Chromium; real folders), and *none* (fall back to a server-side folder via `sources::remote`). Accessed through `web-sys`; this is the one place `web-sys` is allowed in the fs layer.

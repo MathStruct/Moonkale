@@ -1,0 +1,19 @@
+[package]
+name = "moonkale-project-fs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Folder projects as a Source: file tree, content, watching. Per-platform backends."
+
+[features]
+default = []
+native = []   # std::fs + notify (desktop, server)
+web = []      # OPFS / File System Access API / server-backed
+mobile = []   # scoped storage via platform pickers
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# ignore = "0.4"        # .gitignore-aware walking
+# [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# notify = { version = "9", optional = true }
+# tokio = { version = "1", features = ["fs"], optional = true }

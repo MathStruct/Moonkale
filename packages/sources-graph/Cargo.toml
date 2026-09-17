@@ -1,0 +1,21 @@
+[package]
+name = "moonkale-sources-graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Graph-database sources: TypeDB, LadybugDB (lbug), HelixDB (embedded or HTTP), FalkorDB. Native only."
+
+[features]
+default = []
+typedb = []
+ladybug = []
+helix = []
+falkor = []
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# moonkale-sources = { workspace = true }
+# typedb-driver = { version = "3", optional = true }
+# lbug = { version = "0.20", optional = true }     # LadybugDB official Rust binding (formerly kuzu). Downloads a prebuilt static liblbug, else builds C++ (cmake). Extensions need extra link flags.
+# helix-db = { version = "3", features = ["embedded"], optional = true }  # embedded mode; server mode is plain HTTP POST /v2/query
+# falkordb = { version = "0.10", optional = true }

@@ -1,0 +1,10 @@
+[package]
+name = "moonkale-terminal-pty"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Desktop/server only: local PTY backend for terminal sessions."
+
+[dependencies]
+# moonkale-terminal = { workspace = true }
+# portable-pty = "0.9"

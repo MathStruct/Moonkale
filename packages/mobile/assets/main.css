@@ -12,7 +12,15 @@ body {
     flex-direction: column;
 }
 
-/* The editor workbench takes whatever height is left below the navbar. */
+/* Dioxus mounts the app into #main; make it and the home view fill the
+   height left below the navbar so the editor workbench can stretch. */
+#main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 #home {
     flex: 1;
     min-height: 0;

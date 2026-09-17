@@ -1,0 +1,9 @@
+{
+  "name": "@moonkale/xterm",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "build": "esbuild src/index.ts --bundle --format=esm --minify --outfile=dist/xterm.js" },
+  "devDependencies": { "esbuild": "^0.27.0", "typescript": "^5.0.0" },
+  "dependencies": {}
+}

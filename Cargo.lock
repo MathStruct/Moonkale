@@ -3499,6 +3499,90 @@ dependencies = [
 ]
 
 [[package]]
+name = "moonkale-core"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-code"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-flow"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-graph"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-graph-desktop"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-markdown"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-table"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-editor-terminal"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-ext-api"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-ext-host"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-index"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-llm"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-lsp"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-lsp-local"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-project-fs"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-sources"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-sources-graph"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-sources-kv"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-sources-sql"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-terminal"
+version = "0.1.0"
+
+[[package]]
+name = "moonkale-terminal-pty"
+version = "0.1.0"
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

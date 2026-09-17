@@ -1,0 +1,14 @@
+[package]
+name = "moonkale-editor-code"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Code editor panel. CodeMirror 6 backend behind a swappable trait; languages as contributions."
+
+[dependencies]
+# dioxus = { workspace = true }
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# moonkale-lsp = { workspace = true }
+# moonkale-index = { workspace = true }   # tree-sitter highlighting
+# ropey = "1"                             # the Rust-side document model

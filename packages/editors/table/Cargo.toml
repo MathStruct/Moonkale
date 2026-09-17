@@ -1,0 +1,12 @@
+[package]
+name = "moonkale-editor-table"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SQL / table editor: query editor + virtualised, editable grid. Rust-native."
+
+[dependencies]
+# dioxus = { workspace = true }
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# moonkale-sources = { workspace = true }

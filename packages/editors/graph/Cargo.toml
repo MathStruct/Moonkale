@@ -1,0 +1,15 @@
+[package]
+name = "moonkale-editor-graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Graph view: GPU-rendered 2D/3D graph with layouts, subgraph display, popups. wgpu-based."
+
+[dependencies]
+# dioxus = { workspace = true }
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# wgpu = "30"
+# glam = "0.30"
+# petgraph = "0.8"
+# fdg-sim = "0.9"   # evaluate; likely replaced by a GPU force layout

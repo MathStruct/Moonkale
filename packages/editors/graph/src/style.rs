@@ -1,0 +1,1 @@
+//! Styling: `NodeStyle`/`EdgeStyle` resolution from renderer contributions + user overrides; colour by kind/source/property/community; edge colour by kind, direction arrows, highlight of selected subgraph; theme integration.

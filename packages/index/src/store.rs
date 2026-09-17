@@ -1,0 +1,1 @@
+//! Derived-data store: derived nodes/edges (SQLite or DuckDB file in the workspace dir), full-text via `tantivy`, symbol lookup tables. Exposes itself as `IndexSource` so editors query it like any other source.

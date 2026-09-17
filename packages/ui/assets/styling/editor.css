@@ -7,9 +7,33 @@
   font-size: 13px;
 }
 
+/* The app body is always dark, so pin the workbench to a matching dark
+   palette instead of letting it follow `prefers-color-scheme`. The crate
+   declares its variables on both .wb-shell and .wb-workspace, so override
+   both or the nested workspace re-applies the light defaults. */
 .editor-root .wb-shell {
-  --wb-accent: #6ea8fe;
   height: 100%;
+}
+
+.editor-root .wb-shell,
+.editor-root .wb-workspace {
+  --wb-canvas: #0f1116;
+  --wb-surface: #161922;
+  --wb-sunken: #0b0d12;
+  --wb-viewport: #12141b;
+  --wb-hover: rgb(255 255 255 / 0.06);
+  --wb-pressed: rgb(255 255 255 / 0.11);
+  --wb-line: #2a2e3a;
+  --wb-ink: #e6e8ee;
+  --wb-ink-soft: #a3a9b8;
+  --wb-ink-faint: #7f8595;
+  --wb-accent: #6ea8fe;
+  --wb-selected: rgb(110 168 254 / 0.16);
+  --wb-good: #6cb28c;
+  --wb-caution: #c9a75f;
+  --wb-danger: #e07a75;
+  --wb-danger-soft: rgb(224 122 117 / 0.14);
+  --wb-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
 }
 
 .editor-icon {

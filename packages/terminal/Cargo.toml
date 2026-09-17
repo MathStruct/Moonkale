@@ -1,0 +1,10 @@
+[package]
+name = "moonkale-terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal session model and transports (no PTY here). Runs on all platforms."
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# alacritty_terminal = "0.26"   # VT parser + grid state, for the Rust-native renderer path

@@ -1,0 +1,11 @@
+[package]
+name = "moonkale-sources"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Source registry, connection lifecycle, credentials, and the SQL/graph/KV lifting rules. No drivers."
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# secrecy = "0.10"     # SecretString for connection params
+# keyring = "3"        # desktop keychain (native only)

@@ -1,0 +1,24 @@
+[package]
+name = "moonkale-ext-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Loads, sandboxes and dispatches extensions (static registry + WASM component runtime)."
+
+[features]
+default = []
+# Native WASM runtime (desktop, server). Not available on wasm32 targets.
+wasmtime = []
+# Browser WASM runtime: run extension components inside the page.
+web = []
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# inventory = "0.3"            # static extension registration
+#
+# [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# wasmtime = { version = "49", features = ["component-model"], optional = true }
+#
+# [target.'cfg(target_arch = "wasm32")'.dependencies]
+# wasm_component_layer = { version = "0.1", optional = true }

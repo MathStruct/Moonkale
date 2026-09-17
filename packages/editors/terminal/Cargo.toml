@@ -1,0 +1,12 @@
+[package]
+name = "moonkale-editor-terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal panel: renders a moonkale-terminal session (xterm.js backend today, Rust canvas renderer later)."
+
+[dependencies]
+# dioxus = { workspace = true }
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# moonkale-terminal = { workspace = true }

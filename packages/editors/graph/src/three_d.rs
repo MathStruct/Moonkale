@@ -1,0 +1,1 @@
+//! 3D mode: perspective camera, z from a third layout dimension or from a property (time, layer), depth-sorted transparent edges, fog for depth cues. Same scene buffers; different camera + pipelines.

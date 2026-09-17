@@ -78,13 +78,23 @@ pub fn EditorWorkbench() -> Element {
     let panels = vec![
         Panel::new("explorer", "Explorer", "side", rsx! { Explorer {} }),
         Panel::new("search", "Search", "side", rsx! { Search {} }),
-        Panel::new("main-rs", "main.rs", "main", rsx! { SourceFile { name: "main.rs" } })
-            .with_tab_icon(rsx! { FileIcon {} })
-            .with_tab_accessory(rsx! {
-                span { class: "editor-dirty-dot", "aria-label": "Unsaved changes" }
-            }),
-        Panel::new("lib-rs", "lib.rs", "main", rsx! { SourceFile { name: "lib.rs" } })
-            .with_tab_icon(rsx! { FileIcon {} }),
+        Panel::new(
+            "main-rs",
+            "main.rs",
+            "main",
+            rsx! { SourceFile { name: "main.rs" } },
+        )
+        .with_tab_icon(rsx! { FileIcon {} })
+        .with_tab_accessory(rsx! {
+            span { class: "editor-dirty-dot", "aria-label": "Unsaved changes" }
+        }),
+        Panel::new(
+            "lib-rs",
+            "lib.rs",
+            "main",
+            rsx! { SourceFile { name: "lib.rs" } },
+        )
+        .with_tab_icon(rsx! { FileIcon {} }),
         Panel::new("terminal", "Terminal", "bottom", rsx! { Terminal {} })
             .with_class("editor-panel-terminal"),
         Panel::new("problems", "Problems", "bottom", rsx! { Problems {} }),

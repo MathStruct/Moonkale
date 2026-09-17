@@ -1,0 +1,1 @@
+//! Placeholder for a Rust-native backend. Candidates: a virtualised Dioxus text view (good enough for most files, works everywhere) or a wgpu text renderer (fast, needs a canvas path). Both consume the same `Rope` + decorations. Not started.

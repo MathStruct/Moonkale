@@ -1,0 +1,14 @@
+[package]
+name = "moonkale-editor-graph-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Desktop only: native wgpu surface for the graph view when the webview cannot provide WebGPU (plan B for Linux/WebKitGTK)."
+
+[dependencies]
+# moonkale-editor-graph = { workspace = true }
+# wgpu = "30"
+# raw-window-handle = "0.6"
+# [target.'cfg(target_os = "linux")'.dependencies]
+# gtk = "0.18"          # sibling widget in the wry/WebKitGTK window
+# webkit2gtk = "2.0"

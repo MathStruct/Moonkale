@@ -1,0 +1,1 @@
+//! Interaction: camera (pan/zoom/orbit), selection (click, box, lasso), drag-to-pin, hover → popup with node/edge content (`fetch` on demand), keyboard navigation along edges, double-click → open in editor.

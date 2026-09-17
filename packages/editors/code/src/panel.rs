@@ -1,0 +1,1 @@
+//! The Dioxus panel component: mounts the backend, wires selection/cursor into shell context keys (`lang`, `readOnly`, `hasSelection`), status-bar items (Ln/Col, language), and the "Open with…" affordance.

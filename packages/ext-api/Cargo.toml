@@ -1,0 +1,13 @@
+[package]
+name = "moonkale-ext-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The stable API surface an extension programs against: manifest, contribution points, host handle."
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# serde = { version = "1", features = ["derive"] }
+# semver = "1"
+# The WIT world for WASM extensions is generated from this crate's types:
+# wit-bindgen = "0.62"   (build-time)

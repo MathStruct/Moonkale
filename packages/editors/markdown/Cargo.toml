@@ -1,0 +1,14 @@
+[package]
+name = "moonkale-editor-markdown"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Markdown / Typst editor: WYSIWYG (Milkdown backend, swappable), Obsidian-style links, Typst preview via the native typst crate."
+
+[dependencies]
+# dioxus = { workspace = true }
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# moonkale-index = { workspace = true }   # wiki-link resolution
+# typst = "0.15"                          # Typst compiler, pure Rust, works on wasm
+# pulldown-cmark = "0.13"                 # Markdown parsing for the Rust side

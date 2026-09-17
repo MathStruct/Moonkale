@@ -1,0 +1,13 @@
+[package]
+name = "moonkale-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Parsing and indexing: tree-sitter symbols, wiki-links, full-text, embeddings/RAG. Derives edges the sources don't know about."
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# tree-sitter = "0.27"
+# tantivy = "0.26"        # full-text (native); web uses server index
+# usearch = "2"           # local vector index (native)
+# recoco = "0.2"          # Rust-only CocoIndex fork: incremental ETL pipelines — evaluate

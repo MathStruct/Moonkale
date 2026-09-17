@@ -1,0 +1,13 @@
+[package]
+name = "moonkale-llm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LLM gateway: provider abstraction, tool surface over commands/sources, embeddings, and the policy layer."
+
+[dependencies]
+# moonkale-core = { workspace = true }
+# moonkale-ext-api = { workspace = true }
+# reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+# Provider SDKs are deliberately NOT depended on; we speak the HTTP APIs directly
+# behind `trait Provider` so adding one is a file, not a dependency tree.
