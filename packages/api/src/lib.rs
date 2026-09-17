@@ -85,11 +85,32 @@ pub async fn echo(input: String) -> Result<String, ServerFnError> {
     Ok(input)
 }
 
-/// Open a folder on the server and register it as a source.
+/// Open a folder on the server, index it, and register both as sources.
+/// Returns the folder's descriptor first, then the index's.
 #[post("/api/sources/open_folder")]
-pub async fn open_folder(path: String) -> Result<SourceDescriptor, ServerFnError> {
-    let source = state::open(&path).map_err(server_error)?;
-    Ok(state::registry().insert(source))
+pub async fn open_folder(path: String) -> Result<Vec<SourceDescriptor>, ServerFnError> {
+    let folder = state::open(&path).map_err(server_error)?;
+    let folder: std::sync::Arc<dyn moonkale_core::Source> = folder;
+    let index = moonkale_index::IndexSource::build(folder.clone())
+        .await
+        .map_err(server_error)?;
+    let reg = state::registry();
+    Ok(vec![
+        reg.insert(folder),
+        reg.insert(std::sync::Arc::new(index)),
+    ])
+}
+
+/// A node was written; let a derived source re-read it.
+#[post("/api/sources/refresh")]
+pub async fn refresh_source(
+    source: SourceId,
+    node: NodeId,
+) -> Result<Result<(), SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.refresh(node).await)
 }
 
 /// Descriptors of every open source.

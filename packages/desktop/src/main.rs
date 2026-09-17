@@ -15,8 +15,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
 use ui::{
-    Frame, OpenFolderFuture, PickFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig,
-    WindowControls, WindowId, WorkspaceConfig,
+    AttachFuture, Frame, OpenFolderFuture, PickFolderFuture, SessionBus, SessionMessage, Shell,
+    ShellConfig, WindowControls, WindowId, WorkspaceConfig,
 };
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -38,8 +38,8 @@ fn registry() -> &'static SourceRegistry {
     REGISTRY.get_or_init(SourceRegistry::new)
 }
 
-/// Native build: open the folder in-process with `FolderSource` and register
-/// it process-wide.
+/// Native build: open the folder in-process with `FolderSource`, index it,
+/// and register both process-wide.
 fn open_local(path: String) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
@@ -47,32 +47,41 @@ fn open_local(path: String) -> OpenFolderFuture {
         } else {
             path
         };
-        let source = moonkale_project_fs::FolderSource::open(&path).map_err(SourceError::from)?;
-        let id = source.id();
+        let folder = moonkale_project_fs::FolderSource::open(&path).map_err(SourceError::from)?;
+        let id = folder.id();
         if let Some(existing) = registry().get(&id) {
-            return Ok(existing);
+            let index_id = moonkale_core::SourceId::new(format!("index:{id}"));
+            let mut v = vec![existing];
+            v.extend(registry().get(&index_id));
+            return Ok(v);
         }
-        let source: Arc<dyn Source> = Arc::new(source);
-        registry().insert(source.clone());
-        Ok(source)
+        let folder: Arc<dyn Source> = Arc::new(folder);
+        registry().insert(folder.clone());
+        let index: Arc<dyn Source> =
+            Arc::new(moonkale_index::IndexSource::build(folder.clone()).await?);
+        registry().insert(index.clone());
+        Ok(vec![folder, index])
     })
 }
 
 /// Another window opened it: take the shared instance from the registry.
-fn attach_local(descriptor: SourceDescriptor) -> OpenFolderFuture {
+fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
     Box::pin(async move {
-        match registry().get(&descriptor.id) {
-            Some(s) => Ok(s),
-            None => {
-                let path = descriptor
-                    .id
-                    .as_str()
-                    .strip_prefix("folder:")
-                    .unwrap_or(".")
-                    .to_string();
-                open_local(path).await
-            }
+        if let Some(s) = registry().get(&descriptor.id) {
+            return Ok(s);
         }
+        // Not in the registry (shouldn't happen in-process): re-open by path.
+        let path = descriptor
+            .id
+            .as_str()
+            .strip_prefix("folder:")
+            .unwrap_or(".")
+            .to_string();
+        let opened = open_local(path).await?;
+        opened
+            .into_iter()
+            .find(|s| s.id() == descriptor.id)
+            .ok_or(SourceError::NotFound)
     })
 }
 

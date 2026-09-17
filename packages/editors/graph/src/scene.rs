@@ -1,1 +1,0 @@
-//! Scene: `GraphView` → GPU instance buffers (position, colour, size, kind glyph, edge endpoints + colour + arrowhead flags). Incremental updates on `SourceEvent`s; stable node → instance index mapping so animations interpolate.

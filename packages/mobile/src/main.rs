@@ -7,7 +7,8 @@ use moonkale_core::{Source, SourceDescriptor, SourceError};
 use std::rc::Rc;
 use std::sync::Arc;
 use ui::{
-    Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig, WorkspaceConfig,
+    AttachFuture, Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig,
+    WorkspaceConfig,
 };
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -24,19 +25,25 @@ fn open_local(path: String) -> OpenFolderFuture {
             path
         };
         moonkale_project_fs::FolderSource::open(&path)
-            .map(|s| Arc::new(s) as Arc<dyn Source>)
+            .map(|s| vec![Arc::new(s) as Arc<dyn Source>])
             .map_err(SourceError::from)
     })
 }
 
-fn attach_local(descriptor: SourceDescriptor) -> OpenFolderFuture {
+fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
     let path = descriptor
         .id
         .as_str()
         .strip_prefix("folder:")
         .unwrap_or(".")
         .to_string();
-    open_local(path)
+    Box::pin(async move {
+        open_local(path)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or(SourceError::NotFound)
+    })
 }
 
 /// One window on mobile: a bus with nobody to talk to.

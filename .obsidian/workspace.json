@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/prompts/error2.md",
+                "file": "markdown/prompts/Prompt5.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "error2"
+              "title": "Prompt5"
             }
           }
         ]
@@ -193,20 +193,22 @@
   },
   "active": "e809ffc8e5acdf7d",
   "lastOpenFiles": [
-    "target/dx/web/debug/web/server-5ecfcca6",
-    "target/dx/moonkale/debug/web/server-4f9156a4",
-    "target/dx/moonkale/debug/web/server-38f3ccf7",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/deps/moonkale-3f0354ecf9dc2e56",
-    "target/x86_64-unknown-linux-gnu/server-dev/deps/moonkale-553901b96200d0db",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/deps/moonkale-3f0354ecf9dc2e56.d",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-33ctjxj81quvy/s-hmdsv9iqyb-133dhew-cplqna71jjtpx7ampwq8oivho/work-products.bin",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-33ctjxj81quvy/s-hmdsv9iqyb-133dhew-cplqna71jjtpx7ampwq8oivho/query-cache.bin",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-33ctjxj81quvy/s-hmdsv9iqyb-133dhew-cplqna71jjtpx7ampwq8oivho/ew6uia4a29z825tg0nmu0a9t6.o",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-33ctjxj81quvy/s-hmdsv9iqyb-133dhew-cplqna71jjtpx7ampwq8oivho/etgeoo623svphk3o8wj4x0ca0.o",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-33ctjxj81quvy/s-hmdsv9iqyb-133dhew-cplqna71jjtpx7ampwq8oivho/eqv7nzsouboaknebpeq3nhxa7.o",
+    "target/debug/incremental/moonkale_editor_code-1keeckg2yywbv/s-hmdtk9i9zl-1vdy1f0-d7lj637o8ra0lw4yhwizgtwb8/work-products.bin",
+    "target/debug/incremental/moonkale_editor_code-1keeckg2yywbv/s-hmdtk9i9zl-1vdy1f0-d7lj637o8ra0lw4yhwizgtwb8/query-cache.bin",
+    "target/debug/incremental/moonkale_editor_code-1keeckg2yywbv/s-hmdtk9i9zl-1vdy1f0-d7lj637o8ra0lw4yhwizgtwb8/metadata.rmeta",
+    "target/debug/incremental/moonkale_editor_code-1keeckg2yywbv/s-hmdtk9i9zl-1vdy1f0-d7lj637o8ra0lw4yhwizgtwb8/dep-graph.bin",
+    "target/debug/incremental/moonkale_editor_code-1keeckg2yywbv/s-hmdtk9i9zl-1vdy1f0-d7lj637o8ra0lw4yhwizgtwb8",
+    "target/debug/incremental/api-3b2b9seh21t2g/s-hmdtk9diuz-01919lt-7mt1uhpajpve6mmeyd3fkx4kj/work-products.bin",
+    "target/debug/incremental/api-3b2b9seh21t2g/s-hmdtk9diuz-01919lt-7mt1uhpajpve6mmeyd3fkx4kj/query-cache.bin",
+    "target/debug/incremental/api-3b2b9seh21t2g/s-hmdtk9diuz-01919lt-7mt1uhpajpve6mmeyd3fkx4kj/metadata.rmeta",
+    "target/debug/incremental/api-3b2b9seh21t2g/s-hmdtk9diuz-01919lt-7mt1uhpajpve6mmeyd3fkx4kj/dep-graph.bin",
+    "target/debug/incremental/api-3b2b9seh21t2g/s-hmdtk9diuz-01919lt-7mt1uhpajpve6mmeyd3fkx4kj",
+    "target/debug/deps/moonkale_editor_graph-b6997cab3172b8a7.d",
+    "markdown/milestones/Milestone 2 - Graph Appears.md",
+    "markdown/prompts/error2.md",
+    "markdown/prompts/Prompt5.md",
     "markdown/problems/P-045 Cross-window drag and drop.md",
     "markdown/prompts/error 1.md",
-    "markdown/prompts/error2.md",
     "site/public/static/og-image.png",
     "site/public/static/icon.png",
     "markdown/packaging/Android.md",

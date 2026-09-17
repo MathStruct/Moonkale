@@ -3,11 +3,18 @@ name = "moonkale-index"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Parsing and indexing: tree-sitter symbols, wiki-links, full-text, embeddings/RAG. Derives edges the sources don't know about."
+description = "Parsing and indexing: wiki-links and tree-sitter symbols derived from other sources, exposed as a Source. Native only."
 
 [dependencies]
-# moonkale-core = { workspace = true }
-# tree-sitter = "0.27"
-# tantivy = "0.26"        # full-text (native); web uses server index
-# usearch = "2"           # local vector index (native)
-# recoco = "0.2"          # Rust-only CocoIndex fork: incremental ETL pipelines — evaluate
+moonkale-core = { workspace = true }
+regex = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tree-sitter = "0.27"
+tree-sitter-rust = "0.24"
+tokio = { version = "1", features = ["rt", "sync"] }
+
+[dev-dependencies]
+moonkale-project-fs = { workspace = true }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

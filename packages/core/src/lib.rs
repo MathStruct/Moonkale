@@ -38,6 +38,6 @@ pub use graph::{ContentRef, Edge, EdgeKind, Node, NodeKind, Version};
 pub use id::{NodeId, SourceId};
 pub use source::async_trait;
 pub use source::{
-    Applied, Capabilities, Op, Query, QueryResult, Source, SourceDescriptor, SourceFamily, Splice,
-    TextPatch, Transaction,
+    Applied, Capabilities, Direction, Op, Query, QueryResult, Source, SourceDescriptor,
+    SourceFamily, Splice, Table, TextDialect, TextPatch, Transaction,
 };

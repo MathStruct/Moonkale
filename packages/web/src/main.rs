@@ -7,7 +7,8 @@ use moonkale_core::{Source, SourceDescriptor};
 use std::rc::Rc;
 use std::sync::Arc;
 use ui::{
-    Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig, WorkspaceConfig,
+    AttachFuture, Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig,
+    WorkspaceConfig,
 };
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -19,14 +20,16 @@ fn main() {
 
 fn open_remote(path: String) -> OpenFolderFuture {
     Box::pin(async move {
-        api::RemoteSource::open_folder(&path)
-            .await
-            .map(|s| Arc::new(s) as Arc<dyn Source>)
+        api::RemoteSource::open_folder(&path).await.map(|v| {
+            v.into_iter()
+                .map(|s| Arc::new(s) as Arc<dyn Source>)
+                .collect()
+        })
     })
 }
 
 /// Another tab already opened this source on the server: just wrap its descriptor.
-fn attach_remote(descriptor: SourceDescriptor) -> OpenFolderFuture {
+fn attach_remote(descriptor: SourceDescriptor) -> AttachFuture {
     Box::pin(async move {
         Ok(Arc::new(api::RemoteSource::from_descriptor(descriptor)) as Arc<dyn Source>)
     })

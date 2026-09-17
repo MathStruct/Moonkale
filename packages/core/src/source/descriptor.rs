@@ -11,6 +11,8 @@ pub enum SourceFamily {
     Sql,
     Graph,
     KeyValue,
+    /// Derived data over other sources (links, symbols).
+    Index,
     Remote,
     Custom(String),
 }
@@ -22,6 +24,15 @@ pub struct Capabilities {
     pub read: bool,
     pub write: bool,
     pub watch: bool,
+    /// Dialect accepted by `Query::Text`, if any (`"sql"`).
+    pub text_query: Option<TextDialect>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextDialect {
+    Sql,
+    Cypher,
+    TypeQl,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

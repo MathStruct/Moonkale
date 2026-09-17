@@ -1,1 +1,0 @@
-//! Stack traces and runtime data as graph: parse Rust/Julia/Go/Python trace formats into `Frame` nodes linked by `Calls` edges and to `Symbol` nodes from the index, so a panic can be opened in the graph view and clicked through to code.

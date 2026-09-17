@@ -170,6 +170,7 @@ impl Source for FolderSource {
                 read: true,
                 write: true,
                 watch: false,
+                text_query: None,
             },
             root: self.root_id(),
         }
@@ -177,6 +178,14 @@ impl Source for FolderSource {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Neighbours { node, .. } => {
+                // A folder's neighbourhood is containment: its children.
+                self.query(Query::Children(node)).await
+            }
+            Query::All { .. } | Query::Text { .. } => Err(SourceError::Unsupported(
+                "folders answer Node/Children/Neighbours only; the index has the whole graph"
+                    .into(),
+            )),
             Query::Node(id) => {
                 let rel = self.rel_of(id)?;
                 let (meta, v) = self.stat(&rel).await?;

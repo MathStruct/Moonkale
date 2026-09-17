@@ -17,8 +17,8 @@ pub mod event;
 pub mod query;
 pub mod transaction;
 
-pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily};
-pub use query::{Query, QueryResult};
+pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
+pub use query::{Direction, Query, QueryResult, Table};
 pub use transaction::{Applied, Op, Splice, TextPatch, Transaction};
 
 use crate::error::SourceError;
@@ -50,6 +50,13 @@ pub trait Source: MaybeSendSync {
 
     /// Apply a transaction. Partial success is reported per op in `Applied`.
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError>;
+
+    /// A node changed (it was saved through *another* source, or externally):
+    /// re-derive whatever this source keeps about it. Default: nothing.
+    /// The index re-extracts the file; a folder has nothing to do.
+    async fn refresh(&self, _node: NodeId) -> Result<(), SourceError> {
+        Ok(())
+    }
 }
 
 /// `Send + Sync` on native (sources are shared across tokio tasks), nothing

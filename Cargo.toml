@@ -33,6 +33,7 @@ members = [
     "packages/editors/flow",
     "packages/editors/terminal",
     "packages/editors/graph-desktop",
+    "packages/editors/graph-render",
 ]
 
 [workspace.package]
@@ -69,3 +70,14 @@ moonkale-editor-graph = { path = "packages/editors/graph" }
 moonkale-editor-flow = { path = "packages/editors/flow" }
 moonkale-editor-terminal = { path = "packages/editors/terminal" }
 moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }
+moonkale-graph-render = { path = "packages/editors/graph-render" }
+
+# Size-optimised profile for standalone wasm modules (the graph renderer).
+# Used by packages/editors/graph-render/build.sh.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

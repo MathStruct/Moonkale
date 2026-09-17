@@ -1,1 +1,0 @@
-//! Embeddings: chunking strategies (per symbol, per heading, per row), the `Embedder` trait (routed through `moonkale-llm`), vector storage (`usearch` locally, `pgvector`/HelixDB/LanceDB remotely), and hybrid search (BM25 + vector) exposed as `Query::Search`.

@@ -20,8 +20,8 @@ mod titlebar;
 pub use explorer::ExplorerExtension;
 pub use frame::{Frame, ResizeEdge, SessionFactory, ShellConfig, WindowControls};
 pub use moonkale_ext_api::{
-    AttachSource, Command, OpenFolder, OpenFolderFuture, PickFolder, PickFolderFuture, SessionBus,
-    SessionMessage, WindowId, WorkspaceConfig,
+    AttachFuture, AttachSource, Command, OpenFolder, OpenFolderFuture, PickFolder,
+    PickFolderFuture, SessionBus, SessionMessage, WindowId, WorkspaceConfig,
 };
 pub use shell::Shell;
 pub use titlebar::TitleBar;

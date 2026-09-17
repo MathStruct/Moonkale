@@ -35,9 +35,13 @@ impl PartialEq for SourceHandle {
 
 /// How this platform opens a folder: in-process (`FolderSource`) on desktop,
 /// via the server (`RemoteSource`) on web. Installed by the platform crate.
-/// The future an [`OpenFolder`] returns.
-pub type OpenFolderFuture = Pin<Box<dyn Future<Output = Result<Arc<dyn Source>, SourceError>>>>;
+/// The future an [`OpenFolder`] returns: the folder itself plus whatever the
+/// platform derives from it (the index), all registered together.
+pub type OpenFolderFuture =
+    Pin<Box<dyn Future<Output = Result<Vec<Arc<dyn Source>>, SourceError>>>>;
 pub type OpenFolder = fn(String) -> OpenFolderFuture;
+/// The future an [`AttachSource`] returns: one source, by descriptor.
+pub type AttachFuture = Pin<Box<dyn Future<Output = Result<Arc<dyn Source>, SourceError>>>>;
 
 /// A native folder picker: resolves to the chosen path, or `None` if the
 /// user cancelled (or no dialog is available). Desktop provides one; web
@@ -47,7 +51,7 @@ pub type PickFolder = fn() -> PickFolderFuture;
 
 /// Re-open a source another window already has, from its descriptor:
 /// the process registry on desktop, `RemoteSource::from_descriptor` on web.
-pub type AttachSource = fn(SourceDescriptor) -> OpenFolderFuture;
+pub type AttachSource = fn(SourceDescriptor) -> AttachFuture;
 
 /// What the platform hands the workspace at startup.
 #[derive(Clone, Copy)]
@@ -105,6 +109,9 @@ pub struct Workspace {
     pub own_drag: Signal<Option<NodeId>>,
     /// Other windows we have heard from (diagnostic: shown in the status bar).
     pub peers: Signal<Vec<WindowId>>,
+    /// Bumped whenever derived data may have changed (after a save was
+    /// refreshed into the index); graph/backlink panels re-query on it.
+    pub graph_epoch: Signal<u64>,
     bus: Signal<Option<Rc<dyn SessionBus>>>,
     config: WorkspaceConfig,
 }
@@ -131,6 +138,7 @@ impl Workspace {
             foreign_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             own_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             peers: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
@@ -356,17 +364,45 @@ impl Workspace {
 
     /// Open a folder through the platform's factory and add it to `sources`.
     pub async fn open_folder(mut self, path: String) -> Result<SourceDescriptor, SourceError> {
-        let source = (self.config.open_folder)(path).await?;
-        let descriptor = source.descriptor();
-        self.sources.with_mut(|v| {
-            v.retain(|s| s.descriptor.id != descriptor.id);
-            v.push(SourceHandle {
-                descriptor: descriptor.clone(),
-                source,
+        let sources = (self.config.open_folder)(path).await?;
+        let mut first: Option<SourceDescriptor> = None;
+        for source in sources {
+            let descriptor = source.descriptor();
+            self.sources.with_mut(|v| {
+                v.retain(|s| s.descriptor.id != descriptor.id);
+                v.push(SourceHandle {
+                    descriptor: descriptor.clone(),
+                    source,
+                });
             });
-        });
-        self.set_status(format!("Opened {}", descriptor.display_name));
-        Ok(descriptor)
+            self.send(SessionMessage::SourceOpened {
+                from: self.window.peek().clone(),
+                descriptor: descriptor.clone(),
+            });
+            first.get_or_insert(descriptor);
+        }
+        let first = first.ok_or_else(|| SourceError::Invalid("nothing opened".into()))?;
+        self.set_status(format!("Opened {}", self.sources_summary()));
+        Ok(first)
+    }
+
+    /// "folder · index: 12 files · 30 links" — for the status bar.
+    pub fn sources_summary(&self) -> String {
+        self.sources
+            .peek()
+            .iter()
+            .map(|s| s.descriptor.display_name.clone())
+            .collect::<Vec<_>>()
+            .join(" · ")
+    }
+
+    /// The index source, if one is open (derived data: links, symbols).
+    pub fn index(&self) -> Option<SourceHandle> {
+        self.sources
+            .peek()
+            .iter()
+            .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
+            .cloned()
     }
 
     pub async fn query(&self, source: &SourceId, query: Query) -> Result<QueryResult, SourceError> {
@@ -419,6 +455,20 @@ impl Workspace {
             Some(v) => {
                 doc.with_mut(|d| d.mark_saved(v));
                 self.set_status(format!("Saved {key}"));
+                // Let derived sources (the index) re-read the file.
+                let others: Vec<Arc<dyn Source>> = self
+                    .sources
+                    .peek()
+                    .iter()
+                    .filter(|s| s.descriptor.id != source_id)
+                    .map(|s| s.source.clone())
+                    .collect();
+                for other in others {
+                    if let Err(e) = other.refresh(node).await {
+                        tracing::warn!("refresh after save failed: {e}");
+                    }
+                }
+                self.graph_epoch.with_mut(|e| *e += 1);
                 Ok(())
             }
             None => {

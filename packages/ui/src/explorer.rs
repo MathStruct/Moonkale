@@ -124,7 +124,14 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
         opening.set(false);
     };
 
-    let sources = ws.sources.read().clone();
+    // Only sources with a browsable tree; the index shows up in the graph, not here.
+    let sources: Vec<_> = ws
+        .sources
+        .read()
+        .iter()
+        .filter(|s| s.descriptor.family != moonkale_core::SourceFamily::Index)
+        .cloned()
+        .collect();
     let has_dialog = ws.has_folder_dialog();
 
     // Sources that arrived from elsewhere (another window of the session, a

@@ -19,12 +19,15 @@ pub struct RemoteSource {
 }
 
 impl RemoteSource {
-    /// Open a folder on the server and wrap it.
-    pub async fn open_folder(path: &str) -> Result<Self, SourceError> {
-        let descriptor = crate::open_folder(path.to_string())
+    /// Open a folder on the server; returns the folder and its index.
+    pub async fn open_folder(path: &str) -> Result<Vec<Self>, SourceError> {
+        let descriptors = crate::open_folder(path.to_string())
             .await
             .map_err(transport)?;
-        Ok(Self { descriptor })
+        Ok(descriptors
+            .into_iter()
+            .map(|descriptor| Self { descriptor })
+            .collect())
     }
 
     pub fn from_descriptor(descriptor: SourceDescriptor) -> Self {
@@ -61,5 +64,11 @@ impl Source for RemoteSource {
 
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
         crate::apply_to(self.id(), tx).await.map_err(transport)?
+    }
+
+    async fn refresh(&self, node: NodeId) -> Result<(), SourceError> {
+        crate::refresh_source(self.id(), node)
+            .await
+            .map_err(transport)?
     }
 }

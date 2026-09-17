@@ -15,6 +15,7 @@ ui = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-sources = { workspace = true }
+moonkale-index = { workspace = true }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 # Native folder dialog. Same backend dioxus-desktop uses (xdg-desktop-portal on

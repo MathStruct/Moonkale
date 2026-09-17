@@ -1,37 +1,20 @@
 //! # moonkale-editor-graph
 //!
-//! The graph "window" and the reason this crate is the biggest bet after
-//! the model: **it must stay fluid at 100k+ nodes**, where DOM/SVG/Canvas-2D
-//! approaches (Obsidian, Cytoscape) degrade.
+//! The graph "window". This crate is the *host*: a Dioxus panel that queries
+//! the index, sends the subgraph as JSON to the renderer module
+//! (`moonkale-graph-render`, a standalone wasm asset built into `assets/`),
+//! and turns the module's hover/click events into popups and editor opens.
 //!
-//! Architecture:
+//! The renderer runs inside the page/webview on every platform (ADR-0011
+//! plan A). The host never touches the canvas itself.
 //!
-//! ```text
-//!   GraphView (core) ─► scene (instance buffers) ─► wgpu render passes
-//!                          ▲                          ├─ nodes (instanced quads/SDF glyphs)
-//!   layout (compute) ──────┘                          ├─ edges (instanced lines/arcs, per-edge colour+direction)
-//!                                                     ├─ labels (glyph atlas, LOD)
-//!                                                     └─ picking (id buffer)
-//! ```
-//!
-//! `wgpu` gives one code path for WebGPU (web), Vulkan/Metal/DX12 (desktop),
-//! and Metal/Vulkan (mobile). The hard part is not rendering; it is *where the
-//! surface comes from* on each platform — see [`render::surface`] and the
-//! long discussion in the vault (`editors/Graph View.md`,
-//! `decisions/ADR-0003 wgpu for graph rendering.md`).
-//!
-//! Features by module: [`layout`] (force-directed on GPU compute, plus
-//! hierarchical/radial CPU layouts), [`interact`] (pan/zoom/select/drag,
-//! hover popup, keyboard), [`style`] (declarative node/edge styles from
-//! renderer contributions), [`subgraph`] (expand/collapse, filters, saved
-//! views), [`three_d`] (3D mode: same buffers, a perspective camera and
-//! depth-sorted edges).
+//! Milestone 2: whole-graph and local-graph modes, kind filters, hover
+//! popup, double-click to open, backend/counts readout. Layouts beyond
+//! force-directed, styling contributions, 3D and GPU layout are later phases
+//! (vault `editors/Graph View.md`).
 
-pub mod interact;
-pub mod layout;
+pub mod extension;
 pub mod panel;
-pub mod render;
-pub mod scene;
-pub mod style;
-pub mod subgraph;
-pub mod three_d;
+
+pub use extension::GraphExtension;
+pub use panel::GraphPanel;
