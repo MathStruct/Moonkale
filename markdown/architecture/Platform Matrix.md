@@ -4,6 +4,9 @@ tags: [architecture, platform]
 ---
 The brief: *all targets are served; the apps need not be identical; single-platform features are separated.* This note is the source of truth for "what runs where" and drives the crate split in [[Project Structure]].
 
+> [!note] Platform scope
+> **Now**: Linux desktop (Arch, NixOS), web, Android — the ones with test devices. **Later, no device yet**: Windows, macOS, iOS. Nothing may *preclude* them: Dioxus targets all six; `dioxus-desktop` uses WebView2 / WKWebView there (both have WebGPU, so the [[Graph View]]'s plan A is *easier* than on Linux); packaging goes through `dx bundle` (`msi`/`nsis`, `dmg`/`.app`, `ipa`). Where a decision is Linux-specific it is marked as such (e.g. [[Linux Desktop Setup]], the GTK overlay in [[ADR-0011 Desktop graph surface strategy]]); the window-controls, folder-dialog and session-bus code paths are already per-callback so other OSes plug in without touching `ui`.
+
 ## Capability matrix
 
 | Capability | Desktop (webview) | Web (browser) | Mobile (webview) | Server (`api`) |

@@ -1,10 +1,10 @@
 ---
 title: "P-045 — Cross-window drag and drop: what failed, what works, what is unverified"
 tags: [problem, session, desktop, web]
-status: partially resolved
+status: resolved
 phase: 1
 ---
-**Status:** web resolved · desktop unverified (needs a run on a machine with a display) · **Related:** [[Collaboration]], [[Debugging and Logging]]
+**Status:** resolved — confirmed working on desktop by hand (2026-09-17) after the tab-drag + registry-seeding changes · **Related:** [[Collaboration]], [[Debugging and Logging]]
 
 ## Reports (2026-09-17, manual testing by Daniel)
 
@@ -23,8 +23,8 @@ phase: 1
 ## Verified (web, Playwright with real Firefox)
 `packages/web/tests/e2e/session.mjs`: New Window → both status bars show "2 windows" → **real mouse drag of the editor tab** in one window → drop target in the other → drop moves the document → drag released without drop → banner → *Move it here* moves it back → a simulated stray drop of `wb-tab-editor-xyz` does **not** navigate → dismiss.
 
-## Still unverified (desktop)
-No display on the dev box. What to look at when running `cd packages/desktop && dx serve --platform desktop`:
+## Desktop checklist (kept for regressions)
+Confirmed working by hand. If it regresses, this is what to look at when running `cd packages/desktop && dx serve --platform desktop`:
 
 1. Open a folder, *View → New Window*. Does the second window show the folder tree? (Registry seeding — should now be yes regardless of the bus.)
 2. Does the status bar of **both** windows say **"2 windows"**? If either says "1 window", the in-process bus is not delivering; paste the `session[…]` lines from the terminal.

@@ -38,6 +38,7 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-30 | Collaborative editing (CRDT over the op stream) | 5 | research | 30 | [[ADR-0009 Patches not snapshots]] keeps the door open. |
 | P-31 | Structured Typst / Excalidraw-in-flow | 4 | research | 31 | |
 | P-32 | Git integration: status/diff decorations, commit/log, history-as-graph (`vcs-git`, `gix`) | 3 | medium | after P-06 | Folder sources are git repos in practice; server-side on web. [[Version Management]] |
+| P-35 | Windows / macOS / iOS builds: verify `dx serve`/`dx bundle` on each, custom title bar on WebView2/WKWebView (macOS traffic lights vs our controls), `rfd` native dialogs, xdg-portal → OS dialogs, Vulkan/Metal for the graph view | 3 | medium | when a device exists | Design must not preclude; no work scheduled. [[Platform Matrix]] |
 | P-34 | Presence: awareness protocol (cursors, selections, who's here), server websocket hub per workspace, desktop+web in one session | 3 | medium | Phase 3 | Extends the shipped session bus. [[Collaboration]] |
 | P-33 | Entity log: append-only Add/Remove/SetProps/Content events, fold, snapshots, tombstones, checkpoints ↔ commits | 4 | **high** | before P-06 emits derived nodes | Shape must exist before the index creates nodes with no history. [[ADR-0012 Two histories]] |
 

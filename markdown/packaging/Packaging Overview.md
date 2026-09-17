@@ -3,7 +3,7 @@ title: "Packaging Overview"
 description: How a Dioxus app becomes a package — what dx produces, what the binary needs at runtime, and the three targets Moonkale ships to.
 tags: [packaging]
 ---
-Target distributions: **Arch Linux**, **NixOS**, **Android**. One note each: [[Arch Linux]], [[NixOS]], [[Android]]. This note is what they all rely on. Facts were checked against `dioxus-cli` 0.7.10's source (`src/build/request.rs`, `src/config/*.rs`) and `dioxus-asset-resolver` 0.7.10 on 2026-09-17.
+Target distributions now: **Arch Linux**, **NixOS**, **Android**. Later (no test device yet): Windows (`dx bundle --package-types msi|nsis`), macOS (`dmg`, `.app` with `bundle.macos` signing), iOS (`ipa`, needs Xcode) — all produced by the same `dx bundle` and the same `Dioxus.toml`; nothing here should block them. One note each: [[Arch Linux]], [[NixOS]], [[Android]]. This note is what they all rely on. Facts were checked against `dioxus-cli` 0.7.10's source (`src/build/request.rs`, `src/config/*.rs`) and `dioxus-asset-resolver` 0.7.10 on 2026-09-17.
 
 ## What `dx build` produces
 
