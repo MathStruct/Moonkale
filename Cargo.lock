@@ -66,6 +66,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "api"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "base64 0.22.1",
  "dioxus",
  "futures-channel",
@@ -4508,6 +4509,7 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "futures-channel",
+ "futures-util",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-llm",
@@ -4554,7 +4556,11 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "moonkale-core",
+ "moonkale-editor-code",
  "moonkale-ext-api",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -4591,6 +4597,7 @@ dependencies = [
  "moonkale-lsp",
  "moonkale-terminal",
  "serde",
+ "serde_json",
  "uuid",
 ]
 
@@ -4631,6 +4638,7 @@ dependencies = [
 name = "moonkale-llm"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "futures-channel",
  "futures-util",
  "moonkale-core",
@@ -8695,11 +8703,13 @@ name = "web"
 version = "0.1.0"
 dependencies = [
  "api",
+ "axum",
  "dioxus",
  "moonkale-core",
  "moonkale-llm",
  "tracing",
  "ui",
+ "web-sys",
 ]
 
 [[package]]

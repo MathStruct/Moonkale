@@ -27,6 +27,8 @@ use moonkale_core::{
 
 mod llm;
 mod lsp;
+#[cfg(feature = "server")]
+pub mod mcp;
 mod remote;
 mod terminal;
 pub use llm::ProviderInfo;
@@ -130,16 +132,20 @@ pub async fn echo(input: String) -> Result<String, ServerFnError> {
 /// Open a folder on the server, index it, and register both as sources.
 /// Returns the folder's descriptor first, then the index's.
 #[post("/api/sources/open_folder")]
-pub async fn open_folder(path: String) -> Result<Vec<SourceDescriptor>, ServerFnError> {
+pub async fn open_folder(
+    path: String,
+    embed: Option<moonkale_llm::LlmSettings>,
+) -> Result<Vec<SourceDescriptor>, ServerFnError> {
     let reg = state::registry();
     let mut out = Vec::new();
     for source in state::open_any(&path).map_err(server_error)? {
         let is_folder = source.descriptor().family == moonkale_core::SourceFamily::Folder;
         out.push(reg.insert(source.clone()));
         if is_folder {
-            // Embeddings (if configured) are filled in the background so the
-            // folder opens at once; search is BM25-only until they arrive.
-            let embedder = llm::embedder();
+            // Embeddings (if the client's settings ask for them) are filled in
+            // the background so the folder opens at once; search is BM25-only
+            // until they arrive. The secret is resolved on the server.
+            let embedder = embed.as_ref().and_then(llm::provider_for);
             let index = std::sync::Arc::new(
                 moonkale_index::IndexSource::build_with(source, embedder)
                     .await

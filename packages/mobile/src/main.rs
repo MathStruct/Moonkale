@@ -17,7 +17,7 @@ fn main() {
     dioxus::launch(App);
 }
 
-fn open_local(path: String) -> OpenFolderFuture {
+fn open_local(path: String, _options: ui::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
             ".".to_string()
@@ -38,7 +38,7 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
         .unwrap_or(".")
         .to_string();
     Box::pin(async move {
-        open_local(path)
+        open_local(path, ui::OpenOptions::default())
             .await?
             .into_iter()
             .next()
@@ -62,7 +62,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None, attach_source: attach_local, spawn_terminal: None, compile_typst: None, spawn_lsp: None, llm: None },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None, attach_source: attach_local, spawn_terminal: None, compile_typst: None, spawn_lsp: None, llm: None, settings_store: None, secret_store: None },
                 session,
                 new_window: None,
             },

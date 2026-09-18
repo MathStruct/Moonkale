@@ -38,6 +38,9 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mut lsp_session: Signal<Option<moonkale_lsp::LspSession>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut last_error: Signal<Option<SourceError>> = use_signal(|| None);
+    // What the view currently shows (its own edits, or text we pushed), so
+    // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
+    let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
 
     // Mount the backend once the host element exists (after first render).
     use_effect({
@@ -52,6 +55,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
                 BackendEvent::Ready => ready.set(true),
                 BackendEvent::Changed(text) => {
+                    view_text.set(text.clone());
                     doc.with_mut(|d| d.text = text.clone());
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.as_ref())
@@ -126,6 +130,18 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 });
             }
             backend.set(Some(backend::mount(element_id.clone(), initial, on_event)));
+        }
+    });
+
+    // Text changed outside the view (an agent edit, a reload): push it.
+    use_effect(move || {
+        let text = doc.read().text.clone();
+        if !ready() || *view_text.peek() == text {
+            return;
+        }
+        view_text.set(text.clone());
+        if let Some(b) = backend.peek().as_ref() {
+            b.set_text(&text);
         }
     });
 

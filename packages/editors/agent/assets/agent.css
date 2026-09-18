@@ -25,3 +25,8 @@
 .mk-agent-audit { padding: 4px 0; border-bottom: 1px dashed #2a2e37; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .mk-agent-audit-tool { font-family: ui-monospace, monospace; }
 .mk-agent-audit-summary { width: 100%; color: #9aa0aa; white-space: pre-wrap; }
+.mk-agent-diff { display: grid; gap: 4px; margin-top: 4px; }
+.mk-agent-diff pre, .mk-agent-diff-cmd { margin: 0; padding: 6px; border-radius: 4px; font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
+.mk-agent-diff-old { background: #3a2224; color: #ffb4b4; }
+.mk-agent-diff-new { background: #1f3325; color: #b8f0b0; }
+.mk-agent-diff-cmd { background: #1b1e25; color: #d7dae0; }

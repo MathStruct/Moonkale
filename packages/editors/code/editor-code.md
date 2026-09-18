@@ -34,3 +34,7 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 
 ## Milestone 4
 `Workspace::reveal` support: an effect watches `ws.reveal` for this node and, once the view is ready, calls `set_cursor(line, col)` (once per `seq`). Cross-file go-to-definition now opens the target *and* positions the cursor.
+
+## Milestone 5
+- `CodeEditorExtension::skipping(fn(&Node) -> bool)` leaves documents to another extension (markdown).
+- Text changed outside the view (agent `editor.replace`, reload) is pushed into CodeMirror (`view_text` tracks what the view shows).

@@ -16,7 +16,7 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-08 ✅ SQLite (read-only); DuckDB deferred | SQLite + DuckDB sources + table editor | 3 | low | 8 | Embedded, no server; proves SQL lifting; DuckDB gives CSV folders. |
 | P-09 ✅ | Markdown editor: source mode, links, backlinks, local graph | 2 | low | 9 | Mostly composition of P-04, P-06, P-07. |
 | P-10 ✅ (folder only, no auth) | Remote source via `api` (web/mobile parity) | 3 | medium | 10 | Auth + streaming; first time the server matters. |
-| P-11 | Milkdown WYSIWYG behind `RichTextBackend` | 3 | medium | 11 | Second interop package; round-trip fidelity is the risk. |
+| P-11 ✅ (Crepe; Source stays canonical) | Milkdown WYSIWYG behind `RichTextBackend` | 3 | medium | 11 | Second interop package; round-trip fidelity is the risk. |
 | P-12 ✅ (no packages) | Typst preview | 2 | low | 12 | Pure Rust; `World` impl over folder source. |
 | P-13 ✅ | Terminal: PTY + xterm view + links | 2 | low | 13 | Contained; high user value. |
 | P-14 ✅ (diagnostics, hover, definition) | LSP client + local spawning | 3 | medium | 14 | Protocol is known; document sync + neutral feature types is the work. |

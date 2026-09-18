@@ -33,12 +33,15 @@ pub mod workspace;
 pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
+pub mod settings;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
+pub use settings::{Scope, SecretRef, Settings, SettingsFile};
 pub use workspace::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, ForeignDrag,
-    GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder, OpenFolderFuture, PickFolder,
-    PickFolderFuture, Reveal, SourceHandle, Workspace, WorkspaceConfig,
+    GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions,
+    PickFolder, PickFolderFuture, Reveal, SecretStore, SettingsFuture, SettingsStore, SourceHandle,
+    Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.

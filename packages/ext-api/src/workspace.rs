@@ -14,7 +14,7 @@ use dioxus::logger::tracing;
 use dioxus::prelude::*;
 use moonkale_core::{
     Node, NodeId, NodeKind, Query, QueryResult, Source, SourceDescriptor, SourceError, SourceId,
-    Transaction,
+    TextPatch, Transaction,
 };
 use std::future::Future;
 use std::pin::Pin;
@@ -40,7 +40,13 @@ impl PartialEq for SourceHandle {
 /// platform derives from it (the index), all registered together.
 pub type OpenFolderFuture =
     Pin<Box<dyn Future<Output = Result<Vec<Arc<dyn Source>>, SourceError>>>>;
-pub type OpenFolder = fn(String) -> OpenFolderFuture;
+/// What the platform needs besides the path when opening a folder: the
+/// embedding provider settings for the index (`None` = BM25-only search).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OpenOptions {
+    pub embed: Option<moonkale_llm::LlmSettings>,
+}
+pub type OpenFolder = fn(String, OpenOptions) -> OpenFolderFuture;
 /// The future an [`AttachSource`] returns: one source, by descriptor.
 pub type AttachFuture = Pin<Box<dyn Future<Output = Result<Arc<dyn Source>, SourceError>>>>;
 
@@ -64,7 +70,23 @@ pub type CompileTypst = fn(String, String, String) -> CompileTypstFuture;
 /// model it runs.
 pub type LlmProviderFuture =
     Pin<Box<dyn Future<Output = Result<Arc<dyn moonkale_llm::Provider>, String>>>>;
-pub type LlmProvider = fn() -> LlmProviderFuture;
+/// Built from the resolved LLM settings (provider kind, model, endpoint,
+/// secret name); the platform resolves the secret itself.
+pub type LlmProvider = fn(moonkale_llm::LlmSettings) -> LlmProviderFuture;
+
+/// User-scope settings persistence (per machine). Workspace-scope settings
+/// go through the folder source (`.moonkale/settings.json`), so they need
+/// no platform hook.
+pub type SettingsFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>>>>;
+/// Store a secret by name where the platform keeps them (desktop: the
+/// secrets file / keychain). `None` on web — secrets live on the server.
+pub type SecretStore = fn(String, String) -> SettingsFuture<()>;
+
+#[derive(Clone, Copy)]
+pub struct SettingsStore {
+    pub load: fn() -> SettingsFuture<crate::settings::SettingsFile>,
+    pub save: fn(crate::settings::SettingsFile) -> SettingsFuture<()>,
+}
 
 /// "Open this node and put the cursor here" (search hits, trace frames,
 /// go-to-definition). Lines and columns are 0-based.
@@ -90,6 +112,8 @@ pub struct WorkspaceConfig {
     /// Language-server launcher (`None`: no LSP features).
     pub spawn_lsp: Option<moonkale_lsp::SpawnLsp>,
     pub llm: Option<LlmProvider>,
+    pub settings_store: Option<SettingsStore>,
+    pub secret_store: Option<SecretStore>,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -132,6 +156,10 @@ pub enum Command {
     About,
     /// Bring a panel's tab to the front (the shell owns the layout).
     ShowPanel(&'static str),
+    /// Open the n-th entry of `settings.recent_folders`.
+    OpenRecent(usize),
+    /// Open the Settings panel (Ctrl+,).
+    Settings,
 }
 
 #[derive(Clone, Copy)]
@@ -164,6 +192,12 @@ pub struct Workspace {
     pub reveal: Signal<Option<Reveal>>,
     /// Counter for ids of in-process sources (traces).
     pub unique: Signal<u64>,
+    /// Persisted scopes and the resolved value (see `settings.rs`).
+    pub settings_user: Signal<crate::settings::SettingsFile>,
+    pub settings_workspace: Signal<crate::settings::SettingsFile>,
+    pub settings: Signal<crate::settings::Settings>,
+    /// The folder whose `.moonkale/settings.json` is loaded, if any.
+    pub settings_folder: Signal<Option<SourceId>>,
     /// Directory for the next `NewTerminal` (set by "New terminal here").
     pub terminal_cwd: Signal<Option<String>>,
     /// Bumped whenever derived data may have changed (after a save was
@@ -202,6 +236,23 @@ impl Workspace {
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
             reveal: Signal::new_in_scope(None, ScopeId::ROOT),
             unique: Signal::new_in_scope(0, ScopeId::ROOT),
+            settings_user: Signal::new_in_scope(
+                crate::settings::SettingsFile::new(),
+                ScopeId::ROOT,
+            ),
+            settings_workspace: Signal::new_in_scope(
+                crate::settings::SettingsFile::new(),
+                ScopeId::ROOT,
+            ),
+            settings: Signal::new_in_scope(
+                crate::settings::Settings::resolve(
+                    &crate::settings::SettingsFile::new(),
+                    &crate::settings::SettingsFile::new(),
+                    &crate::settings::Settings::env_overrides(),
+                ),
+                ScopeId::ROOT,
+            ),
+            settings_folder: Signal::new_in_scope(None, ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
@@ -383,6 +434,160 @@ impl Workspace {
         self.config.llm
     }
 
+    pub fn has_settings_store(&self) -> bool {
+        self.config.settings_store.is_some()
+    }
+
+    pub fn secret_store(&self) -> Option<SecretStore> {
+        self.config.secret_store
+    }
+
+    // ---- settings -------------------------------------------------------
+
+    /// Recompute the resolved settings from the two scopes + environment.
+    fn resolve_settings(&mut self) {
+        let resolved = crate::settings::Settings::resolve(
+            &self.settings_user.peek(),
+            &self.settings_workspace.peek(),
+            &crate::settings::Settings::env_overrides(),
+        );
+        if *self.settings.peek() != resolved {
+            self.settings.set(resolved);
+        }
+    }
+
+    /// Load the user scope through the platform store (at startup).
+    pub async fn load_user_settings(mut self) {
+        let Some(store) = self.config.settings_store else {
+            return;
+        };
+        match (store.load)().await {
+            Ok(file) => {
+                self.settings_user.set(file);
+                self.resolve_settings();
+            }
+            Err(e) => self.set_status(format!("Settings not loaded: {e}")),
+        }
+    }
+
+    /// Change the user scope and persist it.
+    pub async fn update_user_settings(
+        mut self,
+        f: impl FnOnce(&mut crate::settings::SettingsFile),
+    ) {
+        let mut file = self.settings_user.peek().clone();
+        f(&mut file);
+        self.settings_user.set(file.clone());
+        self.resolve_settings();
+        if let Some(store) = self.config.settings_store {
+            if let Err(e) = (store.save)(file).await {
+                self.set_status(format!("Settings not saved: {e}"));
+            }
+        }
+    }
+
+    /// Read `.moonkale/settings.json` of `folder` (missing = defaults).
+    pub async fn load_workspace_settings(mut self, folder: &SourceId) {
+        let file = match self
+            .node_at_path(folder, crate::settings::WORKSPACE_FILE)
+            .await
+        {
+            Some(node) => match self.source(folder) {
+                Some(src) => match src.fetch_text(node.id).await {
+                    Ok((text, _)) => {
+                        crate::settings::SettingsFile::parse(&text).unwrap_or_else(|e| {
+                            self.set_status(format!("Workspace settings ignored: {e}"));
+                            crate::settings::SettingsFile::new()
+                        })
+                    }
+                    Err(_) => crate::settings::SettingsFile::new(),
+                },
+                None => crate::settings::SettingsFile::new(),
+            },
+            None => crate::settings::SettingsFile::new(),
+        };
+        self.settings_folder.set(Some(folder.clone()));
+        self.settings_workspace.set(file);
+        self.resolve_settings();
+    }
+
+    /// Change the workspace scope and write it into the folder.
+    pub async fn update_workspace_settings(
+        mut self,
+        f: impl FnOnce(&mut crate::settings::SettingsFile),
+    ) {
+        let mut file = self.settings_workspace.peek().clone();
+        f(&mut file);
+        self.settings_workspace.set(file.clone());
+        self.resolve_settings();
+        let Some(folder) = self.settings_folder.peek().clone() else {
+            return;
+        };
+        let Some(src) = self.source(&folder) else {
+            return;
+        };
+        let text = file.to_json();
+        let result = match self
+            .node_at_path(&folder, crate::settings::WORKSPACE_FILE)
+            .await
+        {
+            Some(node) => {
+                let chars = src
+                    .fetch_text(node.id)
+                    .await
+                    .map(|(t, _)| t.chars().count())
+                    .unwrap_or(0);
+                src.apply(Transaction::write_text(
+                    node.id,
+                    node.version,
+                    TextPatch::whole(&text, chars),
+                ))
+                .await
+            }
+            None => {
+                let root = src.descriptor().root;
+                src.apply(Transaction::create_text(
+                    root,
+                    crate::settings::WORKSPACE_FILE,
+                    text,
+                ))
+                .await
+            }
+        };
+        match result {
+            Ok(applied) if applied.first_error().is_none() => {}
+            Ok(applied) => {
+                let e = applied.first_error().cloned().unwrap();
+                self.set_status(format!("Workspace settings not saved: {e}"));
+            }
+            Err(e) => self.set_status(format!("Workspace settings not saved: {e}")),
+        }
+    }
+
+    /// Resolve a relative path in a source: the folder source's `path`
+    /// dialect (hidden files too), else a walk of the tree.
+    pub async fn node_at_path(&self, source: &SourceId, rel: &str) -> Option<Node> {
+        let src = self.source(source)?;
+        if let Ok(r) = src
+            .query(Query::Text {
+                dialect: "path".into(),
+                text: rel.into(),
+            })
+            .await
+        {
+            return r.nodes.into_iter().next();
+        }
+        let mut cur = src.descriptor().root;
+        let mut found = None;
+        for part in rel.split('/').filter(|p| !p.is_empty()) {
+            let res = src.query(Query::Children(cur)).await.ok()?;
+            let n = res.nodes.into_iter().find(|n| n.label == part)?;
+            cur = n.id;
+            found = Some(n);
+        }
+        found
+    }
+
     /// Open `node` (if not already) and ask its editor to place the cursor.
     pub async fn reveal(mut self, node: Node, line: u32, col: u32) -> Result<(), SourceError> {
         let id = node.id;
@@ -533,7 +738,15 @@ impl Workspace {
 
     /// Open a folder through the platform's factory and add it to `sources`.
     pub async fn open_folder(mut self, path: String) -> Result<SourceDescriptor, SourceError> {
-        let sources = (self.config.open_folder)(path).await?;
+        let options = {
+            let s = self.settings.peek();
+            OpenOptions {
+                embed: (s.search.embeddings && s.llm.embed_model.is_some()
+                    || s.search.embeddings && s.llm.provider == "mock")
+                    .then(|| s.llm.clone()),
+            }
+        };
+        let sources = (self.config.open_folder)(path, options).await?;
         let mut first: Option<SourceDescriptor> = None;
         for source in sources {
             let descriptor = source.descriptor();
@@ -552,6 +765,17 @@ impl Workspace {
         }
         let first = first.ok_or_else(|| SourceError::Invalid("nothing opened".into()))?;
         self.set_status(format!("Opened {}", self.sources_summary()));
+        if first.family == moonkale_core::SourceFamily::Folder {
+            // Workspace settings + remember the folder.
+            self.load_workspace_settings(&first.id).await;
+            let path = first
+                .id
+                .as_str()
+                .strip_prefix("folder:")
+                .unwrap_or(first.id.as_str())
+                .to_string();
+            self.update_user_settings(|f| f.push_recent(&path)).await;
+        }
         Ok(first)
     }
 

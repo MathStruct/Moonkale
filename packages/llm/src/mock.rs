@@ -67,7 +67,7 @@ impl MockProvider {
                         })
                     })
                     .unwrap_or_default();
-                let head: String = output.chars().take(400).collect();
+                let head: String = output.chars().take(1500).collect();
                 return vec![
                     Event::TextDelta {
                         text: format!("Tool `{name}` returned: {head}"),

@@ -19,3 +19,8 @@ Dioxus-free; everything but the HTTP providers compiles to wasm.
 - `agent.rs` — `Agent::send(text, &dyn ToolHost, on_event)`: model turn → tool calls through policy → `ToolHost::approve` for `Ask` → `ToolHost::call` → results back to the model, up to `max_tool_rounds`. `AgentEvent`s drive the panel; the transcript stays in `agent.messages`.
 
 Tests: `cargo test -p moonkale-llm --features http` (SSE parser, both translators on recorded payloads, request bodies, policy classes, the loop with the mock).
+
+## Milestone 5
+- `LlmSettings` (in `types.rs`): provider kind, model, endpoint, embed model, **secret name** — what settings resolve to; `Config::from_settings(&LlmSettings, key)` builds the config. The web client sends `LlmSettings` to the relay with every call; the server resolves the secret.
+- `secrets.rs` (native): `resolve(name)` = `MOONKALE_SECRET_<NAME>` → classic `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` → `<config dir>/moonkale/secrets.json` (0600, written by `store`); `config_dir()` (`MOONKALE_CONFIG_DIR` override). An OS keychain is the intended next step.
+- Tools: `editor.replace`, `file.create`, `terminal.run` (see `tools.rs`); `policy::classify_command` marks `rm -rf`, `git push --force`, `sudo`, … as `Destructive` (always ask), other commands `Mutating`.

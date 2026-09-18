@@ -107,21 +107,35 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     } = chat.clone();
     let mut input = use_signal(String::new);
 
-    // Connect the provider once (per window).
+    // Connect the provider from the resolved settings; reconnect when the
+    // LLM settings change (the conversation is kept, the provider swapped).
+    let mut connected_for: Signal<Option<moonkale_llm::LlmSettings>> = use_signal(|| None);
     use_effect(move || {
-        if agent.peek().is_some() {
+        let llm = ws.settings.read().llm.clone();
+        if connected_for.peek().as_ref() == Some(&llm) {
             return;
         }
+        if *busy.peek() {
+            return;
+        }
+        connected_for.set(Some(llm.clone()));
         let Some(make) = ws.llm() else {
             provider_label.set("no LLM provider on this platform".into());
             return;
         };
+        provider_label.set(format!("connecting {}…", llm.provider));
         spawn(async move {
-            match make().await {
+            match make(llm).await {
                 Ok(p) => {
                     let p: Arc<dyn Provider> = p;
                     provider_label.set(format!("{} · {}", p.name(), p.model()));
-                    agent.set(Some(Rc::new(RefCell::new(Agent::new(p, String::new())))));
+                    let existing = agent.peek().clone();
+                    match existing {
+                        Some(a) => a.borrow_mut().provider = p,
+                        None => {
+                            agent.set(Some(Rc::new(RefCell::new(Agent::new(p, String::new())))))
+                        }
+                    }
                 }
                 Err(e) => provider_label.set(format!("provider error: {e}")),
             }
@@ -140,8 +154,21 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         items.with_mut(|v| v.push(Item::User(text.clone())));
         busy.set(true);
         spawn(async move {
-            // The system prompt follows the workspace (sources, active file).
-            a.borrow_mut().system = system_prompt(ws);
+            // The system prompt and the policy follow the workspace.
+            {
+                let mut g = a.borrow_mut();
+                g.system = system_prompt(ws);
+                let ps = ws.settings.peek().policy.clone();
+                g.policy = moonkale_llm::Policy {
+                    mutating: if ps.allow_writes {
+                        moonkale_llm::Decision::Allow
+                    } else {
+                        moonkale_llm::Decision::Ask
+                    },
+                    destructive: moonkale_llm::Decision::Ask,
+                    denied_tools: ps.denied_tools,
+                };
+            }
             let host = WorkspaceHost { ws, pending, cited };
             let mut on_event = |ev: AgentEvent| match ev {
                 AgentEvent::TextDelta(t) => items.with_mut(|v| match v.last_mut() {
@@ -352,7 +379,16 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                             "{p.class:?}"
                             ")"
                         }
-                        code { class: "mk-agent-tool-input", "{p.call.input}" }
+                        if p.call.name == "editor.replace" {
+                            div { class: "mk-agent-diff",
+                                pre { class: "mk-agent-diff-old", "{p.call.str(\"old\").unwrap_or_default()}" }
+                                pre { class: "mk-agent-diff-new", "{p.call.str(\"new\").unwrap_or_default()}" }
+                            }
+                        } else if p.call.name == "terminal.run" {
+                            pre { class: "mk-agent-diff-cmd", "$ {p.call.str(\"command\").unwrap_or_default()}" }
+                        } else {
+                            code { class: "mk-agent-tool-input", "{p.call.input}" }
+                        }
                         div { class: "mk-agent-approval-actions",
                             button { class: "mk-btn mk-btn-on", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(true); } } }, "Allow" }
                             button { class: "mk-btn", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(false); } } }, "Deny" }

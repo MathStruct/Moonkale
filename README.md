@@ -22,7 +22,15 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 4 — "Agents" — is done** (2026-09-18). An in-app agent
+**Milestone 5 — "Settings & writing" — is done** (2026-09-18). Moonkale
+remembers layouts, open documents and recent folders per workspace, and
+provider/policy choices in two scopes (machine and folder) with a Settings
+panel (`Ctrl+,`); markdown has a Rich (WYSIWYG) mode; the agent can edit
+files and run commands through diff/command cards under the policy gate;
+an MCP endpoint lets Claude Code and other external agents query the open
+workspace. Twelve automated browser suites cover it.
+
+**Milestone 4 — "Agents"** (2026-09-18). An in-app agent
 (Anthropic, OpenAI-compatible, Ollama, or an offline mock) that lists the
 open sources, browses the graph, reads files, runs read-only SQL/Cypher and
 searches — every tool call through a policy gate with approval prompts and
@@ -39,7 +47,7 @@ records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 5 of the roadmap — scale (GPU layouts), wasm extensions, the flow editor, mobile.
+Next: Phase 6 of the roadmap — scale (GPU layouts), wasm extensions, the flow editor, mobile.
 
 ## Learn more
 

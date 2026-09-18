@@ -127,14 +127,119 @@ pub fn Frame(
         });
     });
 
+    // User settings (recent folders, provider, …) from the platform store.
+    use_hook(move || {
+        spawn(async move { ws.load_user_settings().await });
+    });
+
+    // Shortcuts when nothing inside the frame has focus (P-065): a
+    // document-level listener forwards Ctrl-combos whose target is the body.
+    use_hook(move || {
+        let mut ev = document::eval(GLOBAL_KEYS);
+        spawn(async move {
+            loop {
+                match ev.recv::<(String, bool)>().await {
+                    Ok((key, shift)) => {
+                        shortcut(ws, &key, shift);
+                    }
+                    Err(dioxus::document::EvalError::Serialization(_)) => continue,
+                    Err(_) => break,
+                }
+            }
+        });
+    });
+
+    // Open documents follow the workspace: restore them when a folder's
+    // settings load, save the list (and the active one) whenever it changes.
+    let mut restored_docs_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
+    use_effect(move || {
+        let folder = ws.settings_folder.read().clone();
+        let Some(folder) = folder else { return };
+        if restored_docs_for.peek().as_ref() == Some(&folder) {
+            return;
+        }
+        restored_docs_for.set(Some(folder.clone()));
+        let (keys, active) = {
+            let s = ws.settings.peek();
+            (s.open_documents.clone(), s.active_document.clone())
+        };
+        if keys.is_empty() {
+            return;
+        }
+        spawn(async move {
+            let mut activate = None;
+            for key in keys {
+                if let Some(node) = ws.node_at_path(&folder, &key).await {
+                    if active.as_deref() == Some(key.as_str()) {
+                        activate = Some(node.id);
+                    }
+                    let _ = ws.open_node(node).await;
+                }
+            }
+            if let Some(id) = activate {
+                ws.active.set(Some(id));
+            }
+        });
+    });
+    use_effect(move || {
+        let docs = ws.documents.read();
+        let active = *ws.active.read();
+        let Some(folder) = ws.settings_folder.peek().clone() else {
+            return;
+        };
+        if restored_docs_for.peek().as_ref() != Some(&folder) {
+            return;
+        }
+        let keys: Vec<String> = docs
+            .iter()
+            .filter_map(|(_, d)| {
+                let d = d.peek();
+                (d.node.source == folder).then(|| d.node.native_key.clone())
+            })
+            .collect();
+        let active_key = active.and_then(|id| {
+            docs.iter().find(|(n, _)| *n == id).and_then(|(_, d)| {
+                let d = d.peek();
+                (d.node.source == folder).then(|| d.node.native_key.clone())
+            })
+        });
+        drop(docs);
+        let current = ws.settings_workspace.peek();
+        if current.open_documents == keys && current.active_document == active_key {
+            return;
+        }
+        drop(current);
+        spawn(async move {
+            ws.update_workspace_settings(move |f| {
+                f.open_documents = keys;
+                f.active_document = active_key;
+            })
+            .await;
+        });
+    });
+
     // Frame-level commands.
     use_effect(move || {
         let (_, cmd) = *ws.commands.read();
-        if cmd == Some(Command::NewWindow) {
-            match config.new_window {
+        match cmd {
+            Some(Command::NewWindow) => match config.new_window {
                 Some(open) => open(),
                 None => ws.set_status("New window is not available on this platform"),
+            },
+            Some(Command::OpenRecent(i)) => {
+                let path = ws.settings.peek().recent_folders.get(i).cloned();
+                if let Some(path) = path {
+                    spawn(async move {
+                        if let Err(e) = ws.open_folder(path).await {
+                            ws.set_status(format!("Open failed: {e}"));
+                        }
+                    });
+                }
             }
+            Some(Command::Settings) => {
+                ws.dispatch(Command::ShowPanel(crate::settings_panel::PANEL_ID))
+            }
+            _ => {}
         }
     });
 
@@ -152,20 +257,8 @@ pub fn Frame(
                     return;
                 }
                 let key = match e.key() { Key::Character(c) => c.to_ascii_lowercase(), _ => return };
-                match (key.as_str(), m.shift()) {
-                    ("w", false) => { e.prevent_default(); ws.dispatch(Command::CloseEditor); }
-                    ("`", false) => {
-                        e.prevent_default();
-                        ws.terminal_cwd.set(None);
-                        ws.dispatch(Command::NewTerminal);
-                    }
-                    ("n", true) => {
-                        e.prevent_default();
-                        ws.dispatch(Command::NewWindow);
-                    }
-                    ("o", false) => { e.prevent_default(); ws.dispatch(Command::OpenFolder); }
-                    ("f", true) => { e.prevent_default(); crate::search::focus_search(ws); }
-                    _ => {}
+                if shortcut(ws, &key, m.shift()) {
+                    e.prevent_default();
                 }
             },
             TitleBar { controls }
@@ -236,3 +329,36 @@ fn ResizeHandles(controls: WindowControls) -> Element {
         }
     }
 }
+
+/// The global shortcuts; `true` when handled. Ctrl+S stays inside the editor.
+fn shortcut(mut ws: Workspace, key: &str, shift: bool) -> bool {
+    match (key, shift) {
+        ("w", false) => ws.dispatch(Command::CloseEditor),
+        ("`", false) => {
+            ws.terminal_cwd.set(None);
+            ws.dispatch(Command::NewTerminal);
+        }
+        ("n", true) => ws.dispatch(Command::NewWindow),
+        ("o", false) => ws.dispatch(Command::OpenFolder),
+        ("f", true) => crate::search::focus_search(ws),
+        (",", false) => ws.dispatch(Command::Settings),
+        _ => return false,
+    }
+    true
+}
+
+/// Forwards Ctrl/Cmd-combos to Rust only when the event would otherwise be
+/// lost (target is the document body, i.e. nothing focused inside the frame).
+const GLOBAL_KEYS: &str = r#"
+const keys = new Set(["w", "`", "n", "o", "f", ","]);
+document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (!keys.has(k)) return;
+    const t = e.target;
+    if (t && t !== document.body && t !== document.documentElement) return;
+    e.preventDefault();
+    dioxus.send([k, e.shiftKey]);
+});
+for (;;) { await dioxus.recv(); }
+"#;

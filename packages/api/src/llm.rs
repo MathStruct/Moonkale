@@ -20,8 +20,16 @@ pub struct Frame(pub String);
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum ClientMsg {
-    Complete { request: Request },
-    Embed { texts: Vec<String> },
+    Complete {
+        request: Request,
+        #[serde(default)]
+        settings: Option<moonkale_llm::LlmSettings>,
+    },
+    Embed {
+        texts: Vec<String>,
+        #[serde(default)]
+        settings: Option<moonkale_llm::LlmSettings>,
+    },
 }
 
 #[cfg_attr(not(any(feature = "server", target_arch = "wasm32")), allow(dead_code))]
@@ -39,6 +47,41 @@ pub struct ProviderInfo {
     pub name: String,
     pub model: String,
     pub supports_embed: bool,
+    /// The named secret resolves on the server (or the kind needs none).
+    #[serde(default = "yes")]
+    pub has_key: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// Providers built from client settings, cached by settings; the secret is
+/// resolved on the server (`moonkale_llm::secrets`, i.e. its environment or
+/// its secrets file). With no settings (older clients) the server's own
+/// environment decides, as in Milestone 4.
+#[cfg(feature = "server")]
+pub(crate) fn provider_for(
+    settings: &moonkale_llm::LlmSettings,
+) -> Option<std::sync::Arc<dyn Provider>> {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<HashMap<moonkale_llm::LlmSettings, Arc<dyn Provider>>>> =
+        OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache.lock().unwrap();
+    if let Some(p) = map.get(settings) {
+        return Some(p.clone());
+    }
+    let key = moonkale_llm::secrets::resolve(&settings.secret);
+    let cfg = moonkale_llm::Config::from_settings(settings, key);
+    eprintln!(
+        "moonkale: llm provider {} (from client settings)",
+        cfg.label()
+    );
+    let p: Arc<dyn Provider> = Arc::from(moonkale_llm::config::build(&cfg));
+    map.insert(settings.clone(), p.clone());
+    Some(p)
 }
 
 #[cfg(feature = "server")]
@@ -54,29 +97,28 @@ pub(crate) fn provider() -> &'static dyn Provider {
         .as_ref()
 }
 
-/// The provider as an embedder for the index, when an embedding model is
-/// configured (`MOONKALE_EMBED_MODEL`; the mock always embeds).
-#[cfg(feature = "server")]
-pub(crate) fn embedder() -> Option<std::sync::Arc<dyn Provider>> {
-    use std::sync::{Arc, OnceLock};
-    static EMBEDDER: OnceLock<Option<Arc<dyn Provider>>> = OnceLock::new();
-    EMBEDDER
-        .get_or_init(|| {
-            let cfg = moonkale_llm::Config::from_env();
-            cfg.embed_model
-                .is_some()
-                .then(|| Arc::from(moonkale_llm::config::build(&cfg)))
-        })
-        .clone()
-}
-
 #[post("/api/llm/info")]
-pub async fn llm_info() -> Result<ProviderInfo, ServerFnError> {
-    let p = provider();
+pub async fn llm_info(
+    settings: Option<moonkale_llm::LlmSettings>,
+) -> Result<ProviderInfo, ServerFnError> {
+    let owned = settings.as_ref().and_then(provider_for);
+    let p: &dyn Provider = match &owned {
+        Some(p) => p.as_ref(),
+        None => provider(),
+    };
+    let has_key = settings
+        .as_ref()
+        .map(|s| {
+            s.provider == "mock"
+                || s.provider == "ollama"
+                || moonkale_llm::secrets::available(&s.secret)
+        })
+        .unwrap_or(true);
     Ok(ProviderInfo {
         name: p.name(),
         model: p.model(),
         supports_embed: p.supports_embed(),
+        has_key,
     })
 }
 
@@ -103,9 +145,13 @@ pub async fn llm_socket(
                 return;
             }
         };
-        let p = provider();
         match msg {
-            ClientMsg::Complete { request } => {
+            ClientMsg::Complete { request, settings } => {
+                let owned = settings.as_ref().and_then(provider_for);
+                let p: &dyn Provider = match &owned {
+                    Some(p) => p.as_ref(),
+                    None => provider(),
+                };
                 let mut stream = p.complete(request);
                 while let Some(event) = stream.next().await {
                     let done = matches!(event, Event::Done { .. } | Event::Error { .. });
@@ -121,7 +167,12 @@ pub async fn llm_socket(
                     }
                 }
             }
-            ClientMsg::Embed { texts } => {
+            ClientMsg::Embed { texts, settings } => {
+                let owned = settings.as_ref().and_then(provider_for);
+                let p: &dyn Provider = match &owned {
+                    Some(p) => p.as_ref(),
+                    None => provider(),
+                };
                 let out = match p.embed(texts).await {
                     Ok(vectors) => ServerMsg::Embedding { vectors },
                     Err(message) => ServerMsg::Error { message },
@@ -139,13 +190,22 @@ pub async fn llm_socket(
 #[cfg(target_arch = "wasm32")]
 pub struct RemoteProvider {
     info: ProviderInfo,
+    settings: moonkale_llm::LlmSettings,
 }
 
 #[cfg(target_arch = "wasm32")]
 impl RemoteProvider {
-    pub async fn connect() -> Result<Self, String> {
-        let info = llm_info().await.map_err(|e| e.to_string())?;
-        Ok(Self { info })
+    pub async fn connect(settings: moonkale_llm::LlmSettings) -> Result<Self, String> {
+        let info = llm_info(Some(settings.clone()))
+            .await
+            .map_err(|e| e.to_string())?;
+        if !info.has_key {
+            return Err(format!(
+                "no secret named {:?} on the server (MOONKALE_SECRET_… or its secrets file)",
+                settings.secret
+            ));
+        }
+        Ok(Self { info, settings })
     }
 }
 
@@ -159,6 +219,7 @@ impl Provider for RemoteProvider {
     }
     fn complete(&self, request: Request) -> moonkale_llm::EventStream {
         let (tx, rx) = futures_channel::mpsc::unbounded();
+        let settings = self.settings.clone();
         spawn(async move {
             let socket = match llm_socket(WebSocketOptions::new()).await {
                 Ok(s) => s,
@@ -169,7 +230,11 @@ impl Provider for RemoteProvider {
                     return;
                 }
             };
-            let msg = serde_json::to_string(&ClientMsg::Complete { request }).unwrap();
+            let msg = serde_json::to_string(&ClientMsg::Complete {
+                request,
+                settings: Some(settings),
+            })
+            .unwrap();
             if let Err(e) = socket.send(Frame(msg)).await {
                 let _ = tx.unbounded_send(Event::Error {
                     message: e.to_string(),
@@ -199,13 +264,18 @@ impl Provider for RemoteProvider {
         rx
     }
     fn embed(&self, texts: Vec<String>) -> moonkale_llm::BoxFuture<Result<Vec<Vec<f32>>, String>> {
+        let settings = self.settings.clone();
         Box::pin(async move {
             let socket = llm_socket(WebSocketOptions::new())
                 .await
                 .map_err(|e| e.to_string())?;
             socket
                 .send(Frame(
-                    serde_json::to_string(&ClientMsg::Embed { texts }).unwrap(),
+                    serde_json::to_string(&ClientMsg::Embed {
+                        texts,
+                        settings: Some(settings),
+                    })
+                    .unwrap(),
                 ))
                 .await
                 .map_err(|e| e.to_string())?;

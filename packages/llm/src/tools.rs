@@ -10,6 +10,9 @@
 //! | `source.text_query` | classified | raw SQL / Cypher / search on a source |
 //! | `index.search` | read | hybrid search over the index |
 //! | `editor.open` | read | open a node in the editor (optionally at a line) |
+//! | `editor.replace` | mutating | replace one exact occurrence of text in an open document (the user still saves) |
+//! | `file.create` | mutating | create a new text file in a folder |
+//! | `terminal.run` | mutating (destructive by pattern) | run a shell command in a new terminal and return its output |
 
 use crate::types::ToolDef;
 use serde_json::{json, Value};
@@ -95,6 +98,36 @@ pub fn builtin_tools() -> Vec<ToolDef> {
                 "line": { "type": "integer", "minimum": 1 }
             }),
             &["source", "node"],
+        ),
+        t(
+            "editor.replace",
+            "Edit a text file: replace exactly one occurrence of `old` with `new` in the document (opened in the editor if needed). `old` must match the file text exactly, including whitespace; include enough context to be unique. The change appears in the user's editor as an unsaved edit; the user saves.",
+            json!({
+                "source": { "type": "string" },
+                "node": { "type": "string", "description": "node id of the file" },
+                "old": { "type": "string" },
+                "new": { "type": "string" }
+            }),
+            &["source", "node", "old", "new"],
+        ),
+        t(
+            "file.create",
+            "Create a new text file at a relative path inside a folder source (missing directories are created; existing files are never overwritten).",
+            json!({
+                "source": { "type": "string", "description": "a folder source id" },
+                "path": { "type": "string", "description": "relative path, e.g. notes/todo.md" },
+                "text": { "type": "string" }
+            }),
+            &["source", "path", "text"],
+        ),
+        t(
+            "terminal.run",
+            "Run a shell command in a new terminal (visible to the user) and return its output. Use for builds, tests and git. Non-interactive commands only; the shell exits after the command.",
+            json!({
+                "command": { "type": "string" },
+                "cwd": { "type": "string", "description": "working directory (default: the open folder)" }
+            }),
+            &["command"],
         ),
     ]
 }

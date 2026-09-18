@@ -71,7 +71,7 @@ fn registry() -> &'static SourceRegistry {
 /// Native build: open the folder in-process with `FolderSource`, index it,
 /// and register both process-wide. A `.sqlite`/`.db` file or a
 /// `.lbug`/`.kuzu` database opens as that database instead.
-fn open_local(path: String) -> OpenFolderFuture {
+fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
             ".".to_string()
@@ -97,14 +97,7 @@ fn open_local(path: String) -> OpenFolderFuture {
         registry().insert(folder.clone());
         // Embeddings (if configured) fill in the background; search is
         // BM25-only until they arrive.
-        let embedder = {
-            let cfg = moonkale_llm::Config::from_env();
-            cfg.embed_model.is_some().then(|| {
-                let p: Arc<dyn moonkale_llm::Provider> =
-                    Arc::from(moonkale_llm::config::build(&cfg));
-                p
-            })
-        };
+        let embedder = options.embed.as_ref().map(provider_for);
         let index =
             Arc::new(moonkale_index::IndexSource::build_with(folder.clone(), embedder).await?);
         registry().insert(index.clone());
@@ -149,7 +142,7 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
             .or_else(|| id.strip_prefix("ladybug:"))
             .unwrap_or(".")
             .to_string();
-        let opened = open_local(path).await?;
+        let opened = open_local(path, ui::OpenOptions::default()).await?;
         opened
             .into_iter()
             .find(|s| s.id() == descriptor.id)
@@ -200,17 +193,72 @@ fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture
 
 /// The LLM provider from the environment (`MOONKALE_LLM`, keys), built
 /// once; HTTP providers run in-process on desktop.
-fn llm_provider() -> ui::LlmProviderFuture {
-    use std::sync::{Arc, OnceLock};
-    static PROVIDER: OnceLock<Arc<dyn moonkale_llm::Provider>> = OnceLock::new();
-    let p = PROVIDER
-        .get_or_init(|| {
-            let cfg = moonkale_llm::Config::from_env();
-            eprintln!("moonkale: llm provider {}", cfg.label());
-            Arc::from(moonkale_llm::config::build(&cfg))
-        })
-        .clone();
+fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
+    let needs_key = !matches!(settings.provider.as_str(), "mock" | "ollama");
+    if needs_key && !moonkale_llm::secrets::available(&settings.secret) {
+        let name = settings.secret.clone();
+        return Box::pin(async move {
+            Err(format!(
+                "no secret named {name:?}: set MOONKALE_SECRET_{} or add it in Settings",
+                name.to_ascii_uppercase().replace('-', "_")
+            ))
+        });
+    }
+    let p = provider_for(&settings);
     Box::pin(async move { Ok(p) })
+}
+
+/// Providers built from settings, cached by settings (a chat and the index
+/// share one client).
+fn provider_for(settings: &moonkale_llm::LlmSettings) -> Arc<dyn moonkale_llm::Provider> {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static CACHE: OnceLock<
+        Mutex<HashMap<moonkale_llm::LlmSettings, Arc<dyn moonkale_llm::Provider>>>,
+    > = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache.lock().unwrap();
+    if let Some(p) = map.get(settings) {
+        return p.clone();
+    }
+    let key = moonkale_llm::secrets::resolve(&settings.secret);
+    let cfg = moonkale_llm::Config::from_settings(settings, key);
+    eprintln!("moonkale: llm provider {}", cfg.label());
+    let p: Arc<dyn moonkale_llm::Provider> = Arc::from(moonkale_llm::config::build(&cfg));
+    map.insert(settings.clone(), p.clone());
+    p
+}
+
+/// User settings: `<config dir>/moonkale/settings.json`.
+fn settings_path() -> Option<std::path::PathBuf> {
+    moonkale_llm::secrets::config_dir().map(|d| d.join("settings.json"))
+}
+
+fn load_settings() -> ui::SettingsFuture<ui::SettingsFile> {
+    Box::pin(async move {
+        let Some(path) = settings_path() else {
+            return Ok(ui::SettingsFile::new());
+        };
+        match std::fs::read_to_string(&path) {
+            Ok(text) => ui::SettingsFile::parse(&text),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(ui::SettingsFile::new()),
+            Err(e) => Err(e.to_string()),
+        }
+    })
+}
+
+fn store_secret(name: String, value: String) -> ui::SettingsFuture<()> {
+    Box::pin(async move { moonkale_llm::secrets::store(&name, &value) })
+}
+
+fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
+    Box::pin(async move {
+        let path = settings_path().ok_or("no config directory on this platform")?;
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(&path, file.to_json()).map_err(|e| e.to_string())
+    })
 }
 
 /// Native folder picker. rfd's xdg-portal backend talks to the desktop's
@@ -334,7 +382,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider) },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret) },
                 session,
                 new_window: open_window,
             },

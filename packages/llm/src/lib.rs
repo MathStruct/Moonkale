@@ -40,6 +40,8 @@ pub mod types;
 pub mod anthropic;
 #[cfg(all(feature = "http", not(target_arch = "wasm32")))]
 pub mod openai;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod secrets;
 
 pub use agent::{Agent, AgentEvent, ToolHost, ToolOutcome};
 pub use audit::{AuditEntry, AuditLog};
@@ -48,4 +50,4 @@ pub use mock::MockProvider;
 pub use policy::{Class, Decision, Policy};
 pub use provider::{BoxFuture, EventStream, Provider};
 pub use tools::{builtin_tools, ToolCall};
-pub use types::{Content, Event, Message, Request, Role, StopReason, ToolDef, Usage};
+pub use types::{Content, Event, LlmSettings, Message, Request, Role, StopReason, ToolDef, Usage};

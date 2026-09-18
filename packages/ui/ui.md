@@ -32,3 +32,9 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `search.rs` — the **Search** panel (side tile, between Explorer and Links): `Query::Text{search}` on the index; hits show `path:line` + snippet and open the file at the line via `Workspace::reveal`. **Ctrl+Shift+F** (`Frame`) dispatches `Command::ShowPanel("search")` and focuses the box (`dioxus_workbench::focus_after_render`).
 - Default layout gained a **right** tile holding the Agent panel: `side 0.22 | (main-rows 0.72 | right)` at 0.7.
 - `default_extensions()` adds `SearchExtension` and `AgentExtension`.
+
+## Milestone 5
+- `settings_panel.rs`: the **Settings** panel (main tile; `Ctrl+,` / File → Settings…) — Form (provider, model, endpoint, embedding model, secret name, store secret, policy, search, terminal, remembered state) with a *user | workspace* target switch and scope badges, and a JSON tab showing both files and the env overrides.
+- `frame.rs`: loads user settings at start; restores/persists open documents and the active one per workspace; `Command::OpenRecent`; document-level shortcut listener (`GLOBAL_KEYS`) so Ctrl-combos work with nothing focused (P-065).
+- `shell.rs`: layout restore from `settings.layout` when a folder's settings load; `on_layout_change` saves; Reset Layout clears.
+- `titlebar.rs`: File → recent folders, Settings….

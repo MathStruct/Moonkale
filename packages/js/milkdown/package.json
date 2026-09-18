@@ -3,7 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "esbuild src/index.ts --bundle --format=esm --minify --outfile=dist/milkdown.js" },
-  "devDependencies": { "esbuild": "^0.27.0", "typescript": "^5.0.0" },
-  "dependencies": {}
+  "description": "Thin Milkdown (Crepe) wrapper for Moonkale's rich markdown mode. Builds into packages/editors/markdown/assets/milkdown.{js,css}.",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --loader:.woff2=empty --loader:.woff=empty --loader:.ttf=empty --outfile=../../editors/markdown/assets/milkdown.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@milkdown/crepe": "^7.22.0",
+    "@milkdown/kit": "^7.22.0"
+  }
 }

@@ -9,6 +9,9 @@ pub const PANEL_PREFIX: &str = "editor:";
 
 pub struct CodeEditorExtension {
     lsp: crate::lsp::LspManager,
+    /// Documents another extension claims (markdown → the markdown
+    /// extension, which hosts this panel in its Source mode).
+    skip: Option<fn(&moonkale_core::Node) -> bool>,
 }
 
 impl Default for CodeEditorExtension {
@@ -21,7 +24,14 @@ impl CodeEditorExtension {
     pub fn new() -> Self {
         Self {
             lsp: crate::lsp::LspManager::new(),
+            skip: None,
         }
+    }
+
+    /// Leave documents matching `f` to another extension.
+    pub fn skipping(mut self, f: fn(&moonkale_core::Node) -> bool) -> Self {
+        self.skip = Some(f);
+        self
     }
 
     pub fn panel_id(node: NodeId) -> String {
@@ -45,6 +55,7 @@ impl Extension for CodeEditorExtension {
         ws.documents
             .read()
             .iter()
+            .filter(|(_, doc)| !self.skip.is_some_and(|f| f(&doc.read().node)))
             .map(|(id, doc)| {
                 let d = doc.read();
                 PanelContribution {

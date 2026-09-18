@@ -91,6 +91,71 @@ impl Config {
         }
     }
 
+    /// Build from resolved settings (Milestone 5): the provider kind by name,
+    /// its endpoint, the model (empty = provider default) and the resolved
+    /// secret. Unknown kinds fall back to the mock.
+    pub fn from_parts(
+        provider: &str,
+        model: &str,
+        base_url: &str,
+        embed_model: Option<String>,
+        key: Option<String>,
+    ) -> Self {
+        let (kind, default_model) = match provider {
+            "anthropic" => (
+                ProviderKind::Anthropic {
+                    api_key: key.unwrap_or_default(),
+                },
+                "claude-sonnet-5",
+            ),
+            "openai" => (
+                ProviderKind::OpenAi {
+                    base_url: if base_url.is_empty() {
+                        "https://api.openai.com/v1".into()
+                    } else {
+                        base_url.into()
+                    },
+                    api_key: key.unwrap_or_default(),
+                },
+                "gpt-4o-mini",
+            ),
+            "ollama" => (
+                ProviderKind::Ollama {
+                    host: if base_url.is_empty() {
+                        "http://127.0.0.1:11434".into()
+                    } else {
+                        base_url.into()
+                    },
+                },
+                "qwen2.5:1.5b",
+            ),
+            _ => (ProviderKind::Mock, "mock"),
+        };
+        Self {
+            model: if model.is_empty() {
+                default_model.into()
+            } else {
+                model.into()
+            },
+            embed_model: embed_model.or(match kind {
+                ProviderKind::Mock => Some("mock-embed".into()),
+                _ => None,
+            }),
+            kind,
+        }
+    }
+
+    /// [`from_parts`](Self::from_parts) for an [`LlmSettings`](crate::LlmSettings).
+    pub fn from_settings(s: &crate::LlmSettings, key: Option<String>) -> Self {
+        Self::from_parts(
+            &s.provider,
+            &s.model,
+            &s.base_url,
+            s.embed_model.clone(),
+            key,
+        )
+    }
+
     /// Short human description for the status bar ("anthropic · claude-sonnet-5").
     pub fn label(&self) -> String {
         let k = match &self.kind {

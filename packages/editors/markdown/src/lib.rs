@@ -11,8 +11,9 @@
 
 pub mod extension;
 pub mod links_panel;
+pub mod rich;
 pub mod typst_preview;
 
-pub use extension::LinksExtension;
+pub use extension::{is_markdown, LinksExtension};
 pub use links_panel::LinksPanel;
 pub use typst_preview::TypstPreviewPanel;

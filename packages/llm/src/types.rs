@@ -70,6 +70,23 @@ impl Message {
     }
 }
 
+/// Resolved LLM settings (Milestone 5): what a platform needs to build a
+/// provider, minus the secret itself (named, resolved where the provider
+/// runs). Defined here so `api` and the platforms can pass it around
+/// without depending on `ext-api`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LlmSettings {
+    /// `anthropic` | `openai` | `ollama` | `mock`.
+    pub provider: String,
+    /// Empty = the provider's default model.
+    pub model: String,
+    /// OpenAI-compatible endpoint or Ollama host; empty = provider default.
+    pub base_url: String,
+    pub embed_model: Option<String>,
+    /// Name of the secret holding the API key.
+    pub secret: String,
+}
+
 /// A tool the model may call; `input_schema` is JSON Schema.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ToolDef {

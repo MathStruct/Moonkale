@@ -28,3 +28,8 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 
 ## Milestone 4: LLM relay
 `llm.rs` — `#[get("/api/llm")] llm_socket` (`Websocket<Frame, Frame>`, one socket per call): the client sends `{kind: complete, request}` or `{kind: embed, texts}`, the server runs the provider it built from its own environment (`MOONKALE_LLM`, keys) and streams `{kind: event, event}` / `{kind: embedding, vectors}`. `llm_info` (`POST /api/llm/info`) reports name/model/embedding support. `RemoteProvider` (wasm only) implements `Provider` over these; `embedder()` gives the index the same provider when `MOONKALE_EMBED_MODEL` is set. Keys never reach the browser; the relay has no auth (dev server).
+
+## Milestone 5
+- `open_folder(path, embed: Option<LlmSettings>)`: the client's embedding settings decide whether the index embeds; the secret is resolved on the server.
+- `/api/llm`: `Complete`/`Embed` frames carry `LlmSettings`; `provider_for(settings)` builds and caches a provider per settings; `llm_info(settings)` reports `has_key`.
+- `mcp.rs` — `POST /mcp` (mounted by `web/src/main.rs` via `dioxus::server::router(App).route(...)`): JSON-RPC `initialize`, `ping`, `tools/list`, `tools/call` for the read-only tools (`workspace_list_sources`, `graph_query`, `graph_fetch`, `source_text_query`, `index_search`) over the server registry; mutating statements refused; optional `MOONKALE_MCP_TOKEN` bearer auth. Verified with Claude Code: `claude mcp add --transport http moonkale http://127.0.0.1:8080/mcp`.

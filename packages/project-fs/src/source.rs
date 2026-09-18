@@ -182,8 +182,23 @@ impl Source for FolderSource {
                 // A folder's neighbourhood is containment: its children.
                 self.query(Query::Children(node)).await
             }
+            // `path`: resolve a relative path directly (hidden files too, e.g.
+            // `.moonkale/settings.json`), without walking the tree.
+            Query::Text { dialect, text } if dialect == "path" => {
+                let rel = text.trim().trim_start_matches("./").trim_matches('/').to_string();
+                if rel.split('/').any(|p| p == "..") {
+                    return Err(SourceError::Invalid("path escapes the folder".into()));
+                }
+                let (meta, v) = self.stat(&rel).await?;
+                Ok(QueryResult::single(self.node_for(
+                    &rel,
+                    meta.is_dir(),
+                    meta.len(),
+                    v,
+                )))
+            }
             Query::All { .. } | Query::Text { .. } => Err(SourceError::Unsupported(
-                "folders answer Node/Children/Neighbours only; the index has the whole graph"
+                "folders answer Node/Children/Neighbours and Text{path}; the index has the whole graph"
                     .into(),
             )),
             Query::Node(id) => {

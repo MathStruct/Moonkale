@@ -165,9 +165,155 @@ impl WorkspaceHost {
                 }
                 Ok(format!("Opened {label}"))
             }
+            "editor.replace" => {
+                let (source, _) = source_of(ws, &call)?;
+                let node = parse_node(call.str("node").ok_or("node is required")?)?;
+                let old = call.str("old").ok_or("old is required")?.to_string();
+                let new = call.str("new").ok_or("new is required")?.to_string();
+                if old.is_empty() {
+                    return Err("old must not be empty".into());
+                }
+                let n = source
+                    .query(Query::Node(node))
+                    .await
+                    .map_err(|e| e.to_string())?
+                    .nodes
+                    .into_iter()
+                    .next()
+                    .ok_or("no such node")?;
+                self.cite(&n.native_key);
+                let label = n.native_key.clone();
+                // Edit the open document (the same buffer the user sees): the
+                // change shows as unsaved; the user saves.
+                if ws.document(node).is_none() {
+                    ws.open_node(n).await.map_err(|e| e.to_string())?;
+                }
+                let mut doc = ws.document(node).ok_or("document did not open")?;
+                let (count, line) = {
+                    let d = doc.peek();
+                    let count = d.text.matches(&old).count();
+                    let line = d.text.find(&old).map(|i| d.text[..i].lines().count() + 1);
+                    (count, line)
+                };
+                match count {
+                    0 => {
+                        return Err(
+                            "`old` was not found in the document (it must match exactly)".into(),
+                        )
+                    }
+                    1 => {}
+                    n => {
+                        return Err(format!(
+                            "`old` matches {n} places; include more context so it is unique"
+                        ))
+                    }
+                }
+                doc.with_mut(|d| d.text = d.text.replacen(&old, &new, 1));
+                let mut ws = ws;
+                ws.active.set(Some(node));
+                Ok(format!(
+                    "Replaced in {label} at line {} (unsaved: the user reviews and saves).",
+                    line.unwrap_or(1)
+                ))
+            }
+            "file.create" => {
+                let (_, handle) = source_of(ws, &call)?;
+                if handle.descriptor.family != SourceFamily::Folder {
+                    return Err("file.create needs a folder source".into());
+                }
+                let path = call
+                    .str("path")
+                    .ok_or("path is required")?
+                    .trim()
+                    .to_string();
+                let text = call.str("text").unwrap_or_default().to_string();
+                let node = ws
+                    .create_text(&handle.descriptor.id, handle.descriptor.root, &path, &text)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                self.cite(&node.native_key);
+                let key = node.native_key.clone();
+                let _ = ws.open_node(node).await;
+                Ok(format!("Created {key} ({} chars)", text.chars().count()))
+            }
+            "terminal.run" => {
+                let spawn_fn = ws
+                    .spawn_terminal()
+                    .ok_or("terminals are not available on this platform")?;
+                let command = call
+                    .str("command")
+                    .ok_or("command is required")?
+                    .to_string();
+                let cwd = call.str("cwd").map(str::to_string).or_else(|| {
+                    ws.sources
+                        .peek()
+                        .iter()
+                        .find(|s| s.descriptor.family == SourceFamily::Folder)
+                        .and_then(|s| {
+                            s.descriptor
+                                .id
+                                .as_str()
+                                .strip_prefix("folder:")
+                                .map(str::to_string)
+                        })
+                });
+                let mut backend = spawn_fn(cwd, 120, 40).await.map_err(|e| e.to_string())?;
+                let mut out = backend.take_output().ok_or("no output stream")?;
+                // Run, then end the shell so the stream closes.
+                backend.write(format!("{command}; exit $?\n").as_bytes());
+                let mut bytes: Vec<u8> = Vec::new();
+                use futures_util::StreamExt;
+                while let Some(chunk) = out.next().await {
+                    bytes.extend_from_slice(&chunk);
+                    if bytes.len() > 200_000 {
+                        bytes.extend_from_slice(b"\n[output truncated]");
+                        break;
+                    }
+                }
+                let text = strip_ansi(&String::from_utf8_lossy(&bytes));
+                Ok(format!("$ {command}\n{text}"))
+            }
             other => Err(format!("unknown tool {other}")),
         }
     }
+}
+
+/// Drop ANSI escape sequences and carriage returns from terminal output.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            match chars.peek() {
+                Some('[') => {
+                    chars.next();
+                    for c in chars.by_ref() {
+                        if ('@'..='~').contains(&c) {
+                            break;
+                        }
+                    }
+                }
+                Some(']') => {
+                    chars.next();
+                    let mut prev = '\0';
+                    for c in chars.by_ref() {
+                        if c == '\u{7}' || (prev == '\u{1b}' && c == '\\') {
+                            break;
+                        }
+                        prev = c;
+                    }
+                }
+                _ => {
+                    chars.next();
+                }
+            }
+            continue;
+        }
+        if c != '\r' {
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn source_of(

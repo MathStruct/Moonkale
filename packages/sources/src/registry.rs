@@ -31,6 +31,11 @@ impl SourceRegistry {
         self.sources.read().unwrap().get(id).cloned()
     }
 
+    /// Every registered source (insertion order not preserved).
+    pub fn all(&self) -> Vec<Arc<dyn Source>> {
+        self.sources.read().unwrap().values().cloned().collect()
+    }
+
     pub fn remove(&self, id: &SourceId) -> Option<Arc<dyn Source>> {
         self.sources.write().unwrap().remove(id)
     }

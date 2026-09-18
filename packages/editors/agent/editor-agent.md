@@ -11,3 +11,8 @@ Notes for `moonkale-editor-agent` (Milestone 4). Design: [[LLM and RAG]].
 - The agent is mutably borrowed for the whole exchange (`busy` keeps everything else off it; P-064).
 
 E2E: `packages/web/tests/e2e/agent.mjs` (mock provider through the relay: echo, a read-only tool round, an `Ask` denied, Activity, Save → file opens).
+
+## Milestone 5
+- The provider is built from `ws.settings.llm` and rebuilt when those settings change (conversation kept); the policy follows `ws.settings.policy` (`allow_writes` → mutating tools run without asking; destructive ones still ask).
+- Write tools in `host.rs`: `editor.replace` edits the open `Document` (exact, unique `old` → `new`; the user saves), `file.create` uses `Workspace::create_text`, `terminal.run` spawns a session through `spawn_terminal`, writes `cmd; exit $?`, collects the output until the stream closes (ANSI stripped, 200 KB cap).
+- Approval box: a red/green diff for `editor.replace`, a `$ command` card for `terminal.run`.

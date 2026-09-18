@@ -11,7 +11,13 @@ moonkale-core = { workspace = true }
 moonkale-llm = { workspace = true }
 tracing = "0.1"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = { version = "0.8", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Window", "Storage"] }
+
 [features]
 default = []
 web = ["dioxus/web"]
-server = ["dioxus/server", "ui/server", "api/server"]
+server = ["dioxus/server", "ui/server", "api/server", "dep:axum"]

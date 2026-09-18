@@ -55,7 +55,9 @@ impl Policy {
                     },
                 }
             }
-            // Everything else the surface exposes today only reads.
+            "editor.replace" | "file.create" => Class::Mutating,
+            "terminal.run" => classify_command(call.str("command").unwrap_or_default()),
+            // Everything else the surface exposes only reads.
             _ => Class::ReadOnly,
         }
     }
@@ -74,6 +76,37 @@ impl Policy {
             },
         };
         (class, decision)
+    }
+}
+
+/// Shell commands: obviously destructive patterns ask every time; the rest
+/// are mutating (they run code).
+pub fn classify_command(cmd: &str) -> Class {
+    let c = cmd.to_ascii_lowercase();
+    let destructive = [
+        "rm -rf",
+        "rm -fr",
+        "rm -r ",
+        "mkfs",
+        "dd if=",
+        "git push --force",
+        "git push -f",
+        "git reset --hard",
+        "git clean -fd",
+        "drop table",
+        "truncate ",
+        "> /dev/",
+        ":(){",
+        "chmod -r",
+        "chown -r",
+        "sudo ",
+        "shutdown",
+        "reboot",
+    ];
+    if destructive.iter().any(|d| c.contains(d)) {
+        Class::Destructive
+    } else {
+        Class::Mutating
     }
 }
 
@@ -140,6 +173,36 @@ mod tests {
             p.decide(&call("cypher", "MATCH (n) DETACH DELETE n")),
             (Class::Destructive, Decision::Ask)
         );
+    }
+
+    #[test]
+    fn write_tools_and_commands() {
+        let p = Policy::default();
+        let rep = ToolCall {
+            id: "3".into(),
+            name: "editor.replace".into(),
+            input: json!({"old":"a","new":"b"}),
+        };
+        assert_eq!(p.decide(&rep), (Class::Mutating, Decision::Ask));
+        let run = |c: &str| ToolCall {
+            id: "4".into(),
+            name: "terminal.run".into(),
+            input: json!({"command": c}),
+        };
+        assert_eq!(
+            p.decide(&run("cargo test")),
+            (Class::Mutating, Decision::Ask)
+        );
+        assert_eq!(
+            p.decide(&run("rm -rf target")),
+            (Class::Destructive, Decision::Ask)
+        );
+        let trusting = Policy {
+            mutating: Decision::Allow,
+            ..Default::default()
+        };
+        assert_eq!(trusting.decide(&run("cargo test")).1, Decision::Allow);
+        assert_eq!(trusting.decide(&run("git push --force")).1, Decision::Ask);
     }
 
     #[test]

@@ -15,16 +15,24 @@ const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    // The server adds the MCP endpoint next to the app's own routes.
+    #[cfg(feature = "server")]
+    dioxus::server::serve(|| async {
+        Ok(dioxus::server::router(App).route("/mcp", axum::routing::post(api::mcp::handler)))
+    });
+    #[cfg(not(feature = "server"))]
     dioxus::launch(App);
 }
 
-fn open_remote(path: String) -> OpenFolderFuture {
+fn open_remote(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
-        api::RemoteSource::open_folder(&path).await.map(|v| {
-            v.into_iter()
-                .map(|s| Arc::new(s) as Arc<dyn Source>)
-                .collect()
-        })
+        api::RemoteSource::open_folder(&path, options.embed)
+            .await
+            .map(|v| {
+                v.into_iter()
+                    .map(|s| Arc::new(s) as Arc<dyn Source>)
+                    .collect()
+            })
     })
 }
 
@@ -99,17 +107,58 @@ fn spawn_lsp(language: String, root: String) -> ui::LspTransportFuture {
 
 /// The provider lives on the server; the client talks to `/api/llm`.
 #[cfg(target_arch = "wasm32")]
-fn llm_provider() -> ui::LlmProviderFuture {
+fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
     Box::pin(async move {
-        api::RemoteProvider::connect()
+        api::RemoteProvider::connect(settings)
             .await
             .map(|p| std::sync::Arc::new(p) as std::sync::Arc<dyn moonkale_llm::Provider>)
     })
 }
 #[cfg(not(target_arch = "wasm32"))]
-fn llm_provider() -> ui::LlmProviderFuture {
+fn llm_provider(_settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
     // Server-side render only: the real provider is connected on the client.
     Box::pin(async move { Err("no provider during server render".into()) })
+}
+
+/// User settings live in the browser (`localStorage`); workspace settings
+/// go through the folder on the server like any file.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const SETTINGS_KEY: &str = "moonkale.settings";
+
+#[cfg(target_arch = "wasm32")]
+fn local_storage() -> Option<web_sys::Storage> {
+    web_sys::window()?.local_storage().ok()?
+}
+
+fn load_settings() -> ui::SettingsFuture<ui::SettingsFile> {
+    Box::pin(async move {
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(s) = local_storage() {
+                if let Ok(Some(text)) = s.get_item(SETTINGS_KEY) {
+                    return ui::SettingsFile::parse(&text);
+                }
+            }
+        }
+        Ok(ui::SettingsFile::new())
+    })
+}
+
+fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
+    Box::pin(async move {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let s = local_storage().ok_or("localStorage unavailable")?;
+            return s
+                .set_item(SETTINGS_KEY, &file.to_json())
+                .map_err(|_| "localStorage write failed".to_string());
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = file;
+            Ok(())
+        }
+    })
 }
 
 fn new_window() {
@@ -125,7 +174,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider) },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None },
                 session,
                 new_window: Some(new_window),
             },

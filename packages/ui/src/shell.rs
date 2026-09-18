@@ -38,13 +38,48 @@ pub fn Shell() -> Element {
     // Controlled layout so "View → Reset Layout" can put it back.
     let mut layout = use_signal(default_layout);
 
+    // Layout persistence: restore the workspace's layout when its settings
+    // load; save every settled change into `.moonkale/settings.json`.
+    let mut restored_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
+    use_effect(move || {
+        let folder = ws.settings_folder.read().clone();
+        if folder.is_none() || *restored_for.peek() == folder {
+            return;
+        }
+        restored_for.set(folder);
+        if let Some(encoded) = ws.settings.peek().layout.clone() {
+            if let Some(saved) = PanelLayout::decode(&encoded) {
+                layout.set(saved);
+            }
+        }
+    });
+    let on_layout_change = move |next: PanelLayout| {
+        if ws.settings_folder.peek().is_none() {
+            return;
+        }
+        let encoded = next.encode();
+        if encoded == ws.settings_workspace.peek().layout {
+            return;
+        }
+        spawn(async move {
+            ws.update_workspace_settings(|f| f.layout = encoded).await;
+        });
+    };
+
     // Shell-level commands.
     let exts_for_commands = exts.clone();
     use_effect(move || {
         let exts = &exts_for_commands;
         let (_, cmd) = *ws.commands.read();
         match cmd {
-            Some(Command::ResetLayout) => layout.set(default_layout()),
+            Some(Command::ResetLayout) => {
+                layout.set(default_layout());
+                if ws.settings_folder.peek().is_some() {
+                    spawn(async move {
+                        ws.update_workspace_settings(|f| f.layout = None).await;
+                    });
+                }
+            }
             Some(Command::ShowPanel(id)) => {
                 // Our copy of the layout only learns about attached panels
                 // through mutations, so reconcile with the current
@@ -163,6 +198,7 @@ pub fn Shell() -> Element {
                     reset_layout: default_layout(),
                     active_panel,
                     on_panel_close: on_close,
+                    on_layout_change,
                 }
             }
         }

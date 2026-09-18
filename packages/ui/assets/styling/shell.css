@@ -27,3 +27,18 @@
 }
 .mk-btn:disabled { opacity: 0.4; cursor: default; }
 .mk-btn:not(:disabled):hover { background: var(--wb-hover); }
+
+/* Settings panel (Milestone 5) */
+.mk-settings { height: 100%; overflow: auto; font-size: 13px; }
+.mk-settings-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid #2a2e37; position: sticky; top: 0; background: inherit; }
+.mk-settings-spacer { flex: 1; }
+.mk-settings-tabs { display: inline-flex; gap: 4px; }
+.mk-settings-form, .mk-settings-json { padding: 8px 14px 20px; max-width: 760px; }
+.mk-settings-form h3, .mk-settings-json h3 { font-size: 13px; margin: 16px 0 6px; display: flex; align-items: center; gap: 8px; }
+.mk-settings-scope { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: #2a2e37; color: #9aa0aa; font-weight: normal; }
+.mk-settings-form label { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 8px; margin: 4px 0; color: #c0c4cc; }
+.mk-settings-form label.mk-settings-check { grid-template-columns: auto 1fr; }
+.mk-settings-form .mk-input { width: 100%; box-sizing: border-box; }
+.mk-settings-secret { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; margin: 6px 0; }
+.mk-settings-note { padding: 6px 14px; color: #f2a03d; }
+.mk-settings-json pre { background: #1b1e25; border: 1px solid #2a2e37; border-radius: 4px; padding: 8px; font-size: 12px; overflow: auto; }

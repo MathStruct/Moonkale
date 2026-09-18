@@ -71,3 +71,4 @@
 .mk-resize-nw { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
 .mk-resize-se { bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize; }
 .mk-resize-sw { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }
+.mk-menu-recent-path { font-size: 12px; color: #9aa0aa; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; display: inline-block; }

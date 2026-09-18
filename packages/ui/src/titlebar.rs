@@ -8,7 +8,7 @@ use moonkale_ext_api::{Command, Workspace};
 
 const TITLEBAR_CSS: Asset = asset!("/assets/styling/titlebar.css");
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 enum Item {
     Cmd {
         label: &'static str,
@@ -21,6 +21,8 @@ enum Item {
         label: &'static str,
         kind: Native,
     },
+    /// A recent folder (label is the path).
+    Recent(usize, String),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -29,13 +31,22 @@ enum Native {
     Exit,
 }
 
-fn menus(controls: Option<WindowControls>) -> Vec<(&'static str, Vec<Item>)> {
+fn menus(controls: Option<WindowControls>, recent: &[String]) -> Vec<(&'static str, Vec<Item>)> {
     let desktop = controls.is_some();
-    let mut file = vec![
+    let mut file = vec![Item::Cmd {
+        label: "Open Folder…",
+        shortcut: "Ctrl+O",
+        cmd: Command::OpenFolder,
+    }];
+    for (i, path) in recent.iter().take(8).enumerate() {
+        file.push(Item::Recent(i, path.clone()));
+    }
+    file.extend([
+        Item::Sep,
         Item::Cmd {
-            label: "Open Folder…",
-            shortcut: "Ctrl+O",
-            cmd: Command::OpenFolder,
+            label: "Settings…",
+            shortcut: "Ctrl+,",
+            cmd: Command::Settings,
         },
         Item::Sep,
         Item::Cmd {
@@ -48,7 +59,7 @@ fn menus(controls: Option<WindowControls>) -> Vec<(&'static str, Vec<Item>)> {
             shortcut: "Ctrl+W",
             cmd: Command::CloseEditor,
         },
-    ];
+    ]);
     if desktop {
         file.push(Item::Sep);
         file.push(Item::Native {
@@ -159,7 +170,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
             ondoubleclick: move |_| { if let Some(c) = controls { c.toggle_maximize.call(()) } },
             div { class: "mk-titlebar-left", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),
                 span { class: "mk-titlebar-logo", "◐" }
-                for (name, items) in menus(controls) {
+                for (name, items) in menus(controls, &ws.settings.read().recent_folders) {
                     div { class: "mk-menu",
                         button {
                             class: "mk-menu-button",
@@ -181,6 +192,12 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                                                 onclick: move |_| { open.set(None); ws.dispatch(cmd); },
                                                 span { "{label}" }
                                                 span { class: "mk-menu-shortcut", "{shortcut}" }
+                                            }
+                                        },
+                                        Item::Recent(i, path) => rsx! {
+                                            button { class: "mk-menu-item mk-menu-recent", role: "menuitem", r#type: "button", title: "{path}",
+                                                onclick: move |_| { open.set(None); ws.dispatch(Command::OpenRecent(i)); },
+                                                span { class: "mk-menu-recent-path", "{path}" }
                                             }
                                         },
                                         Item::Native { label, kind } => rsx! {

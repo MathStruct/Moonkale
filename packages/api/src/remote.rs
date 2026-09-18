@@ -20,8 +20,11 @@ pub struct RemoteSource {
 
 impl RemoteSource {
     /// Open a folder on the server; returns the folder and its index.
-    pub async fn open_folder(path: &str) -> Result<Vec<Self>, SourceError> {
-        let descriptors = crate::open_folder(path.to_string())
+    pub async fn open_folder(
+        path: &str,
+        embed: Option<moonkale_llm::LlmSettings>,
+    ) -> Result<Vec<Self>, SourceError> {
+        let descriptors = crate::open_folder(path.to_string(), embed)
             .await
             .map_err(transport)?;
         Ok(descriptors

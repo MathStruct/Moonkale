@@ -169,3 +169,29 @@ async fn create_text_makes_directories_and_refuses_overwrite() {
         moonkale_core::OpResult::Refused { .. }
     ));
 }
+
+#[tokio::test]
+async fn path_dialect_resolves_hidden_files_and_refuses_escapes() {
+    let dir = fixture();
+    fs::create_dir_all(dir.path().join(".moonkale")).unwrap();
+    fs::write(dir.path().join(".moonkale/settings.json"), "{}").unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let q = |rel: &str| Query::Text {
+        dialect: "path".into(),
+        text: rel.into(),
+    };
+    let n = src
+        .query(q(".moonkale/settings.json"))
+        .await
+        .unwrap()
+        .nodes
+        .remove(0);
+    assert_eq!(n.native_key, ".moonkale/settings.json");
+    assert_eq!(src.fetch_text(n.id).await.unwrap().0, "{}");
+    assert_eq!(
+        src.query(q("./src/main.rs")).await.unwrap().nodes[0].native_key,
+        "src/main.rs"
+    );
+    assert!(src.query(q("missing.txt")).await.is_err());
+    assert!(src.query(q("../etc/passwd")).await.is_err());
+}

@@ -56,8 +56,9 @@ gantt
 | **2 Graph appears** ✅ | see your folder + wiki-links + symbols as a graph; open a SQLite file and browse tables; edit markdown with backlinks | "graph-native" is real; wgpu works in webviews — **done 2026-09-18** (DuckDB deferred), see [[Milestone 2 - Implementation Log]] |
 | **3 Databases & tools** ✅ | use a terminal, preview Typst, get LSP diagnostics/hover/definition, open a LadybugDB and draw Cypher results — on desktop and web (tools run on the server) | server-as-backend; second/third interop packages — **done 2026-09-18** (Postgres/Falkor/Milkdown deferred to 4), see [[Milestone 3 - Implementation Log]] |
 | **4 Agents** ✅ | chat with an agent that queries your sources under policy; hybrid search; click a stack trace into a graph | LLM-as-user — **done 2026-09-18** (mock-verified; real providers wired but untested here), see [[Milestone 4 - Implementation Log]] |
-| **5 Scale & extend** | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets |
-| **6 Research** | 3D; extensions in the browser; a JS-free desktop | long-term direction |
+| **5 Settings & writing** ✅ | remember layouts, folders and providers; configure the agent in the UI; WYSIWYG markdown; an agent that edits and runs under the gate; MCP for external agents | persistence + the writing half — **done 2026-09-18**, see [[Milestone 5 - Implementation Log]] |
+| **6 Scale & extend** | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets |
+| **7 Research** | 3D; extensions in the browser; a JS-free desktop | long-term direction |
 
 ## Principles for sequencing
 1. **Risky things early, but not first.** P-01 is first because it must be; P-05 waits for one real editor; P-22 waits for measurements from P-07.
