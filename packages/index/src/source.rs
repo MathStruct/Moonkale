@@ -287,7 +287,7 @@ impl Source for IndexSource {
                                 vec![
                                     Value::Text(h.path.clone()),
                                     Value::Int(h.line as i64),
-                                    Value::Float(((h.score * 1000.0).round() / 1000.0) as f64),
+                                    Value::Float(((h.score as f64) * 1000.0).round() / 1000.0),
                                     Value::Text(h.snippet.clone()),
                                 ]
                             })

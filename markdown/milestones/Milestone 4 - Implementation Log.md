@@ -8,7 +8,7 @@ Plan: [[Milestone 4 - Agents]].
 > [!success] Done (2026-09-18)
 > All seven steps are implemented and verified on the web build with Playwright against the **mock provider**; the desktop build compiles and runs the same code with in-process providers. **Provider gateway** (Anthropic, OpenAI-compatible, Ollama, mock; keys stay on the server for web), **tool surface with a policy gate and audit**, an **Agent panel** with streaming, tool cards, approval prompts and transcripts saved as indexed markdown pages, **hybrid search** (BM25 + optional embeddings) in the index with a Search panel and `Ctrl+Shift+F`, **stack traces drawn as graphs** from the terminal or a paste box, and `Workspace::reveal` (open a file at a line — also closes the M3 go-to-definition gap). Two new E2E suites (`agent`, `search-trace`) plus the nine earlier ones pass; 52 native tests; clippy/fmt clean on every target.
 >
-> **Not verified with a real model**: no API key and no Ollama model on this machine. To try one: `ANTHROPIC_API_KEY=… dx serve --platform desktop`, or `OLLAMA_HOST=http://127.0.0.1:11434 MOONKALE_EMBED_MODEL=nomic-embed-text` after `ollama serve && ollama pull qwen2.5:1.5b nomic-embed-text`.
+> **Verified with a real model** (2026-09-18, Daniel's Mistral key in `.secrets/llm.env`, gitignored): through the OpenAI-compatible provider, `mistral-code-latest` called `index.search` and answered "src/main.rs, line 1" (correct) — `packages/web/tests/e2e/agent-live.mjs`; `mistral-embed` embedded the fixture's chunks (1024 dims). On that key `devstral-*` and `mistral-small-latest` answer "rate limited" (not enabled); `codestral-latest` works too.
 
 ## Steps as executed
 
@@ -43,6 +43,8 @@ Plan: [[Milestone 4 - Agents]].
 - **P-065 Global shortcut needs focus in the frame** (see deviation 8).
 - **P-066 Port 8080 was Daniel's desktop `dx serve`**; the web suites now take `PORT` (default 8080) and the dev server for tests runs on 8090. Leaked `server-*` processes from earlier dx runs were also cleaned up.
 - The `Websocket<String, String>` macro limitation (P-057) applied again; the `Frame(String)` newtype is reused.
+- **P-068 Graph node colours were wrong since M2**: the legend introduced in M3 made it visible (Daniel's desktop screenshot: City/Person/Project drawn blue/teal/green instead of cyan/purple/orange). `vertex_attr_array!` packed the colour at offset 12; the instance struct has it at 16. Fixed with explicit offsets.
+- **P-067 Mistral model names**: the key lists 46 models but only some answer; unknown/unavailable ones return HTTP 429 "Rate limit exceeded" rather than 404, which looks like throttling. Use `mistral-code-latest` (tools + streaming work) and `mistral-embed`.
 
 ## Decisions worth keeping
 - **The agent loop runs on the client**; only the provider is remote on web. Tools, policy and prompts live in one place for both platforms.
@@ -52,6 +54,7 @@ Plan: [[Milestone 4 - Agents]].
 - **Search as a text dialect** on the index: no new crate, no new server function, remote parity for free.
 
 ## Verified
+- Web, real provider (Mistral via `OPENAI_BASE_URL=https://api.mistral.ai/v1`): `agent-live.mjs` PASS.
 - Web (Firefox, Playwright, mock provider): `agent.mjs`, `search-trace.mjs`; regression: `graph`, `links-sqlite`, `terminal`, `typst`, `lsp`, `ladybug`, `session` — all PASS on port 8090.
 - Native: `cargo test --workspace --features moonkale-sources-graph/ladybug` → 52 passed (llm 10, trace 4, index 5+3, project-fs 6, lsp/lsp-local, sources, typst, terminal-pty, graph-render…).
 - Desktop: `cargo build -p desktop --features desktop` links; not run by hand this session.

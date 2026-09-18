@@ -43,6 +43,8 @@ Running log of problems hit during implementation. One note per problem (`P-nnn 
 | P-064 Agent borrowed across awaits | Streaming into `&mut Agent` for a whole exchange conflicts with the panel reading its audit log; an audit mirror signal + `busy` fence (clippy lint allowed with the rationale) | resolved | 4 |
 | P-065 Global shortcuts need focus inside the frame | The key handler is on the frame `div`; Ctrl+Shift+F does nothing when `body` has focus. E2E clicks the explorer first; a document-level listener is the fix | open | 4 |
 | P-066 Port 8080 taken by the desktop dev server | Daniel's `dx serve` (desktop) holds 8080; the web E2E suites take `PORT` and the test server runs on 8090. Also cleaned up leaked `server-*` processes from old dx runs | resolved | 4 |
+| P-067 Mistral: unavailable models look rate-limited | Models the key cannot use (`devstral-*`, `mistral-small-latest`) return 429 "Rate limit exceeded", not 404. `mistral-code-latest` / `codestral-latest` + `mistral-embed` work through the OpenAI-compatible provider | resolved (noted) | 4 |
+| P-068 Graph nodes lost their red channel | Since Milestone 2 every node looked cyan/teal regardless of kind: `vertex_attr_array!` packed the colour attribute at offset 12 while `NodeInst` pads `radius` to 16, so the shader read `(pad, r, g, b)`. Spotted from Daniel's screenshot where the legend colours and the drawn nodes disagreed. Explicit attribute offsets now; renderer rebuilt | resolved (pending Daniel's look) | 4 |
 | P-037 Whole-document change events | JS reports full text per keystroke and save sends one splice; O(n) per key. Upgrade to real splices once the index needs them | open | 2 |
 
 ## Conventions

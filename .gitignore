@@ -19,3 +19,6 @@ site/tsconfig.tsbuildinfo
 
 # JS interop packages
 packages/js/*/node_modules/
+
+# local secrets (API keys); see markdown/Development.md
+.secrets/

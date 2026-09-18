@@ -151,7 +151,27 @@ impl Renderer {
             "node_vs",
             "node_fs",
             std::mem::size_of::<NodeInst>() as u64,
-            &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32, 2 => Float32x4],
+            // Explicit offsets: `NodeInst` pads `radius` to 16 bytes before
+            // `color`; `vertex_attr_array!` would pack the colour at 12 and
+            // the shader would read (pad, r, g, b) — every node lost its red
+            // channel (P-068).
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 8,
+                    shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 16,
+                    shader_location: 2,
+                },
+            ],
         );
         let edge_pipe = make(
             "edges",
