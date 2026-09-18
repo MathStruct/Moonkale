@@ -84,7 +84,7 @@ Workspace crates are `moonkale-*` to avoid collisions (`core` is a reserved crat
 
 ## What is *not* a crate (yet)
 - **Collaboration / CRDT**: [[ADR-0009 Patches not snapshots]] keeps the door open; no crate until it's needed.
-- **Settings / config**: a module in `ui` until it grows.
+- **Settings / config**: typed `Settings` in `ext-api` with user and workspace scopes and per-platform stores — planned in [[Milestone 5 - Settings and Writing]] (nothing persisted before that).
 - **Auth** for the server: a module in `api`.
 - **Search UI**: a panel in `ui` over `index`.
 
