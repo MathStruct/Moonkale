@@ -2,7 +2,7 @@ use crate::host::{PendingApproval, WorkspaceHost};
 use crate::transcript;
 use dioxus::prelude::*;
 use moonkale_core::SourceFamily;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{Extension, Workspace};
 use moonkale_llm::{Agent, AgentEvent, Class, Decision, Provider, ToolOutcome};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -158,7 +158,19 @@ pub fn AgentPanel(ws: Workspace) -> Element {
             {
                 let mut g = a.borrow_mut();
                 g.system = system_prompt(ws);
-                let ps = ws.settings.peek().policy.clone();
+                let (ps, ext) = {
+                    let s = ws.settings.peek();
+                    (s.policy.clone(), s.extensions.clone())
+                };
+                // Permissions removed in Settings → Extensions deny the tools.
+                let manifest = crate::extension::AgentExtension.manifest();
+                let mut denied = ps.denied_tools;
+                if !ext.has(&manifest, "write-files") {
+                    denied.extend(["editor.replace".to_string(), "file.create".to_string()]);
+                }
+                if !ext.has(&manifest, "run-commands") {
+                    denied.push("terminal.run".to_string());
+                }
                 g.policy = moonkale_llm::Policy {
                     mutating: if ps.allow_writes {
                         moonkale_llm::Decision::Allow
@@ -166,7 +178,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                         moonkale_llm::Decision::Ask
                     },
                     destructive: moonkale_llm::Decision::Ask,
-                    denied_tools: ps.denied_tools,
+                    denied_tools: denied,
                 };
             }
             let host = WorkspaceHost { ws, pending, cited };

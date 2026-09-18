@@ -8,10 +8,7 @@ pub struct AgentExtension;
 
 impl Extension for AgentExtension {
     fn manifest(&self) -> Manifest {
-        Manifest {
-            id: "dev.moonkale.editor-agent",
-            name: "Agent",
-        }
+        Manifest::optional("dev.moonkale.editor-agent", "Agent", "The in-app LLM assistant with tools under the policy gate.").with_permissions(&["read-sources", "write-files", "run-commands", "network"])
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {

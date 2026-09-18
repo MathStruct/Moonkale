@@ -1653,6 +1653,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dioxus-flow"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "955fd934a84cfef83bd34f5ed5e304e6e632213030d397ae7d3db07e96a2bb17"
+dependencies = [
+ "dioxus",
+ "futures-timer",
+ "gloo-timers",
+ "web-time",
+]
+
+[[package]]
 name = "dioxus-fullstack"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4534,6 +4546,15 @@ dependencies = [
 [[package]]
 name = "moonkale-editor-flow"
 version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "dioxus-flow",
+ "moonkale-core",
+ "moonkale-ext-api",
+ "serde",
+ "serde_json",
+ "uuid",
+]
 
 [[package]]
 name = "moonkale-editor-graph"
@@ -4605,6 +4626,14 @@ dependencies = [
 [[package]]
 name = "moonkale-ext-host"
 version = "0.1.0"
+
+[[package]]
+name = "moonkale-ext-lux"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "moonkale-ext-api",
+]
 
 [[package]]
 name = "moonkale-graph-render"
@@ -8159,6 +8188,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-editor-agent",
  "moonkale-editor-code",
+ "moonkale-editor-flow",
  "moonkale-editor-graph",
  "moonkale-editor-markdown",
  "moonkale-editor-table",

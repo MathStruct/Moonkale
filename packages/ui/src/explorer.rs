@@ -50,10 +50,7 @@ impl ExplorerExtension {
 
 impl Extension for ExplorerExtension {
     fn manifest(&self) -> Manifest {
-        Manifest {
-            id: "dev.moonkale.explorer",
-            name: "Explorer",
-        }
+        Manifest::core("dev.moonkale.explorer", "Explorer", "Folders, files and databases.")
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {

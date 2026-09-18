@@ -247,6 +247,36 @@ pub fn Frame(
             Some(Command::Settings) => {
                 ws.dispatch(Command::ShowPanel(crate::settings_panel::PANEL_ID))
             }
+            Some(Command::NewFile(name, template)) => {
+                let folder = ws
+                    .sources
+                    .peek()
+                    .iter()
+                    .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+                    .cloned();
+                let Some(folder) = folder else {
+                    ws.set_status("Open a folder first");
+                    return;
+                };
+                spawn(async move {
+                    let (stem, ext) = match name.find('.') {
+                        Some(i) => (&name[..i], &name[i..]),
+                        None => (name, ""),
+                    };
+                    let mut candidate = name.to_string();
+                    let mut n = 1;
+                    while ws.node_at_path(&folder.descriptor.id, &candidate).await.is_some() {
+                        n += 1;
+                        candidate = format!("{stem}-{n}{ext}");
+                    }
+                    match ws.create_text(&folder.descriptor.id, folder.descriptor.root, &candidate, template).await {
+                        Ok(node) => {
+                            let _ = ws.open_node(node).await;
+                        }
+                        Err(e) => ws.set_status(format!("Could not create {candidate}: {e}")),
+                    }
+                });
+            }
             _ => {}
         }
     });

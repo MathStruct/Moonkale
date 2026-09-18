@@ -36,6 +36,7 @@ pub struct SettingsFile {
     pub policy: PolicyFile,
     pub search: SearchFile,
     pub terminal: TerminalFile,
+    pub extensions: ExtensionsFile,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
     /// User scope: most recent first, absolute paths (or server-relative on web).
@@ -84,6 +85,33 @@ pub struct PolicyFile {
 pub struct SearchFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embeddings: Option<bool>,
+}
+
+/// Which optional extensions are on: an explicit list per state; anything
+/// unlisted follows the manifest's `default_enabled`.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ExtensionsFile {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub enabled: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub disabled: Vec<String>,
+    /// Granted permissions per extension id (`"read-sources"`, …).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub permissions: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+impl ExtensionsFile {
+    /// Record a choice (removing it from the opposite list).
+    pub fn set_enabled(&mut self, id: &str, on: bool) {
+        self.enabled.retain(|e| e != id);
+        self.disabled.retain(|e| e != id);
+        if on {
+            self.enabled.push(id.to_string());
+        } else {
+            self.disabled.push(id.to_string());
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -136,6 +164,16 @@ impl SettingsFile {
             .or(self.policy.denied_tools.take());
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
         self.terminal.shell = other.terminal.shell.clone().or(self.terminal.shell.take());
+        // Extensions: a later scope's explicit choice wins per id.
+        for id in &other.extensions.enabled {
+            self.extensions.set_enabled(id, true);
+        }
+        for id in &other.extensions.disabled {
+            self.extensions.set_enabled(id, false);
+        }
+        for (id, perms) in &other.extensions.permissions {
+            self.extensions.permissions.insert(id.clone(), perms.clone());
+        }
         self.theme = other.theme.clone().or(self.theme.take());
         if !other.recent_folders.is_empty() {
             self.recent_folders = other.recent_folders.clone();
@@ -174,6 +212,7 @@ pub struct Settings {
     pub policy: PolicySettings,
     pub search: SearchSettings,
     pub terminal: TerminalSettings,
+    pub extensions: ExtensionsSettings,
     pub theme: String,
     pub recent_folders: Vec<String>,
     pub layout: Option<String>,
@@ -199,6 +238,43 @@ pub struct TerminalSettings {
     pub shell: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ExtensionsSettings {
+    pub enabled: Vec<String>,
+    pub disabled: Vec<String>,
+    pub permissions: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+impl ExtensionsSettings {
+    /// Is this extension on? Core ones always; optional ones per the explicit
+    /// lists, else the manifest default.
+    pub fn is_enabled(&self, m: &crate::Manifest) -> bool {
+        if !m.optional {
+            return true;
+        }
+        if self.disabled.iter().any(|d| d == m.id) {
+            return false;
+        }
+        if self.enabled.iter().any(|e| e == m.id) {
+            return true;
+        }
+        m.default_enabled
+    }
+
+    /// Permissions granted to `id` (built-in extensions get what they declare
+    /// unless the user removed some).
+    pub fn granted(&self, m: &crate::Manifest) -> Vec<String> {
+        match self.permissions.get(m.id) {
+            Some(p) => p.clone(),
+            None => m.permissions.iter().map(|p| p.to_string()).collect(),
+        }
+    }
+
+    pub fn has(&self, m: &crate::Manifest, permission: &str) -> bool {
+        self.granted(m).iter().any(|p| p == permission)
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -212,6 +288,7 @@ impl Default for Settings {
             policy: PolicySettings::default(),
             search: SearchSettings { embeddings: true },
             terminal: TerminalSettings::default(),
+            extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
             recent_folders: Vec::new(),
             layout: None,
@@ -247,6 +324,11 @@ impl Settings {
             },
             terminal: TerminalSettings {
                 shell: merged.terminal.shell,
+            },
+            extensions: ExtensionsSettings {
+                enabled: merged.extensions.enabled,
+                disabled: merged.extensions.disabled,
+                permissions: merged.extensions.permissions,
             },
             theme: merged.theme.unwrap_or(d.theme),
             recent_folders: user.recent_folders.clone(),
@@ -330,6 +412,25 @@ mod tests {
         env.llm.provider = Some("mock".into());
         assert_eq!(Settings::resolve(&user, &ws, &env).llm.provider, "mock");
         assert_eq!(Settings::scope_of_llm(&user, &ws, &env), Scope::Env);
+    }
+
+    #[test]
+    fn extension_enablement() {
+        let core = crate::Manifest::core("a", "A", "");
+        let opt = crate::Manifest::optional("b", "B", "");
+        let opt_in = crate::Manifest::opt_in("c", "C", "").with_permissions(&["network"]);
+        let mut user = SettingsFile::new();
+        user.extensions.set_enabled("c", true);
+        user.extensions.set_enabled("b", false);
+        let mut ws = SettingsFile::new();
+        ws.extensions.set_enabled("b", true); // workspace re-enables B
+        let s = Settings::resolve(&user, &ws, &SettingsFile::new());
+        assert!(s.extensions.is_enabled(&core));
+        assert!(s.extensions.is_enabled(&opt));
+        assert!(s.extensions.is_enabled(&opt_in));
+        assert!(!Settings::resolve(&SettingsFile::new(), &SettingsFile::new(), &SettingsFile::new()).extensions.is_enabled(&opt_in));
+        assert!(s.extensions.has(&opt_in, "network"));
+        assert!(!s.extensions.has(&opt, "network"));
     }
 
     #[test]

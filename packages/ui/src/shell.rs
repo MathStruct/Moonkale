@@ -88,8 +88,10 @@ pub fn Shell() -> Element {
                 // Our copy of the layout only learns about attached panels
                 // through mutations, so reconcile with the current
                 // contributions first (the workbench does the same on click).
+                let ext_settings = ws.settings.peek().extensions.clone();
                 let placements: Vec<PanelPlacement> = exts
                     .iter()
+                    .filter(|e| ext_settings.is_enabled(&e.manifest()))
                     .flat_map(|e| e.panels(ws))
                     .map(|c| PanelPlacement::new(PanelId::from(c.id.as_str()), TileId::from(c.home.tile_id())))
                     .collect();
@@ -117,7 +119,23 @@ pub fn Shell() -> Element {
     let mut owner: HashMap<String, usize> = HashMap::new();
     let mut active_panel: Option<PanelId> = None;
     let active_node = *ws.active.read();
+    // Disabled extensions (Settings → Extensions) contribute nothing.
+    let ext_settings = ws.settings.read().extensions.clone();
+    // Block libraries for the flow editor, from the enabled extensions.
+    {
+        let libs: Vec<moonkale_ext_api::flow::FlowLibrary> = exts
+            .iter()
+            .filter(|e| ext_settings.is_enabled(&e.manifest()))
+            .flat_map(|e| e.flow_libraries())
+            .collect();
+        if *ws.flow_libraries.peek() != libs {
+            ws.flow_libraries.set(libs);
+        }
+    }
     for (i, ext) in exts.iter().enumerate() {
+        if !ext_settings.is_enabled(&ext.manifest()) {
+            continue;
+        }
         for c in ext.panels(ws) {
             owner.insert(c.id.clone(), i);
             if c.node.is_some() && c.node == active_node {

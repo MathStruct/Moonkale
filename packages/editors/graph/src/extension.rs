@@ -8,10 +8,7 @@ pub struct GraphExtension;
 
 impl Extension for GraphExtension {
     fn manifest(&self) -> Manifest {
-        Manifest {
-            id: "dev.moonkale.editor-graph",
-            name: "Graph View",
-        }
+        Manifest::optional("dev.moonkale.editor-graph", "Graph View", "The wgpu graph of the folder, databases and traces.")
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {

@@ -31,13 +31,24 @@ enum Native {
     Exit,
 }
 
-fn menus(controls: Option<WindowControls>, recent: &[String]) -> Vec<(&'static str, Vec<Item>)> {
+fn menus(
+    controls: Option<WindowControls>,
+    recent: &[String],
+    flow_enabled: bool,
+) -> Vec<(&'static str, Vec<Item>)> {
     let desktop = controls.is_some();
     let mut file = vec![Item::Cmd {
         label: "Open Folder…",
         shortcut: "Ctrl+O",
         cmd: Command::OpenFolder,
     }];
+    if flow_enabled {
+        file.push(Item::Cmd {
+            label: "New Flow…",
+            shortcut: "",
+            cmd: Command::NewFile("untitled.flow.json", "{\n  \"version\": 1,\n  \"blocks\": [],\n  \"wires\": []\n}\n"),
+        });
+    }
     for (i, path) in recent.iter().take(8).enumerate() {
         file.push(Item::Recent(i, path.clone()));
     }
@@ -170,7 +181,11 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
             ondoubleclick: move |_| { if let Some(c) = controls { c.toggle_maximize.call(()) } },
             div { class: "mk-titlebar-left", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),
                 span { class: "mk-titlebar-logo", "◐" }
-                for (name, items) in menus(controls, &ws.settings.read().recent_folders) {
+                for (name, items) in menus(
+                    controls,
+                    &ws.settings.read().recent_folders,
+                    ws.settings.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
+                ) {
                     div { class: "mk-menu",
                         button {
                             class: "mk-menu-button",

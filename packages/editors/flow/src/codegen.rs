@@ -1,1 +1,0 @@
-//! Codegen: `trait Codegen { fn generate(&self, flow: &GraphView) -> Vec<(path, text)> }`. Lux.jl: emits a `Chain(...)` definition + training scaffold; MTK: emits `@named` components and `connect` equations.

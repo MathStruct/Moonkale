@@ -162,6 +162,9 @@ pub enum Command {
     OpenRecent(usize),
     /// Open the Settings panel (Ctrl+,).
     Settings,
+    /// Create `<name>` (a file name; a numeric suffix is added if it exists)
+    /// with `template` in the open folder's root and open it.
+    NewFile(&'static str, &'static str),
 }
 
 #[derive(Clone, Copy)]
@@ -194,6 +197,8 @@ pub struct Workspace {
     pub reveal: Signal<Option<Reveal>>,
     /// Counter for ids of in-process sources (traces).
     pub unique: Signal<u64>,
+    /// Block libraries from the enabled extensions (the shell keeps it current).
+    pub flow_libraries: Signal<Vec<crate::flow::FlowLibrary>>,
     /// Persisted scopes and the resolved value (see `settings.rs`).
     pub settings_user: Signal<crate::settings::SettingsFile>,
     pub settings_workspace: Signal<crate::settings::SettingsFile>,
@@ -238,6 +243,7 @@ impl Workspace {
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
             reveal: Signal::new_in_scope(None, ScopeId::ROOT),
             unique: Signal::new_in_scope(0, ScopeId::ROOT),
+            flow_libraries: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             settings_user: Signal::new_in_scope(
                 crate::settings::SettingsFile::new(),
                 ScopeId::ROOT,

@@ -45,10 +45,7 @@ impl CodeEditorExtension {
 
 impl Extension for CodeEditorExtension {
     fn manifest(&self) -> Manifest {
-        Manifest {
-            id: "dev.moonkale.editor-code",
-            name: "Code Editor",
-        }
+        Manifest::core("dev.moonkale.editor-code", "Code Editor", "CodeMirror editor with language-server support.")
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {

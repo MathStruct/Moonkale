@@ -18,10 +18,7 @@ impl TableExtension {
 
 impl Extension for TableExtension {
     fn manifest(&self) -> Manifest {
-        Manifest {
-            id: "dev.moonkale.editor-table",
-            name: "Table Editor",
-        }
+        Manifest::optional("dev.moonkale.editor-table", "Tables", "SQL / Cypher query box and result grid for database sources.")
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {

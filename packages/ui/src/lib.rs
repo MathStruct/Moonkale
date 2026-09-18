@@ -44,10 +44,12 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
         Box::new(moonkale_editor_markdown::LinksExtension::new()),
         Box::new(
             moonkale_editor_code::CodeEditorExtension::new()
-                .skipping(moonkale_editor_markdown::is_markdown),
+                .skipping(|n| moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)),
         ),
         Box::new(moonkale_editor_table::TableExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),
         Box::new(moonkale_editor_agent::AgentExtension),
+        // Opt-in (off until enabled in Settings → Extensions):
+        Box::new(moonkale_editor_flow::FlowExtension),
     ]
 }

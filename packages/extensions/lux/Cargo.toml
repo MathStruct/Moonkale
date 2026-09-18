@@ -1,0 +1,10 @@
+[package]
+name = "moonkale-ext-lux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Optional extension: a Lux.jl block library for the flow editor with Julia codegen. Off by default; enable in Settings → Extensions. Milestone 6."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-ext-api = { workspace = true }

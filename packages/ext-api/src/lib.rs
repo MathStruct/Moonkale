@@ -33,10 +33,11 @@ pub mod workspace;
 pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
+pub mod flow;
 pub mod settings;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
-pub use settings::{Scope, SecretRef, Settings, SettingsFile};
+pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};
 pub use workspace::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, ForeignDrag,
     GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions,

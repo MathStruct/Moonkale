@@ -2,9 +2,11 @@
 //! field with a scope switch (user / workspace), plus the raw JSON of both
 //! files. Changes apply live and persist on change.
 
+use crate::frame::Extensions_;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::settings::{Scope, SettingsFile};
+use std::rc::Rc;
 
 pub const PANEL_ID: &str = "settings";
 
@@ -12,10 +14,7 @@ pub struct SettingsExtension;
 
 impl Extension for SettingsExtension {
     fn manifest(&self) -> Manifest {
-        Manifest {
-            id: "dev.moonkale.settings",
-            name: "Settings",
-        }
+        Manifest::core("dev.moonkale.settings", "Settings", "The Settings panel (Ctrl+,).")
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
@@ -58,6 +57,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
     let mut secret_value = use_signal(String::new);
     let mut secret_status = use_signal(String::new);
 
+    let catalog: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     let settings = ws.settings.read().clone();
     let user = ws.settings_user.read().clone();
     let workspace = ws.settings_workspace.read().clone();
@@ -176,6 +176,56 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     label { "Shell"
                         input { class: "mk-input", value: "{settings.terminal.shell.clone().unwrap_or_default()}", placeholder: "$SHELL",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.shell = opt(v))); } }
+                    }
+
+                    h3 { "Extensions" }
+                    p { class: "mk-muted", "Optional features load only when switched on. Permissions are what an extension may do; untick to restrict it." }
+                    for ext in catalog.iter() {
+                        {
+                            let m = ext.manifest();
+                            let id = m.id;
+                            let on = settings.extensions.is_enabled(&m);
+                            let granted = settings.extensions.granted(&m);
+                            let perms: Vec<&'static str> = m.permissions.to_vec();
+                            rsx! {
+                                div { key: "{id}", class: "mk-settings-ext",
+                                    label { class: "mk-settings-check",
+                                        input { r#type: "checkbox", checked: on, disabled: !m.optional,
+                                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.extensions.set_enabled(id, v))); } }
+                                        span { class: "mk-settings-ext-name", "{m.name}" }
+                                        if !m.optional { span { class: "mk-settings-scope", "core" } }
+                                        if m.optional && !m.default_enabled { span { class: "mk-settings-scope", "opt-in" } }
+                                    }
+                                    div { class: "mk-settings-ext-desc", "{m.description}" }
+                                    if !perms.is_empty() {
+                                        div { class: "mk-settings-ext-perms",
+                                            for p in perms {
+                                                {
+                                                    let has = granted.iter().any(|g| g == p);
+                                                    let all: Vec<&'static str> = m.permissions.to_vec();
+                                                    rsx! {
+                                                        label { key: "{p}", class: "mk-settings-perm",
+                                                            input { r#type: "checkbox", checked: has,
+                                                                onchange: move |e| {
+                                                                    let v = e.checked();
+                                                                    let all = all.clone();
+                                                                    apply(Box::new(move |f| {
+                                                                        let cur = f.extensions.permissions.get(id).cloned().unwrap_or_else(|| all.iter().map(|s| s.to_string()).collect());
+                                                                        let mut next: Vec<String> = cur.into_iter().filter(|c| c != p).collect();
+                                                                        if v { next.push(p.to_string()); }
+                                                                        f.extensions.permissions.insert(id.to_string(), next);
+                                                                    }));
+                                                                } }
+                                                            "{p}"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     h3 { "Remembered" }

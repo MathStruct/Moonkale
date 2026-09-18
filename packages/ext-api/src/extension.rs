@@ -22,4 +22,9 @@ pub trait Extension: 'static {
     /// The shell tells the extension a closable panel was closed. Default:
     /// nothing.
     fn on_panel_closed(&self, _panel_id: &str, _ws: Workspace) {}
+
+    /// Block libraries for the flow editor (Milestone 6). Default: none.
+    fn flow_libraries(&self) -> Vec<crate::flow::FlowLibrary> {
+        Vec::new()
+    }
 }
