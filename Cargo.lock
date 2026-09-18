@@ -1395,6 +1395,7 @@ dependencies = [
  "dioxus",
  "futures-channel",
  "futures-util",
+ "libc",
  "moonkale-core",
  "moonkale-index",
  "moonkale-lsp",

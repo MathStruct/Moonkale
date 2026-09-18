@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/prompts/error3.md",
+                "file": "markdown/prompts/error6.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "error3"
+              "title": "error6"
             }
           }
         ]
@@ -193,23 +193,26 @@
   },
   "active": "e809ffc8e5acdf7d",
   "lastOpenFiles": [
-    "markdown/prompts/Prompt5.md",
+    "markdown/prompts/error5.md",
+    "markdown/prompts/error6.md",
+    "target/dx/moonkale/debug/web/server-1df70d9c",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/deps/moonkale-2b4ba9b7fc61bc52",
+    "target/x86_64-unknown-linux-gnu/server-dev/deps/moonkale-da384b54f2654cbd",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/work-products.bin",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/query-cache.bin",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/f23f79iipa0zfr6fxeeopx3dz.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/f1uom3jn0yzyvkqtlrdo0bqgz.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/esxu6ld7zg2qkwq1srbm2dlcv.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/eiog1ofe5b3qfffx84t5usdry.o",
+    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/e82bxe9ct8ywjsiis5mfcbu2x.o",
+    "markdown/prompts/error4.md",
     "markdown/prompts/error3.md",
+    "markdown/prompts/Prompt5.md",
     "markdown/research/dioxus-flow.md",
     "packages/editors/graph/graph.md",
     "packages/editors/graph-render/graph-render.md",
     "packages/index/index.md",
     "markdown/milestones/Milestone 2 - Implementation Log.md",
-    "target/debug/incremental/moonkale-07s9ysq1rlw0q/s-hmdzegyh09-04whqtt-exb2zs8wo6xzi2jplbk1nrf56/work-products.bin",
-    "target/debug/incremental/moonkale-07s9ysq1rlw0q/s-hmdzegyh09-04whqtt-exb2zs8wo6xzi2jplbk1nrf56/query-cache.bin",
-    "target/debug/incremental/moonkale-07s9ysq1rlw0q/s-hmdzegyh09-04whqtt-exb2zs8wo6xzi2jplbk1nrf56/dep-graph.bin",
-    "target/debug/incremental/moonkale-07s9ysq1rlw0q/s-hmdzegyh09-04whqtt-exb2zs8wo6xzi2jplbk1nrf56",
-    "target/debug/incremental/web-1seprk1baiu4p/s-hmdzegyf2o-0ed2s0b-4541t017ebl4a50v297wnss1m/work-products.bin",
-    "target/debug/incremental/web-1seprk1baiu4p/s-hmdzegyf2o-0ed2s0b-4541t017ebl4a50v297wnss1m/query-cache.bin",
-    "target/debug/incremental/web-1seprk1baiu4p/s-hmdzegyf2o-0ed2s0b-4541t017ebl4a50v297wnss1m/dep-graph.bin",
-    "target/debug/incremental/web-1seprk1baiu4p/s-hmdzegyf2o-0ed2s0b-4541t017ebl4a50v297wnss1m",
-    "target/debug/incremental/mobile-0kdjib45o3tt6/s-hmdzegyf21-0v5ktk8-di9jpo77jk9psccg6s8s6018m/work-products.bin",
-    "target/debug/incremental/mobile-0kdjib45o3tt6/s-hmdzegyf21-0v5ktk8-di9jpo77jk9psccg6s8s6018m/query-cache.bin",
     "markdown/prompts/Prompt6.md",
     "markdown/milestones/Milestone 2 - Graph Appears.md",
     "markdown/prompts/error2.md",

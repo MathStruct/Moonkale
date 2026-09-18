@@ -23,7 +23,7 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
     #[cfg(all(feature = "desktop", target_os = "linux"))]
-    webkit_nvidia_workaround();
+    mute_webkit_exit_dumps();
     #[cfg(feature = "desktop")]
     dioxus::LaunchBuilder::new()
         .with_cfg(window_config())
@@ -32,23 +32,32 @@ fn main() {
     dioxus::launch(App);
 }
 
-/// WebKitGTK's DMA-BUF renderer crashes the web process inside the
-/// proprietary NVIDIA EGL driver (SIGSEGV in `libnvidia-eglcore`, P-061).
-/// The well-known workaround is to disable that renderer before the first
-/// webview exists; WebGL keeps working. Applied only when the NVIDIA kernel
-/// driver is loaded and the user hasn't set the variable themselves
-/// (`MOONKALE_KEEP_DMABUF=1` opts out).
+/// P-061: with the proprietary NVIDIA driver, WebKitGTK's web process
+/// segfaults inside `libnvidia-eglcore` while tearing down a live WebGL
+/// context — i.e. every time this app exits or `dx serve` kills it for a
+/// rebuild. The process is exiting anyway; the only effect is a core dump
+/// and a crash popup per run. Setting the soft core limit to 0 here is
+/// inherited by the WebKit child processes and stops those dumps. Set
+/// `MOONKALE_COREDUMPS=1` to keep them (for debugging real crashes).
 #[cfg(all(feature = "desktop", target_os = "linux"))]
-fn webkit_nvidia_workaround() {
-    const VAR: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
-    if std::env::var_os(VAR).is_some() || std::env::var_os("MOONKALE_KEEP_DMABUF").is_some() {
+fn mute_webkit_exit_dumps() {
+    if std::env::var_os("MOONKALE_COREDUMPS").is_some()
+        || !std::path::Path::new("/proc/driver/nvidia/version").exists()
+    {
         return;
     }
-    if std::path::Path::new("/proc/driver/nvidia/version").exists() {
-        // Before any thread exists: the process is still single-threaded here.
-        std::env::set_var(VAR, "1");
-        eprintln!("moonkale: NVIDIA driver detected, set {VAR}=1 (see Problem Log P-061)");
+    // SAFETY: plain libc calls on a valid, initialised rlimit struct.
+    unsafe {
+        let mut lim = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        if libc::getrlimit(libc::RLIMIT_CORE, &mut lim) == 0 {
+            lim.rlim_cur = 0;
+            let _ = libc::setrlimit(libc::RLIMIT_CORE, &lim);
+        }
     }
+    eprintln!("moonkale: NVIDIA driver detected; core dumps disabled for this process tree (P-061, MOONKALE_COREDUMPS=1 to keep)");
 }
 
 /// Sources are shared by every window of the process, so a folder opened in

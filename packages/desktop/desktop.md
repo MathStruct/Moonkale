@@ -19,4 +19,4 @@ Notes for the `desktop` crate. Everything that touches `dioxus::desktop` lives i
 Milestone 1 deliberately shipped a text field on every platform (the plan listed the native picker as out of scope). This crate now provides the picker through `WorkspaceConfig::pick_folder`; web and mobile still pass `None`.
 
 ## P-061 (Milestone 3)
-`webkit_nvidia_workaround()` sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before the first webview when `/proc/driver/nvidia/version` exists, unless the variable is already set or `MOONKALE_KEEP_DMABUF=1`. WebKitGTK's DMA-BUF renderer crashes its web process inside the NVIDIA EGL driver otherwise.
+WebKitGTK's web process crashes inside the NVIDIA EGL driver while tearing down a live WebGL context (our graph renderer) — on every exit, graceful or not, and on every `dx serve` rebuild. `mute_webkit_exit_dumps()` sets the soft `RLIMIT_CORE` to 0 before launch when `/proc/driver/nvidia/version` exists, so the WebKit children (which inherit it) leave no dump and no crash popup. `MOONKALE_COREDUMPS=1` keeps dumps for debugging a real crash. `WEBKIT_DISABLE_DMABUF_RENDERER` and a JS `pagehide` context loss were tried first and did not help.

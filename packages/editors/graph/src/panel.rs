@@ -165,9 +165,12 @@ try {
     return failed("could not load the renderer module: " + String(e && e.message ? e.message : e));
 }
 const probe = document.createElement("canvas");
-if (!probe.getContext("webgl2") && !navigator.gpu) {
+const probeGl = probe.getContext("webgl2");
+if (!probeGl && !navigator.gpu) {
     return failed("this browser/webview offers neither WebGPU nor WebGL2");
 }
+// Don't keep a second GL context alive just for the probe.
+try { probeGl && probeGl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
 let view;
 try {
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("renderer did not start within 15s")), 15000));
@@ -183,6 +186,14 @@ const ro = new ResizeObserver(() => {
 ro.observe(host);
 window.moonkale = window.moonkale || {};
 (window.moonkale.graphViews = window.moonkale.graphViews || {})[ID] = view;
+// Tear the GL context down before the page goes away (window close, reload):
+// the NVIDIA EGL driver crashes WebKit's web process when it exits with a
+// live WebGL context (P-061). Only helps on graceful unloads.
+const unload = () => {
+    try { view.destroy(); } catch (_) {}
+    try { const gl = canvas.getContext("webgl2") || canvas.getContext("webgl"); gl && gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
+};
+window.addEventListener("pagehide", unload, { once: true });
 for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "setGraph") view.set_graph(JSON.stringify(msg.graph));

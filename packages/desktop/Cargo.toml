@@ -33,3 +33,6 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 default = []
 desktop = ["dioxus/desktop"]
 server = ["dioxus/server", "ui/server"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
