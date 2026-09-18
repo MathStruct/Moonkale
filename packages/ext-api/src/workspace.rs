@@ -114,6 +114,8 @@ pub struct WorkspaceConfig {
     pub llm: Option<LlmProvider>,
     pub settings_store: Option<SettingsStore>,
     pub secret_store: Option<SecretStore>,
+    /// Reopen the most recent folder when the app starts (desktop).
+    pub reopen_last_folder: bool,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -468,6 +470,16 @@ impl Workspace {
             }
             Err(e) => self.set_status(format!("Settings not loaded: {e}")),
         }
+        // Desktop: come back to where you were.
+        if self.config.reopen_last_folder && self.sources.peek().is_empty() {
+            let last = self.settings.peek().recent_folders.first().cloned();
+            if let Some(path) = last {
+                tracing::info!("settings: reopening last folder {path}");
+                if let Err(e) = self.open_folder(path).await {
+                    self.set_status(format!("Could not reopen the last folder: {e}"));
+                }
+            }
+        }
     }
 
     /// Change the user scope and persist it.
@@ -506,6 +518,13 @@ impl Workspace {
             },
             None => crate::settings::SettingsFile::new(),
         };
+        tracing::info!(
+            "settings: workspace {} → layout {}, {} open documents, active {:?}",
+            folder,
+            file.layout.is_some(),
+            file.open_documents.len(),
+            file.active_document
+        );
         self.settings_folder.set(Some(folder.clone()));
         self.settings_workspace.set(file);
         self.resolve_settings();
@@ -746,7 +765,9 @@ impl Workspace {
                     .then(|| s.llm.clone()),
             }
         };
+        tracing::info!("open_folder: {path}");
         let sources = (self.config.open_folder)(path, options).await?;
+        tracing::info!("open_folder: {} sources", sources.len());
         let mut first: Option<SourceDescriptor> = None;
         for source in sources {
             let descriptor = source.descriptor();
@@ -765,6 +786,7 @@ impl Workspace {
         }
         let first = first.ok_or_else(|| SourceError::Invalid("nothing opened".into()))?;
         self.set_status(format!("Opened {}", self.sources_summary()));
+        tracing::info!("open_folder: first {} ({:?})", first.id, first.family);
         if first.family == moonkale_core::SourceFamily::Folder {
             // Workspace settings + remember the folder.
             self.load_workspace_settings(&first.id).await;

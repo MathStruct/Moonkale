@@ -48,8 +48,12 @@ pub fn Shell() -> Element {
         }
         restored_for.set(folder);
         if let Some(encoded) = ws.settings.peek().layout.clone() {
-            if let Some(saved) = PanelLayout::decode(&encoded) {
-                layout.set(saved);
+            match PanelLayout::decode(&encoded) {
+                Some(saved) => {
+                    tracing::info!("settings: restoring layout");
+                    layout.set(saved);
+                }
+                None => tracing::warn!("settings: saved layout could not be decoded"),
             }
         }
     });

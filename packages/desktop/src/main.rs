@@ -95,11 +95,13 @@ fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
         }
         let folder: Arc<dyn Source> = Arc::new(folder);
         registry().insert(folder.clone());
+        tracing::info!("open_local: folder registered, building index");
         // Embeddings (if configured) fill in the background; search is
         // BM25-only until they arrive.
         let embedder = options.embed.as_ref().map(provider_for);
         let index =
             Arc::new(moonkale_index::IndexSource::build_with(folder.clone(), embedder).await?);
+        tracing::info!("open_local: index built");
         registry().insert(index.clone());
         let bg = index.clone();
         spawn(async move {
@@ -382,7 +384,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret) },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true },
                 session,
                 new_window: open_window,
             },

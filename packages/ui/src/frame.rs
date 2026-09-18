@@ -127,10 +127,17 @@ pub fn Frame(
         });
     });
 
-    // User settings (recent folders, provider, …) from the platform store.
-    use_hook(move || {
+    // User settings (recent folders, provider, …) from the platform store,
+    // started from the frame's `onmounted` (an event, so the webview is up)
+    // — on desktop this also reopens the last folder.
+    let mut settings_started = use_signal(|| false);
+    let start_settings = move |_| {
+        if *settings_started.peek() {
+            return;
+        }
+        settings_started.set(true);
         spawn(async move { ws.load_user_settings().await });
-    });
+    };
 
     // Shortcuts when nothing inside the frame has focus (P-065): a
     // document-level listener forwards Ctrl-combos whose target is the body.
@@ -166,6 +173,7 @@ pub fn Frame(
         if keys.is_empty() {
             return;
         }
+        tracing::info!("settings: restoring {} documents", keys.len());
         spawn(async move {
             let mut activate = None;
             for key in keys {
@@ -249,6 +257,7 @@ pub fn Frame(
         div {
             class: "mk-frame",
             class: if controls.is_some() { "mk-frame-undecorated" },
+            onmounted: start_settings,
             // Global keybindings. Ctrl+S is handled inside the editor panel
             // (it needs the panel's error state); the rest go through the bus.
             onkeydown: move |e| {

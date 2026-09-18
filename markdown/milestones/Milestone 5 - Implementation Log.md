@@ -22,7 +22,7 @@ Plan: [[Milestone 5 - Settings and Writing]].
 | 8 | verify, log, vault | ✅ | this note |
 
 ## What the user sees
-- Reopen a folder (File → Open Recent) and find the same tabs, the same layout and the same active file.
+- Launch the desktop app: the last folder reopens with the same tabs, layout and active file (or use File → Open Recent).
 - `Ctrl+,`: choose the provider (mock / Anthropic / OpenAI-compatible / Ollama), model and endpoint; pick where a change goes (this machine or this folder); paste an API key once into *Store secret* — it lands in `~/.config/moonkale/secrets.json` (mode 600), never in settings. Tick *Allow mutating tools* for a trusting session.
 - Every `.md` tab has **Source | Rich**. Rich mode is a WYSIWYG editor whose output is still markdown; Ctrl+click on a wiki-link (double square brackets) opens the page.
 - The agent proposes edits as red/green diff cards and commands as `$ …` cards; *Allow* applies the edit to the open editor (unsaved) or runs the command in a real terminal session and hands the output back to the model.
@@ -40,6 +40,7 @@ Plan: [[Milestone 5 - Settings and Writing]].
 9. **Global shortcuts** now also work with nothing focused: a document-level listener forwards Ctrl-combos whose target is `body` (closes P-065).
 
 ## Problems hit (→ [[Problem Log]])
+- **P-072 The last folder was not reopened at launch** (Daniel's first desktop test): restore ran only after a manual open. Desktop now reopens `recent_folders[0]` at start (`reopen_last_folder`); tracing added on the restore path. Retest pending — my own desktop runs coincided with a locked KDE session (WebKit suspends invisible pages), so they were inconclusive.
 - **P-069 `terminal.run` has no timeout** on wasm (no timer primitive without a JS dependency); output is capped at 200 KB and the shell exits after the command, but an interactive command would wait forever. Follow-up: a cancel button on the tool card.
 - **P-070 `dx serve` kept serving a stale JS asset** after `npm run build` rewrote `milkdown.js` (the content hash in the page did not change); restart dx after rebuilding a bundle.
 - **P-071 Hydration shows server-side settings for a moment**: the Settings panel's scope badge is computed from `env_overrides()`, which differs between server (has env) and wasm (none) until the first client re-render. Cosmetic; same family as P-034.

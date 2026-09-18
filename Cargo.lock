@@ -1411,6 +1411,7 @@ dependencies = [
  "moonkale-terminal-pty",
  "moonkale-typst",
  "rfd",
+ "tracing",
  "ui",
 ]
 
@@ -8168,6 +8169,7 @@ dependencies = [
  "moonkale-sources-sql",
  "moonkale-terminal",
  "serde",
+ "tracing",
 ]
 
 [[package]]

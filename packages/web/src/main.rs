@@ -174,7 +174,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false },
                 session,
                 new_window: Some(new_window),
             },
