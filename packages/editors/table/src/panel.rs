@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use moonkale_core::{Node, Query, QueryResult, SourceError, TextDialect};
-use moonkale_ext_api::{GraphRequest, Workspace};
+use moonkale_ext_api::{Command, GraphRequest, Workspace};
 
 const CSS: Asset = asset!("/assets/table.css");
 
@@ -87,6 +87,8 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                 dialect: dialect.into(),
                 text: text.peek().clone(),
             }));
+            // The Graph tab usually shares this tile; bring it forward.
+            ws.dispatch(Command::ShowPanel("graph"));
         }
     };
 

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/prompts/Prompt5.md",
+                "file": "markdown/prompts/error3.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Prompt5"
+              "title": "error3"
             }
           }
         ]
@@ -193,6 +193,8 @@
   },
   "active": "e809ffc8e5acdf7d",
   "lastOpenFiles": [
+    "markdown/prompts/Prompt5.md",
+    "markdown/prompts/error3.md",
     "markdown/research/dioxus-flow.md",
     "packages/editors/graph/graph.md",
     "packages/editors/graph-render/graph-render.md",
@@ -211,7 +213,6 @@
     "markdown/prompts/Prompt6.md",
     "markdown/milestones/Milestone 2 - Graph Appears.md",
     "markdown/prompts/error2.md",
-    "markdown/prompts/Prompt5.md",
     "markdown/problems/P-045 Cross-window drag and drop.md",
     "markdown/prompts/error 1.md",
     "site/public/static/og-image.png",

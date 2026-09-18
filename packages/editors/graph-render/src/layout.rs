@@ -117,6 +117,7 @@ mod tests {
                 label: i.to_string(),
                 kind: "file".into(),
                 key: String::new(),
+                color: None,
             })
             .collect();
         let edges = (1..n)
@@ -124,6 +125,7 @@ mod tests {
                 a: i - 1,
                 b: i,
                 kind: "links".into(),
+                color: None,
             })
             .collect();
         Graph::from_input(InGraph { nodes, edges })

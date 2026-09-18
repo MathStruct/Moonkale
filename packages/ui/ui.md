@@ -24,3 +24,6 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 
 ## Platform wiring (outside this crate)
 `web/src/views/home.rs` passes `open_remote` (→ `api::RemoteSource`); `desktop`/`mobile` pass `open_local` (→ `moonkale_project_fs::FolderSource`, blank path = `.`). Nothing else differs.
+
+## Milestone 3
+`Command::ShowPanel(id)`: the shell reconciles its controlled layout with the current contributions and calls `PanelLayout::activate` — the same path as a tab click — so any extension can bring a tab forward (the table editor's *Show in Graph* → Graph tab). Status bar: language-server item from `ws.lsp_status`.

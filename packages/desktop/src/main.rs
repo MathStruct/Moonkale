@@ -22,12 +22,33 @@ use ui::{
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    #[cfg(all(feature = "desktop", target_os = "linux"))]
+    webkit_nvidia_workaround();
     #[cfg(feature = "desktop")]
     dioxus::LaunchBuilder::new()
         .with_cfg(window_config())
         .launch(App);
     #[cfg(not(feature = "desktop"))]
     dioxus::launch(App);
+}
+
+/// WebKitGTK's DMA-BUF renderer crashes the web process inside the
+/// proprietary NVIDIA EGL driver (SIGSEGV in `libnvidia-eglcore`, P-061).
+/// The well-known workaround is to disable that renderer before the first
+/// webview exists; WebGL keeps working. Applied only when the NVIDIA kernel
+/// driver is loaded and the user hasn't set the variable themselves
+/// (`MOONKALE_KEEP_DMABUF=1` opts out).
+#[cfg(all(feature = "desktop", target_os = "linux"))]
+fn webkit_nvidia_workaround() {
+    const VAR: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
+    if std::env::var_os(VAR).is_some() || std::env::var_os("MOONKALE_KEEP_DMABUF").is_some() {
+        return;
+    }
+    if std::path::Path::new("/proc/driver/nvidia/version").exists() {
+        // Before any thread exists: the process is still single-threaded here.
+        std::env::set_var(VAR, "1");
+        eprintln!("moonkale: NVIDIA driver detected, set {VAR}=1 (see Problem Log P-061)");
+    }
 }
 
 /// Sources are shared by every window of the process, so a folder opened in

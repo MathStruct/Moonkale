@@ -4,10 +4,13 @@
 //! - Ids: `ladybug:<absolute dir>`; schema nodes derived from `""`
 //!   (database), `"table:<name>"` (node or rel table),
 //!   `"property:<table>.<name>"`; data nodes from
-//!   `"v:<table_id>:<offset>"` (Ladybug's internal id).
+//!   `"v:<Label>:<table_id>:<offset>"` (Ladybug's internal id, with the
+//!   node table's name so consumers can colour by label without a lookup).
 //! - `Children(database)` → node tables; `Children(table)` → properties.
 //! - `Query::All` → the schema graph: rel tables become edges between their
-//!   node tables (`EdgeKind::Custom(<rel name>)`).
+//!   node tables (`EdgeKind::Custom(<rel name>)`). With
+//!   `kinds: Some([Vertex])` it returns the **data** instead: every node and
+//!   relation up to `limit` (`MATCH (a)-[r]->(b)` plus isolated nodes).
 //! - `Query::Text { dialect: "cypher" }` runs any statement (the database is
 //!   opened read-only), capped at [`ROW_CAP`] rows. The result is a `Table`
 //!   of `Value`s **and**, when a column yields `NODE`/`REL`, the matching
@@ -249,7 +252,14 @@ impl LadybugSource {
     /// Run Cypher; rows become `Value`s, node/rel columns become graph
     /// nodes/edges as well.
     async fn run_cypher(&self, text: String) -> Result<QueryResult, SourceError> {
-        let id = self.id.clone();
+        self.run_cypher_capped(text, ROW_CAP).await
+    }
+
+    async fn run_cypher_capped(
+        &self,
+        text: String,
+        cap: usize,
+    ) -> Result<QueryResult, SourceError> {
         let (table, verts, rels) = self
             .blocking(move |c| {
                 let mut r = c.query(&text)?;
@@ -260,7 +270,7 @@ impl LadybugSource {
                 let mut rels: Vec<lbug::RelVal> = Vec::new();
                 let mut truncated = false;
                 for row in &mut r {
-                    if rows.len() >= ROW_CAP {
+                    if rows.len() >= cap {
                         truncated = true;
                         break;
                     }
@@ -290,24 +300,34 @@ impl LadybugSource {
                 ))
             })
             .await?;
-        let _ = id;
         let mut res = QueryResult {
             truncated: table.truncated,
             table: Some(table),
             ..Default::default()
         };
-        let mut seen = std::collections::HashSet::new();
+        // Rels only carry internal ids; map them to labelled keys through
+        // the nodes seen in this result (Cypher returns the endpoints of a
+        // `-[r]-` pattern alongside `r`, so they are normally present).
+        let mut seen: HashMap<String, String> = HashMap::new();
         for v in &verts {
-            let key = vertex_key(v.get_node_id());
-            if !seen.insert(key.clone()) {
+            let raw = raw_key(v.get_node_id());
+            if seen.contains_key(&raw) {
                 continue;
             }
+            let key = vertex_key(v);
+            seen.insert(raw, key.clone());
             res.nodes
-                .push(self.make(&key, NodeKind::Vertex, vertex_label(v)));
+                .push(self.make(&key, NodeKind::Vertex, vertex_name(v)));
         }
         for r in &rels {
-            let from = self.node_id(&vertex_key(r.get_src_node()));
-            let to = self.node_id(&vertex_key(r.get_dst_node()));
+            let (Some(fk), Some(tk)) = (
+                seen.get(&raw_key(r.get_src_node())),
+                seen.get(&raw_key(r.get_dst_node())),
+            ) else {
+                continue;
+            };
+            let from = self.node_id(fk);
+            let to = self.node_id(tk);
             res.edges.push(Edge {
                 source: self.id.clone(),
                 from,
@@ -319,22 +339,29 @@ impl LadybugSource {
     }
 }
 
-fn vertex_key(id: &lbug::InternalID) -> String {
-    format!("v:{}:{}", id.table_id, id.offset)
+fn raw_key(id: &lbug::InternalID) -> String {
+    format!("{}:{}", id.table_id, id.offset)
 }
 
-/// `Label(pk or first string property)`.
-fn vertex_label(v: &lbug::NodeVal) -> String {
+fn vertex_key(v: &lbug::NodeVal) -> String {
+    format!("v:{}:{}", v.get_label_name(), raw_key(v.get_node_id()))
+}
+
+/// The first string property (usually the primary key), else the first
+/// property, else the label — what a node is called in the graph.
+fn vertex_name(v: &lbug::NodeVal) -> String {
     let props = v.get_properties();
-    let first = props
+    props
         .iter()
         .find(|(_, val)| matches!(val, lbug::Value::String(_)))
         .or_else(|| props.first())
-        .map(|(_, val)| val.to_string());
-    match first {
-        Some(s) => format!("{}({s})", v.get_label_name()),
-        None => v.get_label_name().clone(),
-    }
+        .map(|(_, val)| val.to_string())
+        .unwrap_or_else(|| v.get_label_name().clone())
+}
+
+/// `Label(name)` — how a node shows in a table cell.
+fn vertex_label(v: &lbug::NodeVal) -> String {
+    format!("{}({})", v.get_label_name(), vertex_name(v))
 }
 
 fn convert(v: &lbug::Value) -> Value {
@@ -400,8 +427,9 @@ impl Source for LadybugSource {
                         NodeKind::Column,
                         p.rsplit('.').next().unwrap_or(p).to_string(),
                     )
-                } else if key.starts_with("v:") {
-                    self.make(&key, NodeKind::Vertex, key.clone())
+                } else if let Some(rest) = key.strip_prefix("v:") {
+                    let name = rest.split(':').next().unwrap_or(rest).to_string();
+                    self.make(&key, NodeKind::Vertex, name)
                 } else {
                     return Err(SourceError::NotFound);
                 };
@@ -428,14 +456,44 @@ impl Source for LadybugSource {
                         res.nodes.push(c);
                     }
                 } else if let Some(rest) = key.strip_prefix("v:") {
-                    // One hop around a vertex.
-                    let (tid, off) = rest.split_once(':').ok_or(SourceError::NotFound)?;
+                    // One hop around a vertex (`v:<Label>:<table>:<offset>`).
+                    let mut parts = rest.rsplitn(3, ':');
+                    let off = parts.next().ok_or(SourceError::NotFound)?;
+                    let tid = parts.next().ok_or(SourceError::NotFound)?;
                     let cypher = format!(
                         "MATCH (a)-[r]-(b) WHERE id(a) = internal_id({tid}, {off}) RETURN a, r, b LIMIT {ROW_CAP}"
                     );
                     let mut r = self.run_cypher(cypher).await?;
                     r.table = None;
                     return Ok(r);
+                }
+                Ok(res)
+            }
+            Query::All { limit, kinds }
+                if kinds
+                    .as_deref()
+                    .is_some_and(|k| k.contains(&NodeKind::Vertex)) =>
+            {
+                // The data graph: relations with their endpoints, then any
+                // node left over (isolated ones), each capped at `limit`.
+                let mut res = self
+                    .run_cypher_capped(
+                        format!("MATCH (a)-[r]->(b) RETURN a, r, b LIMIT {limit}"),
+                        limit,
+                    )
+                    .await?;
+                let lone = self
+                    .run_cypher_capped(format!("MATCH (n) RETURN n LIMIT {limit}"), limit)
+                    .await?;
+                let have: std::collections::HashSet<NodeId> =
+                    res.nodes.iter().map(|n| n.id).collect();
+                res.nodes
+                    .extend(lone.nodes.into_iter().filter(|n| !have.contains(&n.id)));
+                res.truncated |= lone.truncated;
+                res.table = None;
+                if res.nodes.len() > limit {
+                    res.nodes.truncate(limit);
+                    res.truncated = true;
                 }
                 Ok(res)
             }

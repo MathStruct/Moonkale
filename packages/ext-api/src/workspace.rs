@@ -111,6 +111,8 @@ pub enum Command {
     /// Open a terminal; `Workspace::terminal_cwd` may carry a directory.
     NewTerminal,
     About,
+    /// Bring a panel's tab to the front (the shell owns the layout).
+    ShowPanel(&'static str),
 }
 
 #[derive(Clone, Copy)]

@@ -17,3 +17,6 @@ Notes for the `desktop` crate. Everything that touches `dioxus::desktop` lives i
 
 ## Why "Open" didn't show a dialog before
 Milestone 1 deliberately shipped a text field on every platform (the plan listed the native picker as out of scope). This crate now provides the picker through `WorkspaceConfig::pick_folder`; web and mobile still pass `None`.
+
+## P-061 (Milestone 3)
+`webkit_nvidia_workaround()` sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` before the first webview when `/proc/driver/nvidia/version` exists, unless the variable is already set or `MOONKALE_KEEP_DMABUF=1`. WebKitGTK's DMA-BUF renderer crashes its web process inside the NVIDIA EGL driver otherwise.

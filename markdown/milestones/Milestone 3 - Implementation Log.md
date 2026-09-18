@@ -42,6 +42,9 @@ Plan: [[Milestone 3 - Databases and Tools]].
 - **P-056 `dx serve` restart cadence** — still ~2–3 min per non-rsx change; three restarts this milestone.
 - **P-057 `Websocket<String, String>` does not compile in a server function** — the macro turns the parameter into `str`; wrap the payload in a newtype.
 - **P-058 rust-analyzer progress messages are file paths** — `$/progress` messages like `13/15: /home/…/core` overflowed the status bar; cut at the first `: `.
+- **P-060 Database internals invisible in the graph view** (found by Daniel on desktop): the picker defaulted to *index* and *Show in Graph* didn't raise the Graph tab. Opening a graph database now selects it; `Command::ShowPanel` brings the tab forward.
+- **P-061 WebKitWebProcess crashes in NVIDIA EGL at desktop start** (core dumps reported by Daniel): WebKitGTK's DMA-BUF renderer vs. the proprietary driver; the launcher now sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` when the NVIDIA driver is loaded.
+- **P-062 Only the schema was drawn for a database**: added Data/Schema/Query modes with per-label colours and a legend; `Query::All { kinds: [Vertex] }` is the source-side contract for "the data graph".
 - **P-059 E2E fixtures drift**: the graph suite saves a wiki-link to `Another` into `Home.md`, which then breaks the links suite's counts. Suites must be run on a fresh fixture (or restore `Home.md` between runs) — noted in the E2E README.
 
 ## Decisions worth keeping

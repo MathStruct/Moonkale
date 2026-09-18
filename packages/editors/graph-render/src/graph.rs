@@ -10,6 +10,10 @@ pub struct InNode {
     pub kind: String,
     #[serde(default)]
     pub key: String,
+    /// Optional host-chosen colour `#rrggbb` (per-label palettes); falls
+    /// back to [`color_for`]`(kind)`.
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -19,6 +23,8 @@ pub struct InEdge {
     pub b: usize,
     #[serde(default)]
     pub kind: String,
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -69,6 +75,20 @@ pub fn color_for(kind: &str) -> [f32; 4] {
     }
 }
 
+/// `#rrggbb` → linear-ish RGBA with the given alpha.
+pub fn parse_hex(s: &str, alpha: f32) -> Option<[f32; 4]> {
+    let h = s.strip_prefix('#')?;
+    if h.len() != 6 {
+        return None;
+    }
+    let c = |i: usize| {
+        u8::from_str_radix(&h[i..i + 2], 16)
+            .ok()
+            .map(|v| v as f32 / 255.0)
+    };
+    Some([c(0)?, c(2)?, c(4)?, alpha])
+}
+
 pub fn edge_color(kind: &str) -> [f32; 4] {
     match kind {
         "links" => [0.79, 0.65, 0.37, 0.55],
@@ -101,7 +121,11 @@ impl Graph {
                 let deg = degree[i];
                 Node {
                     radius: 4.0 + (deg as f32).sqrt().min(6.0),
-                    color: color_for(&n.kind),
+                    color: n
+                        .color
+                        .as_deref()
+                        .and_then(|c| parse_hex(c, 1.0))
+                        .unwrap_or_else(|| color_for(&n.kind)),
                     id: n.id,
                     label: n.label,
                     kind: n.kind,
@@ -120,7 +144,11 @@ impl Graph {
             .map(|e| Edge {
                 a: e.a,
                 b: e.b,
-                color: edge_color(&e.kind),
+                color: e
+                    .color
+                    .as_deref()
+                    .and_then(|c| parse_hex(c, 0.55))
+                    .unwrap_or_else(|| edge_color(&e.kind)),
             })
             .collect();
         Self { nodes, edges }

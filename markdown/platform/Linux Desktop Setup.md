@@ -42,6 +42,12 @@ sudo pacman -S --needed vulkan-icd-loader vulkan-tools   # `vulkaninfo --summary
 # only if lbug's prebuilt liblbug download fails (it succeeded here, 2026-09-18):
 sudo pacman -S --needed cmake gcc make
 
+# NVIDIA (proprietary driver): WebKitGTK's DMA-BUF renderer crashes its web process in
+# libnvidia-eglcore (P-061). Moonkale sets WEBKIT_DISABLE_DMABUF_RENDERER=1 itself when it
+# sees /proc/driver/nvidia/version; to test the other way round:
+#   MOONKALE_KEEP_DMABUF=1 dx serve --platform desktop
+# Check for new dumps with: coredumpctl list WebKitWebProcess
+
 # language servers (optional; the status bar tells you what is missing)
 rustup component add rust-analyzer
 ```

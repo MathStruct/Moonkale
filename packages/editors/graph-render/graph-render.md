@@ -15,3 +15,5 @@ Notes for `moonkale-graph-render` (Milestone 2). Design: [[Graph View]], [[ADR-0
 - Events: `ready{backend}`, `hover{id,label,nodeKind,key,x,y}`, `click{id}`, `dblclick{id}`, `settled`.
 
 Known: `create()` hangs if the canvas can't get a GL context — the host probes first (P-049). No GPU text, no picking buffer (CPU hit test), O(n²) layout: all listed in [[Problem Ranking]] P-22.
+
+**Colours (Milestone 3):** `InNode.color` / `InEdge.color` (`#rrggbb`, optional) override the kind-based palette so the host can colour per database label; `parse_hex` in `graph.rs`.

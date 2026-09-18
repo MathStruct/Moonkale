@@ -30,3 +30,6 @@
     padding: 1px 4px;
     max-width: 14ch;
 }
+.mk-graph-legend { display: inline-flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--wb-fg-muted, #9aa0aa); }
+.mk-graph-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.mk-graph-swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }

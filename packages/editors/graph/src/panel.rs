@@ -32,12 +32,46 @@ struct OutNode<'a> {
     label: &'a str,
     kind: &'static str,
     key: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color: Option<&'static str>,
 }
 #[derive(Serialize)]
 struct OutEdge {
     a: usize,
     b: usize,
     kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color: Option<&'static str>,
+}
+
+/// What to draw for a database source.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DbMode {
+    /// Tables and properties; rel tables as edges.
+    Schema,
+    /// The stored nodes and relations (capped).
+    Data,
+    /// The last *Show in Graph* query from a table editor.
+    Query,
+}
+
+/// Twelve distinguishable hues for node labels / relation names; a label
+/// always maps to the same colour (hash), so the legend and the drawing agree.
+const PALETTE: [&str; 12] = [
+    "#f2a03d", "#4fb3e8", "#8ccf6a", "#e86b8a", "#b48cf0", "#f0d55a", "#4fd6c2", "#f07c4f",
+    "#9ab7ff", "#d69bd6", "#a8d86b", "#ff9fb3",
+];
+
+fn label_color(label: &str) -> &'static str {
+    let h = label
+        .bytes()
+        .fold(5381u32, |h, b| h.wrapping_mul(33).wrapping_add(b as u32));
+    PALETTE[(h % PALETTE.len() as u32) as usize]
+}
+
+/// `v:<Label>:<table>:<offset>` → `Label` (see `sources-graph::ladybug`).
+fn vertex_group(node: &Node) -> Option<&str> {
+    node.native_key.strip_prefix("v:")?.split(':').next()
 }
 #[derive(Serialize)]
 struct OutGraph<'a> {
@@ -179,7 +213,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // What to draw: the index (default), a database's schema, or the last
     // "Show in Graph" query. `None` = index.
     let mut picked: Signal<Option<SourceId>> = use_signal(|| None);
-    let mut show_request = use_signal(|| false);
+    let mut db_mode = use_signal(|| DbMode::Data);
+    // Labels drawn in the current database view, for the legend.
+    let mut legend: Signal<Vec<(String, &'static str)>> = use_signal(Vec::new);
     let mut seen_request: Signal<Option<GraphRequest>> = use_signal(|| None);
     let mut counts = use_signal(|| (0usize, 0usize, false));
     // Nodes currently shown, by id string, so events can be resolved back to model nodes.
@@ -237,13 +273,37 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         }
     });
 
+    // A graph database that was just opened is what the user wants to see:
+    // switch the picker to it (the picker still offers the index).
+    let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
+    use_effect(move || {
+        let graph_ids: Vec<SourceId> = ws
+            .sources
+            .read()
+            .iter()
+            .filter(|s| s.descriptor.family == SourceFamily::Graph)
+            .map(|s| s.descriptor.id.clone())
+            .collect();
+        let new = graph_ids
+            .iter()
+            .find(|id| !seen_graph_sources.peek().contains(id))
+            .cloned();
+        if let Some(id) = new {
+            picked.set(Some(id));
+            db_mode.set(DbMode::Data);
+        }
+        if *seen_graph_sources.peek() != graph_ids {
+            seen_graph_sources.set(graph_ids);
+        }
+    });
+
     // A new "Show in Graph" request switches the picker to that query.
     use_effect(move || {
         let req = ws.graph_request.read().clone();
         if req.is_some() && req != *seen_request.peek() {
             seen_request.set(req.clone());
             picked.set(req.map(|r| r.source));
-            show_request.set(true);
+            db_mode.set(DbMode::Query);
         }
     });
 
@@ -260,7 +320,8 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         let active = *ws.active.read();
         let _epoch = *ws.graph_epoch.read();
         let picked_id = picked();
-        let request = if show_request() {
+        let dbm = db_mode();
+        let request = if dbm == DbMode::Query {
             ws.graph_request.read().clone()
         } else {
             None
@@ -281,15 +342,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 return;
             };
             spawn(async move {
-                let query = match (&request, m, active) {
-                    (Some(r), _, _) if r.source == pid => Query::Text {
+                let _ = (m, active);
+                let query = match (&request, dbm) {
+                    (Some(r), DbMode::Query) if r.source == pid => Query::Text {
                         dialect: r.dialect.clone(),
                         text: r.text.clone(),
                     },
-                    (_, Mode::Local, Some(node)) => Query::Neighbours {
-                        node,
-                        depth: 1,
-                        direction: Direction::Both,
+                    (_, DbMode::Data) => Query::All {
+                        limit: 3000,
+                        kinds: Some(vec![NodeKind::Vertex]),
                     },
                     _ => Query::All {
                         limit: 3000,
@@ -309,29 +370,49 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     .enumerate()
                     .map(|(i, n)| (n.id, i))
                     .collect();
+                // Vertices are coloured by their label (node table), relations
+                // by their name; the schema keeps the kind colours.
+                let mut groups: Vec<(String, &'static str)> = Vec::new();
                 let out = OutGraph {
                     nodes: res
                         .nodes
                         .iter()
-                        .map(|n| OutNode {
-                            id: n.id.to_string(),
-                            label: &n.label,
-                            kind: kind_name(&n.kind),
-                            key: &n.native_key,
+                        .map(|n| {
+                            let color = vertex_group(n).map(|g| {
+                                let c = label_color(g);
+                                if !groups.iter().any(|(l, _)| l == g) {
+                                    groups.push((g.to_string(), c));
+                                }
+                                c
+                            });
+                            OutNode {
+                                id: n.id.to_string(),
+                                label: &n.label,
+                                kind: kind_name(&n.kind),
+                                key: &n.native_key,
+                                color,
+                            }
                         })
                         .collect(),
                     edges: res
                         .edges
                         .iter()
                         .filter_map(|e| {
+                            let color = match &e.kind {
+                                moonkale_core::EdgeKind::Custom(name) => Some(label_color(name)),
+                                _ => None,
+                            };
                             Some(OutEdge {
                                 a: *idx.get(&e.from)?,
                                 b: *idx.get(&e.to)?,
                                 kind: edge_name(&e.kind),
+                                color,
                             })
                         })
                         .collect(),
                 };
+                groups.sort();
+                legend.set(groups);
                 counts.set((out.nodes.len(), out.edges.len(), res.truncated));
                 let _ = ev.send(ToJs::SetGraph { graph: out });
                 shown.set(
@@ -389,6 +470,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         label: &n.label,
                         kind: kind_name(&n.kind),
                         key: &n.native_key,
+                        color: None,
                     })
                     .collect(),
                 edges: res
@@ -399,6 +481,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                             a: *idx.get(&e.from)?,
                             b: *idx.get(&e.to)?,
                             kind: edge_name(&e.kind),
+                            color: None,
                         })
                     })
                     .collect(),
@@ -443,22 +526,34 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         onchange: move |e| {
                             let v = e.value();
                             picked.set(if v.is_empty() { None } else { Some(SourceId::new(v)) });
-                            show_request.set(false);
+                            if db_mode() == DbMode::Query { db_mode.set(DbMode::Data); }
                         },
                         option { value: "", selected: is_index, "index" }
                         for (sid, name) in databases.iter() {
                             option { key: "{sid}", value: "{sid}", selected: picked().as_ref() == Some(sid), "{name}" }
                         }
                     }
-                    if has_request && !is_index {
-                        label { class: "mk-graph-check", title: "Draw the last query sent from a table editor instead of the schema",
-                            input { r#type: "checkbox", checked: show_request(), onchange: move |e| show_request.set(e.checked()) } "query"
+                }
+                if is_index {
+                    span { class: "mk-graph-modes",
+                        button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), "Whole" }
+                        button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: "Two hops around the active document", "Local" }
+                    }
+                } else {
+                    span { class: "mk-graph-modes",
+                        button { class: if db_mode() == DbMode::Data { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Data), title: "The stored nodes and relations (up to 3000)", "Data" }
+                        button { class: if db_mode() == DbMode::Schema { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Schema), title: "Tables and properties; relation tables as edges", "Schema" }
+                        if has_request {
+                            button { class: if db_mode() == DbMode::Query { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Query), title: "The last query sent from a table editor", "Query" }
                         }
                     }
-                }
-                span { class: "mk-graph-modes",
-                    button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), "Whole" }
-                    button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: "Two hops around the active document", "Local" }
+                    if db_mode() != DbMode::Schema {
+                        span { class: "mk-graph-legend",
+                            for (name, color) in legend() {
+                                span { key: "{name}", class: "mk-graph-legend-item", span { class: "mk-graph-swatch", style: "background: {color}" } "{name}" }
+                            }
+                        }
+                    }
                 }
                 if is_index {
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } "files" }

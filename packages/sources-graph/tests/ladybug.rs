@@ -63,6 +63,18 @@ async fn schema_and_cypher() {
     let hop = src.query(Query::Children(alice.id)).await.unwrap();
     assert_eq!(hop.nodes.len(), 2);
 
+    // Data graph: every node and relation.
+    let data = src
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::Vertex]),
+        })
+        .await
+        .unwrap();
+    assert_eq!(data.nodes.len(), 2, "{:?}", data.nodes);
+    assert_eq!(data.edges.len(), 1);
+    assert!(data.table.is_none());
+
     let err = src
         .query(Query::Text {
             dialect: "sql".into(),

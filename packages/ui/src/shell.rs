@@ -33,10 +33,27 @@ pub fn Shell() -> Element {
     let mut layout = use_signal(default_layout);
 
     // Shell-level commands.
+    let exts_for_commands = exts.clone();
     use_effect(move || {
+        let exts = &exts_for_commands;
         let (_, cmd) = *ws.commands.read();
         match cmd {
             Some(Command::ResetLayout) => layout.set(default_layout()),
+            Some(Command::ShowPanel(id)) => {
+                // Our copy of the layout only learns about attached panels
+                // through mutations, so reconcile with the current
+                // contributions first (the workbench does the same on click).
+                let placements: Vec<PanelPlacement> = exts
+                    .iter()
+                    .flat_map(|e| e.panels(ws))
+                    .map(|c| PanelPlacement::new(PanelId::from(c.id.as_str()), TileId::from(c.home.tile_id())))
+                    .collect();
+                let mut next = layout.peek().clone();
+                next.reconcile(&placements);
+                if next.activate(&PanelId::from(id)) {
+                    layout.set(next);
+                }
+            }
             Some(Command::OpenFolder) => {
                 spawn(async move {
                     if let Err(e) = ws.open_folder_dialog().await {

@@ -23,6 +23,20 @@ try {
     console.log("\n  tables:", rows.join(", "));
     if (!rows.includes("Knows (rel)")) throw new Error("rel table missing");
   });
+  await step("Graph tab switched itself to the database's data (5 nodes, 4 relations, legend)", async () => {
+    await page.click(".wb-tab:has-text('Graph')");
+    await page.waitForSelector(".mk-graph-source", { timeout: 10000 });
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.getAttribute("data-nodes") === "5", null, { timeout: 15000 });
+    const sel = await page.$eval(".mk-graph-source", (s) => s.options[s.selectedIndex].textContent);
+    if (sel !== "people.lbug") throw new Error(`picker is ${sel}`);
+    const legend = await page.$$eval(".mk-graph-legend-item", (l) => l.map((x) => x.textContent.trim()));
+    console.log("\n  info:", await page.$eval(".mk-graph-info", (e) => e.textContent.trim()), "| legend:", legend.join(", "));
+    if (legend.join() !== "City,Person") throw new Error("legend");
+  });
+  await step("Schema mode draws tables and properties (6 nodes, 7 edges)", async () => {
+    await page.click(".mk-graph-modes button:has-text('Schema')");
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.getAttribute("data-nodes") === "6", null, { timeout: 15000 });
+  });
   await step("Person opens the table editor with a Cypher default query", async () => {
     await page.click(".mk-tree-row >> text=Person");
     await page.waitForSelector(".mk-table-sql", { timeout: 15000 });
@@ -41,9 +55,9 @@ try {
     await page.waitForSelector(".mk-table-graph", { timeout: 5000 });
     await page.screenshot({ path: `${S}/m3-ladybug-table.png` });
   });
-  await step("Show in Graph switches the Graph panel to the database query (5 nodes, 4 edges)", async () => {
+  await step("Show in Graph brings the Graph tab forward and draws the query (5 nodes, 4 edges)", async () => {
     await page.click(".mk-table-graph");
-    await page.click(".wb-tab:has-text('Graph')");
+    await page.waitForFunction(() => [...document.querySelectorAll(".wb-tab[aria-selected=true]")].some((t) => t.textContent.includes("Graph")), null, { timeout: 10000 });
     await page.waitForSelector(".mk-graph-source", { timeout: 10000 });
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.getAttribute("data-nodes") === "5", null, { timeout: 15000 });
     const sel = await page.$eval(".mk-graph-source", (s) => s.options[s.selectedIndex].textContent);
@@ -52,10 +66,11 @@ try {
     if (sel !== "people.lbug") throw new Error("picker not switched");
     await page.screenshot({ path: `${S}/m3-ladybug-graph.png` });
   });
-  await step("unticking 'query' draws the schema instead (db + 2 tables + properties)", async () => {
-    await page.click(".mk-graph-check:has-text('query') input");
-    await page.waitForFunction(() => { const n = +document.querySelector(".mk-graph-info")?.getAttribute("data-nodes"); return n >= 5 && n !== 5 || n === 6; }, null, { timeout: 15000 });
-    console.log("\n  info:", await page.$eval(".mk-graph-info", (e) => e.textContent.trim()));
+  await step("Query mode is selected; Schema still available", async () => {
+    const on = await page.$eval(".mk-graph-modes .mk-btn-on", (b) => b.textContent.trim());
+    if (on !== "Query") throw new Error(`mode is ${on}`);
+    await page.click(".mk-graph-modes button:has-text('Schema')");
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.getAttribute("data-nodes") === "6", null, { timeout: 15000 });
   });
   await step("back to 'index' restores the folder graph", async () => {
     await page.selectOption(".mk-graph-source", "");
