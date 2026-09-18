@@ -236,23 +236,64 @@ impl Source for FolderSource {
     async fn apply(&self, tx: moonkale_core::Transaction) -> Result<Applied, SourceError> {
         let mut applied = Applied::default();
         for op in tx.ops {
-            let Op::WriteText {
-                node,
-                expected,
-                patch,
-            } = op;
-            applied
-                .results
-                .push(match self.write_text(node, expected, &patch).await {
-                    Ok(version) => OpResult::Ok { node, version },
-                    Err(error) => OpResult::Refused { node, error },
-                });
+            match op {
+                Op::WriteText {
+                    node,
+                    expected,
+                    patch,
+                } => applied
+                    .results
+                    .push(match self.write_text(node, expected, &patch).await {
+                        Ok(version) => OpResult::Ok { node, version },
+                        Err(error) => OpResult::Refused { node, error },
+                    }),
+                Op::CreateText { parent, name, text } => {
+                    applied
+                        .results
+                        .push(match self.create_text(parent, &name, &text).await {
+                            Ok((node, version)) => OpResult::Ok { node, version },
+                            Err(error) => OpResult::Refused {
+                                node: parent,
+                                error,
+                            },
+                        })
+                }
+            }
         }
         Ok(applied)
     }
 }
 
 impl FolderSource {
+    /// Create `name` under the directory `parent`; refuses to overwrite.
+    async fn create_text(
+        &self,
+        parent: NodeId,
+        name: &str,
+        text: &str,
+    ) -> Result<(NodeId, Version), SourceError> {
+        let parent_rel = self.rel_of(parent)?;
+        let name = name.trim_matches('/');
+        if name.is_empty() || name.split('/').any(|p| p == "..") {
+            return Err(SourceError::Invalid(format!("bad name {name:?}")));
+        }
+        let rel = if parent_rel.is_empty() {
+            name.to_string()
+        } else {
+            format!("{parent_rel}/{name}")
+        };
+        let path = tree::absolute(&self.root, &rel);
+        if tokio::fs::metadata(&path).await.is_ok() {
+            return Err(SourceError::Invalid(format!("{rel} already exists")));
+        }
+        if let Some(dir) = path.parent() {
+            tokio::fs::create_dir_all(dir).await?;
+        }
+        tokio::fs::write(&path, text.as_bytes()).await?;
+        let (_, version) = self.stat(&rel).await?;
+        Ok((self.node_id(&rel), version))
+    }
+
     async fn write_text(
         &self,
         node: NodeId,

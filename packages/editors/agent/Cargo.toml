@@ -1,0 +1,15 @@
+[package]
+name = "moonkale-editor-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The in-app agent: chat panel, tools over the workspace, policy prompts, audit, transcripts as pages. Milestone 4."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }
+moonkale-llm = { workspace = true }
+serde_json = "1"
+futures-channel = "0.3"
+uuid = { version = "1", features = ["v4", "js"] }

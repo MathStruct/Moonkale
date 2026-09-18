@@ -164,6 +164,7 @@ pub fn Frame(
                         ws.dispatch(Command::NewWindow);
                     }
                     ("o", false) => { e.prevent_default(); ws.dispatch(Command::OpenFolder); }
+                    ("f", true) => { e.prevent_default(); crate::search::focus_search(ws); }
                     _ => {}
                 }
             },

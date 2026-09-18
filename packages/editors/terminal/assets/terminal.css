@@ -10,3 +10,4 @@
 .mk-term-hidden { visibility: hidden; }
 .mk-term-empty { margin: 12px; opacity: 0.6; font-size: 13px; }
 .mk-term-session .xterm { height: 100%; }
+.mk-term-trace { margin-left: auto; font-size: 11px; color: #9aa0aa; }

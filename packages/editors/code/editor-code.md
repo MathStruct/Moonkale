@@ -31,3 +31,6 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 ## Known limitations
 - The `Reload` button pushes text into CodeMirror via `setText`, which also fires `change` — harmless because `Document` is set first.
 - If the bundle fails to load, the panel shows "Loading editor…" forever; a timeout + error message belongs with P-032 (release observability).
+
+## Milestone 4
+`Workspace::reveal` support: an effect watches `ws.reveal` for this node and, once the view is ready, calls `set_cursor(line, col)` (once per `seq`). Cross-file go-to-definition now opens the target *and* positions the cursor.

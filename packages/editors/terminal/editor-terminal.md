@@ -10,3 +10,6 @@ Notes for `moonkale-editor-terminal` (Milestone 3). Design: [[Terminal]]; JS sid
 - Web: the backend is `api::RemoteTerminal` (websocket `/api/terminal`); desktop: `PtyBackend` in-process.
 
 E2E: `packages/web/tests/e2e/terminal.mjs` (prompt appears, `echo` output, second tab, close, Ctrl+click on `src/main.rs:1:4` opens the file — the click is dispatched synthetically, see P-055).
+
+## Milestone 4
+**Trace → Graph** button in the tab bar: bumps `Sessions::trace_tick`; the visible `SessionView` asks JS for the whole buffer (`allText`), `moonkale_trace::parse`s it and adds a `TraceSource` per trace to the workspace (the Graph panel switches to it). Status bar reports "No stack trace … found" otherwise.

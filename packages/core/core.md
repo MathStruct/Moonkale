@@ -24,3 +24,6 @@ Implementation notes for `moonkale-core` (Milestone 1). Design: [[Graph-Native M
 
 ## Tests
 `cargo test -p moonkale-core` — 7 tests (id determinism/scoping/separator/display, patch application, char offsets, range errors).
+
+## Milestone 4
+`Op::CreateText { parent, name, text }` creates a text node under a directory (relative names allowed; missing directories created; refuses to overwrite). `Transaction::create_text`. `OpResult` is re-exported.

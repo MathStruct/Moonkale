@@ -20,3 +20,9 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - **`OpenFolder` is a `fn` pointer** (`fn(String) -> OpenFolderFuture`), installed by the platform crate. Desktop passes an in-process `FolderSource` factory, web a `RemoteSource` factory; the shell can't tell them apart.
 - **Depends on `dioxus`** because static extensions return `Element`. The WASM path (`ui::Tree`) is not started and will not.
 - `Workspace::save` maps a refused op to `SourceError` and leaves the document dirty, so the editor can offer *Reload*.
+
+## Milestone 4
+- `WorkspaceConfig::llm: Option<LlmProvider>` (`fn() -> Future<Arc<dyn Provider>>`; `None` on mobile) and `Workspace::llm()`.
+- `Workspace::reveal(node, line, col)` opens a node and sets `reveal: Signal<Option<Reveal>>` (with a `seq`); the code editor places the cursor when its view is ready. Used by search hits, trace frames, cross-file go-to-definition and the `editor.open` tool.
+- `Workspace::create_text(source, parent, name, text)` → `Op::CreateText` on the source, refresh of derived sources, `graph_epoch` bump (transcripts).
+- `Workspace::add_source(Arc<dyn Source>)` for in-process sources (traces) and `next_unique()` for their ids.

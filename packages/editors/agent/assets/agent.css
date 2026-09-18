@@ -1,0 +1,27 @@
+.mk-agent { display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 13px; }
+.mk-agent-toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid #2a2e37; }
+.mk-agent-provider { color: #9aa0aa; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-agent-spacer { flex: 1; }
+.mk-agent-log { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.mk-agent-hint { padding: 8px; }
+.mk-agent-msg { white-space: pre-wrap; word-break: break-word; padding: 6px 9px; border-radius: 8px; max-width: 95%; line-height: 1.4; }
+.mk-agent-user { align-self: flex-end; background: #2d3b55; }
+.mk-agent-assistant { align-self: flex-start; background: #23272f; }
+.mk-agent-error { background: #4a2328; color: #ffb4b4; }
+.mk-agent-tool { border: 1px solid #3a3f4b; border-radius: 6px; padding: 5px 8px; background: #1b1e25; font-size: 12px; }
+.mk-agent-tool-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mk-agent-tool-name { font-family: ui-monospace, monospace; color: #d7dae0; }
+.mk-agent-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: #2a2e37; color: #9aa0aa; }
+.mk-agent-ok { color: #8ccf6a; }
+.mk-agent-err { color: #e86b8a; }
+.mk-agent-tool-input { display: block; font-size: 11px; color: #9aa0aa; white-space: pre-wrap; word-break: break-all; margin-top: 3px; }
+.mk-agent-tool-summary { margin-top: 4px; color: #c0c4cc; white-space: pre-wrap; }
+.mk-agent-approval { border: 1px solid #f2a03d; border-radius: 6px; padding: 8px; background: #2a2416; }
+.mk-agent-approval-title { margin-bottom: 4px; }
+.mk-agent-approval-actions { display: flex; gap: 6px; margin-top: 6px; }
+.mk-agent-compose { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid #2a2e37; }
+.mk-agent-input { flex: 1; resize: vertical; background: #1e222a; color: inherit; border: 1px solid #3a3f4b; border-radius: 4px; padding: 6px; font: inherit; }
+.mk-agent-activity { max-height: 40%; overflow: auto; border-bottom: 1px solid #2a2e37; padding: 6px 8px; font-size: 12px; }
+.mk-agent-audit { padding: 4px 0; border-bottom: 1px dashed #2a2e37; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.mk-agent-audit-tool { font-family: ui-monospace, monospace; }
+.mk-agent-audit-summary { width: 100%; color: #9aa0aa; white-space: pre-wrap; }

@@ -27,3 +27,8 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 
 ## Milestone 3
 `Command::ShowPanel(id)`: the shell reconciles its controlled layout with the current contributions and calls `PanelLayout::activate` — the same path as a tab click — so any extension can bring a tab forward (the table editor's *Show in Graph* → Graph tab). Status bar: language-server item from `ws.lsp_status`.
+
+## Milestone 4
+- `search.rs` — the **Search** panel (side tile, between Explorer and Links): `Query::Text{search}` on the index; hits show `path:line` + snippet and open the file at the line via `Workspace::reveal`. **Ctrl+Shift+F** (`Frame`) dispatches `Command::ShowPanel("search")` and focuses the box (`dioxus_workbench::focus_after_render`).
+- Default layout gained a **right** tile holding the Agent panel: `side 0.22 | (main-rows 0.72 | right)` at 0.7.
+- `default_extensions()` adds `SearchExtension` and `AgentExtension`.

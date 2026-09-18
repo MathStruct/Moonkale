@@ -25,3 +25,6 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 - **Naming (P-036):** a server function named `query` with a parameter `query` does not compile — the generated client stub calls the function by name and the parameter shadows it. Hence the `_source/_from/_to` suffixes.
 - **No auth, no size cap.** This is a local dev server until the Platform Matrix security items are done. Large files go over the wire whole.
 - Deps on `project-fs` and `sources` are `optional` and only enabled by the `server` feature on non-wasm targets, so the client build never sees them.
+
+## Milestone 4: LLM relay
+`llm.rs` — `#[get("/api/llm")] llm_socket` (`Websocket<Frame, Frame>`, one socket per call): the client sends `{kind: complete, request}` or `{kind: embed, texts}`, the server runs the provider it built from its own environment (`MOONKALE_LLM`, keys) and streams `{kind: event, event}` / `{kind: embedding, vectors}`. `llm_info` (`POST /api/llm/info`) reports name/model/embedding support. `RemoteProvider` (wasm only) implements `Provider` over these; `embedder()` gives the index the same provider when `MOONKALE_EMBED_MODEL` is set. Keys never reach the browser; the relay has no auth (dev server).

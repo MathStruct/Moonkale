@@ -9,5 +9,6 @@ description = "Graph view panel: hosts the wgpu renderer module (graph-render) a
 dioxus = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
+moonkale-trace = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

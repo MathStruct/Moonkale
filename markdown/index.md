@@ -7,8 +7,8 @@ description: A graph-native code and knowledge editor — folders and databases 
 
 It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, web and mobile from one codebase, and is extension-driven: the built-in editors are themselves extensions with no privileged access.
 
-> [!info] Status — Milestone 3 done
-> **Databases and tools.** A **terminal** (PTY on desktop, websocket relay on web, Ctrl+click on `path:line`), a live **Typst preview**, a **language-server client** (rust-analyzer: diagnostics, hover, go-to-definition) and **LadybugDB** as an embedded graph-database source (Cypher in the table editor, results drawn in the graph view) — on top of Milestone 2's index, wgpu graph view, backlinks and SQLite tables, and Milestone 1's dockable workbench with CodeMirror editing, multi-window sessions and a VS Code-style frame. See [[Milestone 3 - Implementation Log]], then [[Roadmap]] for Phase 4.
+> [!info] Status — Milestone 4 done
+> **Agents.** An in-app **agent** (Anthropic / OpenAI-compatible / Ollama / mock) that lists sources, browses the graph, reads files, runs read-only SQL/Cypher and searches — every call through a **policy gate** with approval prompts and an audit log; transcripts saved as indexed pages. **Hybrid search** (BM25 + optional embeddings, Ctrl+Shift+F) and **stack traces drawn as graphs** from the terminal. On top of Milestone 3's terminal, Typst preview, LSP and LadybugDB; Milestone 2's index, wgpu graph view, backlinks and SQLite; Milestone 1's dockable workbench. See [[Milestone 4 - Implementation Log]], then [[Roadmap]] for Phase 5.
 
 ## Start here
 
@@ -31,7 +31,7 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | Packaging | [[Packaging Overview]] · [[Arch Linux]] · [[NixOS]] · [[Android]] |
 | Testing | [[Testing Strategy]] · [[How to Write Tests]] |
 | Research | [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] |
-| Milestones | [[Milestone 1 - Walking Skeleton]] · [[Milestone 1 - Implementation Log]] · [[Milestone 2 - Graph Appears]] · [[Milestone 2 - Implementation Log]] · [[Milestone 3 - Databases and Tools]] · [[Milestone 3 - Implementation Log]] |
+| Milestones | [[Milestone 1 - Walking Skeleton]] · [[Milestone 1 - Implementation Log]] · [[Milestone 2 - Graph Appears]] · [[Milestone 2 - Implementation Log]] · [[Milestone 3 - Databases and Tools]] · [[Milestone 3 - Implementation Log]] · [[Milestone 4 - Agents]] · [[Milestone 4 - Implementation Log]] |
 | Contributing | [[Development]] — building, running, and how this site is published |
 
 Source: [github.com/MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) · Part of [MathStruct](https://mathstruct.github.io/).

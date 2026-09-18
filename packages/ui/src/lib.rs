@@ -14,15 +14,16 @@
 
 mod explorer;
 mod frame;
+mod search;
 mod shell;
 mod titlebar;
 
 pub use explorer::ExplorerExtension;
 pub use frame::{Frame, ResizeEdge, SessionFactory, ShellConfig, WindowControls};
 pub use moonkale_ext_api::{
-    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, OpenFolder,
-    OpenFolderFuture, PickFolder, PickFolderFuture, SessionBus, SessionMessage, WindowId,
-    WorkspaceConfig,
+    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, LlmProvider,
+    LlmProviderFuture, OpenFolder, OpenFolderFuture, PickFolder, PickFolderFuture, Reveal,
+    SessionBus, SessionMessage, WindowId, WorkspaceConfig,
 };
 pub use moonkale_lsp::{LspTransport, LspTransportFuture, SpawnLsp};
 pub use moonkale_terminal::{SpawnTerminal, SpawnTerminalFuture, TerminalBackend};
@@ -35,10 +36,12 @@ use moonkale_ext_api::Extension;
 pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     vec![
         Box::new(ExplorerExtension::new()),
+        Box::new(search::SearchExtension),
         Box::new(moonkale_editor_graph::GraphExtension),
         Box::new(moonkale_editor_markdown::LinksExtension),
         Box::new(moonkale_editor_code::CodeEditorExtension::new()),
         Box::new(moonkale_editor_table::TableExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),
+        Box::new(moonkale_editor_agent::AgentExtension),
     ]
 }

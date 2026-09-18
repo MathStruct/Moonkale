@@ -8,7 +8,7 @@ const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); c
 const text = () => page.$$eval(".xterm-rows > div", (rows) => rows.map((r) => r.textContent).join("\n"));
 try {
   await step("open folder, Terminal panel present (bottom tile)", async () => {
-    await page.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
@@ -31,9 +31,9 @@ try {
   });
   await step("second terminal via +, tabs switch, close works", async () => {
     await page.click(".mk-term-new");
-    await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new)").length === 2, null, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new):not(.mk-term-trace)").length === 2, null, { timeout: 15000 });
     await page.click(".mk-term-tab-active .mk-term-close");
-    await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new)").length === 1, null, { timeout: 5000 });
+    await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new):not(.mk-term-trace)").length === 1, null, { timeout: 5000 });
   });
   await step("Ctrl+click on a path:line in the output opens the file", async () => {
     await page.click(".mk-term-session");

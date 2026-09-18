@@ -69,6 +69,15 @@ fn label_color(label: &str) -> &'static str {
     PALETTE[(h % PALETTE.len() as u32) as usize]
 }
 
+/// Sources the picker offers besides the index: databases and traces.
+fn is_pickable(f: &SourceFamily) -> bool {
+    matches!(f, SourceFamily::Graph | SourceFamily::Sql) || is_trace(f)
+}
+
+fn is_trace(f: &SourceFamily) -> bool {
+    matches!(f, SourceFamily::Custom(c) if c == "trace")
+}
+
 /// `v:<Label>:<table>:<offset>` → `Label` (see `sources-graph::ladybug`).
 fn vertex_group(node: &Node) -> Option<&str> {
     node.native_key.strip_prefix("v:")?.split(':').next()
@@ -287,12 +296,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // A graph database that was just opened is what the user wants to see:
     // switch the picker to it (the picker still offers the index).
     let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
+    let mut load_gen: Signal<u64> = use_signal(|| 0);
     use_effect(move || {
         let graph_ids: Vec<SourceId> = ws
             .sources
             .read()
             .iter()
-            .filter(|s| s.descriptor.family == SourceFamily::Graph)
+            .filter(|s| {
+                s.descriptor.family == SourceFamily::Graph || is_trace(&s.descriptor.family)
+            })
             .map(|s| s.descriptor.id.clone())
             .collect();
         let new = graph_ids
@@ -340,6 +352,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         let Some(ev) = *eval.peek() else {
             return;
         };
+        // Loads are async and may finish out of order (a remote index reply
+        // after a local trace); only the newest load may publish.
+        let gen = *load_gen.peek() + 1;
+        load_gen.set(gen);
         // A database source: draw its schema (or the requested query's result).
         if let Some(pid) = picked_id {
             let Some(handle) = ws
@@ -375,6 +391,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         return;
                     }
                 };
+                if *load_gen.peek() != gen {
+                    return;
+                }
                 let idx: HashMap<_, _> = res
                     .nodes
                     .iter()
@@ -467,6 +486,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             let Ok(res) = index.source.query(query).await else {
                 return;
             };
+            if *load_gen.peek() != gen {
+                return;
+            }
             let nodes: Vec<&Node> = res
                 .nodes
                 .iter()
@@ -519,9 +541,20 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         .sources
         .read()
         .iter()
-        .filter(|s| matches!(s.descriptor.family, SourceFamily::Graph | SourceFamily::Sql))
+        .filter(|s| is_pickable(&s.descriptor.family))
         .map(|s| (s.descriptor.id.clone(), s.descriptor.display_name.clone()))
         .collect();
+    let picked_is_trace = picked()
+        .and_then(|p| {
+            ws.sources
+                .read()
+                .iter()
+                .find(|s| s.descriptor.id == p)
+                .map(|s| is_trace(&s.descriptor.family))
+        })
+        .unwrap_or(false);
+    let mut paste_open = use_signal(|| false);
+    let mut paste_text = use_signal(String::new);
     let has_request = ws.graph_request.read().is_some();
     let picked_str = picked().map(|p| p.to_string()).unwrap_or_default();
     let is_index = picked().is_none();
@@ -545,7 +578,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         }
                     }
                 }
-                if is_index {
+                if picked_is_trace {
+                    span { class: "mk-graph-modes", span { class: "mk-muted", "files → frames → call chain" } }
+                } else if is_index {
                     span { class: "mk-graph-modes",
                         button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), "Whole" }
                         button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: "Two hops around the active document", "Local" }
@@ -578,8 +613,31 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     if truncated { " · truncated" }
                     if let Some(b) = backend() { " · {b}" }
                 }
+                button { class: if paste_open() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| paste_open.toggle(), title: "Paste a stack trace or compiler output and draw it", "Trace…" }
                 button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, "Fit" }
                 button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Relayout); } }, "Relayout" }
+            }
+            if paste_open() {
+                div { class: "mk-graph-paste",
+                    textarea { class: "mk-graph-paste-text", rows: 6, placeholder: "Paste a Rust panic/backtrace, cargo errors, a Python traceback or a JS stack…",
+                        value: "{paste_text}", oninput: move |e| paste_text.set(e.value()) }
+                    div { class: "mk-graph-paste-actions",
+                        button { class: "mk-btn mk-btn-on", onclick: move |_| {
+                            let mut ws = ws;
+                            let traces = moonkale_trace::parse(&paste_text.peek());
+                            if traces.is_empty() {
+                                ws.set_status("No trace found in the pasted text");
+                            } else {
+                                for t in &traces {
+                                    let unique = ws.next_unique();
+                                    ws.add_source(std::sync::Arc::new(moonkale_trace::TraceSource::new(t, unique)));
+                                }
+                                paste_open.set(false);
+                            }
+                        }, "Draw" }
+                        button { class: "mk-btn", onclick: move |_| paste_open.set(false), "Cancel" }
+                    }
+                }
             }
             div { class: "mk-graph-host", onmounted: mount,
                 canvas { id: "{id}-gl", class: "mk-graph-canvas" }
@@ -611,6 +669,24 @@ pub fn GraphPanel(ws: Workspace) -> Element {
 
 /// Double-click: files open directly; a symbol opens the file that defines it.
 async fn open_node(mut ws: Workspace, node: Node) {
+    // Trace nodes point into the folder: `path` or `path:line[:col]`.
+    let from_trace = ws
+        .sources
+        .peek()
+        .iter()
+        .any(|s| s.descriptor.id == node.source && is_trace(&s.descriptor.family));
+    if from_trace {
+        let (path, line, col) = split_location(&node.native_key);
+        match ws.open_relative_path(&path).await {
+            Ok(n) => {
+                let _ = ws
+                    .reveal(n, line.saturating_sub(1), col.saturating_sub(1))
+                    .await;
+            }
+            Err(_) => ws.set_status(format!("{path} is not in an open folder")),
+        }
+        return;
+    }
     match node.kind {
         NodeKind::File => {
             if let Err(e) = ws.open_node(node).await {
@@ -641,5 +717,18 @@ async fn open_node(mut ws: Workspace, node: Node) {
             }
         }
         _ => ws.set_status(format!("{} has nothing to open", node.label)),
+    }
+}
+
+/// `path[:line[:col]]` → `(path, line, col)` (0 when absent).
+fn split_location(key: &str) -> (String, u32, u32) {
+    let mut parts = key.rsplitn(3, ':');
+    let a = parts.next().unwrap_or("");
+    let b = parts.next();
+    let c = parts.next();
+    match (a.parse::<u32>(), b.and_then(|x| x.parse::<u32>().ok()), c) {
+        (Ok(col), Some(line), Some(path)) => (path.to_string(), line, col),
+        (Ok(line), _, _) if b.is_some() => (key[..key.len() - a.len() - 1].to_string(), line, 0),
+        _ => (key.to_string(), 0, 0),
     }
 }

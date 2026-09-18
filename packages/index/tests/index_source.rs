@@ -189,3 +189,79 @@ async fn refresh_reindexes_one_file() {
     assert_eq!(targets, ["Alpha.md"]);
     assert_eq!(index.stats().links, 4);
 }
+
+#[tokio::test]
+async fn search_is_a_text_dialect_with_paths_lines_and_file_nodes() {
+    let dir = vault();
+    let folder = Arc::new(FolderSource::open(dir.path()).unwrap());
+    let mock: Arc<dyn moonkale_llm::Provider> = Arc::new(moonkale_llm::MockProvider::scripted());
+    let index = IndexSource::build_with(folder.clone(), Some(mock))
+        .await
+        .unwrap();
+    let (chunks, embedded) = index.search_stats();
+    assert!(
+        chunks >= 4 && embedded == 0,
+        "{chunks} chunks, {embedded} embedded"
+    );
+    assert_eq!(index.embed_pending().await.unwrap(), chunks);
+    assert_eq!(index.search_stats().1, chunks);
+
+    let res = index
+        .query(Query::Text {
+            dialect: "search".into(),
+            text: "pub fn free".into(),
+        })
+        .await
+        .unwrap();
+    let t = res.table.unwrap();
+    assert_eq!(t.columns[0], "path");
+    assert_eq!(t.rows[0][0].to_string(), "src/lib.rs");
+    assert_eq!(t.rows[0][1].to_string(), "3");
+    assert!(res
+        .nodes
+        .iter()
+        .any(|n| n.native_key == "src/lib.rs" && n.kind == NodeKind::File));
+
+    // Refresh keeps the search index in step with the file.
+    let lib = res
+        .nodes
+        .iter()
+        .find(|n| n.native_key == "src/lib.rs")
+        .unwrap();
+    let (text, v) = folder.fetch_text(lib.id).await.unwrap();
+    folder
+        .apply(Transaction::write_text(
+            lib.id,
+            v,
+            TextPatch::whole("pub fn zebra_walk() {}\n", text.chars().count()),
+        ))
+        .await
+        .unwrap();
+    index.refresh(lib.id).await.unwrap();
+    let res = index
+        .query(Query::Text {
+            dialect: "search".into(),
+            text: "zebra walk".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(res.table.unwrap().rows[0][0].to_string(), "src/lib.rs");
+    assert!(index
+        .query(Query::Text {
+            dialect: "search".into(),
+            text: "free".into()
+        })
+        .await
+        .unwrap()
+        .table
+        .unwrap()
+        .rows
+        .is_empty());
+    let err = index
+        .query(Query::Text {
+            dialect: "sql".into(),
+            text: "x".into(),
+        })
+        .await;
+    assert!(err.is_err());
+}

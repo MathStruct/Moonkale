@@ -95,9 +95,28 @@ fn open_local(path: String) -> OpenFolderFuture {
         }
         let folder: Arc<dyn Source> = Arc::new(folder);
         registry().insert(folder.clone());
-        let index: Arc<dyn Source> =
-            Arc::new(moonkale_index::IndexSource::build(folder.clone()).await?);
+        // Embeddings (if configured) fill in the background; search is
+        // BM25-only until they arrive.
+        let embedder = {
+            let cfg = moonkale_llm::Config::from_env();
+            cfg.embed_model.is_some().then(|| {
+                let p: Arc<dyn moonkale_llm::Provider> =
+                    Arc::from(moonkale_llm::config::build(&cfg));
+                p
+            })
+        };
+        let index =
+            Arc::new(moonkale_index::IndexSource::build_with(folder.clone(), embedder).await?);
         registry().insert(index.clone());
+        let bg = index.clone();
+        spawn(async move {
+            match bg.embed_pending().await {
+                Ok(n) if n > 0 => eprintln!("moonkale: embedded {n} chunks"),
+                Ok(_) => {}
+                Err(e) => eprintln!("moonkale: embedding failed: {e}"),
+            }
+        });
+        let index: Arc<dyn Source> = index;
         Ok(vec![folder, index])
     })
 }
@@ -177,6 +196,21 @@ fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture
         moonkale_lsp_local::StdioTransport::spawn(&spec.program, &args, &root)
             .map(|t| Box::new(t) as Box<dyn moonkale_lsp::LspTransport>)
     })
+}
+
+/// The LLM provider from the environment (`MOONKALE_LLM`, keys), built
+/// once; HTTP providers run in-process on desktop.
+fn llm_provider() -> ui::LlmProviderFuture {
+    use std::sync::{Arc, OnceLock};
+    static PROVIDER: OnceLock<Arc<dyn moonkale_llm::Provider>> = OnceLock::new();
+    let p = PROVIDER
+        .get_or_init(|| {
+            let cfg = moonkale_llm::Config::from_env();
+            eprintln!("moonkale: llm provider {}", cfg.label());
+            Arc::from(moonkale_llm::config::build(&cfg))
+        })
+        .clone();
+    Box::pin(async move { Ok(p) })
 }
 
 /// Native folder picker. rfd's xdg-portal backend talks to the desktop's
@@ -300,7 +334,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp) },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider) },
                 session,
                 new_window: open_window,
             },

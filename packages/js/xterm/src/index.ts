@@ -74,6 +74,16 @@ function lineAt(el: HTMLElement, y: number): string[] | null {
   return [line(row), line(row - 1), line(row + 1)]
 }
 
+/** The whole buffer (scrollback + screen) as plain text, for trace parsing. */
+function allText(el: HTMLElement): string {
+  const e = terms.get(el)
+  if (!e) return ""
+  const buf = e.term.buffer.active
+  const out: string[] = []
+  for (let r = 0; r < buf.length; r++) out.push(buf.getLine(r)?.translateToString(true) ?? "")
+  return out.join("\n")
+}
+
 function destroy(el: HTMLElement): void {
   const e = terms.get(el)
   if (e) { e.ro.disconnect(); e.term.dispose(); terms.delete(el) }
@@ -81,4 +91,4 @@ function destroy(el: HTMLElement): void {
 
 declare global { interface Window { moonkale?: Record<string, unknown> } }
 window.moonkale = window.moonkale ?? {}
-window.moonkale.xterm = { mount, write, focus, fit: fitNow, lineAt, destroy }
+window.moonkale.xterm = { mount, write, focus, fit: fitNow, lineAt, allText, destroy }

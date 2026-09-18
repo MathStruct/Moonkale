@@ -8,7 +8,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 try {
   await step("open folder → index is built and reported", async () => {
-    await page.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });

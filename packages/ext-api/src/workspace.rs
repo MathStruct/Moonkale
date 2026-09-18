@@ -59,6 +59,24 @@ pub type AttachSource = fn(SourceDescriptor) -> AttachFuture;
 pub type CompileTypstFuture = Pin<Box<dyn Future<Output = Result<Vec<String>, Vec<String>>>>>;
 pub type CompileTypst = fn(String, String, String) -> CompileTypstFuture;
 
+/// Builds the LLM provider for this platform (in-process on desktop, the
+/// server relay on web). Async because the web build asks the server which
+/// model it runs.
+pub type LlmProviderFuture =
+    Pin<Box<dyn Future<Output = Result<Arc<dyn moonkale_llm::Provider>, String>>>>;
+pub type LlmProvider = fn() -> LlmProviderFuture;
+
+/// "Open this node and put the cursor here" (search hits, trace frames,
+/// go-to-definition). Lines and columns are 0-based.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reveal {
+    pub node: NodeId,
+    pub line: u32,
+    pub col: u32,
+    /// Bumped per request so the same position can be revealed twice.
+    pub seq: u64,
+}
+
 /// What the platform hands the workspace at startup.
 #[derive(Clone, Copy)]
 pub struct WorkspaceConfig {
@@ -71,6 +89,7 @@ pub struct WorkspaceConfig {
     pub compile_typst: Option<CompileTypst>,
     /// Language-server launcher (`None`: no LSP features).
     pub spawn_lsp: Option<moonkale_lsp::SpawnLsp>,
+    pub llm: Option<LlmProvider>,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -141,6 +160,10 @@ pub struct Workspace {
     pub lsp_status: Signal<Option<String>>,
     /// Last "Show in Graph" request (see [`GraphRequest`]).
     pub graph_request: Signal<Option<GraphRequest>>,
+    /// Pending cursor placement for an editor (see [`Reveal`]).
+    pub reveal: Signal<Option<Reveal>>,
+    /// Counter for ids of in-process sources (traces).
+    pub unique: Signal<u64>,
     /// Directory for the next `NewTerminal` (set by "New terminal here").
     pub terminal_cwd: Signal<Option<String>>,
     /// Bumped whenever derived data may have changed (after a save was
@@ -177,6 +200,8 @@ impl Workspace {
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
+            reveal: Signal::new_in_scope(None, ScopeId::ROOT),
+            unique: Signal::new_in_scope(0, ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
@@ -354,6 +379,24 @@ impl Workspace {
         self.config.spawn_lsp
     }
 
+    pub fn llm(&self) -> Option<LlmProvider> {
+        self.config.llm
+    }
+
+    /// Open `node` (if not already) and ask its editor to place the cursor.
+    pub async fn reveal(mut self, node: Node, line: u32, col: u32) -> Result<(), SourceError> {
+        let id = node.id;
+        self.open_node(node).await?;
+        let seq = self.reveal.peek().as_ref().map(|r| r.seq + 1).unwrap_or(1);
+        self.reveal.set(Some(Reveal {
+            node: id,
+            line,
+            col,
+            seq,
+        }));
+        Ok(())
+    }
+
     /// Open a file by path relative to any open folder (used by terminal
     /// links and go-to-definition). Returns the opened node.
     pub async fn open_relative_path(mut self, rel: &str) -> Result<Node, SourceError> {
@@ -465,6 +508,27 @@ impl Workspace {
 
     pub fn set_status(&mut self, msg: impl Into<String>) {
         self.status.set(msg.into());
+    }
+
+    /// Add an in-process source (a parsed trace, a scratch graph) to this
+    /// window. Not announced to the session bus: it has no path to reopen.
+    pub fn add_source(&mut self, source: Arc<dyn Source>) -> SourceDescriptor {
+        let descriptor = source.descriptor();
+        self.sources.with_mut(|v| {
+            v.retain(|s| s.descriptor.id != descriptor.id);
+            v.push(SourceHandle {
+                descriptor: descriptor.clone(),
+                source,
+            });
+        });
+        descriptor
+    }
+
+    /// A per-window counter for ids of in-process sources.
+    pub fn next_unique(&mut self) -> u64 {
+        let n = *self.unique.peek() + 1;
+        self.unique.set(n);
+        n
     }
 
     /// Open a folder through the platform's factory and add it to `sources`.
@@ -595,6 +659,46 @@ impl Workspace {
                 Err(err)
             }
         }
+    }
+
+    /// Create a text node (a file) under `parent` in `source_id`, let derived
+    /// sources index it, and return it. Used for saved transcripts.
+    pub async fn create_text(
+        mut self,
+        source_id: &SourceId,
+        parent: NodeId,
+        name: &str,
+        text: &str,
+    ) -> Result<Node, SourceError> {
+        let source = self.source(source_id).ok_or(SourceError::NotFound)?;
+        let applied = source
+            .apply(Transaction::create_text(parent, name, text))
+            .await?;
+        let node_id = match applied.results.first() {
+            Some(moonkale_core::OpResult::Ok { node, .. }) => *node,
+            Some(moonkale_core::OpResult::Refused { error, .. }) => return Err(error.clone()),
+            None => return Err(SourceError::Unsupported("create refused".into())),
+        };
+        let node = source
+            .query(Query::Node(node_id))
+            .await?
+            .nodes
+            .into_iter()
+            .next()
+            .ok_or(SourceError::NotFound)?;
+        let others: Vec<Arc<dyn Source>> = self
+            .sources
+            .peek()
+            .iter()
+            .filter(|s| &s.descriptor.id != source_id)
+            .map(|s| s.source.clone())
+            .collect();
+        for other in others {
+            let _ = other.refresh(node_id).await;
+        }
+        self.graph_epoch.with_mut(|e| *e += 1);
+        self.set_status(format!("Created {}", node.native_key));
+        Ok(node)
     }
 
     /// Replace a document's text with what the source has now (after a

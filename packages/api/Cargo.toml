@@ -8,6 +8,7 @@ dioxus = { workspace = true, features = ["fullstack"] }
 moonkale-core = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
+moonkale-llm = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
@@ -26,4 +27,4 @@ moonkale-lsp-local = { workspace = true, optional = true }
 tokio = { version = "1", features = ["macros", "rt"], optional = true }
 
 [features]
-server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:tokio", "dep:moonkale-typst", "dep:moonkale-lsp-local"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:tokio", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http"]

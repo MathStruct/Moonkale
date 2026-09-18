@@ -22,3 +22,6 @@ Watching (`watch.rs` note), web/mobile backends (`platform.rs` note), the `Backe
 
 ## Tests
 `cargo test -p moonkale-project-fs` — 5 integration tests in `tests/folder_source.rs` on a tempdir fixture with a `.gitignore`, a binary file and a nested dir: listing order + ignore, stable ids across re-open, write round trip + atomicity, stale version → `Conflict` and disk untouched, unknown id → `NotFound`.
+
+## Milestone 4
+`FolderSource::apply` handles `Op::CreateText`: rejects `..`, creates parent directories, refuses an existing path, registers the new node's id. Test in `tests/folder_source.rs`.

@@ -11,7 +11,7 @@ a.on("console", (m) => logs.push(`[A ${m.type()}] ${m.text()}`));
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 try {
   await step("tab A opens folder + README.md", async () => {
-    await a.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
+    await a.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await a.waitForSelector(".wb-workspace");
     await a.click(".mk-explorer-open button[type=submit]");
     await a.click(".mk-tree-file >> text=README.md");
@@ -88,7 +88,7 @@ try {
       document.body.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
     });
     await b.waitForTimeout(500);
-    if (!b.url().startsWith("http://127.0.0.1:8080")) throw new Error(`navigated to ${b.url()}`);
+    if (!b.url().startsWith(`http://127.0.0.1:${process.env.PORT ?? 8080}`)) throw new Error(`navigated to ${b.url()}`);
     await b.waitForSelector(".wb-workspace");
   });
   await step("dismiss works", async () => {

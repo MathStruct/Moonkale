@@ -20,3 +20,15 @@
 .mk-tree-action { margin-left: auto; padding: 0 4px; font-family: monospace; font-size: 11px; opacity: 0; cursor: pointer; }
 .mk-tree-row:hover .mk-tree-action { opacity: 0.6; }
 .mk-tree-action:hover { opacity: 1 !important; color: var(--wb-accent); }
+
+/* Search panel (Milestone 4) */
+.mk-search { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-search-box { display: flex; gap: 6px; padding: 8px; }
+.mk-search-box .mk-input { flex: 1; }
+.mk-search-results { flex: 1; overflow: auto; padding: 0 8px 8px; }
+.mk-search-results > p { padding: 4px 0; }
+.mk-search-hit { padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+.mk-search-hit:hover { background: #262a33; }
+.mk-search-hit-path { font-size: 12px; color: #d7dae0; }
+.mk-search-hit-line { color: #9aa0aa; }
+.mk-search-hit-snippet { font: 11px/1.4 ui-monospace, monospace; color: #9aa0aa; white-space: pre-wrap; word-break: break-all; }

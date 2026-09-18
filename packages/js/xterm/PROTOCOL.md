@@ -14,3 +14,6 @@ Messages Rust → JS: `{kind:"output", data:<base64>}`, `{kind:"focus"}`, `{kind
 Messages JS → Rust: `{kind:"ready", cols, rows}`, `{kind:"input", data:<base64>}`,
 `{kind:"resize", cols, rows}`, `{kind:"link", lines}` (Ctrl+click).
 All payload bytes are base64: binary-safe through JSON.
+
+## Milestone 4
+`allText(el) → string` — the whole buffer (scrollback + screen) joined by newlines, for trace parsing. Rust → JS `{ "kind": "text" }` asks for it; JS → Rust `{ "kind": "text", "text": "…" }` answers.

@@ -19,7 +19,7 @@ pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
 pub use query::{Direction, Query, QueryResult, Table};
-pub use transaction::{Applied, Op, Splice, TextPatch, Transaction};
+pub use transaction::{Applied, Op, OpResult, Splice, TextPatch, Transaction};
 
 use crate::error::SourceError;
 use crate::graph::Version;

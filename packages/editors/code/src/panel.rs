@@ -89,7 +89,11 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                                 Ok(Some(loc)) => {
                                     let prefix = format!("file://{root}/");
                                     if let Some(rel) = loc.uri.strip_prefix(&prefix) {
-                                        let _ = ws.open_relative_path(rel).await;
+                                        // Open the target and place the cursor
+                                        // there (Workspace::reveal, M4).
+                                        if let Ok(node) = ws.open_relative_path(rel).await {
+                                            let _ = ws.reveal(node, loc.line, loc.col).await;
+                                        }
                                     } else {
                                         let mut ws = ws;
                                         ws.set_status(format!(
@@ -125,6 +129,22 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         }
     });
 
+    // A pending `Workspace::reveal` for this document: place the cursor once
+    // the view is ready (search hits, trace frames, go-to-definition).
+    {
+        let node_id = node;
+        let mut applied = use_signal(|| 0u64);
+        use_effect(move || {
+            let Some(r) = *ws.reveal.read() else { return };
+            if r.node != node_id || !ready() || *applied.peek() == r.seq {
+                return;
+            }
+            if let Some(b) = backend.peek().as_ref() {
+                b.set_cursor(r.line, r.col);
+                applied.set(r.seq);
+            }
+        });
+    }
     // Diagnostics from the language server → decorations in the view.
     {
         let uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());

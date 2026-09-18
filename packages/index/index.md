@@ -12,3 +12,6 @@ Notes for `moonkale-index` (Milestone 2). Design: [[Indexing]].
 - Native only (tree-sitter's C runtime); an empty crate on wasm32.
 
 Tests: `cargo test -p moonkale-index` (4 integration on a tempdir vault + 2 unit).
+
+## Milestone 4: search
+`search.rs` — `SearchIndex`: text files are split into ~40-line chunks (cut at blank lines), tokenised (lowercase words; `snake_case`/`camelCase` parts as well as the whole identifier), ranked with **BM25**; when chunks carry embeddings and a query vector is available, a cosine ranking is fused in by reciprocal-rank fusion. `IndexSource::build_with(folder, embedder)` accepts a `moonkale_llm::Provider`; `embed_pending()` fills vectors in batches (desktop and server call it in the background after open, so search is BM25-only until it finishes) and `refresh` re-chunks one file. Exposed as `Query::Text { dialect: "search", text }` → a table (`path, line, score, snippet`) plus the matching `File` nodes — so `RemoteSource` carries it to the web client unchanged. Used by the Search panel (`ui/src/search.rs`, Ctrl+Shift+F) and the `index.search` tool.

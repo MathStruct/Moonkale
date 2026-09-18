@@ -62,6 +62,14 @@ pub enum Op {
         expected: Version,
         patch: TextPatch,
     },
+    /// Create a new text node under `parent` (a directory), named `name`
+    /// (a relative path is allowed: missing directories are created).
+    /// Refused if it already exists. The result's `node` is the new node's id.
+    CreateText {
+        parent: NodeId,
+        name: String,
+        text: String,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +78,16 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    pub fn create_text(parent: NodeId, name: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            ops: vec![Op::CreateText {
+                parent,
+                name: name.into(),
+                text: text.into(),
+            }],
+        }
+    }
+
     pub fn write_text(node: NodeId, expected: Version, patch: TextPatch) -> Self {
         Self {
             ops: vec![Op::WriteText {

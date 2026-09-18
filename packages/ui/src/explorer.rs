@@ -11,7 +11,7 @@ use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::Command;
 use std::collections::{HashMap, HashSet};
 
-const EXPLORER_CSS: Asset = asset!("/assets/styling/explorer.css");
+pub(crate) const EXPLORER_CSS: Asset = asset!("/assets/styling/explorer.css");
 
 #[derive(Clone, Copy)]
 pub struct TreeState {

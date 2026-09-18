@@ -72,6 +72,7 @@ dependencies = [
  "futures-util",
  "moonkale-core",
  "moonkale-index",
+ "moonkale-llm",
  "moonkale-lsp",
  "moonkale-lsp-local",
  "moonkale-project-fs",
@@ -1398,6 +1399,7 @@ dependencies = [
  "libc",
  "moonkale-core",
  "moonkale-index",
+ "moonkale-llm",
  "moonkale-lsp",
  "moonkale-lsp-local",
  "moonkale-project-fs",
@@ -4501,6 +4503,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "moonkale-editor-agent"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "futures-channel",
+ "moonkale-core",
+ "moonkale-ext-api",
+ "moonkale-llm",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "moonkale-editor-code"
 version = "0.1.0"
 dependencies = [
@@ -4524,6 +4539,7 @@ dependencies = [
  "dioxus",
  "moonkale-core",
  "moonkale-ext-api",
+ "moonkale-trace",
  "serde",
  "serde_json",
 ]
@@ -4560,6 +4576,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-terminal",
+ "moonkale-trace",
  "serde",
  "serde_json",
 ]
@@ -4570,6 +4587,7 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "moonkale-core",
+ "moonkale-llm",
  "moonkale-lsp",
  "moonkale-terminal",
  "serde",
@@ -4600,6 +4618,7 @@ name = "moonkale-index"
 version = "0.1.0"
 dependencies = [
  "moonkale-core",
+ "moonkale-llm",
  "moonkale-project-fs",
  "regex",
  "tempfile",
@@ -4611,6 +4630,16 @@ dependencies = [
 [[package]]
 name = "moonkale-llm"
 version = "0.1.0"
+dependencies = [
+ "futures-channel",
+ "futures-util",
+ "moonkale-core",
+ "moonkale-sources-sql",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "moonkale-lsp"
@@ -4693,6 +4722,15 @@ dependencies = [
  "futures-util",
  "moonkale-terminal",
  "portable-pty",
+ "tokio",
+]
+
+[[package]]
+name = "moonkale-trace"
+version = "0.1.0"
+dependencies = [
+ "moonkale-core",
+ "regex",
  "tokio",
 ]
 
@@ -8110,6 +8148,7 @@ dependencies = [
  "dioxus",
  "dioxus-workbench",
  "moonkale-core",
+ "moonkale-editor-agent",
  "moonkale-editor-code",
  "moonkale-editor-graph",
  "moonkale-editor-markdown",
@@ -8658,6 +8697,7 @@ dependencies = [
  "api",
  "dioxus",
  "moonkale-core",
+ "moonkale-llm",
  "tracing",
  "ui",
 ]

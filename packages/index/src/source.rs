@@ -2,11 +2,12 @@
 
 use crate::extract::{symbols_rust, wikilinks, Derived};
 use crate::graph::IndexGraph;
+use crate::search::{Hit, SearchIndex};
 use crate::walk::{self, Limits};
 use moonkale_core::{
     async_trait, Applied, Capabilities, ContentRef, Edge, Node, NodeId, NodeKind, Query,
-    QueryResult, Source, SourceDescriptor, SourceError, SourceFamily, SourceId, Transaction,
-    Version,
+    QueryResult, Source, SourceDescriptor, SourceError, SourceFamily, SourceId, Table, Transaction,
+    Value, Version,
 };
 use std::sync::{Arc, RwLock};
 
@@ -25,13 +26,29 @@ pub struct IndexSource {
     graph: RwLock<IndexGraph>,
     stats: RwLock<IndexStats>,
     limits: Limits,
+    search: RwLock<SearchIndex>,
+    /// Embedding provider for hybrid search (`None` = BM25 only).
+    embedder: Option<Arc<dyn moonkale_llm::Provider>>,
 }
+
+/// Batch size for embedding requests.
+const EMBED_BATCH: usize = 32;
 
 impl IndexSource {
     /// Build the index of `folder` now. The folder's own root node becomes
     /// the index root, so the index's `Children(root)` is the folder's tree
     /// enriched with derived nodes.
     pub async fn build(folder: Arc<dyn Source>) -> Result<Self, SourceError> {
+        Self::build_with(folder, None).await
+    }
+
+    /// Like [`build`](Self::build), with an embedding provider: chunks get
+    /// vectors (call [`embed_pending`](Self::embed_pending) to fill them)
+    /// and `search` fuses BM25 with cosine similarity.
+    pub async fn build_with(
+        folder: Arc<dyn Source>,
+        embedder: Option<Arc<dyn moonkale_llm::Provider>>,
+    ) -> Result<Self, SourceError> {
         let fd = folder.descriptor();
         let id = SourceId::new(format!("index:{}", fd.id));
         let this = Self {
@@ -41,9 +58,56 @@ impl IndexSource {
             graph: RwLock::new(IndexGraph::default()),
             stats: RwLock::new(IndexStats::default()),
             limits: Limits::default(),
+            search: RwLock::new(SearchIndex::default()),
+            embedder: embedder.filter(|e| e.supports_embed()),
         };
         this.rebuild().await?;
         Ok(this)
+    }
+
+    /// Embed every chunk that has no vector yet, in batches. Safe to call
+    /// repeatedly (after refreshes); a no-op without an embedder.
+    pub async fn embed_pending(&self) -> Result<usize, String> {
+        let Some(e) = &self.embedder else {
+            return Ok(0);
+        };
+        let mut done = 0;
+        loop {
+            let batch = self.search.read().unwrap().pending_embeddings(EMBED_BATCH);
+            if batch.is_empty() {
+                break;
+            }
+            let texts: Vec<String> = batch.iter().map(|(_, t)| t.clone()).collect();
+            let vectors = e.embed(texts).await?;
+            let mut s = self.search.write().unwrap();
+            for ((i, _), v) in batch.into_iter().zip(vectors) {
+                s.set_embedding(i, v);
+                done += 1;
+            }
+        }
+        Ok(done)
+    }
+
+    /// `(chunks, embedded)` for the status line.
+    pub fn search_stats(&self) -> (usize, usize) {
+        let s = self.search.read().unwrap();
+        (s.chunk_count(), s.embedded_count())
+    }
+
+    async fn run_search(&self, query: &str, limit: usize) -> Result<Vec<Hit>, SourceError> {
+        let qv = match &self.embedder {
+            Some(e) if self.search.read().unwrap().embedded_count() > 0 => e
+                .embed(vec![query.to_string()])
+                .await
+                .ok()
+                .and_then(|mut v| v.pop()),
+            _ => None,
+        };
+        Ok(self
+            .search
+            .read()
+            .unwrap()
+            .search(query, qv.as_deref(), limit))
     }
 
     pub fn stats(&self) -> IndexStats {
@@ -76,6 +140,7 @@ impl IndexSource {
             graph.set_derived(parent, Vec::new(), edges);
         }
         *self.graph.write().unwrap() = graph;
+        *self.search.write().unwrap() = SearchIndex::default();
 
         let mut files = 0;
         for (_, node) in entries {
@@ -99,6 +164,7 @@ impl IndexSource {
     }
 
     fn extract_into(&self, file: &Node, text: &str) {
+        self.search.write().unwrap().set_file(file, text);
         let derived = {
             let g = self.graph.read().unwrap();
             let mut d = Derived::default();
@@ -194,9 +260,46 @@ impl Source for IndexSource {
                     truncated,
                 })
             }
-            Query::Text { .. } => Err(SourceError::Unsupported(
-                "the index has no query language yet".into(),
-            )),
+            Query::Text { dialect, text } if dialect == "search" => {
+                drop(g);
+                let hits = self.run_search(text.trim(), 20).await?;
+                let g = self.graph.read().unwrap();
+                let mut nodes: Vec<Node> = Vec::new();
+                for h in &hits {
+                    if !nodes.iter().any(|n| n.id == h.file) {
+                        if let Some(n) = g.node(h.file) {
+                            nodes.push(n.clone());
+                        }
+                    }
+                }
+                Ok(QueryResult {
+                    nodes,
+                    table: Some(Table {
+                        columns: vec![
+                            "path".into(),
+                            "line".into(),
+                            "score".into(),
+                            "snippet".into(),
+                        ],
+                        rows: hits
+                            .iter()
+                            .map(|h| {
+                                vec![
+                                    Value::Text(h.path.clone()),
+                                    Value::Int(h.line as i64),
+                                    Value::Float(((h.score * 1000.0).round() / 1000.0) as f64),
+                                    Value::Text(h.snippet.clone()),
+                                ]
+                            })
+                            .collect(),
+                        truncated: false,
+                    }),
+                    ..Default::default()
+                })
+            }
+            Query::Text { dialect, .. } => Err(SourceError::Unsupported(format!(
+                "dialect {dialect}; the index speaks `search`"
+            ))),
         }
     }
 

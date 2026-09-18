@@ -22,23 +22,24 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 3 — "Databases and tools" — is done** (2026-09-18). A terminal
-(PTY on desktop, websocket relay on web, Ctrl+click on `path:line`), a live
-Typst preview, a language-server client (rust-analyzer: diagnostics in the
-gutter, hover, go-to-definition) and LadybugDB as an embedded graph-database
-source (Cypher in the table editor, results drawn in the graph view). That
-sits on Milestone 2's index, wgpu graph view, backlinks and SQLite tables,
-and Milestone 1's dockable workbench with CodeMirror editing, multi-window
-sessions and a VS Code-style frame — desktop and web from one codebase. Nine
-automated browser suites cover it.
+**Milestone 4 — "Agents" — is done** (2026-09-18). An in-app agent
+(Anthropic, OpenAI-compatible, Ollama, or an offline mock) that lists the
+open sources, browses the graph, reads files, runs read-only SQL/Cypher and
+searches — every tool call through a policy gate with approval prompts and
+an audit log, transcripts saved as indexed pages; hybrid search (BM25 +
+optional embeddings, Ctrl+Shift+F); stack traces and compiler errors drawn
+as graphs from the terminal. That sits on Milestone 3's terminal, Typst
+preview, LSP client and LadybugDB source; Milestone 2's index, wgpu graph
+view, backlinks and SQLite tables; and Milestone 1's dockable workbench —
+desktop and web from one codebase. Eleven automated browser suites cover it.
 
 Still comment-only skeleton: Postgres/Falkor/KV drivers, Milkdown WYSIWYG,
-LLM tools, WASM extensions, the flow editor. The **design vault** in `markdown/`
+WASM extensions, the flow editor. The **design vault** in `markdown/`
 records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 4 of the roadmap — agents, hybrid search, and the deferred sources.
+Next: Phase 5 of the roadmap — scale (GPU layouts), wasm extensions, the flow editor, mobile.
 
 ## Learn more
 

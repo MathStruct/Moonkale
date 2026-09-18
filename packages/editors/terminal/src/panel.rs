@@ -19,6 +19,8 @@ const XTERM_CSS: Asset = asset!("/assets/xterm.css");
 pub struct Sessions {
     pub list: Signal<Vec<Rc<RefCell<Session>>>>,
     pub active: Signal<Option<SessionId>>,
+    /// Bumped by "Trace → Graph": the visible session sends its text.
+    pub trace_tick: Signal<u64>,
 }
 
 impl PartialEq for Sessions {
@@ -32,6 +34,7 @@ impl Sessions {
         Self {
             list: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             active: Signal::new_in_scope(None, ScopeId::ROOT),
+            trace_tick: Signal::new_in_scope(0, ScopeId::ROOT),
         }
     }
 }
@@ -45,8 +48,12 @@ impl Default for Sessions {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum ToJs<'a> {
-    Output { data: &'a str },
+    Output {
+        data: &'a str,
+    },
     Focus,
+    /// Ask for the whole buffer (reply: `text`).
+    Text,
     Destroy,
 }
 
@@ -57,6 +64,7 @@ enum FromJs {
     Input { data: String },
     Resize { cols: u16, rows: u16 },
     Link { lines: Vec<String> },
+    Text { text: String },
 }
 
 const SCRIPT: &str = r#"
@@ -79,6 +87,7 @@ for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "output") x.write(el, msg.data);
     else if (msg.kind === "focus") x.focus(el);
+    else if (msg.kind === "text") dioxus.send({ kind: "text", text: x.allText(el) });
     else if (msg.kind === "destroy") { x.destroy(el); break; }
 }
 "#;
@@ -153,6 +162,12 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                     onclick: move |_| { ws.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); },
                     "+"
                 }
+                if active.is_some() {
+                    button { class: "mk-term-tab mk-term-trace", title: "Parse the stack traces / compiler errors in this terminal and draw them in the Graph panel",
+                        onclick: move |_| { let mut t = sessions.trace_tick; t += 1; },
+                        "Trace → Graph"
+                    }
+                }
             }
             div { class: "mk-term-body",
                 if !available {
@@ -164,7 +179,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                     {
                         let id = s.borrow().id;
                         rsx! {
-                            SessionView { key: "{id.0}", ws, session: s.clone(), visible: active == Some(id) }
+                            SessionView { key: "{id.0}", ws, session: s.clone(), visible: active == Some(id), trace_tick: sessions.trace_tick }
                         }
                     }
                 }
@@ -178,6 +193,7 @@ struct SessionViewProps {
     ws: Workspace,
     session: Rc<RefCell<Session>>,
     visible: bool,
+    trace_tick: Signal<u64>,
 }
 
 impl PartialEq for SessionViewProps {
@@ -192,6 +208,7 @@ fn SessionView(props: SessionViewProps) -> Element {
         ws,
         session,
         visible,
+        trace_tick,
     } = props;
     let id = session.borrow().id;
     let element_id = format!("mk-term-{}", id.0);
@@ -228,6 +245,27 @@ fn SessionView(props: SessionViewProps) -> Element {
                                 spawn(open_link(ws, link.path));
                             }
                         }
+                        Ok(FromJs::Text { text }) => {
+                            let mut ws = ws;
+                            let traces = moonkale_trace::parse(&text);
+                            if traces.is_empty() {
+                                ws.set_status(
+                                    "No stack trace or compiler error found in this terminal",
+                                );
+                            } else {
+                                // The newest trace is the interesting one.
+                                let n = traces.len();
+                                for t in traces {
+                                    let unique = ws.next_unique();
+                                    ws.add_source(std::sync::Arc::new(
+                                        moonkale_trace::TraceSource::new(&t, unique),
+                                    ));
+                                }
+                                ws.set_status(format!(
+                                    "Drew {n} trace(s); see the Graph panel's source picker"
+                                ));
+                            }
+                        }
                         Err(dioxus::document::EvalError::Serialization(_)) => continue,
                         Err(_) => break,
                     }
@@ -253,6 +291,21 @@ fn SessionView(props: SessionViewProps) -> Element {
             eval.set(Some(ev));
         }
     };
+
+    // "Trace → Graph" pressed: the visible session answers.
+    {
+        let mut seen = use_signal(|| 0u64);
+        use_effect(move || {
+            let tick = *trace_tick.read();
+            if tick == *seen.peek() || !visible {
+                return;
+            }
+            seen.set(tick);
+            if let Some(ev) = eval.peek().as_ref() {
+                let _ = ev.send(ToJs::Text);
+            }
+        });
+    }
 
     use_drop(move || {
         if let Some(ev) = eval.peek().as_ref() {

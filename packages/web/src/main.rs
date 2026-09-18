@@ -97,6 +97,21 @@ fn spawn_lsp(language: String, root: String) -> ui::LspTransportFuture {
     })
 }
 
+/// The provider lives on the server; the client talks to `/api/llm`.
+#[cfg(target_arch = "wasm32")]
+fn llm_provider() -> ui::LlmProviderFuture {
+    Box::pin(async move {
+        api::RemoteProvider::connect()
+            .await
+            .map(|p| std::sync::Arc::new(p) as std::sync::Arc<dyn moonkale_llm::Provider>)
+    })
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn llm_provider() -> ui::LlmProviderFuture {
+    // Server-side render only: the real provider is connected on the client.
+    Box::pin(async move { Err("no provider during server render".into()) })
+}
+
 fn new_window() {
     // A *window*, not a tab: a background tab can never be a drop target.
     document::eval("window.open(location.href, '_blank', 'popup,width=1200,height=800');");
@@ -110,7 +125,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp) },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider) },
                 session,
                 new_window: Some(new_window),
             },

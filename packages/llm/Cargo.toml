@@ -5,9 +5,25 @@ edition.workspace = true
 license.workspace = true
 description = "LLM gateway: provider abstraction, tool surface over commands/sources, embeddings, and the policy layer."
 
+[features]
+default = []
+# HTTP providers (Anthropic, OpenAI-compatible, Ollama). Native only; the web
+# client reaches them through the server's `/api/llm` relay.
+http = ["dep:reqwest", "dep:tokio"]
+
 [dependencies]
-# moonkale-core = { workspace = true }
-# moonkale-ext-api = { workspace = true }
-# reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
-# Provider SDKs are deliberately NOT depended on; we speak the HTTP APIs directly
-# behind `trait Provider` so adding one is a file, not a dependency tree.
+moonkale-core = { workspace = true }
+moonkale-sources-sql = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-channel = "0.3"
+futures-util = { version = "0.3", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Provider SDKs are deliberately NOT depended on; we speak the HTTP APIs
+# directly behind `trait Provider` so adding one is a file, not a dependency tree.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"], optional = true }
+tokio = { version = "1", features = ["rt"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "time"] }

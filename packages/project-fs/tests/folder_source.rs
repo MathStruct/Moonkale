@@ -130,3 +130,42 @@ async fn unknown_id_is_not_found_and_stale_version_type_is_default() {
     ));
     assert_eq!(Version::default(), Version(0));
 }
+
+#[tokio::test]
+async fn create_text_makes_directories_and_refuses_overwrite() {
+    let dir = fixture();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let tx = Transaction::create_text(src.root_id(), ".moonkale/chats/one.md", "# chat\n");
+    let applied = src.apply(tx).await.unwrap();
+    let node = match &applied.results[0] {
+        moonkale_core::OpResult::Ok { node, .. } => *node,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(
+        fs::read_to_string(dir.path().join(".moonkale/chats/one.md")).unwrap(),
+        "# chat\n"
+    );
+    let (text, _) = src.fetch_text(node).await.unwrap();
+    assert_eq!(text, "# chat\n");
+
+    let again = src
+        .apply(Transaction::create_text(
+            src.root_id(),
+            ".moonkale/chats/one.md",
+            "x",
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(
+        again.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+    let escape = src
+        .apply(Transaction::create_text(src.root_id(), "../evil.md", "x"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        escape.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+}

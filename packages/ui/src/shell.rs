@@ -14,13 +14,19 @@ fn default_layout() -> PanelLayout {
         "root",
         SplitAxis::Horizontal,
         0.22,
-        LayoutNode::tile("side", ["explorer", "links"]),
+        LayoutNode::tile("side", ["explorer", "search", "links"]),
         LayoutNode::split(
-            "main-rows",
-            SplitAxis::Vertical,
-            0.72,
-            LayoutNode::empty_tile("main"),
-            LayoutNode::tile("bottom", ["terminal"]),
+            "main-right",
+            SplitAxis::Horizontal,
+            0.7,
+            LayoutNode::split(
+                "main-rows",
+                SplitAxis::Vertical,
+                0.72,
+                LayoutNode::empty_tile("main"),
+                LayoutNode::tile("bottom", ["terminal"]),
+            ),
+            LayoutNode::tile("right", ["agent"]),
         ),
     ))
 }

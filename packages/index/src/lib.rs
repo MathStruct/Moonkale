@@ -22,6 +22,8 @@ pub mod extract;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod graph;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod search;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod source;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod walk;

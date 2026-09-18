@@ -13,6 +13,7 @@ moonkale-editor-graph = { workspace = true }
 moonkale-editor-markdown = { workspace = true }
 moonkale-editor-table = { workspace = true }
 moonkale-editor-terminal = { workspace = true }
+moonkale-editor-agent = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-sources-sql = { workspace = true }

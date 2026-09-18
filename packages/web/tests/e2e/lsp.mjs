@@ -9,7 +9,7 @@ const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); c
 const status = () => page.$eval(".wb-status-bar", (el) => el.textContent.trim());
 try {
   await step("open folder, open src/main.rs", async () => {
-    await page.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });

@@ -25,9 +25,13 @@ use moonkale_core::{
     Version,
 };
 
+mod llm;
 mod lsp;
 mod remote;
 mod terminal;
+pub use llm::ProviderInfo;
+#[cfg(target_arch = "wasm32")]
+pub use llm::RemoteProvider;
 pub use lsp::RemoteLsp;
 pub use remote::RemoteSource;
 pub use terminal::RemoteTerminal;
@@ -133,10 +137,22 @@ pub async fn open_folder(path: String) -> Result<Vec<SourceDescriptor>, ServerFn
         let is_folder = source.descriptor().family == moonkale_core::SourceFamily::Folder;
         out.push(reg.insert(source.clone()));
         if is_folder {
-            let index = moonkale_index::IndexSource::build(source)
-                .await
-                .map_err(server_error)?;
-            out.push(reg.insert(std::sync::Arc::new(index)));
+            // Embeddings (if configured) are filled in the background so the
+            // folder opens at once; search is BM25-only until they arrive.
+            let embedder = llm::embedder();
+            let index = std::sync::Arc::new(
+                moonkale_index::IndexSource::build_with(source, embedder)
+                    .await
+                    .map_err(server_error)?,
+            );
+            out.push(reg.insert(index.clone()));
+            tokio::spawn(async move {
+                match index.embed_pending().await {
+                    Ok(n) if n > 0 => eprintln!("moonkale: embedded {n} chunks"),
+                    Ok(_) => {}
+                    Err(e) => eprintln!("moonkale: embedding failed: {e}"),
+                }
+            });
         }
     }
     Ok(out)

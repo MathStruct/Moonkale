@@ -33,3 +33,6 @@
 .mk-graph-legend { display: inline-flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--wb-fg-muted, #9aa0aa); }
 .mk-graph-legend-item { display: inline-flex; align-items: center; gap: 4px; }
 .mk-graph-swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.mk-graph-paste { padding: 6px 8px; border-bottom: 1px solid #2a2e37; display: flex; flex-direction: column; gap: 6px; }
+.mk-graph-paste-text { font: 12px ui-monospace, monospace; background: #1e222a; color: inherit; border: 1px solid #3a3f4b; border-radius: 4px; padding: 6px; resize: vertical; }
+.mk-graph-paste-actions { display: flex; gap: 6px; }

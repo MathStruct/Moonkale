@@ -1,0 +1,13 @@
+---
+title: "editor-agent — implementation notes"
+tags: [crate-notes, milestone-4]
+---
+Notes for `moonkale-editor-agent` (Milestone 4). Design: [[LLM and RAG]].
+
+- `AgentExtension` contributes the **Agent** panel (home `right`; the default layout now has a right tile).
+- `panel.rs` — `Chat` state in ROOT signals (items, the `Agent`, provider label, busy, pending approval, cited paths, an **audit mirror**). The provider comes from `WorkspaceConfig::llm` (desktop: in-process from env; web: `api::RemoteProvider`). Each send rebuilds the system prompt from the workspace (open sources with ids, the active document) and runs `Agent::send`; events become chat items: streamed assistant text, tool cards (name · class · decision · outcome · summary), errors. `Ask` decisions render an approval box with Allow/Deny. **Save** writes the transcript to `.moonkale/chats/<slug>-<id>.md` through `Workspace::create_text` (indexed, wiki-links to cited files under *Cited*), then opens it. **Activity** shows the audit log.
+- `host.rs` — `WorkspaceHost: ToolHost`: executes the six tools against `Workspace` (sources by id, `Query::*`, `fetch_text`, `Query::Text{search}` on the index, `reveal` for `editor.open` with a line); tracks cited paths; `approve` hands a oneshot to the panel.
+- `transcript.rs` — markdown rendering of a conversation (You / Agent sections, tool results as fenced blocks, Cited, Tool calls table).
+- The agent is mutably borrowed for the whole exchange (`busy` keeps everything else off it; P-064).
+
+E2E: `packages/web/tests/e2e/agent.mjs` (mock provider through the relay: echo, a read-only tool round, an `Ask` denied, Activity, Save → file opens).

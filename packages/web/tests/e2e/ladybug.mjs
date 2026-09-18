@@ -9,7 +9,7 @@ page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) log
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 try {
   await step("open folder; people.lbug is listed as a database", async () => {
-    await page.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });

@@ -22,11 +22,11 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-14 ✅ (diagnostics, hover, definition) | LSP client + local spawning | 3 | medium | 14 | Protocol is known; document sync + neutral feature types is the work. |
 | P-15 ✅ Ladybug (read-only); Falkor deferred | Graph DB sources: Ladybug, Falkor | 2 | low | 15 | Natural fit; embedded Ladybug first. |
 | P-16 | Cross-source edges + consistency (dangling targets, versions) | 4 | **high** | 16 | Needed once two sources are open at once and pages link to rows. Deferred until real cases exist. |
-| P-17 | LLM gateway: providers, tool surface, policy, audit | 3 | medium | 17 | Composition over the command bus; policy classification depends on P-08's SQL classifier. |
-| P-18 | Embeddings + hybrid search | 3 | medium | 18 | Needs P-17 + P-06 chunking; storage choice (`usearch` vs source `VECTOR`). |
+| P-17 ✅ | LLM gateway: providers, tool surface, policy, audit | 3 | medium | 17 | Composition over the command bus; policy classification depends on P-08's SQL classifier. |
+| P-18 ✅ (BM25 + optional embeddings, brute-force cosine) | Embeddings + hybrid search | 3 | medium | 18 | Needs P-17 + P-06 chunking; storage choice (`usearch` vs source `VECTOR`). |
 | P-19 | Postgres/Supabase, Turso sources | 2 | low | 19 | Same lifting as SQLite; networked. |
 | P-20 | Remote LSP + remote terminal on `api` (security) | 4 | **high** | 20 | Code execution as a service: auth, jail, limits, allow-lists, audit. Do not ship earlier. |
-| P-21 | Stack-trace / AST → graph | 2 | low | 21 | Small parsers; hierarchical layout from P-07. Great demo. |
+| P-21 ✅ (traces; AST later) | Stack-trace / AST → graph | 2 | low | 21 | Small parsers; hierarchical layout from P-07. Great demo. |
 | P-22 | GPU compute layouts; 100k+ target; desktop surface decision ([[P-001 Graph surface in desktop webview]]) | 5 | **very high** | 22 | Compute shaders + platform surface research. Needs P-07 stable and measurements. |
 | P-23 | wasmtime extension runtime + WIT world + permissions UI | 4 | **high** | 23 | After the API has settled through several static extensions. |
 | P-24 | Flow editor + Lux.jl codegen | 3 | medium | 24 | Independent; needs P-05 (libraries as contributions) and P-13 (run). |
