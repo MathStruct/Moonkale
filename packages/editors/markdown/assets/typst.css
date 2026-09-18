@@ -1,0 +1,7 @@
+.mk-typst { height: 100%; overflow: auto; padding: 12px; background: #1a1c22; }
+.mk-typst-msg { opacity: 0.6; }
+.mk-typst-meta { font-size: 11px; opacity: 0.6; margin-bottom: 8px; }
+.mk-typst-page { background: #fff; margin: 0 auto 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); max-width: 100%; }
+.mk-typst-page svg { display: block; width: 100%; height: auto; }
+.mk-typst-errors { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.mk-typst-error { color: var(--wb-danger, #e07a75); padding: 4px 0; white-space: pre-wrap; }

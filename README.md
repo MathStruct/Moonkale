@@ -22,22 +22,23 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 2 — "Graph appears" — is done** (2026-09-18). Opening a folder
-builds an index of wiki-links and Rust symbols; a wgpu-rendered graph view
-draws it in the browser and inside the desktop webview; a Links panel shows
-backlinks; a `.sqlite` file opens as a database whose tables show in a
-read-only table editor with a SQL box. That sits on Milestone 1's dockable
-workbench with CodeMirror editing, multi-window sessions and a VS Code-style
-frame, on desktop and web from one codebase. Five automated browser suites
-cover it.
+**Milestone 3 — "Databases and tools" — is done** (2026-09-18). A terminal
+(PTY on desktop, websocket relay on web, Ctrl+click on `path:line`), a live
+Typst preview, a language-server client (rust-analyzer: diagnostics in the
+gutter, hover, go-to-definition) and LadybugDB as an embedded graph-database
+source (Cypher in the table editor, results drawn in the graph view). That
+sits on Milestone 2's index, wgpu graph view, backlinks and SQLite tables,
+and Milestone 1's dockable workbench with CodeMirror editing, multi-window
+sessions and a VS Code-style frame — desktop and web from one codebase. Nine
+automated browser suites cover it.
 
-Still comment-only skeleton: Postgres/graph/KV drivers, LSP, terminal, LLM
-tools, WASM extensions, the flow editor. The **design vault** in `markdown/`
+Still comment-only skeleton: Postgres/Falkor/KV drivers, Milkdown WYSIWYG,
+LLM tools, WASM extensions, the flow editor. The **design vault** in `markdown/`
 records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 3 of the roadmap — remote parity, more sources, LSP, terminal.
+Next: Phase 4 of the roadmap — agents, hybrid search, and the deferred sources.
 
 ## Learn more
 

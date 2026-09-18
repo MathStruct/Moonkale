@@ -25,7 +25,7 @@ Dioxus desktop renders the UI in a system webview (WebView2 / WKWebView / WebKit
 _(none yet)_ — dev box: Arch, WebKitGTK 2.52.6, NVIDIA RTX 3080 + AMD Raphael iGPU. Probe commands in [[Linux Desktop Setup]].
 
 ## Measurements
-- 2026-09-18, Arch + WebKitGTK 2.52.6, NVIDIA RTX 3080: the wasm renderer **draws inside the desktop webview** (plan A). Backend not yet recorded (`gl` vs `browserwebgpu` — read it off the Graph panel's info line); no frame-rate numbers yet.
+- 2026-09-18, Arch + WebKitGTK 2.52.6, NVIDIA RTX 3080: the wasm renderer **draws inside the desktop webview** (plan A). Backend: **`gl`** (WebGL2) — WebKitGTK 2.52 exposes no WebGPU to the page, so GPU compute layouts (P-22) need either a WebGPU-enabled WebKit (P-033) or the native overlay. No frame-rate numbers yet.
 
 ## Decision
 _(pending — plan A confirmed viable on Linux; keep the overlay crate as the fallback for machines without WebGL2)_ — proposed strategy in [[ADR-0011 Desktop graph surface strategy]]: runtime probe, plan A when WebGPU exists, native overlay crate `editors/graph-desktop` otherwise.

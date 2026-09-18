@@ -20,3 +20,13 @@
 .mk-graph-popup-title { color: #e6e8ee; font-weight: 600; }
 .mk-graph-popup-meta { color: #a3a9b8; font-family: 'JetBrains Mono', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-graph-popup-hint { color: #7f8595; font-size: 11px; margin-top: 2px; }
+
+.mk-graph-source {
+    background: #1e222a;
+    color: inherit;
+    border: 1px solid #3a3f4b;
+    border-radius: 4px;
+    font: inherit;
+    padding: 1px 4px;
+    max-width: 14ch;
+}

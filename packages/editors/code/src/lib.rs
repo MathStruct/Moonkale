@@ -21,6 +21,7 @@
 
 pub mod backend;
 pub mod extension;
+pub mod lsp;
 pub mod panel;
 
 pub use extension::CodeEditorExtension;

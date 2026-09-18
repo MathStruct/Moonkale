@@ -13,6 +13,14 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 ## State (`feature = "server"`)
 `static REGISTRY: OnceLock<SourceRegistry>`. `open()` canonicalises the requested path and refuses anything outside `MOONKALE_ROOT` (default: the server's cwd). Relative paths resolve under the root; blank means the root itself.
 
+## Milestone 3: tools over websockets (dev-server only)
+- `terminal.rs` — `#[get("/api/terminal")] terminal_socket` → `Websocket<TerminalMessage, TerminalMessage>`: first message `Open{cwd,cols,rows}` (cwd jailed by `state::jail_dir`), then a `PtyBackend` on the server relays `Input`/`Output`/`Resize`. Client: `RemoteTerminal: TerminalBackend`.
+- `lsp.rs` — `#[get("/api/lsp")] lsp_socket` → `Websocket<Frame, Frame>` (`Frame(String)` newtype: the macro rejects bare `String` type parameters, P-057): first frame is JSON `{language, root}`; the server discovers and spawns the language server (`moonkale-lsp-local`) with the jailed root and relays JSON-RPC 1:1. Client: `RemoteLsp: LspTransport`. Errors before the relay starts come back as one `{"error": …}` frame.
+- `compile_typst(root, rel, text)` — plain `#[post]` server function; `moonkale-typst` in-process.
+- `open_any` now also opens `.lbug/.kuzu` databases (`moonkale-sources-graph::ladybug`).
+
+**Security:** both sockets run a process on the server for whoever can reach the port, with no auth. `MOONKALE_ROOT` limits the cwd, not what the shell can do. Dev-server only until the Platform Matrix auth items are done.
+
 ## Critical decisions / gotchas
 - **Naming (P-036):** a server function named `query` with a parameter `query` does not compile — the generated client stub calls the function by name and the parameter shadows it. Hence the `_source/_from/_to` suffixes.
 - **No auth, no size cap.** This is a local dev server until the Platform Matrix security items are done. Large files go over the wire whole.

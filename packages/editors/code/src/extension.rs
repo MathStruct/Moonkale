@@ -7,9 +7,23 @@ use moonkale_ext_api::prelude::*;
 
 pub const PANEL_PREFIX: &str = "editor:";
 
-pub struct CodeEditorExtension;
+pub struct CodeEditorExtension {
+    lsp: crate::lsp::LspManager,
+}
+
+impl Default for CodeEditorExtension {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl CodeEditorExtension {
+    pub fn new() -> Self {
+        Self {
+            lsp: crate::lsp::LspManager::new(),
+        }
+    }
+
     pub fn panel_id(node: NodeId) -> String {
         format!("{PANEL_PREFIX}{node}")
     }
@@ -47,7 +61,7 @@ impl Extension for CodeEditorExtension {
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id) {
-            Some(node) => rsx! { CodeEditorPanel { ws, node } },
+            Some(node) => rsx! { CodeEditorPanel { ws, node, lsp: self.lsp } },
             None => rsx! { "unknown panel {panel_id}" },
         }
     }

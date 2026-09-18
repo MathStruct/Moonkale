@@ -1,16 +1,18 @@
 //! # moonkale-lsp-local  (desktop + server only)
 //!
-//! Separated from `moonkale-lsp` because spawning processes is a
-//! platform capability, not a protocol concern. Provides:
+//! Separated from `moonkale-lsp` because spawning processes is a platform
+//! capability, not a protocol concern.
 //!
-//! - `StdioTransport`: a child process with JSON-RPC over stdin/stdout,
-//! - [`discover`]: find servers on `PATH` / in toolchains (`rust-analyzer`,
-//!   `julia --project -e 'using LanguageServer…'`, `gopls`, `ucm` for Unison,
-//!   `lake serve` for Lean) with per-language install hints,
-//! - [`supervise`]: restart on crash with backoff, resource limits,
-//! - a server-side mode used by `api` to offer LSP to web clients over a
-//!   websocket (one process per (user, language, workspace)).
+//! - [`StdioTransport`]: a child process speaking JSON-RPC over stdin/stdout
+//!   with `Content-Length` framing; plain `std` threads, no runtime needed.
+//! - [`discover`]: which binary serves which language, and where it is.
+//!
+//! Supervision (restart on crash, resource caps) is still a design note.
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod discover;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod stdio;
-pub mod supervise;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use stdio::StdioTransport;

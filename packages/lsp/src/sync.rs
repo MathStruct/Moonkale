@@ -1,1 +1,0 @@
-//! Document synchronisation: rope edits → `TextDocumentContentChangeEvent`s, version tracking, and the "which URI is this NodeId" mapping (nodes from a folder source have real URIs; nodes from a database get a virtual `moonkale://` scheme the server may or may not understand).

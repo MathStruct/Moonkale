@@ -36,8 +36,9 @@ pub use extension::Extension;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use workspace::{
-    AttachFuture, AttachSource, Command, ForeignDrag, OpenFolder, OpenFolderFuture, PickFolder,
-    PickFolderFuture, SourceHandle, Workspace, WorkspaceConfig,
+    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, ForeignDrag,
+    GraphRequest, OpenFolder, OpenFolderFuture, PickFolder, PickFolderFuture, SourceHandle,
+    Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.

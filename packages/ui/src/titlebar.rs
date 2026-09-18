@@ -62,6 +62,11 @@ fn menus(controls: Option<WindowControls>) -> Vec<(&'static str, Vec<Item>)> {
             shortcut: "Ctrl+Shift+N",
             cmd: Command::NewWindow,
         },
+        Item::Cmd {
+            label: "New Terminal",
+            shortcut: "Ctrl+`",
+            cmd: Command::NewTerminal,
+        },
         Item::Sep,
         Item::Cmd {
             label: "Reset Layout",

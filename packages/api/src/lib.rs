@@ -25,11 +25,15 @@ use moonkale_core::{
     Version,
 };
 
+mod lsp;
 mod remote;
+mod terminal;
+pub use lsp::RemoteLsp;
 pub use remote::RemoteSource;
+pub use terminal::RemoteTerminal;
 
 #[cfg(feature = "server")]
-mod state {
+pub(crate) mod state {
     use moonkale_project_fs::FolderSource;
     use moonkale_sources::SourceRegistry;
     use std::path::{Path, PathBuf};
@@ -49,7 +53,29 @@ mod state {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")))
     }
 
-    /// A `.sqlite`/`.db` path opens as a database; anything else as a folder.
+    /// A directory inside the allowed root (blank = the root), canonical.
+    pub fn jail_dir(path: Option<&str>) -> std::io::Result<String> {
+        let allowed = std::fs::canonicalize(allowed_root())?;
+        let requested: PathBuf = match path.map(str::trim).filter(|p| !p.is_empty()) {
+            None => allowed.clone(),
+            Some(p) if Path::new(p).is_absolute() => PathBuf::from(p),
+            Some(p) => allowed.join(p),
+        };
+        let canonical = std::fs::canonicalize(&requested)?;
+        if !canonical.starts_with(&allowed) || !canonical.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                format!(
+                    "{} is not a directory inside MOONKALE_ROOT",
+                    canonical.display()
+                ),
+            ));
+        }
+        Ok(canonical.to_string_lossy().into_owned())
+    }
+
+    /// A `.sqlite`/`.db` file or a `.lbug`/`.kuzu` database opens as a
+    /// database; anything else as a folder.
     pub fn open_any(path: &str) -> std::io::Result<Vec<Arc<dyn moonkale_core::Source>>> {
         let allowed = std::fs::canonicalize(allowed_root())?;
         let requested: PathBuf = if path.trim().is_empty() {
@@ -73,6 +99,11 @@ mod state {
         if canonical.is_file() && moonkale_sources_sql::is_sqlite_path(&canonical.to_string_lossy())
         {
             let db = moonkale_sources_sql::SqliteSource::open(&canonical)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            return Ok(vec![Arc::new(db)]);
+        }
+        if moonkale_sources_graph::is_ladybug_path(&canonical.to_string_lossy()) {
+            let db = moonkale_sources_graph::ladybug::LadybugSource::open(&canonical)
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
             return Ok(vec![Arc::new(db)]);
         }
@@ -160,4 +191,28 @@ pub async fn apply_to(
         .get(&source)
         .ok_or_else(|| server_error("unknown source"))?;
     Ok(s.apply(tx).await)
+}
+
+/// Compile a Typst document on the server. `root` must be inside
+/// `MOONKALE_ROOT`; `main_rel` is `/`-rooted relative to it.
+#[post("/api/typst/compile")]
+pub async fn compile_typst(
+    root: String,
+    main_rel: String,
+    text: String,
+) -> Result<Result<Vec<String>, Vec<String>>, ServerFnError> {
+    let root = state::jail_dir(Some(&root)).map_err(server_error)?;
+    let out = tokio::task::spawn_blocking(move || {
+        moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text)
+    })
+    .await
+    .map_err(server_error)?;
+    Ok(out.map_err(|d| {
+        d.into_iter()
+            .map(|d| match d.hint {
+                Some(h) => format!("{} (hint: {h})", d.message),
+                None => d.message,
+            })
+            .collect()
+    }))
 }

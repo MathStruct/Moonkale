@@ -39,8 +39,11 @@ sudo pacman -S --needed xdg-desktop-portal xdg-desktop-portal-gtk
 sudo pacman -S --needed vulkan-icd-loader vulkan-tools   # `vulkaninfo --summary` to see which ICDs exist
 # NVIDIA: nvidia-utils provides the Vulkan ICD; AMD iGPU: vulkan-radeon
 
-# for building lbug (LadybugDB) from source if the prebuilt download fails
+# only if lbug's prebuilt liblbug download fails (it succeeded here, 2026-09-18):
 sudo pacman -S --needed cmake gcc make
+
+# language servers (optional; the status bar tells you what is missing)
+rustup component add rust-analyzer
 ```
 
 Debian/Ubuntu equivalents: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev`. Fedora: `webkit2gtk4.1-devel gtk3-devel libappindicator-gtk3-devel xdotool`.

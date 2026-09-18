@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "esbuild src/index.ts --bundle --format=esm --minify --outfile=dist/xterm.js" },
+  "description": "Thin xterm.js wrapper for Moonkale's terminal panel. Builds into packages/editors/terminal/assets/xterm.js (+ xterm.css).",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --outfile=../../editors/terminal/assets/xterm.js && cp node_modules/@xterm/xterm/css/xterm.css ../../editors/terminal/assets/xterm.css",
+    "check": "tsc --noEmit"
+  },
   "devDependencies": { "esbuild": "^0.27.0", "typescript": "^5.0.0" },
-  "dependencies": {}
+  "dependencies": { "@xterm/xterm": "^6.0.0", "@xterm/addon-fit": "^0.11.0" }
 }

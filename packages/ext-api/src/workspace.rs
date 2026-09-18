@@ -54,12 +54,32 @@ pub type PickFolder = fn() -> PickFolderFuture;
 /// the process registry on desktop, `RemoteSource::from_descriptor` on web.
 pub type AttachSource = fn(SourceDescriptor) -> AttachFuture;
 
+/// Compile a Typst document: `(folder root, main path relative to it, text)` →
+/// SVG pages, or diagnostics. Desktop compiles in-process, web asks the server.
+pub type CompileTypstFuture = Pin<Box<dyn Future<Output = Result<Vec<String>, Vec<String>>>>>;
+pub type CompileTypst = fn(String, String, String) -> CompileTypstFuture;
+
 /// What the platform hands the workspace at startup.
 #[derive(Clone, Copy)]
 pub struct WorkspaceConfig {
     pub open_folder: OpenFolder,
     pub pick_folder: Option<PickFolder>,
     pub attach_source: AttachSource,
+    /// How to start a terminal on this platform (`None`: no terminals).
+    pub spawn_terminal: Option<moonkale_terminal::SpawnTerminal>,
+    /// Typst compiler (`None`: no preview).
+    pub compile_typst: Option<CompileTypst>,
+    /// Language-server launcher (`None`: no LSP features).
+    pub spawn_lsp: Option<moonkale_lsp::SpawnLsp>,
+}
+
+/// "Draw this query's result": set by the table editor's *Show in Graph*,
+/// consumed by the Graph panel, which switches its source picker to it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GraphRequest {
+    pub source: SourceId,
+    pub dialect: String,
+    pub text: String,
 }
 
 /// A document being dragged out of another window of this session.
@@ -88,6 +108,8 @@ pub enum Command {
     Redo,
     ResetLayout,
     NewWindow,
+    /// Open a terminal; `Workspace::terminal_cwd` may carry a directory.
+    NewTerminal,
     About,
 }
 
@@ -113,6 +135,12 @@ pub struct Workspace {
     pub own_drag: Signal<Option<NodeId>>,
     /// Other windows we have heard from (diagnostic: shown in the status bar).
     pub peers: Signal<Vec<WindowId>>,
+    /// Language-server status for the status bar ("rust-analyzer: indexing…").
+    pub lsp_status: Signal<Option<String>>,
+    /// Last "Show in Graph" request (see [`GraphRequest`]).
+    pub graph_request: Signal<Option<GraphRequest>>,
+    /// Directory for the next `NewTerminal` (set by "New terminal here").
+    pub terminal_cwd: Signal<Option<String>>,
     /// Bumped whenever derived data may have changed (after a save was
     /// refreshed into the index); graph/backlink panels re-query on it.
     pub graph_epoch: Signal<u64>,
@@ -144,6 +172,9 @@ impl Workspace {
             own_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             peers: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
+            lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
+            graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
@@ -315,6 +346,73 @@ impl Workspace {
             to: self.window.peek().clone(),
         });
         Ok(())
+    }
+
+    pub fn spawn_lsp(&self) -> Option<moonkale_lsp::SpawnLsp> {
+        self.config.spawn_lsp
+    }
+
+    /// Open a file by path relative to any open folder (used by terminal
+    /// links and go-to-definition). Returns the opened node.
+    pub async fn open_relative_path(mut self, rel: &str) -> Result<Node, SourceError> {
+        let rel = rel.trim_start_matches("./").to_string();
+        let folders: Vec<_> = self
+            .sources
+            .peek()
+            .iter()
+            .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+            .cloned()
+            .collect();
+        for f in folders {
+            let mut cur = f.descriptor.root;
+            let mut found: Option<Node> = None;
+            let mut ok = true;
+            for part in rel.split('/').filter(|p| !p.is_empty()) {
+                match f.source.query(Query::Children(cur)).await {
+                    Ok(res) => match res.nodes.into_iter().find(|n| n.label == part) {
+                        Some(n) => {
+                            cur = n.id;
+                            found = Some(n);
+                        }
+                        None => {
+                            ok = false;
+                            break;
+                        }
+                    },
+                    Err(_) => {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            if ok {
+                if let Some(n) = found.filter(|n| n.kind == NodeKind::File) {
+                    self.open_node(n.clone()).await?;
+                    return Ok(n);
+                }
+            }
+        }
+        self.set_status(format!("{rel}: not found in the open folders"));
+        Err(SourceError::NotFound)
+    }
+
+    pub fn compile_typst(&self) -> Option<CompileTypst> {
+        self.config.compile_typst
+    }
+
+    /// The platform's terminal spawner, if any.
+    pub fn spawn_terminal(&self) -> Option<moonkale_terminal::SpawnTerminal> {
+        self.config.spawn_terminal
+    }
+
+    /// Absolute path of a folder node, when its source is a local folder.
+    pub fn folder_path(&self, node: &Node) -> Option<String> {
+        let root = node.source.as_str().strip_prefix("folder:")?;
+        Some(if node.native_key.is_empty() {
+            root.to_string()
+        } else {
+            format!("{root}/{}", node.native_key)
+        })
     }
 
     /// Whether this platform has a native folder dialog.

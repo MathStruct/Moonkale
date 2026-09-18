@@ -1,0 +1,12 @@
+[package]
+name = "moonkale-typst"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Typst compilation to SVG pages with embedded fonts. Native (desktop in-process, server for web)."
+
+[dependencies]
+typst = "0.15"
+typst-svg = "0.15"
+typst-layout = "0.15"
+typst-assets = { version = "0.15", features = ["fonts"] }

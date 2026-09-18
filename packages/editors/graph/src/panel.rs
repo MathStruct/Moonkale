@@ -3,8 +3,8 @@
 
 use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
-use moonkale_core::{Direction, Node, NodeKind, Query, SourceFamily};
-use moonkale_ext_api::Workspace;
+use moonkale_core::{Direction, Node, NodeKind, Query, SourceFamily, SourceId};
+use moonkale_ext_api::{GraphRequest, Workspace};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -89,6 +89,9 @@ fn kind_name(k: &NodeKind) -> &'static str {
         NodeKind::Page => "page",
         NodeKind::Symbol => "symbol",
         NodeKind::Table => "table",
+        NodeKind::Database => "database",
+        NodeKind::Column => "column",
+        NodeKind::Vertex => "vertex",
         _ => "other",
     }
 }
@@ -100,6 +103,7 @@ fn edge_name(k: &moonkale_core::EdgeKind) -> &'static str {
         E::Defines => "defines",
         E::Contains => "contains",
         E::References => "references",
+        E::Custom(_) => "custom",
         _ => "other",
     }
 }
@@ -172,6 +176,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         phantoms: true,
     });
     let mut hover: Signal<Option<FromJs>> = use_signal(|| None);
+    // What to draw: the index (default), a database's schema, or the last
+    // "Show in Graph" query. `None` = index.
+    let mut picked: Signal<Option<SourceId>> = use_signal(|| None);
+    let mut show_request = use_signal(|| false);
+    let mut seen_request: Signal<Option<GraphRequest>> = use_signal(|| None);
     let mut counts = use_signal(|| (0usize, 0usize, false));
     // Nodes currently shown, by id string, so events can be resolved back to model nodes.
     let mut shown: Signal<HashMap<String, Node>> = use_signal(HashMap::new);
@@ -228,6 +237,16 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         }
     });
 
+    // A new "Show in Graph" request switches the picker to that query.
+    use_effect(move || {
+        let req = ws.graph_request.read().clone();
+        if req.is_some() && req != *seen_request.peek() {
+            seen_request.set(req.clone());
+            picked.set(req.map(|r| r.source));
+            show_request.set(true);
+        }
+    });
+
     // (Re)load the graph whenever its inputs change.
     use_effect(move || {
         let index = ws
@@ -240,11 +259,92 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         let f = filters();
         let active = *ws.active.read();
         let _epoch = *ws.graph_epoch.read();
-        let Some(index) = index else {
-            counts.set((0, 0, false));
-            return;
+        let picked_id = picked();
+        let request = if show_request() {
+            ws.graph_request.read().clone()
+        } else {
+            None
         };
         let Some(ev) = *eval.peek() else {
+            return;
+        };
+        // A database source: draw its schema (or the requested query's result).
+        if let Some(pid) = picked_id {
+            let Some(handle) = ws
+                .sources
+                .read()
+                .iter()
+                .find(|s| s.descriptor.id == pid)
+                .cloned()
+            else {
+                counts.set((0, 0, false));
+                return;
+            };
+            spawn(async move {
+                let query = match (&request, m, active) {
+                    (Some(r), _, _) if r.source == pid => Query::Text {
+                        dialect: r.dialect.clone(),
+                        text: r.text.clone(),
+                    },
+                    (_, Mode::Local, Some(node)) => Query::Neighbours {
+                        node,
+                        depth: 1,
+                        direction: Direction::Both,
+                    },
+                    _ => Query::All {
+                        limit: 3000,
+                        kinds: None,
+                    },
+                };
+                let res = match handle.source.query(query).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error.set(Some(e.to_string()));
+                        return;
+                    }
+                };
+                let idx: HashMap<_, _> = res
+                    .nodes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| (n.id, i))
+                    .collect();
+                let out = OutGraph {
+                    nodes: res
+                        .nodes
+                        .iter()
+                        .map(|n| OutNode {
+                            id: n.id.to_string(),
+                            label: &n.label,
+                            kind: kind_name(&n.kind),
+                            key: &n.native_key,
+                        })
+                        .collect(),
+                    edges: res
+                        .edges
+                        .iter()
+                        .filter_map(|e| {
+                            Some(OutEdge {
+                                a: *idx.get(&e.from)?,
+                                b: *idx.get(&e.to)?,
+                                kind: edge_name(&e.kind),
+                            })
+                        })
+                        .collect(),
+                };
+                counts.set((out.nodes.len(), out.edges.len(), res.truncated));
+                let _ = ev.send(ToJs::SetGraph { graph: out });
+                shown.set(
+                    res.nodes
+                        .iter()
+                        .map(|n| (n.id.to_string(), n.clone()))
+                        .collect(),
+                );
+            });
+            return;
+        }
+        let Some(index) = index else {
+            counts.set((0, 0, false));
             return;
         };
         spawn(async move {
@@ -320,19 +420,52 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         .read()
         .iter()
         .any(|s| s.descriptor.family == SourceFamily::Index);
+    // Sources worth drawing besides the index: databases (schema graphs).
+    let databases: Vec<(SourceId, String)> = ws
+        .sources
+        .read()
+        .iter()
+        .filter(|s| matches!(s.descriptor.family, SourceFamily::Graph | SourceFamily::Sql))
+        .map(|s| (s.descriptor.id.clone(), s.descriptor.display_name.clone()))
+        .collect();
+    let has_request = ws.graph_request.read().is_some();
+    let picked_str = picked().map(|p| p.to_string()).unwrap_or_default();
+    let is_index = picked().is_none();
+    let has_any = has_index || !databases.is_empty();
 
     rsx! {
         document::Stylesheet { href: PANEL_CSS }
         div { class: "mk-graph",
             div { class: "mk-graph-toolbar",
+                if !databases.is_empty() {
+                    select { class: "mk-graph-source", title: "Which source to draw",
+                        value: "{picked_str}",
+                        onchange: move |e| {
+                            let v = e.value();
+                            picked.set(if v.is_empty() { None } else { Some(SourceId::new(v)) });
+                            show_request.set(false);
+                        },
+                        option { value: "", selected: is_index, "index" }
+                        for (sid, name) in databases.iter() {
+                            option { key: "{sid}", value: "{sid}", selected: picked().as_ref() == Some(sid), "{name}" }
+                        }
+                    }
+                    if has_request && !is_index {
+                        label { class: "mk-graph-check", title: "Draw the last query sent from a table editor instead of the schema",
+                            input { r#type: "checkbox", checked: show_request(), onchange: move |e| show_request.set(e.checked()) } "query"
+                        }
+                    }
+                }
                 span { class: "mk-graph-modes",
                     button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), "Whole" }
                     button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: "Two hops around the active document", "Local" }
                 }
-                label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } "files" }
-                label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } "symbols" }
-                label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } "folders" }
-                label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } "unresolved" }
+                if is_index {
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } "files" }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } "symbols" }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } "folders" }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } "unresolved" }
+                }
                 span { class: "mk-graph-spacer" }
                 span { class: "mk-graph-info", "data-nodes": "{n_nodes}", "data-backend": backend().unwrap_or_default(), "data-module": if loaded() { "loaded" } else { "" },
                     "{n_nodes} nodes · {n_edges} edges"
@@ -345,10 +478,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             div { class: "mk-graph-host", onmounted: mount,
                 canvas { id: "{id}-gl", class: "mk-graph-canvas" }
                 canvas { id: "{id}-ov", class: "mk-graph-canvas mk-graph-overlay" }
-                if !has_index {
-                    div { class: "mk-graph-empty", "Open a folder to see its graph." }
+                if !has_any {
+                    div { class: "mk-graph-empty", "Open a folder or a database to see its graph." }
                 }
-                if let (true, Some(err)) = (has_index, error()) {
+                if let (true, Some(err)) = (has_any, error()) {
                     div { class: "mk-graph-empty mk-graph-error", "Renderer failed to start: {err}" }
                 }
                 if let Some(FromJs::Hover { id: Some(_), label, node_kind, key, x, y }) = hover() {
@@ -394,6 +527,11 @@ async fn open_node(mut ws: Workspace, node: Node) {
                         ws.set_status(e.to_string());
                     }
                 }
+            }
+        }
+        NodeKind::Table => {
+            if let Err(e) = ws.open_node(node).await {
+                ws.set_status(e.to_string());
             }
         }
         _ => ws.set_status(format!("{} has nothing to open", node.label)),

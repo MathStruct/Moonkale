@@ -7,6 +7,8 @@ description = "The stable API surface an extension programs against: manifest, c
 
 [dependencies]
 moonkale-core = { workspace = true }
+moonkale-terminal = { workspace = true }
+moonkale-lsp = { workspace = true }
 dioxus = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4", "js"] }

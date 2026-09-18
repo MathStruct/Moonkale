@@ -16,6 +16,10 @@ pub enum BackendEvent {
     Ready,
     /// The document changed; the whole text (Milestone 1).
     Changed(String),
+    /// The view wants hover text at an LSP position; answer with `hover_result`.
+    Hover { id: u32, line: u32, col: u32 },
+    /// F12 at a position.
+    Definition { line: u32, col: u32 },
 }
 
 /// A mounted backend instance. Dropping it tears the view down.
@@ -25,6 +29,10 @@ pub trait CodeEditorBackend {
     fn focus(&self);
     fn undo(&self);
     fn redo(&self);
+    /// Replace all diagnostics (LSP coordinates).
+    fn set_diagnostics(&self, items: &[moonkale_lsp::Diagnostic]);
+    fn hover_result(&self, id: u32, text: Option<&str>);
+    fn set_cursor(&self, line: u32, col: u32);
 }
 
 /// How the panel mounts a backend. `element_id` is the id of the host `div`;

@@ -30,6 +30,12 @@ Running log of problems hit during implementation. One note per problem (`P-nnn 
 | P-051 Graph view jumped back after dragging | Every layout settle re-fit the camera, and node drags reheat the layout; dragged nodes were also unpinned and drifted. Auto-fit now only after a new graph/relayout until the user moves the view; dragged nodes stay pinned | resolved | 2 |
 | P-052 New side panel stole the active tab | Attaching a late panel activates it; default layout lists `explorer, links` explicitly | resolved | 2 |
 | P-053 `dragend` missing after a workbench drop | Firefox drops the tab on the workbench's own drop zone and never fires `dragend`; a `drop` in the source window now ends the session drag too | resolved | 2 |
+| P-054 Typst preview compiled forever | The preview effect read `busy()` reactively and set it after each compile, re-triggering itself; `busy.peek()` | resolved | 3 |
+| P-055 Terminal Ctrl+click | Row index must come from `.xterm-rows` geometry; long paths wrap so neighbour rows are joined; xterm + headless Firefox swallow real modified clicks — the E2E dispatches a synthetic `click` | resolved | 3 |
+| P-056 dx serve restarts | Non-rsx Rust changes still need `pkill -x dx` + restart (~2–3 min); `pkill -f` once matched its own shell — use `-x` | open (tooling) | 3 |
+| P-057 `Websocket<String, String>` in a server fn | The `#[get]` macro turns a bare `String` type parameter into `str` (`DeserializeOwned` not satisfied); wrap in a `Frame(String)` newtype | resolved | 3 |
+| P-058 LSP progress text overflowed the status bar | rust-analyzer's `$/progress` messages are `n/m: <long path>`; cut at the first `: ` in `lsp::session` | resolved | 3 |
+| P-059 E2E fixture drift | `graph.mjs` saves a wiki-link to `Another` into `Home.md`; a later `links-sqlite.mjs` run sees one phantom too many. Restore the fixture between suites (README) | open (tests) | 3 |
 | P-037 Whole-document change events | JS reports full text per keystroke and save sends one splice; O(n) per key. Upgrade to real splices once the index needs them | open | 2 |
 
 ## Conventions

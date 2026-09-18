@@ -34,6 +34,7 @@ members = [
     "packages/editors/terminal",
     "packages/editors/graph-desktop",
     "packages/editors/graph-render",
+    "packages/typst",
 ]
 
 [workspace.package]
@@ -71,6 +72,7 @@ moonkale-editor-flow = { path = "packages/editors/flow" }
 moonkale-editor-terminal = { path = "packages/editors/terminal" }
 moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }
 moonkale-graph-render = { path = "packages/editors/graph-render" }
+moonkale-typst = { path = "packages/typst" }
 
 # Size-optimised profile for standalone wasm modules (the graph renderer).
 # Used by packages/editors/graph-render/build.sh.

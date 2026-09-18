@@ -54,7 +54,7 @@ gantt
 |---|---|---|
 | **1 Walking skeleton** ✅ | open a folder, edit and save files in a dockable workbench, on desktop and web (server-side folder) | the model, the interop boundary, the extension API — **done 2026-09-17**, see [[Milestone 1 - Walking Skeleton]] / [[Milestone 1 - Implementation Log]] |
 | **2 Graph appears** ✅ | see your folder + wiki-links + symbols as a graph; open a SQLite file and browse tables; edit markdown with backlinks | "graph-native" is real; wgpu works in webviews — **done 2026-09-18** (DuckDB deferred), see [[Milestone 2 - Implementation Log]] |
-| **3 Databases & tools** | connect Postgres-class and graph DBs (via server on web), get LSP features, use a terminal, preview Typst, WYSIWYG markdown | server-as-backend; second/third interop packages |
+| **3 Databases & tools** ✅ | use a terminal, preview Typst, get LSP diagnostics/hover/definition, open a LadybugDB and draw Cypher results — on desktop and web (tools run on the server) | server-as-backend; second/third interop packages — **done 2026-09-18** (Postgres/Falkor/Milkdown deferred to 4), see [[Milestone 3 - Implementation Log]] |
 | **4 Agents** | chat with an agent that queries your sources under policy; hybrid search; click a stack trace into a graph | LLM-as-user |
 | **5 Scale & extend** | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets |
 | **6 Research** | 3D; extensions in the browser; a JS-free desktop | long-term direction |

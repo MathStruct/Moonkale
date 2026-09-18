@@ -15,7 +15,13 @@ fn default_layout() -> PanelLayout {
         SplitAxis::Horizontal,
         0.22,
         LayoutNode::tile("side", ["explorer", "links"]),
-        LayoutNode::empty_tile("main"),
+        LayoutNode::split(
+            "main-rows",
+            SplitAxis::Vertical,
+            0.72,
+            LayoutNode::empty_tile("main"),
+            LayoutNode::tile("bottom", ["terminal"]),
+        ),
     ))
 }
 
@@ -82,6 +88,7 @@ pub fn Shell() -> Element {
     };
 
     let status = ws.status.read().clone();
+    let lsp = ws.lsp_status.read().clone();
     let windows = ws.peers.read().len() + 1;
     let window_id = ws.window.read().to_string();
     let source_name = ws
@@ -113,6 +120,9 @@ pub fn Shell() -> Element {
                         },
                         message: rsx! { StatusMessage { "{status}" } },
                         right: rsx! {
+                            if let Some(l) = lsp {
+                                StatusItem { title: "Language server", "{l}" }
+                            }
                             StatusItem { title: "This window: {window_id}. Other windows of this session are counted once they answer.",
                                 if windows > 1 { "{windows} windows" } else { "1 window" }
                             }

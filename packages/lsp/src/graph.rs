@@ -1,1 +1,0 @@
-//! `LspExtractor`: uses `workspace/symbol`, `textDocument/documentSymbol`, `references` and call-hierarchy requests to enrich the index graph. Runs at lower priority than tree-sitter; results carry a `precision: Lsp` tag so views can prefer them.

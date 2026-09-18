@@ -1,1 +1,0 @@
-//! VT state via `alacritty_terminal::Term`: the grid the Rust renderer draws from and the text the link detector reads. When xterm.js is the renderer this grid is still maintained (cheaply) for search/links.

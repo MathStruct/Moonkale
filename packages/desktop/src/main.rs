@@ -39,7 +39,8 @@ fn registry() -> &'static SourceRegistry {
 }
 
 /// Native build: open the folder in-process with `FolderSource`, index it,
-/// and register both process-wide.
+/// and register both process-wide. A `.sqlite`/`.db` file or a
+/// `.lbug`/`.kuzu` database opens as that database instead.
 fn open_local(path: String) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
@@ -47,6 +48,13 @@ fn open_local(path: String) -> OpenFolderFuture {
         } else {
             path
         };
+        if let Some(db) = open_database(&path)? {
+            if let Some(existing) = registry().get(&db.id()) {
+                return Ok(vec![existing]);
+            }
+            registry().insert(db.clone());
+            return Ok(vec![db]);
+        }
         let folder = moonkale_project_fs::FolderSource::open(&path).map_err(SourceError::from)?;
         let id = folder.id();
         if let Some(existing) = registry().get(&id) {
@@ -64,6 +72,20 @@ fn open_local(path: String) -> OpenFolderFuture {
     })
 }
 
+/// Database files/directories by name; `None` means "treat as a folder".
+fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
+    let p = std::path::Path::new(path);
+    if p.is_file() && moonkale_sources_sql::is_sqlite_path(path) {
+        return Ok(Some(Arc::new(moonkale_sources_sql::SqliteSource::open(p)?)));
+    }
+    if moonkale_sources_graph::is_ladybug_path(path) {
+        return Ok(Some(Arc::new(
+            moonkale_sources_graph::ladybug::LadybugSource::open(p)?,
+        )));
+    }
+    Ok(None)
+}
+
 /// Another window opened it: take the shared instance from the registry.
 fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
     Box::pin(async move {
@@ -71,10 +93,11 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
             return Ok(s);
         }
         // Not in the registry (shouldn't happen in-process): re-open by path.
-        let path = descriptor
-            .id
-            .as_str()
+        let id = descriptor.id.as_str();
+        let path = id
             .strip_prefix("folder:")
+            .or_else(|| id.strip_prefix("sqlite:"))
+            .or_else(|| id.strip_prefix("ladybug:"))
             .unwrap_or(".")
             .to_string();
         let opened = open_local(path).await?;
@@ -82,6 +105,47 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
             .into_iter()
             .find(|s| s.id() == descriptor.id)
             .ok_or(SourceError::NotFound)
+    })
+}
+
+/// Local terminal: the user's shell in a PTY.
+fn spawn_terminal(
+    cwd: Option<String>,
+    cols: u16,
+    rows: u16,
+) -> moonkale_terminal::SpawnTerminalFuture {
+    Box::pin(async move {
+        moonkale_terminal_pty::PtyBackend::spawn(cwd.as_deref(), None, cols, rows)
+            .map(|p| Box::new(p) as Box<dyn moonkale_terminal::TerminalBackend>)
+    })
+}
+
+/// Typst compiles in-process (embedded fonts).
+fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
+    Box::pin(async move {
+        moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text).map_err(|d| {
+            d.into_iter()
+                .map(|d| match d.hint {
+                    Some(h) => format!("{} (hint: {h})", d.message),
+                    None => d.message,
+                })
+                .collect()
+        })
+    })
+}
+
+/// Language servers run locally over stdio.
+fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
+    Box::pin(async move {
+        let spec = moonkale_lsp_local::discover::find(&language).ok_or_else(|| {
+            match moonkale_lsp_local::discover::install_hint(&language) {
+                Some(h) => format!("no language server for {language} (install: {h})"),
+                None => format!("no language server known for {language}"),
+            }
+        })?;
+        let args: Vec<&str> = spec.args.iter().map(String::as_str).collect();
+        moonkale_lsp_local::StdioTransport::spawn(&spec.program, &args, &root)
+            .map(|t| Box::new(t) as Box<dyn moonkale_lsp::LspTransport>)
     })
 }
 
@@ -206,7 +270,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp) },
                 session,
                 new_window: open_window,
             },

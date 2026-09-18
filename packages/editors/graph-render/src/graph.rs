@@ -62,6 +62,9 @@ pub fn color_for(kind: &str) -> [f32; 4] {
         "symbol" => [0.42, 0.70, 0.55, 1.0], // green
         "directory" => [0.50, 0.53, 0.58, 1.0],
         "table" => [0.80, 0.50, 0.75, 1.0],
+        "database" => [0.90, 0.45, 0.45, 1.0],
+        "column" => [0.60, 0.60, 0.80, 1.0],
+        "vertex" => [0.95, 0.60, 0.30, 1.0], // orange: graph-database data
         _ => [0.64, 0.66, 0.72, 1.0],
     }
 }
@@ -70,6 +73,7 @@ pub fn edge_color(kind: &str) -> [f32; 4] {
     match kind {
         "links" => [0.79, 0.65, 0.37, 0.55],
         "defines" | "contains" => [0.45, 0.48, 0.55, 0.35],
+        "custom" => [0.95, 0.60, 0.30, 0.6], // a named relation (Cypher rel table)
         _ => [0.55, 0.58, 0.65, 0.4],
     }
 }

@@ -209,11 +209,14 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
         ul { class: "mk-tree", style: "--depth: {depth}",
             for node in children {
                 {
-                    let is_dir = node.kind == NodeKind::Directory;
+                    // Database paths: a SQLite file, or a Ladybug database (a
+                    // directory or a file named *.lbug / *.kuzu).
+                    let is_db_path = (node.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&node.native_key))
+                        || (matches!(node.kind, NodeKind::File | NodeKind::Directory) && moonkale_sources_graph::is_ladybug_path(&node.native_key));
+                    let is_dir = node.kind == NodeKind::Directory && !is_db_path;
                     let open = expanded.contains(&node.id);
                     let is_text = matches!(node.content, Some(ContentRef::Text { .. }));
-                    let is_db = node.kind == NodeKind::Table
-                        || (node.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&node.native_key));
+                    let is_db = node.kind == NodeKind::Table || is_db_path;
                     let n = node.clone();
                     let mut ws2 = ws;
                     rsx! {
@@ -234,8 +237,8 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                                 ws2.set_status(e.to_string());
                                             }
                                         });
-                                    } else if n.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&n.native_key) {
-                                        // A SQLite file inside the folder: open it as a database source.
+                                    } else if is_db_path {
+                                        // A database inside the folder: open it as its own source.
                                         let path = match n.source.as_str().strip_prefix("folder:") {
                                             Some(root) => format!("{root}/{}", n.native_key),
                                             None => n.native_key.clone(),
@@ -257,6 +260,21 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                 },
                                 span { class: "mk-tree-caret", if is_dir { if open { "▾" } else { "▸" } } else { "" } }
                                 span { class: "mk-tree-label", "{node.label}" }
+                                if is_dir && ws.spawn_terminal().is_some() {
+                                    {
+                                        let n2 = node.clone();
+                                        rsx! {
+                                            span { class: "mk-tree-action", title: "New terminal here",
+                                                onclick: move |e| {
+                                                    e.stop_propagation();
+                                                    ws2.terminal_cwd.set(ws2.folder_path(&n2));
+                                                    ws2.dispatch(Command::NewTerminal);
+                                                },
+                                                ">_"
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             if is_dir && open {
                                 TreeLevel { ws, state, parent: node.id, depth: depth + 1 }

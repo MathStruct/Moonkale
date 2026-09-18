@@ -20,6 +20,14 @@ Notes for `moonkale-editor-code` (Milestone 1). Design: [[Code Editor]], [[JS In
 ## Cross-window drag
 No handle in the panel any more: the workbench **tab** is the drag (P-045). `ui::Frame` maps a dragged tab id to the document by the node uuid embedded in it.
 
+## Milestone 3: language server
+- `lsp.rs` — `LspManager` (ROOT signals: sessions per `(language, root)`, a starting set, and `diagnostics: HashMap<uri, Vec<Diagnostic>>`). `ensure(ws, language, root)` spawns the transport through `ws.spawn_lsp()` (desktop: stdio; web: websocket relay), pumps `LspEvent`s into `ws.lsp_status` (status bar) and the diagnostics map, and runs `initialize`. One session per language per folder, shared by every editor.
+- `panel.rs` — on mount `did_open(file://<root>/<key>)`; `Changed` → `did_change` with a version counter; Save → `did_save`; unmount → `did_close`. An effect pushes this file's diagnostics to the backend. `Hover{id,line,col}` → `session.hover` → `backend.hover_result(id, text)`; `Definition` → same file → `set_cursor`, other file → `ws.open_relative_path` (the target opens; its cursor is not yet positioned).
+- `backend/` — `BackendEvent::{Hover, Definition}` and `set_diagnostics / hover_result / set_cursor` commands; JS side documented in `packages/js/codemirror/PROTOCOL.md` (lint gutter, `hoverTooltip`, F12).
+- Status without a server: "rust: no language server for rust (install: rustup component add rust-analyzer)".
+
+E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; hover text from rust-analyzer; F12 jumps to `fn add`; fixing the error clears the marker).
+
 ## Known limitations
 - The `Reload` button pushes text into CodeMirror via `setText`, which also fires `change` — harmless because `Document` is set first.
 - If the bundle fails to load, the panel shows "Loading editor…" forever; a timeout + error message belongs with P-032 (release observability).

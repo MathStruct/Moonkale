@@ -154,6 +154,11 @@ pub fn Frame(
                 let key = match e.key() { Key::Character(c) => c.to_ascii_lowercase(), _ => return };
                 match (key.as_str(), m.shift()) {
                     ("w", false) => { e.prevent_default(); ws.dispatch(Command::CloseEditor); }
+                    ("`", false) => {
+                        e.prevent_default();
+                        ws.terminal_cwd.set(None);
+                        ws.dispatch(Command::NewTerminal);
+                    }
                     ("n", true) => {
                         e.prevent_default();
                         ws.dispatch(Command::NewWindow);

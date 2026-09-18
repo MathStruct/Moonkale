@@ -1,10 +1,12 @@
 //! # moonkale-terminal-pty  (desktop + server only)
 //!
-//! `PtyBackend` using `portable-pty`: spawns the user's shell (or a command),
-//! forwards resize, and streams output. On the server (`api`) the same
-//! backend serves remote sessions for web/mobile clients with per-user
-//! isolation (working directory jail + resource limits; see vault
-//! `architecture/Platform Matrix.md` for the security discussion).
+//! `PtyBackend` over `portable-pty`: spawns the user's shell (or a command)
+//! in a pseudo-terminal, streams its output on a reader thread, forwards
+//! input and resizes. On the server the same backend serves remote sessions
+//! for web clients — dev-server only until the security list in the vault's
+//! Platform Matrix is done (P-20).
 
-pub mod pty;
-pub mod shell;
+#[cfg(not(target_arch = "wasm32"))]
+mod pty;
+#[cfg(not(target_arch = "wasm32"))]
+pub use pty::PtyBackend;

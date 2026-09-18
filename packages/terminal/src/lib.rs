@@ -1,21 +1,18 @@
 //! # moonkale-terminal
 //!
 //! A terminal is a byte stream in each direction plus a resize signal. This
-//! crate models `Session { write(bytes), resize(cols, rows), output: Stream }`
-//! over a `trait Backend`, and keeps a VT-parsed *grid* (via
-//! `alacritty_terminal`) so that the UI can be rendered by Rust and so that
-//! terminal output can be *searched and linked* (a file:line in a compiler
-//! error becomes a clickable edge into the graph — see [`links`]).
+//! crate models that ([`Session`], [`TerminalBackend`]) without knowing where
+//! the bytes come from: a local PTY (`moonkale-terminal-pty`, desktop and
+//! server) or a websocket to the server (`api::RemoteTerminal`, web).
 //!
-//! Backends:
-//! - local PTY: `moonkale-terminal-pty` (desktop only),
-//! - remote: websocket to `api`, which owns the PTY (web, mobile, and
-//!   "terminal on the server" on desktop).
-//!
-//! The *view* (xterm.js or a Rust canvas renderer) is in
-//! `packages/editors/terminal`.
+//! Milestone 3 ships the model and [`links`] (file paths in output). The VT
+//! grid (`alacritty_terminal`) for a Rust-native renderer and search is
+//! still a design note — xterm.js renders for now.
 
-pub mod backend;
-pub mod grid;
 pub mod links;
 pub mod session;
+
+pub use session::{
+    Output, Session, SessionId, SpawnTerminal, SpawnTerminalFuture, TerminalBackend,
+    TerminalMessage,
+};

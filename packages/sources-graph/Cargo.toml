@@ -8,14 +8,23 @@ description = "Graph-database sources: TypeDB, LadybugDB (lbug), HelixDB (embedd
 [features]
 default = []
 typedb = []
-ladybug = []
+ladybug = ["dep:lbug", "dep:tokio"]
 helix = []
 falkor = []
 
 [dependencies]
-# moonkale-core = { workspace = true }
-# moonkale-sources = { workspace = true }
+moonkale-core = { workspace = true }
 # typedb-driver = { version = "3", optional = true }
-# lbug = { version = "0.20", optional = true }     # LadybugDB official Rust binding (formerly kuzu). Downloads a prebuilt static liblbug, else builds C++ (cmake). Extensions need extra link flags.
 # helix-db = { version = "3", features = ["embedded"], optional = true }  # embedded mode; server mode is plain HTTP POST /v2/query
 # falkordb = { version = "0.10", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# LadybugDB official Rust binding (formerly kuzu). Downloads a prebuilt static
+# liblbug (~40 MB linked in), else builds C++ (needs cmake). Extensions
+# (FTS, vector) need extra link flags; not enabled.
+lbug = { version = "0.20", optional = true }
+tokio = { version = "1", features = ["rt"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

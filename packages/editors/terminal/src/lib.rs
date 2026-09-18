@@ -1,20 +1,16 @@
 //! # moonkale-editor-terminal
 //!
-//! The terminal *view*. Session logic (bytes, grid, links) is in
-//! `moonkale-terminal`; this crate draws it and forwards keystrokes.
-//! Same swappable-backend pattern as the other editors:
+//! One workbench panel ("Terminal", bottom tile) holding any number of
+//! sessions as its own tabs. Each session is a `moonkale_terminal::Session`
+//! whose backend the platform provides (local PTY on desktop, websocket to
+//! the server on web); the view is xterm.js behind the interop boundary
+//! (`packages/js/xterm`, `assets/xterm.js`).
 //!
-//! - `xterm` backend: `packages/js/xterm` bundle; fastest path to a
-//!   good terminal on all platforms.
-//! - `native` backend: draw `alacritty_terminal`'s grid with a Rust
-//!   renderer (a Dioxus virtualised grid, or the graph crate's wgpu text
-//!   path). The grid already exists for links/search, so this is "just"
-//!   drawing.
-//!
-//! Panel features: multiple sessions as tabs, split (via the workbench),
-//! clickable links → open node in editor, "run selection" from the code
-//! editor, and a "new terminal here" command on directory nodes.
+//! Sessions live in the extension (signals at `ScopeId::ROOT`), so docking
+//! the panel elsewhere keeps them running. Ctrl+click on a `path:line` in
+//! the output opens the file.
 
-pub mod backend;
-pub mod input;
+pub mod extension;
 pub mod panel;
+
+pub use extension::TerminalExtension;

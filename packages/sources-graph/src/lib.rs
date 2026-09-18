@@ -16,6 +16,18 @@
 //! no server) and FalkorDB (Redis protocol, simple)**, then TypeDB, then Helix.
 
 pub mod dialect;
+
+/// Names that open as a LadybugDB database (a directory for databases
+/// created before 0.11, a single file since). Usable on every target; the
+/// driver itself is native-only behind the `ladybug` feature.
+pub const LADYBUG_EXTENSIONS: &[&str] = &["lbug", "kuzu", "kz"];
+
+pub fn is_ladybug_path(path: &str) -> bool {
+    path.rsplit('.')
+        .next()
+        .map(|e| LADYBUG_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
 #[cfg(feature = "falkor")]
 pub mod falkor;
 #[cfg(feature = "helix")]

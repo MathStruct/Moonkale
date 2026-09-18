@@ -12,7 +12,11 @@ moonkale-editor-code = { workspace = true }
 moonkale-editor-graph = { workspace = true }
 moonkale-editor-markdown = { workspace = true }
 moonkale-editor-table = { workspace = true }
+moonkale-editor-terminal = { workspace = true }
+moonkale-terminal = { workspace = true }
+moonkale-lsp = { workspace = true }
 moonkale-sources-sql = { workspace = true }
+moonkale-sources-graph = { workspace = true }
 api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 

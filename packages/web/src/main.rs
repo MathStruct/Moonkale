@@ -71,6 +71,32 @@ fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
     Rc::new(BroadcastBus { eval })
 }
 
+/// Web terminals run on the server (dev-server feature; see api::terminal).
+fn spawn_terminal(cwd: Option<String>, cols: u16, rows: u16) -> ui::SpawnTerminalFuture {
+    Box::pin(async move {
+        api::RemoteTerminal::connect(cwd, cols, rows)
+            .await
+            .map(|t| Box::new(t) as Box<dyn ui::TerminalBackend>)
+    })
+}
+
+fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
+    Box::pin(async move {
+        api::compile_typst(root, main_rel, text)
+            .await
+            .unwrap_or_else(|e| Err(vec![e.to_string()]))
+    })
+}
+
+/// Language servers run on the server; the client sees a websocket.
+fn spawn_lsp(language: String, root: String) -> ui::LspTransportFuture {
+    Box::pin(async move {
+        api::RemoteLsp::connect(language, root)
+            .await
+            .map(|t| Box::new(t) as Box<dyn ui::LspTransport>)
+    })
+}
+
 fn new_window() {
     // A *window*, not a tab: a background tab can never be a drop target.
     document::eval("window.open(location.href, '_blank', 'popup,width=1200,height=800');");
@@ -84,7 +110,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp) },
                 session,
                 new_window: Some(new_window),
             },
