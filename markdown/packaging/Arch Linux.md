@@ -22,7 +22,7 @@ Recipe: `packaging/arch/PKGBUILD`. Background: [[Packaging Overview]]. System pr
    /usr/bin/moonkale
    /usr/lib/Moonkale/assets/…
    /usr/share/applications/moonkale.desktop
-   /usr/share/icons/hicolor/512x512/apps/moonkale.png   (once an icon exists)
+   /usr/share/icons/hicolor/512x512/apps/moonkale.png
    ```
 
 ## Build and install

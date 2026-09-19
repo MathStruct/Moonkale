@@ -382,8 +382,17 @@ fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
 #[cfg(feature = "desktop")]
 fn window_config() -> dioxus::desktop::Config {
     use dioxus::desktop::{Config, LogicalSize, WindowBuilder};
+    // Window/taskbar icon: raw RGBA (64×64) so no image decoder is needed;
+    // regenerate with `magick assets/Moonkale64.png -depth 8 rgba:packages/desktop/assets/icon64.rgba`.
+    let icon = dioxus::desktop::tao::window::Icon::from_rgba(
+        include_bytes!("../assets/icon64.rgba").to_vec(),
+        64,
+        64,
+    )
+    .ok();
     let window = WindowBuilder::new()
         .with_title("Moonkale")
+        .with_window_icon(icon)
         .with_inner_size(LogicalSize::new(1400.0, 900.0))
         .with_min_inner_size(LogicalSize::new(640.0, 400.0))
         // No native decorations: the title bar is ours (see ui::TitleBar).

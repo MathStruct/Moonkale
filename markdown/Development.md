@@ -90,6 +90,19 @@ End-to-end (real browser against the web build): `packages/web/tests/e2e/README.
 
 Strategy and per-layer recipes: [[Testing Strategy]], [[How to Write Tests]].
 
+## Icons and the banner
+
+Source images live in `/assets` (`Moonkale.png` 1254², `Moonkale512.png`, `Moonkale{16,32,64}.{png,ico}`, `MoonkaleBanner.png`). Derived copies — regenerate with ImageMagick when the source changes:
+
+| use | file | from |
+|---|---|---|
+| desktop/mobile bundle icon (`Dioxus.toml` `icon`), Arch package | `packages/{desktop,mobile}/assets/icon.png` | `Moonkale512.png` |
+| desktop window/taskbar icon (no decoder at runtime) | `packages/desktop/assets/icon64.rgba` | `magick assets/Moonkale64.png -depth 8 rgba:…` |
+| web favicon (16/32/64 in one `.ico`) + touch icon | `packages/web/assets/{favicon.ico,icon.png}` | `magick Moonkale16.png Moonkale32.png Moonkale64.png favicon.ico` |
+| title-bar logo (drawn at 16 px) | `packages/ui/assets/icon32.png` | `Moonkale32.png` |
+| website favicon + page-title logo, social preview | `site/quartz/static/{icon.png,og-image.png}` | `-resize 256x256`; `-resize 1200x675^ -gravity center -extent 1200x675` |
+| banner on the site index and the README | `markdown/assets/MoonkaleBanner.png` (1400 px, PNG8) | `-resize 1400x -dither None -colors 256` |
+
 ## The vault and the website
 
 The repository root is the Obsidian vault (`.obsidian/` at the root); the notes live in `markdown/`. Installed Obsidian plugins — Inline TikZ, Wypst (Typst), Markdown Tabs, Excalidraw, Document Comments — have matching build-time support in the site where it exists (TikZ, Typst, Tabs; Mermaid is built in).

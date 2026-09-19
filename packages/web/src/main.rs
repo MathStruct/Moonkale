@@ -12,6 +12,7 @@ use ui::{
 };
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
+const ICON_PNG: Asset = asset!("/assets/icon.png");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
@@ -191,6 +192,7 @@ fn new_window() {
 fn App() -> Element {
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
+        document::Link { rel: "apple-touch-icon", href: ICON_PNG }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         Frame {
             config: ShellConfig {

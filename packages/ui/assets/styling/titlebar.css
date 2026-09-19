@@ -10,7 +10,7 @@
 }
 .mk-frame-undecorated .mk-titlebar { -webkit-app-region: drag; }
 .mk-titlebar-left { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
-.mk-titlebar-logo { padding: 0 10px 0 12px; color: #6ea8fe; font-size: 14px; }
+.mk-titlebar-logo { width: 16px; height: 16px; margin: 0 10px 0 12px; border-radius: 3px; image-rendering: pixelated; user-select: none; }
 .mk-titlebar-title {
   flex: 1; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   padding: 0 12px; color: #7f8595; font-size: 12px;

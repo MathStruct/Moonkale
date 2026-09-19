@@ -1,3 +1,5 @@
+![Moonkale — a wizard tending a kale plant under a full moon](assets/MoonkaleBanner.png)
+
 # Moonkale (Under development)
 
 **A graph-native code and knowledge editor.**

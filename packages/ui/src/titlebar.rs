@@ -7,6 +7,7 @@ use dioxus::prelude::*;
 use moonkale_ext_api::{Command, Workspace};
 
 const TITLEBAR_CSS: Asset = asset!("/assets/styling/titlebar.css");
+const LOGO: Asset = asset!("/assets/icon32.png");
 
 #[derive(Clone, PartialEq)]
 enum Item {
@@ -183,7 +184,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
             },
             ondoubleclick: move |_| { if let Some(c) = controls { c.toggle_maximize.call(()) } },
             div { class: "mk-titlebar-left", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),
-                span { class: "mk-titlebar-logo", "◐" }
+                img { class: "mk-titlebar-logo", src: LOGO, alt: "Moonkale", width: "16", height: "16", draggable: false }
                 for (name, items) in menus(
                     controls,
                     &ws.settings.read().recent_folders,

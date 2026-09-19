@@ -8,6 +8,7 @@ name = "Moonkale"
 identifier = "io.github.mathstruct.moonkale"
 publisher = "MathStruct"
 short_description = "Graph-native code and knowledge editor"
+icon = ["assets/icon.png"]   # 512x512, from /assets/Moonkale512.png
 
 [android]
 min_sdk = 24
