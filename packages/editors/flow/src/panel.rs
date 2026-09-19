@@ -288,7 +288,18 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         div { class: "mk-flow-ports-out", for p in k.outputs.iter() { div { key: "{p.name}", title: "{p.ty.describe()}", "{p.name} ▸" } } }
                     }
                     if !k.params.is_empty() {
+                        // Keys typed into a parameter field must not reach the
+                        // node/canvas handlers (Delete/Backspace remove the block,
+                        // arrows nudge it, Enter/Space toggle selection); Ctrl/Meta
+                        // combos (Ctrl+S) still bubble. Pointer-down likewise, or a
+                        // click into the field starts a drag (spec 001).
                         div { class: "mk-flow-params",
+                            onkeydown: move |e| {
+                                if !(e.modifiers().ctrl() || e.modifiers().meta()) {
+                                    e.stop_propagation();
+                                }
+                            },
+                            onpointerdown: |e| e.stop_propagation(),
                             for p in k.params.iter() {
                                 {
                                     let value = n.data.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());

@@ -394,7 +394,8 @@ fn window_config() -> dioxus::desktop::Config {
         .with_title("Moonkale")
         .with_window_icon(icon)
         .with_inner_size(LogicalSize::new(1400.0, 900.0))
-        .with_min_inner_size(LogicalSize::new(640.0, 400.0))
+        // Small enough to try the phone-sized shell (< 700 px) on desktop.
+        .with_min_inner_size(LogicalSize::new(360.0, 400.0))
         // No native decorations: the title bar is ours (see ui::TitleBar).
         .with_decorations(false);
     Config::new()

@@ -49,7 +49,14 @@ pub fn Shell() -> Element {
     // media query decides; both platforms start wide so hydration matches.
     let mut narrow = use_signal(|| false);
     let mut phone_layout = use_signal(narrow_layout);
-    use_hook(move || {
+    // Started from `onmounted` (an event, so the webview is up — P-047);
+    // an eval created in a hook was silently lost on desktop.
+    let mut watching = use_signal(|| false);
+    let start_narrow_watch = move |_| {
+        if *watching.peek() {
+            return;
+        }
+        watching.set(true);
         let mut ev = document::eval(&format!("watch({NARROW_MAX_PX});\n{NARROW_WATCH}"));
         spawn(async move {
             loop {
@@ -65,7 +72,7 @@ pub fn Shell() -> Element {
                 }
             }
         });
-    });
+    };
 
     // Layout persistence: restore the workspace's layout when its settings
     // load; save every settled change into `.moonkale/settings.json`.
@@ -273,7 +280,7 @@ pub fn Shell() -> Element {
 
     rsx! {
         document::Stylesheet { href: SHELL_CSS }
-        div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" },
+        div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, onmounted: start_narrow_watch,
             Workbench {
                 rail: rsx! {
                     if !is_narrow {

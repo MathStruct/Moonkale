@@ -63,6 +63,30 @@ try {
     console.log("\n  status:", JSON.stringify(s));
     if (s.issues === 0) throw new Error("unwired required inputs should be issues");
   });
+  await step("editing a parameter: Backspace/Delete/arrows in the field do not delete or move the block (spec 001)", async () => {
+    // The Dense block's `units` field: select it, clear it with Backspace, type a value.
+    const field = page.locator(".df-node:has(.mk-flow-block-title:text-is('Dense')) .mk-flow-param:has-text('out') input");
+    // The node's `transform` is its position (its rect also changes with the selection scale effect).
+    const pos = () => page.$eval(".df-node:has(.mk-flow-block-title:text-is('Dense'))", (n) => n.style.transform);
+    const before = await pos();
+    await field.click();
+    await page.keyboard.press("End");
+    for (let i = 0; i < 6; i++) await page.keyboard.press("Backspace");
+    await page.keyboard.press("Delete");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.type("42");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await page.waitForTimeout(300);
+    const blocks = await page.$eval(".mk-flow-status", (e) => e.dataset.blocks);
+    const after = await pos();
+    const value = await field.inputValue();
+    console.log("\n  blocks:", blocks, "out:", value, "position:", before, "→", after);
+    if (blocks !== "7") throw new Error("a block was deleted while editing a field");
+    if (value !== "42") throw new Error(`out = ${value}`);
+    if (after !== before) throw new Error("block moved while editing a field");
+    await page.mouse.click(700, 600);
+  });
   await step("wiring by dragging handles (typed): 6 wires, no issues", async () => {
     // No Layout/Fit before wiring: dioxus-flow's handle geometry lags a layout
     // animation (P-073); new blocks land in a grid that fits the canvas.

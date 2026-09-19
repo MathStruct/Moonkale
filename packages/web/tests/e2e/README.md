@@ -38,10 +38,11 @@ E=~/.cache/moonkale-e2e
 mkdir -p $E/e2e && (cd $E/e2e && npm i playwright && npx playwright install firefox)   # once
 packages/web/tests/e2e/fixture.sh $E/m2root                                            # once (rerun to restore)
 MOONKALE_CONFIG_DIR=$E/cfg packages/extensions/wordcount/build.sh                      # once, for wasm-ext
-(cd packages/web && MOONKALE_CONFIG_DIR=$E/cfg MOONKALE_LLM=mock MOONKALE_ROOT=$E/m2root dx serve --port 8090)
+packages/web/tests/e2e/serve.sh start        # dx serve on :8090 with $E/cfg and $E/m2root, PID in $E/dx.pid
 packages/web/tests/e2e/run-all.sh            # or: run-all.sh flow phone
+packages/web/tests/e2e/serve.sh stop         # kills only that dx (never `pkill dx` — it takes the desktop dev server with it)
 ```
 
-Screenshots land in `$E/shots`. `milestone1.mjs` needs the server started with `MOONKALE_ROOT=$E/m1root` instead.
+Screenshots land in `$E/shots`. `milestone1.mjs` needs the server started with `serve.sh start m1root` instead.
 
 Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensions, New Flow…, place/wire/reject/Generate/Save), `wasm-ext.mjs` (wordcount module listed, enabled with `read-sources`, its command runs as an agent tool after approval), `phone.mjs` (420 px viewport: one tile, bottom bar, Editor/Graph/Terminal/Agent/Settings switching, no layout persisted, widening restores the layout). `bench.mjs` prints layout ms/step for 1k–100k nodes (a measurement, not a test); `agent-live.mjs` needs a real key.

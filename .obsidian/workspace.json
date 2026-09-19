@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "markdown/prompts/error6.md",
+                "file": "markdown/prompts/error7.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "error6"
+              "title": "error7"
             }
           }
         ]
@@ -193,18 +193,19 @@
   },
   "active": "e809ffc8e5acdf7d",
   "lastOpenFiles": [
-    "markdown/prompts/error5.md",
+    "markdown/prompts/error7.md",
+    "target/dx/web/debug/web/server-3bb3dbf3",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/work-products.bin",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/query-cache.bin",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/f5h7wot88uhrb7yogpancbbvf.o",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/f29kujakt7mg4n7q2ki62pqrr.o",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/f1p0wirvfpung59kubdt9ku9w.o",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/eymdeqj7oasa7rr345pyi6qvx.o",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/eyfagaa2q1q5xoyz40r2ofdg3.o",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/erkz9q43jmtwcze7kpvwq2hqv.o",
+    "target/x86_64-unknown-linux-gnu/server-dev/incremental/web-1pmktjs9t091e/s-hmfq6yombu-0c788ui-04zla4f76xmpuzqxkioeosw15/er05lboc0iyodh6mohco0es0i.o",
     "markdown/prompts/error6.md",
-    "target/dx/moonkale/debug/web/server-1df70d9c",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/deps/moonkale-2b4ba9b7fc61bc52",
-    "target/x86_64-unknown-linux-gnu/server-dev/deps/moonkale-da384b54f2654cbd",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/work-products.bin",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/query-cache.bin",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/f23f79iipa0zfr6fxeeopx3dz.o",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/f1uom3jn0yzyvkqtlrdo0bqgz.o",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/esxu6ld7zg2qkwq1srbm2dlcv.o",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/eiog1ofe5b3qfffx84t5usdry.o",
-    "target/x86_64-unknown-linux-gnu/desktop-dev/incremental/moonkale-18chmot1252wo/s-hmemqo4z8r-0evne5n-1siogtetzl15ximbat92o4tdz/e82bxe9ct8ywjsiis5mfcbu2x.o",
+    "markdown/prompts/error5.md",
     "markdown/prompts/error4.md",
     "markdown/prompts/error3.md",
     "markdown/prompts/Prompt5.md",

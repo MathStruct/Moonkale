@@ -54,6 +54,7 @@ Barnes–Hut turns the step from quadratic to n·log n; wasm costs ~10 %. Drawin
 - **P-073 dioxus-flow handle geometry lags the auto-layout animation**: after *Layout*, `Handle` positions used for connection validation are stale for a few frames, so a drag started right after a layout can miss. The E2E wires before laying out; a real fix needs a settled-layout callback from dioxus-flow (not yet requested upstream). Related: the third palette column sat under the tile splitter at 1500 px, so blocks are placed on a 165 px grid.
 - **P-074 The workbench renders a reconciled copy of a controlled layout**: newly attached panels (and the auto-activated document tab) exist in the rendered tree before they are written to the application's signal, so reading "which tab is in front" from the signal was stale. The phone bar reconciles the signal with the current placements before reading or activating, exactly as `ShowPanel` does.
 - **P-059 (fixture drift) is closed**: `packages/web/tests/e2e/fixture.sh` builds the fixture folder deterministically (users table, small `people.lbug` via `seed_people … small`), and the regression script resets `Home.md`, `.moonkale/` and generated files between suites. The scratchpad this session used was wiped at the day change, which is what forced the script into existence.
+- **P-047 again** (desktop): the narrow-shell watcher (`matchMedia` eval) was created in a hook and never reported on desktop; started from the shell's `onmounted` now, and the desktop window's minimum width is 360 px so the phone layout can be tried there.
 - **P-070 again**: assets edited without a Rust change are served stale by `dx serve` — touch a `.rs` in the crate that owns the asset and let dx rebuild (the hash is computed at compile time).
 - `mistral-code-latest` was not needed this milestone; all suites run on the mock provider (`MOONKALE_LLM=mock`).
 
@@ -69,6 +70,9 @@ Barnes–Hut turns the step from quadratic to n·log n; wasm costs ~10 %. Drawin
 - Web (Firefox, Playwright, mock provider, port 8090, fresh fixture per suite): `milestone1`, `menubar`, `session`, `graph`, `links-sqlite`, `terminal`, `typst`, `lsp`, `ladybug`, `agent`, `search-trace`, `settings`, `rich`, `agent-writes`, `flow`, `wasm-ext`, `phone` — all PASS.
 - Native: `cargo test --workspace --features moonkale-sources-graph/ladybug,moonkale-ext-host/wasmtime` → 64 passed, 0 failed (3 ignored: live services); `cargo clippy --workspace --all-targets` clean; `cargo fmt` clean; `cargo build -p desktop --features desktop` and `cargo check -p mobile --features mobile` pass.
 - Julia: the generated `model.jl` for a CNN parses (`Meta.parseall`); running it needs `Lux`, `Optimisers`, `Zygote`.
+
+> [!success] Confirmed on desktop by Daniel (2026-09-19)
+> The shell switches to the phone layout once the window goes below the width threshold, and the agent runs the wasm `wordcount` command after the extension was enabled and granted *read-sources*. (First attempt did nothing: the media-query watcher was created from a hook, which is lost on desktop — P-047 — and the window's minimum width was 640 px; both fixed.)
 
 ## What to look at on desktop
 1. `Ctrl+,` → Extensions: switch **Flow editor** and **Lux.jl blocks** on; File → New Flow…; place Input → Conv → MaxPool → Flatten → Dense → Loss, wire them, Generate, open `model.jl`.
