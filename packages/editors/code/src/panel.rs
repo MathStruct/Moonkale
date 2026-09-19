@@ -38,6 +38,10 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mut lsp_session: Signal<Option<moonkale_lsp::LspSession>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut last_error: Signal<Option<SourceError>> = use_signal(|| None);
+    // Milestone 7: an F2 rename prompt, offered code actions, references.
+    let mut rename_prompt: Signal<Option<(u32, u32, String)>> = use_signal(|| None);
+    let mut actions: Signal<Option<Vec<moonkale_lsp::CodeAction>>> = use_signal(|| None);
+    let mut references: Signal<Option<Vec<moonkale_lsp::Location>>> = use_signal(|| None);
     // What the view currently shows (its own edits, or text we pushed), so
     // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
     let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
@@ -52,6 +56,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
             let initial = doc.peek().text.clone();
             let ident = lsp_ident.clone();
+            let element_id_for_events = element_id.clone();
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
                 BackendEvent::Ready => ready.set(true),
                 BackendEvent::Changed(text) => {
@@ -77,6 +82,74 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         });
                     } else if let Some(b) = backend.peek().as_ref() {
                         b.hover_result(id, None);
+                    }
+                }
+                BackendEvent::Completion { id, line, col } => {
+                    if let (Some(s), Some((_, _, uri))) =
+                        (lsp_session.peek().clone(), ident.clone())
+                    {
+                        spawn(async move {
+                            let items = match s.completion(&uri, line, col).await {
+                                Ok(items) => Some(items),
+                                Err(e) => {
+                                    tracing::warn!("completion: {e}");
+                                    None
+                                }
+                            };
+                            tracing::debug!(
+                                "completion: {} items",
+                                items.as_ref().map(Vec::len).unwrap_or(0)
+                            );
+                            if let Some(b) = backend.peek().as_ref() {
+                                b.completion_result(id, items.as_deref());
+                            }
+                        });
+                    } else if let Some(b) = backend.peek().as_ref() {
+                        b.completion_result(id, None);
+                    }
+                }
+                BackendEvent::Rename { line, col, word } => {
+                    if lsp_session.peek().is_some() {
+                        rename_prompt.set(Some((line, col, word)));
+                        ws.focus_element(&format!("{element_id_for_events}-rename"));
+                    } else {
+                        let mut ws = ws;
+                        ws.set_status("Rename needs a language server for this file");
+                    }
+                }
+                BackendEvent::CodeActions {
+                    line,
+                    col,
+                    end_line,
+                    end_col,
+                } => {
+                    if let (Some(s), Some((_, _, uri))) =
+                        (lsp_session.peek().clone(), ident.clone())
+                    {
+                        spawn(async move {
+                            match s.code_actions(&uri, line, col, end_line, end_col).await {
+                                Ok(list) => actions.set(Some(list)),
+                                Err(e) => {
+                                    let mut ws = ws;
+                                    ws.set_status(format!("code actions: {e}"));
+                                }
+                            }
+                        });
+                    }
+                }
+                BackendEvent::References { line, col } => {
+                    if let (Some(s), Some((_, _, uri))) =
+                        (lsp_session.peek().clone(), ident.clone())
+                    {
+                        spawn(async move {
+                            match s.references(&uri, line, col).await {
+                                Ok(list) => references.set(Some(list)),
+                                Err(e) => {
+                                    let mut ws = ws;
+                                    ws.set_status(format!("references: {e}"));
+                                }
+                            }
+                        });
                     }
                 }
                 BackendEvent::Definition { line, col } => {
@@ -190,6 +263,26 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         });
     }
 
+    // Save from any path (Ctrl+S, the menu, the toolbar): write through the
+    // source and tell the language server, whose checks run on save.
+    let save_now = {
+        let uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());
+        Callback::new(move |_: ()| {
+            let uri = uri.clone();
+            spawn(async move {
+                match ws.save(node).await {
+                    Ok(()) => {
+                        last_error.set(None);
+                        if let (Some(s), Some(uri)) = (lsp_session.peek().clone(), uri) {
+                            s.did_save(&uri);
+                        }
+                    }
+                    Err(e) => last_error.set(Some(e)),
+                }
+            });
+        })
+    };
+
     // Application commands aimed at the active editor (menus, keybindings).
     use_effect(move || {
         let (_, cmd) = *ws.commands.read();
@@ -198,12 +291,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         }
         match cmd {
             Some(Command::Save) => {
-                spawn(async move {
-                    match ws.save(node).await {
-                        Ok(()) => last_error.set(None),
-                        Err(e) => last_error.set(Some(e)),
-                    }
-                });
+                save_now.call(());
             }
             Some(Command::Undo) => {
                 if let Some(b) = backend.peek().as_ref() {
@@ -220,24 +308,57 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         }
     });
 
-    let saved_uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());
-    let save = {
-        let saved_uri = saved_uri.clone();
-        move |_| {
-            let saved_uri = saved_uri.clone();
-            async move {
-                match ws.save(node).await {
-                    Ok(()) => {
-                        last_error.set(None);
-                        if let (Some(s), Some(uri)) = (lsp_session.peek().clone(), saved_uri) {
-                            s.did_save(&uri);
-                        }
-                    }
-                    Err(e) => last_error.set(Some(e)),
+    // Apply a server edit (rename, code action) to every file it touches:
+    // open documents take it unsaved, closed files are written through the
+    // source; the current document is pushed to the view by the text effect.
+    let root_for_edits = lsp_ident.as_ref().map(|(_, r, _)| r.clone());
+    let apply_edit = Callback::new(move |edit: moonkale_lsp::WorkspaceEdit| {
+        let root = root_for_edits.clone();
+        spawn(async move {
+            let Some(root) = root else { return };
+            match crate::lsp::apply_workspace_edit(ws, &root, &edit).await {
+                Ok(n) => {
+                    let mut ws = ws;
+                    ws.set_status(format!("Applied edits to {n} file(s)"));
+                }
+                Err(e) => {
+                    let mut ws = ws;
+                    ws.set_status(format!("Edit failed: {e}"));
                 }
             }
+        });
+    });
+    let rename_ident = lsp_ident.clone();
+    let mut rename_value = use_signal(String::new);
+    let commit_rename = Callback::new(move |_: ()| {
+        let Some((line, col, _)) = rename_prompt.peek().clone() else {
+            return;
+        };
+        let new_name = rename_value.peek().trim().to_string();
+        rename_prompt.set(None);
+        if new_name.is_empty() {
+            return;
         }
-    };
+        if let (Some(s), Some((_, _, uri))) = (lsp_session.peek().clone(), rename_ident.clone()) {
+            spawn(async move {
+                match s.rename(&uri, line, col, &new_name).await {
+                    Ok(edit) if edit.changes.is_empty() => {
+                        let mut ws = ws;
+                        ws.set_status("Nothing to rename here");
+                    }
+                    Ok(edit) => apply_edit.call(edit),
+                    Err(e) => {
+                        let mut ws = ws;
+                        ws.set_status(format!("rename: {e}"));
+                    }
+                }
+            });
+        }
+    });
+    let rename_id = format!("{element_id}-rename");
+    let root_for_refs = lsp_ident.as_ref().map(|(_, r, _)| r.clone());
+
+    let save = move |_| save_now.call(());
     let reload = move |_| async move {
         if ws.reload(node).await.is_ok() {
             if let Some(b) = backend.read().as_ref() {
@@ -264,12 +385,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 let mods = e.modifiers();
                 if (mods.ctrl() || mods.meta()) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
-                    spawn(async move {
-                        match ws.save(node).await {
-                            Ok(()) => last_error.set(None),
-                            Err(err) => last_error.set(Some(err)),
-                        }
-                    });
+                    e.stop_propagation(); // the frame would dispatch Save again
+                    save_now.call(());
                 }
             },
             div { class: "mk-editor-toolbar",
@@ -279,6 +396,77 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 span { class: "mk-editor-meta", "{lang} · {version}" }
                 button { class: "mk-btn", disabled: !dirty, onclick: save, "Save" }
                 button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
+            }
+            if let Some((_, _, word)) = rename_prompt() {
+                div { class: "mk-editor-bar mk-editor-rename",
+                    span { "Rename " code { "{word}" } " to:" }
+                    input { id: "{rename_id}", class: "mk-input", value: "{rename_value}",
+                        onmounted: { let w = word.clone(); move |_| rename_value.set(w.clone()) },
+                        oninput: move |e| rename_value.set(e.value()),
+                        onkeydown: move |e| {
+                            e.stop_propagation();
+                            match e.key() {
+                                Key::Enter => { e.prevent_default(); commit_rename.call(()); }
+                                Key::Escape => { e.prevent_default(); rename_prompt.set(None); }
+                                _ => {}
+                            }
+                        },
+                    }
+                    button { class: "mk-btn", onclick: move |_| commit_rename.call(()), "Rename" }
+                    button { class: "mk-btn", onclick: move |_| rename_prompt.set(None), "Cancel" }
+                }
+            }
+            if let Some(list) = actions() {
+                div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}",
+                    if list.is_empty() { span { class: "mk-muted", "No code actions here." } } else { span { "Code actions:" } }
+                    for (i, a) in list.iter().enumerate() {
+                        button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: {
+                            let a = a.clone();
+                            move |_| {
+                                actions.set(None);
+                                let a = a.clone();
+                                if let Some(s) = lsp_session.peek().clone() {
+                                    spawn(async move {
+                                        match s.resolve_code_action(&a).await {
+                                            Ok(edit) => apply_edit.call(edit),
+                                            Err(e) => { let mut ws = ws; ws.set_status(format!("code action: {e}")); }
+                                        }
+                                    });
+                                }
+                            }
+                        }, "{a.title}" }
+                    }
+                    button { class: "mk-btn", onclick: move |_| actions.set(None), "✕" }
+                }
+            }
+            if let Some(list) = references() {
+                div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}",
+                    span { "{list.len()} reference(s)" }
+                    button { class: "mk-btn", onclick: move |_| references.set(None), "✕" }
+                    ul {
+                        for (i, l) in list.iter().enumerate() {
+                            li { key: "{i}", class: "mk-editor-ref", onclick: {
+                                let l = l.clone();
+                                let root = root_for_refs.clone();
+                                move |_| {
+                                    let l = l.clone();
+                                    let root = root.clone();
+                                    spawn(async move {
+                                        let Some(root) = root else { return };
+                                        if let Some(rel) = l.uri.strip_prefix(&format!("file://{root}/")) {
+                                            if let Ok(n) = ws.open_relative_path(rel).await {
+                                                let _ = ws.reveal(n, l.line, l.col).await;
+                                            }
+                                        }
+                                    });
+                                }
+                            },
+                                { root_for_refs.as_ref().and_then(|r| l.uri.strip_prefix(&format!("file://{r}/"))).unwrap_or(&l.uri).to_string() }
+                                span { class: "mk-muted", ":{l.line + 1}:{l.col + 1}" }
+                            }
+                        }
+                    }
+                }
             }
             if let Some(err) = last_error() {
                 div { class: "mk-editor-error",

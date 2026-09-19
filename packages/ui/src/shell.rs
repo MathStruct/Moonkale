@@ -14,7 +14,7 @@ fn default_layout() -> PanelLayout {
         "root",
         SplitAxis::Horizontal,
         0.22,
-        LayoutNode::tile("side", ["explorer", "search", "links"]),
+        LayoutNode::tile("side", ["explorer", "search", "links", "git"]),
         LayoutNode::split(
             "main-right",
             SplitAxis::Horizontal,
@@ -194,10 +194,30 @@ pub fn Shell() -> Element {
                 ext.render(&c.id, ws),
             )
             .with_closable(c.closable);
-            if c.dirty {
-                panel = panel.with_tab_accessory(
-                    rsx! { span { class: "mk-tab-dirty", "aria-label": "Unsaved changes" } },
-                );
+            // Tab accessories: the unsaved dot, and the git status letter of
+            // the document's file (Milestone 7).
+            let vcs = c
+                .node
+                .and_then(|n| ws.document(n))
+                .and_then(|d| {
+                    let key = d.peek().node.native_key.clone();
+                    ws.vcs_status.read().get(&key).map(|(i, w)| {
+                        if *i == '?' {
+                            '?'
+                        } else if *w != '.' {
+                            *w
+                        } else {
+                            *i
+                        }
+                    })
+                })
+                .filter(|c| *c != '.');
+            if c.dirty || vcs.is_some() {
+                let dirty = c.dirty;
+                panel = panel.with_tab_accessory(rsx! {
+                    if dirty { span { class: "mk-tab-dirty", "aria-label": "Unsaved changes" } }
+                    if let Some(l) = vcs { span { class: "mk-tab-vcs", "data-status": "{l}", "{l}" } }
+                });
             }
             panels.push(panel);
         }

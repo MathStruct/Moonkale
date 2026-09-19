@@ -23,6 +23,16 @@ pub trait Extension: 'static {
     /// nothing.
     fn on_panel_closed(&self, _panel_id: &str, _ws: Workspace) {}
 
+    /// Commands this extension offers to the palette, menus and keybindings
+    /// (Milestone 7). Default: none. Ids are namespaced by convention
+    /// (`git.commit`); the shell rejects duplicates by keeping the first.
+    fn commands(&self, _ws: Workspace) -> Vec<crate::CommandContribution> {
+        Vec::new()
+    }
+
+    /// Run one of them. Default: nothing.
+    fn run_command(&self, _id: &str, _ws: Workspace) {}
+
     /// Block libraries for the flow editor (Milestone 6). Default: none.
     fn flow_libraries(&self) -> Vec<crate::flow::FlowLibrary> {
         Vec::new()

@@ -265,3 +265,144 @@ async fn search_is_a_text_dialect_with_paths_lines_and_file_nodes() {
         .await;
     assert!(err.is_err());
 }
+
+#[tokio::test]
+async fn refresh_follows_rename_delete_and_new_directories() {
+    let dir = vault();
+    let (folder, index) = open(&dir).await;
+    let all = index
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::File]),
+        })
+        .await
+        .unwrap();
+    let alpha = all
+        .nodes
+        .iter()
+        .find(|n| n.native_key == "Alpha.md")
+        .unwrap()
+        .id;
+
+    // Rename: the old node (and its symbols/links) go, the new one appears
+    // under its parent, and wiki-links still resolve by stem.
+    let applied = folder
+        .apply(Transaction::rename(alpha, "notes/Alpha.md"))
+        .await
+        .unwrap();
+    let new_id = match applied.results[0] {
+        moonkale_core::OpResult::Ok { node, .. } => node,
+        ref other => panic!("{other:?}"),
+    };
+    index.refresh(alpha).await.unwrap();
+    index.refresh(new_id).await.unwrap();
+    assert_eq!(
+        files(&index).await,
+        [
+            "Home.md",
+            "logo.png",
+            "notes/Alpha.md",
+            "notes/Beta.md",
+            "src/lib.rs"
+        ]
+    );
+    let notes_dir = all_dirs(&index)
+        .await
+        .into_iter()
+        .find(|n| n.native_key == "notes")
+        .unwrap();
+    let kids = index.query(Query::Children(notes_dir.id)).await.unwrap();
+    assert!(
+        kids.nodes.iter().any(|n| n.id == new_id),
+        "Contains edge to the moved file"
+    );
+    let home = index
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::File]),
+        })
+        .await
+        .unwrap()
+        .nodes
+        .into_iter()
+        .find(|n| n.native_key == "Home.md")
+        .unwrap();
+    let out = index
+        .query(Query::Neighbours {
+            node: home.id,
+            depth: 1,
+            direction: Direction::Out,
+        })
+        .await
+        .unwrap();
+    assert!(
+        out.nodes.iter().any(|n| n.id == new_id),
+        "[[Alpha]] resolves to the moved file"
+    );
+
+    // A new directory with a file inside: one refresh on the directory walks it.
+    let applied = folder
+        .apply(Transaction::create_dir(folder.root_id(), "docs"))
+        .await
+        .unwrap();
+    let docs = match applied.results[0] {
+        moonkale_core::OpResult::Ok { node, .. } => node,
+        ref other => panic!("{other:?}"),
+    };
+    folder
+        .apply(Transaction::create_text(
+            docs,
+            "guide.md",
+            "See [[Home]].\n",
+        ))
+        .await
+        .unwrap();
+    index.refresh(docs).await.unwrap();
+    assert!(files(&index).await.contains(&"docs/guide.md".to_string()));
+
+    // Delete a directory: its files and their derived symbols disappear.
+    let src_dir = all_dirs(&index)
+        .await
+        .into_iter()
+        .find(|n| n.native_key == "src")
+        .unwrap();
+    folder.apply(Transaction::delete(src_dir.id)).await.unwrap();
+    index.refresh(src_dir.id).await.unwrap();
+    assert!(!files(&index).await.iter().any(|k| k.starts_with("src/")));
+    let symbols = index
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::Symbol]),
+        })
+        .await
+        .unwrap();
+    assert!(
+        symbols.nodes.is_empty(),
+        "symbols of src/lib.rs are gone: {:?}",
+        symbols.nodes
+    );
+}
+
+async fn all_dirs(index: &IndexSource) -> Vec<moonkale_core::Node> {
+    index
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::Directory]),
+        })
+        .await
+        .unwrap()
+        .nodes
+}
+
+async fn files(index: &IndexSource) -> Vec<String> {
+    let all = index
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::File]),
+        })
+        .await
+        .unwrap();
+    let mut keys: Vec<String> = all.nodes.iter().map(|n| n.native_key.clone()).collect();
+    keys.sort();
+    keys
+}

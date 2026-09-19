@@ -52,12 +52,17 @@ try {
     }, null, { timeout: 15000 });
     console.log("\n  active line:", await page.$eval(".cm-activeLine", (e) => e.textContent.trim()));
   });
-  await step("fixing the error clears the gutter (didChange round trip)", async () => {
+  await step("fixing the error and saving clears the gutter (didChange + didSave → cargo check)", async () => {
     await page.click(".cm-content");
     await page.keyboard.press("Control+End");
     // replace `let wrong: String = total;` by selecting its line via keyboard is fiddly; edit through CodeMirror directly:
     await page.evaluate(() => { const el = document.querySelector(".mk-editor-host") ?? document.querySelector(".cm-editor").parentElement; const t = window.moonkale.codemirror.getText(el).replace("let wrong: String = total;", "let wrong: String = total.to_string();"); window.moonkale.codemirror.setText(el, t); });
-    await page.waitForFunction(() => !document.querySelector(".cm-lint-marker-error"), null, { timeout: 60000 });
+    // The type error is a cargo-check diagnostic (rust-analyzer 1.98 has no native one for it), so it
+    // clears on save, when the check re-runs (P-080).
+    await page.waitForSelector(".mk-tab-dirty", { timeout: 5000 });
+    await page.keyboard.press("Control+S");
+    await page.waitForFunction(() => !document.querySelector(".mk-tab-dirty"), null, { timeout: 10000 });
+    await page.waitForFunction(() => !document.querySelector(".cm-lint-marker-error"), null, { timeout: 120000 });
   });
   console.log("\nLSP E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m3-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

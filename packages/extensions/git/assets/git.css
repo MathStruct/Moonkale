@@ -1,0 +1,31 @@
+.mk-git { display: flex; flex-direction: column; height: 100%; overflow: auto; font-size: 12px; }
+.mk-git p { margin: 8px; }
+.mk-git-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--wb-line, #2a2e3a); }
+.mk-git-branch { font-weight: 600; }
+.mk-git-spacer { flex: 1; }
+.mk-git-commit { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--wb-line, #2a2e3a); }
+.mk-git-commit textarea { resize: vertical; font: inherit; width: 100%; box-sizing: border-box; }
+.mk-git-group-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 2px; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; opacity: 0.7; }
+.mk-git-entry { display: flex; align-items: center; gap: 6px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.mk-git-entry:hover { background: var(--wb-hover, rgb(255 255 255 / 0.06)); }
+.mk-git-letter { width: 14px; font-family: ui-monospace, monospace; font-weight: 700; text-align: center; }
+.mk-git-modified { color: #c9a75f; }
+.mk-git-added, .mk-git-untracked { color: #6cb28c; }
+.mk-git-deleted, .mk-git-conflict { color: #e07a75; }
+.mk-git-renamed, .mk-git-copied { color: #6ea8fe; }
+.mk-git-path { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.mk-git-actions { display: none; gap: 2px; }
+.mk-git-entry:hover .mk-git-actions { display: inline-flex; }
+.mk-btn-mini { padding: 0 6px; font-size: 11px; line-height: 18px; }
+.mk-git-log { border-top: 1px solid var(--wb-line, #2a2e3a); }
+.mk-git-commit-row { display: flex; gap: 8px; padding: 2px 8px; white-space: nowrap; overflow: hidden; }
+.mk-git-hash { font-family: ui-monospace, monospace; color: var(--wb-ink-faint, #7f8595); }
+.mk-git-subject { overflow: hidden; text-overflow: ellipsis; }
+.mk-git-diff { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-git-diff-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--wb-line, #2a2e3a); font-size: 12px; }
+.mk-git-diff-body { flex: 1; margin: 0; padding: 8px 0; overflow: auto; font: 12px/1.5 ui-monospace, monospace; }
+.mk-diff-line { display: block; padding: 0 10px; white-space: pre; }
+.mk-diff-add { background: rgb(108 178 140 / 0.16); color: #bfe7cf; }
+.mk-diff-del { background: rgb(224 122 117 / 0.16); color: #f0b6b2; }
+.mk-diff-hunk { color: #6ea8fe; }
+.mk-diff-file, .mk-diff-meta { color: var(--wb-ink-faint, #7f8595); }

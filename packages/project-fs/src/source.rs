@@ -273,6 +273,33 @@ impl Source for FolderSource {
                             },
                         })
                 }
+                Op::CreateDir { parent, name } => {
+                    applied
+                        .results
+                        .push(match self.create_dir(parent, &name).await {
+                            Ok((node, version)) => OpResult::Ok { node, version },
+                            Err(error) => OpResult::Refused {
+                                node: parent,
+                                error,
+                            },
+                        })
+                }
+                Op::Rename { node, to } => {
+                    applied.results.push(match self.rename(node, &to).await {
+                        Ok((new_node, version)) => OpResult::Ok {
+                            node: new_node,
+                            version,
+                        },
+                        Err(error) => OpResult::Refused { node, error },
+                    })
+                }
+                Op::Delete { node } => applied.results.push(match self.delete(node).await {
+                    Ok(()) => OpResult::Ok {
+                        node,
+                        version: Version(0),
+                    },
+                    Err(error) => OpResult::Refused { node, error },
+                }),
             }
         }
         Ok(applied)
@@ -307,6 +334,96 @@ impl FolderSource {
         tokio::fs::write(&path, text.as_bytes()).await?;
         let (_, version) = self.stat(&rel).await?;
         Ok((self.node_id(&rel), version))
+    }
+
+    /// `parent/name` as a checked relative path (no `..`, not empty).
+    fn child_rel(&self, parent: NodeId, name: &str) -> Result<String, SourceError> {
+        let parent_rel = self.rel_of(parent)?;
+        let name = name.trim_matches('/');
+        if name.is_empty() || name.split('/').any(|p| p == "..") {
+            return Err(SourceError::Invalid(format!("bad name {name:?}")));
+        }
+        Ok(if parent_rel.is_empty() {
+            name.to_string()
+        } else {
+            format!("{parent_rel}/{name}")
+        })
+    }
+
+    async fn create_dir(
+        &self,
+        parent: NodeId,
+        name: &str,
+    ) -> Result<(NodeId, Version), SourceError> {
+        let rel = self.child_rel(parent, name)?;
+        let path = tree::absolute(&self.root, &rel);
+        if tokio::fs::metadata(&path).await.is_ok() {
+            return Err(SourceError::Invalid(format!("{rel} already exists")));
+        }
+        tokio::fs::create_dir_all(&path).await?;
+        let (_, version) = self.stat(&rel).await?;
+        Ok((self.node_id(&rel), version))
+    }
+
+    /// Rename/move within the folder. The new node id derives from the new
+    /// path; the old id is forgotten.
+    async fn rename(&self, node: NodeId, to: &str) -> Result<(NodeId, Version), SourceError> {
+        let from = self.rel_of(node)?;
+        if from.is_empty() {
+            return Err(SourceError::Invalid("cannot rename the root".into()));
+        }
+        let to = to.trim_matches('/');
+        if to.is_empty() || to.split('/').any(|p| p == "..") {
+            return Err(SourceError::Invalid(format!("bad path {to:?}")));
+        }
+        if to == from {
+            let (_, version) = self.stat(&from).await?;
+            return Ok((node, version));
+        }
+        let src = tree::absolute(&self.root, &from);
+        let dst = tree::absolute(&self.root, to);
+        if tokio::fs::metadata(&dst).await.is_ok() {
+            return Err(SourceError::Invalid(format!("{to} already exists")));
+        }
+        if to.starts_with(&format!("{from}/")) {
+            return Err(SourceError::Invalid(format!(
+                "cannot move {from} into itself"
+            )));
+        }
+        if let Some(dir) = dst.parent() {
+            tokio::fs::create_dir_all(dir).await?;
+        }
+        tokio::fs::rename(&src, &dst).await?;
+        self.known.write().unwrap().remove(&node);
+        let (_, version) = self.stat(to).await?;
+        Ok((self.node_id(to), version))
+    }
+
+    /// Delete = move into `.moonkale/trash/<unix-ms>/<path>` so a slip can be
+    /// undone by hand; the trash is git-ignored like the rest of `.moonkale`.
+    async fn delete(&self, node: NodeId) -> Result<(), SourceError> {
+        let rel = self.rel_of(node)?;
+        if rel.is_empty() {
+            return Err(SourceError::Invalid("cannot delete the root".into()));
+        }
+        let src = tree::absolute(&self.root, &rel);
+        tokio::fs::metadata(&src).await?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let dst = self
+            .root
+            .join(".moonkale")
+            .join("trash")
+            .join(stamp.to_string())
+            .join(&rel);
+        if let Some(dir) = dst.parent() {
+            tokio::fs::create_dir_all(dir).await?;
+        }
+        tokio::fs::rename(&src, &dst).await?;
+        self.known.write().unwrap().remove(&node);
+        Ok(())
     }
 
     async fn write_text(

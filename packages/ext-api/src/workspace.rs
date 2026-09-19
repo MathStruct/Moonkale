@@ -94,6 +94,10 @@ pub struct WasmExtensions {
     pub run: WasmRun,
 }
 
+/// Git on the platform that has the folder (Milestone 7): the folder's
+/// absolute path (or server-relative on web) and a request.
+pub type GitRun = fn(String, crate::git::GitRequest) -> SettingsFuture<crate::git::GitResponse>;
+
 #[derive(Clone, Copy)]
 pub struct SettingsStore {
     pub load: fn() -> SettingsFuture<crate::settings::SettingsFile>,
@@ -129,6 +133,8 @@ pub struct WorkspaceConfig {
     /// Reopen the most recent folder when the app starts (desktop).
     pub reopen_last_folder: bool,
     pub wasm: Option<WasmExtensions>,
+    /// Git for the open folder (`None`: no git on this platform).
+    pub git: Option<GitRun>,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -178,6 +184,12 @@ pub enum Command {
     /// Create `<name>` (a file name; a numeric suffix is added if it exists)
     /// with `template` in the open folder's root and open it.
     NewFile(&'static str, &'static str),
+    /// Open the command palette (Ctrl+Shift+P).
+    Palette,
+    /// Open quick open — files of the open folder (Ctrl+P).
+    QuickOpen,
+    /// Focus the workspace search (Ctrl+Shift+F).
+    SearchWorkspace,
 }
 
 #[derive(Clone, Copy)]
@@ -225,6 +237,12 @@ pub struct Workspace {
     /// Bumped whenever derived data may have changed (after a save was
     /// refreshed into the index); graph/backlink panels re-query on it.
     pub graph_epoch: Signal<u64>,
+    /// Bumped after a file operation (create/rename/delete/move) so the
+    /// Explorer reloads the directories it shows (Milestone 7).
+    pub fs_epoch: Signal<u64>,
+    /// Version-control status per relative path: `(index, worktree)` letters
+    /// from `git status`, published by the git extension for decorations.
+    pub vcs_status: Signal<std::collections::HashMap<String, (char, char)>>,
     bus: Signal<Option<Rc<dyn SessionBus>>>,
     config: WorkspaceConfig,
 }
@@ -253,6 +271,8 @@ impl Workspace {
             own_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             peers: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            vcs_status: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
@@ -759,6 +779,35 @@ impl Workspace {
         self.config.pick_folder.is_some()
     }
 
+    /// Focus an element by id once the next frame has rendered (commands
+    /// that open a panel and want its input focused). Best effort.
+    pub fn focus_element(&self, id: &str) {
+        let js = format!(
+            "requestAnimationFrame(() => {{ const el = document.getElementById({id:?}); if (el) el.focus(); }});"
+        );
+        let _ = dioxus::document::eval(&js);
+    }
+
+    /// The platform's git runner, if any.
+    pub fn git(&self) -> Option<GitRun> {
+        self.config.git
+    }
+
+    /// The first open folder's path (what `git` and terminals run in).
+    pub fn folder_root(&self) -> Option<String> {
+        self.sources
+            .peek()
+            .iter()
+            .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+            .and_then(|s| {
+                s.descriptor
+                    .id
+                    .as_str()
+                    .strip_prefix("folder:")
+                    .map(str::to_string)
+            })
+    }
+
     /// Dispatch an application command to whoever handles it.
     pub fn dispatch(&mut self, cmd: Command) {
         let seq = self.commands.peek().0 + 1;
@@ -1016,6 +1065,215 @@ impl Workspace {
         self.graph_epoch.with_mut(|e| *e += 1);
         self.set_status(format!("Created {}", node.native_key));
         Ok(node)
+    }
+
+    /// Apply one op to a source and return the resulting node id, or the
+    /// refusal as an error.
+    async fn apply_one(
+        &self,
+        source: &Arc<dyn Source>,
+        tx: Transaction,
+    ) -> Result<NodeId, SourceError> {
+        let applied = source.apply(tx).await?;
+        match applied.results.first() {
+            Some(moonkale_core::OpResult::Ok { node, .. }) => Ok(*node),
+            Some(moonkale_core::OpResult::Refused { error, .. }) => Err(error.clone()),
+            None => Err(SourceError::Unsupported("refused".into())),
+        }
+    }
+
+    /// Tell the other sources (the index) about a node that changed or
+    /// vanished, then bump the epochs the panels watch.
+    async fn after_fs_change(&mut self, source_id: &SourceId, nodes: &[NodeId]) {
+        let others: Vec<Arc<dyn Source>> = self
+            .sources
+            .peek()
+            .iter()
+            .filter(|s| &s.descriptor.id != source_id)
+            .map(|s| s.source.clone())
+            .collect();
+        for other in others {
+            for n in nodes {
+                let _ = other.refresh(*n).await;
+            }
+        }
+        self.graph_epoch.with_mut(|e| *e += 1);
+        self.fs_epoch.with_mut(|e| *e += 1);
+    }
+
+    /// Create a directory under `parent` (Milestone 7).
+    pub async fn create_dir(
+        mut self,
+        source_id: &SourceId,
+        parent: NodeId,
+        name: &str,
+    ) -> Result<NodeId, SourceError> {
+        let source = self.source(source_id).ok_or(SourceError::NotFound)?;
+        let id = self
+            .apply_one(&source, Transaction::create_dir(parent, name))
+            .await?;
+        self.after_fs_change(source_id, &[id]).await;
+        self.set_status(format!("Created {name}/"));
+        Ok(id)
+    }
+
+    /// Rename or move a node to the relative path `to`. Open documents under
+    /// the old path are re-keyed to their new ids (text, dirty state and
+    /// version kept); the active document follows.
+    pub async fn rename_node(mut self, node: &Node, to: &str) -> Result<NodeId, SourceError> {
+        let source_id = node.source.clone();
+        let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
+        let new_id = self
+            .apply_one(&source, Transaction::rename(node.id, to))
+            .await?;
+        let to = to.trim_matches('/').to_string();
+        // Re-key documents: the node itself, or anything below a directory.
+        let from = node.native_key.clone();
+        let prefix = format!("{from}/");
+        let affected: Vec<(NodeId, Signal<Document>)> = self
+            .documents
+            .peek()
+            .iter()
+            .filter(|(_, d)| {
+                let k = &d.peek().node.native_key;
+                *k == from || k.starts_with(&prefix)
+            })
+            .cloned()
+            .collect();
+        let was_active = *self.active.peek();
+        for (old_id, mut doc) in affected {
+            let new_key = {
+                let k = doc.peek().node.native_key.clone();
+                if k == from {
+                    to.clone()
+                } else {
+                    format!("{to}/{}", &k[prefix.len()..])
+                }
+            };
+            let fresh = match source
+                .query(Query::Node(NodeId::derive(&source_id, &new_key)))
+                .await
+            {
+                Ok(r) => r.nodes.into_iter().next(),
+                Err(_) => None,
+            };
+            let Some(fresh) = fresh else { continue };
+            let fresh_id = fresh.id;
+            doc.with_mut(|d| {
+                d.node = fresh;
+            });
+            self.documents.with_mut(|v| {
+                for (id, _) in v.iter_mut() {
+                    if *id == old_id {
+                        *id = fresh_id;
+                    }
+                }
+            });
+            self.views.with_mut(|v| {
+                for n in v.iter_mut() {
+                    if n.id == old_id {
+                        n.id = fresh_id;
+                        n.native_key = new_key.clone();
+                    }
+                }
+            });
+            if was_active == Some(old_id) {
+                self.active.set(Some(fresh_id));
+            }
+        }
+        self.after_fs_change(&source_id, &[node.id, new_id]).await;
+        self.set_status(format!("Renamed {from} → {to}"));
+        Ok(new_id)
+    }
+
+    /// Delete a node (to `.moonkale/trash` on folders); documents under it
+    /// are closed without saving.
+    pub async fn delete_node(mut self, node: &Node) -> Result<(), SourceError> {
+        let source_id = node.source.clone();
+        let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
+        self.apply_one(&source, Transaction::delete(node.id))
+            .await?;
+        let prefix = format!("{}/", node.native_key);
+        let closing: Vec<NodeId> = self
+            .documents
+            .peek()
+            .iter()
+            .filter(|(id, d)| *id == node.id || d.peek().node.native_key.starts_with(&prefix))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in closing {
+            self.close_node(id);
+        }
+        self.after_fs_change(&source_id, &[node.id]).await;
+        self.set_status(format!(
+            "Deleted {} (kept in .moonkale/trash)",
+            node.native_key
+        ));
+        Ok(())
+    }
+
+    /// Literal occurrences of `needle` in a file (open document text if it
+    /// is open, else the source's), for a replace preview (Milestone 7).
+    pub async fn count_occurrences(&self, node: &Node, needle: &str) -> Result<usize, SourceError> {
+        if needle.is_empty() {
+            return Ok(0);
+        }
+        let text = match self.document(node.id) {
+            Some(d) => d.peek().text.clone(),
+            None => {
+                let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
+                source.fetch_text(node.id).await?.0
+            }
+        };
+        Ok(text.matches(needle).count())
+    }
+
+    /// Replace every literal `needle` in one file. An open document takes
+    /// the change as an unsaved edit (the user saves); a closed file is
+    /// written through its source with a version check and the index is
+    /// refreshed. Returns the number of replacements.
+    pub async fn replace_in_file(
+        mut self,
+        node: &Node,
+        needle: &str,
+        replacement: &str,
+    ) -> Result<usize, SourceError> {
+        if needle.is_empty() {
+            return Ok(0);
+        }
+        if let Some(mut doc) = self.document(node.id) {
+            let (count, next) = {
+                let d = doc.peek();
+                (
+                    d.text.matches(needle).count(),
+                    d.text.replace(needle, replacement),
+                )
+            };
+            if count > 0 {
+                doc.with_mut(|d| d.text = next);
+            }
+            return Ok(count);
+        }
+        let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
+        let (text, version) = source.fetch_text(node.id).await?;
+        let count = text.matches(needle).count();
+        if count == 0 {
+            return Ok(0);
+        }
+        let next = text.replace(needle, replacement);
+        let applied = source
+            .apply(Transaction::write_text(
+                node.id,
+                version,
+                TextPatch::whole(next, text.chars().count()),
+            ))
+            .await?;
+        if let Some(e) = applied.first_error() {
+            return Err(e.clone());
+        }
+        let source_id = node.source.clone();
+        self.after_fs_change(&source_id, &[node.id]).await;
+        Ok(count)
     }
 
     /// Replace a document's text with what the source has now (after a

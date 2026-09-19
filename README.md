@@ -24,7 +24,16 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 6 — "Scale & extend" — is done** (2026-09-19). Extensions are
+**Milestone 7 — "Daily driver" — is done** (2026-09-19). A command palette
+and quick open over a command registry with rebindable keys; file operations
+in the Explorer (new, rename, move, delete to trash) that open documents and
+the index follow; find & replace in a file and across the workspace; the
+second half of LSP (completion, rename, code actions, references); git as a
+Changes panel with diffs, staging, commits and the history drawn as a graph;
+and an access token so the web server can be exposed. Twenty-three
+automated browser suites cover it.
+
+**Milestone 6 — "Scale & extend"** (2026-09-19). Extensions are
 a managed catalog (Settings → Extensions toggles them and grants permissions;
 the Flow editor and the Lux.jl library ship off); a flow editor with typed
 ports and block libraries contributed by extensions; a Lux.jl library that
@@ -58,7 +67,7 @@ records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 7 of the roadmap — research items (versioning, collaboration, more databases), an Android build, WIT extensions.
+Next: Phase 8 of the roadmap — the entity log and collaboration, more databases, an Android build, WIT extensions, 3D.
 
 ## Learn more
 

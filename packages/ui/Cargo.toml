@@ -17,6 +17,7 @@ moonkale-editor-terminal = { workspace = true }
 moonkale-editor-agent = { workspace = true }
 moonkale-editor-flow = { workspace = true }
 moonkale-ext-lux = { workspace = true }
+moonkale-ext-git = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-sources-sql = { workspace = true }

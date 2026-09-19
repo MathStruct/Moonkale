@@ -18,15 +18,31 @@ pub const BUNDLE: Asset = asset!("/assets/codemirror.js");
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum ToJs<'a> {
-    Init { text: &'a str },
-    SetText { text: &'a str },
+    Init {
+        text: &'a str,
+    },
+    SetText {
+        text: &'a str,
+    },
     Focus,
     Undo,
     Redo,
     Destroy,
-    Diagnostics { items: Vec<DiagOut<'a>> },
-    HoverResult { id: u32, text: Option<&'a str> },
-    SetCursor { line: u32, col: u32 },
+    Diagnostics {
+        items: Vec<DiagOut<'a>>,
+    },
+    HoverResult {
+        id: u32,
+        text: Option<&'a str>,
+    },
+    CompletionResult {
+        id: u32,
+        items: Option<&'a [moonkale_lsp::CompletionItem]>,
+    },
+    SetCursor {
+        line: u32,
+        col: u32,
+    },
 }
 
 #[derive(Serialize)]
@@ -44,9 +60,39 @@ struct DiagOut<'a> {
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum FromJs {
     Ready,
-    Change { text: String },
-    Hover { id: u32, line: u32, col: u32 },
-    Definition { line: u32, col: u32 },
+    Change {
+        text: String,
+    },
+    Hover {
+        id: u32,
+        line: u32,
+        col: u32,
+    },
+    Definition {
+        line: u32,
+        col: u32,
+    },
+    Completion {
+        id: u32,
+        line: u32,
+        col: u32,
+    },
+    Rename {
+        line: u32,
+        col: u32,
+        word: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    CodeActions {
+        line: u32,
+        col: u32,
+        end_line: u32,
+        end_col: u32,
+    },
+    References {
+        line: u32,
+        col: u32,
+    },
 }
 
 const SCRIPT: &str = r#"
@@ -60,6 +106,10 @@ const init = await dioxus.recv();
 cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
     onHover: (id, line, col) => dioxus.send({ kind: "hover", id, line, col }),
     onDefinition: (line, col) => dioxus.send({ kind: "definition", line, col }),
+    onCompletion: (id, line, col) => dioxus.send({ kind: "completion", id, line, col }),
+    onRename: (line, col, word) => dioxus.send({ kind: "rename", line, col, word }),
+    onCodeActions: (line, col, endLine, endCol) => dioxus.send({ kind: "codeActions", line, col, endLine, endCol }),
+    onReferences: (line, col) => dioxus.send({ kind: "references", line, col }),
 });
 dioxus.send({ kind: "ready" });
 for (;;) {
@@ -70,6 +120,7 @@ for (;;) {
     else if (msg.kind === "redo") cm.redo(el);
     else if (msg.kind === "diagnostics") cm.setLspDiagnostics(el, msg.items);
     else if (msg.kind === "hoverResult") cm.hoverResult(el, msg.id, msg.text);
+    else if (msg.kind === "completionResult") cm.completionResult(el, msg.id, msg.items);
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
@@ -97,6 +148,29 @@ impl CodeMirrorBackend {
                     }
                     Ok(FromJs::Definition { line, col }) => {
                         on_event.call(BackendEvent::Definition { line, col })
+                    }
+                    Ok(FromJs::Completion { id, line, col }) => {
+                        on_event.call(BackendEvent::Completion { id, line, col })
+                    }
+                    Ok(FromJs::Rename { line, col, word }) => {
+                        on_event.call(BackendEvent::Rename { line, col, word })
+                    }
+                    Ok(FromJs::CodeActions {
+                        line,
+                        col,
+                        end_line,
+                        end_col,
+                    }) => on_event.call(BackendEvent::CodeActions {
+                        line,
+                        col,
+                        end_line,
+                        end_col,
+                    }),
+                    Ok(FromJs::References { line, col }) => {
+                        on_event.call(BackendEvent::References { line, col })
+                    }
+                    Err(dioxus::document::EvalError::Serialization(e)) => {
+                        tracing::warn!("codemirror bridge: unreadable message: {e}");
                     }
                     Err(_) => break, // eval finished or panel unmounted
                 }
@@ -140,6 +214,10 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn hover_result(&self, id: u32, text: Option<&str>) {
         let _ = self.eval.send(ToJs::HoverResult { id, text });
+    }
+
+    fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>) {
+        let _ = self.eval.send(ToJs::CompletionResult { id, items });
     }
 
     fn set_cursor(&self, line: u32, col: u32) {

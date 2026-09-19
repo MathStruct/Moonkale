@@ -70,6 +70,16 @@ pub enum Op {
         name: String,
         text: String,
     },
+    /// Create a directory `name` under `parent` (Milestone 7). Refused if
+    /// it exists. The result's `node` is the new directory.
+    CreateDir { parent: NodeId, name: String },
+    /// Rename or move `node` to the relative path `to` (within the source).
+    /// Refused if `to` exists. The result's `node` is the node's *new* id
+    /// (ids derive from paths).
+    Rename { node: NodeId, to: String },
+    /// Delete `node` (a directory with everything below it). Sources that
+    /// can, keep a copy (the folder source moves it to `.moonkale/trash`).
+    Delete { node: NodeId },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,6 +95,30 @@ impl Transaction {
                 name: name.into(),
                 text: text.into(),
             }],
+        }
+    }
+
+    pub fn create_dir(parent: NodeId, name: impl Into<String>) -> Self {
+        Self {
+            ops: vec![Op::CreateDir {
+                parent,
+                name: name.into(),
+            }],
+        }
+    }
+
+    pub fn rename(node: NodeId, to: impl Into<String>) -> Self {
+        Self {
+            ops: vec![Op::Rename {
+                node,
+                to: to.into(),
+            }],
+        }
+    }
+
+    pub fn delete(node: NodeId) -> Self {
+        Self {
+            ops: vec![Op::Delete { node }],
         }
     }
 

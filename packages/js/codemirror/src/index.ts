@@ -4,6 +4,8 @@
 // knowledge, no DOM outside the mount element. Rust owns the document; this
 // file only shows it and reports edits.
 
+import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from "@codemirror/search"
+import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
 import { EditorState } from "@codemirror/state"
 import {
   EditorView,
@@ -27,8 +29,22 @@ type OnChange = (text: string) => void
 type Features = {
   onHover?: (id: number, line: number, col: number) => void
   onDefinition?: (line: number, col: number) => void
+  /** Milestone 7 (all optional): completion proposals are answered with
+   *  `completionResult(el, id, items)`; F2 asks Rust to rename the word at
+   *  the cursor; Ctrl+. asks for code actions on the selection; Shift+F12
+   *  for references. */
+  onCompletion?: (id: number, line: number, col: number) => void
+  onRename?: (line: number, col: number, word: string) => void
+  onCodeActions?: (line: number, col: number, endLine: number, endCol: number) => void
+  onReferences?: (line: number, col: number) => void
 }
-type Entry = { view: EditorView; pendingHover: Map<number, (text: string | null) => void>; nextHover: number }
+export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
+type Entry = {
+  view: EditorView
+  pendingHover: Map<number, (text: string | null) => void>
+  nextHover: number
+  pendingCompletion: Map<number, (items: CompletionItem[] | null) => void>
+}
 
 const views = new WeakMap<HTMLElement, Entry>()
 
@@ -44,7 +60,7 @@ function cmPos(view: EditorView, line: number, col: number): number {
 
 function mount(el: HTMLElement, text: string, onChange: OnChange, features: Features = {}): void {
   destroy(el)
-  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1 }
+  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map() }
   const hover = hoverTooltip(async (v, pos) => {
     if (!features.onHover) return null
     const { line, col } = lspPos(v, pos)
@@ -58,6 +74,51 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
     return { pos, create: () => { const dom = document.createElement("div"); dom.className = "mk-hover"; dom.textContent = text; return { dom } } }
   }, { hoverTime: 250 })
   const gotoDef = keymap.of([{ key: "F12", run: (v) => { if (!features.onDefinition) return false; const { line, col } = lspPos(v, v.state.selection.main.head); features.onDefinition(line, col); return true } }])
+  // Milestone 7: language features answered by Rust.
+  const complete = async (ctx: CompletionContext): Promise<CompletionResult | null> => {
+    if (!features.onCompletion) return null
+    const word = ctx.matchBefore(/[\w$]*/)
+    if (!ctx.explicit && (!word || word.from === word.to)) return null
+    const { line, col } = lspPos(ctx.view!, ctx.pos)
+    const id = entry.nextHover!++
+    const items = await new Promise<CompletionItem[] | null>((resolve) => {
+      entry.pendingCompletion!.set(id, resolve)
+      setTimeout(() => { if (entry.pendingCompletion!.delete(id)) resolve(null) }, 4000)
+      features.onCompletion!(id, line, col)
+    })
+    if (!items || !items.length) return null
+    const options: Completion[] = items.map((it) => ({
+      label: it.label,
+      type: it.kind,
+      detail: it.detail,
+      apply: it.insert ?? it.label,
+      boost: it.sort ? -it.sort.length : 0,
+    }))
+    return { from: word ? word.from : ctx.pos, options, validFor: /^[\w$]*$/ }
+  }
+  const featureKeys = keymap.of([
+    { key: "F2", run: (v) => {
+      if (!features.onRename) return false
+      const head = v.state.selection.main.head
+      const { line, col } = lspPos(v, head)
+      const w = v.state.wordAt(head)
+      features.onRename(line, col, w ? v.state.sliceDoc(w.from, w.to) : "")
+      return true
+    } },
+    { key: "Mod-.", run: (v) => {
+      if (!features.onCodeActions) return false
+      const r = v.state.selection.main
+      const a = lspPos(v, r.from), b = lspPos(v, r.to)
+      features.onCodeActions(a.line, a.col, b.line, b.col)
+      return true
+    } },
+    { key: "Shift-F12", run: (v) => {
+      if (!features.onReferences) return false
+      const { line, col } = lspPos(v, v.state.selection.main.head)
+      features.onReferences(line, col)
+      return true
+    } },
+  ])
   const view = new EditorView({
     state: EditorState.create({
       doc: text,
@@ -69,6 +130,15 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         rectangularSelection(),
         crosshairCursor(),
         history(),
+        // Find/replace (Milestone 7): CodeMirror's panel; Ctrl+H opens it too
+        // (replacements are ordinary document changes, so Rust sees them
+        // through onChange like typing).
+        search({ top: true }),
+        highlightSelectionMatches(),
+        keymap.of([...searchKeymap, { key: "Mod-h", run: openSearchPanel }]),
+        autocompletion({ override: [complete], activateOnTyping: true, maxRenderedOptions: 50 }),
+        keymap.of(completionKeymap),
+        featureKeys,
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
         lintGutter(),
         hover,
@@ -98,6 +168,13 @@ function setLspDiagnostics(el: HTMLElement, items: { line: number; col: number; 
   e.view.dispatch(setDiagnostics(e.view.state, diags))
 }
 
+/** Rust's answer to a completion request (Milestone 7). */
+function completionResult(el: HTMLElement, id: number, items: CompletionItem[] | null): void {
+  const e = views.get(el)
+  const resolve = e?.pendingCompletion.get(id)
+  if (resolve) { e!.pendingCompletion.delete(id); resolve(items) }
+}
+
 /** Rust's answer to a hover request. */
 function hoverResult(el: HTMLElement, id: number, text: string | null): void {
   const e = views.get(el)
@@ -119,7 +196,16 @@ function setCursor(el: HTMLElement, line: number, col: number): void {
 function setText(el: HTMLElement, text: string): void {
   const view = views.get(el)?.view
   if (!view) return
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } })
+  // Replace only the changed middle (common prefix/suffix kept) so the
+  // cursor and scroll position survive a rename or an agent edit.
+  const old = view.state.doc.toString()
+  if (old === text) return
+  let start = 0
+  const max = Math.min(old.length, text.length)
+  while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++
+  let endOld = old.length, endNew = text.length
+  while (endOld > start && endNew > start && old.charCodeAt(endOld - 1) === text.charCodeAt(endNew - 1)) { endOld--; endNew-- }
+  view.dispatch({ changes: { from: start, to: endOld, insert: text.slice(start, endNew) } })
 }
 
 function getText(el: HTMLElement): string | undefined {
@@ -155,4 +241,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, setCursor }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor }

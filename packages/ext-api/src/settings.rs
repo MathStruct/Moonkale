@@ -19,6 +19,7 @@
 //! [`SettingsFile`] fields so one loader serves both.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 pub const SETTINGS_VERSION: u32 = 1;
 /// Workspace settings path, relative to the folder root.
@@ -37,6 +38,10 @@ pub struct SettingsFile {
     pub search: SearchFile,
     pub terminal: TerminalFile,
     pub extensions: ExtensionsFile,
+    /// Command id → keybinding text (`"file.save": "Ctrl+S"`); an empty
+    /// string unbinds. Later scopes override per id.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub keybindings: BTreeMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
     /// User scope: most recent first, absolute paths (or server-relative on web).
@@ -176,6 +181,9 @@ impl SettingsFile {
                 .permissions
                 .insert(id.clone(), perms.clone());
         }
+        for (id, key) in &other.keybindings {
+            self.keybindings.insert(id.clone(), key.clone());
+        }
         self.theme = other.theme.clone().or(self.theme.take());
         if !other.recent_folders.is_empty() {
             self.recent_folders = other.recent_folders.clone();
@@ -215,6 +223,7 @@ pub struct Settings {
     pub search: SearchSettings,
     pub terminal: TerminalSettings,
     pub extensions: ExtensionsSettings,
+    pub keybindings: BTreeMap<String, String>,
     pub theme: String,
     pub recent_folders: Vec<String>,
     pub layout: Option<String>,
@@ -301,6 +310,7 @@ impl Default for Settings {
             policy: PolicySettings::default(),
             search: SearchSettings { embeddings: true },
             terminal: TerminalSettings::default(),
+            keybindings: BTreeMap::new(),
             extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
             recent_folders: Vec::new(),
@@ -338,6 +348,7 @@ impl Settings {
             terminal: TerminalSettings {
                 shell: merged.terminal.shell,
             },
+            keybindings: merged.keybindings.clone(),
             extensions: ExtensionsSettings {
                 enabled: merged.extensions.enabled,
                 disabled: merged.extensions.disabled,

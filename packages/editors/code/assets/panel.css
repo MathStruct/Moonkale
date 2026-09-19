@@ -35,3 +35,12 @@
     color: #d7dae0;
 }
 .cm-lint-marker-error { color: #e06c75; }
+
+/* Milestone 7: rename prompt, code actions, references */
+.mk-editor-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 10px; border-bottom: 1px solid #2a2e37; font-size: 12px; }
+.mk-editor-rename .mk-input { flex: 0 1 260px; }
+.mk-editor-refs { flex-direction: column; align-items: stretch; max-height: 40%; overflow: auto; }
+.mk-editor-refs > span { display: inline; }
+.mk-editor-refs ul { list-style: none; margin: 0; padding: 0; }
+.mk-editor-ref { padding: 2px 4px; cursor: pointer; border-radius: 3px; font-family: ui-monospace, monospace; }
+.mk-editor-ref:hover { background: #262a33; }

@@ -36,3 +36,7 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 
 ## Milestone 6
 - `wasm.rs` — `list_wasm_extensions(folder)` and `run_wasm_command(ext, command, args, granted)` server functions: the server's `ext-host` runtime (feature `wasmtime`) over the registry; the client sends the granted set from its settings (the server trusts the dev client — same trust level as the terminal relay, P-20). The browser build never compiles wasmtime.
+
+## Milestone 7
+- `git.rs` — `git_run(root, GitRequest)` server function: jails `root`, runs `moonkale_ext_git::cli::run`. `api` now depends on `ext-api` for the shared request/response types.
+- `auth.rs` (feature `server`) — `MOONKALE_TOKEN`: middleware on every route (`protect(router)`): `/login`, `/assets/`, `/wasm/`, `/_dioxus`, favicon are public; `/api/*` and `/mcp` answer 401 without the `moonkale_token` HttpOnly cookie or `Authorization: Bearer`; the page redirects to `/login`; `/mcp` is left to its own `MOONKALE_MCP_TOKEN` when that is set. One `moonkale::audit` line per relay call (`<ip> <method> <path> auth=dev|token`). `/login` (GET form, POST sets the cookie; `Secure` when `X-Forwarded-Proto: https`) is rate-limited to 10 attempts/minute per `X-Forwarded-For` (or globally without a proxy). `guard_bind()` / `bind_mode(ip, has_token)`: no token + non-loopback `IP` → exit 2 before serving.

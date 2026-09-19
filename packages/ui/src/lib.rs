@@ -12,8 +12,10 @@
 //!
 //! See `ui.md` next to this crate for the implementation notes.
 
+pub mod commands;
 mod explorer;
 mod frame;
+mod palette;
 mod search;
 mod settings_panel;
 mod shell;
@@ -21,6 +23,7 @@ mod titlebar;
 
 pub use explorer::ExplorerExtension;
 pub use frame::{Frame, ResizeEdge, SessionFactory, ShellConfig, WindowControls};
+pub use moonkale_ext_api::git::{GitRequest, GitResponse};
 pub use moonkale_ext_api::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, LlmProvider,
     LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions, PickFolder, PickFolderFuture,
@@ -53,5 +56,6 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
         // Opt-in (off until enabled in Settings → Extensions):
         Box::new(moonkale_editor_flow::FlowExtension),
         Box::new(moonkale_ext_lux::LuxExtension),
+        Box::new(moonkale_ext_git::GitExtension::new()),
     ]
 }

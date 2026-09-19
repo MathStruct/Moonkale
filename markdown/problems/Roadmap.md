@@ -58,7 +58,8 @@ gantt
 | **4 Agents** ✅ | chat with an agent that queries your sources under policy; hybrid search; click a stack trace into a graph | LLM-as-user — **done 2026-09-18** (mock-verified; real providers wired but untested here), see [[Milestone 4 - Implementation Log]] |
 | **5 Settings & writing** ✅ | remember layouts, folders and providers; configure the agent in the UI; WYSIWYG markdown; an agent that edits and runs under the gate; MCP for external agents | persistence + the writing half — **done 2026-09-18**, see [[Milestone 5 - Implementation Log]] |
 | **6 Scale & extend** ✅ | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets — **done 2026-09-19** (Barnes–Hut instead of GPU compute; wasm ABI v1 instead of components; phone shell verified at 420 px on web, no Android build here), see [[Milestone 6 - Scale and Extend]] / [[Milestone 6 - Implementation Log]] |
-| **7 Research** | 3D; extensions in the browser; a JS-free desktop | long-term direction |
+| **7 Daily driver** ✅ | command palette and quick open; file operations; find/replace; LSP completion and rename; git status/diff/commit and history as a graph; a web server you can expose | using Moonkale on its own repo every day — **done 2026-09-19**, see [[Milestone 7 - Daily Driver]] / [[Milestone 7 - Implementation Log]] |
+| **8 Research** | 3D; extensions in the browser; a JS-free desktop; entity log and collaboration | long-term direction |
 
 ## Principles for sequencing
 1. **Risky things early, but not first.** P-01 is first because it must be; P-05 waits for one real editor; P-22 waits for measurements from P-07.

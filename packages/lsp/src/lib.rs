@@ -10,12 +10,17 @@
 //! `api::RemoteLsp` (websocket, web). The session is single-threaded
 //! (`Rc<RefCell<_>>`), so it runs unchanged inside the browser.
 //!
-//! Milestone 3: full-document sync, diagnostics, hover, definition. The
-//! index integration (`lsp::graph` in the design) is still to come.
+//! Milestone 3: full-document sync, diagnostics, hover, definition.
+//! Milestone 7: completion, rename, code actions, references
+//! (`WorkspaceEdit` applied by the editor extension). The index integration
+//! (`lsp::graph` in the design) is still to come.
 
 pub mod session;
 pub mod transport;
 
 pub use lsp_types;
-pub use session::{Diagnostic, Location, LspEvent, LspSession};
+pub use session::{
+    char_offset, strip_snippet, CodeAction, CompletionItem, Diagnostic, Location, LspEvent,
+    LspSession, TextEdit, WorkspaceEdit,
+};
 pub use transport::{LspTransport, LspTransportFuture, SpawnLsp};

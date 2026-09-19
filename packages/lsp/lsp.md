@@ -12,3 +12,6 @@ Platform-neutral LSP client; compiles on wasm.
 - `Diagnostic` is neutral (`line/col/end_line/end_col`, `severity` as a string, `message`) so editors need no `lsp-types`.
 
 Tests: `cargo test -p moonkale-lsp` (initialize handshake + publishDiagnostics + hover through a fake transport).
+
+## Milestone 7
+`CompletionItem`, `TextEdit`, `WorkspaceEdit::{from_lsp (changes + documentChanges), apply_to_text (last-to-first, UTF-16 columns via char_offset)}`, `CodeAction { title, kind, edit, raw }`; `LspSession::{completion (snippets stripped, 200 max), rename, code_actions (empty diagnostics context; bare commands dropped), resolve_code_action, references}`; client capabilities advertise completion (no snippets), rename, codeAction literal + resolve, references. Unit tests: snippet stripping, edit parsing/application, UTF-16 offsets.

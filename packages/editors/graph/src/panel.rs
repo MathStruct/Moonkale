@@ -79,8 +79,11 @@ fn is_pickable(f: &SourceFamily) -> bool {
     matches!(f, SourceFamily::Graph | SourceFamily::Sql) || is_trace(f)
 }
 
+/// In-memory graph sources that arrive from elsewhere: traces (Milestone 4)
+/// and git history (Milestone 7). Pickable, auto-picked, file nodes open
+/// by path.
 fn is_trace(f: &SourceFamily) -> bool {
-    matches!(f, SourceFamily::Custom(c) if c == "trace")
+    matches!(f, SourceFamily::Custom(c) if c == "trace" || c == "git")
 }
 
 /// `v:<Label>:<table>:<offset>` → `Label` (see `sources-graph::ladybug`).
@@ -681,6 +684,10 @@ async fn open_node(mut ws: Workspace, node: Node) {
         .iter()
         .any(|s| s.descriptor.id == node.source && is_trace(&s.descriptor.family));
     if from_trace {
+        if let Some(hash) = node.native_key.strip_prefix("commit:") {
+            ws.set_status(format!("Commit {hash}: {}", node.label));
+            return;
+        }
         let (path, line, col) = split_location(&node.native_key);
         match ws.open_relative_path(&path).await {
             Ok(n) => {

@@ -32,3 +32,26 @@
 .mk-search-hit-path { font-size: 12px; color: #d7dae0; }
 .mk-search-hit-line { color: #9aa0aa; }
 .mk-search-hit-snippet { font: 11px/1.4 ui-monospace, monospace; color: #9aa0aa; white-space: pre-wrap; word-break: break-all; }
+
+/* File operations (Milestone 7) */
+.mk-ctx { position: fixed; z-index: 70; min-width: 160px; padding: 4px 0; background: var(--wb-surface); border: 1px solid var(--wb-line); border-radius: 6px; box-shadow: var(--wb-shadow); }
+.mk-ctx-item { display: block; width: 100%; text-align: left; font: inherit; padding: 6px 12px; border: 0; background: none; color: var(--wb-ink); cursor: pointer; }
+.mk-ctx-item:hover { background: var(--wb-hover); }
+.mk-explorer-confirm { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 6px 8px; padding: 6px 8px; font-size: 12px; border-radius: 4px; background: var(--wb-danger-soft); }
+.mk-explorer-confirm span { flex: 1; }
+.mk-btn-danger { border-color: var(--wb-danger); color: var(--wb-danger); }
+.mk-tree-edit { font-size: 12px; padding: 1px 4px; min-height: 0; }
+.mk-tree-droppable { outline: 1px dashed var(--wb-accent); outline-offset: -1px; }
+.mk-tree-row[draggable=true] { user-select: none; }
+.mk-search-replace { padding-top: 0; }
+.mk-search-preview { margin: 0 8px 8px; padding: 6px 8px; font-size: 12px; border: 1px solid var(--wb-line); border-radius: 4px; }
+.mk-search-preview ul { margin: 4px 0 8px; padding-left: 18px; }
+.mk-search-preview p { margin: 2px 0; }
+
+/* Git decorations (Milestone 7) */
+.mk-vcs-modified .mk-tree-label { color: #c9a75f; }
+.mk-vcs-added .mk-tree-label { color: #6cb28c; }
+.mk-vcs-deleted .mk-tree-label { color: #e07a75; text-decoration: line-through; }
+.mk-vcs-renamed .mk-tree-label { color: #6ea8fe; }
+.mk-vcs-conflict .mk-tree-label { color: #e07a75; }
+.mk-vcs-dir > .mk-tree-label::after { content: " •"; color: #c9a75f; }

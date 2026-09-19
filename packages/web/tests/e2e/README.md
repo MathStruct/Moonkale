@@ -46,3 +46,9 @@ packages/web/tests/e2e/serve.sh stop         # kills only that dx (never `pkill 
 Screenshots land in `$E/shots`. `milestone1.mjs` needs the server started with `serve.sh start m1root` instead.
 
 Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensions, New Flow…, place/wire/reject/Generate/Save), `wasm-ext.mjs` (wordcount module listed, enabled with `read-sources`, its command runs as an agent tool after approval), `phone.mjs` (420 px viewport: one tile, bottom bar, Editor/Graph/Terminal/Agent/Settings switching, no layout persisted, widening restores the layout). `bench.mjs` prints layout ms/step for 1k–100k nodes (a measurement, not a test); `agent-live.mjs` needs a real key.
+
+## Milestone 7 suites
+
+`palette.mjs` (command palette, quick open with `:line`, an extension command, menus showing bindings, rebinding through Settings), `files.mjs` (context menu: new file/folder, inline rename with an unsaved document, drag-move, delete to `.moonkale/trash`), `replace.mjs` (CodeMirror search panel; workspace replace preview and apply), `lsp2.mjs` (rust-analyzer: completion popup, `F2` rename, `Shift+F12` references, `Ctrl+.` assists), `git.mjs` (the fixture is a git repository: status, diff, stage, commit, discard, history graph), `auth.mjs` (token mode: `run-all.sh` starts its own server on port 8091 with `MOONKALE_TOKEN=e2e-secret-token`).
+
+`serve.sh` keys its pid/log by `PORT`, so `PORT=8091 MOONKALE_TOKEN=… serve.sh start` runs next to the normal server. `run-all.sh` resets the repository (`reset --hard <root commit>` + `clean`) between suites.

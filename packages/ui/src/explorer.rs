@@ -18,6 +18,39 @@ pub struct TreeState {
     expanded: Signal<HashSet<NodeId>>,
     children: Signal<HashMap<NodeId, Vec<Node>>>,
     error: Signal<Option<String>>,
+    /// Milestone 7: the open context menu, the inline edit, the pending
+    /// delete confirmation and the row being dragged.
+    menu: Signal<Option<Menu>>,
+    edit: Signal<Option<Edit>>,
+    confirm: Signal<Option<Node>>,
+    dragging: Signal<Option<Node>>,
+}
+
+/// A right-click menu for one node (or a source root).
+#[derive(Clone, PartialEq)]
+struct Menu {
+    node: Node,
+    is_dir: bool,
+    x: f64,
+    y: f64,
+}
+
+/// An inline text field in the tree: a new name under a directory, or a
+/// rename of an existing node.
+#[derive(Clone, PartialEq)]
+enum Edit {
+    NewFile { parent: Node },
+    NewDir { parent: Node },
+    Rename { node: Node },
+}
+
+impl Edit {
+    fn parent_id(&self) -> NodeId {
+        match self {
+            Edit::NewFile { parent } | Edit::NewDir { parent } => parent.id,
+            Edit::Rename { node } => node.id,
+        }
+    }
 }
 
 impl PartialEq for TreeState {
@@ -43,6 +76,10 @@ impl ExplorerExtension {
                 expanded: Signal::new_in_scope(HashSet::new(), ScopeId::ROOT),
                 children: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
                 error: Signal::new_in_scope(None, ScopeId::ROOT),
+                menu: Signal::new_in_scope(None, ScopeId::ROOT),
+                edit: Signal::new_in_scope(None, ScopeId::ROOT),
+                confirm: Signal::new_in_scope(None, ScopeId::ROOT),
+                dragging: Signal::new_in_scope(None, ScopeId::ROOT),
             },
         }
     }
@@ -159,9 +196,79 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
         }
     });
 
+    // After a file operation, reload every directory whose children are
+    // shown (Milestone 7).
+    let mut seen_epoch = use_signal(|| 0u64);
+    use_effect(move || {
+        let epoch = *ws.fs_epoch.read();
+        if epoch == *seen_epoch.peek() {
+            return;
+        }
+        seen_epoch.set(epoch);
+        // Loaded directories, plus expanded ones that were never loaded
+        // (New File… on a collapsed directory expands it).
+        let mut loaded: Vec<NodeId> = state.children.peek().keys().copied().collect();
+        for id in state.expanded.peek().iter() {
+            if !loaded.contains(id) {
+                loaded.push(*id);
+            }
+        }
+        let sources: Vec<_> = ws
+            .sources
+            .peek()
+            .iter()
+            .map(|s| (s.descriptor.id.clone(), s.descriptor.root))
+            .collect();
+        spawn(async move {
+            for dir in loaded {
+                // Find the source owning this directory by asking each one.
+                for (sid, _) in &sources {
+                    match ws.query(sid, Query::Children(dir)).await {
+                        Ok(res) => {
+                            state.children.with_mut(|c| {
+                                c.insert(dir, res.nodes);
+                            });
+                            break;
+                        }
+                        Err(SourceError::NotFound) => {
+                            state.children.with_mut(|c| {
+                                c.remove(&dir);
+                            });
+                            state.expanded.with_mut(|e| {
+                                e.remove(&dir);
+                            });
+                            break;
+                        }
+                        Err(_) => continue,
+                    }
+                }
+            }
+        });
+    });
+
+    let menu = state.menu.read().clone();
+    let confirm = state.confirm.read().clone();
+
     rsx! {
         document::Stylesheet { href: EXPLORER_CSS }
         div { class: "mk-explorer",
+            onclick: move |_| { if state.menu.peek().is_some() { state.menu.set(None); } },
+            if let Some(m) = menu {
+                ContextMenu { ws, state, menu: m }
+            }
+            if let Some(n) = confirm {
+                div { class: "mk-explorer-confirm", role: "alertdialog",
+                    span { "Delete " b { "{n.native_key}" } "? (kept in .moonkale/trash)" }
+                    button { class: "mk-btn mk-btn-danger", onclick: move |_| {
+                        let n = n.clone();
+                        state.confirm.set(None);
+                        spawn(async move {
+                            if let Err(e) = ws.delete_node(&n).await { state.error.set(Some(e.to_string())); }
+                        });
+                    }, "Delete" }
+                    button { class: "mk-btn", onclick: move |_| state.confirm.set(None), "Cancel" }
+                }
+            }
             if has_dialog {
                 div { class: "mk-explorer-open",
                     button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: move |_| ws.dispatch(Command::OpenFolder), "Open Folder…" }
@@ -189,7 +296,23 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             }
             for s in sources {
                 div { class: "mk-explorer-source",
-                    div { class: "mk-explorer-source-name", "{s.descriptor.display_name}" }
+                    div { class: "mk-explorer-source-name",
+                        oncontextmenu: {
+                            let root_id = s.descriptor.root;
+                            let sid = s.descriptor.id.clone();
+                            let name = s.descriptor.display_name.clone();
+                            move |e| {
+                                e.prevent_default();
+                                let root = Node { id: root_id, source: sid.clone(), kind: NodeKind::Directory, label: name.clone(), native_key: String::new(), content: None, version: Default::default() };
+                                let c = e.client_coordinates();
+                                state.menu.set(Some(Menu { node: root, is_dir: true, x: c.x, y: c.y }));
+                            }
+                        },
+                        "{s.descriptor.display_name}"
+                    }
+                    if let Some(edit) = state.edit.read().clone().filter(|e| e.parent_id() == s.descriptor.root && !matches!(e, Edit::Rename { .. })) {
+                        InlineEdit { ws, state, edit, depth: 0 }
+                    }
                     TreeLevel { ws, state, parent: s.descriptor.root, depth: 0 }
                 }
             }
@@ -206,10 +329,24 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
         .cloned()
         .unwrap_or_default();
     let expanded = state.expanded.read().clone();
+    // Version-control decorations (Milestone 7): a letter class per changed
+    // file, a subtle mark on directories with changes below them.
+    let vcs = ws.vcs_status.read().clone();
     rsx! {
         ul { class: "mk-tree", style: "--depth: {depth}",
             for node in children {
                 {
+                    let vcs_class = match vcs.get(&node.native_key) {
+                        Some((i, w)) => {
+                            let c = if *i == '?' { '?' } else if *w != '.' { *w } else { *i };
+                            match c { 'M' => "mk-vcs-modified", 'A' | '?' => "mk-vcs-added", 'D' => "mk-vcs-deleted", 'R' | 'C' => "mk-vcs-renamed", 'U' => "mk-vcs-conflict", _ => "" }
+                        }
+                        None if node.kind == NodeKind::Directory => {
+                            let prefix = format!("{}/", node.native_key);
+                            if vcs.keys().any(|k| k.starts_with(&prefix)) { "mk-vcs-dir" } else { "" }
+                        }
+                        None => "",
+                    };
                     // Database paths: a SQLite file, or a Ladybug database (a
                     // directory or a file named *.lbug / *.kuzu).
                     let is_db_path = (node.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&node.native_key))
@@ -220,14 +357,43 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     let is_db = node.kind == NodeKind::Table || is_db_path;
                     let n = node.clone();
                     let mut ws2 = ws;
+                    let renaming = matches!(state.edit.read().as_ref(), Some(Edit::Rename { node: r }) if r.id == node.id);
+                    let new_below = state.edit.read().clone().filter(|e| is_dir && !matches!(e, Edit::Rename { .. }) && e.parent_id() == node.id);
+                    let drop_target = is_dir && state.dragging.read().as_ref().is_some_and(|d| d.id != node.id);
+                    let (n_menu, n_drag, n_drop) = (node.clone(), node.clone(), node.clone());
                     rsx! {
                         li { key: "{node.id}",
                             div {
                                 class: if is_dir { "mk-tree-row mk-tree-dir" } else { "mk-tree-row mk-tree-file" },
                                 class: if !is_dir && !is_text && !is_db { "mk-tree-binary" },
                                 class: if is_db { "mk-tree-db" },
+                                class: if drop_target { "mk-tree-droppable" },
+                                class: if !vcs_class.is_empty() { "{vcs_class}" },
                                 title: "{node.native_key}",
+                                draggable: !is_db,
+                                oncontextmenu: move |e| {
+                                    e.prevent_default();
+                                    e.stop_propagation();
+                                    let c = e.client_coordinates();
+                                    state.menu.set(Some(Menu { node: n_menu.clone(), is_dir, x: c.x, y: c.y }));
+                                },
+                                ondragstart: move |_| state.dragging.set(Some(n_drag.clone())),
+                                ondragend: move |_| state.dragging.set(None),
+                                ondragover: move |e| { if drop_target { e.prevent_default(); } },
+                                ondrop: move |e| {
+                                    e.prevent_default();
+                                    e.stop_propagation();
+                                    let Some(dragged) = state.dragging.take() else { return };
+                                    if !drop_target || dragged.source != n_drop.source { return; }
+                                    let name = dragged.native_key.rsplit('/').next().unwrap_or("").to_string();
+                                    let to = if n_drop.native_key.is_empty() { name } else { format!("{}/{name}", n_drop.native_key) };
+                                    if to == dragged.native_key { return; }
+                                    spawn(async move {
+                                        if let Err(e) = ws.rename_node(&dragged, &to).await { state.error.set(Some(e.to_string())); }
+                                    });
+                                },
                                 onclick: move |_| {
+                                    if renaming { return; }
                                     let n = n.clone();
                                     if is_dir {
                                         spawn(toggle(ws, state, n));
@@ -260,7 +426,11 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                     }
                                 },
                                 span { class: "mk-tree-caret", if is_dir { if open { "▾" } else { "▸" } } else { "" } }
-                                span { class: "mk-tree-label", "{node.label}" }
+                                if renaming {
+                                    InlineEdit { ws, state, edit: Edit::Rename { node: node.clone() }, depth }
+                                } else {
+                                    span { class: "mk-tree-label", "{node.label}" }
+                                }
                                 if is_dir && ws.spawn_terminal().is_some() {
                                     {
                                         let n2 = node.clone();
@@ -277,6 +447,11 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                     }
                                 }
                             }
+                            if let Some(edit) = new_below {
+                                ul { class: "mk-tree", style: "--depth: {depth + 1}",
+                                    li { div { class: "mk-tree-row", InlineEdit { ws, state, edit, depth: depth + 1 } } }
+                                }
+                            }
                             if is_dir && open {
                                 TreeLevel { ws, state, parent: node.id, depth: depth + 1 }
                             }
@@ -284,6 +459,122 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     }
                 }
             }
+        }
+    }
+}
+
+/// The right-click menu (Milestone 7). Positioned at the pointer; any click
+/// elsewhere in the explorer closes it.
+#[component]
+fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
+    let mut state = state;
+    let mut ws = ws;
+    let is_root = menu.node.native_key.is_empty();
+    let node = menu.node.clone();
+    let (n1, n2, n3, n4, n5) = (
+        node.clone(),
+        node.clone(),
+        node.clone(),
+        node.clone(),
+        node.clone(),
+    );
+    let can_terminal = menu.is_dir && ws.spawn_terminal().is_some();
+    rsx! {
+        div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: |e| e.stop_propagation(),
+            if menu.is_dir {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewFile { parent: n1.clone() })); state.expanded.with_mut(|e| { e.insert(n1.id); }); }, "New File…" }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewDir { parent: n2.clone() })); state.expanded.with_mut(|e| { e.insert(n2.id); }); }, "New Folder…" }
+            }
+            if !is_root {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::Rename { node: n3.clone() })); }, "Rename…" }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.confirm.set(Some(n4.clone())); }, "Delete…" }
+            }
+            if can_terminal {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| {
+                    state.menu.set(None);
+                    ws.terminal_cwd.set(ws.folder_path(&n5));
+                    ws.dispatch(Command::NewTerminal);
+                }, "Open in Terminal" }
+            }
+        }
+    }
+}
+
+/// The inline text field for a new file/folder name or a rename. Enter
+/// commits, Escape cancels, blur cancels.
+#[component]
+fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Element {
+    let mut state = state;
+    let initial = match &edit {
+        Edit::Rename { node } => node.label.clone(),
+        _ => String::new(),
+    };
+    let mut value = use_signal(|| initial);
+    let placeholder = match &edit {
+        Edit::NewFile { .. } => "file name",
+        Edit::NewDir { .. } => "folder name",
+        Edit::Rename { .. } => "new name",
+    };
+    let commit = {
+        let edit = edit.clone();
+        move || {
+            let name = value.peek().trim().trim_matches('/').to_string();
+            state.edit.set(None);
+            if name.is_empty() {
+                return;
+            }
+            let edit = edit.clone();
+            // This component unmounts with `edit = None`; a task spawned in
+            // its scope would be dropped with it.
+            dioxus::core::spawn_forever(async move {
+                let result = match edit {
+                    Edit::NewFile { parent } => ws
+                        .create_text(&parent.source, parent.id, &name, "")
+                        .await
+                        .map(|n| {
+                            spawn(async move {
+                                let _ = ws.open_node(n).await;
+                            });
+                        }),
+                    Edit::NewDir { parent } => ws
+                        .create_dir(&parent.source, parent.id, &name)
+                        .await
+                        .map(|_| ()),
+                    Edit::Rename { node } => {
+                        let to = match node.native_key.rsplit_once('/') {
+                            Some((dir, _)) => format!("{dir}/{name}"),
+                            None => name.clone(),
+                        };
+                        ws.rename_node(&node, &to).await.map(|_| ())
+                    }
+                };
+                if let Err(e) = result {
+                    state.error.set(Some(e.to_string()));
+                }
+            });
+        }
+    };
+    let mut commit_key = commit.clone();
+    rsx! {
+        input {
+            class: "mk-input mk-tree-edit",
+            id: "mk-tree-edit",
+            placeholder,
+            value: "{value}",
+            autofocus: true,
+            onmounted: move |e| { spawn(async move { let _ = e.set_focus(true).await; }); },
+            onclick: |e| e.stop_propagation(),
+            onmousedown: |e| e.stop_propagation(),
+            oninput: move |e| value.set(e.value()),
+            onkeydown: move |e| {
+                e.stop_propagation();
+                match e.key() {
+                    Key::Enter => { e.prevent_default(); commit_key(); }
+                    Key::Escape => { e.prevent_default(); state.edit.set(None); }
+                    _ => {}
+                }
+            },
+            onblur: move |_| { if state.edit.peek().is_some() { state.edit.set(None); } },
         }
     }
 }

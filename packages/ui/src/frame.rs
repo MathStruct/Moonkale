@@ -74,7 +74,21 @@ pub fn Frame(
     children: Element,
 ) -> Element {
     let mut ws = use_context_provider(|| Workspace::new(config.workspace));
-    use_context_provider(|| Extensions_(Rc::new((config.extensions)())));
+    let exts = use_context_provider(|| Extensions_(Rc::new((config.extensions)()))).0;
+    // The command registry (Milestone 7): rebuilt when settings (keybindings,
+    // enabled extensions) change, read by menus, keys and the palette.
+    let mut registry: crate::commands::CommandRegistry =
+        use_context_provider(|| Signal::new(Rc::new(crate::commands::Registry::default())));
+    let mut palette: crate::palette::PaletteState = use_context_provider(|| Signal::new(None));
+    {
+        let exts = exts.clone();
+        use_effect(move || {
+            let next = crate::commands::Registry::build(&exts, ws);
+            if **registry.peek() != next {
+                registry.set(Rc::new(next));
+            }
+        });
+    }
 
     // Join the session: incoming messages are handled by the workspace.
     use_hook(move || {
@@ -99,6 +113,10 @@ pub fn Frame(
             document.addEventListener("dragstart", (e) => {
                 const tab = e.target && e.target.closest ? e.target.closest(".wb-tab") : null;
                 if (tab && tab.id) dioxus.send({ kind: "start", tab: tab.id });
+                // Explorer rows (Milestone 7): Firefox starts a drag only when
+                // the transfer carries data.
+                const row = e.target && e.target.closest ? e.target.closest(".mk-tree-row[draggable=true]") : null;
+                if (row && e.dataTransfer) { e.dataTransfer.setData("text/plain", row.title || "row"); e.dataTransfer.effectAllowed = "move"; }
             });
             // `dragend` is not always delivered (a drop on the workbench's own
             // drop zone swallows it in Firefox): a drop anywhere in this
@@ -145,9 +163,9 @@ pub fn Frame(
         let mut ev = document::eval(GLOBAL_KEYS);
         spawn(async move {
             loop {
-                match ev.recv::<(String, bool)>().await {
-                    Ok((key, shift)) => {
-                        shortcut(ws, &key, shift);
+                match ev.recv::<(String, bool, bool, bool)>().await {
+                    Ok((key, ctrl, shift, alt)) => {
+                        crate::commands::handle_key(ws, ctrl, shift, alt, &key);
                     }
                     Err(dioxus::document::EvalError::Serialization(_)) => continue,
                     Err(_) => break,
@@ -247,6 +265,9 @@ pub fn Frame(
             Some(Command::Settings) => {
                 ws.dispatch(Command::ShowPanel(crate::settings_panel::PANEL_ID))
             }
+            Some(Command::Palette) => palette.set(Some(crate::palette::PaletteMode::Commands)),
+            Some(Command::QuickOpen) => palette.set(Some(crate::palette::PaletteMode::Files)),
+            Some(Command::SearchWorkspace) => crate::search::focus_search(ws),
             Some(Command::NewFile(name, template)) => {
                 let folder = ws
                     .sources
@@ -300,20 +321,23 @@ pub fn Frame(
             class: "mk-frame",
             class: if controls.is_some() { "mk-frame-undecorated" },
             onmounted: start_settings,
-            // Global keybindings. Ctrl+S is handled inside the editor panel
-            // (it needs the panel's error state); the rest go through the bus.
+            // Global keybindings through the command registry. Editors
+            // handle Ctrl+S themselves and stop the event (they need their
+            // own error state); everything else that bubbles here is looked up.
             onkeydown: move |e| {
                 let m = e.modifiers();
-                if !(m.ctrl() || m.meta()) {
+                let key = key_name(&e.key());
+                if key.is_empty() {
                     return;
                 }
-                let key = match e.key() { Key::Character(c) => c.to_ascii_lowercase(), _ => return };
-                if shortcut(ws, &key, m.shift()) {
+                if crate::commands::handle_key(ws, m.ctrl() || m.meta(), m.shift(), m.alt(), &key) {
                     e.prevent_default();
+                    e.stop_propagation();
                 }
             },
             TitleBar { controls }
             div { class: "mk-frame-body", {children} }
+            crate::palette::Palette {}
             // Another window of this session is dragging a document: become a
             // drop target while the drag is live, and keep a banner afterwards
             // (an OS drag doesn't reach other windows on every platform).
@@ -382,34 +406,53 @@ fn ResizeHandles(controls: WindowControls) -> Element {
 }
 
 /// The global shortcuts; `true` when handled. Ctrl+S stays inside the editor.
-fn shortcut(mut ws: Workspace, key: &str, shift: bool) -> bool {
-    match (key, shift) {
-        ("w", false) => ws.dispatch(Command::CloseEditor),
-        ("`", false) => {
-            ws.terminal_cwd.set(None);
-            ws.dispatch(Command::NewTerminal);
-        }
-        ("n", true) => ws.dispatch(Command::NewWindow),
-        ("o", false) => ws.dispatch(Command::OpenFolder),
-        ("f", true) => crate::search::focus_search(ws),
-        (",", false) => ws.dispatch(Command::Settings),
-        _ => return false,
+/// `KeyboardEvent.key` spelling for the registry: characters as typed
+/// (case-folded by the matcher), named keys by their DOM name.
+fn key_name(key: &Key) -> String {
+    match key {
+        Key::Character(c) => c.clone(),
+        Key::Enter => "Enter".into(),
+        Key::Escape => "Escape".into(),
+        Key::Tab => "Tab".into(),
+        Key::Backspace => "Backspace".into(),
+        Key::Delete => "Delete".into(),
+        Key::ArrowUp => "ArrowUp".into(),
+        Key::ArrowDown => "ArrowDown".into(),
+        Key::ArrowLeft => "ArrowLeft".into(),
+        Key::ArrowRight => "ArrowRight".into(),
+        Key::Home => "Home".into(),
+        Key::End => "End".into(),
+        Key::PageUp => "PageUp".into(),
+        Key::PageDown => "PageDown".into(),
+        Key::F1 => "F1".into(),
+        Key::F2 => "F2".into(),
+        Key::F3 => "F3".into(),
+        Key::F4 => "F4".into(),
+        Key::F5 => "F5".into(),
+        Key::F6 => "F6".into(),
+        Key::F7 => "F7".into(),
+        Key::F8 => "F8".into(),
+        Key::F9 => "F9".into(),
+        Key::F10 => "F10".into(),
+        Key::F11 => "F11".into(),
+        Key::F12 => "F12".into(),
+        _ => String::new(),
     }
-    true
 }
 
 /// Forwards Ctrl/Cmd-combos to Rust only when the event would otherwise be
 /// lost (target is the document body, i.e. nothing focused inside the frame).
 const GLOBAL_KEYS: &str = r#"
-const keys = new Set(["w", "`", "n", "o", "f", ","]);
 document.addEventListener("keydown", (e) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    const k = e.key.toLowerCase();
-    if (!keys.has(k)) return;
+    const fkey = /^F\d{1,2}$/.test(e.key);
+    if (!(e.ctrlKey || e.metaKey || e.altKey || fkey)) return;
     const t = e.target;
     if (t && t !== document.body && t !== document.documentElement) return;
+    // Let the browser keep its own essentials (reload, devtools, tabs).
+    if ((e.ctrlKey || e.metaKey) && ["r", "t", "l", "c", "v", "x", "a", "z", "y"].includes(e.key.toLowerCase()) && !e.shiftKey) return;
+    if (e.key === "F5" || e.key === "F12") return;
     e.preventDefault();
-    dioxus.send([k, e.shiftKey]);
+    dioxus.send([e.key, e.ctrlKey || e.metaKey, e.shiftKey, e.altKey]);
 });
 for (;;) { await dioxus.recv(); }
 "#;

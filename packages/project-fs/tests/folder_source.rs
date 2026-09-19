@@ -195,3 +195,97 @@ async fn path_dialect_resolves_hidden_files_and_refuses_escapes() {
     assert!(src.query(q("missing.txt")).await.is_err());
     assert!(src.query(q("../etc/passwd")).await.is_err());
 }
+
+#[tokio::test]
+async fn create_dir_rename_and_delete_to_trash() {
+    let dir = fixture();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let ok = |a: &moonkale_core::Applied| match &a.results[0] {
+        moonkale_core::OpResult::Ok { node, .. } => *node,
+        other => panic!("{other:?}"),
+    };
+    // A directory, then a file inside it.
+    let docs = ok(&src
+        .apply(Transaction::create_dir(src.root_id(), "docs"))
+        .await
+        .unwrap());
+    assert!(dir.path().join("docs").is_dir());
+    let again = src
+        .apply(Transaction::create_dir(src.root_id(), "docs"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        again.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+    let note = ok(&src
+        .apply(Transaction::create_text(docs, "note.md", "hi\n"))
+        .await
+        .unwrap());
+
+    // Rename (new id, old id gone), then move into another directory.
+    let renamed = ok(&src
+        .apply(Transaction::rename(note, "docs/Note.md"))
+        .await
+        .unwrap());
+    assert_ne!(renamed, note);
+    assert!(dir.path().join("docs/Note.md").is_file());
+    assert!(matches!(
+        src.fetch_text(note).await,
+        Err(SourceError::NotFound)
+    ));
+    let moved = ok(&src
+        .apply(Transaction::rename(renamed, "src/Note.md"))
+        .await
+        .unwrap());
+    assert_eq!(src.fetch_text(moved).await.unwrap().0, "hi\n");
+    // Refusals: onto an existing file, out of the root, a directory into itself.
+    let clash = src
+        .apply(Transaction::rename(moved, "README.md"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        clash.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+    let escape = src
+        .apply(Transaction::rename(moved, "../out.md"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        escape.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+    let inward = src
+        .apply(Transaction::rename(docs, "docs/inner"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        inward.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+
+    // Delete keeps a copy under .moonkale/trash.
+    let deleted = src.apply(Transaction::delete(moved)).await.unwrap();
+    assert!(matches!(
+        deleted.results[0],
+        moonkale_core::OpResult::Ok { .. }
+    ));
+    assert!(!dir.path().join("src/Note.md").exists());
+    let trash = dir.path().join(".moonkale/trash");
+    let stamped = fs::read_dir(&trash)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    assert_eq!(
+        fs::read_to_string(stamped.join("src/Note.md")).unwrap(),
+        "hi\n"
+    );
+    let root = src.apply(Transaction::delete(src.root_id())).await.unwrap();
+    assert!(matches!(
+        root.results[0],
+        moonkale_core::OpResult::Refused { .. }
+    ));
+}

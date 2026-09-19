@@ -163,6 +163,29 @@ impl IndexSource {
         Ok(())
     }
 
+    /// Re-run extraction for the given files (after their link targets
+    /// changed); ignores files that vanished meanwhile.
+    async fn re_extract(&self, files: &[NodeId]) {
+        for id in files {
+            let node = self.graph.read().unwrap().node(*id).cloned();
+            let Some(node) = node else { continue };
+            if node.kind != NodeKind::File || !walk::wants_text(&node, &self.limits) {
+                continue;
+            }
+            if let Ok((text, _)) = self.folder.fetch_text(*id).await {
+                self.extract_into(&node, &text);
+            }
+        }
+    }
+
+    fn update_counts(&self) {
+        let g = self.graph.read().unwrap();
+        let mut s = self.stats.write().unwrap();
+        s.files = g.count_kind(&NodeKind::File);
+        s.links = g.count_edge_kind(&moonkale_core::EdgeKind::Links);
+        s.symbols = g.count_kind(&NodeKind::Symbol);
+    }
+
     fn extract_into(&self, file: &Node, text: &str) {
         self.search.write().unwrap().set_file(file, text);
         let derived = {
@@ -327,20 +350,75 @@ impl Source for IndexSource {
         ))
     }
 
+    /// A node changed, appeared or vanished in the folder: a vanished node
+    /// (rename/delete) is dropped with its subtree and derived data; a new
+    /// directory is walked; a file is re-extracted. The parent's `Contains`
+    /// edge is kept in step so new files show up in the graph.
     async fn refresh(&self, node: NodeId) -> Result<(), SourceError> {
-        let file = match self.folder.query(Query::Node(node)).await {
-            Ok(r) => r.nodes.into_iter().next().ok_or(SourceError::NotFound)?,
+        let found = match self.folder.query(Query::Node(node)).await {
+            Ok(r) => r.nodes.into_iter().next(),
+            Err(SourceError::NotFound) => None,
             Err(e) => return Err(e),
         };
-        self.graph.write().unwrap().insert_node(file.clone());
-        if walk::wants_text(&file, &self.limits) {
-            let (text, _) = self.folder.fetch_text(node).await?;
-            self.extract_into(&file, &text);
+        let Some(top) = found else {
+            let (gone, linkers) = {
+                let mut g = self.graph.write().unwrap();
+                // Files that linked here: their links become unresolved
+                // (collect before the edges are dropped with the subtree).
+                let linkers = g.origins_linking_to(&g.subtree(node));
+                let gone = g.remove_subtree(node);
+                (gone, linkers)
+            };
+            {
+                let mut search = self.search.write().unwrap();
+                for g in &gone {
+                    search.remove_file(*g);
+                }
+            }
+            self.re_extract(&linkers).await;
+            self.update_counts();
+            return Ok(());
+        };
+        let mut entries: Vec<(NodeId, Node)> = Vec::new();
+        {
+            let parent_rel = top
+                .native_key
+                .rsplit_once('/')
+                .map(|(p, _)| p)
+                .unwrap_or("");
+            let parent = NodeId::derive(&top.source, parent_rel);
+            entries.push((parent, top.clone()));
         }
-        let g = self.graph.read().unwrap();
-        let mut s = self.stats.write().unwrap();
-        s.links = g.count_edge_kind(&moonkale_core::EdgeKind::Links);
-        s.symbols = g.count_kind(&NodeKind::Symbol);
+        if top.kind == NodeKind::Directory {
+            let (below, _) = walk::walk(self.folder.as_ref(), node, &self.limits).await?;
+            entries.extend(below);
+        }
+        {
+            let mut g = self.graph.write().unwrap();
+            for (parent, n) in &entries {
+                g.insert_node(n.clone());
+                g.add_edge(*parent, Edge::contains(&n.source, *parent, n.id));
+            }
+        }
+        for (_, n) in &entries {
+            if n.kind == NodeKind::File && walk::wants_text(n, &self.limits) {
+                if let Ok((text, _)) = self.folder.fetch_text(n.id).await {
+                    self.extract_into(n, &text);
+                }
+            }
+        }
+        // Links that were unresolved and now have a target.
+        let linkers = {
+            let g = self.graph.read().unwrap();
+            let phantoms: Vec<NodeId> = entries
+                .iter()
+                .filter(|(_, n)| n.kind == NodeKind::File)
+                .flat_map(|(_, n)| g.phantoms_for(&n.native_key))
+                .collect();
+            g.origins_linking_to(&phantoms)
+        };
+        self.re_extract(&linkers).await;
+        self.update_counts();
         Ok(())
     }
 }

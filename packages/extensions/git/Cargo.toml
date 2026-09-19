@@ -1,0 +1,26 @@
+[package]
+name = "moonkale-ext-git"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Git integration (Milestone 7): status, diff, stage/commit, log, explorer decorations, history as a graph. The `git` CLI runs where the folder is (feature `cli`: desktop and the web server)."
+
+[features]
+default = []
+# The CLI runner (tokio process). Not on wasm32.
+cli = ["dep:tokio"]
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["process", "rt"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process"] }

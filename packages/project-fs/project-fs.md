@@ -25,3 +25,6 @@ Watching (`watch.rs` note), web/mobile backends (`platform.rs` note), the `Backe
 
 ## Milestone 4
 `FolderSource::apply` handles `Op::CreateText`: rejects `..`, creates parent directories, refuses an existing path, registers the new node's id. Test in `tests/folder_source.rs`.
+
+## Milestone 7
+`Op::CreateDir`, `Op::Rename { node, to }` (new id from the new path, old id forgotten; refuses clashes, escapes and moving a directory into itself), `Op::Delete` (moves to `.moonkale/trash/<unix-ms>/<path>`; the root cannot be deleted). Test `create_dir_rename_and_delete_to_trash`.

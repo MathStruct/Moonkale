@@ -62,6 +62,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
     let mut secret_status = use_signal(String::new);
 
     let catalog: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
+    let registry = use_context::<crate::commands::CommandRegistry>();
     let settings = ws.settings.read().clone();
     let user = ws.settings_user.read().clone();
     let workspace = ws.settings_workspace.read().clone();
@@ -283,6 +284,34 @@ fn SettingsPanel(ws: Workspace) -> Element {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    h3 { "Keybindings" }
+                    p { class: "mk-muted", "Ctrl also matches Cmd. Empty = unbound; a scope only stores the bindings changed there." }
+                    for entry in registry.read().entries.iter() {
+                        {
+                            let id = entry.id.clone();
+                            let bound = entry.binding.as_ref().map(|b| b.display()).unwrap_or_default();
+                            let overridden = settings.keybindings.contains_key(&id);
+                            rsx! {
+                                label { key: "{id}", class: "mk-settings-key",
+                                    span { "{entry.title}" if overridden { span { class: "mk-settings-scope", "custom" } } }
+                                    input { class: "mk-input", value: "{bound}", placeholder: "unbound", "data-command": "{id}",
+                                        onchange: {
+                                            let id = id.clone();
+                                            move |e| {
+                                                let v = e.value().trim().to_string();
+                                                let id = id.clone();
+                                                if !v.is_empty() && moonkale_ext_api::Keybinding::parse(&v).is_none() {
+                                                    ws.set_status(format!("Not a keybinding: {v} (try Ctrl+Shift+P, F12, Alt+ArrowUp)"));
+                                                    return;
+                                                }
+                                                apply(Box::new(move |f| { f.keybindings.insert(id, v); }));
+                                            }
+                                        } }
                                 }
                             }
                         }

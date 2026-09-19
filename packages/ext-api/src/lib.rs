@@ -23,6 +23,7 @@
 //! This crate depends on `dioxus` because static extensions return
 //! `Element`s. The WASM path will not; it will render through `ui::Tree`.
 
+mod command;
 pub mod contrib;
 pub mod document;
 pub mod extension;
@@ -30,10 +31,12 @@ pub mod manifest;
 pub mod session;
 pub mod workspace;
 
+pub use command::{fuzzy_score, CommandContribution, Keybinding};
 pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub mod flow;
+pub mod git;
 pub mod settings;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
@@ -48,7 +51,8 @@ pub use workspace::{
 /// Everything an extension typically needs.
 pub mod prelude {
     pub use crate::{
-        Document, Extension, Manifest, PanelContribution, PanelHome, SourceHandle, Workspace,
+        Command, CommandContribution, Document, Extension, Manifest, PanelContribution, PanelHome,
+        SourceHandle, Workspace,
     };
     pub use moonkale_core::{
         Node, NodeId, NodeKind, Query, Source, SourceError, SourceId, Version,

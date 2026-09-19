@@ -38,3 +38,9 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 ## Milestone 5
 - `CodeEditorExtension::skipping(fn(&Node) -> bool)` leaves documents to another extension (markdown).
 - Text changed outside the view (agent `editor.replace`, reload) is pushed into CodeMirror (`view_text` tracks what the view shows).
+
+## Milestone 7
+- Bundle (`packages/js/codemirror`): `@codemirror/search` (`Mod-f`, `Mod-h`, F3…) and `@codemirror/autocomplete` with one async source that asks Rust (`onCompletion(id, line, col)` → `completionResult(el, id, items)`); `F2` → `onRename(line, col, word)`, `Mod-.` → `onCodeActions(range)`, `Shift-F12` → `onReferences`. `setText` now applies the minimal prefix/suffix diff so the cursor survives external edits. Debug the bundle alone with a static page (`cm-test.html` in the E2E working dir).
+- `backend/codemirror.rs`: new events `Completion`, `Rename`, `CodeActions` (variant fields renamed camelCase — P-077), `References`; `completion_result`; an unreadable message is logged, not fatal.
+- `panel.rs`: completion answered from `LspSession::completion`; rename prompt bar (`.mk-editor-rename`) → `LspSession::rename` → `lsp::apply_workspace_edit`; code actions bar (`.mk-editor-actions[data-count]`, resolve on click); references list (`.mk-editor-refs`, click reveals). `apply_workspace_edit(ws, root, edit)`: open documents take the edit unsaved, closed files are written through the folder with a version check and re-indexed.
+- `save_now`: Ctrl+S, Edit → Save and the toolbar button share one path that writes through the source and sends `didSave` (cargo check runs on save — P-080).

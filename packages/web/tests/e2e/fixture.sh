@@ -24,4 +24,11 @@ CREATE TABLE tags(id INTEGER PRIMARY KEY, label TEXT);
 c.commit()
 PY
 (cd "$REPO" && cargo run -q -p moonkale-sources-graph --features ladybug --example seed_people -- "$ROOT/people.lbug" small >/dev/null)
+# A git repository with one commit (Milestone 7: git suite); .moonkale is ignored.
+printf 'target/\n.moonkale/\n' > "$ROOT/.gitignore"
+git -C "$ROOT" init -q -b main
+git -C "$ROOT" -c user.name=Fixture -c user.email=fixture@example.com add -A
+git -C "$ROOT" -c user.name=Fixture -c user.email=fixture@example.com commit -q -m "fixture"
+git -C "$ROOT" config user.name Fixture
+git -C "$ROOT" config user.email fixture@example.com
 echo "fixture ready at $ROOT"

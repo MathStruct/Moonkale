@@ -101,6 +101,73 @@ fn SearchPanel(ws: Workspace) -> Element {
         });
     };
 
+    // Replace (Milestone 7): literal occurrences of the query in the files
+    // the search found; open documents take the edit unsaved, closed files
+    // are written through the source.
+    let mut replacement = use_signal(String::new);
+    let mut preview: Signal<Option<Vec<(Node, usize)>>> = use_signal(|| None);
+    let mut replacing = use_signal(|| false);
+    let hit_nodes = move || -> Vec<Node> {
+        let mut out: Vec<Node> = Vec::new();
+        if let Some(Ok(list)) = hits.peek().as_ref() {
+            for h in list {
+                if let Some(n) = &h.node {
+                    if !out.iter().any(|o| o.id == n.id) {
+                        out.push(n.clone());
+                    }
+                }
+            }
+        }
+        out
+    };
+    let do_preview = move || {
+        let needle = query.peek().clone();
+        let nodes = hit_nodes();
+        spawn(async move {
+            let mut out = Vec::new();
+            for n in nodes {
+                if let Ok(c) = ws.count_occurrences(&n, &needle).await {
+                    if c > 0 {
+                        out.push((n, c));
+                    }
+                }
+            }
+            preview.set(Some(out));
+        });
+    };
+    let do_replace = move |_| {
+        let needle = query.peek().clone();
+        let with = replacement.peek().clone();
+        let Some(files) = preview.peek().clone() else {
+            return;
+        };
+        spawn(async move {
+            replacing.set(true);
+            let mut total = 0;
+            let mut failed = 0;
+            for (n, _) in files {
+                match ws.replace_in_file(&n, &needle, &with).await {
+                    Ok(c) => total += c,
+                    Err(e) => {
+                        failed += 1;
+                        ws.set_status(format!("{}: {e}", n.native_key));
+                    }
+                }
+            }
+            if failed == 0 {
+                ws.set_status(format!("Replaced {total} occurrence(s) of {needle:?}"));
+            }
+            preview.set(None);
+            replacing.set(false);
+            run();
+        });
+    };
+    let preview_now = preview.read().clone();
+    let preview_total: usize = preview_now
+        .as_ref()
+        .map(|p| p.iter().map(|(_, c)| c).sum())
+        .unwrap_or(0);
+
     rsx! {
         document::Stylesheet { href: crate::explorer::EXPLORER_CSS }
         div { class: "mk-search",
@@ -119,6 +186,33 @@ fn SearchPanel(ws: Workspace) -> Element {
                     },
                 }
                 button { class: "mk-btn", disabled: running(), onclick: move |_| run(), "Go" }
+            }
+            if matches!(hits(), Some(Ok(ref l)) if !l.is_empty()) {
+                div { class: "mk-search-box mk-search-replace",
+                    input {
+                        class: "mk-input",
+                        placeholder: "Replace with…",
+                        value: "{replacement}",
+                        oninput: move |e| { replacement.set(e.value()); preview.set(None); },
+                        onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Enter { e.prevent_default(); do_preview(); } },
+                    }
+                    button { class: "mk-btn", disabled: replacing(), onclick: move |_| do_preview(), "Preview" }
+                }
+                if let Some(files) = preview_now {
+                    div { class: "mk-search-preview", "data-files": "{files.len()}", "data-total": "{preview_total}",
+                        if files.is_empty() {
+                            p { class: "mk-muted", "No literal occurrences of the query in the found files." }
+                        } else {
+                            p { "Replace " b { "{preview_total}" } " occurrence(s) of " code { "{query}" } " with " code { "{replacement}" } " in:" }
+                            ul {
+                                for (n, c) in files.iter() {
+                                    li { key: "{n.id}", "{n.native_key} " span { class: "mk-muted", "({c})" } if ws.document(n.id).is_some() { span { class: "mk-muted", " — open, stays unsaved" } } }
+                                }
+                            }
+                            button { class: "mk-btn mk-btn-on", disabled: replacing(), onclick: do_replace, "Replace all" }
+                        }
+                    }
+                }
             }
             div { class: "mk-search-results",
                 match hits() {

@@ -19,13 +19,13 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-11 ✅ (Crepe; Source stays canonical) | Milkdown WYSIWYG behind `RichTextBackend` | 3 | medium | 11 | Second interop package; round-trip fidelity is the risk. |
 | P-12 ✅ (no packages) | Typst preview | 2 | low | 12 | Pure Rust; `World` impl over folder source. |
 | P-13 ✅ | Terminal: PTY + xterm view + links | 2 | low | 13 | Contained; high user value. |
-| P-14 ✅ (diagnostics, hover, definition) | LSP client + local spawning | 3 | medium | 14 | Protocol is known; document sync + neutral feature types is the work. |
+| P-14 ✅ (diagnostics, hover, definition; M7: completion, rename, code actions, references) | LSP client + local spawning | 3 | medium | 14 | Protocol is known; document sync + neutral feature types is the work. |
 | P-15 ✅ Ladybug (read-only); Falkor deferred | Graph DB sources: Ladybug, Falkor | 2 | low | 15 | Natural fit; embedded Ladybug first. |
 | P-16 | Cross-source edges + consistency (dangling targets, versions) | 4 | **high** | 16 | Needed once two sources are open at once and pages link to rows. Deferred until real cases exist. |
 | P-17 ✅ | LLM gateway: providers, tool surface, policy, audit | 3 | medium | 17 | Composition over the command bus; policy classification depends on P-08's SQL classifier. |
 | P-18 ✅ (BM25 + optional embeddings, brute-force cosine) | Embeddings + hybrid search | 3 | medium | 18 | Needs P-17 + P-06 chunking; storage choice (`usearch` vs source `VECTOR`). |
 | P-19 | Postgres/Supabase, Turso sources | 2 | low | 19 | Same lifting as SQLite; networked. |
-| P-20 | Remote LSP + remote terminal on `api` (security) | 4 | **high** | 20 | Code execution as a service: auth, jail, limits, allow-lists, audit. Do not ship earlier. |
+| P-20 ✅ (single-user token; accounts later) | Remote LSP + remote terminal on `api` (security) | 4 | **high** | 20 | Code execution as a service: auth, jail, limits, allow-lists, audit. Milestone 7: `MOONKALE_TOKEN` + cookie/bearer gate on every relay, audit lines, login rate limit, non-loopback refused without a token. |
 | P-21 ✅ (traces; AST later) | Stack-trace / AST → graph | 2 | low | 21 | Small parsers; hierarchical layout from P-07. Great demo. |
 | P-22 | GPU compute layouts; 100k+ target; desktop surface decision ([[P-001 Graph surface in desktop webview]]) | 5 | **very high** | 22 | Compute shaders + platform surface research. Needs P-07 stable and measurements. |
 | P-23 | wasmtime extension runtime + WIT world + permissions UI | 4 | **high** | 23 | After the API has settled through several static extensions. |
@@ -37,7 +37,7 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-29 | Rust-native backends (terminal → code → rich text) | 5 | research | 29 | Replaces the JS packages; unlocks `dioxus-native` desktop. |
 | P-30 | Collaborative editing (CRDT over the op stream) | 5 | research | 30 | [[ADR-0009 Patches not snapshots]] keeps the door open. |
 | P-31 | Structured Typst / Excalidraw-in-flow | 4 | research | 31 | |
-| P-32 | Git integration: status/diff decorations, commit/log, history-as-graph (`vcs-git`, `gix`) | 3 | medium | after P-06 | Folder sources are git repos in practice; server-side on web. [[Version Management]] |
+| P-32 ✅ (CLI; no push/pull yet) | Git integration: status/diff decorations, commit/log, history-as-graph (`vcs-git`, `gix`) | 3 | medium | after P-06 | Folder sources are git repos in practice; server-side on web. [[Version Management]] |
 | P-35 | Windows / macOS / iOS builds: verify `dx serve`/`dx bundle` on each, custom title bar on WebView2/WKWebView (macOS traffic lights vs our controls), `rfd` native dialogs, xdg-portal → OS dialogs, Vulkan/Metal for the graph view | 3 | medium | when a device exists | Design must not preclude; no work scheduled. [[Platform Matrix]] |
 | P-34 | Presence: awareness protocol (cursors, selections, who's here), server websocket hub per workspace, desktop+web in one session | 3 | medium | Phase 3 | Extends the shipped session bus. [[Collaboration]] |
 | P-33 | Entity log: append-only Add/Remove/SetProps/Content events, fold, snapshots, tombstones, checkpoints ↔ commits | 4 | **high** | before P-06 emits derived nodes | Shape must exist before the index creates nodes with no history. [[ADR-0012 Two histories]] |

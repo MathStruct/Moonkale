@@ -111,3 +111,84 @@ impl LspManager {
         }
     }
 }
+
+/// Apply a server-provided edit to the workspace (Milestone 7: rename, code
+/// actions). Files under `root` only. Open documents take the change as an
+/// unsaved edit (the editor view follows through the document signal);
+/// closed files are written through the folder source with a version check.
+/// Returns how many files changed.
+pub async fn apply_workspace_edit(
+    mut ws: Workspace,
+    root: &str,
+    edit: &moonkale_lsp::WorkspaceEdit,
+) -> Result<usize, String> {
+    use moonkale_core::{Query, TextPatch, Transaction};
+    let prefix = format!("file://{root}/");
+    let mut changed = 0;
+    for (uri, edits) in &edit.changes {
+        let Some(rel) = uri.strip_prefix(&prefix) else {
+            return Err(format!("{uri} is outside the folder"));
+        };
+        let folder = ws
+            .sources
+            .peek()
+            .iter()
+            .find(|s| s.descriptor.id.as_str() == format!("folder:{root}"))
+            .map(|s| s.source.clone())
+            .ok_or("folder not open")?;
+        let node_id = moonkale_core::NodeId::derive(
+            &moonkale_core::SourceId::new(format!("folder:{root}")),
+            rel,
+        );
+        if let Some(mut doc) = ws.document(node_id) {
+            let next = moonkale_lsp::WorkspaceEdit::apply_to_text(&doc.peek().text, edits);
+            doc.with_mut(|d| d.text = next);
+            changed += 1;
+            continue;
+        }
+        // Not open: the node must exist (this also registers its id with the source).
+        let node = folder
+            .query(Query::Node(node_id))
+            .await
+            .map_err(|e| e.to_string())?
+            .nodes
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("{rel} not found"))?;
+        let (text, version) = folder
+            .fetch_text(node.id)
+            .await
+            .map_err(|e| e.to_string())?;
+        let next = moonkale_lsp::WorkspaceEdit::apply_to_text(&text, edits);
+        if next == text {
+            continue;
+        }
+        let applied = folder
+            .apply(Transaction::write_text(
+                node.id,
+                version,
+                TextPatch::whole(next, text.chars().count()),
+            ))
+            .await
+            .map_err(|e| e.to_string())?;
+        if let Some(e) = applied.first_error() {
+            return Err(format!("{rel}: {e}"));
+        }
+        changed += 1;
+        // Re-index and let the server know the file changed on disk.
+        let others: Vec<_> = ws
+            .sources
+            .peek()
+            .iter()
+            .filter(|s| s.descriptor.id.as_str() != format!("folder:{root}"))
+            .map(|s| s.source.clone())
+            .collect();
+        for o in others {
+            let _ = o.refresh(node.id).await;
+        }
+    }
+    if changed > 0 {
+        ws.graph_epoch.with_mut(|e| *e += 1);
+    }
+    Ok(changed)
+}

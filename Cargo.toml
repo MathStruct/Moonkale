@@ -35,6 +35,7 @@ members = [
     "packages/editors/agent",
     "packages/trace",
     "packages/extensions/lux",
+    "packages/extensions/git",
     "packages/extensions/wordcount",
     "packages/editors/graph-desktop",
     "packages/editors/graph-render",
@@ -77,6 +78,7 @@ moonkale-editor-terminal = { path = "packages/editors/terminal" }
 moonkale-editor-agent = { path = "packages/editors/agent" }
 moonkale-trace = { path = "packages/trace" }
 moonkale-ext-lux = { path = "packages/extensions/lux" }
+moonkale-ext-git = { path = "packages/extensions/git" }
 moonkale-ext-wordcount = { path = "packages/extensions/wordcount" }
 moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }
 moonkale-graph-render = { path = "packages/editors/graph-render" }

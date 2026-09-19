@@ -434,6 +434,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             onkeydown: move |e| {
                 if (e.modifiers().ctrl() || e.modifiers().meta()) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
+                    e.stop_propagation(); // the frame would dispatch Save again
                     save(());
                 }
             },

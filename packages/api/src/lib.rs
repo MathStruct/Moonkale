@@ -25,11 +25,15 @@ use moonkale_core::{
     Version,
 };
 
+#[cfg(feature = "server")]
+pub mod auth;
+mod git;
 mod llm;
 mod lsp;
 #[cfg(feature = "server")]
 pub mod mcp;
 mod wasm;
+pub use git::git_run;
 pub use wasm::{list_wasm_extensions, run_wasm_command};
 mod remote;
 mod terminal;

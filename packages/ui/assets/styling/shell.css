@@ -68,3 +68,20 @@
 .mk-narrow .wb-tab-item { min-height: 40px; }
 .mk-narrow .mk-btn, .mk-narrow .mk-input { min-height: 36px; }
 .mk-narrow .wb-status-bar { font-size: 11px; }
+
+/* Command palette / quick open (Milestone 7) */
+.mk-palette-backdrop { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / 0.25); display: flex; justify-content: center; align-items: flex-start; padding-top: 10vh; }
+.mk-palette { width: min(640px, 92vw); max-height: 70vh; display: flex; flex-direction: column; background: var(--wb-surface, #161922); border: 1px solid var(--wb-line, #2a2e3a); border-radius: 8px; box-shadow: var(--wb-shadow, 0 6px 18px rgb(0 0 0 / 0.5)); color: var(--wb-ink, #e6e8ee); font-size: 13px; }
+.mk-palette-input { font: inherit; font-size: 14px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--wb-line, #2a2e3a); border-radius: 8px 8px 0 0; background: var(--wb-sunken, #0b0d12); color: inherit; outline: none; }
+.mk-palette-list { list-style: none; margin: 0; padding: 4px 0; overflow: auto; }
+.mk-palette-item { display: flex; gap: 12px; align-items: baseline; padding: 6px 12px; cursor: pointer; }
+.mk-palette-item:hover { background: var(--wb-hover, rgb(255 255 255 / 0.06)); }
+.mk-palette-item.mk-selected { background: var(--wb-selected, rgb(110 168 254 / 0.16)); }
+.mk-palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-palette-detail { color: var(--wb-ink-faint, #7f8595); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+.mk-palette-empty { padding: 10px 12px; color: var(--wb-ink-faint, #7f8595); }
+.mk-settings-form label.mk-settings-key { grid-template-columns: 1fr 180px; }
+.mk-settings-form label.mk-settings-key > span { display: flex; align-items: center; gap: 6px; }
+.mk-tab-vcs { font-size: 10px; font-weight: 700; color: #c9a75f; margin-left: 4px; }
+.mk-tab-vcs[data-status="A"], .mk-tab-vcs[data-status="?"] { color: #6cb28c; }
+.mk-tab-vcs[data-status="D"] { color: #e07a75; }

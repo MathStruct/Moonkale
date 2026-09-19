@@ -11,9 +11,14 @@ const LOGO: Asset = asset!("/assets/icon32.png");
 
 #[derive(Clone, PartialEq)]
 enum Item {
+    /// A registry command: the shortcut shown is the effective keybinding.
     Cmd {
         label: &'static str,
-        shortcut: &'static str,
+        id: &'static str,
+    },
+    /// A direct command outside the registry (parameterised ones).
+    Direct {
+        label: &'static str,
         cmd: Command,
     },
     Sep,
@@ -40,13 +45,11 @@ fn menus(
     let desktop = controls.is_some();
     let mut file = vec![Item::Cmd {
         label: "Open Folder…",
-        shortcut: "Ctrl+O",
-        cmd: Command::OpenFolder,
+        id: "workspace.openFolder",
     }];
     if flow_enabled {
-        file.push(Item::Cmd {
+        file.push(Item::Direct {
             label: "New Flow…",
-            shortcut: "",
             cmd: Command::NewFile(
                 "untitled.flow.json",
                 "{\n  \"version\": 1,\n  \"blocks\": [],\n  \"wires\": []\n}\n",
@@ -60,19 +63,16 @@ fn menus(
         Item::Sep,
         Item::Cmd {
             label: "Settings…",
-            shortcut: "Ctrl+,",
-            cmd: Command::Settings,
+            id: "view.settings",
         },
         Item::Sep,
         Item::Cmd {
             label: "Save",
-            shortcut: "Ctrl+S",
-            cmd: Command::Save,
+            id: "file.save",
         },
         Item::Cmd {
             label: "Close Editor",
-            shortcut: "Ctrl+W",
-            cmd: Command::CloseEditor,
+            id: "editor.close",
         },
     ]);
     if desktop {
@@ -84,20 +84,26 @@ fn menus(
     }
     let mut view = vec![
         Item::Cmd {
+            label: "Command Palette…",
+            id: "view.palette",
+        },
+        Item::Cmd {
+            label: "Go to File…",
+            id: "view.quickOpen",
+        },
+        Item::Sep,
+        Item::Cmd {
             label: "New Window",
-            shortcut: "Ctrl+Shift+N",
-            cmd: Command::NewWindow,
+            id: "view.newWindow",
         },
         Item::Cmd {
             label: "New Terminal",
-            shortcut: "Ctrl+`",
-            cmd: Command::NewTerminal,
+            id: "view.newTerminal",
         },
         Item::Sep,
         Item::Cmd {
             label: "Reset Layout",
-            shortcut: "",
-            cmd: Command::ResetLayout,
+            id: "view.resetLayout",
         },
     ];
     if controls.and_then(|c| c.devtools).is_some() {
@@ -114,13 +120,16 @@ fn menus(
             vec![
                 Item::Cmd {
                     label: "Undo",
-                    shortcut: "Ctrl+Z",
-                    cmd: Command::Undo,
+                    id: "edit.undo",
                 },
                 Item::Cmd {
                     label: "Redo",
-                    shortcut: "Ctrl+Y",
-                    cmd: Command::Redo,
+                    id: "edit.redo",
+                },
+                Item::Sep,
+                Item::Cmd {
+                    label: "Find in Workspace…",
+                    id: "search.workspace",
                 },
             ],
         ),
@@ -129,8 +138,7 @@ fn menus(
             "Help",
             vec![Item::Cmd {
                 label: "About Moonkale",
-                shortcut: "",
-                cmd: Command::About,
+                id: "help.about",
             }],
         ),
     ]
@@ -139,6 +147,7 @@ fn menus(
 #[component]
 pub fn TitleBar(controls: Option<WindowControls>) -> Element {
     let mut ws = use_context::<Workspace>();
+    let registry = use_context::<crate::commands::CommandRegistry>();
     let mut open: Signal<Option<&'static str>> = use_signal(|| None);
 
     let title = {
@@ -206,11 +215,18 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                                 for item in items {
                                     match item {
                                         Item::Sep => rsx! { div { class: "mk-menu-sep" } },
-                                        Item::Cmd { label, shortcut, cmd } => rsx! {
+                                        Item::Cmd { label, id } => rsx! {
+                                            button { class: "mk-menu-item", role: "menuitem", r#type: "button",
+                                                onclick: move |_| { open.set(None); crate::commands::run(id, ws); },
+                                                span { "{label}" }
+                                                span { class: "mk-menu-shortcut", "{registry.read().shortcut(id)}" }
+                                            }
+                                        },
+                                        Item::Direct { label, cmd } => rsx! {
                                             button { class: "mk-menu-item", role: "menuitem", r#type: "button",
                                                 onclick: move |_| { open.set(None); ws.dispatch(cmd); },
                                                 span { "{label}" }
-                                                span { class: "mk-menu-shortcut", "{shortcut}" }
+                                                span { class: "mk-menu-shortcut" }
                                             }
                                         },
                                         Item::Recent(i, path) => rsx! {

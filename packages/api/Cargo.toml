@@ -10,7 +10,10 @@ moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-llm = { workspace = true }
 moonkale-ext-host = { workspace = true }
+moonkale-ext-git = { workspace = true }
+moonkale-ext-api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 base64 = "0.22"
@@ -29,4 +32,4 @@ tokio = { version = "1", features = ["macros", "rt"], optional = true }
 axum = { version = "0.8", optional = true }
 
 [features]
-server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:tokio", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "dep:axum", "moonkale-ext-host/wasmtime"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:tokio", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]

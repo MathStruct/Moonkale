@@ -18,9 +18,15 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 fn main() {
     // The server adds the MCP endpoint next to the app's own routes.
     #[cfg(feature = "server")]
-    dioxus::server::serve(|| async {
-        Ok(dioxus::server::router(App).route("/mcp", axum::routing::post(api::mcp::handler)))
-    });
+    {
+        // Refuse a non-loopback bind without MOONKALE_TOKEN (Milestone 7).
+        api::auth::guard_bind();
+        dioxus::server::serve(|| async {
+            let router =
+                dioxus::server::router(App).route("/mcp", axum::routing::post(api::mcp::handler));
+            Ok(api::auth::protect(router))
+        });
+    }
     #[cfg(not(feature = "server"))]
     dioxus::launch(App);
 }
@@ -163,6 +169,14 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 }
 
 /// wasm extensions run on the server; the client lists and calls.
+fn git_remote(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
+    Box::pin(async move {
+        match api::git_run(root, req).await {
+            Ok(r) => r,
+            Err(e) => Err(e.to_string()),
+        }
+    })
+}
 fn wasm_list(folder: Option<String>) -> ui::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
     Box::pin(async move {
         api::list_wasm_extensions(folder)
@@ -197,7 +211,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }) },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote) },
                 session,
                 new_window: Some(new_window),
             },

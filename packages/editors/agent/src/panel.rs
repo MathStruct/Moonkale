@@ -9,6 +9,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// The compose box, focused by the `agent.focus` command.
+pub const INPUT_ID: &str = "mk-agent-input";
+
 const CSS: Asset = asset!("/assets/agent.css");
 
 /// What the panel shows, in order.
@@ -412,6 +415,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
             }
             div { class: "mk-agent-compose",
                 textarea {
+                    id: INPUT_ID,
                     class: "mk-agent-input",
                     rows: 2,
                     placeholder: if agent().is_some() { "Ask the agent… (Enter to send, Shift+Enter for a new line)" } else { "Connecting to the provider…" },

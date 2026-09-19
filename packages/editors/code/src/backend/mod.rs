@@ -20,6 +20,19 @@ pub enum BackendEvent {
     Hover { id: u32, line: u32, col: u32 },
     /// F12 at a position.
     Definition { line: u32, col: u32 },
+    /// The view wants completion proposals; answer with `completion_result`.
+    Completion { id: u32, line: u32, col: u32 },
+    /// F2: rename the symbol at a position (`word` is what is under the cursor).
+    Rename { line: u32, col: u32, word: String },
+    /// Ctrl+.: code actions for the selection.
+    CodeActions {
+        line: u32,
+        col: u32,
+        end_line: u32,
+        end_col: u32,
+    },
+    /// Shift+F12: references of the symbol at a position.
+    References { line: u32, col: u32 },
 }
 
 /// A mounted backend instance. Dropping it tears the view down.
@@ -32,6 +45,7 @@ pub trait CodeEditorBackend {
     /// Replace all diagnostics (LSP coordinates).
     fn set_diagnostics(&self, items: &[moonkale_lsp::Diagnostic]);
     fn hover_result(&self, id: u32, text: Option<&str>);
+    fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>);
     fn set_cursor(&self, line: u32, col: u32);
 }
 

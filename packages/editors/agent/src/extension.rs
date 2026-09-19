@@ -30,4 +30,16 @@ impl Extension for AgentExtension {
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
         rsx! { AgentPanel { ws } }
     }
+
+    // Milestone 7: the first extension-contributed command.
+    fn commands(&self, _ws: Workspace) -> Vec<CommandContribution> {
+        vec![CommandContribution::new("agent.focus", "Agent: Ask the agent…").key("Ctrl+Shift+A")]
+    }
+
+    fn run_command(&self, id: &str, mut ws: Workspace) {
+        if id == "agent.focus" {
+            ws.dispatch(Command::ShowPanel(PANEL_ID));
+            ws.focus_element(crate::panel::INPUT_ID);
+        }
+    }
 }

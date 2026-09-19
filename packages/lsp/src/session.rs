@@ -28,6 +28,130 @@ pub struct Location {
     pub col: u32,
 }
 
+/// A completion proposal, feature-neutral (Milestone 7).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CompletionItem {
+    pub label: String,
+    /// LSP `CompletionItemKind` as a lower-case word (`function`, `struct`…).
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// What to insert (defaults to the label). Snippet syntax is stripped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub insert: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort: Option<String>,
+}
+
+/// One text edit in LSP coordinates (0-based line, UTF-16 column).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TextEdit {
+    pub line: u32,
+    pub col: u32,
+    pub end_line: u32,
+    pub end_col: u32,
+    pub new_text: String,
+}
+
+/// Edits grouped per file URI (a `WorkspaceEdit` without the version dance).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WorkspaceEdit {
+    pub changes: Vec<(String, Vec<TextEdit>)>,
+}
+
+impl WorkspaceEdit {
+    /// Parse the LSP shape: `changes` and/or `documentChanges` (text
+    /// document edits only; file create/rename/delete are ignored).
+    pub fn from_lsp(v: &Value) -> Self {
+        let mut out = WorkspaceEdit::default();
+        let mut push = |uri: &str, edits: &Value| {
+            let list: Vec<TextEdit> = edits
+                .as_array()
+                .map(|a| a.iter().filter_map(text_edit).collect())
+                .unwrap_or_default();
+            if list.is_empty() {
+                return;
+            }
+            match out.changes.iter_mut().find(|(u, _)| u == uri) {
+                Some((_, existing)) => existing.extend(list),
+                None => out.changes.push((uri.to_string(), list)),
+            }
+        };
+        if let Some(changes) = v.get("changes").and_then(Value::as_object) {
+            for (uri, edits) in changes {
+                push(uri, edits);
+            }
+        }
+        if let Some(docs) = v.get("documentChanges").and_then(Value::as_array) {
+            for d in docs {
+                if let (Some(uri), Some(edits)) = (
+                    d.pointer("/textDocument/uri").and_then(Value::as_str),
+                    d.get("edits"),
+                ) {
+                    push(uri, edits);
+                }
+            }
+        }
+        out
+    }
+
+    /// Apply one file's edits to `text` (edits are applied last-to-first so
+    /// earlier positions stay valid). Overlapping edits are applied in the
+    /// order given.
+    pub fn apply_to_text(text: &str, edits: &[TextEdit]) -> String {
+        let mut sorted: Vec<&TextEdit> = edits.iter().collect();
+        sorted.sort_by_key(|e| std::cmp::Reverse((e.line, e.col)));
+        let mut chars: Vec<char> = text.chars().collect();
+        for e in sorted {
+            let start = char_offset(&chars, e.line, e.col);
+            let end = char_offset(&chars, e.end_line, e.end_col).max(start);
+            chars.splice(start..end, e.new_text.chars());
+        }
+        chars.into_iter().collect()
+    }
+}
+
+/// Char index of an LSP position (line, UTF-16 column) in `chars`; clamps
+/// to the line end and to the document end.
+pub fn char_offset(chars: &[char], line: u32, col: u32) -> usize {
+    let mut i = 0usize;
+    let mut l = 0u32;
+    while l < line && i < chars.len() {
+        if chars[i] == '\n' {
+            l += 1;
+        }
+        i += 1;
+    }
+    let mut units = 0u32;
+    while i < chars.len() && chars[i] != '\n' && units < col {
+        units += chars[i].len_utf16() as u32;
+        i += 1;
+    }
+    i
+}
+
+fn text_edit(v: &Value) -> Option<TextEdit> {
+    let r = v.get("range")?;
+    Some(TextEdit {
+        line: r.pointer("/start/line")?.as_u64()? as u32,
+        col: r.pointer("/start/character")?.as_u64()? as u32,
+        end_line: r.pointer("/end/line")?.as_u64()? as u32,
+        end_col: r.pointer("/end/character")?.as_u64()? as u32,
+        new_text: v.get("newText")?.as_str()?.to_string(),
+    })
+}
+
+/// A code action as offered to the user: the title, and either a ready
+/// edit or the raw action to resolve.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CodeAction {
+    pub title: String,
+    pub kind: String,
+    pub edit: Option<WorkspaceEdit>,
+    /// The action as the server sent it (for `codeAction/resolve`).
+    pub raw: Value,
+}
+
 /// Things the session reports to whoever owns it (the editor extension).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LspEvent {
@@ -210,7 +334,11 @@ impl LspSession {
                     "synchronization": { "didSave": true },
                     "publishDiagnostics": { "relatedInformation": false },
                     "hover": { "contentFormat": ["markdown", "plaintext"] },
-                    "definition": {}
+                    "definition": {},
+                    "completion": { "completionItem": { "snippetSupport": false, "insertReplaceSupport": false }, "contextSupport": false },
+                    "rename": { "prepareSupport": false },
+                    "codeAction": { "codeActionLiteralSupport": { "codeActionKind": { "valueSet": ["quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite", "source"] } }, "resolveSupport": { "properties": ["edit"] }, "dataSupport": true },
+                    "references": {}
                 },
                 "window": { "workDoneProgress": true },
                 "workspace": { "configuration": true, "workspaceFolders": true }
@@ -278,6 +406,232 @@ impl LspSession {
         let r = self.request("textDocument/definition", json!({ "textDocument": { "uri": uri }, "position": { "line": line, "character": col } })).await?;
         Ok(first_location(r))
     }
+}
+
+impl LspSession {
+    /// Completion proposals at a position (Milestone 7). Snippet
+    /// placeholders (`$0`, `${1:x}`) are stripped from insert texts.
+    pub async fn completion(
+        &self,
+        uri: &str,
+        line: u32,
+        col: u32,
+    ) -> Result<Vec<CompletionItem>, String> {
+        let r = self
+            .request(
+                "textDocument/completion",
+                json!({ "textDocument": { "uri": uri }, "position": { "line": line, "character": col } }),
+            )
+            .await?;
+        let items = match &r {
+            Value::Array(a) => a.clone(),
+            Value::Object(o) => o
+                .get("items")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        Ok(items
+            .iter()
+            .filter_map(|it| {
+                let label = it.get("label")?.as_str()?.to_string();
+                let kind = it
+                    .get("kind")
+                    .and_then(Value::as_u64)
+                    .map(kind_name)
+                    .unwrap_or("text")
+                    .to_string();
+                let insert = it
+                    .pointer("/textEdit/newText")
+                    .or_else(|| it.get("insertText"))
+                    .and_then(Value::as_str)
+                    .map(strip_snippet)
+                    .filter(|t| t != &label);
+                Some(CompletionItem {
+                    label,
+                    kind,
+                    detail: it.get("detail").and_then(Value::as_str).map(str::to_string),
+                    insert,
+                    sort: it
+                        .get("sortText")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                })
+            })
+            .take(200)
+            .collect())
+    }
+
+    /// Rename the symbol at a position everywhere the server knows about.
+    pub async fn rename(
+        &self,
+        uri: &str,
+        line: u32,
+        col: u32,
+        new_name: &str,
+    ) -> Result<WorkspaceEdit, String> {
+        let r = self
+            .request(
+                "textDocument/rename",
+                json!({ "textDocument": { "uri": uri }, "position": { "line": line, "character": col }, "newName": new_name }),
+            )
+            .await?;
+        Ok(WorkspaceEdit::from_lsp(&r))
+    }
+
+    /// Code actions for a range (quick fixes and refactors with an edit).
+    pub async fn code_actions(
+        &self,
+        uri: &str,
+        line: u32,
+        col: u32,
+        end_line: u32,
+        end_col: u32,
+    ) -> Result<Vec<CodeAction>, String> {
+        let r = self
+            .request(
+                "textDocument/codeAction",
+                json!({
+                    "textDocument": { "uri": uri },
+                    "range": { "start": { "line": line, "character": col }, "end": { "line": end_line, "character": end_col } },
+                    "context": { "diagnostics": [] }
+                }),
+            )
+            .await?;
+        Ok(r.as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| {
+                        let title = v.get("title")?.as_str()?.to_string();
+                        // Bare `Command`s (no edit, no data) cannot be applied here.
+                        if v.get("edit").is_none() && v.get("data").is_none() {
+                            return None;
+                        }
+                        Some(CodeAction {
+                            title,
+                            kind: v
+                                .get("kind")
+                                .and_then(Value::as_str)
+                                .unwrap_or("")
+                                .to_string(),
+                            edit: v.get("edit").map(WorkspaceEdit::from_lsp),
+                            raw: v.clone(),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// The edit of a code action, resolving it with the server when it was
+    /// sent without one.
+    pub async fn resolve_code_action(&self, action: &CodeAction) -> Result<WorkspaceEdit, String> {
+        if let Some(e) = &action.edit {
+            return Ok(e.clone());
+        }
+        let r = self
+            .request("codeAction/resolve", action.raw.clone())
+            .await?;
+        match r.get("edit") {
+            Some(e) => Ok(WorkspaceEdit::from_lsp(e)),
+            None => Err("the server returned no edit".into()),
+        }
+    }
+
+    /// Every reference to the symbol at a position (including the declaration).
+    pub async fn references(
+        &self,
+        uri: &str,
+        line: u32,
+        col: u32,
+    ) -> Result<Vec<Location>, String> {
+        let r = self
+            .request(
+                "textDocument/references",
+                json!({ "textDocument": { "uri": uri }, "position": { "line": line, "character": col }, "context": { "includeDeclaration": true } }),
+            )
+            .await?;
+        Ok(r.as_array()
+            .map(|a| a.iter().filter_map(|l| first_location(l.clone())).collect())
+            .unwrap_or_default())
+    }
+}
+
+fn kind_name(k: u64) -> &'static str {
+    match k {
+        1 => "text",
+        2 => "method",
+        3 => "function",
+        4 => "constructor",
+        5 => "field",
+        6 => "variable",
+        7 => "class",
+        8 => "interface",
+        9 => "module",
+        10 => "property",
+        11 => "unit",
+        12 => "value",
+        13 => "enum",
+        14 => "keyword",
+        15 => "snippet",
+        16 => "color",
+        17 => "file",
+        18 => "reference",
+        19 => "folder",
+        20 => "enumMember",
+        21 => "constant",
+        22 => "struct",
+        23 => "event",
+        24 => "operator",
+        25 => "typeParameter",
+        _ => "text",
+    }
+}
+
+/// `foo($0)` → `foo()`, `${1:name}` → `name`, `\$` → `$`.
+pub fn strip_snippet(t: &str) -> String {
+    let mut out = String::new();
+    let mut chars = t.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                if let Some(n) = chars.next() {
+                    out.push(n);
+                }
+            }
+            '$' => match chars.peek() {
+                Some('{') => {
+                    chars.next();
+                    let mut inner = String::new();
+                    let mut depth = 1;
+                    for n in chars.by_ref() {
+                        if n == '{' {
+                            depth += 1;
+                        } else if n == '}' {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        inner.push(n);
+                    }
+                    // `${1:text}` keeps the text; `${1}` keeps nothing.
+                    if let Some((_, text)) = inner.split_once(':') {
+                        out.push_str(&strip_snippet(text));
+                    }
+                }
+                Some(d) if d.is_ascii_digit() => {
+                    while matches!(chars.peek(), Some(d) if d.is_ascii_digit()) {
+                        chars.next();
+                    }
+                }
+                _ => out.push('$'),
+            },
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 fn convert_diag(d: lsp::Diagnostic) -> Diagnostic {
@@ -423,5 +777,45 @@ mod tests {
                 assert_eq!(h.await.unwrap().unwrap(), Some("fn main()".to_string()));
             })
             .await;
+    }
+}
+
+#[cfg(test)]
+mod m7_tests {
+    use super::*;
+
+    #[test]
+    fn snippets_are_stripped() {
+        assert_eq!(strip_snippet("foo($0)"), "foo()");
+        assert_eq!(strip_snippet("${1:name}.len()"), "name.len()");
+        assert_eq!(strip_snippet("a\\$b ${2}"), "a$b ");
+    }
+
+    #[test]
+    fn workspace_edit_parses_both_shapes_and_applies_in_order() {
+        let v = json!({
+            "changes": { "file:///a.rs": [
+                { "range": { "start": { "line": 0, "character": 3 }, "end": { "line": 0, "character": 6 } }, "newText": "bar" },
+                { "range": { "start": { "line": 1, "character": 0 }, "end": { "line": 1, "character": 3 } }, "newText": "bar" }
+            ] },
+            "documentChanges": [ { "textDocument": { "uri": "file:///b.rs", "version": 3 }, "edits": [
+                { "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 0, "character": 0 } }, "newText": "// " }
+            ] } ]
+        });
+        let e = WorkspaceEdit::from_lsp(&v);
+        assert_eq!(e.changes.len(), 2);
+        let a = &e
+            .changes
+            .iter()
+            .find(|(u, _)| u == "file:///a.rs")
+            .unwrap()
+            .1;
+        assert_eq!(
+            WorkspaceEdit::apply_to_text("fn foo() {}\nfoo();\n", a),
+            "fn bar() {}\nbar();\n"
+        );
+        // UTF-16 columns: an emoji is two units.
+        assert_eq!(char_offset(&"a😀b".chars().collect::<Vec<_>>(), 0, 3), 2);
+        assert_eq!(char_offset(&"x\ny".chars().collect::<Vec<_>>(), 1, 1), 3);
     }
 }
