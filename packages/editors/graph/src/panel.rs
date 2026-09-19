@@ -99,9 +99,15 @@ struct OutGraph<'a> {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum ToJs<'a> {
-    SetGraph { graph: OutGraph<'a> },
+    SetGraph {
+        graph: OutGraph<'a>,
+    },
     Fit,
     Relayout,
+    /// `"2d"` | `"3d"` (Milestone 8).
+    SetMode {
+        mode: &'a str,
+    },
     Destroy,
 }
 
@@ -216,6 +222,7 @@ for (;;) {
     if (msg.kind === "setGraph") view.set_graph(JSON.stringify(msg.graph));
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "relayout") view.relayout();
+    else if (msg.kind === "setMode") view.set_mode(msg.mode);
     else if (msg.kind === "destroy") { ro.disconnect(); view.destroy(); delete window.moonkale.graphViews[ID]; break; }
 }
 "#;
@@ -562,6 +569,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         })
         .unwrap_or(false);
     let mut paste_open = use_signal(|| false);
+    let mut three_d = use_signal(|| false);
     let mut paste_text = use_signal(String::new);
     let has_request = ws.graph_request.read().is_some();
     let picked_str = picked().map(|p| p.to_string()).unwrap_or_default();
@@ -616,7 +624,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } "unresolved" }
                 }
                 span { class: "mk-graph-spacer" }
-                span { class: "mk-graph-info", "data-nodes": "{n_nodes}", "data-backend": backend().unwrap_or_default(), "data-module": if loaded() { "loaded" } else { "" },
+                span { class: "mk-graph-info", "data-nodes": "{n_nodes}", "data-mode": if three_d() { "3d" } else { "2d" }, "data-backend": backend().unwrap_or_default(), "data-module": if loaded() { "loaded" } else { "" },
                     "{n_nodes} nodes · {n_edges} edges"
                     if truncated { " · truncated" }
                     if let Some(b) = backend() { " · {b}" }
@@ -624,6 +632,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 button { class: if paste_open() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| paste_open.toggle(), title: "Paste a stack trace or compiler output and draw it", "Trace…" }
                 button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, "Fit" }
                 button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Relayout); } }, "Relayout" }
+                button { class: if three_d() { "mk-btn mk-btn-on" } else { "mk-btn" }, title: "3D: one plane per node kind; drag to pan, right-drag or Shift-drag to orbit, wheel to dolly",
+                    onclick: move |_| {
+                        let next = !three_d();
+                        three_d.set(next);
+                        if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::SetMode { mode: if next { "3d" } else { "2d" } }); }
+                    },
+                    "3D"
+                }
             }
             if paste_open() {
                 div { class: "mk-graph-paste",

@@ -32,15 +32,15 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-24 | Flow editor + Lux.jl codegen | 3 | medium | 24 | Independent; needs P-05 (libraries as contributions) and P-13 (run). |
 | P-25 | Mobile: file access, collapsed shell, touch | 4 | medium | 25 | Platform work; UX not primary coding. Do after web parity (P-10) so most features come "for free". |
 | P-26 | TypeDB, HelixDB sources | 3 | medium | 26 | Driver maturity risk (Helix); TypeDB's type system needs richer schema mapping. |
-| P-27 | 3D graph | 3 | low | 27 | Mostly camera/UX once P-22 exists. |
-| P-28 | Browser-side WASM extensions | 5 | **very high** | 28 | Least mature tooling; Worker + component layer or `jco` transpile. |
+| P-27 ✅ (z by layer, orbit camera; no 3D force layout) | 3D graph | 3 | low | 27 | Mostly camera/UX once P-22 exists. |
+| P-28 ✅ (JSON ABI in a Worker + SharedArrayBuffer mailbox) | Browser-side WASM extensions | 5 | **very high** | 28 | Least mature tooling; Worker + component layer or `jco` transpile. |
 | P-29 | Rust-native backends (terminal → code → rich text) | 5 | research | 29 | Replaces the JS packages; unlocks `dioxus-native` desktop. |
 | P-30 | Collaborative editing (CRDT over the op stream) | 5 | research | 30 | [[ADR-0009 Patches not snapshots]] keeps the door open. |
 | P-31 | Structured Typst / Excalidraw-in-flow | 4 | research | 31 | |
 | P-32 ✅ (CLI; no push/pull yet) | Git integration: status/diff decorations, commit/log, history-as-graph (`vcs-git`, `gix`) | 3 | medium | after P-06 | Folder sources are git repos in practice; server-side on web. [[Version Management]] |
 | P-35 | Windows / macOS / iOS builds: verify `dx serve`/`dx bundle` on each, custom title bar on WebView2/WKWebView (macOS traffic lights vs our controls), `rfd` native dialogs, xdg-portal → OS dialogs, Vulkan/Metal for the graph view | 3 | medium | when a device exists | Design must not preclude; no work scheduled. [[Platform Matrix]] |
-| P-34 | Presence: awareness protocol (cursors, selections, who's here), server websocket hub per workspace, desktop+web in one session | 3 | medium | Phase 3 | Extends the shipped session bus. [[Collaboration]] |
-| P-33 | Entity log: append-only Add/Remove/SetProps/Content events, fold, snapshots, tombstones, checkpoints ↔ commits | 4 | **high** | before P-06 emits derived nodes | Shape must exist before the index creates nodes with no history. [[ADR-0012 Two histories]] |
+| P-34 ✅ (rooms per folder, active document; no cursors, web only) | Presence: awareness protocol (cursors, selections, who's here), server websocket hub per workspace, desktop+web in one session | 3 | medium | Phase 3 | Extends the shipped session bus. [[Collaboration]] |
+| P-33 ✅ (JSONL log, fold, text_at, checkpoints; no compaction yet) | Entity log: append-only Add/Remove/SetProps/Content events, fold, snapshots, tombstones, checkpoints ↔ commits | 4 | **high** | before P-06 emits derived nodes | Shape must exist before the index creates nodes with no history. [[ADR-0012 Two histories]] |
 
 ## Reading the table
 - Top-risk items are **P-01, P-05, P-07, P-16, P-20, P-22, P-28**. They are spaced across phases so that each is attempted with the most information available.

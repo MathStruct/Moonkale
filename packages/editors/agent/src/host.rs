@@ -211,6 +211,21 @@ impl WorkspaceHost {
                 doc.with_mut(|d| d.text = d.text.replacen(&old, &new, 1));
                 let mut ws = ws;
                 ws.active.set(Some(node));
+                // The save that follows is attributed to the agent (Milestone 8 history).
+                let actor = {
+                    let llm = &ws.settings.peek().llm;
+                    format!(
+                        "agent:{}",
+                        if llm.model.is_empty() {
+                            llm.provider.clone()
+                        } else {
+                            llm.model.clone()
+                        }
+                    )
+                };
+                ws.pending_actor.with_mut(|m| {
+                    m.insert(node, actor);
+                });
                 Ok(format!(
                     "Replaced in {label} at line {} (unsaved: the user reviews and saves).",
                     line.unwrap_or(1)

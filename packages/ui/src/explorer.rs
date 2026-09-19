@@ -332,6 +332,8 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
     // Version-control decorations (Milestone 7): a letter class per changed
     // file, a subtle mark on directories with changes below them.
     let vcs = ws.vcs_status.read().clone();
+    let _ = ws.presence.read();
+    let others = ws.others();
     rsx! {
         ul { class: "mk-tree", style: "--depth: {depth}",
             for node in children {
@@ -430,6 +432,9 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                     InlineEdit { ws, state, edit: Edit::Rename { node: node.clone() }, depth }
                                 } else {
                                     span { class: "mk-tree-label", "{node.label}" }
+                                }
+                                for m in others.iter().filter(|m| m.active.as_deref() == Some(node.native_key.as_str())) {
+                                    span { class: "mk-tree-presence", title: "{m.name} has this open", "{m.initials()}" }
                                 }
                                 if is_dir && ws.spawn_terminal().is_some() {
                                     {

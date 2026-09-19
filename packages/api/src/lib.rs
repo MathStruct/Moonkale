@@ -32,8 +32,11 @@ mod llm;
 mod lsp;
 #[cfg(feature = "server")]
 pub mod mcp;
+pub mod presence;
 mod wasm;
 pub use git::git_run;
+#[cfg(feature = "server")]
+pub use wasm::module_bytes;
 pub use wasm::{list_wasm_extensions, run_wasm_command};
 mod remote;
 mod terminal;

@@ -81,7 +81,7 @@ SQL and graph databases have their own transaction/MVCC machinery and rarely exp
 ## Where it lives (planned)
 | piece | crate | status |
 |---|---|---|
-| `Event`, `EntityLog`, fold/snapshot | `core::graph::history` | design stub |
+| `Event`, `EntityLog`, fold, `text_at` (replay), JSONL | `core::graph::history` | **built in Milestone 8**; snapshots/compaction next |
 | log storage (SQLite/DuckDB file per workspace) | `index::store` | design |
 | status/diff, stage/commit, history-as-graph | `extensions/git` (`moonkale-ext-git`; CLI on desktop and the web server) | **built in Milestone 7** ([[Milestone 7 - Implementation Log]]) — checkpoints ↔ commits wait for the entity log |
 | timeline scrubbing UI | `editors/graph` + a "History" panel in `ui` | design |

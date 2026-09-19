@@ -9,17 +9,16 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct NodeInst {
-    pos: [f32; 2],
+    pos: [f32; 3],
     radius: f32,
-    _pad: f32,
     color: [f32; 4],
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct EdgeInst {
-    a: [f32; 2],
-    b: [f32; 2],
+    a: [f32; 3],
+    b: [f32; 3],
     color: [f32; 4],
 }
 
@@ -32,7 +31,29 @@ pub struct Renderer {
     camera_bind: wgpu::BindGroup,
     node_pipe: wgpu::RenderPipeline,
     edge_pipe: wgpu::RenderPipeline,
+    /// Depth buffer (3D mode draws nodes over edges by depth; in 2D every
+    /// depth is 0.5 and order wins).
+    depth: wgpu::TextureView,
     pub backend: String,
+}
+
+fn depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("graph depth"),
+            size: wgpu::Extent3d {
+                width: width.max(1),
+                height: height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth24Plus,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+        .create_view(&Default::default())
 }
 
 impl Renderer {
@@ -140,7 +161,13 @@ impl Renderer {
                         topology: wgpu::PrimitiveTopology::TriangleStrip,
                         ..Default::default()
                     },
-                    depth_stencil: None,
+                    depth_stencil: Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth24Plus,
+                        depth_write_enabled: Some(true),
+                        depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                        stencil: Default::default(),
+                        bias: Default::default(),
+                    }),
                     multisample: Default::default(),
                     multiview_mask: None,
                     cache: None,
@@ -157,13 +184,13 @@ impl Renderer {
             // channel (P-068).
             &[
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 0,
                     shader_location: 0,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32,
-                    offset: 8,
+                    offset: 12,
                     shader_location: 1,
                 },
                 wgpu::VertexAttribute {
@@ -178,8 +205,9 @@ impl Renderer {
             "edge_vs",
             "edge_fs",
             std::mem::size_of::<EdgeInst>() as u64,
-            &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32x4],
+            &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4],
         );
+        let depth = depth_view(&device, config.width, config.height);
 
         Ok(Self {
             surface,
@@ -190,6 +218,7 @@ impl Renderer {
             camera_bind,
             node_pipe,
             edge_pipe,
+            depth,
             backend,
         })
     }
@@ -201,6 +230,7 @@ impl Renderer {
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
+        self.depth = depth_view(&self.device, width, height);
     }
 
     /// Upload instance data and draw one frame.
@@ -210,13 +240,12 @@ impl Renderer {
             .iter()
             .enumerate()
             .map(|(i, n)| NodeInst {
-                pos: [n.x, n.y],
+                pos: [n.x, n.y, n.z],
                 radius: if Some(i) == hovered {
                     n.radius * 1.4
                 } else {
                     n.radius
                 },
-                _pad: 0.0,
                 color: if Some(i) == hovered {
                     [1.0, 1.0, 1.0, 1.0]
                 } else {
@@ -228,8 +257,8 @@ impl Renderer {
             .edges
             .iter()
             .map(|e| EdgeInst {
-                a: [graph.nodes[e.a].x, graph.nodes[e.a].y],
-                b: [graph.nodes[e.b].x, graph.nodes[e.b].y],
+                a: [graph.nodes[e.a].x, graph.nodes[e.a].y, graph.nodes[e.a].z],
+                b: [graph.nodes[e.b].x, graph.nodes[e.b].y, graph.nodes[e.b].z],
                 color: e.color,
             })
             .collect();
@@ -278,6 +307,14 @@ impl Renderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Discard,
+                    }),
+                    stencil_ops: None,
+                }),
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_bind, &[]);

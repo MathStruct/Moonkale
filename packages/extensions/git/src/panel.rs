@@ -197,8 +197,27 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     let act = move |req: GitRequest| {
         spawn(async move {
             state.busy.set(true);
+            let is_commit = matches!(req, GitRequest::Commit { .. });
+            let message = match &req {
+                GitRequest::Commit { message } => message.clone(),
+                _ => String::new(),
+            };
             match run(ws, req).await {
-                Ok(GitResponse::Done(msg)) => ws.set_status(msg),
+                Ok(GitResponse::Done(msg)) => {
+                    ws.set_status(msg.clone());
+                    if is_commit {
+                        // `[main abc1234] subject` → checkpoint in the entity log (Milestone 8).
+                        let hash = msg
+                            .split_once(']')
+                            .and_then(|(head, _)| head.rsplit(' ').next())
+                            .unwrap_or("")
+                            .to_string();
+                        ws.record(moonkale_core::EventKind::Checkpoint {
+                            commit: hash,
+                            message: message.lines().next().unwrap_or("").to_string(),
+                        });
+                    }
+                }
                 Ok(GitResponse::Unavailable(m)) | Err(m) => ws.set_status(format!("git: {m}")),
                 Ok(_) => {}
             }

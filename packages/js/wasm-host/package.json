@@ -1,0 +1,12 @@
+{
+  "name": "@moonkale/wasm-host",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Runs Moonkale's JSON-ABI wasm extensions in the browser (Milestone 8): a Worker instantiates the module; its synchronous host calls block on a SharedArrayBuffer mailbox the main thread answers. Builds into packages/ui/assets/wasm_host.js.",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --outfile=../../ui/assets/wasm_host.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": { "esbuild": "^0.27.0", "typescript": "^5.0.0" }
+}

@@ -14,7 +14,7 @@ fn default_layout() -> PanelLayout {
         "root",
         SplitAxis::Horizontal,
         0.22,
-        LayoutNode::tile("side", ["explorer", "search", "links", "git"]),
+        LayoutNode::tile("side", ["explorer", "search", "links", "git", "history"]),
         LayoutNode::split(
             "main-right",
             SplitAxis::Horizontal,
@@ -212,11 +212,26 @@ pub fn Shell() -> Element {
                     })
                 })
                 .filter(|c| *c != '.');
-            if c.dirty || vcs.is_some() {
+            // Others looking at this document (presence, Milestone 8).
+            let here: Vec<moonkale_ext_api::presence::Member> =
+                match c.node.and_then(|n| ws.document(n)) {
+                    Some(d) => {
+                        let key = d.peek().node.native_key.clone();
+                        ws.others()
+                            .into_iter()
+                            .filter(|m| m.active.as_deref() == Some(key.as_str()))
+                            .collect()
+                    }
+                    None => Vec::new(),
+                };
+            if c.dirty || vcs.is_some() || !here.is_empty() {
                 let dirty = c.dirty;
                 panel = panel.with_tab_accessory(rsx! {
                     if dirty { span { class: "mk-tab-dirty", "aria-label": "Unsaved changes" } }
                     if let Some(l) = vcs { span { class: "mk-tab-vcs", "data-status": "{l}", "{l}" } }
+                    for m in here.iter() {
+                        span { class: "mk-tab-presence", title: "{m.name} has this open", "{m.initials()}" }
+                    }
                 });
             }
             panels.push(panel);
@@ -234,6 +249,29 @@ pub fn Shell() -> Element {
     };
 
     let status = ws.status.read().clone();
+    let _ = ws.presence.read();
+    let others = ws.others();
+    let others_names = others
+        .iter()
+        .map(|m| m.name.clone())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let others_badges: Vec<(String, String)> = others
+        .iter()
+        .map(|m| {
+            (
+                m.initials(),
+                format!(
+                    "{}{}",
+                    m.name,
+                    m.active
+                        .as_ref()
+                        .map(|a| format!(" · {a}"))
+                        .unwrap_or_default()
+                ),
+            )
+        })
+        .collect();
     let lsp = ws.lsp_status.read().clone();
     let windows = ws.peers.read().len() + 1;
     let window_id = ws.window.read().to_string();
@@ -321,6 +359,16 @@ pub fn Shell() -> Element {
                         right: rsx! {
                             if let Some(l) = lsp {
                                 StatusItem { title: "Language server", "{l}" }
+                            }
+                            if !others.is_empty() {
+                                StatusItem { title: "{others_names} — in this folder too",
+                                    span { class: "mk-presence", "data-count": "{others.len()}",
+                                        "👥 "
+                                        for (initials, title) in others_badges.iter() {
+                                            span { class: "mk-presence-badge", title: "{title}", "{initials}" }
+                                        }
+                                    }
+                                }
                             }
                             StatusItem { title: "This window: {window_id}. Other windows of this session are counted once they answer.",
                                 if windows > 1 { "{windows} windows" } else { "1 window" }

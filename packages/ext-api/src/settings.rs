@@ -44,6 +44,9 @@ pub struct SettingsFile {
     pub keybindings: BTreeMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
+    /// The name edits and presence are attributed to (Milestone 8).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_name: Option<String>,
     /// User scope: most recent first, absolute paths (or server-relative on web).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_folders: Vec<String>,
@@ -185,6 +188,7 @@ impl SettingsFile {
             self.keybindings.insert(id.clone(), key.clone());
         }
         self.theme = other.theme.clone().or(self.theme.take());
+        self.user_name = other.user_name.clone().or(self.user_name.take());
         if !other.recent_folders.is_empty() {
             self.recent_folders = other.recent_folders.clone();
         }
@@ -225,6 +229,7 @@ pub struct Settings {
     pub extensions: ExtensionsSettings,
     pub keybindings: BTreeMap<String, String>,
     pub theme: String,
+    pub user_name: String,
     pub recent_folders: Vec<String>,
     pub layout: Option<String>,
     pub open_documents: Vec<String>,
@@ -311,6 +316,7 @@ impl Default for Settings {
             search: SearchSettings { embeddings: true },
             terminal: TerminalSettings::default(),
             keybindings: BTreeMap::new(),
+            user_name: default_user_name(),
             extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
             recent_folders: Vec::new(),
@@ -349,6 +355,7 @@ impl Settings {
                 shell: merged.terminal.shell,
             },
             keybindings: merged.keybindings.clone(),
+            user_name: merged.user_name.clone().unwrap_or_else(default_user_name),
             extensions: ExtensionsSettings {
                 enabled: merged.extensions.enabled,
                 disabled: merged.extensions.disabled,
@@ -406,6 +413,19 @@ impl Settings {
     pub fn env_overrides() -> SettingsFile {
         SettingsFile::new()
     }
+}
+
+/// `$USER` on native, "you" in the browser (settings override it).
+pub fn default_user_name() -> String {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        if let Ok(u) = std::env::var("USER") {
+            if !u.is_empty() {
+                return u;
+            }
+        }
+    }
+    "you".to_string()
 }
 
 #[cfg(test)]

@@ -289,6 +289,12 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         }
                     }
 
+                    h3 { "You" }
+                    label { "Name"
+                        input { class: "mk-input", value: "{settings.user_name}", placeholder: "shown in history and presence",
+                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.user_name = opt(v))); } }
+                    }
+
                     h3 { "Keybindings" }
                     p { class: "mk-muted", "Ctrl also matches Cmd. Empty = unbound; a scope only stores the bindings changed there." }
                     for entry in registry.read().entries.iter() {

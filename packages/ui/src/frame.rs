@@ -14,6 +14,8 @@ use std::rc::Rc;
 /// deliver incoming messages into this window and returns the sender.
 pub type SessionFactory = fn(Callback<SessionMessage>) -> Rc<dyn SessionBus>;
 
+const WASM_HOST_JS: Asset = asset!("/assets/wasm_host.js");
+
 /// Builds the extension list. A plain `fn` so it can be a prop.
 pub type Extensions = fn() -> Vec<Box<dyn Extension>>;
 
@@ -244,6 +246,14 @@ pub fn Frame(
         });
     });
 
+    // Presence (Milestone 8): tell the hub whenever the active document or
+    // our name changes.
+    use_effect(move || {
+        let _ = ws.active.read();
+        let _ = ws.settings.read().user_name.clone();
+        ws.publish_presence();
+    });
+
     // Frame-level commands.
     use_effect(move || {
         let (_, cmd) = *ws.commands.read();
@@ -335,6 +345,8 @@ pub fn Frame(
                     e.stop_propagation();
                 }
             },
+            // The browser wasm runtime (Milestone 8); harmless where unused.
+            document::Script { src: WASM_HOST_JS, defer: true }
             TitleBar { controls }
             div { class: "mk-frame-body", {children} }
             crate::palette::Palette {}

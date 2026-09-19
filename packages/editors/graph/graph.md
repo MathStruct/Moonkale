@@ -19,3 +19,6 @@ Notes for `moonkale-editor-graph` (Milestone 2), the Dioxus host of the renderer
 
 ## Milestone 6
 - `GRAPH_LIMIT = 100_000` nodes per query (`Query::All { limit }`), up from 3 000; the renderer's LOD handles the rest. The `truncated` flag still shows in the info line.
+
+## Milestone 8
+- **3D** toolbar toggle → `ToJs::SetMode`; `.mk-graph-info[data-mode]` reports `2d`/`3d`.

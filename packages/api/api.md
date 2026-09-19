@@ -40,3 +40,8 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 ## Milestone 7
 - `git.rs` — `git_run(root, GitRequest)` server function: jails `root`, runs `moonkale_ext_git::cli::run`. `api` now depends on `ext-api` for the shared request/response types.
 - `auth.rs` (feature `server`) — `MOONKALE_TOKEN`: middleware on every route (`protect(router)`): `/login`, `/assets/`, `/wasm/`, `/_dioxus`, favicon are public; `/api/*` and `/mcp` answer 401 without the `moonkale_token` HttpOnly cookie or `Authorization: Bearer`; the page redirects to `/login`; `/mcp` is left to its own `MOONKALE_MCP_TOKEN` when that is set. One `moonkale::audit` line per relay call (`<ip> <method> <path> auth=dev|token`). `/login` (GET form, POST sets the cookie; `Secure` when `X-Forwarded-Proto: https`) is rate-limited to 10 attempts/minute per `X-Forwarded-For` (or globally without a proxy). `guard_bind()` / `bind_mode(ip, has_token)`: no token + non-loopback `IP` → exit 2 before serving.
+
+## Milestone 8
+- `presence.rs` — `/api/presence` websocket (`PresenceMessage`): first message `Join { room, member }`; the hub keeps `HashMap<room, Room { members, broadcast }>` in memory, broadcasts the sorted member list on every upsert and on leave, drops empty rooms; `RemotePresence` is the client `PresenceLink` (queued updates, member lists to a callback, empty list when the socket closes).
+- `wasm.rs` — `module_bytes` at `/api/ext/module/{id}` (plain axum route, `application/wasm`) for the browser runtime.
+- `auth.rs` — `protect()` also adds `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (needed for `SharedArrayBuffer`); `MOONKALE_ISOLATE=0` disables them.

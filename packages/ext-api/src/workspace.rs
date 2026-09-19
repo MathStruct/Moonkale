@@ -135,6 +135,11 @@ pub struct WorkspaceConfig {
     pub wasm: Option<WasmExtensions>,
     /// Git for the open folder (`None`: no git on this platform).
     pub git: Option<GitRun>,
+    /// Presence hub (Milestone 8); `None`: this window is alone.
+    pub presence: Option<crate::presence::JoinPresence>,
+    /// Where the browser runtime fetches a wasm extension's bytes (by id);
+    /// `Some` enables running modules in the page (Milestone 8, web).
+    pub wasm_module_url: Option<fn(String) -> String>,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -240,6 +245,15 @@ pub struct Workspace {
     /// Bumped after a file operation (create/rename/delete/move) so the
     /// Explorer reloads the directories it shows (Milestone 7).
     pub fs_epoch: Signal<u64>,
+    /// Who else is in the open folder (Milestone 8); this window included.
+    pub presence: Signal<Vec<crate::presence::Member>>,
+    presence_link: Signal<Option<Rc<dyn crate::presence::PresenceLink>>>,
+    /// The workspace's entity log (Milestone 8): every write appends; kept
+    /// in `.moonkale/history.jsonl` of the open folder.
+    pub history: Signal<moonkale_core::EntityLog>,
+    /// Who the next edit of a document is attributed to when it is not the
+    /// user (the agent host sets it after `editor.replace`).
+    pub pending_actor: Signal<std::collections::HashMap<NodeId, String>>,
     /// Version-control status per relative path: `(index, worktree)` letters
     /// from `git status`, published by the git extension for decorations.
     pub vcs_status: Signal<std::collections::HashMap<String, (char, char)>>,
@@ -273,6 +287,10 @@ impl Workspace {
             graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             vcs_status: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            history: Signal::new_in_scope(moonkale_core::EntityLog::new(), ScopeId::ROOT),
+            presence: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            presence_link: Signal::new_in_scope(None, ScopeId::ROOT),
+            pending_actor: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
@@ -522,7 +540,122 @@ impl Workspace {
             .get(ext_id)
             .cloned()
             .unwrap_or_default();
+        // Milestone 8: in a cross-origin-isolated browser the module runs
+        // here, its host calls answered by this workspace's sources; the
+        // server path stays as the fallback.
+        if let Some(url) = self.config.wasm_module_url {
+            match self
+                .run_wasm_in_browser(&url(ext_id.to_string()), command, args.clone(), &granted)
+                .await
+            {
+                Ok(BrowserRun::Done(r)) => return r,
+                Ok(BrowserRun::Unavailable) => {}
+                Err(e) => return Err(e),
+            }
+        }
         (w.run)(ext_id.to_string(), command.to_string(), args, granted).await
+    }
+
+    /// Run a module in the page's Worker runtime (`window.moonkale.wasmHost`),
+    /// answering its host calls. `Unavailable` when the page cannot (no
+    /// isolation, no runtime script): the caller falls back to the server.
+    async fn run_wasm_in_browser(
+        &self,
+        url: &str,
+        command: &str,
+        args: serde_json::Value,
+        granted: &[String],
+    ) -> Result<BrowserRun, String> {
+        use moonkale_ext_host::abi::{HostCall, HostReply};
+        let mut ev = dioxus::document::eval(WASM_HOST_JS);
+        let _ = ev.send(serde_json::json!({ "url": url, "command": command, "args": args }));
+        loop {
+            let msg: serde_json::Value = match ev.recv().await {
+                Ok(v) => v,
+                Err(e) => return Err(format!("browser runtime: {e}")),
+            };
+            match msg.get("kind").and_then(|k| k.as_str()) {
+                Some("unavailable") => return Ok(BrowserRun::Unavailable),
+                Some("log") => tracing::info!(
+                    "[ext] {}",
+                    msg.get("text").and_then(|t| t.as_str()).unwrap_or("")
+                ),
+                Some("call") => {
+                    let json = msg.get("json").and_then(|j| j.as_str()).unwrap_or("");
+                    let reply = match serde_json::from_str::<HostCall>(json) {
+                        Ok(call) => self.answer_host_call(call, granted).await,
+                        Err(e) => HostReply::err(format!("bad host call: {e}")),
+                    };
+                    let _ = ev.send(serde_json::to_value(reply).unwrap_or_default());
+                }
+                Some("done") => {
+                    let reply = msg.get("reply").and_then(|r| r.as_str()).unwrap_or("");
+                    let parsed: moonkale_ext_host::abi::RunReply = serde_json::from_str(reply)
+                        .map_err(|e| format!("reply JSON: {e}: {reply}"))?;
+                    return Ok(BrowserRun::Done(parsed.into_result()));
+                }
+                Some("error") => {
+                    return Err(msg
+                        .get("error")
+                        .and_then(|e| e.as_str())
+                        .unwrap_or("browser runtime failed")
+                        .to_string())
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// The host side of the JSON ABI, over this workspace's sources, with
+    /// the same permission check as the native runtime.
+    async fn answer_host_call(
+        &self,
+        call: moonkale_ext_host::abi::HostCall,
+        granted: &[String],
+    ) -> moonkale_ext_host::abi::HostReply {
+        use moonkale_ext_host::abi::{HostCall, HostReply};
+        let needed = call.permission();
+        if !granted.iter().any(|g| g == needed) {
+            return HostReply::err(format!(
+                "permission {needed} not granted (Settings → Extensions)"
+            ));
+        }
+        match call {
+            HostCall::ListSources => {
+                let list: Vec<SourceDescriptor> = self
+                    .sources
+                    .peek()
+                    .iter()
+                    .map(|s| s.descriptor.clone())
+                    .collect();
+                HostReply::ok(serde_json::to_value(list).unwrap_or_default())
+            }
+            HostCall::Query { source, query } => {
+                let Some(src) = self.source(&SourceId::new(source)) else {
+                    return HostReply::err("unknown source");
+                };
+                let query: Query = match serde_json::from_value(query) {
+                    Ok(q) => q,
+                    Err(e) => return HostReply::err(format!("bad query: {e}")),
+                };
+                match src.query(query).await {
+                    Ok(res) => HostReply::ok(serde_json::to_value(res).unwrap_or_default()),
+                    Err(e) => HostReply::err(e.to_string()),
+                }
+            }
+            HostCall::FetchText { source, node } => {
+                let Some(src) = self.source(&SourceId::new(source)) else {
+                    return HostReply::err("unknown source");
+                };
+                let Ok(node) = node.parse::<NodeId>() else {
+                    return HostReply::err("bad node id");
+                };
+                match src.fetch_text(node).await {
+                    Ok((text, _)) => HostReply::ok(serde_json::Value::String(text)),
+                    Err(e) => HostReply::err(e.to_string()),
+                }
+            }
+        }
     }
 
     pub fn has_settings_store(&self) -> bool {
@@ -618,6 +751,98 @@ impl Workspace {
         self.settings_folder.set(Some(folder.clone()));
         self.settings_workspace.set(file);
         self.resolve_settings();
+        self.load_history(folder).await;
+        self.join_presence(folder.as_str());
+    }
+
+    /// Read `.moonkale/history.jsonl` (Milestone 8); an absent file is an
+    /// empty log.
+    pub async fn load_history(mut self, folder: &SourceId) {
+        let log = match self.node_at_path(folder, HISTORY_FILE).await {
+            Some(node) => match self.source(folder) {
+                Some(src) => match src.fetch_text(node.id).await {
+                    Ok((text, _)) => moonkale_core::EntityLog::from_jsonl(&text),
+                    Err(_) => moonkale_core::EntityLog::new(),
+                },
+                None => moonkale_core::EntityLog::new(),
+            },
+            None => moonkale_core::EntityLog::new(),
+        };
+        tracing::info!("history: {} events for {folder}", log.len());
+        self.history.set(log);
+    }
+
+    /// The actor string for the user's own edits.
+    pub fn user_actor(&self) -> String {
+        format!("user:{}", self.settings.peek().user_name)
+    }
+
+    /// Append an event to the log and persist it (best effort, never blocks
+    /// the write it records). Returns the event id.
+    pub fn record(&mut self, kind: moonkale_core::EventKind) -> moonkale_core::EventId {
+        self.record_as(self.user_actor(), kind)
+    }
+
+    pub fn record_as(
+        &mut self,
+        actor: String,
+        kind: moonkale_core::EventKind,
+    ) -> moonkale_core::EventId {
+        self.record_event(actor, kind, None)
+    }
+
+    /// Like [`record_as`](Self::record_as) with the node's key for display.
+    pub fn record_event(
+        &mut self,
+        actor: String,
+        kind: moonkale_core::EventKind,
+        key: Option<String>,
+    ) -> moonkale_core::EventId {
+        let at = now_ms();
+        let mut event = moonkale_core::Event::new(at, actor, kind);
+        if let Some(k) = key {
+            event = event.with_key(k);
+        }
+        let id = event.id;
+        self.history.with_mut(|l| {
+            l.append(event);
+        });
+        let ws = *self;
+        spawn(async move { ws.persist_history().await });
+        id
+    }
+
+    async fn persist_history(self) {
+        let Some(folder) = self.settings_folder.peek().clone() else {
+            return;
+        };
+        let Some(src) = self.source(&folder) else {
+            return;
+        };
+        let text = self.history.peek().to_jsonl();
+        let result = match self.node_at_path(&folder, HISTORY_FILE).await {
+            Some(node) => {
+                let chars = src
+                    .fetch_text(node.id)
+                    .await
+                    .map(|(t, _)| t.chars().count())
+                    .unwrap_or(0);
+                src.apply(Transaction::write_text(
+                    node.id,
+                    node.version,
+                    TextPatch::whole(&text, chars),
+                ))
+                .await
+            }
+            None => {
+                let root = src.descriptor().root;
+                src.apply(Transaction::create_text(root, HISTORY_FILE, text))
+                    .await
+            }
+        };
+        if let Err(e) = result {
+            tracing::warn!("history: could not write {HISTORY_FILE}: {e}");
+        }
     }
 
     /// Change the workspace scope and write it into the folder.
@@ -786,6 +1011,50 @@ impl Workspace {
             "requestAnimationFrame(() => {{ const el = document.getElementById({id:?}); if (el) el.focus(); }});"
         );
         let _ = dioxus::document::eval(&js);
+    }
+
+    /// My presence record as the hub should see it now.
+    pub fn my_presence(&self) -> crate::presence::Member {
+        let active = self
+            .active
+            .peek()
+            .and_then(|n| self.document(n))
+            .map(|d| d.peek().node.native_key.clone());
+        crate::presence::Member {
+            window: self.window.peek().to_string(),
+            name: self.settings.peek().user_name.clone(),
+            active,
+        }
+    }
+
+    /// Join the folder's presence room (called when a folder opens); a
+    /// no-op without a hub. Re-joining replaces the link.
+    pub fn join_presence(&mut self, room: &str) {
+        let Some(join) = self.config.presence else {
+            return;
+        };
+        let mut members = self.presence;
+        let on_members = Callback::new(move |list: Vec<crate::presence::Member>| members.set(list));
+        let link = join(room.to_string(), self.my_presence(), on_members);
+        self.presence_link.set(Some(link));
+    }
+
+    /// Tell the hub what this window looks at now.
+    pub fn publish_presence(&self) {
+        if let Some(link) = self.presence_link.peek().as_ref() {
+            link.update(self.my_presence());
+        }
+    }
+
+    /// Members other than this window.
+    pub fn others(&self) -> Vec<crate::presence::Member> {
+        let me = self.window.peek().to_string();
+        self.presence
+            .peek()
+            .iter()
+            .filter(|m| m.window != me)
+            .cloned()
+            .collect()
     }
 
     /// The platform's git runner, if any.
@@ -983,23 +1252,47 @@ impl Workspace {
     /// and leave the document dirty.
     pub async fn save(mut self, node: NodeId) -> Result<(), SourceError> {
         let mut doc = self.document(node).ok_or(SourceError::NotFound)?;
-        let (source_id, version, patch, key) = {
+        let (source_id, version, patch, key, before) = {
             let d = doc.read();
             (
                 d.node.source.clone(),
                 d.version,
                 d.patch(),
                 d.node.native_key.clone(),
+                d.saved.clone(),
             )
         };
         let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
         let applied = source
-            .apply(Transaction::write_text(node, version, patch))
+            .apply(Transaction::write_text(node, version, patch.clone()))
             .await?;
         match applied.version_of(node) {
             Some(v) => {
+                let chars_after = doc.peek().text.chars().count();
                 doc.with_mut(|d| d.mark_saved(v));
                 self.set_status(format!("Saved {key}"));
+                // History: the patch the save carried, attributed to the
+                // agent when it made the edit (the user still approved it).
+                let actor = match self.pending_actor.with_mut(|m| m.remove(&node)) {
+                    Some(a) => format!("{a} (saved by {})", self.settings.peek().user_name),
+                    None => self.user_actor(),
+                };
+                // Files that predate the log get their pre-edit text as the base.
+                let base = if self.history.peek().text_at(node, None).is_none() {
+                    Some(before)
+                } else {
+                    None
+                };
+                self.record_event(
+                    actor,
+                    moonkale_core::EventKind::Content {
+                        node,
+                        patch,
+                        chars_after,
+                        base,
+                    },
+                    Some(key.clone()),
+                );
                 // Let derived sources (the index) re-read the file.
                 let others: Vec<Arc<dyn Source>> = self
                     .sources
@@ -1064,6 +1357,12 @@ impl Workspace {
         }
         self.graph_epoch.with_mut(|e| *e += 1);
         self.set_status(format!("Created {}", node.native_key));
+        if !node.native_key.starts_with(".moonkale/") {
+            self.record(moonkale_core::EventKind::Add {
+                node: node.clone(),
+                text: Some(text.to_string()),
+            });
+        }
         Ok(node)
     }
 
@@ -1114,6 +1413,14 @@ impl Workspace {
             .await?;
         self.after_fs_change(source_id, &[id]).await;
         self.set_status(format!("Created {name}/"));
+        if let Ok(r) = source.query(Query::Node(id)).await {
+            if let Some(n) = r.nodes.into_iter().next() {
+                self.record(moonkale_core::EventKind::Add {
+                    node: n,
+                    text: None,
+                });
+            }
+        }
         Ok(id)
     }
 
@@ -1183,6 +1490,12 @@ impl Workspace {
         }
         self.after_fs_change(&source_id, &[node.id, new_id]).await;
         self.set_status(format!("Renamed {from} → {to}"));
+        self.record(moonkale_core::EventKind::Rename {
+            from: node.id,
+            to: new_id,
+            from_key: from,
+            to_key: to,
+        });
         Ok(new_id)
     }
 
@@ -1209,6 +1522,11 @@ impl Workspace {
             "Deleted {} (kept in .moonkale/trash)",
             node.native_key
         ));
+        self.record_event(
+            self.user_actor(),
+            moonkale_core::EventKind::Remove { node: node.id },
+            Some(node.native_key.clone()),
+        );
         Ok(())
     }
 
@@ -1307,3 +1625,44 @@ fn summary(msg: &SessionMessage) -> String {
         SessionMessage::Moved { node, from, to } => format!("Moved {node} {from} → {to}"),
     }
 }
+
+/// Where the entity log lives inside a workspace (Milestone 8).
+pub const HISTORY_FILE: &str = ".moonkale/history.jsonl";
+
+/// Milliseconds since the Unix epoch, on native and in the browser.
+pub fn now_ms() -> u64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() as u64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+}
+
+enum BrowserRun {
+    Done(Result<String, String>),
+    Unavailable,
+}
+
+/// Drives `window.moonkale.wasmHost` (packages/js/wasm-host) from Rust:
+/// receives the run request, forwards host calls to Rust and back.
+const WASM_HOST_JS: &str = r#"
+const req = await dioxus.recv();
+const host = window.moonkale && window.moonkale.wasmHost;
+if (!host || !host.available()) { dioxus.send({ kind: "unavailable" }); return; }
+try {
+    const reply = await host.run(req.url, req.command, req.args, async (json) => {
+        dioxus.send({ kind: "call", json });
+        const r = await dioxus.recv();
+        return JSON.stringify(r);
+    }, (text) => dioxus.send({ kind: "log", text }));
+    dioxus.send({ kind: "done", reply });
+} catch (e) {
+    dioxus.send({ kind: "error", error: String(e && e.message || e) });
+}
+"#;

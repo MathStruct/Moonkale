@@ -67,6 +67,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 5 - Settings and Writing]] (plan) → [[Milestone 5 - Implementation Log]] (what happened) ✅
 - [[Milestone 6 - Scale and Extend]] (plan) → [[Milestone 6 - Implementation Log]] (what happened) ✅
 - [[Milestone 7 - Daily Driver]] (plan) → [[Milestone 7 - Implementation Log]] (what happened) ✅
+- [[Milestone 8 - Research]] (plan) → [[Milestone 8 - Implementation Log]] (what happened) ✅
 
 ## Problems & planning
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done

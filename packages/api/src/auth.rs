@@ -219,11 +219,34 @@ pub async fn login_post(req: Request) -> Response {
     resp
 }
 
-/// Wire the gate and the login routes onto a router.
+/// Wire the gate and the login routes onto a router, plus the cross-origin
+/// isolation headers the browser wasm runtime needs (`SharedArrayBuffer`):
+/// the app loads nothing cross-origin, so they cost nothing. Set
+/// `MOONKALE_ISOLATE=0` to drop them (then extensions run on the server).
 pub fn protect(router: axum::Router) -> axum::Router {
     router
         .route("/login", axum::routing::get(login_page).post(login_post))
         .layer(axum::middleware::from_fn(middleware))
+        .layer(axum::middleware::from_fn(isolation_headers))
+}
+
+async fn isolation_headers(req: Request, next: Next) -> Response {
+    let mut resp = next.run(req).await;
+    if std::env::var("MOONKALE_ISOLATE")
+        .map(|v| v != "0")
+        .unwrap_or(true)
+    {
+        let h = resp.headers_mut();
+        h.insert(
+            "cross-origin-opener-policy",
+            HeaderValue::from_static("same-origin"),
+        );
+        h.insert(
+            "cross-origin-embedder-policy",
+            HeaderValue::from_static("require-corp"),
+        );
+    }
+    resp
 }
 
 #[cfg(test)]

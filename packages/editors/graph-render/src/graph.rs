@@ -41,6 +41,9 @@ pub struct Node {
     pub key: String,
     pub x: f32,
     pub y: f32,
+    /// Depth for the 3D mode (Milestone 8): a layer per kind, so the
+    /// structure reads as planes (directories below files below symbols).
+    pub z: f32,
     pub radius: f32,
     pub color: [f32; 4],
     pub degree: u32,
@@ -119,6 +122,7 @@ impl Graph {
                 let t = i as f32 * 2.399_963; // golden angle
                 let r = spread * ((i as f32 + 1.0) / (degree.len() as f32 + 1.0)).sqrt();
                 let deg = degree[i];
+                let n_kind = n.kind.clone();
                 Node {
                     radius: 4.0 + (deg as f32).sqrt().min(6.0),
                     color: n
@@ -132,6 +136,7 @@ impl Graph {
                     key: n.key,
                     x: r * t.cos(),
                     y: r * t.sin(),
+                    z: layer_z(&n_kind, i),
                     degree: deg,
                     pinned: false,
                 }
@@ -167,4 +172,23 @@ impl Graph {
         }
         Some(b)
     }
+}
+
+/// Depth by kind: one plane per kind, 140 world units apart, with a small
+/// deterministic jitter so coplanar nodes still read as separate.
+pub fn layer_z(kind: &str, i: usize) -> f32 {
+    let layer: f32 = match kind {
+        "directory" => -2.0,
+        "file" => -1.0,
+        "page" => 0.0,
+        "symbol" => 1.0,
+        "block" => 1.5,
+        "database" => -1.5,
+        "table" => -0.5,
+        "column" | "row" | "vertex" | "key" => 0.5,
+        "commit" => 2.0,
+        _ => 0.25,
+    };
+    let jitter = ((i as f32 * 0.618_034).fract() - 0.5) * 20.0;
+    layer * 140.0 + jitter
 }

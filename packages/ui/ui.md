@@ -52,3 +52,8 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `explorer.rs`: context menu (`ContextMenu`: New File…, New Folder…, Rename…, Delete…, Open in Terminal), `InlineEdit` (Enter commits — `spawn_forever`, since the field unmounts —, Escape/blur cancels), delete confirmation bar, drag-move (`ondragstart/over/drop`; the frame's drag shim sets `dataTransfer` so Firefox starts the drag), reload of loaded/expanded directories on `fs_epoch`, `mk-vcs-*` classes from `ws.vcs_status`.
 - `search.rs`: replace row (Replace with… / Preview / Replace all) over the found files with literal counts and the open/closed distinction.
 - `shell.rs`: tab accessory shows the git status letter next to the unsaved dot; default side tile `explorer, search, links, git`.
+
+## Milestone 8
+- `history.rs`: the **History** panel (side tile) — events newest first with when/actor/summary/key, *active file* filter (`EntityLog::for_node`), *text* opens `history-view:<event>` panels (main tile) showing `text_at`. Command `history.show`.
+- `frame.rs`: publishes presence on active-document/name changes; loads `assets/wasm_host.js` (the browser wasm runtime).
+- `shell.rs`: presence badges on the status bar (`.mk-presence[data-count]`) and on tabs (`.mk-tab-presence`); default side tile adds `history`. `explorer.rs`: `.mk-tree-presence` next to files others have open. `settings_panel.rs`: **You → Name**.

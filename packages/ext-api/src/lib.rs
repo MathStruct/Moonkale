@@ -37,6 +37,7 @@ pub use document::Document;
 pub use extension::Extension;
 pub mod flow;
 pub mod git;
+pub mod presence;
 pub mod settings;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};

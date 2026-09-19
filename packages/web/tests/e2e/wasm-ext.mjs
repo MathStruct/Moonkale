@@ -11,6 +11,8 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 const logs = [];
 page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) logs.push(`[${m.type()}] ${t.slice(0, 300)}`); });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
+let serverRuns = 0;
+page.on("request", (r) => { if (/\/api\/ext\/run/.test(r.url())) serverRuns++; });
 const ask = async (text) => { await page.fill(".mk-agent-input", text); await page.click(".mk-agent-compose button"); };
 const idle = () => page.waitForFunction(() => !document.querySelector(".mk-agent-compose button[disabled]"), null, { timeout: 60000 });
 const lastAssistant = () => page.$$eval(".mk-agent-assistant", (e) => e.map((x) => x.textContent).at(-1) || "");
@@ -58,6 +60,21 @@ try {
     console.log("\n  result:", a.slice(0, 120));
     if (!/3 lines, 4 words/.test(a)) throw new Error("unexpected result");
     await page.screenshot({ path: `${S}/m6-wasm.png` });
+  });
+  await step("Milestone 8: the page is cross-origin isolated and the module ran in the browser (server run endpoint never called)", async () => {
+    const isolated = await page.evaluate(() => globalThis.crossOriginIsolated === true && !!window.moonkale?.wasmHost?.available());
+    console.log("\n  crossOriginIsolated + runtime:", isolated, "| server /api/ext/run calls:", serverRuns);
+    if (!isolated) throw new Error("not isolated");
+    if (serverRuns !== 0) throw new Error("the server ran the module");
+    // And with the server endpoint blocked outright, it still works.
+    await page.route("**/api/ext/run", (r) => r.abort());
+    await ask(`/tool wordcount.top {"source":"folder:${ROOT}","node":"${readme}","n":2}`);
+    await page.waitForSelector(".mk-agent-approval", { timeout: 20000 });
+    await page.click(".mk-agent-approval button:has-text('Allow')");
+    await idle();
+    const b = await lastAssistant();
+    console.log("  top words:", b.slice(0, 100));
+    if (!/sample|edit|me/i.test(b)) throw new Error("browser run failed: " + b.slice(0, 200));
   });
   console.log("\nWASM EXT E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m6-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

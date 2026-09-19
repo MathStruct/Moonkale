@@ -29,3 +29,7 @@ externals) → `dist/<pkg>.js`, committed so `dx` builds need no Node.
 | milkdown   | @milkdown/core, preset-commonmark, | `packages/editors/markdown`     |
 |            | + custom wiki-link/embed plugins   |                                 |
 | xterm      | @xterm/xterm, fit, webgl addons    | `packages/editors/terminal`     |
+
+## `wasm-host` (Milestone 8)
+
+Not a UI package: the browser runtime for JSON-ABI wasm extensions. `npm run build` → `packages/ui/assets/wasm_host.js`, which sets `window.moonkale.wasmHost = { available(), run(url, command, args, hostCall, onLog) }`. `run` fetches the module (cached per URL), spawns a Worker from an inline source, and answers the module's synchronous host calls through a `SharedArrayBuffer` mailbox (`Int32Array[flag, length]` + bytes) with `Atomics.wait`/`notify`; `hostCall(json) → Promise<json>` is provided by Rust (`Workspace::run_wasm_in_browser`). Needs `crossOriginIsolated`; otherwise `available()` is false and Rust uses the server. Rules of this folder apply: no application state, no DOM.

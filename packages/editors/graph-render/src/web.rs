@@ -41,8 +41,16 @@ struct State {
 #[derive(Clone, Copy, PartialEq)]
 enum Drag {
     None,
-    Pan { last: (f32, f32) },
-    Node { index: usize },
+    Pan {
+        last: (f32, f32),
+    },
+    Node {
+        index: usize,
+    },
+    /// 3D: right button or Shift-drag turns the camera around its target.
+    Orbit {
+        last: (f32, f32),
+    },
 }
 
 #[wasm_bindgen]
@@ -211,6 +219,29 @@ impl GraphView {
         self.state.borrow().renderer.backend.clone()
     }
 
+    /// `"2d"` or `"3d"` (Milestone 8): the same graph, a perspective camera
+    /// orbiting the layout with one plane per node kind.
+    pub fn set_mode(&self, mode: &str) {
+        let mut s = self.state.borrow_mut();
+        let three_d = mode == "3d";
+        if s.camera.three_d != three_d {
+            s.camera.three_d = three_d;
+            s.hovered = None;
+            let g = std::mem::take(&mut s.graph);
+            s.camera.fit(&g, 40.0);
+            s.graph = g;
+            s.dirty = true;
+        }
+    }
+
+    pub fn mode(&self) -> String {
+        if self.state.borrow().camera.three_d {
+            "3d".into()
+        } else {
+            "2d".into()
+        }
+    }
+
     pub fn node_count(&self) -> usize {
         self.state.borrow().graph.nodes.len()
     }
@@ -219,9 +250,13 @@ impl GraphView {
     pub fn node_screen_position(&self, id: &str) -> Option<Vec<f32>> {
         let s = self.state.borrow();
         let i = s.graph.nodes.iter().position(|n| n.id == id)?;
-        let (x, y) = s
-            .camera
-            .world_to_screen(s.graph.nodes[i].x, s.graph.nodes[i].y);
+        let n = &s.graph.nodes[i];
+        let (x, y) = if s.camera.three_d {
+            let (x, y, _) = s.camera.project(n.x, n.y, n.z)?;
+            (x, y)
+        } else {
+            s.camera.world_to_screen(n.x, n.y)
+        };
         Some(vec![x, y])
     }
 
@@ -301,7 +336,7 @@ fn draw_labels(s: &State) {
     // Labels only when there's room: zoomed in, or few nodes. Past 20k nodes
     // the overlay scan itself costs frames: hovered label only.
     let huge = s.graph.nodes.len() > 20_000;
-    let show_all = !huge && (scale >= 0.9 || s.graph.nodes.len() <= 60);
+    let show_all = !huge && ((!s.camera.three_d && scale >= 0.9) || s.graph.nodes.len() <= 60);
     ctx.set_font("12px 'Segoe UI', sans-serif");
     ctx.set_text_baseline("middle");
     let mut drawn = 0;
@@ -310,14 +345,25 @@ fn draw_labels(s: &State) {
         if !show_all && !hovered && (huge || n.degree < 3) {
             continue;
         }
-        let (x, y) = s.camera.world_to_screen(n.x, n.y);
+        let (x, y, r) = if s.camera.three_d {
+            let Some((x, y, w)) = s.camera.project(n.x, n.y, n.z) else {
+                continue;
+            };
+            // Far-away labels only when hovered (fog hides the node anyway).
+            if !hovered && w > s.camera.dist * 1.6 {
+                continue;
+            }
+            (x, y, n.radius * s.camera.size_factor(w))
+        } else {
+            let (x, y) = s.camera.world_to_screen(n.x, n.y);
+            (x, y, n.radius * scale.max(0.6))
+        };
         if x < -100.0 || y < -20.0 || x > s.camera.width + 100.0 || y > s.camera.height + 20.0 {
             continue;
         }
         if drawn > 400 && !hovered {
             break;
         }
-        let r = n.radius * scale.max(0.6);
         ctx.set_fill_style_str(if hovered {
             "#ffffff"
         } else {
@@ -347,6 +393,14 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
             e.prevent_default();
             let (x, y) = local(&e);
             let mut s = st.borrow_mut();
+            if s.camera.three_d {
+                s.dragging = if e.button() == 2 || e.shift_key() {
+                    Drag::Orbit { last: (x, y) }
+                } else {
+                    Drag::Pan { last: (x, y) }
+                };
+                return;
+            }
             let hit = s.camera.hit(&s.graph, x, y);
             s.dragging = match hit {
                 Some(i) => {
@@ -371,6 +425,12 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     s.auto_fit = false;
                     s.camera.pan(x - last.0, y - last.1);
                     s.dragging = Drag::Pan { last: (x, y) };
+                    s.dirty = true;
+                }
+                Drag::Orbit { last } => {
+                    s.auto_fit = false;
+                    s.camera.orbit(x - last.0, y - last.1);
+                    s.dragging = Drag::Orbit { last: (x, y) };
                     s.dirty = true;
                 }
                 Drag::Node { index } => {
@@ -440,6 +500,14 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
         });
         let _ =
             target.add_event_listener_with_callback("pointerleave", cb.as_ref().unchecked_ref());
+        cb.forget();
+    }
+    // right button orbits in 3D: no context menu on the canvas
+    {
+        let cb = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
+            e.prevent_default();
+        });
+        let _ = target.add_event_listener_with_callback("contextmenu", cb.as_ref().unchecked_ref());
         cb.forget();
     }
     // wheel: zoom at pointer

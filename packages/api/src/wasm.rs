@@ -67,6 +67,31 @@ mod native {
     }
 }
 
+/// `GET /api/ext/module/{id}` (Milestone 8): the module's bytes for the
+/// browser runtime. Plain axum route (server functions would JSON-encode
+/// the bytes); mounted by `web/src/main.rs`, behind the auth gate.
+#[cfg(feature = "server")]
+pub async fn module_bytes(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let path = {
+        let rt = native::runtime().lock().unwrap();
+        rt.extensions
+            .iter()
+            .find(|e| e.manifest.id == id)
+            .map(|e| e.path.clone())
+    };
+    match path.and_then(|p| std::fs::read(p).ok()) {
+        Some(bytes) => (
+            [(axum::http::header::CONTENT_TYPE, "application/wasm")],
+            bytes,
+        )
+            .into_response(),
+        None => (axum::http::StatusCode::NOT_FOUND, "no such extension").into_response(),
+    }
+}
+
 /// Manifests of the installed extensions (server's config dir + the folder).
 #[post("/api/ext/list")]
 pub async fn list_wasm_extensions(

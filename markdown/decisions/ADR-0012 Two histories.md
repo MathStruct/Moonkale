@@ -1,10 +1,10 @@
 ---
 title: "ADR-0012 — Two histories: git for files, an entity log for the graph"
 tags: [adr, versioning]
-status: proposed
+status: accepted
 date: 2026-09-17
 ---
-**Status:** proposed · Overview: [[Version Management]] · Prior art: [[Versioning Prior Art]]
+**Status:** accepted (Milestone 8, 2026-09-19) · Overview: [[Version Management]] · Prior art: [[Versioning Prior Art]]
 
 ## Context
 Users will keep code in git and expect Moonkale to respect it (status, diff, commit). But most of what Moonkale adds — nodes derived from databases, wiki-links, agent-made changes, cross-source edges — has no file to diff. Git's unit of history is a text diff keyed by path; the graph's natural unit is *entity added / entity removed*, keyed by UUID, with a timestamp. Three options were considered:
@@ -15,7 +15,7 @@ Users will keep code in git and expect Moonkale to respect it (status, diff, com
 | B. Entity log for everything, git ignored | our log is the only history; git is just a folder | ❌ breaks every user's workflow; history of code must stay in git |
 | C. **Two histories, one seam** | git owns text history of folder sources; an append-only entity log owns graph history; checkpoints tie them together | ✅ |
 
-## Decision (proposed)
+## Decision (accepted — built in [[Milestone 8 - Implementation Log]]; the implemented shape is `core::graph::history`: `Event { id, at, actor, key, cause, kind }`, `EventKind::{Add, Remove, Rename, Content{patch, base}, Checkpoint}`, JSONL in `.moonkale/history.jsonl`; git checkpoints are recorded from the Changes panel; time travel *across* git — restoring a state — is not built yet)
 1. **Entity log** in `core::graph::history`: events `Add / Remove / SetProps / Content` on UUID-identified entities, with timestamp, actor, cause and transaction id; state is a fold; tombstones instead of deletion; snapshots as an optimisation. `Version` becomes "id of the last event that touched this node".
 2. **Git stays authoritative for text** in folder sources. A `vcs-git` extension (native; server-side on web) provides status, diff, commit, log, and renders history as a graph.
 3. **Checkpoints** link the two: a commit records the log events it captured; time travel crosses the boundary in both directions.

@@ -4828,6 +4828,7 @@ name = "moonkale-ext-api"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "js-sys",
  "moonkale-core",
  "moonkale-ext-host",
  "moonkale-llm",

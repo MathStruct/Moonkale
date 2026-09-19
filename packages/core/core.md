@@ -27,3 +27,6 @@ Implementation notes for `moonkale-core` (Milestone 1). Design: [[Graph-Native M
 
 ## Milestone 4
 `Op::CreateText { parent, name, text }` creates a text node under a directory (relative names allowed; missing directories created; refuses to overwrite). `Transaction::create_text`. `OpResult` is re-exported.
+
+## Milestone 8: the entity log
+`graph/history.rs` — `EventId` (ms timestamp in the high 64 bits, random low bits: sorts by time across replicas), `Event { id, at, actor, key, cause, kind }`, `EventKind::{Add{node, text}, Remove{node}, Rename{from, to, from_key, to_key}, Content{node, patch, chars_after, base}, Checkpoint{commit, message}}`. `EntityLog`: `append` keeps id order, `merge` is a set union, `for_node` follows rename chains backwards, `fold(until)` → `State { live, tombstones, renamed }`, `text_at(node, until)` replays from the last base (an `Add` with text, or a `Content` with `base`) through the patches, `to_jsonl`/`from_jsonl` (tolerant). Tests cover fold/replay/rename/round trip, bases for pre-existing files, ordering and merge. `serde_json` is now a normal dependency of core.

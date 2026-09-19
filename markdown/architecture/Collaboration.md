@@ -65,6 +65,8 @@ Two people typing in the same document need more than versions: a **text CRDT** 
 - **Sources are attached by descriptor** (`AttachSource`): a peer that learns of a source can open it without a path — the exact shape a hub needs to hand a newcomer the room's sources.
 - Drag-and-drop between windows is a *move* (`Moved` closes the origin) — not a shared edit. The gesture is the workbench **tab** itself (already an HTML5 drag with its id as data). The OS-level drop is used where the platform delivers it; otherwise the offer persists as a **banner** in every other window after `dragend` ("README.md was dragged from another window — Move it here"), so the gesture degrades to grab-then-click instead of failing (P-044). Two windows editing the same document is deliberately unsupported until the CRDT exists; the conflict is caught by the version check on save.
 
+> [!note] Milestone 8: presence exists — `api::presence` is a hub with a room per folder id; members carry `{window, name, active document}`; the client publishes on every active-document change and shows others as initials badges (status bar, tabs, Explorer). No cursors yet, web only (desktop's session bus stays local). [[Milestone 8 - Implementation Log]].
+
 ## Open questions (→ [[Problem Ranking]] P-34, P-30)
 - Presence for the [[Graph View]]: show other users' viewports/selections on the graph? Probably yes, same channel.
 - Should agents publish presence ("agent X is reading main.rs")? Useful for trust; cheap.

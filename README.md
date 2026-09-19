@@ -24,7 +24,16 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 7 — "Daily driver" — is done** (2026-09-19). A command palette
+**Milestone 8 — "Research" — is done** (2026-09-19). An entity log of every
+change in a workspace (user, agent or git checkpoint) with a History panel
+that shows any file as it was after any event; presence — who else is in
+the folder and what they look at; a 3D graph with one plane per node kind
+and an orbiting camera; and wasm extensions running in the browser (a
+Worker with a SharedArrayBuffer mailbox, host calls answered by the
+client). Twenty-six automated browser suites cover it, one of them the
+first to exercise the wgpu renderer (Chromium + SwiftShader).
+
+**Milestone 7 — "Daily driver"** (2026-09-19). A command palette
 and quick open over a command registry with rebindable keys; file operations
 in the Explorer (new, rename, move, delete to trash) that open documents and
 the index follow; find & replace in a file and across the workspace; the
@@ -67,7 +76,7 @@ records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 8 of the roadmap — the entity log and collaboration, more databases, an Android build, WIT extensions, 3D.
+Next: Phase 9 — log compaction and time travel across git, presence cursors, a 3D force layout, and the drivers, Android build and JS-free desktop that wait for an environment.
 
 ## Learn more
 
