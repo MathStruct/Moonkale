@@ -19,6 +19,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Platform Matrix]] — desktop / web / mobile: what runs where
 - [[Graph-Native Model]] — nodes, edges, sources, views
 - [[Data Sources]] — SQL, graph, KV, folders
+- [[Publishing Sources]] — reader mode of the web server (queryable SQL/graph/search for visitors), not a static site; plots later (decision)
 - [[Julia and Lenticulum]] — the goal behind Moonkale: a factor-graph editor where a diagram stays a diagram; Julia outside the core
 - [[Extension Catalogue]] — every extension, tiers, platform fit, core vs separate repo, critique
 - [[Claude Code Extension]] — Moonkale as Claude Code's IDE + Claude Code as an agent, no API key (plan)
