@@ -29,6 +29,8 @@ mod llm;
 mod lsp;
 #[cfg(feature = "server")]
 pub mod mcp;
+mod wasm;
+pub use wasm::{list_wasm_extensions, run_wasm_command};
 mod remote;
 mod terminal;
 pub use llm::ProviderInfo;

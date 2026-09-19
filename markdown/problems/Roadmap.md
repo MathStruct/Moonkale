@@ -57,7 +57,7 @@ gantt
 | **3 Databases & tools** ✅ | use a terminal, preview Typst, get LSP diagnostics/hover/definition, open a LadybugDB and draw Cypher results — on desktop and web (tools run on the server) | server-as-backend; second/third interop packages — **done 2026-09-18** (Postgres/Falkor/Milkdown deferred to 4), see [[Milestone 3 - Implementation Log]] |
 | **4 Agents** ✅ | chat with an agent that queries your sources under policy; hybrid search; click a stack trace into a graph | LLM-as-user — **done 2026-09-18** (mock-verified; real providers wired but untested here), see [[Milestone 4 - Implementation Log]] |
 | **5 Settings & writing** ✅ | remember layouts, folders and providers; configure the agent in the UI; WYSIWYG markdown; an agent that edits and runs under the gate; MCP for external agents | persistence + the writing half — **done 2026-09-18**, see [[Milestone 5 - Implementation Log]] |
-| **6 Scale & extend** | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets |
+| **6 Scale & extend** ✅ | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets — **done 2026-09-19** (Barnes–Hut instead of GPU compute; wasm ABI v1 instead of components; phone shell verified at 420 px on web, no Android build here), see [[Milestone 6 - Scale and Extend]] / [[Milestone 6 - Implementation Log]] |
 | **7 Research** | 3D; extensions in the browser; a JS-free desktop | long-term direction |
 
 ## Principles for sequencing

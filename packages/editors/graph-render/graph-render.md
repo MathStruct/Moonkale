@@ -19,3 +19,8 @@ Known: `create()` hangs if the canvas can't get a GL context — the host probes
 **P-068 (Milestone 4):** node attributes use explicit offsets (0, 8, 16) because `NodeInst` pads `radius`; `vertex_attr_array!` had put the colour at 12, dropping the red channel of every node since Milestone 2.
 
 **Colours (Milestone 3):** `InNode.color` / `InEdge.color` (`#rrggbb`, optional) override the kind-based palette so the host can colour per database label; `parse_hex` in `graph.rs`.
+
+## Milestone 6: scale
+- `quadtree.rs` — Barnes–Hut: a quadtree rebuilt every step, `force(i, x, y, k2, theta)` approximates cells with `size / d < θ` by their centre of mass; θ = 0.8 (unit tests compare θ = 0 with the exact sum). `layout.rs` uses it from `BARNES_HUT_FROM = 1500` nodes; below that the exact O(n²) loop stays (cheaper for small graphs). Iteration caps: 600, 250 above 10 000 nodes, 120 above 50 000.
+- `web.rs`: labels off above 20 000 nodes; fewer layout iterations per frame for big graphs; `bench_layout(n, steps)` export (synthetic graph, ms/step) used by `packages/web/tests/e2e/bench.mjs`; `examples/bench_layout.rs` is the native twin.
+- Numbers (ms/step, Ryzen 7 7800X3D): native 1k 1.2 · 10k 12.9 · 50k 79.4 · 100k 169.3; wasm/Firefox 1.8 · 15.3 · 85.7 · 189.3. Recorded in [[Milestone 6 - Implementation Log]]. WebGPU compute stays deferred (not needed).

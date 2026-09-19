@@ -6,7 +6,11 @@
 .mk-flow-palette-block { text-align: left; background: #23272f; color: #d7dae0; border: 1px solid #3a3f4b; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
 .mk-flow-palette-block:hover { background: #2d3340; }
 .mk-flow-canvas { flex: 1; min-width: 0; position: relative; }
-.mk-flow-canvas .df-flow { width: 100%; height: 100%; --df-bg: #14161b; }
+.mk-flow-canvas .dioxus-flow { width: 100%; height: 100%;
+  --df-bg: #14161b; --df-grid: #262a33; --df-edge: #8a90a0; --df-edge-selected: #4fb3e8; --df-accent: #4fb3e8;
+  --df-node-bg: #1f2330; --df-node-border: #3a3f4b; --df-node-color: #d7dae0;
+  --df-handle-bg: #4fb3e8; --df-handle-border: #14161b;
+  --df-panel-bg: #1b1e25; --df-panel-border: #3a3f4b; --df-panel-color: #d7dae0; }
 .mk-flow-block { background: #1f2330; border: 1px solid #3a3f4b; border-radius: 6px; min-width: 150px; font-size: 12px; color: #d7dae0; }
 .mk-flow-block-bad { border-color: #e86b8a; }
 .mk-flow-block-title { padding: 4px 8px; font-weight: 600; background: #2a3040; border-radius: 6px 6px 0 0; }
@@ -21,3 +25,4 @@
 .mk-flow-wire-bad path { stroke: #e86b8a !important; }
 .mk-flow-handle-in { background: #4fb3e8 !important; }
 .mk-flow-handle-out { background: #f2a03d !important; }
+.mk-flow-block .df-handle { z-index: 5; width: 12px; height: 12px; }

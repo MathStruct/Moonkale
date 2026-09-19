@@ -14,7 +14,11 @@ pub struct SettingsExtension;
 
 impl Extension for SettingsExtension {
     fn manifest(&self) -> Manifest {
-        Manifest::core("dev.moonkale.settings", "Settings", "The Settings panel (Ctrl+,).")
+        Manifest::core(
+            "dev.moonkale.settings",
+            "Settings",
+            "The Settings panel (Ctrl+,).",
+        )
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
@@ -217,6 +221,62 @@ fn SettingsPanel(ws: Workspace) -> Element {
                                                                     }));
                                                                 } }
                                                             "{p}"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    {
+                        let wasm = ws.wasm_extensions.read().clone();
+                        rsx! {
+                            if !wasm.is_empty() {
+                                h4 { class: "mk-settings-sub", "Installed (wasm)" }
+                                p { class: "mk-muted", "Third-party modules from ~/.config/moonkale/extensions and <folder>/.moonkale/extensions. Off until enabled; no permission is granted until ticked." }
+                            }
+                            for m in wasm {
+                                {
+                                    let id: String = m.id.clone();
+                                    let on = settings.extensions.is_enabled_id(&id, false);
+                                    let granted = settings.extensions.permissions.get(&id).cloned().unwrap_or_default();
+                                    let perms = m.permissions.clone();
+                                    let id_toggle = id.clone();
+                                    rsx! {
+                                        div { key: "{id}", class: "mk-settings-ext",
+                                            label { class: "mk-settings-check",
+                                                input { r#type: "checkbox", checked: on,
+                                                    onchange: move |e| { let v = e.checked(); let id = id_toggle.clone(); apply(Box::new(move |f| f.extensions.set_enabled(&id, v))); } }
+                                                span { class: "mk-settings-ext-name", "{m.name}" }
+                                                span { class: "mk-settings-scope", "wasm" }
+                                            }
+                                            div { class: "mk-settings-ext-desc", "{m.description} · commands: {m.commands.iter().map(|c| c.id.as_str()).collect::<Vec<_>>().join(\", \")}" }
+                                            if !perms.is_empty() {
+                                                div { class: "mk-settings-ext-perms",
+                                                    for p in perms {
+                                                        {
+                                                            let has = granted.contains(&p);
+                                                            let (id2, p2) = (id.clone(), p.clone());
+                                                            rsx! {
+                                                                label { key: "{p}", class: "mk-settings-perm",
+                                                                    input { r#type: "checkbox", checked: has,
+                                                                        onchange: move |e| {
+                                                                            let v = e.checked();
+                                                                            let (id, p) = (id2.clone(), p2.clone());
+                                                                            apply(Box::new(move |f| {
+                                                                                let cur = f.extensions.permissions.get(&id).cloned().unwrap_or_default();
+                                                                                let mut next: Vec<String> = cur.into_iter().filter(|c| *c != p).collect();
+                                                                                if v { next.push(p); }
+                                                                                f.extensions.permissions.insert(id, next);
+                                                                            }));
+                                                                        } }
+                                                                    "{p}"
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }

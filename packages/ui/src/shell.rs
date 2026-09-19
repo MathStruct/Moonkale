@@ -31,12 +31,41 @@ fn default_layout() -> PanelLayout {
     ))
 }
 
+/// Everything in one tile: the phone-sized shell (Milestone 6).
+fn narrow_layout() -> PanelLayout {
+    PanelLayout::new(LayoutNode::empty_tile("main"))
+}
+
+/// Below this width the shell collapses to one tile plus a bottom bar.
+pub const NARROW_MAX_PX: u32 = 700;
+
 #[component]
 pub fn Shell() -> Element {
     let mut ws = use_context::<Workspace>();
     let exts: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     // Controlled layout so "View → Reset Layout" can put it back.
     let mut layout = use_signal(default_layout);
+    // Phone-sized shell: one tile, a bottom bar, nothing persisted. The
+    // media query decides; both platforms start wide so hydration matches.
+    let mut narrow = use_signal(|| false);
+    let mut phone_layout = use_signal(narrow_layout);
+    use_hook(move || {
+        let mut ev = document::eval(&format!("watch({NARROW_MAX_PX});\n{NARROW_WATCH}"));
+        spawn(async move {
+            loop {
+                match ev.recv::<bool>().await {
+                    Ok(v) => {
+                        if *narrow.peek() != v {
+                            tracing::info!("shell: narrow = {v}");
+                            narrow.set(v);
+                        }
+                    }
+                    Err(dioxus::document::EvalError::Serialization(_)) => continue,
+                    Err(_) => break,
+                }
+            }
+        });
+    });
 
     // Layout persistence: restore the workspace's layout when its settings
     // load; save every settled change into `.moonkale/settings.json`.
@@ -58,7 +87,7 @@ pub fn Shell() -> Element {
         }
     });
     let on_layout_change = move |next: PanelLayout| {
-        if ws.settings_folder.peek().is_none() {
+        if ws.settings_folder.peek().is_none() || *narrow.peek() {
             return;
         }
         let encoded = next.encode();
@@ -89,16 +118,18 @@ pub fn Shell() -> Element {
                 // through mutations, so reconcile with the current
                 // contributions first (the workbench does the same on click).
                 let ext_settings = ws.settings.peek().extensions.clone();
+                let is_narrow = *narrow.peek();
                 let placements: Vec<PanelPlacement> = exts
                     .iter()
                     .filter(|e| ext_settings.is_enabled(&e.manifest()))
                     .flat_map(|e| e.panels(ws))
-                    .map(|c| PanelPlacement::new(PanelId::from(c.id.as_str()), TileId::from(c.home.tile_id())))
+                    .map(|c| PanelPlacement::new(PanelId::from(c.id.as_str()), TileId::from(home_tile(is_narrow, c.home))))
                     .collect();
-                let mut next = layout.peek().clone();
+                let mut target = if is_narrow { phone_layout } else { layout };
+                let mut next = target.peek().clone();
                 next.reconcile(&placements);
                 if next.activate(&PanelId::from(id)) {
-                    layout.set(next);
+                    target.set(next);
                 }
             }
             Some(Command::OpenFolder) => {
@@ -119,6 +150,7 @@ pub fn Shell() -> Element {
     let mut owner: HashMap<String, usize> = HashMap::new();
     let mut active_panel: Option<PanelId> = None;
     let active_node = *ws.active.read();
+    let is_narrow = *narrow.read();
     // Disabled extensions (Settings → Extensions) contribute nothing.
     let ext_settings = ws.settings.read().extensions.clone();
     // Block libraries for the flow editor, from the enabled extensions.
@@ -132,19 +164,26 @@ pub fn Shell() -> Element {
             ws.flow_libraries.set(libs);
         }
     }
+    // Panel ids present this render, for the phone bar.
+    let mut present: Vec<String> = Vec::new();
+    // The panel of the most recently active document, for the phone bar's
+    // "Editor" button.
+    let mut editor_panel: Option<String> = None;
     for (i, ext) in exts.iter().enumerate() {
         if !ext_settings.is_enabled(&ext.manifest()) {
             continue;
         }
         for c in ext.panels(ws) {
             owner.insert(c.id.clone(), i);
+            present.push(c.id.clone());
             if c.node.is_some() && c.node == active_node {
                 active_panel = Some(PanelId::from(c.id.as_str()));
+                editor_panel = Some(c.id.clone());
             }
             let mut panel = Panel::new(
                 c.id.as_str(),
                 c.title.as_str(),
-                c.home.tile_id(),
+                home_tile(is_narrow, c.home),
                 ext.render(&c.id, ws),
             )
             .with_closable(c.closable);
@@ -181,13 +220,66 @@ pub fn Shell() -> Element {
         (d.node.native_key.clone(), d.dirty())
     });
 
+    // Phone bar: which panel is in front, and the buttons that have a panel.
+    // Our copy of the phone layout only learns about attached panels through
+    // mutations (the workbench renders a reconciled copy), so reconcile with
+    // this render's panels both to read the front tab and before activating.
+    let placements: Vec<PanelPlacement> = present
+        .iter()
+        .map(|id| PanelPlacement::new(PanelId::from(id.as_str()), TileId::from("main")))
+        .collect();
+    let front = {
+        let mut l = phone_layout.read().clone();
+        l.reconcile(&placements);
+        l.tile(&TileId::from("main"))
+            .and_then(|t| t.active.clone())
+            .map(|p| p.to_string())
+    };
+    let placements = Rc::new(placements);
+    let show = move |id: &str| {
+        let mut next = phone_layout.peek().clone();
+        next.reconcile(&placements);
+        if next.activate(&PanelId::from(id)) {
+            phone_layout.set(next);
+        }
+    };
+    let bar: Vec<(String, &'static str, bool)> = if is_narrow {
+        let mut v = Vec::new();
+        for (id, label) in [("explorer", "Files"), ("search", "Search")] {
+            if present.iter().any(|p| p == id) {
+                v.push((id.to_string(), label, front.as_deref() == Some(id)));
+            }
+        }
+        let editor_front = front.as_deref().is_some_and(|f| f.starts_with("editor:"));
+        v.push((
+            editor_panel.clone().unwrap_or_default(),
+            "Editor",
+            editor_front,
+        ));
+        for (id, label) in [
+            ("graph", "Graph"),
+            ("terminal", "Terminal"),
+            ("agent", "Agent"),
+            ("settings", "Settings"),
+        ] {
+            if present.iter().any(|p| p == id) {
+                v.push((id.to_string(), label, front.as_deref() == Some(id)));
+            }
+        }
+        v
+    } else {
+        Vec::new()
+    };
+
     rsx! {
         document::Stylesheet { href: SHELL_CSS }
-        div { class: "mk-shell",
+        div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" },
             Workbench {
                 rail: rsx! {
-                    ActivityRail {
-                        ActivityButton { label: "Explorer", icon: rsx! { FilesIcon {} }, active: true, onclick: move |_| {} }
+                    if !is_narrow {
+                        ActivityRail {
+                            ActivityButton { label: "Explorer", icon: rsx! { FilesIcon {} }, active: true, onclick: move |_| {} }
+                        }
                     }
                 },
                 status: rsx! {
@@ -214,18 +306,64 @@ pub fn Shell() -> Element {
                         },
                     }
                 },
-                PanelWorkspace {
-                    panels,
-                    layout,
-                    reset_layout: default_layout(),
-                    active_panel,
-                    on_panel_close: on_close,
-                    on_layout_change,
+                // Two branches so each mode keeps its own controlled signal
+                // (the workbench requires the same signal for its lifetime).
+                if is_narrow {
+                    div { class: "mk-phone",
+                        PanelWorkspace {
+                            panels,
+                            layout: phone_layout,
+                            reset_layout: narrow_layout(),
+                            active_panel,
+                            on_panel_close: on_close,
+                            on_layout_change: move |_| {},
+                        }
+                        nav { class: "mk-phone-bar", "aria-label": "Panels",
+                            for (id, label, active) in bar {
+                                button {
+                                    class: if active { "mk-phone-btn mk-active" } else { "mk-phone-btn" },
+                                    disabled: id.is_empty(),
+                                    "data-panel": "{id}",
+                                    onclick: { let mut show = show.clone(); let id = id.clone(); move |_| show(&id) },
+                                    "{label}"
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    PanelWorkspace {
+                        panels,
+                        layout,
+                        reset_layout: default_layout(),
+                        active_panel,
+                        on_panel_close: on_close,
+                        on_layout_change,
+                    }
                 }
             }
         }
     }
 }
+
+/// Where a panel first appears: its declared home, or the single tile of
+/// the phone-sized shell.
+fn home_tile(narrow: bool, home: moonkale_ext_api::PanelHome) -> &'static str {
+    if narrow {
+        "main"
+    } else {
+        home.tile_id()
+    }
+}
+
+/// Reports `matchMedia("(max-width: <px>px)")` now and on every change.
+const NARROW_WATCH: &str = r#"
+function watch(px) {
+    const mq = window.matchMedia(`(max-width: ${px}px)`);
+    dioxus.send(mq.matches);
+    mq.addEventListener("change", (e) => dioxus.send(e.matches));
+}
+for (;;) { await dioxus.recv(); }
+"#;
 
 #[component]
 fn FilesIcon() -> Element {

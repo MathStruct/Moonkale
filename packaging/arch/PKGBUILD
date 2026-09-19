@@ -1,4 +1,4 @@
-# Maintainer: Daniel Boigk <dn.boigk@gmail.com>
+# Maintainer: Daniel Boigk <daniel@mathstruct.org>
 #
 # Builds Moonkale's desktop app from a git checkout with the Dioxus CLI.
 # Status: written against dioxus-cli 0.7.10 and the dx output layout

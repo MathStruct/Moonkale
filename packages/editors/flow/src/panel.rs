@@ -58,9 +58,9 @@ fn to_canvas(flow: &Flow, libs: &[FlowLibrary]) -> (Vec<Node<BlockData>>, Vec<Ed
         .iter()
         .map(|w| {
             let mut e = Edge::new(w.from_block.clone(), w.to_block.clone());
-            e.id = w.id.clone().into();
-            e.source_handle = Some(w.from_port.clone().into());
-            e.target_handle = Some(w.to_port.clone().into());
+            e.id = w.id.clone();
+            e.source_handle = Some(w.from_port.clone());
+            e.target_handle = Some(w.to_port.clone());
             if issues.iter().any(|i| i.about == w.id) {
                 e.class = Some("mk-flow-wire-bad".into());
             }
@@ -87,9 +87,17 @@ fn to_flow(nodes: &[Node<BlockData>], edges: &[Edge]) -> Flow {
         .map(|e| Wire {
             id: e.id.to_string(),
             from_block: e.source.to_string(),
-            from_port: e.source_handle.as_ref().map(|h| h.to_string()).unwrap_or_default(),
+            from_port: e
+                .source_handle
+                .as_ref()
+                .map(|h| h.to_string())
+                .unwrap_or_default(),
             to_block: e.target.to_string(),
-            to_port: e.target_handle.as_ref().map(|h| h.to_string()).unwrap_or_default(),
+            to_port: e
+                .target_handle
+                .as_ref()
+                .map(|h| h.to_string())
+                .unwrap_or_default(),
         })
         .collect();
     f
@@ -119,7 +127,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             for n in ns.iter_mut() {
                 n.data.issues = issues
                     .iter()
-                    .filter(|i| i.about == n.id.to_string())
+                    .filter(|i| i.about == n.id)
                     .map(|i| i.message.clone())
                     .collect();
             }
@@ -128,7 +136,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             for e in es.iter_mut() {
                 e.class = issues
                     .iter()
-                    .any(|i| i.about == e.id.to_string())
+                    .any(|i| i.about == e.id)
                     .then(|| "mk-flow-wire-bad".to_string());
             }
         });
@@ -157,10 +165,22 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let is_valid = move |c: Connection| -> bool {
         let ns = nodes.peek();
         let kind_of = |id: &Id| ns.iter().find(|n| &n.id == id).map(|n| n.data.kind.clone());
-        let (Some(fk), Some(tk)) = (kind_of(&c.source), kind_of(&c.target)) else { return false };
-        let (Some((_, fkind)), Some((_, tkind))) = (find_kind(&libs_valid, &fk), find_kind(&libs_valid, &tk)) else { return false };
-        let out = fkind.outputs.iter().find(|p| Some(p.name.as_str()) == c.source_handle.as_ref().map(|h| h.as_str()));
-        let inp = tkind.inputs.iter().find(|p| Some(p.name.as_str()) == c.target_handle.as_ref().map(|h| h.as_str()));
+        let (Some(fk), Some(tk)) = (kind_of(&c.source), kind_of(&c.target)) else {
+            return false;
+        };
+        let (Some((_, fkind)), Some((_, tkind))) =
+            (find_kind(&libs_valid, &fk), find_kind(&libs_valid, &tk))
+        else {
+            return false;
+        };
+        let out = fkind
+            .outputs
+            .iter()
+            .find(|p| Some(p.name.as_str()) == c.source_handle.as_deref());
+        let inp = tkind
+            .inputs
+            .iter()
+            .find(|p| Some(p.name.as_str()) == c.target_handle.as_deref());
         match (out, inp) {
             (Some(o), Some(i)) => o.ty.unify(&i.ty).is_some(),
             _ => false,
@@ -174,7 +194,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             edges.with_mut(|es| {
                 es.retain(|e| !(e.target == c.target && e.target_handle == c.target_handle));
                 let mut e = c.into_edge();
-                e.id = format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]).into();
+                e.id = format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
                 es.push(e);
             });
             sync();
@@ -203,14 +223,30 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         let libs = libs.clone();
         let mut sync = sync.clone();
         move |kind: String| {
-            let Some((lib, k)) = find_kind(&libs, &kind) else { return };
-            let n = nodes.peek().len() as f64;
-            let params = k.params.iter().map(|p| (p.name.clone(), p.default.clone())).collect();
+            let Some((lib, k)) = find_kind(&libs, &kind) else {
+                return;
+            };
+            // New blocks go into a 3-column grid so they never pile up.
+            let n = nodes.peek().len();
+            let (col, row) = ((n % 3) as f64, (n / 3) as f64);
+            let params = k
+                .params
+                .iter()
+                .map(|p| (p.name.clone(), p.default.clone()))
+                .collect();
             let mut node = Node::with_data(
-                format!("{}-{}", k.id, &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                format!(
+                    "{}-{}",
+                    k.id,
+                    &uuid::Uuid::new_v4().simple().to_string()[..6]
+                ),
                 k.name.clone(),
-                (40.0 + n * 30.0, 40.0 + n * 30.0),
-                BlockData { kind: format!("{}/{}", lib.id, k.id), params, issues: Vec::new() },
+                (30.0 + col * 165.0, 30.0 + row * 170.0),
+                BlockData {
+                    kind: format!("{}/{}", lib.id, k.id),
+                    params,
+                    issues: Vec::new(),
+                },
             );
             node.source_side = Side::Right;
             node.target_side = Side::Left;
@@ -242,10 +278,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 div { class: "mk-flow-block-title", "{n.label}" }
                 if let Some(k) = kind {
                     for (i, p) in k.inputs.iter().enumerate() {
-                        Handle { kind: HandleKind::Target, position: Side::Left, id: p.name.clone(), offset: (i as f64 + 1.0) / (k.inputs.len() as f64 + 1.0), class: "mk-flow-handle-in".to_string() }
+                        Handle { kind: HandleKind::Target, position: Side::Left, id: p.name.clone(), offset: (i as f64 + 1.0) / (k.inputs.len() as f64 + 1.0), class: format!("mk-flow-handle-in mk-port-{}", p.name) }
                     }
                     for (i, p) in k.outputs.iter().enumerate() {
-                        Handle { kind: HandleKind::Source, position: Side::Right, id: p.name.clone(), offset: (i as f64 + 1.0) / (k.outputs.len() as f64 + 1.0), class: "mk-flow-handle-out".to_string() }
+                        Handle { kind: HandleKind::Source, position: Side::Right, id: p.name.clone(), offset: (i as f64 + 1.0) / (k.outputs.len() as f64 + 1.0), class: format!("mk-flow-handle-out mk-port-{}", p.name) }
                     }
                     div { class: "mk-flow-ports",
                         div { class: "mk-flow-ports-in", for p in k.inputs.iter() { div { key: "{p.name}", title: "{p.ty.describe()}", "◂ {p.name}" } } }
@@ -304,7 +340,13 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // Codegen: every library with a generator and at least one block in use.
     let generators: Vec<FlowLibrary> = libs
         .iter()
-        .filter(|l| l.codegen.is_some() && flow_now.blocks.iter().any(|b| b.kind.starts_with(&format!("{}/", l.id))))
+        .filter(|l| {
+            l.codegen.is_some()
+                && flow_now
+                    .blocks
+                    .iter()
+                    .any(|b| b.kind.starts_with(&format!("{}/", l.id)))
+        })
         .cloned()
         .collect();
     let generate = move |lib: FlowLibrary| {
@@ -315,24 +357,47 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 Ok(out) => {
                     let (source, dir) = {
                         let d = doc.peek();
-                        let dir = d.node.native_key.rsplit_once('/').map(|(d, _)| d.to_string()).unwrap_or_default();
+                        let dir = d
+                            .node
+                            .native_key
+                            .rsplit_once('/')
+                            .map(|(d, _)| d.to_string())
+                            .unwrap_or_default();
                         (d.node.source.clone(), dir)
                     };
-                    let rel = if dir.is_empty() { out.file_name.clone() } else { format!("{dir}/{}", out.file_name) };
+                    let rel = if dir.is_empty() {
+                        out.file_name.clone()
+                    } else {
+                        format!("{dir}/{}", out.file_name)
+                    };
                     let mut ws = ws;
                     // Overwrite if it exists, else create.
                     let result = match ws.node_at_path(&source, &rel).await {
                         Some(existing) => {
-                            let Some(src) = ws.source(&source) else { return };
-                            let chars = src.fetch_text(existing.id).await.map(|(t, _)| t.chars().count()).unwrap_or(0);
-                            src.apply(moonkale_core::Transaction::write_text(existing.id, existing.version, moonkale_core::TextPatch::whole(&out.text, chars))).await
-                                .map(|_| existing)
-                                .map_err(|e| e.to_string())
+                            let Some(src) = ws.source(&source) else {
+                                return;
+                            };
+                            let chars = src
+                                .fetch_text(existing.id)
+                                .await
+                                .map(|(t, _)| t.chars().count())
+                                .unwrap_or(0);
+                            src.apply(moonkale_core::Transaction::write_text(
+                                existing.id,
+                                existing.version,
+                                moonkale_core::TextPatch::whole(&out.text, chars),
+                            ))
+                            .await
+                            .map(|_| existing)
+                            .map_err(|e| e.to_string())
                         }
                         None => {
                             let root = ws.source(&source).map(|s| s.descriptor().root);
                             match root {
-                                Some(root) => ws.create_text(&source, root, &rel, &out.text).await.map_err(|e| e.to_string()),
+                                Some(root) => ws
+                                    .create_text(&source, root, &rel, &out.text)
+                                    .await
+                                    .map_err(|e| e.to_string()),
                                 None => Err("source gone".into()),
                             }
                         }
@@ -370,7 +435,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     if !issues.is_empty() { span { class: "mk-flow-issues", title: "{issues.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", " · {issues.len()} issue(s)" } }
                 }
                 for lib in generators {
-                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); let generate = generate.clone(); move |_| generate(lib.clone()) }, title: "Write the {lib.language} file next to this flow", "Generate {lib.language}" }
+                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: "Write the {lib.language} file next to this flow", "Generate {lib.language}" }
                 }
                 button { class: "mk-btn", onclick: move |_| handle.auto_layout(&LayoutOptions { direction: LayoutDirection::LeftToRight, node_gap: 40.0, rank_gap: 90.0, update_handle_sides: false }), "Layout" }
                 button { class: "mk-btn", onclick: move |_| handle.fit_view(200), "Fit" }

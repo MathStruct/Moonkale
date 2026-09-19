@@ -16,3 +16,7 @@ E2E: `packages/web/tests/e2e/agent.mjs` (mock provider through the relay: echo, 
 - The provider is built from `ws.settings.llm` and rebuilt when those settings change (conversation kept); the policy follows `ws.settings.policy` (`allow_writes` → mutating tools run without asking; destructive ones still ask).
 - Write tools in `host.rs`: `editor.replace` edits the open `Document` (exact, unique `old` → `new`; the user saves), `file.create` uses `Workspace::create_text`, `terminal.run` spawns a session through `spawn_terminal`, writes `cmd; exit $?`, collects the output until the stream closes (ANSI stripped, 200 KB cap).
 - Approval box: a red/green diff for `editor.replace`, a `$ command` card for `terminal.run`.
+
+## Milestone 6
+- `wasm_tools(ws)`: every `llm_tool` command of an enabled wasm extension becomes a `ToolDef` (`<ext>.<name>`, its `input_schema`); `wasm_owner` maps a tool name back to the extension and `host.rs` dispatches through `Workspace::run_wasm_command` (granted permissions from settings). Policy: unknown/third-party tools are `Mutating` → *Ask* unless `allow_writes`.
+- Permissions gate the built-in write tools too: an agent extension without `write-files` granted denies `editor.replace` / `file.create`, without `run-commands` denies `terminal.run` (Settings → Extensions → Agent).

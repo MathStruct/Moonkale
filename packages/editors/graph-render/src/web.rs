@@ -55,6 +55,49 @@ fn emit(state: &State, value: serde_json::Value) {
     let _ = state.on_event.call1(&JsValue::NULL, &js);
 }
 
+/// Layout-only benchmark for the wasm build (no GPU needed): milliseconds
+/// per step on a synthetic graph of `n` nodes. Used by the Milestone 6
+/// measurements (`packages/web/tests/e2e/bench.mjs`).
+#[wasm_bindgen]
+pub fn bench_layout(n: usize, steps: usize) -> f64 {
+    use crate::graph::{InEdge, InGraph, InNode};
+    let nodes = (0..n)
+        .map(|i| InNode {
+            id: i.to_string(),
+            label: format!("n{i}"),
+            kind: "file".into(),
+            key: String::new(),
+            color: None,
+        })
+        .collect();
+    let mut edges = Vec::new();
+    for i in 1..n {
+        edges.push(InEdge {
+            a: i,
+            b: i / 7,
+            kind: "contains".into(),
+            color: None,
+        });
+        if i % 5 == 0 {
+            edges.push(InEdge {
+                a: i,
+                b: (i * 7919) % n,
+                kind: "links".into(),
+                color: None,
+            });
+        }
+    }
+    let mut g = crate::graph::Graph::from_input(InGraph { nodes, edges });
+    let mut layout = crate::layout::Layout::new(&g);
+    let perf = web_sys::window().and_then(|w| w.performance());
+    let t0 = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+    for _ in 0..steps.max(1) {
+        layout.step(&mut g);
+    }
+    let t1 = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+    (t1 - t0) / steps.max(1) as f64
+}
+
 #[wasm_bindgen]
 pub async fn create(
     canvas: web_sys::HtmlCanvasElement,
@@ -255,14 +298,16 @@ fn draw_labels(s: &State) {
     let _ = ctx.reset_transform();
     let _ = ctx.scale(s.dpr as f64, s.dpr as f64);
     let scale = s.camera.scale;
-    // Labels only when there's room: zoomed in, or few nodes.
-    let show_all = scale >= 0.9 || s.graph.nodes.len() <= 60;
+    // Labels only when there's room: zoomed in, or few nodes. Past 20k nodes
+    // the overlay scan itself costs frames: hovered label only.
+    let huge = s.graph.nodes.len() > 20_000;
+    let show_all = !huge && (scale >= 0.9 || s.graph.nodes.len() <= 60);
     ctx.set_font("12px 'Segoe UI', sans-serif");
     ctx.set_text_baseline("middle");
     let mut drawn = 0;
     for (i, n) in s.graph.nodes.iter().enumerate() {
         let hovered = Some(i) == s.hovered;
-        if !show_all && !hovered && n.degree < 3 {
+        if !show_all && !hovered && (huge || n.degree < 3) {
             continue;
         }
         let (x, y) = s.camera.world_to_screen(n.x, n.y);

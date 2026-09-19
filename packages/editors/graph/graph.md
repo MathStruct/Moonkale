@@ -16,3 +16,6 @@ Notes for `moonkale-editor-graph` (Milestone 2), the Dioxus host of the renderer
 - **Trace sources** (`SourceFamily::Custom("trace")`) are pickable and auto-picked like graph databases; the mode buttons give way to a "files → frames → call chain" hint. Double-click on a trace node opens `path[:line[:col]]` in the folder via `open_relative_path` + `reveal`.
 - **Trace…** toolbar button: a paste box; *Draw* parses the text with `moonkale-trace` and adds one source per trace.
 - Loads carry a generation counter (`load_gen`): an older async reply (a remote index) can no longer overwrite a newer one (a local trace) — P-063.
+
+## Milestone 6
+- `GRAPH_LIMIT = 100_000` nodes per query (`Query::All { limit }`), up from 3 000; the renderer's LOD handles the rest. The `truncated` flag still shows in the info line.

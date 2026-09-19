@@ -69,6 +69,11 @@ fn label_color(label: &str) -> &'static str {
     PALETTE[(h % PALETTE.len() as u32) as usize]
 }
 
+/// Nodes drawn at most. Barnes–Hut layout and label LOD (Milestone 6) keep
+/// 100k usable; the index itself caps files at 5 000, so this only matters
+/// for databases and synthetic graphs.
+const GRAPH_LIMIT: usize = 100_000;
+
 /// Sources the picker offers besides the index: databases and traces.
 fn is_pickable(f: &SourceFamily) -> bool {
     matches!(f, SourceFamily::Graph | SourceFamily::Sql) || is_trace(f)
@@ -376,11 +381,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         text: r.text.clone(),
                     },
                     (_, DbMode::Data) => Query::All {
-                        limit: 3000,
+                        limit: GRAPH_LIMIT,
                         kinds: Some(vec![NodeKind::Vertex]),
                     },
                     _ => Query::All {
-                        limit: 3000,
+                        limit: GRAPH_LIMIT,
                         kinds: None,
                     },
                 };
@@ -479,7 +484,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     direction: Direction::Both,
                 },
                 _ => Query::All {
-                    limit: 3000,
+                    limit: GRAPH_LIMIT,
                     kinds: Some(kinds.clone()),
                 },
             };

@@ -24,7 +24,12 @@ impl TerminalExtension {
 
 impl Extension for TerminalExtension {
     fn manifest(&self) -> Manifest {
-        Manifest::optional("dev.moonkale.editor-terminal", "Terminal", "Shell sessions (local PTY on desktop, server relay on web).").with_permissions(&["run-commands"])
+        Manifest::optional(
+            "dev.moonkale.editor-terminal",
+            "Terminal",
+            "Shell sessions (local PTY on desktop, server relay on web).",
+        )
+        .with_permissions(&["run-commands"])
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {

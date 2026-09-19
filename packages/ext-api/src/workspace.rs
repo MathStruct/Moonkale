@@ -82,6 +82,18 @@ pub type SettingsFuture<T> = Pin<Box<dyn Future<Output = Result<T, String>>>>;
 /// secrets file / keychain). `None` on web — secrets live on the server.
 pub type SecretStore = fn(String, String) -> SettingsFuture<()>;
 
+/// Third-party wasm extensions (Milestone 6): the platform lists what is
+/// installed and runs commands where the runtime lives (desktop in-process,
+/// web on the server). `granted` are the permissions the user ticked.
+pub type WasmList = fn(Option<String>) -> SettingsFuture<Vec<moonkale_ext_host::WasmManifest>>;
+pub type WasmRun = fn(String, String, serde_json::Value, Vec<String>) -> SettingsFuture<String>;
+#[derive(Clone, Copy)]
+pub struct WasmExtensions {
+    /// Argument: the open folder's path (for `.moonkale/extensions`).
+    pub list: WasmList,
+    pub run: WasmRun,
+}
+
 #[derive(Clone, Copy)]
 pub struct SettingsStore {
     pub load: fn() -> SettingsFuture<crate::settings::SettingsFile>,
@@ -116,6 +128,7 @@ pub struct WorkspaceConfig {
     pub secret_store: Option<SecretStore>,
     /// Reopen the most recent folder when the app starts (desktop).
     pub reopen_last_folder: bool,
+    pub wasm: Option<WasmExtensions>,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -199,6 +212,8 @@ pub struct Workspace {
     pub unique: Signal<u64>,
     /// Block libraries from the enabled extensions (the shell keeps it current).
     pub flow_libraries: Signal<Vec<crate::flow::FlowLibrary>>,
+    /// Installed wasm extensions (manifests), refreshed at start and on folder open.
+    pub wasm_extensions: Signal<Vec<moonkale_ext_host::WasmManifest>>,
     /// Persisted scopes and the resolved value (see `settings.rs`).
     pub settings_user: Signal<crate::settings::SettingsFile>,
     pub settings_workspace: Signal<crate::settings::SettingsFile>,
@@ -244,6 +259,7 @@ impl Workspace {
             reveal: Signal::new_in_scope(None, ScopeId::ROOT),
             unique: Signal::new_in_scope(0, ScopeId::ROOT),
             flow_libraries: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            wasm_extensions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             settings_user: Signal::new_in_scope(
                 crate::settings::SettingsFile::new(),
                 ScopeId::ROOT,
@@ -442,6 +458,53 @@ impl Workspace {
         self.config.llm
     }
 
+    /// Re-scan installed wasm extensions (user dir + the folder's).
+    pub async fn refresh_wasm_extensions(mut self) {
+        let Some(w) = self.config.wasm else { return };
+        let folder = self
+            .sources
+            .peek()
+            .iter()
+            .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+            .and_then(|s| {
+                s.descriptor
+                    .id
+                    .as_str()
+                    .strip_prefix("folder:")
+                    .map(str::to_string)
+            });
+        match (w.list)(folder).await {
+            Ok(list) => {
+                if *self.wasm_extensions.peek() != list {
+                    self.wasm_extensions.set(list);
+                }
+            }
+            Err(e) => self.set_status(format!("Extensions not scanned: {e}")),
+        }
+    }
+
+    /// Run a wasm extension's command with the permissions granted in settings.
+    pub async fn run_wasm_command(
+        &self,
+        ext_id: &str,
+        command: &str,
+        args: serde_json::Value,
+    ) -> Result<String, String> {
+        let w = self
+            .config
+            .wasm
+            .ok_or("wasm extensions are not available on this platform")?;
+        let granted = self
+            .settings
+            .peek()
+            .extensions
+            .permissions
+            .get(ext_id)
+            .cloned()
+            .unwrap_or_default();
+        (w.run)(ext_id.to_string(), command.to_string(), args, granted).await
+    }
+
     pub fn has_settings_store(&self) -> bool {
         self.config.settings_store.is_some()
     }
@@ -476,6 +539,7 @@ impl Workspace {
             }
             Err(e) => self.set_status(format!("Settings not loaded: {e}")),
         }
+        self.refresh_wasm_extensions().await;
         // Desktop: come back to where you were.
         if self.config.reopen_last_folder && self.sources.peek().is_empty() {
             let last = self.settings.peek().recent_folders.first().cloned();
@@ -796,6 +860,7 @@ impl Workspace {
         if first.family == moonkale_core::SourceFamily::Folder {
             // Workspace settings + remember the folder.
             self.load_workspace_settings(&first.id).await;
+            self.refresh_wasm_extensions().await;
             let path = first
                 .id
                 .as_str()

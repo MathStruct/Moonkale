@@ -16,9 +16,13 @@ pub enum PortType {
     Any,
     Scalar,
     /// A tensor whose shape may be partially known (batch dim excluded).
-    Tensor { shape: Shape },
+    Tensor {
+        shape: Shape,
+    },
     /// Opaque, must match by name (e.g. `"optimiser"`, `"loss"`).
-    Named { name: String },
+    Named {
+        name: String,
+    },
 }
 
 impl PortType {
@@ -222,7 +226,8 @@ impl Flow {
     /// Blocks in an order where every wire goes from earlier to later
     /// (Kahn); `Err` names a block on a cycle.
     pub fn topological(&self) -> Result<Vec<&Block>, String> {
-        let mut indeg: BTreeMap<&str, usize> = self.blocks.iter().map(|b| (b.id.as_str(), 0)).collect();
+        let mut indeg: BTreeMap<&str, usize> =
+            self.blocks.iter().map(|b| (b.id.as_str(), 0)).collect();
         for w in &self.wires {
             if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
                 *d += 1;
@@ -260,7 +265,10 @@ impl Flow {
     }
 }
 
-pub fn find_kind<'a>(libraries: &'a [FlowLibrary], kind: &str) -> Option<(&'a FlowLibrary, &'a BlockKind)> {
+pub fn find_kind<'a>(
+    libraries: &'a [FlowLibrary],
+    kind: &str,
+) -> Option<(&'a FlowLibrary, &'a BlockKind)> {
     let (lib, id) = kind.split_once('/')?;
     let library = libraries.iter().find(|l| l.id == lib)?;
     library.block(id).map(|k| (library, k))
@@ -286,9 +294,15 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
         }
     }
     for w in &flow.wires {
-        let from = flow.block(&w.from_block).and_then(|b| find_kind(libraries, &b.kind));
-        let to = flow.block(&w.to_block).and_then(|b| find_kind(libraries, &b.kind));
-        let (Some((_, fk)), Some((_, tk))) = (from, to) else { continue };
+        let from = flow
+            .block(&w.from_block)
+            .and_then(|b| find_kind(libraries, &b.kind));
+        let to = flow
+            .block(&w.to_block)
+            .and_then(|b| find_kind(libraries, &b.kind));
+        let (Some((_, fk)), Some((_, tk))) = (from, to) else {
+            continue;
+        };
         let out = fk.outputs.iter().find(|p| p.name == w.from_port);
         let inp = tk.inputs.iter().find(|p| p.name == w.to_port);
         match (out, inp) {
@@ -317,7 +331,11 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
     for b in &flow.blocks {
         if let Some((_, k)) = find_kind(libraries, &b.kind) {
             for p in k.inputs.iter().filter(|p| p.required) {
-                if !flow.wires.iter().any(|w| w.to_block == b.id && w.to_port == p.name) {
+                if !flow
+                    .wires
+                    .iter()
+                    .any(|w| w.to_block == b.id && w.to_port == p.name)
+                {
                     issues.push(Issue {
                         about: b.id.clone(),
                         message: format!("input {} of {} is not connected", p.name, b.id),
@@ -340,25 +358,60 @@ mod tests {
     use super::*;
 
     fn lib() -> FlowLibrary {
-        let port = |n: &str, ty: PortType, required: bool| Port { name: n.into(), ty, required };
+        let port = |n: &str, ty: PortType, required: bool| Port {
+            name: n.into(),
+            ty,
+            required,
+        };
         FlowLibrary {
             id: "t",
             name: "Test",
             language: "none",
             codegen: None,
             blocks: vec![
-                BlockKind { id: "src".into(), name: "Src".into(), category: "io".into(), description: String::new(),
-                    inputs: vec![], outputs: vec![port("out", PortType::tensor(vec![Some(28), Some(28), Some(1)]), false)], params: vec![] },
-                BlockKind { id: "dense".into(), name: "Dense".into(), category: "layer".into(), description: String::new(),
-                    inputs: vec![port("in", PortType::tensor(vec![None]), true)], outputs: vec![port("out", PortType::tensor(vec![None]), false)], params: vec![] },
-                BlockKind { id: "flat".into(), name: "Flatten".into(), category: "layer".into(), description: String::new(),
-                    inputs: vec![port("in", PortType::tensor(vec![]), true)], outputs: vec![port("out", PortType::tensor(vec![None]), false)], params: vec![] },
+                BlockKind {
+                    id: "src".into(),
+                    name: "Src".into(),
+                    category: "io".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![port(
+                        "out",
+                        PortType::tensor(vec![Some(28), Some(28), Some(1)]),
+                        false,
+                    )],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "dense".into(),
+                    name: "Dense".into(),
+                    category: "layer".into(),
+                    description: String::new(),
+                    inputs: vec![port("in", PortType::tensor(vec![None]), true)],
+                    outputs: vec![port("out", PortType::tensor(vec![None]), false)],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "flat".into(),
+                    name: "Flatten".into(),
+                    category: "layer".into(),
+                    description: String::new(),
+                    inputs: vec![port("in", PortType::tensor(vec![]), true)],
+                    outputs: vec![port("out", PortType::tensor(vec![None]), false)],
+                    params: vec![],
+                },
             ],
         }
     }
 
     fn wire(id: &str, a: &str, b: &str) -> Wire {
-        Wire { id: id.into(), from_block: a.into(), from_port: "out".into(), to_block: b.into(), to_port: "in".into() }
+        Wire {
+            id: id.into(),
+            from_block: a.into(),
+            from_port: "out".into(),
+            to_block: b.into(),
+            to_port: "in".into(),
+        }
     }
 
     #[test]
@@ -367,7 +420,10 @@ mod tests {
         let b = PortType::tensor(vec![None, Some(3)]);
         assert_eq!(a.unify(&b), Some(PortType::tensor(vec![Some(28), Some(3)])));
         assert_eq!(a.unify(&PortType::tensor(vec![Some(1)])), None);
-        assert_eq!(PortType::Any.unify(&PortType::Scalar), Some(PortType::Scalar));
+        assert_eq!(
+            PortType::Any.unify(&PortType::Scalar),
+            Some(PortType::Scalar)
+        );
         assert_eq!(PortType::tensor(vec![]).unify(&a), Some(a.clone()));
     }
 
@@ -376,22 +432,45 @@ mod tests {
         let libs = vec![lib()];
         let mut f = Flow::new();
         f.blocks = vec![
-            Block { id: "s".into(), kind: "t/src".into(), ..Default::default() },
-            Block { id: "d".into(), kind: "t/dense".into(), ..Default::default() },
-            Block { id: "fl".into(), kind: "t/flat".into(), ..Default::default() },
+            Block {
+                id: "s".into(),
+                kind: "t/src".into(),
+                ..Default::default()
+            },
+            Block {
+                id: "d".into(),
+                kind: "t/dense".into(),
+                ..Default::default()
+            },
+            Block {
+                id: "fl".into(),
+                kind: "t/flat".into(),
+                ..Default::default()
+            },
         ];
         // src (rank 3) → dense (rank 1): mismatch; flatten unconnected: missing.
         f.wires = vec![wire("w1", "s", "d")];
         let issues = validate(&f, &libs);
-        assert!(issues.iter().any(|i| i.about == "w1" && i.message.contains("does not fit")));
-        assert!(issues.iter().any(|i| i.about == "fl" && i.message.contains("not connected")));
+        assert!(issues
+            .iter()
+            .any(|i| i.about == "w1" && i.message.contains("does not fit")));
+        assert!(issues
+            .iter()
+            .any(|i| i.about == "fl" && i.message.contains("not connected")));
         // src → flatten → dense: fine.
         f.wires = vec![wire("w1", "s", "fl"), wire("w2", "fl", "d")];
         assert!(validate(&f, &libs).is_empty(), "{:?}", validate(&f, &libs));
-        let order: Vec<&str> = f.topological().unwrap().iter().map(|b| b.id.as_str()).collect();
+        let order: Vec<&str> = f
+            .topological()
+            .unwrap()
+            .iter()
+            .map(|b| b.id.as_str())
+            .collect();
         assert_eq!(order, ["s", "fl", "d"]);
         f.wires.push(wire("w3", "d", "fl"));
-        assert!(validate(&f, &libs).iter().any(|i| i.message.contains("cycle")));
+        assert!(validate(&f, &libs)
+            .iter()
+            .any(|i| i.message.contains("cycle")));
         let json = f.to_json();
         assert_eq!(Flow::parse(&json).unwrap(), f);
     }

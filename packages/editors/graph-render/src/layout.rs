@@ -1,9 +1,15 @@
 //! Force-directed layout (Fruchterman–Reingold with cooling).
 //!
-//! O(n²) repulsion: fine to a few thousand nodes on the CPU, which is the
-//! Milestone-2 target. GPU-binned repulsion is P-22.
+//! Repulsion is exact O(n²) below [`BARNES_HUT_FROM`] nodes and Barnes–Hut
+//! (quadtree, θ = 0.8) above — O(n log n), which is what makes 50k–100k
+//! nodes possible on the CPU (Milestone 6, P-22).
 
 use crate::graph::Graph;
+use crate::quadtree::QuadTree;
+
+/// Node count from which the quadtree approximation is used.
+pub const BARNES_HUT_FROM: usize = 1500;
+const THETA: f32 = 0.8;
 
 pub struct Layout {
     pub temperature: f32,
@@ -37,8 +43,20 @@ impl Layout {
         let k2 = k * k;
         let mut disp = vec![[0.0f32; 2]; n];
 
-        // Repulsion between every pair.
+        if n >= BARNES_HUT_FROM {
+            let points: Vec<(f32, f32)> = graph.nodes.iter().map(|nd| (nd.x, nd.y)).collect();
+            let tree = QuadTree::build(&points);
+            for (i, &(x, y)) in points.iter().enumerate() {
+                let (fx, fy) = tree.force(i, x, y, k2, THETA);
+                disp[i][0] += fx;
+                disp[i][1] += fy;
+            }
+        }
+        // Repulsion between every pair (small graphs: exact).
         for i in 0..n {
+            if n >= BARNES_HUT_FROM {
+                break;
+            }
             let (xi, yi) = (graph.nodes[i].x, graph.nodes[i].y);
             for j in (i + 1)..n {
                 let mut dx = xi - graph.nodes[j].x;
@@ -94,7 +112,15 @@ impl Layout {
         }
         self.temperature *= 0.95;
         self.iterations += 1;
-        if self.temperature < 0.3 || self.iterations > 600 {
+        // Big graphs settle "well enough" much earlier; keep the UI alive.
+        let max_iter = if n > 50_000 {
+            120
+        } else if n > 10_000 {
+            250
+        } else {
+            600
+        };
+        if self.temperature < 0.3 || self.iterations > max_iter {
             self.running = false;
         }
         max_move

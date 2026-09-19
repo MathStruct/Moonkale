@@ -22,7 +22,16 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 5 — "Settings & writing" — is done** (2026-09-18). Moonkale
+**Milestone 6 — "Scale & extend" — is done** (2026-09-19). Extensions are
+a managed catalog (Settings → Extensions toggles them and grants permissions;
+the Flow editor and the Lux.jl library ship off); a flow editor with typed
+ports and block libraries contributed by extensions; a Lux.jl library that
+generates `model.jl`; third-party wasm extensions (core modules, JSON ABI,
+wasmtime, permissions enforced at the host boundary) whose commands become
+agent tools; Barnes–Hut layout that settles 100k nodes at ~170 ms/step; a
+phone-sized shell below 700 px. Seventeen automated browser suites cover it.
+
+**Milestone 5 — "Settings & writing"** (2026-09-18). Moonkale
 remembers layouts, open documents and recent folders per workspace, and
 provider/policy choices in two scopes (machine and folder) with a Settings
 panel (`Ctrl+,`); markdown has a Rich (WYSIWYG) mode; the agent can edit
@@ -41,13 +50,13 @@ preview, LSP client and LadybugDB source; Milestone 2's index, wgpu graph
 view, backlinks and SQLite tables; and Milestone 1's dockable workbench —
 desktop and web from one codebase. Eleven automated browser suites cover it.
 
-Still comment-only skeleton: Postgres/Falkor/KV drivers, Milkdown WYSIWYG,
-WASM extensions, the flow editor. The **design vault** in `markdown/`
+Still comment-only skeleton: Postgres/Falkor/KV drivers, browser-side wasm
+extensions, collaboration. The **design vault** in `markdown/`
 records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 6 of the roadmap — scale (GPU layouts), wasm extensions, the flow editor, mobile.
+Next: Phase 7 of the roadmap — research items (versioning, collaboration, more databases), an Android build, WIT extensions.
 
 ## Learn more
 

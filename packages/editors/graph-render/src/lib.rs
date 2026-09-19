@@ -15,6 +15,7 @@
 pub mod camera;
 pub mod graph;
 pub mod layout;
+pub mod quadtree;
 
 #[cfg(target_arch = "wasm32")]
 pub mod render;

@@ -9,6 +9,8 @@ ui = { workspace = true }
 api = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-llm = { workspace = true }
+moonkale-ext-host = { workspace = true }
+serde_json = "1"
 tracing = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

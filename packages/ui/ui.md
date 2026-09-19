@@ -38,3 +38,9 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `frame.rs`: loads user settings at start; restores/persists open documents and the active one per workspace; `Command::OpenRecent`; document-level shortcut listener (`GLOBAL_KEYS`) so Ctrl-combos work with nothing focused (P-065).
 - `shell.rs`: layout restore from `settings.layout` when a folder's settings load; `on_layout_change` saves; Reset Layout clears.
 - `titlebar.rs`: File → recent folders, Settings….
+
+## Milestone 6
+- `shell.rs` filters extensions by `settings.extensions.is_enabled(&manifest)` every render (panels, `ShowPanel` placements) and collects `flow_libraries()` from the enabled ones into `ws.flow_libraries`, so a toggle in Settings applies live.
+- `settings_panel.rs` → **Extensions** section: one row per built-in (toggle, permissions as checkboxes) and per wasm manifest from `ws.wasm_extensions` (default off, no permissions); writes `extensions.enabled/disabled/permissions` into the chosen scope.
+- `titlebar.rs`: File → New Flow… when the flow editor is enabled (`Command::NewFile("untitled.flow.json", template)`; `frame.rs` numbers the file if it exists).
+- **Phone-sized shell** (`shell.rs`): `narrow` signal from a `matchMedia("(max-width: 700px)")` eval (`NARROW_MAX_PX`); while narrow the rail is hidden, every contribution's home is `main` (`home_tile`), a second `PanelWorkspace` branch uses its own controlled signal (`phone_layout`, the workbench needs one signal per lifetime) with `on_layout_change` ignored so nothing is persisted, and `nav.mk-phone-bar` (52 px, touch targets) switches Files / Search / Editor (the active document's panel) / Graph / Terminal / Agent / Settings. The front tab is read from the signal *after* `reconcile` with the current placements (P-074). Both platforms start wide so hydration matches; `mobile` uses the same shell.

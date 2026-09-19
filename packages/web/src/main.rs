@@ -161,6 +161,27 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
     })
 }
 
+/// wasm extensions run on the server; the client lists and calls.
+fn wasm_list(folder: Option<String>) -> ui::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
+    Box::pin(async move {
+        api::list_wasm_extensions(folder)
+            .await
+            .map_err(|e| e.to_string())
+    })
+}
+fn wasm_run(
+    ext: String,
+    command: String,
+    args: serde_json::Value,
+    granted: Vec<String>,
+) -> ui::SettingsFuture<String> {
+    Box::pin(async move {
+        api::run_wasm_command(ext, command, args, granted)
+            .await
+            .map_err(|e| e.to_string())?
+    })
+}
+
 fn new_window() {
     // A *window*, not a tab: a background tab can never be a drop target.
     document::eval("window.open(location.href, '_blank', 'popup,width=1200,height=800');");
@@ -174,7 +195,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }) },
                 session,
                 new_window: Some(new_window),
             },

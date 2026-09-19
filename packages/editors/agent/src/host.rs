@@ -273,9 +273,45 @@ impl WorkspaceHost {
                 let text = strip_ansi(&String::from_utf8_lossy(&bytes));
                 Ok(format!("$ {command}\n{text}"))
             }
-            other => Err(format!("unknown tool {other}")),
+            other => match wasm_owner(ws, other) {
+                Some(ext) => ws.run_wasm_command(&ext, other, call.input.clone()).await,
+                None => Err(format!("unknown tool {other}")),
+            },
         }
     }
+}
+
+/// Commands of enabled wasm extensions as agent tools (`llm_tool` only).
+pub fn wasm_tools(ws: Workspace) -> Vec<moonkale_llm::ToolDef> {
+    let settings = ws.settings.peek();
+    ws.wasm_extensions
+        .peek()
+        .iter()
+        .filter(|m| settings.extensions.is_enabled_id(&m.id, false))
+        .flat_map(|m| {
+            m.commands
+                .iter()
+                .filter(|c| c.llm_tool)
+                .map(move |c| moonkale_llm::ToolDef {
+                    name: c.id.clone(),
+                    description: format!("{} (extension {}: {})", c.description, m.name, c.title),
+                    input_schema: c.input_schema.clone(),
+                })
+        })
+        .collect()
+}
+
+/// Which wasm extension owns a command, if any.
+fn wasm_owner(ws: Workspace, command: &str) -> Option<String> {
+    let settings = ws.settings.peek();
+    ws.wasm_extensions
+        .peek()
+        .iter()
+        .find(|m| {
+            settings.extensions.is_enabled_id(&m.id, false)
+                && m.commands.iter().any(|c| c.id == command)
+        })
+        .map(|m| m.id.clone())
 }
 
 /// Drop ANSI escape sequences and carriage returns from terminal output.

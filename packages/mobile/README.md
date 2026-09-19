@@ -28,3 +28,8 @@ Mobile platforms are shared in a single crate. To serve mobile, you need to expl
 ```bash
 dx serve --platform android
 ```
+## Moonkale (Milestone 6)
+
+`packages/mobile/src/main.rs` mounts the same `ui::Frame` as desktop and web (`WorkspaceConfig` without a settings store, wasm runtime or last-folder reopen; the folder source runs in-process). Below 700 px the shell collapses to one tile with a bottom bar (`ui/src/shell.rs`), which is what a phone shows.
+
+Checked here with `cargo check -p mobile --features mobile` only — no Android SDK on this machine. To build an APK: install Android Studio's SDK + NDK, `rustup target add aarch64-linux-android`, set `ANDROID_HOME`/`ANDROID_NDK_HOME`, then `cd packages/mobile && dx serve --platform android` (emulator or a device with USB debugging). Signing keys go in `Dioxus.toml` — never commit them.

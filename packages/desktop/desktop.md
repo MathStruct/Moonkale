@@ -20,3 +20,6 @@ Milestone 1 deliberately shipped a text field on every platform (the plan listed
 
 ## P-061 (Milestone 3)
 WebKitGTK's web process crashes inside the NVIDIA EGL driver while tearing down a live WebGL context (our graph renderer) — on every exit, graceful or not, and on every `dx serve` rebuild. `mute_webkit_exit_dumps()` sets the soft `RLIMIT_CORE` to 0 before launch when `/proc/driver/nvidia/version` exists, so the WebKit children (which inherit it) leave no dump and no crash popup. `MOONKALE_COREDUMPS=1` keeps dumps for debugging a real crash. `WEBKIT_DISABLE_DMABUF_RENDERER` and a JS `pagehide` context loss were tried first and did not help.
+
+## Milestone 6
+- `mod wasm_ext { list, run }`: an in-process `moonkale_ext_host::Runtime` (feature `wasmtime`) over the registry — `discover(config_dir, folder)` on every `list`, permissions passed per `run`. `WorkspaceConfig::wasm` is set; the module directory is `~/.config/moonkale/extensions` (`MOONKALE_CONFIG_DIR` overrides).

@@ -10,6 +10,7 @@ name = "moonkale"
 path = "src/main.rs"
 
 [dependencies]
+tokio = { version = "1", features = ["rt"] }
 tracing = "0.1"
 dioxus = { workspace = true, features = ["fullstack"] }
 ui = { workspace = true }
@@ -25,6 +26,8 @@ moonkale-typst = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-lsp-local = { workspace = true }
 moonkale-llm = { workspace = true, features = ["http"] }
+moonkale-ext-host = { workspace = true, features = ["wasmtime"] }
+serde_json = "1"
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 # Native folder dialog. Same backend dioxus-desktop uses (xdg-desktop-portal on

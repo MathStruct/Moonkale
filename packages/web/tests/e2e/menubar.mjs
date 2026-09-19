@@ -2,7 +2,8 @@ import { firefox } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
 const browser = await firefox.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-await page.goto("http://127.0.0.1:8080/", { waitUntil: "networkidle" });
+const PORT = process.env.PORT ?? 8080;
+await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
 await page.waitForSelector(".wb-workspace");
 // open a folder + file so the title shows something
 await page.click(".mk-explorer-open button[type=submit]");

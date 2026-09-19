@@ -48,6 +48,8 @@ flake.nix                    Nix package + dev shell
 
 **Status after Milestone 1** ([[Milestone 1 - Implementation Log]]): `core`, `project-fs`, `sources` (registry), `api`, `ext-api`, `editors/code`, `ui` and the three platform crates contain real code with tests; every other crate is still doc comments. Each implemented crate has a `<crate>.md` next to its `Cargo.toml` with implementation notes. `cargo check --workspace`, `cargo test --workspace`, clippy and fmt pass.
 
+**Status after Milestone 6** ([[Milestone 6 - Implementation Log]]): everything above plus `ext-host` (wasm runtime + ABI, feature `wasmtime`), `editors/flow` (dioxus-flow canvas), `extensions/lux` (Lux.jl block library, opt-in) and `extensions/wordcount` (example wasm module, `cdylib`) are real; the graph renderer has a Barnes–Hut layout; `ui` has the phone-sized shell. Still comment-only: `sources-kv`, Postgres/Falkor drivers, collaboration.
+
 ## Why these boundaries
 
 ### `core` depends on nothing

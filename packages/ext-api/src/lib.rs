@@ -42,7 +42,7 @@ pub use workspace::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, ForeignDrag,
     GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions,
     PickFolder, PickFolderFuture, Reveal, SecretStore, SettingsFuture, SettingsStore, SourceHandle,
-    Workspace, WorkspaceConfig,
+    WasmExtensions, WasmList, WasmRun, Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.

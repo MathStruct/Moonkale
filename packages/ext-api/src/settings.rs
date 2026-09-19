@@ -172,7 +172,9 @@ impl SettingsFile {
             self.extensions.set_enabled(id, false);
         }
         for (id, perms) in &other.extensions.permissions {
-            self.extensions.permissions.insert(id.clone(), perms.clone());
+            self.extensions
+                .permissions
+                .insert(id.clone(), perms.clone());
         }
         self.theme = other.theme.clone().or(self.theme.take());
         if !other.recent_folders.is_empty() {
@@ -259,6 +261,17 @@ impl ExtensionsSettings {
             return true;
         }
         m.default_enabled
+    }
+
+    /// Third-party (wasm) extensions: enabled only when listed, default off.
+    pub fn is_enabled_id(&self, id: &str, default: bool) -> bool {
+        if self.disabled.iter().any(|d| d == id) {
+            return false;
+        }
+        if self.enabled.iter().any(|e| e == id) {
+            return true;
+        }
+        default
     }
 
     /// Permissions granted to `id` (built-in extensions get what they declare
@@ -428,7 +441,13 @@ mod tests {
         assert!(s.extensions.is_enabled(&core));
         assert!(s.extensions.is_enabled(&opt));
         assert!(s.extensions.is_enabled(&opt_in));
-        assert!(!Settings::resolve(&SettingsFile::new(), &SettingsFile::new(), &SettingsFile::new()).extensions.is_enabled(&opt_in));
+        assert!(!Settings::resolve(
+            &SettingsFile::new(),
+            &SettingsFile::new(),
+            &SettingsFile::new()
+        )
+        .extensions
+        .is_enabled(&opt_in));
         assert!(s.extensions.has(&opt_in, "network"));
         assert!(!s.extensions.has(&opt, "network"));
     }

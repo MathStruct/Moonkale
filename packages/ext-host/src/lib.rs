@@ -1,29 +1,32 @@
 //! # moonkale-ext-host
 //!
-//! Owns the lifecycle of extensions: discovery, manifest validation,
-//! permission grants, lazy activation, dispatch, and isolation.
+//! Third-party extensions as **wasm core modules** (Milestone 6, v1): a
+//! module exports `manifest()` and `run(command_json)` and may import a few
+//! host calls (`log`, `call`), all as JSON over linear memory. The host
+//! checks the extension's *granted* permissions on every call. Extensions
+//! are discovered in `~/.config/moonkale/extensions/*.wasm` and
+//! `<folder>/.moonkale/extensions/*.wasm`; their commands become agent
+//! tools (and, later, palette commands).
 //!
 //! ```text
-//!   manifests ──► Registry ──► (activation event) ──► Runtime ──► Extension
-//!                    │                                  ├─ static  (in-process)
-//!                    │                                  ├─ wasmtime (native)
-//!                    └─ contributions (panels,          └─ browser  (web)
-//!                       commands, languages, …)
-//!                       are available *before* activation
+//!   guest exports                 host imports (module "moonkale")
+//!   ─────────────                 ───────────────────────────────
+//!   alloc(len) -> ptr             log(ptr, len)
+//!   manifest() -> packed(ptr,len) call(ptr, len) -> packed(ptr,len)   // JSON request → JSON reply
+//!   run(ptr, len) -> packed(ptr,len)
 //! ```
 //!
-//! Platform notes:
-//! - **desktop**: static + wasmtime. Extensions live in
-//!   `~/.config/moonkale/extensions/<id>/`.
-//! - **web**: static + browser runtime (`wasm_component_layer` over the
-//!   page's own wasm engine). Extensions are fetched from the server that
-//!   serves the app; no arbitrary URLs.
-//! - **mobile**: static only in v1. Loading code at runtime is restricted by
-//!   app-store policy on iOS; wasm-in-app is a grey area we avoid for now.
-//! - **server** (the `api` crate): wasmtime, for extensions that contribute
-//!   sources or LLM tools which must run where the database is reachable.
+//! `packed` is `(ptr << 32) | len` as `i64`. Everything is UTF-8 JSON.
+//! Components + WIT ([[Extension System]]) remain the documented next step;
+//! this ABI is small enough to be replaced by one without changing the
+//! manifest format.
+//!
+//! Vault: `architecture/Extension System.md`, `extensions/Writing an Extension.md`.
 
-pub mod activation;
-pub mod permissions;
-pub mod registry;
+pub mod abi;
+#[cfg(all(feature = "wasmtime", not(target_arch = "wasm32")))]
 pub mod runtime;
+
+pub use abi::{HostCall, HostReply, RunReply, RunRequest, WasmCommand, WasmManifest, ABI_VERSION};
+#[cfg(all(feature = "wasmtime", not(target_arch = "wasm32")))]
+pub use runtime::{discover, Host, LoadedExtension, Runtime};

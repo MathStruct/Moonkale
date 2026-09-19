@@ -24,6 +24,9 @@ flowchart LR
 ## Rendering
 **Candidate canvas: [[dioxus-flow]]** (react-flow for Dioxus, same author as `dioxus-workbench`): handles, connections, layered auto-layout, custom node views — evaluated 2026-09-17, recommended for Phase 5. Otherwise SVG/Dioxus for typical flows (blocks need rich editable content: parameter fields, previews). Very large flows can fall back to the graph renderer's surface later.
 
+> [!success] Built in Milestone 6 ([[Milestone 6 - Implementation Log]])
+> `editors/flow` on [[dioxus-flow]] 0.1.2, opt-in; the model (`PortType`/`unify`, `BlockKind`, `FlowLibrary`, `Flow` JSON, `validate`) lives in `ext-api::flow` so libraries are contributions from other extensions; `extensions/lux` is the first (Input/Dense/Conv/MaxPool/Flatten/Dropout/BatchNorm/Loss/Optimiser → `model.jl`). Flows are `*.flow.json` files. Phase 1 and the codegen half of phase 2 are done; running through the terminal with errors linked to blocks, and the MTK library, are next. Notes: [flow.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/flow/flow.md), [lux.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/lux/lux.md).
+
 ## Phases
 1. Canvas, palette, wires, validation, save/load as nodes.
 2. Lux.jl library + codegen; run via [[Terminal]] (`julia model.jl`) with errors linked back to blocks.

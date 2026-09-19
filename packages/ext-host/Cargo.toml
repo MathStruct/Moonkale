@@ -3,22 +3,23 @@ name = "moonkale-ext-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Loads, sandboxes and dispatches extensions (static registry + WASM component runtime)."
+description = "Loads third-party wasm extensions (core modules, JSON ABI v1) with wasmtime, checks their permissions on every host call, and exposes their commands. Milestone 6."
 
 [features]
 default = []
-# Native WASM runtime (desktop, server). Not available on wasm32 targets.
-wasmtime = []
-# Browser WASM runtime: run extension components inside the page.
-web = []
+# Native runtime (desktop, server). Not available on wasm32 targets.
+wasmtime = ["dep:wasmtime"]
 
 [dependencies]
-# moonkale-core = { workspace = true }
-# moonkale-ext-api = { workspace = true }
-# inventory = "0.3"            # static extension registration
-#
-# [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# wasmtime = { version = "49", features = ["component-model"], optional = true }
-#
-# [target.'cfg(target_arch = "wasm32")'.dependencies]
-# wasm_component_layer = { version = "0.1", optional = true }
+moonkale-core = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wasmtime = { version = "48", default-features = false, features = ["cranelift", "runtime"], optional = true }
+tokio = { version = "1", features = ["rt"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+moonkale-project-fs = { workspace = true }
+tempfile = "3"

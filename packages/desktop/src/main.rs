@@ -263,6 +263,68 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
     })
 }
 
+/// wasm extensions run in-process (wasmtime) over the process registry.
+mod wasm_ext {
+    use super::registry;
+    use moonkale_core::{Source, SourceDescriptor, SourceId};
+    use moonkale_ext_host::{discover, Host, Runtime, WasmManifest};
+    use std::sync::{Arc, Mutex, OnceLock};
+
+    struct RegistryHost;
+    impl Host for RegistryHost {
+        fn list_sources(&self) -> Vec<SourceDescriptor> {
+            registry().descriptors()
+        }
+        fn source(&self, id: &SourceId) -> Option<Arc<dyn Source>> {
+            registry().get(id)
+        }
+    }
+
+    fn runtime() -> &'static Mutex<Runtime> {
+        static RT: OnceLock<Mutex<Runtime>> = OnceLock::new();
+        RT.get_or_init(|| Mutex::new(Runtime::new().expect("wasmtime engine")))
+    }
+
+    pub fn list(folder: Option<String>) -> ui::SettingsFuture<Vec<WasmManifest>> {
+        Box::pin(async move {
+            let config = moonkale_llm::secrets::config_dir();
+            let folder = folder.map(std::path::PathBuf::from);
+            let paths = discover(config.as_deref(), folder.as_deref());
+            let mut rt = runtime().lock().unwrap();
+            for p in &paths {
+                if let Err(e) = rt.load(p) {
+                    eprintln!("moonkale: extension {}: {e}", p.display());
+                }
+            }
+            Ok(rt.extensions.iter().map(|e| e.manifest.clone()).collect())
+        })
+    }
+
+    pub fn run(
+        ext: String,
+        command: String,
+        args: serde_json::Value,
+        granted: Vec<String>,
+    ) -> ui::SettingsFuture<String> {
+        Box::pin(async move {
+            let handle = tokio::runtime::Handle::current();
+            tokio::task::spawn_blocking(move || {
+                let rt = runtime().lock().unwrap();
+                rt.run(
+                    &ext,
+                    &command,
+                    args,
+                    granted,
+                    Arc::new(RegistryHost),
+                    handle,
+                )
+            })
+            .await
+            .map_err(|e| e.to_string())?
+        })
+    }
+}
+
 /// Native folder picker. rfd's xdg-portal backend talks to the desktop's
 /// portal daemon and resolves to `None` when cancelled or unavailable.
 fn pick_folder() -> PickFolderFuture {
@@ -384,7 +446,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list, run: wasm_ext::run }) },
                 session,
                 new_window: open_window,
             },

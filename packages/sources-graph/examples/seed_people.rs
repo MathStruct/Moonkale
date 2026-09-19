@@ -5,6 +5,8 @@
 //! ```
 //!
 //! Then open the containing folder in Moonkale and click `people.lbug`.
+//! With a second argument `small`, writes the five-node fixture the E2E
+//! suites expect (`packages/web/tests/e2e/fixture.sh`).
 //! Database files are tied to the `lbug` storage version, so downloading one
 //! from elsewhere is unlikely to open; regenerate instead.
 
@@ -20,7 +22,27 @@ fn main() {
     let _ = std::fs::remove_file(&path);
     let db = lbug::Database::new(&path, lbug::SystemConfig::default()).expect("open database");
     let c = lbug::Connection::new(&db).expect("connection");
-    for q in [
+    let small = std::env::args().nth(2).as_deref() == Some("small");
+    let statements: &[&str] = if small { &SMALL } else { &FULL };
+    for q in statements {
+        c.query(q).unwrap_or_else(|e| panic!("{q}: {e}"));
+    }
+    println!("wrote {}", path.display());
+    println!("try:  MATCH (a:Person)-[r]->(b) RETURN a, r, b");
+}
+
+const SMALL: [&str; 8] = [
+    "CREATE NODE TABLE Person(name STRING, age INT64, PRIMARY KEY(name))",
+    "CREATE NODE TABLE City(name STRING, PRIMARY KEY(name))",
+    "CREATE REL TABLE Knows(FROM Person TO Person, since INT64)",
+    "CREATE REL TABLE LivesIn(FROM Person TO City)",
+    "CREATE (a:Person {name:'Alice', age:30}), (b:Person {name:'Bob', age:25}), (c:Person {name:'Carol', age:41}), (x:City {name:'Berlin'}), (y:City {name:'Paris'})",
+    "MATCH (a:Person {name:'Alice'}), (b:Person {name:'Bob'}) CREATE (a)-[:Knows {since:2020}]->(b)",
+    "MATCH (a:Person {name:'Bob'}), (b:Person {name:'Carol'}) CREATE (a)-[:Knows {since:2018}]->(b)",
+    "MATCH (a:Person {name:'Alice'}), (x:City {name:'Berlin'}), (c:Person {name:'Carol'}), (y:City {name:'Paris'}) CREATE (a)-[:LivesIn]->(x), (c)-[:LivesIn]->(y)",
+];
+
+const FULL: [&str; 20] = [
         "CREATE NODE TABLE Person(name STRING, age INT64, PRIMARY KEY(name))",
         "CREATE NODE TABLE City(name STRING, country STRING, PRIMARY KEY(name))",
         "CREATE NODE TABLE Project(title STRING, year INT64, PRIMARY KEY(title))",
@@ -41,9 +63,4 @@ fn main() {
         "MATCH (p:Person {name:'Alice'}), (x:Project {title:'Moonkale'}) CREATE (p)-[:WorksOn {role:'lead'}]->(x)",
         "MATCH (p:Person {name:'Dave'}), (x:Project {title:'Moonkale'}) CREATE (p)-[:WorksOn {role:'graphics'}]->(x)",
         "MATCH (p:Person {name:'Carol'}), (x:Project {title:'Quartz site'}) CREATE (p)-[:WorksOn {role:'author'}]->(x)",
-    ] {
-        c.query(q).unwrap_or_else(|e| panic!("{q}: {e}"));
-    }
-    println!("wrote {}", path.display());
-    println!("try:  MATCH (a:Person)-[r]->(b) RETURN a, r, b");
-}
+];

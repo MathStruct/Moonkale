@@ -154,10 +154,12 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         items.with_mut(|v| v.push(Item::User(text.clone())));
         busy.set(true);
         spawn(async move {
-            // The system prompt and the policy follow the workspace.
+            // The system prompt, the policy and the tool list follow the workspace.
             {
                 let mut g = a.borrow_mut();
                 g.system = system_prompt(ws);
+                g.tools = moonkale_llm::builtin_tools();
+                g.tools.extend(crate::host::wasm_tools(ws));
                 let (ps, ext) = {
                     let s = ws.settings.peek();
                     (s.policy.clone(), s.extensions.clone())

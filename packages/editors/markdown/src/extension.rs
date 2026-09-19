@@ -40,7 +40,11 @@ impl LinksExtension {
 
 impl Extension for LinksExtension {
     fn manifest(&self) -> Manifest {
-        Manifest::optional("dev.moonkale.editor-markdown", "Markdown", "Links panel, Source | Rich markdown tabs, Typst preview.")
+        Manifest::optional(
+            "dev.moonkale.editor-markdown",
+            "Markdown",
+            "Links panel, Source | Rich markdown tabs, Typst preview.",
+        )
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {

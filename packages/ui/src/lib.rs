@@ -25,7 +25,7 @@ pub use moonkale_ext_api::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, LlmProvider,
     LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions, PickFolder, PickFolderFuture,
     Reveal, SecretStore, SessionBus, SessionMessage, SettingsFile, SettingsFuture, SettingsStore,
-    WindowId, WorkspaceConfig,
+    WasmExtensions, WindowId, WorkspaceConfig,
 };
 pub use moonkale_lsp::{LspTransport, LspTransportFuture, SpawnLsp};
 pub use moonkale_terminal::{SpawnTerminal, SpawnTerminalFuture, TerminalBackend};
@@ -43,13 +43,15 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
         Box::new(moonkale_editor_graph::GraphExtension),
         Box::new(moonkale_editor_markdown::LinksExtension::new()),
         Box::new(
-            moonkale_editor_code::CodeEditorExtension::new()
-                .skipping(|n| moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)),
+            moonkale_editor_code::CodeEditorExtension::new().skipping(|n| {
+                moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)
+            }),
         ),
         Box::new(moonkale_editor_table::TableExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),
         Box::new(moonkale_editor_agent::AgentExtension),
         // Opt-in (off until enabled in Settings → Extensions):
         Box::new(moonkale_editor_flow::FlowExtension),
+        Box::new(moonkale_ext_lux::LuxExtension),
     ]
 }

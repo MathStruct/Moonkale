@@ -46,7 +46,10 @@ fn menus(
         file.push(Item::Cmd {
             label: "New Flow…",
             shortcut: "",
-            cmd: Command::NewFile("untitled.flow.json", "{\n  \"version\": 1,\n  \"blocks\": [],\n  \"wires\": []\n}\n"),
+            cmd: Command::NewFile(
+                "untitled.flow.json",
+                "{\n  \"version\": 1,\n  \"blocks\": [],\n  \"wires\": []\n}\n",
+            ),
         });
     }
     for (i, path) in recent.iter().take(8).enumerate() {

@@ -57,8 +57,14 @@ impl Policy {
             }
             "editor.replace" | "file.create" => Class::Mutating,
             "terminal.run" => classify_command(call.str("command").unwrap_or_default()),
-            // Everything else the surface exposes only reads.
-            _ => Class::ReadOnly,
+            // The built-in read tools.
+            "workspace.list_sources"
+            | "graph.query"
+            | "graph.fetch"
+            | "index.search"
+            | "editor.open" => Class::ReadOnly,
+            // Anything else is third-party (wasm) code: ask.
+            _ => Class::Mutating,
         }
     }
 

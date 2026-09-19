@@ -13,7 +13,11 @@ pub struct SearchExtension;
 
 impl Extension for SearchExtension {
     fn manifest(&self) -> Manifest {
-        Manifest::core("dev.moonkale.search", "Search", "Keyword + semantic search over the open folder (Ctrl+Shift+F).")
+        Manifest::core(
+            "dev.moonkale.search",
+            "Search",
+            "Keyword + semantic search over the open folder (Ctrl+Shift+F).",
+        )
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {

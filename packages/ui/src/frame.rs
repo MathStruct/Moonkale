@@ -265,11 +265,23 @@ pub fn Frame(
                     };
                     let mut candidate = name.to_string();
                     let mut n = 1;
-                    while ws.node_at_path(&folder.descriptor.id, &candidate).await.is_some() {
+                    while ws
+                        .node_at_path(&folder.descriptor.id, &candidate)
+                        .await
+                        .is_some()
+                    {
                         n += 1;
                         candidate = format!("{stem}-{n}{ext}");
                     }
-                    match ws.create_text(&folder.descriptor.id, folder.descriptor.root, &candidate, template).await {
+                    match ws
+                        .create_text(
+                            &folder.descriptor.id,
+                            folder.descriptor.root,
+                            &candidate,
+                            template,
+                        )
+                        .await
+                    {
                         Ok(node) => {
                             let _ = ws.open_node(node).await;
                         }

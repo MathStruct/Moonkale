@@ -34,6 +34,9 @@ Contributions (panels, commands, …) are available in the **Registered** state 
 | mobile | ✅ | ❌ (v1) | — |
 | server | ✅ | ✅ | — |
 
+> [!note] Status after Milestone 6 ([[Milestone 6 - Implementation Log]])
+> **Static** extensions are the catalog in `ui::default_extensions()`; each `Manifest` is `core` / `optional` / `opt_in` with declared permissions, and `Settings.extensions` (user ← workspace) decides what is enabled and granted — *Settings → Extensions*. **wasmtime** runs on desktop and on the web server (`moonkale-ext-host`, feature `wasmtime`) with a **JSON ABI v1 over core wasm modules** — exports `alloc` / `manifest` / `run`, imports `moonkale.log` / `moonkale.call` (`list_sources`, `query`, `fetch_text`), permissions checked per call — instead of the component model described below, which stays the target (the manifest shape is the same). Modules are discovered in `~/.config/moonkale/extensions/` and `<folder>/.moonkale/extensions/`; their `llm_tool` commands become agent tools (policy `Mutating`). The **browser** runtime and the `ui::Tree` panels are not built yet: wasm extensions contribute commands, not panels, in v1. Example: `packages/extensions/wordcount`.
+
 WASM panels render through a small retained-mode `ui::Tree` (rows, columns, text, inputs, lists, tables, `Embed(view)`), diffed and rendered by the shell. It is less expressive than Dioxus on purpose: portable, sandboxable, and cheap over a Worker boundary. Static extensions may return real `Element`s.
 
 ## The WIT world

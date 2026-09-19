@@ -33,3 +33,6 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 - `open_folder(path, embed: Option<LlmSettings>)`: the client's embedding settings decide whether the index embeds; the secret is resolved on the server.
 - `/api/llm`: `Complete`/`Embed` frames carry `LlmSettings`; `provider_for(settings)` builds and caches a provider per settings; `llm_info(settings)` reports `has_key`.
 - `mcp.rs` — `POST /mcp` (mounted by `web/src/main.rs` via `dioxus::server::router(App).route(...)`): JSON-RPC `initialize`, `ping`, `tools/list`, `tools/call` for the read-only tools (`workspace_list_sources`, `graph_query`, `graph_fetch`, `source_text_query`, `index_search`) over the server registry; mutating statements refused; optional `MOONKALE_MCP_TOKEN` bearer auth. Verified with Claude Code: `claude mcp add --transport http moonkale http://127.0.0.1:8080/mcp`.
+
+## Milestone 6
+- `wasm.rs` — `list_wasm_extensions(folder)` and `run_wasm_command(ext, command, args, granted)` server functions: the server's `ext-host` runtime (feature `wasmtime`) over the registry; the client sends the granted set from its settings (the server trusts the dev client — same trust level as the terminal relay, P-20). The browser build never compiles wasmtime.
