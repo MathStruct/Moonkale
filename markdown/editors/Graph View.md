@@ -51,6 +51,9 @@ The renderer is written once against `wgpu`. The **surface** differs:
 
 Recommendation: ship (a) with WebGL2 fallback first — it's one code path and works *somewhere* on every platform; measure; only then consider (b) for Linux/WebKitGTK. Details and measurements go in [[P-001 Graph surface in desktop webview]].
 
+## Big cases
+Backend chosen by measured size — see [[Case Selector]] (design).
+
 ## Interaction
 Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick readback), keyboard navigation along edges, double-click → open node in its editor. Minimap.
 

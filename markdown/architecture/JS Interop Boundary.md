@@ -39,5 +39,8 @@ Same shape for `milkdown` ↔ `RichTextBackend` and `xterm` ↔ `TerminalBackend
 ## Cost we accept
 Latency of a JSON hop per keystroke. CodeMirror applies the edit locally first (optimistic) and Rust reconciles; conflicts are rare (single user) and resolved by Rust re-sending the canonical text. This is the same trade Zed's remote mode and VS Code's extension host make.
 
+## Inventory
+What is still JavaScript, sizes, and the distance to zero: [[JavaScript Inventory]].
+
 ## The long-term direction
 Once all three backends have Rust replacements ([[Rust-native Editor Candidates]]), the desktop app no longer needs a JS engine at all and could move from a webview to `dioxus-native` (Blitz, wgpu-rendered). That would also dissolve the [[Graph View]]'s hardest platform problem (the surface inside a webview). The JS dependencies are, literally, what keeps us in a webview — which is the strongest argument for keeping them replaceable.

@@ -25,13 +25,16 @@ stateDiagram-v2
 
 Contributions (panels, commands, …) are available in the **Registered** state — a command can appear in the palette for an extension that has never run; running it triggers activation.
 
+## Catalogue
+What exists and what is planned, with tiers and platform fit: [[Extension Catalogue]] — keep it current when an extension is added, moved or retiered.
+
 ## Runtimes by platform
 
 | | static | wasmtime | browser |
 |---|---|---|---|
 | desktop | ✅ | ✅ | — |
 | web | ✅ | — | ✅ (Worker + `wasm_component_layer`) |
-| mobile | ✅ | ❌ (v1) | — |
+| mobile | ✅ | ❌ (JIT; `wasmi` would fit) | planned: the same Worker runtime inside the WebView, see [[Android Extensions and Bundling]] |
 | server | ✅ | ✅ | — |
 
 > [!note] Status after Milestone 6 ([[Milestone 6 - Implementation Log]])

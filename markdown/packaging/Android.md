@@ -77,6 +77,9 @@ dx uses `adb reverse` so the app reaches the dev server on `127.0.0.1` ([[Debugg
 | Google Play | AAB, Play Console account, `target_sdk` per current Play policy | dx produces the AAB; upload manually or with `fastlane supply` |
 | F-Droid | reproducible build from source on their server | Rust + NDK builds are supported via `srclibs`; needs a metadata YAML and no proprietary deps. Blocked on: an icon, a tagged release, and confirming the Gradle project dx generates builds offline |
 
+## Extensions, app size and the stores
+[[Android Extensions and Bundling]] answers what can be added after install (wasm extensions from a URL, once the phone has a runtime and an installer — never native code), how small the APK can get (strip + a clean asset dir ≈ 15 MB, feature-trimmed ≈ 12 MB), and what Google Play and F-Droid require. Before a release build, delete `target/dx/mobile/release/android/app/app/src/main/assets` — dx keeps every previous hashed asset (P-092).
+
 ## What Moonkale needs before Android is *useful*
 - **Folder access**: `open_local` uses `FolderSource::open(".")`, which on Android is the app sandbox. Real folders need the Storage Access Framework (P-25 in [[Problem Ranking]]).
 - **Layout**: the workbench is desktop-shaped; the collapsed mobile shell is Phase 5.

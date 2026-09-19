@@ -19,9 +19,16 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Platform Matrix]] — desktop / web / mobile: what runs where
 - [[Graph-Native Model]] — nodes, edges, sources, views
 - [[Data Sources]] — SQL, graph, KV, folders
+- [[Extension Catalogue]] — every extension, tiers, platform fit, core vs separate repo, critique
+- [[Claude Code Extension]] — Moonkale as Claude Code's IDE + Claude Code as an agent, no API key (plan)
+- [[Case Selector]] — backend by size: rich/plain/viewer text, exact/approximate/coarse graph (design)
+- [[Unicode Input]] — `\int` → ∫ everywhere (design)
+- [[Core Languages]] — the languages Moonkale ships core extensions for, and where each stands
+- [[Projects and Sources]] — several sources per saved project, selector, sync (desired behaviour)
 - [[Indexing]] — tree-sitter, links, embeddings
 - [[Extension System]]
 - [[JS Interop Boundary]] — CodeMirror / Milkdown / xterm, kept replaceable
+- [[JavaScript Inventory]] — where JS still is, distance to zero, node/deno/bun
 - [[LLM and RAG]]
 - [[LSP and Terminal]]
 - [[Debugging and Logging]] — where output goes on each platform, and in compiled builds
@@ -33,7 +40,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 
 ## Packaging
 - [[Packaging Overview]] — what `dx build` produces and where the binary looks for assets
-- [[Arch Linux]] (PKGBUILD) · [[NixOS]] (flake) · [[Android]] (APK/AAB)
+- [[Arch Linux]] (PKGBUILD) · [[NixOS]] (flake) · [[Android]] (APK/AAB) · [[Android Extensions and Bundling]] (what can be added after install, app size, Play/F-Droid)
 
 ## Testing
 - [[Testing Strategy]] · [[How to Write Tests]]

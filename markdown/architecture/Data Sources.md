@@ -58,6 +58,9 @@ sequenceDiagram
 6. Redis/Dragonfly.
 7. TypeDB, HelixDB — richer, less mature drivers.
 
+## Projects
+Several sources open at once, grouped into a saved **project** with a selector, per-source colour and read-only, suspended sources, an open report and sync: [[Projects and Sources]] (desired behaviour, 2026-09-19).
+
 ## Open questions
 - Supabase's REST/RPC layer would allow a *browser-direct* source. Deferred; treat as Postgres for now.
 - Should `IndexSource` (derived data) be allowed to *write back* (e.g. materialise embeddings into `pgvector`)? Leaning yes, behind `Capabilities::VECTOR`.

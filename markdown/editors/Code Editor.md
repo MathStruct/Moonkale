@@ -26,5 +26,11 @@ Each is a `LanguageContribution` in `editors/code/src/languages/`, proving the c
 3. Semantic tokens, inlay hints, code actions, format.
 4. "Show AST", "show call graph of this function" → open a `GraphView` in the [[Graph View]].
 
+## Big cases
+Backend chosen by measured size — see [[Case Selector]] (design).
+
+## Unicode input
+`\name` → symbol with a dropdown, in this editor and every other input: [[Unicode Input]] (design, not built).
+
 ## Unison note
 Unison stores code in a codebase DB, not files. A `UnisonSource` extension (definitions as nodes, dependency edges) would make Moonkale one of the few editors that shows Unison the way Unison thinks. Good showcase; later phase.

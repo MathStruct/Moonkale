@@ -32,5 +32,7 @@ Conversations are stored as `Page`-like nodes with `Links` to everything cited. 
 ## External agents
 `api` exposes the tool surface to external agents (Claude Code, IDE agents). Whether to speak MCP or a native protocol is an open decision; MCP is the pragmatic default for reach. Recorded in [[Problem Log]] when it's decided.
 
+**Claude Code specifically** — both directions (Moonkale as its IDE; Claude Code as a Moonkale agent provider on a subscription, no API key): [[Claude Code Extension]] (plan).
+
 ## Platform
 Providers are HTTP → all platforms. Web/mobile route through `api` so keys never reach the client.

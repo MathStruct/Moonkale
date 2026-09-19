@@ -1,5 +1,7 @@
 # JS interop packages
 
+Inventory and replacement status: `markdown/architecture/JavaScript Inventory.md`.
+
 Each subfolder is **one** TypeScript dependency, isolated, built into a single
 self-contained JS file that a Rust crate loads with `asset!()`. Nothing here
 holds application state. The protocol is the same for all three:
