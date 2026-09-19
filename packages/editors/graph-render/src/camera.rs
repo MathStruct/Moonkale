@@ -253,7 +253,7 @@ impl Camera {
         self.cz = if z0 <= z1 { (z0 + z1) / 2.0 } else { 0.0 };
         self.scale = ((self.width - 2.0 * padding) / w)
             .min((self.height - 2.0 * padding) / h)
-            .clamp(0.05, 4.0);
+            .clamp(0.05, 12.0);
         // 3D: far enough that the bounding sphere fits the 50° field of view.
         let radius = (w * w + h * h + (z1 - z0).max(0.0).powi(2)).sqrt() / 2.0;
         self.dist = (radius / (25f32.to_radians()).sin() * 1.1).clamp(200.0, 60_000.0);

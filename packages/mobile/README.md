@@ -28,8 +28,34 @@ Mobile platforms are shared in a single crate. To serve mobile, you need to expl
 ```bash
 dx serve --platform android
 ```
-## Moonkale (Milestone 6)
+## Moonkale (Milestones 6 and 9)
 
-`packages/mobile/src/main.rs` mounts the same `ui::Frame` as desktop and web (`WorkspaceConfig` without a settings store, wasm runtime or last-folder reopen; the folder source runs in-process). Below 700 px the shell collapses to one tile with a bottom bar (`ui/src/shell.rs`), which is what a phone shows.
+`packages/mobile/src/main.rs` mounts the same `ui::Frame` as desktop and web. Below 700 px the shell collapses to one tile with a bottom bar (`ui/src/shell.rs`), which is what a phone shows.
 
-Checked here with `cargo check -p mobile --features mobile` only — no Android SDK on this machine. To build an APK: install Android Studio's SDK + NDK, `rustup target add aarch64-linux-android`, set `ANDROID_HOME`/`ANDROID_NDK_HOME`, then `cd packages/mobile && dx serve --platform android` (emulator or a device with USB debugging). Signing keys go in `Dioxus.toml` — never commit them.
+- `app_folder()` — the app's private files dir (`/data/data/io.github.mathstruct.moonkale/files`), seeded with a small `vault/` on first launch; `settings.json` lives next to it (`settings_store` in `WorkspaceConfig`, `reopen_last_folder: true`). User-chosen folders (Storage Access Framework) are not wired yet.
+- Everything else is the shared code. Android-only behaviour is in the shared crates, keyed on the platform: `moonkale_ext_api::Stylesheet` (P-087), absolute asset URLs and `prefer: "gl"` in the Graph panel (P-088, P-089), the non-sRGB surface and re-fit on resize in `graph-render` (P-090, P-091).
+
+### Build for a phone (verified on a Galaxy S10e, Android 13)
+
+```bash
+export ANDROID_HOME=$HOME/Android/Sdk
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865 NDK_HOME=$ANDROID_NDK_HOME
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk PATH=$ANDROID_HOME/platform-tools:$PATH
+cd packages/mobile
+dx build --release --platform android --features mobile --target aarch64-linux-android
+adb install -r ../../target/dx/mobile/release/android/app/app/build/outputs/apk/debug/app-debug.apk
+adb shell monkey -p io.github.mathstruct.moonkale -c android.intent.category.LAUNCHER 1
+```
+
+Release, not debug: the debug APK is x86_64 by default (`INSTALL_FAILED_NO_MATCHING_ABIS`) and several times larger (`INSTALL_FAILED_INSUFFICIENT_STORAGE` on a phone with 1.4 GB free). The output path still says `debug` because the APK is unsigned; signing keys go in `Dioxus.toml` — never commit them.
+
+### Looking inside without touching the phone
+
+```bash
+adb exec-out screencap -p > shot.png
+PID=$(adb shell pidof io.github.mathstruct.moonkale)
+adb forward tcp:9222 localabstract:webview_devtools_remote_$PID     # WebView DevTools
+adb shell run-as io.github.mathstruct.moonkale cat files/vault/Home.md
+```
+
+With the forward in place any CDP client can evaluate JavaScript in the page (the E2E scratchpad has `cdp.mjs '<expr>'`). Logs: `adb logcat -s RustStdoutStderr chromium`.

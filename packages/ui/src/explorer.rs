@@ -250,7 +250,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     let confirm = state.confirm.read().clone();
 
     rsx! {
-        document::Stylesheet { href: EXPLORER_CSS }
+        moonkale_ext_api::Stylesheet { href: EXPLORER_CSS }
         div { class: "mk-explorer",
             onclick: move |_| { if state.menu.peek().is_some() { state.menu.set(None); } },
             if let Some(m) = menu {

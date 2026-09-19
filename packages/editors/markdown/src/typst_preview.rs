@@ -77,7 +77,7 @@ pub fn TypstPreviewPanel(ws: Workspace) -> Element {
     });
 
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-typst",
             match state() {
                 State::Idle => rsx! { p { class: "mk-typst-msg", "Open a .typ file to preview it." } },

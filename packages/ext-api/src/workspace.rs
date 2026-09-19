@@ -254,6 +254,9 @@ pub struct Workspace {
     /// Who the next edit of a document is attributed to when it is not the
     /// user (the agent host sets it after `editor.replace`).
     pub pending_actor: Signal<std::collections::HashMap<NodeId, String>>,
+    /// Bumped by the frame once the webview is up so `Stylesheet`s re-assert
+    /// themselves (Milestone 9, P-087).
+    pub assets_epoch: Signal<u64>,
     /// Cursor line of the active document, for presence (Milestone 9).
     pub cursor_line: Signal<Option<u32>>,
     /// The event a pending edit restores (Milestone 9): the next save's
@@ -298,6 +301,7 @@ impl Workspace {
             pending_actor: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             pending_cause: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             cursor_line: Signal::new_in_scope(None, ScopeId::ROOT),
+            assets_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),

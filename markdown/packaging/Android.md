@@ -47,6 +47,9 @@ dx serve --platform android                   # builds, installs, launches; hot-
 
 dx uses `adb reverse` so the app reaches the dev server on `127.0.0.1` ([[Debugging and Logging]] for `adb logcat`).
 
+> [!tip] What actually worked (2026-09-19, Galaxy S10e / Android 13, NDK 29.0.14206865)
+> `dx build --release --platform android --features mobile --target aarch64-linux-android` then `adb install -r target/dx/mobile/release/android/app/app/build/outputs/apk/debug/app-debug.apk`. The plain debug build is x86_64 (`INSTALL_FAILED_NO_MATCHING_ABIS`) and too large for a phone with 1.4 GB free (`INSTALL_FAILED_INSUFFICIENT_STORAGE`); the release APK is 23 MB. Launch with `adb shell monkey -p io.github.mathstruct.moonkale -c android.intent.category.LAUNCHER 1`; inspect with `adb exec-out screencap -p`, `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` (WebView DevTools) and `adb shell run-as io.github.mathstruct.moonkale`. The five WebView-specific fixes are P-087–P-091 in the [[Problem Log]]; the recipe lives in `packages/mobile/README.md`.
+
 ## Release APK / AAB
 
 1. Create a keystore once, **outside the repo**:

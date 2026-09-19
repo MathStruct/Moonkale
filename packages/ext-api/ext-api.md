@@ -49,3 +49,5 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 ## Milestone 9
 - `workspace.rs`: `compact_history(keep)`, `restore_text_at(node, event)` (opens the document if needed, sets its text, remembers the event in `pending_cause` so the next save's `Content` event carries it as `cause`), `cursor_line` + `set_cursor_line(node, line)` (publishes presence when the node is active); `Member.line` in `my_presence()`.
 - `presence.rs`: `Member.line: Option<u32>`.
+- `assets.rs`: `Stylesheet { href: Asset }` — the component every panel uses instead of `document::Stylesheet`. An effect inserts `<link rel="stylesheet" href=…>` through `document::eval` if no link with that href exists, and re-checks whenever `Workspace::assets_epoch` bumps (the frame bumps it from its `onmounted`). Needed because the Android WebView drops head elements created during the first render (P-087); on desktop and web it is equivalent to the built-in component.
+- `workspace.rs`: `assets_epoch: Signal<u64>`.

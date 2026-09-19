@@ -428,7 +428,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div {
             class: "mk-flow",
             onkeydown: move |e| {

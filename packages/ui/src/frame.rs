@@ -156,6 +156,9 @@ pub fn Frame(
             return;
         }
         settings_started.set(true);
+        // The webview is up: stylesheets inserted during the first render
+        // may have been lost (Android, P-087) — ask them to re-assert.
+        ws.assets_epoch.with_mut(|e| *e += 1);
         spawn(async move { ws.load_user_settings().await });
     };
 

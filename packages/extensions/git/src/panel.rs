@@ -257,7 +257,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     let log = state.log.read().clone();
 
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-git",
             if !available {
                 p { class: "mk-muted", "Git is not available on this platform." }
@@ -372,7 +372,7 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
     };
     let path = view.path.clone();
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-git-diff",
             div { class: "mk-git-diff-head",
                 span { class: "mk-git-path", "{view.path}" }

@@ -111,6 +111,7 @@ pub async fn create(
     canvas: web_sys::HtmlCanvasElement,
     overlay: web_sys::HtmlCanvasElement,
     on_event: js_sys::Function,
+    prefer: Option<String>,
 ) -> Result<GraphView, JsValue> {
     console_error_panic_hook::set_once();
     let dpr = web_sys::window()
@@ -122,7 +123,10 @@ pub async fn create(
     canvas.set_height((h * dpr) as u32);
     overlay.set_width((w * dpr) as u32);
     overlay.set_height((h * dpr) as u32);
-    let renderer = Renderer::new(canvas.clone(), (w * dpr) as u32, (h * dpr) as u32)
+    // `prefer = "gl"`: skip WebGPU (the Android WebView advertises it but
+    // never finishes creating a device — P-089).
+    let gl_only = prefer.as_deref() == Some("gl");
+    let renderer = Renderer::new(canvas.clone(), (w * dpr) as u32, (h * dpr) as u32, gl_only)
         .await
         .map_err(|e| JsValue::from_str(&e))?;
     let ctx = overlay
@@ -211,6 +215,14 @@ impl GraphView {
         if let Some(c) = canvas {
             c.set_width((width * dpr) as u32);
             c.set_height((height * dpr) as u32);
+        }
+        // A view nobody has panned or zoomed yet follows the canvas: the
+        // first real size may arrive after the layout settled (P-091, a
+        // hidden phone tile), and a resized panel should stay fitted.
+        if s.auto_fit && !s.layout.running {
+            let g = std::mem::take(&mut s.graph);
+            s.camera.fit(&g, 40.0);
+            s.graph = g;
         }
         s.dirty = true;
     }

@@ -182,8 +182,8 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href: BUNDLE_CSS }
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: BUNDLE_CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         document::Script { src: BUNDLE, defer: true }
         div {
             class: "mk-rich",

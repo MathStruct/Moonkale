@@ -330,7 +330,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     let audit_entries = audit();
 
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-agent",
             div { class: "mk-agent-toolbar",
                 span { class: "mk-agent-provider", title: "Provider · model", "{provider_label}" }

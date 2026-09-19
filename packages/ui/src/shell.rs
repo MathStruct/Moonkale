@@ -338,7 +338,7 @@ pub fn Shell() -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href: SHELL_CSS }
+        moonkale_ext_api::Stylesheet { href: SHELL_CSS }
         div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, onmounted: start_narrow_watch,
             Workbench {
                 rail: rsx! {

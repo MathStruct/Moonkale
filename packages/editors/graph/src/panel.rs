@@ -181,8 +181,11 @@ const failed = async (message) => {
 };
 let mod;
 try {
-    mod = await import(JS_URL);
-    await mod.default({ module_or_path: WASM_URL });
+    // Absolute URLs: an eval has no script origin, so a relative import()
+    // resolves against about:blank in the Android WebView (P-088).
+    const abs = (u) => new URL(u, document.baseURI || location.href).href;
+    mod = await import(abs(JS_URL));
+    await mod.default({ module_or_path: abs(WASM_URL) });
     dioxus.send({ kind: "loaded" });
 } catch (e) {
     return failed("could not load the renderer module: " + String(e && e.message ? e.message : e));
@@ -197,7 +200,9 @@ try { probeGl && probeGl.getExtension("WEBGL_lose_context")?.loseContext(); } ca
 let view;
 try {
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("renderer did not start within 15s")), 15000));
-    view = await Promise.race([mod.create(canvas, overlay, (ev) => dioxus.send(ev)), timeout]);
+    // Android WebViews advertise WebGPU but hang on device creation: ask for WebGL2 there (P-089).
+    const prefer = /\bAndroid\b/.test(navigator.userAgent) && /\bwv\b/.test(navigator.userAgent) ? "gl" : null;
+    view = await Promise.race([mod.create(canvas, overlay, (ev) => dioxus.send(ev), prefer), timeout]);
 } catch (e) {
     return failed(String(e && e.message ? e.message : e));
 }
@@ -577,7 +582,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let has_any = has_index || !databases.is_empty();
 
     rsx! {
-        document::Stylesheet { href: PANEL_CSS }
+        moonkale_ext_api::Stylesheet { href: PANEL_CSS }
         div { class: "mk-graph",
             div { class: "mk-graph-toolbar",
                 if !databases.is_empty() {

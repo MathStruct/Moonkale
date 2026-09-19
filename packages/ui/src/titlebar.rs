@@ -181,7 +181,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href: TITLEBAR_CSS }
+        moonkale_ext_api::Stylesheet { href: TITLEBAR_CSS }
         div {
             class: "mk-titlebar",
             role: "menubar",

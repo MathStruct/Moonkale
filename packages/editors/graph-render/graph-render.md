@@ -35,3 +35,5 @@ Known: `create()` hangs if the canvas can't get a GL context — the host probes
 
 ## Milestone 9
 `Camera::basis()` (forward/right/up in the y-down world) and `unproject(sx, sy, w)`; in 3D a node under the pointer drags in its own depth plane (`web.rs` `Drag::Node`), pinned like in 2D. Test `unproject_inverts_project_at_the_same_depth`.
+
+Android (P-089–P-091): `create(canvas, overlay, onEvent, prefer)` takes an optional backend hint — `"gl"` makes `Renderer::new(.., gl_only = true)` skip WebGPU, which the Android WebView advertises but never finishes creating a device for. `Renderer::new` prefers the first **non-sRGB** surface format from `get_capabilities` (the shaders write linear colours; sRGB on WebGL2 gave a grey canvas). `resize()` re-runs `Camera::fit` while `auto_fit` is still set, so a canvas that gets its real size after the layout settled (a hidden phone tile) — or a panel the user resizes before touching the graph — stays fitted. The 2D fit scale clamps at 12 so a five-node vault fills a phone screen.

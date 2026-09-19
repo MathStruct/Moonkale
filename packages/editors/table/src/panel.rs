@@ -93,7 +93,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     };
 
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-table",
             div { class: "mk-table-query",
                 textarea {

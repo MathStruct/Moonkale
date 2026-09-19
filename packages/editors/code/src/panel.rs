@@ -400,7 +400,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     drop(d);
 
     rsx! {
-        document::Stylesheet { href: PANEL_CSS }
+        moonkale_ext_api::Stylesheet { href: PANEL_CSS }
         document::Script { src: backend::codemirror::BUNDLE, defer: true }
         div {
             class: "mk-editor",

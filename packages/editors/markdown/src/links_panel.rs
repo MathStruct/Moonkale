@@ -72,7 +72,7 @@ pub fn LinksPanel(ws: Workspace) -> Element {
     let title = for_node().and_then(|id| ws.document(id).map(|d| d.read().node.label.clone()));
 
     rsx! {
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-links",
             match (title, links()) {
                 (None, _) => rsx! { p { class: "mk-links-empty", "Open a document to see what links to it." } },

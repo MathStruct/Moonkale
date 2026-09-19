@@ -22,3 +22,6 @@ Notes for `moonkale-editor-graph` (Milestone 2), the Dioxus host of the renderer
 
 ## Milestone 8
 - **3D** toolbar toggle → `ToJs::SetMode`; `.mk-graph-info[data-mode]` reports `2d`/`3d`.
+
+## Milestone 9
+- Android WebView: asset URLs are resolved against `document.baseURI || location.href` before `import()` / `init` (an eval script has no base URL there, P-088); when the user agent is an Android WebView (`Android` + `wv`) `create()` gets `prefer: "gl"` (P-089). The stylesheet goes through `moonkale_ext_api::Stylesheet` (P-087).

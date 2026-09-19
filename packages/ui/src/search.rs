@@ -169,7 +169,7 @@ fn SearchPanel(ws: Workspace) -> Element {
         .unwrap_or(0);
 
     rsx! {
-        document::Stylesheet { href: crate::explorer::EXPLORER_CSS }
+        moonkale_ext_api::Stylesheet { href: crate::explorer::EXPLORER_CSS }
         div { class: "mk-search",
             div { class: "mk-search-box",
                 input {

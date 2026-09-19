@@ -23,6 +23,7 @@
 //! This crate depends on `dioxus` because static extensions return
 //! `Element`s. The WASM path will not; it will render through `ui::Tree`.
 
+mod assets;
 mod command;
 pub mod contrib;
 pub mod document;
@@ -31,6 +32,7 @@ pub mod manifest;
 pub mod session;
 pub mod workspace;
 
+pub use assets::Stylesheet;
 pub use command::{fuzzy_score, CommandContribution, Keybinding};
 pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;

@@ -132,8 +132,8 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let available = ws.spawn_terminal().is_some();
 
     rsx! {
-        document::Stylesheet { href: XTERM_CSS }
-        document::Stylesheet { href: CSS }
+        moonkale_ext_api::Stylesheet { href: XTERM_CSS }
+        moonkale_ext_api::Stylesheet { href: CSS }
         document::Script { src: XTERM_JS, defer: true }
         div { class: "mk-term",
             div { class: "mk-term-tabs",

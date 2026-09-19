@@ -61,10 +61,15 @@ impl Renderer {
         canvas: web_sys::HtmlCanvasElement,
         width: u32,
         height: u32,
+        gl_only: bool,
     ) -> Result<Self, String> {
-        // WebGPU where the browser really has it, WebGL2 otherwise.
+        // WebGPU where the browser really has it, WebGL2 otherwise (or only).
         let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
-        desc.backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
+        desc.backends = if gl_only {
+            wgpu::Backends::GL
+        } else {
+            wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL
+        };
         let instance = wgpu::util::new_instance_with_webgpu_detection(desc).await;
         let surface = instance
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
@@ -91,6 +96,13 @@ impl Renderer {
         let mut config = surface
             .get_default_config(&adapter, width.max(1), height.max(1))
             .ok_or("surface is not supported by the adapter")?;
+        // Our colours are the sRGB values the CSS uses; an sRGB surface would
+        // re-encode them and wash the scene out (grey background on Chromium's
+        // WebGL and the Android WebView — P-090). Prefer a non-sRGB format.
+        let caps = surface.get_capabilities(&adapter);
+        if let Some(f) = caps.formats.iter().copied().find(|f| !f.is_srgb()) {
+            config.format = f;
+        }
         config.present_mode = wgpu::PresentMode::Fifo;
         surface.configure(&device, &config);
         let format = config.format;
