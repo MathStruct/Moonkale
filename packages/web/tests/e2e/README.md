@@ -31,17 +31,17 @@ Screenshots land in `M1_SHOTS`. Cargo ignores `.mjs` files in `tests/`.
 
 `fixture.sh /path/to/m2root` builds the fixture folder above deterministically (`users` table with one NULL, the small `people.lbug` via `seed_people … small`). Every suite takes `PORT` (the dev server; the desktop dev server usually holds 8080, so tests run on 8090), `M1_ROOT` and `M1_SHOTS`; `milestone1.mjs` takes `M1_URL` and needs its own root (exactly `src/` + `README.md`).
 
+`run-all.sh` runs every suite (or the ones named on its command line), resetting `Home.md`, `.moonkale/` and generated files between them. Its working directory is **`~/.cache/moonkale-e2e`** (`MOONKALE_E2E` overrides) — deliberately not under `/tmp`, which is a tmpfs here and empties on reboot:
+
 ```sh
-SP=/tmp/moonkale-e2e; mkdir -p $SP/e2e && cd $SP/e2e && npm i playwright && npx playwright install firefox
-packages/web/tests/e2e/fixture.sh $SP/m2root
-packages/extensions/wordcount/build.sh   # with MOONKALE_CONFIG_DIR=$SP/cfg for the wasm-ext suite
-(cd packages/web && MOONKALE_CONFIG_DIR=$SP/cfg MOONKALE_LLM=mock MOONKALE_ROOT=$SP/m2root dx serve --port 8090)
-cp packages/web/tests/e2e/*.mjs $SP/e2e/   # playwright resolves from there
-cd $SP/e2e && export PORT=8090 M1_ROOT=$SP/m2root M1_SHOTS=$SP
-for s in menubar session graph links-sqlite terminal typst lsp ladybug agent search-trace settings rich agent-writes flow wasm-ext phone; do
-  rm -rf $SP/m2root/.moonkale $SP/m2root/*.flow.json $SP/m2root/model.jl; printf '# Home\nSee [[Alpha]] and [[notes/Beta]] and [[Missing]].\n' > $SP/m2root/Home.md
-  node $s.mjs
-done
+E=~/.cache/moonkale-e2e
+mkdir -p $E/e2e && (cd $E/e2e && npm i playwright && npx playwright install firefox)   # once
+packages/web/tests/e2e/fixture.sh $E/m2root                                            # once (rerun to restore)
+MOONKALE_CONFIG_DIR=$E/cfg packages/extensions/wordcount/build.sh                      # once, for wasm-ext
+(cd packages/web && MOONKALE_CONFIG_DIR=$E/cfg MOONKALE_LLM=mock MOONKALE_ROOT=$E/m2root dx serve --port 8090)
+packages/web/tests/e2e/run-all.sh            # or: run-all.sh flow phone
 ```
+
+Screenshots land in `$E/shots`. `milestone1.mjs` needs the server started with `MOONKALE_ROOT=$E/m1root` instead.
 
 Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensions, New Flow…, place/wire/reject/Generate/Save), `wasm-ext.mjs` (wordcount module listed, enabled with `read-sources`, its command runs as an agent tool after approval), `phone.mjs` (420 px viewport: one tile, bottom bar, Editor/Graph/Terminal/Agent/Settings switching, no layout persisted, widening restores the layout). `bench.mjs` prints layout ms/step for 1k–100k nodes (a measurement, not a test); `agent-live.mjs` needs a real key.
