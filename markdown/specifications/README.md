@@ -7,3 +7,4 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | # | topic | status |
 |---|---|---|
 | [[001]] | Flow editor: Backspace/Delete in a parameter field deleted the block | done |
+| [[002]] | HelixDB as an embedded graph source — exists, but only as a git dependency for now | open |
