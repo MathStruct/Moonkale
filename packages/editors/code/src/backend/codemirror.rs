@@ -39,6 +39,9 @@ enum ToJs<'a> {
         id: u32,
         items: Option<&'a [moonkale_lsp::CompletionItem]>,
     },
+    SetPresence {
+        marks: Vec<PresenceOut<'a>>,
+    },
     SetCursor {
         line: u32,
         col: u32,
@@ -54,6 +57,12 @@ struct DiagOut<'a> {
     end_col: u32,
     severity: &'a str,
     message: &'a str,
+}
+
+#[derive(Serialize)]
+struct PresenceOut<'a> {
+    line: u32,
+    label: &'a str,
 }
 
 #[derive(Deserialize)]
@@ -93,6 +102,10 @@ enum FromJs {
         line: u32,
         col: u32,
     },
+    Cursor {
+        line: u32,
+        col: u32,
+    },
 }
 
 const SCRIPT: &str = r#"
@@ -110,6 +123,7 @@ cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
     onRename: (line, col, word) => dioxus.send({ kind: "rename", line, col, word }),
     onCodeActions: (line, col, endLine, endCol) => dioxus.send({ kind: "codeActions", line, col, endLine, endCol }),
     onReferences: (line, col) => dioxus.send({ kind: "references", line, col }),
+    onCursor: (line, col) => dioxus.send({ kind: "cursor", line, col }),
 });
 dioxus.send({ kind: "ready" });
 for (;;) {
@@ -121,6 +135,7 @@ for (;;) {
     else if (msg.kind === "diagnostics") cm.setLspDiagnostics(el, msg.items);
     else if (msg.kind === "hoverResult") cm.hoverResult(el, msg.id, msg.text);
     else if (msg.kind === "completionResult") cm.completionResult(el, msg.id, msg.items);
+    else if (msg.kind === "setPresence") cm.setPresence(el, msg.marks);
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
@@ -168,6 +183,9 @@ impl CodeMirrorBackend {
                     }),
                     Ok(FromJs::References { line, col }) => {
                         on_event.call(BackendEvent::References { line, col })
+                    }
+                    Ok(FromJs::Cursor { line, col }) => {
+                        on_event.call(BackendEvent::Cursor { line, col })
                     }
                     Err(dioxus::document::EvalError::Serialization(e)) => {
                         tracing::warn!("codemirror bridge: unreadable message: {e}");
@@ -218,6 +236,14 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>) {
         let _ = self.eval.send(ToJs::CompletionResult { id, items });
+    }
+
+    fn set_presence(&self, marks: &[(u32, String)]) {
+        let marks = marks
+            .iter()
+            .map(|(line, label)| PresenceOut { line: *line, label })
+            .collect();
+        let _ = self.eval.send(ToJs::SetPresence { marks });
     }
 
     fn set_cursor(&self, line: u32, col: u32) {

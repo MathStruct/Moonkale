@@ -141,6 +141,46 @@ impl Camera {
         ))
     }
 
+    /// Camera basis in 3D: forward, right, up (unit vectors, y-down world).
+    fn basis(&self) -> ([f32; 3], [f32; 3], [f32; 3]) {
+        let eye = self.eye();
+        let t = [self.cx, self.cy, self.cz];
+        let norm = |v: [f32; 3]| {
+            let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-6);
+            [v[0] / l, v[1] / l, v[2] / l]
+        };
+        let cross = |a: [f32; 3], b: [f32; 3]| {
+            [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0],
+            ]
+        };
+        let f = norm([t[0] - eye[0], t[1] - eye[1], t[2] - eye[2]]);
+        let s = norm(cross(f, [0.0, -1.0, 0.0]));
+        let u = cross(s, f);
+        (f, s, u)
+    }
+
+    /// The world point under screen (sx, sy) at view depth `w` (the clip w
+    /// [`project`](Self::project) returned): the inverse for dragging a node
+    /// in its own depth plane (Milestone 9).
+    pub fn unproject(&self, sx: f32, sy: f32, w: f32) -> (f32, f32, f32) {
+        let eye = self.eye();
+        let (f, r, u) = self.basis();
+        let aspect = (self.width / self.height.max(1.0)).max(0.1);
+        let t = (25f32.to_radians()).tan();
+        let xn = sx / self.width * 2.0 - 1.0;
+        let yn = 1.0 - sy / self.height * 2.0;
+        let kx = xn * aspect * t * w;
+        let ky = yn * t * w;
+        (
+            eye[0] + f[0] * w + r[0] * kx + u[0] * ky,
+            eye[1] + f[1] * w + r[1] * kx + u[1] * ky,
+            eye[2] + f[2] * w + r[2] * kx + u[2] * ky,
+        )
+    }
+
     /// Screen-space size factor for a node radius in 3D (nearer = bigger).
     pub fn size_factor(&self, w: f32) -> f32 {
         (self.dist / w.max(1.0)).clamp(0.2, 4.0)
@@ -296,5 +336,29 @@ mod tests {
         assert!(c
             .project(eye[0] * 2.0, eye[1] * 2.0, eye[2] * 2.0)
             .is_none());
+    }
+
+    #[test]
+    fn unproject_inverts_project_at_the_same_depth() {
+        let c = Camera {
+            three_d: true,
+            width: 800.0,
+            height: 600.0,
+            yaw: 0.9,
+            pitch: 0.4,
+            ..Default::default()
+        };
+        for p in [
+            [100.0, -40.0, 70.0],
+            [-300.0, 200.0, -140.0],
+            [0.0, 0.0, 0.0],
+        ] {
+            let (sx, sy, w) = c.project(p[0], p[1], p[2]).unwrap();
+            let (x, y, z) = c.unproject(sx, sy, w);
+            assert!(
+                (x - p[0]).abs() < 0.5 && (y - p[1]).abs() < 0.5 && (z - p[2]).abs() < 0.5,
+                "{p:?} → {x} {y} {z}"
+            );
+        }
     }
 }

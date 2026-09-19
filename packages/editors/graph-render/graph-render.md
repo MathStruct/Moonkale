@@ -32,3 +32,6 @@ Known: `create()` hangs if the canvas can't get a GL context — the host probes
 - `render.rs`: instance positions are `vec3`; a `Depth24Plus` buffer with `LessEqual` (2D writes depth 0.5 everywhere, so order still wins there).
 - `web.rs`: `set_mode("2d"|"3d")`, `mode()`, `Drag::Orbit` (right button or Shift), context menu suppressed on the canvas, labels and `node_screen_position` through `project`, far labels only when hovered. Rebuild with `build.sh`.
 - Tested: `camera` unit tests (projection centre, attenuation, behind-camera) and `graph3d.mjs` in Chromium + SwiftShader (P-082) — the first suite that runs the renderer.
+
+## Milestone 9
+`Camera::basis()` (forward/right/up in the y-down world) and `unproject(sx, sy, w)`; in 3D a node under the pointer drags in its own depth plane (`web.rs` `Drag::Node`), pinned like in 2D. Test `unproject_inverts_project_at_the_same_depth`.

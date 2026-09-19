@@ -12,6 +12,9 @@ printf '# Sample\n\nEdit me.\n' > "$ROOT/README.md"
 printf 'pub struct Thing;\nimpl Thing { pub fn go(&self) {} }\npub fn free() {}\n' > "$ROOT/src/lib.rs"
 printf 'fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n\nfn main() {\n    let total: u32 = add(1, 2);\n    let wrong: String = total;\n    println!("{wrong}");\n}\n' > "$ROOT/src/main.rs"
 printf '[package]\nname = "m2root"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\n' > "$ROOT/Cargo.toml"
+mkdir -p "$ROOT/data"
+printf 'name,age\nAda,36\nBob,25\nCid,41\n' > "$ROOT/data/people.csv"
+printf 'person,qty\nAda,3\nAda,4\nBob,1\n' > "$ROOT/data/orders.csv"
 printf '#set page(width: 10cm, height: auto)\n= Report\nA paragraph with *emphasis*.\n' > "$ROOT/report.typ"
 python3 - "$ROOT/data.sqlite" <<'PY'
 import sqlite3, sys

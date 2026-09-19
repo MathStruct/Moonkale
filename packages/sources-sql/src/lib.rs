@@ -21,6 +21,28 @@ pub mod sqlite;
 #[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
 pub use sqlite::SqliteSource;
 
+#[cfg(all(feature = "duckdb", not(target_arch = "wasm32")))]
+pub mod duckdb;
+#[cfg(all(feature = "duckdb", not(target_arch = "wasm32")))]
+pub use duckdb::DuckDbSource;
+
+/// Files that open as a DuckDB database, and data files a folder exposes as
+/// tables (Milestone 9). Path checks only, usable on every target.
+pub fn is_duckdb_path(path: &str) -> bool {
+    ext_in(path, &["duckdb", "ddb"])
+}
+
+pub fn is_data_path(path: &str) -> bool {
+    ext_in(path, &["csv", "tsv", "parquet"])
+}
+
+fn ext_in(path: &str, list: &[&str]) -> bool {
+    path.rsplit('.')
+        .next()
+        .map(|e| list.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 /// File extensions that open as a SQLite database.
 pub const SQLITE_EXTENSIONS: &[&str] = &["sqlite", "sqlite3", "db", "db3"];
 

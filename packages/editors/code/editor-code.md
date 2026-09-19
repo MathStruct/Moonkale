@@ -44,3 +44,7 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 - `backend/codemirror.rs`: new events `Completion`, `Rename`, `CodeActions` (variant fields renamed camelCase — P-077), `References`; `completion_result`; an unreadable message is logged, not fatal.
 - `panel.rs`: completion answered from `LspSession::completion`; rename prompt bar (`.mk-editor-rename`) → `LspSession::rename` → `lsp::apply_workspace_edit`; code actions bar (`.mk-editor-actions[data-count]`, resolve on click); references list (`.mk-editor-refs`, click reveals). `apply_workspace_edit(ws, root, edit)`: open documents take the edit unsaved, closed files are written through the folder with a version check and re-indexed.
 - `save_now`: Ctrl+S, Edit → Save and the toolbar button share one path that writes through the source and sends `didSave` (cargo check runs on save — P-080).
+
+## Milestone 9
+- Bundle: `onCursor(line, col)` from a throttled (250 ms) selection listener; `setPresence(el, [{line, label}])` drives a gutter (`cm-presence-gutter`, `PresenceMarker` with initials) through a `StateField` of gutter markers.
+- Bridge: `BackendEvent::Cursor`, `set_presence`; the panel reports the cursor to `Workspace::set_cursor_line` and pushes other members' lines for this document into the gutter.

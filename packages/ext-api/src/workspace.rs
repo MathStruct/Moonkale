@@ -254,6 +254,11 @@ pub struct Workspace {
     /// Who the next edit of a document is attributed to when it is not the
     /// user (the agent host sets it after `editor.replace`).
     pub pending_actor: Signal<std::collections::HashMap<NodeId, String>>,
+    /// Cursor line of the active document, for presence (Milestone 9).
+    pub cursor_line: Signal<Option<u32>>,
+    /// The event a pending edit restores (Milestone 9): the next save's
+    /// `Content` event gets it as `cause`.
+    pub pending_cause: Signal<std::collections::HashMap<NodeId, moonkale_core::EventId>>,
     /// Version-control status per relative path: `(index, worktree)` letters
     /// from `git status`, published by the git extension for decorations.
     pub vcs_status: Signal<std::collections::HashMap<String, (char, char)>>,
@@ -291,6 +296,8 @@ impl Workspace {
             presence: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             presence_link: Signal::new_in_scope(None, ScopeId::ROOT),
             pending_actor: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            pending_cause: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            cursor_line: Signal::new_in_scope(None, ScopeId::ROOT),
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
@@ -803,6 +810,11 @@ impl Workspace {
         if let Some(k) = key {
             event = event.with_key(k);
         }
+        if let Some(node) = event.node() {
+            if let Some(cause) = self.pending_cause.with_mut(|m| m.remove(&node)) {
+                event.cause = Some(cause);
+            }
+        }
         let id = event.id;
         self.history.with_mut(|l| {
             l.append(event);
@@ -810,6 +822,59 @@ impl Workspace {
         let ws = *self;
         spawn(async move { ws.persist_history().await });
         id
+    }
+
+    /// Fold everything but the last `keep` events into a snapshot
+    /// (Milestone 9); returns how many events were folded.
+    pub fn compact_history(&mut self, keep: usize) -> usize {
+        let actor = self.user_actor();
+        let at = now_ms();
+        let folded = self.history.with_mut(|l| l.compact(keep, at, actor));
+        if folded > 0 {
+            let ws = *self;
+            spawn(async move { ws.persist_history().await });
+        }
+        folded
+    }
+
+    /// Put a node's text as of `event` into its document as an unsaved edit
+    /// (opening the document first if needed); the save records the
+    /// restore with `cause = event`.
+    pub async fn restore_text_at(
+        mut self,
+        node: NodeId,
+        event: moonkale_core::EventId,
+    ) -> Result<(), SourceError> {
+        let text = self
+            .history
+            .peek()
+            .text_at(node, Some(event))
+            .ok_or_else(|| SourceError::Unsupported("no text recorded for that event".into()))?;
+        if self.document(node).is_none() {
+            let folder: Arc<dyn Source> = self
+                .sources
+                .peek()
+                .iter()
+                .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+                .map(|s| s.source.clone())
+                .ok_or(SourceError::NotFound)?;
+            let n = folder
+                .query(Query::Node(node))
+                .await?
+                .nodes
+                .into_iter()
+                .next()
+                .ok_or(SourceError::NotFound)?;
+            self.open_node(n).await?;
+        }
+        let mut doc = self.document(node).ok_or(SourceError::NotFound)?;
+        doc.with_mut(|d| d.text = text);
+        self.pending_cause.with_mut(|m| {
+            m.insert(node, event);
+        });
+        self.active.set(Some(node));
+        self.set_status("Restored as an unsaved edit — save to keep it");
+        Ok(())
     }
 
     async fn persist_history(self) {
@@ -1020,10 +1085,25 @@ impl Workspace {
             .peek()
             .and_then(|n| self.document(n))
             .map(|d| d.peek().node.native_key.clone());
+        let line = if active.is_some() {
+            *self.cursor_line.peek()
+        } else {
+            None
+        };
         crate::presence::Member {
             window: self.window.peek().to_string(),
             name: self.settings.peek().user_name.clone(),
             active,
+            line,
+        }
+    }
+
+    /// The editor reports the cursor of `node`; published when it is the
+    /// active document.
+    pub fn set_cursor_line(&mut self, node: NodeId, line: u32) {
+        if *self.active.peek() == Some(node) && *self.cursor_line.peek() != Some(line) {
+            self.cursor_line.set(Some(line));
+            self.publish_presence();
         }
     }
 

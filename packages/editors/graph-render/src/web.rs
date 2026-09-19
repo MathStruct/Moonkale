@@ -394,11 +394,17 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
             let (x, y) = local(&e);
             let mut s = st.borrow_mut();
             if s.camera.three_d {
-                s.dragging = if e.button() == 2 || e.shift_key() {
-                    Drag::Orbit { last: (x, y) }
+                if e.button() == 2 || e.shift_key() {
+                    s.dragging = Drag::Orbit { last: (x, y) };
+                    return;
+                }
+                // A node under the pointer drags in its own depth plane (Milestone 9).
+                if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                    s.graph.nodes[i].pinned = true;
+                    s.dragging = Drag::Node { index: i };
                 } else {
-                    Drag::Pan { last: (x, y) }
-                };
+                    s.dragging = Drag::Pan { last: (x, y) };
+                }
                 return;
             }
             let hit = s.camera.hit(&s.graph, x, y);
@@ -435,6 +441,18 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 }
                 Drag::Node { index } => {
                     s.auto_fit = false;
+                    if s.camera.three_d {
+                        let n = &s.graph.nodes[index];
+                        if let Some((_, _, w)) = s.camera.project(n.x, n.y, n.z) {
+                            let (wx, wy, wz) = s.camera.unproject(x, y, w);
+                            let n = &mut s.graph.nodes[index];
+                            n.x = wx;
+                            n.y = wy;
+                            n.z = wz;
+                        }
+                        s.dirty = true;
+                        return;
+                    }
                     let (wx, wy) = s.camera.screen_to_world(x, y);
                     s.graph.nodes[index].x = wx;
                     s.graph.nodes[index].y = wy;

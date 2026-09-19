@@ -56,3 +56,7 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 ## Milestone 8 suites
 
 `history.mjs` (entity log: content/add/rename/remove/checkpoint events, active-file filter, text-at view, reload from `.moonkale/history.jsonl`), `presence.mjs` (two browser contexts with different names see each other on the status bar, tabs and Explorer; leaving clears), `graph3d.mjs` — **Chromium** with software WebGL (`npx playwright install chromium` once): renderer starts on WebGL2, labels drawn, the 3D toggle, orbit changes the frame. `wasm-ext.mjs` gained a step: the page is cross-origin isolated, the module ran in the browser (no `/api/ext/run` request) and keeps working with that endpoint blocked.
+
+## Milestone 9
+
+`duckdb.mjs` (the fixture's `data/people.csv` + `orders.csv`: open as views, join in the table editor, write refused). `history.mjs` gained restore-with-cause, `presence.mjs` the cursor gutter, `graph3d.mjs` a 3D drag. The desktop hub client has a native test instead: `MOONKALE_HUB=http://127.0.0.1:8090 cargo test -p desktop --test hub -- --ignored` against a running `serve.sh` server.

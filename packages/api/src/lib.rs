@@ -122,6 +122,21 @@ pub(crate) mod state {
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
             return Ok(vec![Arc::new(db)]);
         }
+        // DuckDB (Milestone 9): a database file, or a data file's folder as CSV/Parquet views.
+        let as_str = canonical.to_string_lossy().into_owned();
+        if canonical.is_file() && moonkale_sources_sql::is_duckdb_path(&as_str) {
+            let db = moonkale_sources_sql::DuckDbSource::open(&canonical)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            return Ok(vec![Arc::new(db)]);
+        }
+        if canonical.is_file() && moonkale_sources_sql::is_data_path(&as_str) {
+            let dir = canonical
+                .parent()
+                .ok_or_else(|| std::io::Error::other("no parent"))?;
+            let db = moonkale_sources_sql::DuckDbSource::open_data_folder(dir)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            return Ok(vec![Arc::new(db)]);
+        }
         Ok(vec![Arc::new(FolderSource::open(canonical)?)])
     }
 }

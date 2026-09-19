@@ -11,3 +11,6 @@ Notes for `moonkale-sources-sql` (Milestone 2). Design: [[Data Sources]], [[Data
 Milestone 3: the desktop app now opens `.sqlite` files too (`open_database` in `desktop/src/main.rs`; before only the server did).
 
 Tests: `cargo test -p moonkale-sources-sql --features sqlite` (schema graph; read rows + refused write + SQL error surfaced).
+
+## Milestone 9: DuckDB
+`duckdb.rs` (feature `duckdb`, bundled library, native only; desktop and the server enable it): `DuckDbSource::open(path)` opens a `.duckdb` read-only (`AccessMode::ReadOnly`); `open_data_folder(dir)` opens an in-memory database with one view per CSV/TSV/Parquet file directly in `dir` (`read_csv_auto` / `read_parquet`, names sanitised to identifiers, `t_` prefix for leading digits, `_2` on clashes, ≤ 200 files). Schema from `information_schema.tables/columns`; `Query::Text` read statements only (`text::classify`), 500 rows cap; `ValueRef` → `Value` (ints/floats/text/blob; decimals, timestamps and nested types as text). Ids `duckdb:<path>` / `duckdb:<dir>/`. `is_duckdb_path` (`duckdb`, `ddb`) and `is_data_path` (`csv`, `tsv`, `parquet`) live in `lib.rs` for every target (the Explorer uses them). Tests: a data folder with two files and a join, a `.duckdb` file. Bundled build: ~3 minutes extra on a clean release build.

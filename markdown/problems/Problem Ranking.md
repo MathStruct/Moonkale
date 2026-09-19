@@ -13,7 +13,7 @@ Difficulty 1–5 (effort + unknowns), Risk = how much else breaks if this goes w
 | P-05 ✅ (minimal: panels only) | Extension API + static registry; built-ins become extensions | 3 | **high** | 5 | API lock-in. Doing it *after* one real editor exists keeps it honest; before the second editor keeps it from being retrofitted. |
 | P-06 ✅ (native tree-sitter, not wasm grammars) | tree-sitter index + wiki-link extraction | 3 | medium | 6 | Turns files into a graph — the first moment the "graph-native" promise is visible. |
 | P-07 ✅ (v1: CPU layout, ≤3k nodes; rendering confirmed on web and desktop/WebKitGTK) | Graph view v1: wgpu 2D, WebGL2+WebGPU, CPU layout, pick/popup | 4 | **high** | 7 | Flagship; needs P-06 for interesting data. ≤10k nodes target. |
-| P-08 ✅ SQLite (read-only); DuckDB deferred | SQLite + DuckDB sources + table editor | 3 | low | 8 | Embedded, no server; proves SQL lifting; DuckDB gives CSV folders. |
+| P-08 ✅ SQLite (read-only), DuckDB + data folders (Milestone 9) | SQLite + DuckDB sources + table editor | 3 | low | 8 | Embedded, no server; proves SQL lifting; DuckDB gives CSV folders. |
 | P-09 ✅ | Markdown editor: source mode, links, backlinks, local graph | 2 | low | 9 | Mostly composition of P-04, P-06, P-07. |
 | P-10 ✅ (folder only, no auth) | Remote source via `api` (web/mobile parity) | 3 | medium | 10 | Auth + streaming; first time the server matters. |
 | P-11 ✅ (Crepe; Source stays canonical) | Milkdown WYSIWYG behind `RichTextBackend` | 3 | medium | 11 | Second interop package; round-trip fidelity is the risk. |

@@ -122,6 +122,17 @@ fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
     if p.is_file() && moonkale_sources_sql::is_sqlite_path(path) {
         return Ok(Some(Arc::new(moonkale_sources_sql::SqliteSource::open(p)?)));
     }
+    // DuckDB (Milestone 9): a database file, or a data file whose folder
+    // becomes a database of CSV/TSV/Parquet views.
+    if p.is_file() && moonkale_sources_sql::is_duckdb_path(path) {
+        return Ok(Some(Arc::new(moonkale_sources_sql::DuckDbSource::open(p)?)));
+    }
+    if p.is_file() && moonkale_sources_sql::is_data_path(path) {
+        let dir = p.parent().ok_or(SourceError::NotFound)?;
+        return Ok(Some(Arc::new(
+            moonkale_sources_sql::DuckDbSource::open_data_folder(dir)?,
+        )));
+    }
     if moonkale_sources_graph::is_ladybug_path(path) {
         return Ok(Some(Arc::new(
             moonkale_sources_graph::ladybug::LadybugSource::open(p)?,
@@ -267,6 +278,8 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 fn git_local(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
     Box::pin(async move { moonkale_ext_git::cli::run(std::path::Path::new(&root), req).await })
 }
+
+mod presence;
 
 mod wasm_ext {
     use super::registry;
@@ -460,7 +473,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list, run: wasm_ext::run }), git: Some(git_local), presence: None, wasm_module_url: None },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list, run: wasm_ext::run }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None },
                 session,
                 new_window: open_window,
             },

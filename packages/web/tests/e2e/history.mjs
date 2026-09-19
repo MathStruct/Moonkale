@@ -96,6 +96,34 @@ try {
     await waitKinds("k.length >= 5 && k.includes('checkpoint')");
     console.log("\n  after reload:", (await kinds()).length, "events");
   });
+  await step("Milestone 9: edit again, then Restore the earlier text → unsaved edit; saving records cause", async () => {
+    await page.click(".wb-tab:has-text('README.md')");
+    await page.click(".cm-content");
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type("Second edit.\n");
+    await page.keyboard.press("Control+S");
+    await page.waitForFunction(() => !document.querySelector(".mk-tab-dirty"), null, { timeout: 5000 });
+    await page.click(".wb-tab:has-text('History')");
+    await page.click(".mk-history-check input"); // off
+    await page.click(".mk-history-check input"); // on again → active file
+    await waitKinds("k.length === 2");
+    // The older content event is the last in the list (newest first).
+    await page.click(".mk-history-event[data-kind=content]:last-child button:has-text('text')");
+    await page.waitForSelector(".mk-history-view button:has-text('Restore')", { timeout: 10000 });
+    await page.click(".mk-history-view button:has-text('Restore')");
+    await page.waitForSelector(".wb-tab:has-text('README.md') .mk-tab-dirty", { timeout: 10000 });
+    await page.click(".wb-tab:has-text('README.md')");
+    const t = await page.$$eval(".cm-content", (l) => l.map((e) => e.textContent).find((x) => x.includes("Logged line")));
+    if (!t || t.includes("Second edit")) throw new Error("editor text: " + JSON.stringify(t));
+    if (fs.readFileSync(`${ROOT}/README.md`, "utf8").includes("Second edit.") === false) throw new Error("disk changed before save");
+    await page.keyboard.press("Control+S");
+    await page.waitForFunction(() => !document.querySelector(".mk-tab-dirty"), null, { timeout: 5000 });
+    for (let i = 0; i < 20; i++) { if (/"cause"/.test(fs.readFileSync(`${ROOT}/.moonkale/history.jsonl`, "utf8"))) break; await sleep(250); }
+    const lines = fs.readFileSync(`${ROOT}/.moonkale/history.jsonl`, "utf8").trim().split("\n");
+    const last = JSON.parse(lines[lines.length - 1]);
+    console.log("\n  last event:", last.kind, "cause:", last.cause ? "set" : "none");
+    if (last.kind !== "content" || !last.cause) throw new Error("no cause on the restore save");
+  });
   console.log("HISTORY E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

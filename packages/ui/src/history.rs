@@ -155,12 +155,20 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
         .iter()
         .filter(|e| matches!(e.kind, EventKind::Checkpoint { .. }))
         .count();
+    let kb = log.to_jsonl().len() / 1024;
+    const KEEP: usize = 200;
+    let foldable = log.len().saturating_sub(KEEP);
 
     rsx! {
         div { class: "mk-history",
             div { class: "mk-history-head",
-                span { class: "mk-muted", "{log.len()} events · {checkpoints} checkpoints" }
+                span { class: "mk-muted", "{log.len()} events · {checkpoints} checkpoints · {kb} KB" }
                 span { class: "mk-history-spacer" }
+                if foldable > 0 {
+                    button { class: "mk-btn mk-btn-mini", title: "Fold everything but the last {KEEP} events into a snapshot (checkpoints stay)",
+                        onclick: move |_| { let n = ws.compact_history(KEEP); ws.set_status(format!("Folded {n} events into a snapshot")); },
+                        "Compact ({foldable})" }
+                }
                 label { class: "mk-history-check", title: "Only the active document",
                     input { r#type: "checkbox", checked: only_active(), onchange: move |e| only_active.set(e.checked()) }
                     " active file"
@@ -185,7 +193,7 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
                         let key2 = key.clone();
                         rsx! {
                             li { key: "{e.id}", class: if is_checkpoint { "mk-history-event mk-history-checkpoint" } else { "mk-history-event" },
-                                "data-kind": match &e.kind { EventKind::Add { .. } => "add", EventKind::Remove { .. } => "remove", EventKind::Rename { .. } => "rename", EventKind::Content { .. } => "content", EventKind::Checkpoint { .. } => "checkpoint" },
+                                "data-kind": match &e.kind { EventKind::Add { .. } => "add", EventKind::Remove { .. } => "remove", EventKind::Rename { .. } => "rename", EventKind::Content { .. } => "content", EventKind::Checkpoint { .. } => "checkpoint", EventKind::Snapshot { .. } => "snapshot" },
                                 div { class: "mk-history-line",
                                     span { class: "mk-history-when", "{when(at, now)}" }
                                     span { class: "mk-history-actor", title: "{actor}", "{who}" }
@@ -229,12 +237,21 @@ fn TextAtPanel(ws: Workspace, state: HistoryState, event: String) -> Element {
     let text = log.text_at(node, Some(ev));
     let current = ws.document(node).map(|d| d.peek().text.clone());
     let same = current.as_ref().is_some_and(|c| Some(c) == text.as_ref());
+    let mut ws = ws;
     rsx! {
         div { class: "mk-history-view",
             div { class: "mk-history-view-head",
                 span { "{key}" }
                 span { class: "mk-muted", " as of event {ev.short()}" }
                 if same { span { class: "mk-muted", " · identical to the open document" } }
+                span { class: "mk-history-spacer" }
+                if text.is_some() && !same {
+                    button { class: "mk-btn mk-btn-mini", title: "Put this text into the editor as an unsaved edit", onclick: move |_| {
+                        spawn(async move {
+                            if let Err(e) = ws.restore_text_at(node, ev).await { ws.set_status(format!("Restore failed: {e}")); }
+                        });
+                    }, "Restore" }
+                }
             }
             match text {
                 Some(t) => rsx! { pre { class: "mk-history-text", "{t}" } },

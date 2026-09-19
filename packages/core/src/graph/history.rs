@@ -80,6 +80,15 @@ pub enum EventKind {
     },
     /// A git commit captured the state up to here.
     Checkpoint { commit: String, message: String },
+    /// The folded state at this point (Milestone 9): what compaction
+    /// leaves in place of older events. `texts` are the replayable
+    /// contents the log knew, so `text_at` can start here.
+    Snapshot {
+        live: Vec<Node>,
+        texts: BTreeMap<NodeId, String>,
+        /// How many events this snapshot replaced.
+        folded: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,7 +135,7 @@ impl Event {
             EventKind::Add { node, .. } => Some(node.id),
             EventKind::Remove { node } | EventKind::Content { node, .. } => Some(*node),
             EventKind::Rename { to, .. } => Some(*to),
-            EventKind::Checkpoint { .. } => None,
+            EventKind::Checkpoint { .. } | EventKind::Snapshot { .. } => None,
         }
     }
 
@@ -145,6 +154,9 @@ impl Event {
             }
             EventKind::Checkpoint { commit, message } => {
                 format!("commit {} {}", &commit[..commit.len().min(7)], message)
+            }
+            EventKind::Snapshot { live, folded, .. } => {
+                format!("snapshot of {} nodes ({folded} events folded)", live.len())
             }
         }
     }
@@ -250,10 +262,60 @@ impl EntityLog {
                     }
                     st.renamed.insert(*from, *to);
                 }
+                EventKind::Snapshot { live, .. } => {
+                    st.live.clear();
+                    for n in live {
+                        st.live.insert(n.id, n.clone());
+                    }
+                }
                 EventKind::Content { .. } | EventKind::Checkpoint { .. } => {}
             }
         }
         st
+    }
+
+    /// Fold every event older than the last `keep` into one snapshot,
+    /// keeping checkpoints (they are the seam to git). Returns how many
+    /// events were folded. `text_at` answers stay the same for every node
+    /// the log had a base for.
+    pub fn compact(&mut self, keep: usize, at: u64, actor: impl Into<Actor>) -> usize {
+        if self.events.len() <= keep {
+            return 0;
+        }
+        let cut = self.events.len() - keep;
+        let boundary = self.events[cut - 1].id;
+        let st = self.fold(Some(boundary));
+        let mut texts = BTreeMap::new();
+        for id in st.live.keys() {
+            if let Some(t) = self.text_at(*id, Some(boundary)) {
+                texts.insert(*id, t);
+            }
+        }
+        let (old, rest): (Vec<Event>, Vec<Event>) = std::mem::take(&mut self.events)
+            .into_iter()
+            .partition(|e| e.id <= boundary);
+        let checkpoints: Vec<Event> = old
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::Checkpoint { .. }))
+            .cloned()
+            .collect();
+        let folded = old.len() - checkpoints.len();
+        let mut snapshot = Event::new(
+            at,
+            actor,
+            EventKind::Snapshot {
+                live: st.live.into_values().collect(),
+                texts,
+                folded,
+            },
+        );
+        // The snapshot sits exactly at the boundary so ordering is preserved.
+        snapshot.id = EventId(boundary.0 + 1);
+        self.events = checkpoints;
+        self.events.push(snapshot);
+        self.events.extend(rest);
+        self.events.sort_by_key(|e| e.id);
+        folded
     }
 
     /// The text of `node` after event `until` (or now), replayed from the
@@ -262,9 +324,32 @@ impl EntityLog {
     pub fn text_at(&self, node: NodeId, until: Option<EventId>) -> Option<String> {
         let chain = self.for_node(node);
         let mut text: Option<String> = None;
+        // Start from the latest snapshot at or before `until` that knows the node.
+        for e in self.events.iter().rev() {
+            if until.is_some_and(|u| e.id > u) {
+                continue;
+            }
+            if let EventKind::Snapshot { texts, .. } = &e.kind {
+                if let Some(t) = texts.get(&node) {
+                    text = Some(t.clone());
+                }
+                break;
+            }
+        }
+        let snapshot_id = self
+            .events
+            .iter()
+            .rev()
+            .find(|e| {
+                matches!(e.kind, EventKind::Snapshot { .. }) && !until.is_some_and(|u| e.id > u)
+            })
+            .map(|e| e.id);
         for e in chain {
             if until.is_some_and(|u| e.id > u) {
                 break;
+            }
+            if snapshot_id.is_some_and(|sid| e.id <= sid) {
+                continue;
             }
             match &e.kind {
                 EventKind::Add { text: Some(t), .. } => text = Some(t.clone()),
@@ -433,6 +518,86 @@ mod tests {
         );
         assert_eq!(log.text_at(a.id, Some(e)).as_deref(), Some("abc!"));
         assert_eq!(log.events()[0].key.as_deref(), Some("old.md"));
+    }
+
+    #[test]
+    fn compaction_keeps_answers_and_checkpoints() {
+        let mut log = EntityLog::new();
+        let a = node("a.md");
+        log.append(Event::new(
+            1,
+            "u",
+            EventKind::Add {
+                node: a.clone(),
+                text: Some("v1".into()),
+            },
+        ));
+        log.append(Event::new(
+            2,
+            "u",
+            EventKind::Checkpoint {
+                commit: "c1".into(),
+                message: "one".into(),
+            },
+        ));
+        log.append(Event::new(
+            3,
+            "u",
+            EventKind::Content {
+                node: a.id,
+                patch: TextPatch::Replace(vec![Splice {
+                    start: 1,
+                    end: 2,
+                    text: "2".into(),
+                }]),
+                chars_after: 2,
+                base: None,
+            },
+        ));
+        let b = node("b.md");
+        log.append(Event::new(
+            4,
+            "u",
+            EventKind::Add {
+                node: b.clone(),
+                text: Some("bee".into()),
+            },
+        ));
+        log.append(Event::new(
+            5,
+            "u",
+            EventKind::Content {
+                node: a.id,
+                patch: TextPatch::Replace(vec![Splice {
+                    start: 1,
+                    end: 2,
+                    text: "3".into(),
+                }]),
+                chars_after: 2,
+                base: None,
+            },
+        ));
+        let before_a = log.text_at(a.id, None);
+        let before_b = log.text_at(b.id, None);
+        let folded = log.compact(1, 10, "u");
+        assert_eq!(folded, 3, "add, content, add folded; the checkpoint stays");
+        let kinds: Vec<&str> = log
+            .events()
+            .iter()
+            .map(|e| match &e.kind {
+                EventKind::Checkpoint { .. } => "checkpoint",
+                EventKind::Snapshot { .. } => "snapshot",
+                EventKind::Content { .. } => "content",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(kinds, ["checkpoint", "snapshot", "content"]);
+        assert_eq!(log.text_at(a.id, None), before_a);
+        assert_eq!(log.text_at(b.id, None), before_b);
+        assert_eq!(log.fold(None).live.len(), 2);
+        let back = EntityLog::from_jsonl(&log.to_jsonl());
+        assert_eq!(back, log);
+        assert_eq!(log.compact(10, 11, "u"), 0);
     }
 
     #[test]

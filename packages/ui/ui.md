@@ -57,3 +57,6 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `history.rs`: the **History** panel (side tile) — events newest first with when/actor/summary/key, *active file* filter (`EntityLog::for_node`), *text* opens `history-view:<event>` panels (main tile) showing `text_at`. Command `history.show`.
 - `frame.rs`: publishes presence on active-document/name changes; loads `assets/wasm_host.js` (the browser wasm runtime).
 - `shell.rs`: presence badges on the status bar (`.mk-presence[data-count]`) and on tabs (`.mk-tab-presence`); default side tile adds `history`. `explorer.rs`: `.mk-tree-presence` next to files others have open. `settings_panel.rs`: **You → Name**.
+
+## Milestone 9
+- `history.rs`: **Compact (n)** (keeps the last 200 events) and the log size in KB in the head; **Restore** in `TextAtPanel` when the text differs from the open document.

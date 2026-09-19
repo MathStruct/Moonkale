@@ -23,3 +23,7 @@ WebKitGTK's web process crashes inside the NVIDIA EGL driver while tearing down 
 
 ## Milestone 6
 - `mod wasm_ext { list, run }`: an in-process `moonkale_ext_host::Runtime` (feature `wasmtime`) over the registry — `discover(config_dir, folder)` on every `list`, permissions passed per `run`. `WorkspaceConfig::wasm` is set; the module directory is `~/.config/moonkale/extensions` (`MOONKALE_CONFIG_DIR` overrides).
+
+## Milestone 9
+- `presence.rs`: the hub client. `MOONKALE_HUB=http(s)://host:port` → `ws(s)://…/api/presence`; `Authorization: Bearer $MOONKALE_TOKEN` when set; `Join` on connect, `Update`s from a channel, `Members` lists back to the UI thread through a channel drained by a spawned future. Frames are JSON in binary websocket messages (what dioxus typed websockets send; text accepted too). `tests/hub.rs` (ignored) joins a running hub and checks the reply — run with `MOONKALE_HUB=http://127.0.0.1:8090 cargo test -p desktop --test hub -- --ignored`.
+- `open_database`: `.duckdb` files and CSV/TSV/Parquet files (their folder) open as `DuckDbSource`.

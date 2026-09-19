@@ -23,7 +23,7 @@ serde_json = "1"
 moonkale-sources = { workspace = true, optional = true }
 moonkale-project-fs = { workspace = true, optional = true }
 moonkale-index = { workspace = true, optional = true }
-moonkale-sources-sql = { workspace = true, optional = true, features = ["sqlite"] }
+moonkale-sources-sql = { workspace = true, optional = true, features = ["sqlite", "duckdb"] }
 moonkale-sources-graph = { workspace = true, optional = true, features = ["ladybug"] }
 moonkale-terminal-pty = { workspace = true, optional = true }
 moonkale-typst = { workspace = true, optional = true }

@@ -44,3 +44,11 @@
 .mk-editor-refs ul { list-style: none; margin: 0; padding: 0; }
 .mk-editor-ref { padding: 2px 4px; cursor: pointer; border-radius: 3px; font-family: ui-monospace, monospace; }
 .mk-editor-ref:hover { background: #262a33; }
+
+/* Presence gutter (Milestone 9) */
+.cm-presence-gutter { width: 22px; }
+.cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: #6ea8fe; color: #0b0d12; }
+
+/* Presence gutter (Milestone 9) */
+.cm-presence-gutter { width: 22px; }
+.cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: #6ea8fe; color: #0b0d12; }

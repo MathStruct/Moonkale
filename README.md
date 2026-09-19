@@ -24,7 +24,14 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
-**Milestone 8 — "Research" — is done** (2026-09-19). An entity log of every
+**Milestone 9 — "Second halves"** (2026-09-19; Android build pending the
+NDK). History you can act on — compaction into snapshots and *Restore* of
+any earlier text as an unsaved edit with provenance; presence with cursor
+lines in the editor gutter and a desktop hub client; node dragging in 3D;
+DuckDB — `.duckdb` files and folders of CSV/TSV/Parquet as queryable
+tables. Twenty-seven automated browser suites.
+
+**Milestone 8 — "Research"** (2026-09-19). An entity log of every
 change in a workspace (user, agent or git checkpoint) with a History panel
 that shows any file as it was after any event; presence — who else is in
 the folder and what they look at; a 3D graph with one plane per node kind
@@ -76,7 +83,7 @@ records every decision and is published at
 **<https://mathstruct.github.io/Moonkale/>**; each implemented crate also has
 a `<crate>.md` next to its code.
 
-Next: Phase 9 — log compaction and time travel across git, presence cursors, a 3D force layout, and the drivers, Android build and JS-free desktop that wait for an environment.
+Next: the Android build as soon as the NDK and a device are here; then Postgres/Turso, TypeDB/Helix, a JS-free desktop and CRDT text merge — all waiting for an environment or a milestone of their own.
 
 ## Learn more
 

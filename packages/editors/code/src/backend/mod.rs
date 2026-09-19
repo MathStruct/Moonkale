@@ -33,6 +33,8 @@ pub enum BackendEvent {
     },
     /// Shift+F12: references of the symbol at a position.
     References { line: u32, col: u32 },
+    /// The cursor moved (throttled by the view); presence (Milestone 9).
+    Cursor { line: u32, col: u32 },
 }
 
 /// A mounted backend instance. Dropping it tears the view down.
@@ -46,6 +48,8 @@ pub trait CodeEditorBackend {
     fn set_diagnostics(&self, items: &[moonkale_lsp::Diagnostic]);
     fn hover_result(&self, id: u32, text: Option<&str>);
     fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>);
+    /// Other people's positions in this document: `(line, label)`.
+    fn set_presence(&self, marks: &[(u32, String)]);
     fn set_cursor(&self, line: u32, col: u32);
 }
 

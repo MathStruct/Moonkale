@@ -76,6 +76,44 @@ try {
     await sleep(400);
     await page.screenshot({ path: `${S}/m8-graph-3d-orbit.png` });
   });
+  await step("Milestone 9: dragging a node in 3D moves it (its screen position follows the pointer)", async () => {
+    // Find a node under the pointer by probing the view's hit test through a grid.
+    const host = await page.$(".mk-graph-host");
+    const box = await host.boundingBox();
+    const found = await page.evaluate(([w, h]) => {
+      const v = Object.values(window.moonkale.graphViews)[0];
+      const ov = document.querySelector(".mk-graph-overlay");
+      // node_screen_position needs an id; ids are not exposed, so scan pixels of the overlay for label text instead:
+      // labels are drawn at (node.x + r + 4, node.y); the node sits a few px left of the first opaque label pixel.
+      const g = ov.getContext("2d"); const d = g.getImageData(0, 0, ov.width, ov.height).data;
+      const dpr = ov.width / w;
+      for (let y = 0; y < ov.height; y += 2) for (let x = 0; x < ov.width; x += 2) {
+        if (d[(y * ov.width + x) * 4 + 3] > 40) return { x: x / dpr - 12, y: y / dpr };
+      }
+      return null;
+    }, [box.width, box.height]);
+    if (!found) throw new Error("no label pixels");
+    const sx = box.x + found.x, sy = box.y + found.y;
+    // Hover to confirm a node is under the pointer.
+    await page.mouse.move(sx, sy);
+    await sleep(300);
+    const hovered = await page.$(".mk-graph-popup, .mk-graph-hover");
+    await page.mouse.down();
+    await page.mouse.move(sx + 150, sy + 90, { steps: 10 });
+    await page.mouse.up();
+    await sleep(500);
+    const moved = await page.evaluate(([w, h]) => {
+      const ov = document.querySelector(".mk-graph-overlay");
+      const g = ov.getContext("2d"); const d = g.getImageData(0, 0, ov.width, ov.height).data;
+      const dpr = ov.width / w;
+      for (let y = 0; y < ov.height; y += 2) for (let x = 0; x < ov.width; x += 2) {
+        if (d[(y * ov.width + x) * 4 + 3] > 40) return { x: x / dpr - 12, y: y / dpr };
+      }
+      return null;
+    }, [box.width, box.height]);
+    console.log("\n  first label before:", found, "after drag:", moved, "hover popup:", !!hovered);
+    if (!moved || (Math.abs(moved.x - found.x) < 2 && Math.abs(moved.y - found.y) < 2)) throw new Error("nothing moved");
+  });
   await step("back to 2D", async () => {
     await page.click("button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });

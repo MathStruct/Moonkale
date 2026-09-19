@@ -60,7 +60,7 @@ gantt
 | **6 Scale & extend** ✅ | 100k-node graphs; install third-party wasm extensions; build a Lux.jl model by drag-and-drop; use it on a phone | the two hardest bets — **done 2026-09-19** (Barnes–Hut instead of GPU compute; wasm ABI v1 instead of components; phone shell verified at 420 px on web, no Android build here), see [[Milestone 6 - Scale and Extend]] / [[Milestone 6 - Implementation Log]] |
 | **7 Daily driver** ✅ | command palette and quick open; file operations; find/replace; LSP completion and rename; git status/diff/commit and history as a graph; a web server you can expose | using Moonkale on its own repo every day — **done 2026-09-19**, see [[Milestone 7 - Daily Driver]] / [[Milestone 7 - Implementation Log]] |
 | **8 Research** ✅ | entity log and history panel; presence across machines; 3D graph; wasm extensions in the browser | long-term direction — **done 2026-09-19**, see [[Milestone 8 - Research]] / [[Milestone 8 - Implementation Log]] (Postgres/TypeDB, Android and the JS-free desktop wait for an environment) |
-| **9 Next** | log compaction and time travel across git; presence cursors and a desktop hub; 3D force layout; drivers that need servers; Android | to be planned |
+| **9 Second halves** ✅ (Android pending) | history you can act on (snapshots, restore); presence cursors and a desktop hub client; 3D node dragging; DuckDB and data-file tables; the Android build | **steps 1–4 done 2026-09-19**, Android waits for the NDK and a device — [[Milestone 9 - Second Halves]] / [[Milestone 9 - Implementation Log]] |
 
 ## Principles for sequencing
 1. **Risky things early, but not first.** P-01 is first because it must be; P-05 waits for one real editor; P-22 waits for measurements from P-07.

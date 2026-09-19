@@ -84,6 +84,10 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         b.hover_result(id, None);
                     }
                 }
+                BackendEvent::Cursor { line, .. } => {
+                    let mut ws = ws;
+                    ws.set_cursor_line(node, line);
+                }
                 BackendEvent::Completion { id, line, col } => {
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.clone())
@@ -234,6 +238,26 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
         });
     }
+    // Other people's cursors in this document (Milestone 9).
+    {
+        let key = doc.peek().node.native_key.clone();
+        use_effect(move || {
+            let _ = ws.presence.read();
+            let marks: Vec<(u32, String)> = ws
+                .others()
+                .into_iter()
+                .filter(|m| m.active.as_deref() == Some(key.as_str()))
+                .filter_map(|m| m.line.map(|l| (l, m.initials())))
+                .collect();
+            if !ready() {
+                return;
+            }
+            if let Some(b) = backend.peek().as_ref() {
+                b.set_presence(&marks);
+            }
+        });
+    }
+
     // Diagnostics from the language server → decorations in the view.
     {
         let uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());

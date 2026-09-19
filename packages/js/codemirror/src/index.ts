@@ -6,7 +6,8 @@
 
 import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from "@codemirror/search"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
-import { EditorState } from "@codemirror/state"
+import { EditorState, StateEffect, StateField, RangeSet } from "@codemirror/state"
+import { gutter, GutterMarker } from "@codemirror/view"
 import {
   EditorView,
   keymap,
@@ -37,7 +38,10 @@ type Features = {
   onRename?: (line: number, col: number, word: string) => void
   onCodeActions?: (line: number, col: number, endLine: number, endCol: number) => void
   onReferences?: (line: number, col: number) => void
+  /** Milestone 9: the cursor moved (throttled to 4/s); presence. */
+  onCursor?: (line: number, col: number) => void
 }
+export type PresenceMark = { line: number; label: string }
 export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
 type Entry = {
   view: EditorView
@@ -47,6 +51,32 @@ type Entry = {
 }
 
 const views = new WeakMap<HTMLElement, Entry>()
+
+// Presence gutter (Milestone 9): other people's initials next to the line they are on.
+class PresenceMarker extends GutterMarker {
+  constructor(readonly label: string) { super() }
+  eq(o: PresenceMarker) { return o.label === this.label }
+  toDOM() { const s = document.createElement("span"); s.className = "cm-presence-mark"; s.textContent = this.label; s.title = `${this.label} is here`; return s }
+}
+const setPresenceEffect = StateEffect.define<PresenceMark[]>()
+const presenceField = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(set, tr) {
+    set = set.map(tr.changes)
+    for (const e of tr.effects) {
+      if (e.is(setPresenceEffect)) {
+        const doc = tr.state.doc
+        const marks = e.value
+          .filter((m) => m.line >= 0 && m.line < doc.lines)
+          .map((m) => new PresenceMarker(m.label).range(doc.line(m.line + 1).from))
+          .sort((a, b) => a.from - b.from)
+        set = RangeSet.of(marks, true)
+      }
+    }
+    return set
+  },
+})
+const presenceGutter = [presenceField, gutter({ class: "cm-presence-gutter", markers: (v) => v.state.field(presenceField) })]
 
 function lspPos(view: EditorView, pos: number): { line: number; col: number } {
   const line = view.state.doc.lineAt(pos)
@@ -119,10 +149,26 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
       return true
     } },
   ])
+  let cursorTimer: number | null = null
+  let lastCursor = ""
+  const cursorWatch = EditorView.updateListener.of((u) => {
+    if (!features.onCursor || !u.selectionSet) return
+    if (cursorTimer !== null) return
+    cursorTimer = window.setTimeout(() => {
+      cursorTimer = null
+      const { line, col } = lspPos(u.view, u.view.state.selection.main.head)
+      const key = `${line}:${col}`
+      if (key === lastCursor) return
+      lastCursor = key
+      features.onCursor!(line, col)
+    }, 250)
+  })
   const view = new EditorView({
     state: EditorState.create({
       doc: text,
       extensions: [
+        presenceGutter,
+        cursorWatch,
         lineNumbers(),
         highlightActiveLineGutter(),
         highlightActiveLine(),
@@ -166,6 +212,12 @@ function setLspDiagnostics(el: HTMLElement, items: { line: number; col: number; 
     message: d.message,
   }))
   e.view.dispatch(setDiagnostics(e.view.state, diags))
+}
+
+/** Other people's positions in this document (Milestone 9). */
+function setPresence(el: HTMLElement, marks: PresenceMark[]): void {
+  const view = views.get(el)?.view
+  if (view) view.dispatch({ effects: setPresenceEffect.of(marks) })
 }
 
 /** Rust's answer to a completion request (Milestone 7). */
@@ -241,4 +293,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence }

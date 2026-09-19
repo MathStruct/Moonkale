@@ -1,0 +1,60 @@
+---
+title: "Milestone 9 — Implementation Log"
+description: What was built for "Second Halves" — snapshots and restore in the history, presence cursors and a desktop hub client, 3D node dragging, DuckDB and data-file tables — and where the Android build stands.
+tags: [milestone, log]
+---
+Plan: [[Milestone 9 - Second Halves]].
+
+> [!success] Steps 1–4 done (2026-09-19); step 5 (Android) waits for the NDK and a device
+> **History you can act on**: the log compacts into a `Snapshot` event (everything but the last 200 events, checkpoints kept) and any earlier text can be **restored** as an unsaved edit whose save records the restored event as its `cause`. **Presence with cursors**: the editor reports the cursor line (throttled), other people's initials appear in a gutter next to their line and the badges say `file:line`; the **desktop joins a hub** with `MOONKALE_HUB` (+ `MOONKALE_TOKEN`), verified against the running hub with a native websocket test. **3D dragging**: a node dragged in 3D moves in its own depth plane (`Camera::unproject`, round-trip tested). **DuckDB**: `.duckdb` files open like SQLite, and a CSV/TSV/Parquet file opens its folder as a database of views — SQL joins across files work from the table editor. One new suite (`duckdb`), three extended (`history`, `presence`, `graph3d`); 27 suites in all; 82 native tests; clippy/fmt clean. **Android**: JDK, Android Studio, SDK platform/build-tools/platform-tools and the Rust targets are installed; the NDK and a device or AVD are not yet, so no build was attempted.
+
+## Steps as executed
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 1 | `EventKind::Snapshot { live, texts, folded }`, `EntityLog::compact(keep, at, actor)` (folds older events, keeps checkpoints, snapshot at the boundary), `text_at` starts from the latest snapshot; `Workspace::{compact_history, restore_text_at}` + `pending_cause` → `Event.cause`; History panel **Compact (n)** and **Restore** in the text view, size in KB | ✅ 1 unit test (answers and checkpoints survive compaction, JSONL round trip), E2E `history.mjs` (restore → dirty editor, disk untouched, save carries `cause`) | [core.md](https://github.com/MathStruct/Moonkale/blob/master/packages/core/core.md), [ui.md](https://github.com/MathStruct/Moonkale/blob/master/packages/ui/ui.md) |
+| 2 | bundle: `onCursor` (250 ms throttle) + `setPresence` gutter (`cm-presence-gutter`); `BackendEvent::Cursor`, `Workspace::{cursor_line, set_cursor_line}`, `Member.line`; `desktop/src/presence.rs` (`tokio-tungstenite`, JSON binary frames, bearer) | ✅ E2E `presence.mjs` (gutter mark + `README.md:3` badge), native test `desktop/tests/hub.rs` (ignored unless `MOONKALE_HUB`) passed against the dev hub | [editor-code.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code/editor-code.md), [desktop.md](https://github.com/MathStruct/Moonkale/blob/master/packages/desktop/desktop.md) |
+| 3 | `Camera::{basis, unproject}`; `Drag::Node` in 3D moves the node at its depth | ✅ unit test (project ∘ unproject), E2E `graph3d.mjs` (a label moves after a drag) | [graph-render.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/graph-render/graph-render.md) |
+| 4 | `sources-sql::duckdb` (feature `duckdb`, bundled): `DuckDbSource::open` (read-only) and `open_data_folder` (views over `read_csv_auto` / `read_parquet`, ≤ 200 files, sanitised names), schema via `information_schema`, read-only text queries, value mapping; `is_duckdb_path` / `is_data_path`; desktop + server open dispatch; Explorer marks data files | ✅ 2 unit tests, E2E `duckdb.mjs` | [sources-sql.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-sql/sources-sql.md) |
+| 5 | Android build | ⏳ blocked on the NDK + a device/AVD (Rust targets added) | [mobile/README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/mobile/README.md) |
+| 6 | verify, log, vault | ✅ (for 1–4) | this note |
+
+## What the user sees
+- History: **Compact (n)** in the head folds old events into a snapshot (the KB count drops); **Restore** in a "text at" view puts that text into the editor as an unsaved edit — save to keep it, and the History shows the save with the restored event as its cause.
+- Presence: someone else's initials next to the line they are on; the status-bar badge reads `Name · file:line`. On desktop, `MOONKALE_HUB=http://host:8080 MOONKALE_TOKEN=… dx serve --platform desktop` joins the same rooms as the web users.
+- Graph → 3D: drag a node; it stays in its plane and follows the pointer.
+- Click a `.csv`, `.tsv` or `.parquet` in the Explorer: its folder appears as a database (`data/ (data files)`) with one view per file; `.duckdb` files open directly. SQL across files works in the table editor; writes are refused.
+
+## Deviations from the plan
+1. **Compaction keeps the last 200 events** (a constant in the History panel) rather than a size budget; the snapshot's `texts` hold every text the log could replay, so `text_at` before the boundary answers exactly as before — the test asserts it.
+2. **Restore is the whole file**, not a hunk; the diff is the user's to review in the editor.
+3. **Cursor presence is line-only** (no column, no selection ranges) and throttled in the bundle, not the hub.
+4. **The desktop hub client speaks the dioxus websocket format directly** (JSON in binary frames) rather than reusing the server-function client; `ws://` and `wss://` both work, TLS via the system roots is not wired (behind a proxy on the LAN this is `ws://`).
+5. **DuckDB data folders are non-recursive** and capped at 200 files; JSON is left to the text editor (too often configuration, not data).
+6. **DuckDB adds ~3 minutes to a clean release build** (measured 3 m 14 s for the bundled library alone); it is a feature on `sources-sql`, on for desktop and the server, never for the web client.
+7. **Android**: the plan said "when available"; it is not yet — the log says so instead of pretending.
+
+## Problems hit (→ [[Problem Log]])
+- **P-085 rustfmt-shaped anchors**: three multi-edit scripts failed half-way because the file had been reformatted since the last read; each time the fix was to re-read the exact text first. Not a product problem, but the third time it cost real minutes — noted as a working rule.
+- **P-086 Compaction and rename chains**: `for_node` walks renames backwards through events; after compaction the pre-boundary renames are gone, so `text_at` starts from the snapshot's text keyed by the *current* id — which is what the fold produced. Correct, but the History panel's key lookup for very old events now relies on `Event.key`.
+
+## Decisions worth keeping
+- **Snapshots are events at the boundary**, checkpoints survive them, and replay is snapshot-then-patches.
+- **Restore goes through the document**, never the disk, with provenance on the save.
+- **The hub's wire format is the dioxus typed-websocket format**; any native client can join with a websocket library.
+- **DuckDB is the data-file engine**: nothing is imported, views are created at open time.
+
+## Verified
+- Web: 27 suites — the 25 of Milestone 8 (with `history`, `presence`, `graph3d` extended) plus `duckdb` and `milestone1` — all PASS in one batch.
+- Native: 82 tests pass, 0 failed (3 ignored: live services and the hub test); clippy and fmt clean; desktop builds (with DuckDB); `mobile` checks.
+
+## What to look at on desktop
+1. History → Compact after a day of edits; Restore an old version of a note.
+2. `MOONKALE_HUB=http://127.0.0.1:8080 dx serve --platform desktop` next to a web session: the web users' initials appear in the desktop window.
+3. Drop a CSV into a folder and click it.
+
+## Android — where it stands (2026-09-19)
+Installed: JDK 17, Android Studio, SDK cmdline-tools, platform-tools 37, build-tools 36, platform android-37, emulator; Rust targets `aarch64-linux-android` and `x86_64-linux-android`. Missing: an NDK (`sdkmanager "ndk;29.0.14206865"`), a system image + AVD or a phone with USB debugging. Then: `export ANDROID_HOME=~/Android/Sdk ANDROID_NDK_HOME=$ANDROID_HOME/ndk/<version> JAVA_HOME=/usr/lib/jvm/java-17-openjdk; cd packages/mobile && dx serve --platform android`.
+
+## Deferred to Milestone 10
+Android (as soon as the toolchain is complete), snapshot-aware `for_node` for keys, selection-range presence, TLS for the desktop hub client, recursive data folders and JSON tables, Postgres/Turso, TypeDB/Helix, JS-free desktop, CRDT.

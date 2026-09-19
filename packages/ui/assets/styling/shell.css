@@ -101,7 +101,7 @@
 .mk-history-summary { overflow: hidden; text-overflow: ellipsis; }
 .mk-history-key { display: flex; justify-content: space-between; gap: 6px; margin-left: 56px; overflow: hidden; }
 .mk-history-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.mk-history-view-head { padding: 6px 10px; border-bottom: 1px solid var(--wb-line, #2a2e3a); font-size: 12px; }
+.mk-history-view-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--wb-line, #2a2e3a); font-size: 12px; }
 .mk-history-text { flex: 1; margin: 0; padding: 8px 12px; overflow: auto; font: 12px/1.5 ui-monospace, monospace; white-space: pre; }
 
 /* Presence (Milestone 8) */

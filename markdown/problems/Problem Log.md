@@ -61,6 +61,8 @@ Running log of problems hit during implementation. One note per problem (`P-nnn 
 | P-082 Firefox headless has no WebGL | Even with `webgl.force-enabled` and software rendering prefs, headless Firefox exhausts its GL drivers; the graph renderer was never exercised by a test until Milestone 8. Chromium headless with `--use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist` provides WebGL2 (`graph3d.mjs`); the GL canvas cannot be read back after present, so the suite reads the label overlay and compares screenshots | resolved (tests) | 8 |
 | P-083 Playwright `:has-text()` is a substring match | `label:has-text('Name')` matched "Secret name" first and the test typed a user name into the secret field; use `:text-is()` for exact labels | resolved (tests) | 8 |
 | P-084 wgpu 30 depth-state fields are `Option`s | `depth_write_enabled: Some(true)`, `depth_compare: Some(CompareFunction::LessEqual)` — the docs' examples still show plain values | resolved | 8 |
+| P-085 Edits anchored on stale text | Multi-edit scripts kept failing after `cargo fmt` reshaped the anchors; each retry cost minutes. Rule: re-read the exact lines right before editing, one file per script, and format last | open (working rule) | 9 |
+| P-086 Compaction hides old renames | After `EntityLog::compact`, renames before the boundary are folded away; `text_at` correctly starts from the snapshot keyed by the current id, but the History panel's key lookup for very old events relies on `Event.key` (carried since Milestone 8) | noted | 9 |
 | P-037 Whole-document change events | JS reports full text per keystroke and save sends one splice; O(n) per key. Upgrade to real splices once the index needs them | open | 2 |
 
 ## Conventions

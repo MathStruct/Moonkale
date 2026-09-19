@@ -13,6 +13,9 @@ pub struct Member {
     /// Relative key of the active document, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active: Option<String>,
+    /// Cursor line (0-based) in the active document (Milestone 9).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
 }
 
 impl Member {
@@ -70,6 +73,7 @@ mod tests {
             window: "w".into(),
             name: n.into(),
             active: None,
+            line: None,
         };
         assert_eq!(m("Daniel Boigk").initials(), "DB");
         assert_eq!(m("daniel").initials(), "DA");

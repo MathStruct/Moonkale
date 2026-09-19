@@ -262,12 +262,13 @@ pub fn Shell() -> Element {
             (
                 m.initials(),
                 format!(
-                    "{}{}",
+                    "{}{}{}",
                     m.name,
                     m.active
                         .as_ref()
                         .map(|a| format!(" · {a}"))
-                        .unwrap_or_default()
+                        .unwrap_or_default(),
+                    m.line.map(|l| format!(":{}", l + 1)).unwrap_or_default()
                 ),
             )
         })

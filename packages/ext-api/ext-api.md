@@ -45,3 +45,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - `workspace.rs`: `history` signal (loaded from `.moonkale/history.jsonl` with the workspace settings), `record` / `record_as` / `record_event` (append + best-effort rewrite of the file), appends in `save` (Content, with `base` for files the log never saw and the agent actor from `pending_actor`), `create_text`/`create_dir` (Add), `rename_node` (Rename), `delete_node` (Remove); `user_actor()` from `settings.user_name`. Presence: `presence` signal, `join_presence(room)` on folder open through `WorkspaceConfig::presence`, `publish_presence()`, `my_presence()`, `others()`. Browser wasm: `WorkspaceConfig::wasm_module_url`; `run_wasm_command` tries `run_wasm_in_browser` (an eval driving `window.moonkale.wasmHost`, host calls answered by `answer_host_call` over this workspace's sources with the host's permission check) and falls back to the platform runner.
 - `presence.rs`: `Member { window, name, active }` (+ `initials()`), `PresenceMessage::{Join, Update, Members}`, `PresenceLink`, `JoinPresence`.
 - `settings.rs`: `user_name` (default `$USER`, "you" in the browser).
+
+## Milestone 9
+- `workspace.rs`: `compact_history(keep)`, `restore_text_at(node, event)` (opens the document if needed, sets its text, remembers the event in `pending_cause` so the next save's `Content` event carries it as `cause`), `cursor_line` + `set_cursor_line(node, line)` (publishes presence when the node is active); `Member.line` in `my_presence()`.
+- `presence.rs`: `Member.line: Option<u32>`.

@@ -351,7 +351,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     };
                     // Database paths: a SQLite file, or a Ladybug database (a
                     // directory or a file named *.lbug / *.kuzu).
-                    let is_db_path = (node.kind == NodeKind::File && moonkale_sources_sql::is_sqlite_path(&node.native_key))
+                    let is_db_path = (node.kind == NodeKind::File && (moonkale_sources_sql::is_sqlite_path(&node.native_key) || moonkale_sources_sql::is_duckdb_path(&node.native_key) || moonkale_sources_sql::is_data_path(&node.native_key)))
                         || (matches!(node.kind, NodeKind::File | NodeKind::Directory) && moonkale_sources_graph::is_ladybug_path(&node.native_key));
                     let is_dir = node.kind == NodeKind::Directory && !is_db_path;
                     let open = expanded.contains(&node.id);
