@@ -43,10 +43,16 @@ fn menus(
     flow_enabled: bool,
 ) -> Vec<(&'static str, Vec<Item>)> {
     let desktop = controls.is_some();
-    let mut file = vec![Item::Cmd {
-        label: "Open Folder…",
-        id: "workspace.openFolder",
-    }];
+    let mut file = vec![
+        Item::Cmd {
+            label: "Open Folder…",
+            id: "workspace.openFolder",
+        },
+        Item::Cmd {
+            label: "Close Folder",
+            id: "workspace.closeFolder",
+        },
+    ];
     if flow_enabled {
         file.push(Item::Direct {
             label: "New Flow…",

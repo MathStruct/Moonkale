@@ -95,12 +95,28 @@ impl IndexSource {
     }
 
     async fn run_search(&self, query: &str, limit: usize) -> Result<Vec<Hit>, SourceError> {
+        // The query embedding is one network call; when the provider is slow
+        // or unreachable the keyword half must still answer (BM25 alone),
+        // so it gets a short budget.
         let qv = match &self.embedder {
-            Some(e) if self.search.read().unwrap().embedded_count() > 0 => e
-                .embed(vec![query.to_string()])
+            Some(e) if self.search.read().unwrap().embedded_count() > 0 => {
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    e.embed(vec![query.to_string()]),
+                )
                 .await
-                .ok()
-                .and_then(|mut v| v.pop()),
+                {
+                    Ok(Ok(mut v)) => v.pop(),
+                    Ok(Err(err)) => {
+                        tracing::warn!("search: query embedding failed, keyword only: {err}");
+                        None
+                    }
+                    Err(_) => {
+                        tracing::warn!("search: query embedding took > 3 s, keyword only");
+                        None
+                    }
+                }
+            }
             _ => None,
         };
         Ok(self

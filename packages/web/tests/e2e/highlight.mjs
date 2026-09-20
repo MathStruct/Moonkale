@@ -39,5 +39,23 @@ try {
     await page.click(".mk-tree-file >> text=Cargo.toml");
     await page.waitForFunction(() => [...document.querySelectorAll(".cm-content")].some((c) => c.offsetParent && c.textContent.includes("[package]") && c.querySelectorAll("span[class*='ͼ']").length > 0), null, { timeout: 15000 });
   });
+  await step("Wrap toggles soft wrap (spec 014): toolbar button, then Alt+Z; the setting persists", async () => {
+    await page.click(".mk-tree-file >> text=main.rs");
+    await page.waitForFunction(() => [...document.querySelectorAll(".cm-content")].some((c) => c.offsetParent), null, { timeout: 15000 });
+    const wrapped = () => page.evaluate(() => [...document.querySelectorAll(".cm-content")].filter((c) => c.offsetParent).some((c) => c.classList.contains("cm-lineWrapping")));
+    if (await wrapped()) throw new Error("wrap on by default");
+    await page.click(".mk-editor-toolbar button:has-text('Wrap'):visible");
+    await page.waitForFunction(() => [...document.querySelectorAll(".cm-content")].filter((c) => c.offsetParent).some((c) => c.classList.contains("cm-lineWrapping")), null, { timeout: 5000 });
+    await page.waitForSelector(".mk-editor-toolbar button.mk-btn-on:has-text('Wrap'):visible", { timeout: 5000 });
+    await page.click(".cm-content:visible");
+    await page.keyboard.press("Alt+z");
+    await page.waitForFunction(() => ![...document.querySelectorAll(".cm-content")].filter((c) => c.offsetParent).some((c) => c.classList.contains("cm-lineWrapping")), null, { timeout: 5000 });
+    await page.keyboard.press("Alt+z");
+    await page.waitForFunction(() => [...document.querySelectorAll(".cm-content")].filter((c) => c.offsetParent).some((c) => c.classList.contains("cm-lineWrapping")), null, { timeout: 5000 });
+    // The web client keeps user settings in localStorage (desktop: settings.json).
+    const saved = await page.evaluate(() => Object.keys(localStorage).map((k) => localStorage.getItem(k) || "").join("\n"));
+    console.log("\n  wrap persisted in the settings store:", /"wrap"\s*:\s*true/.test(saved) ? "yes" : "no");
+    if (!/"wrap"\s*:\s*true/.test(saved)) throw new Error("editor.wrap not saved to localStorage");
+  });
   console.log("\nHIGHLIGHT E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m10-highlight-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

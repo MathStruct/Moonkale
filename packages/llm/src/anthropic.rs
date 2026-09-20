@@ -21,7 +21,7 @@ impl Anthropic {
             model,
             base_url: std::env::var("ANTHROPIC_BASE_URL")
                 .unwrap_or_else(|_| "https://api.anthropic.com".into()),
-            client: reqwest::Client::new(),
+            client: crate::http_client(),
         }
     }
 

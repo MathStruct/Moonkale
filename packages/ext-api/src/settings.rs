@@ -37,6 +37,7 @@ pub struct SettingsFile {
     pub policy: PolicyFile,
     pub search: SearchFile,
     pub terminal: TerminalFile,
+    pub editor: EditorFile,
     pub extensions: ExtensionsFile,
     /// Command id → keybinding text (`"file.save": "Ctrl+S"`); an empty
     /// string unbinds. Later scopes override per id.
@@ -50,6 +51,10 @@ pub struct SettingsFile {
     /// User scope: most recent first, absolute paths (or server-relative on web).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_folders: Vec<String>,
+    /// User scope: `false` after the user closed the last folder — the next
+    /// start begins empty instead of reopening `recent_folders[0]`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reopen_last: Option<bool>,
     /// Workspace scope: `PanelLayout::encode()` output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layout: Option<String>,
@@ -129,6 +134,15 @@ pub struct TerminalFile {
     pub shell: Option<String>,
 }
 
+/// Code editor preferences (spec 014).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EditorFile {
+    /// Soft-wrap long lines at the view's edge.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wrap: Option<bool>,
+}
+
 impl SettingsFile {
     pub fn new() -> Self {
         Self {
@@ -172,6 +186,7 @@ impl SettingsFile {
             .or(self.policy.denied_tools.take());
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
         self.terminal.shell = other.terminal.shell.clone().or(self.terminal.shell.take());
+        self.editor.wrap = other.editor.wrap.or(self.editor.wrap);
         // Extensions: a later scope's explicit choice wins per id.
         for id in &other.extensions.enabled {
             self.extensions.set_enabled(id, true);
@@ -192,6 +207,7 @@ impl SettingsFile {
         if !other.recent_folders.is_empty() {
             self.recent_folders = other.recent_folders.clone();
         }
+        self.reopen_last = other.reopen_last.or(self.reopen_last);
         self.layout = other.layout.clone().or(self.layout.take());
         if !other.open_documents.is_empty() {
             self.open_documents = other.open_documents.clone();
@@ -226,6 +242,7 @@ pub struct Settings {
     pub policy: PolicySettings,
     pub search: SearchSettings,
     pub terminal: TerminalSettings,
+    pub editor: EditorSettings,
     pub extensions: ExtensionsSettings,
     pub keybindings: BTreeMap<String, String>,
     pub theme: String,
@@ -252,6 +269,12 @@ pub struct SearchSettings {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TerminalSettings {
     pub shell: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EditorSettings {
+    /// Soft-wrap long lines (default off, like most code editors).
+    pub wrap: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -315,6 +338,7 @@ impl Default for Settings {
             policy: PolicySettings::default(),
             search: SearchSettings { embeddings: true },
             terminal: TerminalSettings::default(),
+            editor: EditorSettings::default(),
             keybindings: BTreeMap::new(),
             user_name: default_user_name(),
             extensions: ExtensionsSettings::default(),
@@ -353,6 +377,9 @@ impl Settings {
             },
             terminal: TerminalSettings {
                 shell: merged.terminal.shell,
+            },
+            editor: EditorSettings {
+                wrap: merged.editor.wrap.unwrap_or(false),
             },
             keybindings: merged.keybindings.clone(),
             user_name: merged.user_name.clone().unwrap_or_else(default_user_name),

@@ -51,3 +51,15 @@ pub use policy::{Class, Decision, Policy};
 pub use provider::{BoxFuture, EventStream, Provider};
 pub use tools::{builtin_tools, ToolCall};
 pub use types::{Content, Event, LlmSettings, Message, Request, Role, StopReason, ToolDef, Usage};
+
+/// The HTTP client every provider uses: a connect timeout so an unreachable
+/// host fails in seconds instead of hanging a search or a chat forever.
+/// Streams (chat completions) have no total timeout; single round trips
+/// (embeddings) set one per request.
+#[cfg(feature = "http")]
+pub fn http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}

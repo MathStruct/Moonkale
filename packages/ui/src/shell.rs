@@ -146,6 +146,22 @@ pub fn Shell() -> Element {
                     }
                 });
             }
+            Some(Command::CloseFolder) => {
+                let first = ws
+                    .sources
+                    .peek()
+                    .iter()
+                    .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+                    .map(|s| s.descriptor.id.clone());
+                match first {
+                    Some(id) => {
+                        spawn(async move {
+                            let _ = ws.close_source(&id).await;
+                        });
+                    }
+                    None => ws.set_status("No folder is open"),
+                }
+            }
             Some(Command::About) => ws.set_status("Moonkale 0.1.0 — graph-native code and knowledge editor · mathstruct.github.io/Moonkale"),
             _ => {}
         }

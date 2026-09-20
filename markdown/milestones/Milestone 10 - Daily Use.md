@@ -11,6 +11,9 @@ After Milestone 9 the work changed shape: Daniel uses Moonkale daily and files [
 |---|---|---|---|
 | 2026-09-20 | [[013]] Formulas | KaTeX in the rich editor: Crepe's Latex feature on, KaTeX css + woff2 fonts as a dx **folder asset** (`asset!("/assets/katex", AssetOptions::folder())`) linked through the new `StylesheetUrl`; per-folder macros from `.moonkale/katex.json` | `rich.mjs` (render, css, fonts, macro, disk unchanged); desktop `dx build` bundles `assets/katex/` |
 | 2026-09-20 | [[012]] Wiki-links | `ext-api::wiki` (parse, resolve, complete, follow-or-create, backlinks, rename rewrite) + a ProseMirror decoration plugin (`js/milkdown/src/wiki.ts`: hidden brackets, plain click, `[[` popup) + CodeMirror marks/completion/Ctrl+click for markdown sources + **Create** in the Links panel + `rename_node` rewriting links in every linking file | `wiki.mjs` (8 steps), 2 unit tests; `rich.mjs` adapted |
+| 2026-09-20 | [[015]] Close folder | `Workspace::close_source` (documents + derived index, refuses while unsaved, flushes history, leaves presence), `Command::CloseFolder` / `workspace.closeFolder`, File menu, Explorer root context menu; `reopen_last` user setting | `files.mjs` step |
+| 2026-09-20 | [[014]] Word wrap | `editor.wrap` user setting; toolbar **Wrap**, **Alt+Z** (`editor.toggleWrap`), Settings → Editor; live in every open editor via a CodeMirror compartment | `highlight.mjs` step |
+| 2026-09-20 | search hardening (no spec: "the search function isn't working") | HTTP providers get a 10 s connect timeout and embeddings a 20 s request timeout; the query embedding in `IndexSource::run_search` has a 3 s budget and falls back to keyword-only — a stalled embedding call no longer hangs a search | native tests; desktop build |
 | 2026-09-20 | [[010]] Highlighting | grammars in the CodeMirror bundle (decision P-093): 12 Lezer + 5 legacy modes, folding, bracket matching, `Mod-/`; `language_hint` extended to the whole core list; LSP discovery for clangd, nil/nixd, taplo, tinymist, LanguageServer.jl, JSON/YAML/GraphQL servers | `highlight.mjs`; `lsp.mjs`/`lsp2.mjs` made token-aware |
 
 ## Numbers
@@ -23,4 +26,4 @@ After Milestone 9 the work changed shape: Daniel uses Moonkale daily and files [
 - Test selectors: `:visible` is Playwright-only and invalid inside `page.evaluate`; hidden bracket spans share the link class, so tests select `.mk-wikilink:not(.mk-wiki-bracket)`; with highlighting a CodeMirror line is many text nodes, so XPath lookups walk the line's text nodes.
 
 ## Open (from the specifications folder)
-[[006]] Android pinch/rotate, [[007]] Android app name + icon, [[008]] image viewer, [[009]] activity bar/menus/source icons, [[011]] closeable panels; deferred parts of 012 (hover preview, embeds).
+[[006]] Android pinch/rotate, [[007]] Android app name + icon, [[008]] image viewer, [[009]] activity bar/menus/source icons, [[011]] closeable panels; deferred parts of 012 (hover preview, embeds). Open question: whether the search stall was the embedding call (fixed) or something else Daniel sees.

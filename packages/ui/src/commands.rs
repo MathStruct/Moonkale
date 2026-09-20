@@ -37,6 +37,10 @@ fn builtins() -> Vec<(CommandContribution, Command)> {
             c("workspace.openFolder", "File: Open Folder…").key("Ctrl+O"),
             Command::OpenFolder,
         ),
+        (
+            c("workspace.closeFolder", "File: Close Folder"),
+            Command::CloseFolder,
+        ),
         (c("file.save", "File: Save").key("Ctrl+S"), Command::Save),
         (
             c("editor.close", "File: Close Editor").key("Ctrl+W"),

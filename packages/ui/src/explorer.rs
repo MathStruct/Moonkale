@@ -501,6 +501,19 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
                     ws.dispatch(Command::NewTerminal);
                 }, "Open in Terminal" }
             }
+            if is_root {
+                // Spec 015: a source can be closed again.
+                button { class: "mk-ctx-item", role: "menuitem", onclick: {
+                    let id = node.source.clone();
+                    move |_| {
+                        state.menu.set(None);
+                        let id = id.clone();
+                        dioxus::core::spawn_forever(async move {
+                            let _ = ws.close_source(&id).await;
+                        });
+                    }
+                }, "Close Folder" }
+            }
         }
     }
 }

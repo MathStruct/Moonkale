@@ -177,6 +177,13 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         "Use embeddings when an embedding model is configured (applies to folders opened afterwards)"
                     }
 
+                    h3 { "Editor" }
+                    label { class: "mk-settings-check",
+                        input { r#type: "checkbox", checked: settings.editor.wrap,
+                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.editor.wrap = Some(v))); } }
+                        "Wrap long lines in the code editor (Alt+Z toggles)"
+                    }
+
                     h3 { "Terminal" }
                     label { "Shell"
                         input { class: "mk-input", value: "{settings.terminal.shell.clone().unwrap_or_default()}", placeholder: "$SHELL",

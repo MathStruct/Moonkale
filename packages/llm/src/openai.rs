@@ -32,7 +32,7 @@ impl OpenAi {
             model,
             embed_model,
             ollama_host: None,
-            client: reqwest::Client::new(),
+            client: crate::http_client(),
         }
     }
 
@@ -308,7 +308,12 @@ impl Provider for OpenAi {
         };
         let native = self.ollama_host.is_some();
         Box::pin(async move {
-            let mut req = client.post(url).json(&body);
+            // Embeddings are one short round trip; a stalled one must not
+            // hang a search (the query embedding is awaited inline).
+            let mut req = client
+                .post(url)
+                .timeout(std::time::Duration::from_secs(20))
+                .json(&body);
             if let Some(k) = key {
                 req = req.bearer_auth(k);
             }

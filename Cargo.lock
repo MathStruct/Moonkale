@@ -5319,6 +5319,7 @@ dependencies = [
  "regex",
  "tempfile",
  "tokio",
+ "tracing",
  "tree-sitter",
  "tree-sitter-rust",
 ]

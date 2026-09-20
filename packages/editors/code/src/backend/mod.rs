@@ -66,6 +66,8 @@ pub trait CodeEditorBackend {
     fn set_cursor(&self, line: u32, col: u32);
     /// `[[link]]` spans and whether they resolve (spec 012).
     fn set_wiki_links(&self, marks: &[WikiMark]);
+    /// Soft-wrap long lines (spec 014).
+    fn set_wrap(&self, wrap: bool);
 }
 
 /// How the panel mounts a backend. `element_id` is the id of the host `div`;
@@ -76,9 +78,10 @@ pub fn mount(
     element_id: String,
     initial: String,
     language: Option<String>,
+    wrap: bool,
     on_event: Callback<BackendEvent>,
 ) -> Box<dyn CodeEditorBackend> {
     Box::new(codemirror::CodeMirrorBackend::mount(
-        element_id, initial, language, on_event,
+        element_id, initial, language, wrap, on_event,
     ))
 }

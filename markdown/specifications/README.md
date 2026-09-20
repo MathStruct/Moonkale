@@ -19,3 +19,5 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[011]] | Every panel closeable (×), reopen via activity bar / View menu; empty tiles collapse | open |
 | [[012]] | `[[wiki-links]]` like in Obsidian: rendered, clickable, `[[` completion, create-on-click, rename rewrites (embeds + hover preview deferred) | done |
 | [[013]] | Formulas (KaTeX) in the rich editor, with per-folder macros | done |
+| [[014]] | Word wrap in the code editor: `editor.wrap`, toolbar button, Alt+Z, Settings → Editor | done |
+| [[015]] | Close an open folder: Explorer context menu, File menu, palette; refuses while unsaved; no reopen on next start | done |

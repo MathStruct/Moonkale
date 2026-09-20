@@ -21,6 +21,7 @@ enum ToJs<'a> {
     Init {
         text: &'a str,
         language: Option<&'a str>,
+        wrap: bool,
     },
     SetText {
         text: &'a str,
@@ -49,6 +50,9 @@ enum ToJs<'a> {
     },
     SetWikiLinks {
         marks: &'a [super::WikiMark],
+    },
+    SetWrap {
+        wrap: bool,
     },
 }
 
@@ -138,6 +142,7 @@ cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
     onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }),
     onWikiLink: (target) => dioxus.send({ kind: "wikiLink", target }),
     language: init.language || null,
+    wrap: !!init.wrap,
 });
 dioxus.send({ kind: "ready" });
 for (;;) {
@@ -152,6 +157,7 @@ for (;;) {
     else if (msg.kind === "setPresence") cm.setPresence(el, msg.marks);
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
     else if (msg.kind === "setWikiLinks") cm.setWikiLinks(el, msg.marks);
+    else if (msg.kind === "setWrap") cm.setWrap(el, msg.wrap);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
 "#;
@@ -165,6 +171,7 @@ impl CodeMirrorBackend {
         element_id: String,
         initial: String,
         language: Option<String>,
+        wrap: bool,
         on_event: Callback<BackendEvent>,
     ) -> Self {
         let script = SCRIPT.replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap());
@@ -173,6 +180,7 @@ impl CodeMirrorBackend {
         let _ = eval.send(ToJs::Init {
             text: &initial,
             language: language.as_deref(),
+            wrap,
         });
 
         let mut rx = eval;
@@ -281,6 +289,10 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn set_wiki_links(&self, marks: &[super::WikiMark]) {
         let _ = self.eval.send(ToJs::SetWikiLinks { marks });
+    }
+
+    fn set_wrap(&self, wrap: bool) {
+        let _ = self.eval.send(ToJs::SetWrap { wrap });
     }
 }
 

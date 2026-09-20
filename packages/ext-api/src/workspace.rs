@@ -171,6 +171,9 @@ pub struct ForeignDrag {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
     OpenFolder,
+    /// Close the first folder source (spec 015); the Explorer's context
+    /// menu closes a specific one through `Workspace::close_source`.
+    CloseFolder,
     Save,
     CloseEditor,
     Undo,
@@ -430,6 +433,73 @@ impl Workspace {
     }
 
     /// Open a source another window already has (no-op if we have it).
+    /// Close a source (spec 015): its documents go (unsaved ones block the
+    /// close with a status message), derived sources over it (the index)
+    /// go with it, and its workspace state is left on disk. Closing the
+    /// folder the workspace settings belong to also drops the history log
+    /// and the presence room; nothing is reopened on the next start.
+    pub async fn close_source(mut self, id: &SourceId) -> Result<(), SourceError> {
+        let Some(handle) = self
+            .sources
+            .peek()
+            .iter()
+            .find(|s| &s.descriptor.id == id)
+            .cloned()
+        else {
+            return Err(SourceError::NotFound);
+        };
+        // Everything derived from this source closes too.
+        let derived: Vec<SourceId> = self
+            .sources
+            .peek()
+            .iter()
+            .filter(|s| {
+                s.descriptor
+                    .id
+                    .as_str()
+                    .ends_with(&format!(":{}", id.as_str()))
+                    && s.descriptor.family == moonkale_core::SourceFamily::Index
+            })
+            .map(|s| s.descriptor.id.clone())
+            .collect();
+        let closing: Vec<SourceId> = std::iter::once(id.clone()).chain(derived).collect();
+        let docs: Vec<(NodeId, bool)> = self
+            .documents
+            .peek()
+            .iter()
+            .filter(|(_, d)| closing.contains(&d.peek().node.source))
+            .map(|(n, d)| (*n, d.peek().dirty()))
+            .collect();
+        let dirty = docs.iter().filter(|(_, d)| *d).count();
+        if dirty > 0 {
+            self.set_status(format!(
+                "{}: save or reload {dirty} unsaved document(s) before closing it",
+                handle.descriptor.display_name
+            ));
+            return Err(SourceError::Invalid(format!("{dirty} unsaved document(s)")));
+        }
+        for (n, _) in docs {
+            self.close_node(n);
+        }
+        if self.settings_folder.peek().as_ref() == Some(id) {
+            self.persist_history().await;
+            self.history.set(moonkale_core::EntityLog::new());
+            self.settings_workspace
+                .set(crate::settings::SettingsFile::new());
+            self.settings_folder.set(None);
+            self.presence_link.set(None);
+            self.presence.set(Vec::new());
+            self.resolve_settings();
+        }
+        self.sources
+            .with_mut(|v| v.retain(|s| !closing.contains(&s.descriptor.id)));
+        self.graph_epoch.with_mut(|e| *e += 1);
+        self.update_user_settings(|f| f.reopen_last = Some(false))
+            .await;
+        self.set_status(format!("Closed {}", handle.descriptor.display_name));
+        Ok(())
+    }
+
     pub async fn attach_source(mut self, descriptor: SourceDescriptor) -> Result<(), SourceError> {
         if self.source(&descriptor.id).is_some() {
             return Ok(());
@@ -705,7 +775,10 @@ impl Workspace {
         }
         self.refresh_wasm_extensions().await;
         // Desktop: come back to where you were.
-        if self.config.reopen_last_folder && self.sources.peek().is_empty() {
+        if self.config.reopen_last_folder
+            && self.sources.peek().is_empty()
+            && self.settings_user.peek().reopen_last != Some(false)
+        {
             let last = self.settings.peek().recent_folders.first().cloned();
             if let Some(path) = last {
                 tracing::info!("settings: reopening last folder {path}");
@@ -1277,7 +1350,11 @@ impl Workspace {
                 .strip_prefix("folder:")
                 .unwrap_or(first.id.as_str())
                 .to_string();
-            self.update_user_settings(|f| f.push_recent(&path)).await;
+            self.update_user_settings(|f| {
+                f.push_recent(&path);
+                f.reopen_last = Some(true);
+            })
+            .await;
         }
         Ok(first)
     }

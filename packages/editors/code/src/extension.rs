@@ -83,4 +83,24 @@ impl Extension for CodeEditorExtension {
             ws.close_node(node);
         }
     }
+
+    fn commands(&self, _ws: Workspace) -> Vec<CommandContribution> {
+        vec![CommandContribution::new("editor.toggleWrap", "View: Toggle Word Wrap").key("Alt+Z")]
+    }
+
+    fn run_command(&self, id: &str, ws: Workspace) {
+        if id == "editor.toggleWrap" {
+            toggle_wrap(ws);
+        }
+    }
+}
+
+/// Flip `editor.wrap` in the user settings (spec 014); every open editor
+/// follows through its settings effect.
+pub fn toggle_wrap(ws: Workspace) {
+    let next = !ws.settings.peek().editor.wrap;
+    dioxus::core::spawn_forever(async move {
+        ws.update_user_settings(|f| f.editor.wrap = Some(next))
+            .await;
+    });
 }

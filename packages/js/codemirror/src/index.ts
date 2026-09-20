@@ -8,7 +8,7 @@ import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from "@codemirror/language"
 import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
-import { EditorState, StateEffect, StateField, RangeSet } from "@codemirror/state"
+import { EditorState, StateEffect, StateField, RangeSet, Compartment } from "@codemirror/state"
 import { gutter, GutterMarker, Decoration, type DecorationSet } from "@codemirror/view"
 import {
   EditorView,
@@ -48,6 +48,8 @@ type Features = {
   onWikiLink?: (target: string) => void
   /** Spec 010: Rust's language id for the document; picks the grammar. */
   language?: string | null
+  /** Spec 014: soft-wrap long lines (changed later with `setWrap`). */
+  wrap?: boolean
 }
 /** A `[[link]]` span in UTF-16 offsets, resolved or not (Rust computes both). */
 export type WikiSpan = { from: number; to: number; resolved: boolean }
@@ -55,6 +57,7 @@ export type PresenceMark = { line: number; label: string }
 export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
 type Entry = {
   view: EditorView
+  wrap: Compartment
   pendingHover: Map<number, (text: string | null) => void>
   nextHover: number
   pendingCompletion: Map<number, (items: CompletionItem[] | null) => void>
@@ -135,7 +138,7 @@ function cmPos(view: EditorView, line: number, col: number): number {
 
 function mount(el: HTMLElement, text: string, onChange: OnChange, features: Features = {}): void {
   destroy(el)
-  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map() }
+  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment() }
   const hover = hoverTooltip(async (v, pos) => {
     if (!features.onHover) return null
     const { line, col } = lspPos(v, pos)
@@ -246,6 +249,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
       extensions: [
         presenceGutter,
         cursorWatch,
+        entry.wrap!.of(features.wrap ? EditorView.lineWrapping : []),
         ...(languageExtension(features.language) ? [languageExtension(features.language)!, foldGutter(), bracketMatching(), indentOnInput(), keymap.of([...foldKeymap, { key: "Mod-/", run: toggleComment }])] : []),
         lineNumbers(),
         highlightActiveLineGutter(),
@@ -292,6 +296,12 @@ function setLspDiagnostics(el: HTMLElement, items: { line: number; col: number; 
     message: d.message,
   }))
   e.view.dispatch(setDiagnostics(e.view.state, diags))
+}
+
+/** Soft wrap on/off (spec 014). */
+function setWrap(el: HTMLElement, wrap: boolean): void {
+  const e = views.get(el)
+  if (e) e.view.dispatch({ effects: e.wrap.reconfigure(wrap ? EditorView.lineWrapping : []) })
 }
 
 /** `[[link]]` spans and whether they resolve (spec 012). */
@@ -379,4 +389,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap }

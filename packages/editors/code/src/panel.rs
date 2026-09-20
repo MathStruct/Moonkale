@@ -233,10 +233,12 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 });
             }
             let language = doc.peek().node.language_hint().map(str::to_string);
+            let wrap = ws.settings.peek().editor.wrap;
             backend.set(Some(backend::mount(
                 element_id.clone(),
                 initial,
                 language,
+                wrap,
                 on_event,
             )));
         }
@@ -267,6 +269,18 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             if let Some(b) = backend.peek().as_ref() {
                 b.set_cursor(r.line, r.col);
                 applied.set(r.seq);
+            }
+        });
+    }
+    // Word wrap follows the user setting (spec 014).
+    {
+        use_effect(move || {
+            let wrap = ws.settings.read().editor.wrap;
+            if !ready() {
+                return;
+            }
+            if let Some(b) = backend.peek().as_ref() {
+                b.set_wrap(wrap);
             }
         });
     }
@@ -467,6 +481,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let dirty = d.dirty();
     let title = d.node.native_key.clone();
     let lang = d.node.language_hint().unwrap_or("plain text");
+    let wrap_on = ws.settings.read().editor.wrap;
     let version = d.version;
     drop(d);
 
@@ -489,6 +504,12 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 if dirty { span { class: "mk-editor-dirty", title: "Unsaved changes", "●" } }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", "{lang} · {version}" }
+                button {
+                    class: if wrap_on { "mk-btn mk-btn-on" } else { "mk-btn" },
+                    title: "Wrap long lines (Alt+Z)",
+                    onclick: move |_| crate::extension::toggle_wrap(ws),
+                    "Wrap"
+                }
                 button { class: "mk-btn", disabled: !dirty, onclick: save, "Save" }
                 button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
             }
