@@ -29,7 +29,7 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | | |
 |---|---|
 | [[Home\|Vault home]] | full map of contents |
-| Architecture | [[Overview]] · [[Platform Matrix]] · [[Data Sources]] · [[Projects and Sources]] · [[Julia and Lenticulum]] · [[Publishing Sources]] · [[Annotations]] · [[Indexing]] · [[Extension System]] · [[JS Interop Boundary]] · [[JavaScript Inventory]] · [[LLM and RAG]] · [[LSP and Terminal]] · [[Debugging and Logging]] · [[Version Management]] · [[Collaboration]] |
+| Architecture | [[Overview]] · [[Platform Matrix]] · [[Data Sources]] · [[Projects and Sources]] · [[Julia and Lenticulum]] · [[Publishing Sources]] · [[Remote and Server Modes]] · [[Annotations]] · [[Indexing]] · [[Extension System]] · [[JS Interop Boundary]] · [[JavaScript Inventory]] · [[LLM and RAG]] · [[LSP and Terminal]] · [[Debugging and Logging]] · [[Version Management]] · [[Collaboration]] |
 | Editors | [[Code Editor]] · [[Markdown and Typst Editor]] · [[Table Editor]] · [[Graph View]] · [[Flow Editor]] · [[Terminal]] · [[Unicode Input]] · [[Case Selector]] · [[Markdown Diagrams and Math]] · [[Notebook Editor]] |
 | Extensions | [[Extension Catalogue]] · [[Writing an Extension]] · [[Contribution Points]] · [[Manifest Reference]] · [[Host API Reference]] · [[Claude Code Extension]] |
 | Decisions | [[ADR-0001 Dioxus instead of Lumino and Tauri]] … [[ADR-0011 Desktop graph surface strategy]] |

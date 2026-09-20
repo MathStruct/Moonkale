@@ -103,6 +103,8 @@ The project opens with whatever succeeded; the report is a notice in the status 
 - `Capabilities.write` *(exists)*; a `read_only` override is one field on the handle, checked where `Op`s are applied *(exists)* and in the agent policy *(exists)*.
 - Presence rooms are per folder id *(exists)* — per source id after this, unchanged in spirit.
 
+The remote-folder source, the desktop as a client of a server, and what each means for credentials and isolation: [[Remote and Server Modes]].
+
 ## Open questions (to decide in the implementation plan)
 1. Does the Default project write layout to the folder forever, or migrate once a second project exists? (Leaning: write both while Default is the only project.)
 2. Remote folders: start the remote server by SSH (`ssh host moonkale --server --stdio`) or require it to run already? Zed starts it and installs the binary if missing; that is the better experience and the bigger job.

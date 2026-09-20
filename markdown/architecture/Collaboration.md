@@ -71,3 +71,6 @@ Two people typing in the same document need more than versions: a **text CRDT** 
 - Presence for the [[Graph View]]: show other users' viewports/selections on the graph? Probably yes, same channel.
 - Should agents publish presence ("agent X is reading main.rs")? Useful for trust; cheap.
 - Hub scale: one Axum task per room with a broadcast channel is enough for teams; beyond that, a message broker.
+
+## Where a shared server stands (2026-09-20)
+Modes, what exists and the security model for several people on one server (accounts, roles, the terminal): [[Remote and Server Modes]].
