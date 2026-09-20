@@ -151,6 +151,25 @@ try {
     if (Math.abs(c3[3] - c2[3]) < 0.5) throw new Error("rotation did not orbit");
     if (Math.abs(c3[5] - c2[5]) > c2[5] * 0.05) throw new Error("a pure rotation changed the distance");
   });
+  await step("a reload with the same nodes keeps positions and camera (spec 017): zoom, then change the active document", async () => {
+    if ((await info()).mode === "3d") await page.click("button:has-text('3D')");
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
+    await sleep(300);
+    const box = await page.$eval(".mk-graph-overlay", (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await page.mouse.move(box.x, box.y);
+    await page.mouse.wheel(0, -300);
+    await sleep(200);
+    const cam = () => page.evaluate(() => Array.from(Object.values(window.moonkale.graphViews)[0].camera_state()));
+    const before = await cam();
+    // Opening a document changes `ws.active`, which reloads the graph.
+    await page.click(".mk-tree-file >> text=Alpha.md");
+    await page.waitForSelector(".cm-content, .mk-rich-host", { timeout: 15000 });
+    await page.click(".wb-tab:has-text('Graph')");
+    await sleep(1500);
+    const after = await cam();
+    console.log("\n  camera before:", before.slice(0, 3).map((v) => v.toFixed(2)).join(","), "after:", after.slice(0, 3).map((v) => v.toFixed(2)).join(","));
+    if (Math.abs(after[0] - before[0]) > 1e-3 || Math.abs(after[1] - before[1]) > 1 || Math.abs(after[2] - before[2]) > 1) throw new Error("the reload reset the camera");
+  });
   console.log("GRAPH3D E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

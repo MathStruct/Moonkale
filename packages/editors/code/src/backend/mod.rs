@@ -14,6 +14,9 @@ pub mod codemirror;
 pub enum BackendEvent {
     /// The view is mounted and showing the initial text.
     Ready,
+    /// The view could not be created (a JavaScript error while mounting);
+    /// the panel shows the message instead of waiting forever (spec 016).
+    Failed(String),
     /// The document changed; the whole text (Milestone 1).
     Changed(String),
     /// The view wants hover text at an LSP position; answer with `hover_result`.

@@ -178,11 +178,100 @@ pub async fn create(
 
 #[wasm_bindgen]
 impl GraphView {
+    /// Replace the graph. When the new graph shares nodes with the current
+    /// one (a reload after a save, a focus change, a resize of the panel —
+    /// spec 017), those nodes keep their positions and pins, only new nodes
+    /// are placed (next to their neighbours), the layout is warmed rather
+    /// than restarted, and the camera is left alone. A graph with nothing
+    /// in common starts fresh, as before.
     pub fn set_graph(&self, json: &str) -> Result<(), JsValue> {
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
-        s.graph = Graph::from_input(input);
+        let mut next = Graph::from_input(input);
+        let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
+            .graph
+            .nodes
+            .iter()
+            .map(|n| (n.id.clone(), (n.x, n.y, n.z, n.pinned)))
+            .collect();
+        let shared = next
+            .nodes
+            .iter()
+            .filter(|n| old.contains_key(&n.id))
+            .count();
+        let incremental = !old.is_empty() && shared * 2 >= next.nodes.len().max(1);
+        if incremental {
+            // Known nodes stay put; new ones start at the mean of their known
+            // neighbours (or where the spiral put them) with a nudge so two
+            // new siblings do not coincide.
+            let known: Vec<bool> = next.nodes.iter().map(|n| old.contains_key(&n.id)).collect();
+            let mut placed: Vec<Option<(f32, f32, f32)>> = vec![None; next.nodes.len()];
+            for (i, n) in next.nodes.iter().enumerate() {
+                if let Some(&(x, y, z, _)) = old.get(&n.id) {
+                    placed[i] = Some((x, y, z));
+                }
+            }
+            for (i, n) in next.nodes.iter().enumerate() {
+                if known[i] {
+                    continue;
+                }
+                let mut acc = (0.0f32, 0.0f32, 0.0f32);
+                let mut count = 0.0f32;
+                for e in &next.edges {
+                    let other = if e.a == i {
+                        e.b
+                    } else if e.b == i {
+                        e.a
+                    } else {
+                        continue;
+                    };
+                    if let Some((x, y, z)) = placed[other] {
+                        acc.0 += x;
+                        acc.1 += y;
+                        acc.2 += z;
+                        count += 1.0;
+                    }
+                }
+                if count > 0.0 {
+                    let t = i as f32 * 2.399_963;
+                    placed[i] = Some((
+                        acc.0 / count + 18.0 * t.cos(),
+                        acc.1 / count + 18.0 * t.sin(),
+                        n.z,
+                    ));
+                }
+            }
+            let mut changed = next.nodes.len() != old.len();
+            for (i, n) in next.nodes.iter_mut().enumerate() {
+                match placed[i] {
+                    Some((x, y, z)) => {
+                        n.x = x;
+                        n.y = y;
+                        n.z = z;
+                        if let Some(&(_, _, _, pinned)) = old.get(&n.id) {
+                            n.pinned = pinned;
+                        }
+                    }
+                    None => changed = true,
+                }
+                if !known[i] {
+                    changed = true;
+                }
+            }
+            let same_edges = next.edges.len() == s.graph.edges.len();
+            s.graph = next;
+            if changed || !same_edges {
+                // Warm, not hot: known nodes drift a little, new ones settle in.
+                let mut l = Layout::new(&s.graph);
+                l.temperature = 3.0;
+                s.layout = l;
+            }
+            s.hovered = None;
+            s.dirty = true;
+            return Ok(());
+        }
+        s.graph = next;
         s.layout = Layout::new(&s.graph);
         s.hovered = None;
         s.auto_fit = true;

@@ -26,8 +26,19 @@ import { typst_lezer } from "codemirror-lang-typst/lezer"
 
 const stream = (spec: Parameters<typeof StreamLanguage.define>[0]) => new LanguageSupport(StreamLanguage.define(spec))
 
-/** Language id (Rust's `language_hint`) → extension, or `null` for plain text. */
+/** Language id (Rust's `language_hint`) → extension, or `null` for plain text.
+ *  A grammar that throws while being set up degrades to plain text rather
+ *  than taking the whole editor down (spec 016). */
 export function languageExtension(id: string | null | undefined): Extension | null {
+  try {
+    return pick(id)
+  } catch (e) {
+    console.error(`codemirror: grammar for ${id} failed, plain text instead:`, e)
+    return null
+  }
+}
+
+function pick(id: string | null | undefined): Extension | null {
   switch (id) {
     case "rust": return rust()
     case "javascript": return javascript({ jsx: true })

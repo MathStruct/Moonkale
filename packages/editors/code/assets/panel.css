@@ -55,3 +55,5 @@
 /* [[wiki-links]] in markdown sources (spec 012): Ctrl/Cmd+click follows. */
 .cm-wikilink { color: #4fb3e8; text-decoration: underline; text-decoration-color: rgba(79, 179, 232, 0.45); text-underline-offset: 2px; }
 .cm-wikilink-unresolved { color: #9aa0aa; text-decoration-style: dashed; }
+.mk-editor-failed { padding: 16px; color: var(--wb-ink, #e6e8ee); }
+.mk-editor-failed pre { white-space: pre-wrap; font-size: 12px; color: #ff7b7b; background: #1b1e25; padding: 8px; border-radius: 6px; }

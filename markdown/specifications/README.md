@@ -21,3 +21,5 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[013]] | Formulas (KaTeX) in the rich editor, with per-folder macros | done |
 | [[014]] | Word wrap in the code editor: `editor.wrap`, toolbar button, Alt+Z, Settings → Editor | done |
 | [[015]] | Close an open folder: Explorer context menu, File menu, palette; refuses while unsaved; no reopen on next start | done |
+| [[016]] | A `.jl` file stays at "Loading editor…" on desktop — the editor mounted from an effect (P-047 family); now `onmounted`, and mount failures are shown | done |
+| [[017]] | Graph view reset on resize / focus change — `set_graph` is incremental now (positions, pins and camera survive reloads) | done |

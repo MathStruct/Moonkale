@@ -124,6 +124,9 @@ enum FromJs {
     WikiLink {
         target: String,
     },
+    Error {
+        message: String,
+    },
 }
 
 const SCRIPT: &str = r#"
@@ -134,6 +137,7 @@ while (!(window.moonkale && window.moonkale.codemirror)) {
 }
 const cm = window.moonkale.codemirror;
 const init = await dioxus.recv();
+try {
 cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
     onHover: (id, line, col) => dioxus.send({ kind: "hover", id, line, col }),
     onDefinition: (line, col) => dioxus.send({ kind: "definition", line, col }),
@@ -147,6 +151,11 @@ cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
     language: init.language || null,
     wrap: !!init.wrap,
 });
+} catch (e) {
+    // A failing mount must never leave "Loading editor…" on screen (spec 016).
+    dioxus.send({ kind: "error", message: String(e && e.stack ? e.stack : e) });
+    for (;;) { const m = await dioxus.recv(); if (m.kind === "destroy") return; }
+}
 dioxus.send({ kind: "ready" });
 for (;;) {
     const msg = await dioxus.recv();
@@ -227,6 +236,10 @@ impl CodeMirrorBackend {
                     }
                     Ok(FromJs::WikiLink { target }) => {
                         on_event.call(BackendEvent::WikiLink { target })
+                    }
+                    Ok(FromJs::Error { message }) => {
+                        tracing::error!("codemirror: mount failed: {message}");
+                        on_event.call(BackendEvent::Failed(message));
                     }
                     Err(dioxus::document::EvalError::Serialization(e)) => {
                         tracing::warn!("codemirror bridge: unreadable message: {e}");

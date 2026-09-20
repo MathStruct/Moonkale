@@ -38,6 +38,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mut lsp_session: Signal<Option<moonkale_lsp::LspSession>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut last_error: Signal<Option<SourceError>> = use_signal(|| None);
+    // The view's JavaScript failed to mount (spec 016): shown in place of the editor.
+    let mut mount_error: Signal<Option<String>> = use_signal(|| None);
     // Milestone 7: an F2 rename prompt, offered code actions, references.
     let mut rename_prompt: Signal<Option<(u32, u32, String)>> = use_signal(|| None);
     let mut actions: Signal<Option<Vec<moonkale_lsp::CodeAction>>> = use_signal(|| None);
@@ -46,12 +48,15 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
     let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
 
-    // Mount the backend once the host element exists (after first render).
-    use_effect({
+    // Mount the backend from the host element's `onmounted` — not an effect:
+    // on desktop the DOM mutation reaches the webview asynchronously, so an
+    // eval started from an effect can run before the element exists and
+    // return silently, leaving "Loading editor…" forever (P-047, spec 016).
+    let mount = {
         let element_id = element_id.clone();
         let lsp_ident = lsp_ident.clone();
-        move || {
-            if backend.read().is_some() {
+        move |_: MountedEvent| {
+            if backend.peek().is_some() {
                 return;
             }
             let initial = doc.peek().text.clone();
@@ -59,6 +64,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             let element_id_for_events = element_id.clone();
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
                 BackendEvent::Ready => ready.set(true),
+                BackendEvent::Failed(message) => mount_error.set(Some(message)),
                 BackendEvent::Changed(text) => {
                     view_text.set(text.clone());
                     doc.with_mut(|d| d.text = text.clone());
@@ -242,7 +248,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 on_event,
             )));
         }
-    });
+    };
 
     // Text changed outside the view (an agent edit, a reload): push it.
     use_effect(move || {
@@ -597,8 +603,15 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     }
                 }
             }
-            div { id: "{element_id}", class: "mk-editor-host",
-                if !ready() { div { class: "mk-editor-loading", "Loading editor…" } }
+            div { id: "{element_id}", class: "mk-editor-host", onmounted: mount,
+                if let Some(err) = mount_error() {
+                    div { class: "mk-editor-failed",
+                        p { b { "The editor could not start." } " This is a bug — please report it with the message below (the file itself is fine; Reload retries)." }
+                        pre { "{err}" }
+                    }
+                } else if !ready() {
+                    div { class: "mk-editor-loading", "Loading editor…" }
+                }
             }
         }
     }
