@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Thin Milkdown (Crepe) wrapper for Moonkale's rich markdown mode. Builds into packages/editors/markdown/assets/milkdown.{js,css}.",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --loader:.woff2=empty --loader:.woff=empty --loader:.ttf=empty --outfile=../../editors/markdown/assets/milkdown.js",
+    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --loader:.woff2=empty --loader:.woff=empty --loader:.ttf=empty --outfile=../../editors/markdown/assets/milkdown.js && node katex-assets.mjs",
     "check": "tsc --noEmit"
   },
   "devDependencies": {
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@milkdown/crepe": "^7.22.0",
-    "@milkdown/kit": "^7.22.0"
+    "@milkdown/kit": "^7.22.0",
+    "katex": "^0.18.7"
   }
 }

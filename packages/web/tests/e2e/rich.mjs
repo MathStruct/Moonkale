@@ -36,21 +36,38 @@ try {
     if (!text.startsWith("# Home Rich")) throw new Error("markdown not saved: " + text.slice(0, 60));
     if (!text.includes("[[Alpha]]")) throw new Error("wiki-link lost in round trip: " + text);
   });
-  await step("Ctrl+click on [[Alpha]] opens Alpha.md", async () => {
-    const box = await page.evaluate(() => {
-      const walker = document.createTreeWalker(document.querySelector(".mk-rich-host .ProseMirror"), NodeFilter.SHOW_TEXT);
-      let n; while ((n = walker.nextNode())) { const i = n.textContent.indexOf("[[Alpha]]"); if (i >= 0) { const r = document.createRange(); r.setStart(n, i + 3); r.setEnd(n, i + 6); const b = r.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; } }
-      return null;
-    });
-    if (!box) throw new Error("[[Alpha]] not rendered as text");
-    // Headless Firefox drops modifier flags on page.mouse.click (P-055): dispatch the click.
-    await page.evaluate(({ x, y }) => { const t = document.elementFromPoint(x, y); t.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true, clientX: x, clientY: y })); }, box);
+  await step("click on the [[Alpha]] link opens Alpha.md (spec 012: decorated, plain click follows)", async () => {
+    await page.waitForSelector(".mk-rich-host .mk-wikilink[data-target='Alpha']:not(.mk-wiki-bracket)", { timeout: 15000 });
+    await page.click(".mk-rich-host .mk-wikilink[data-target='Alpha']:not(.mk-wiki-bracket)");
     await page.waitForFunction(() => document.querySelector(".mk-titlebar-title")?.textContent.startsWith("Alpha.md"), null, { timeout: 15000 });
   });
   await step("back to Source: CodeMirror shows the saved markdown", async () => {
     await page.click(".wb-tab:has-text('Home.md')");
     await page.click(".mk-md-modes button:has-text('Source')");
     await page.waitForFunction(() => /# Home Rich/.test(document.querySelector(".mk-md .cm-content")?.textContent || ""), null, { timeout: 15000 });
+  });
+  await step("formulas: $\\alpha$ and $$…$$ render with KaTeX, fonts load, markdown keeps the source (spec 013)", async () => {
+    fs.writeFileSync(`${ROOT}/Math.md`, "# Math\n\nInline $\\alpha + \\beta^2$ here, and a macro $\\R$.\n\n$$\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n$$\n");
+    fs.mkdirSync(`${ROOT}/.moonkale`, { recursive: true });
+    fs.writeFileSync(`${ROOT}/.moonkale/katex.json`, JSON.stringify({ macros: { "\\R": "\\mathbb{R}" } }));
+    await page.click(".mk-explorer-open button[type=submit]");
+    await page.waitForSelector(".mk-tree-file >> text=Math.md", { timeout: 15000 });
+    await page.click(".mk-tree-file >> text=Math.md");
+    await page.waitForSelector(".mk-md .cm-content:visible", { timeout: 15000 });
+    await page.click(".mk-md-modes button:has-text('Rich'):visible");
+    await page.waitForSelector(".mk-rich-host:visible .ProseMirror .katex", { timeout: 30000 });
+    const n = await page.$$eval(".mk-rich-host:visible .ProseMirror .katex", (els) => els.length);
+    const css = await page.evaluate(() => [...document.querySelectorAll("link[rel=stylesheet]")].some((l) => /katex\.min\.css/.test(l.href)));
+    const font = await page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].filter((f) => f.family.startsWith("KaTeX") && f.status === "loaded").length; });
+    const macroOk = await page.evaluate(() => [...document.querySelectorAll(".mk-rich-host .katex")].some((k) => k.textContent.includes("R") && !k.querySelector(".katex-error")));
+    console.log(`\n  katex elements: ${n}, css linked: ${css}, KaTeX fonts loaded: ${font}, macro \\R rendered: ${macroOk}`);
+    if (n < 3) throw new Error("formulas not rendered");
+    if (!macroOk) throw new Error("\\R from .moonkale/katex.json not applied");
+    if (!css) throw new Error("katex.min.css not linked");
+    if (font < 1) throw new Error("no KaTeX font loaded (fonts folder not served?)");
+    await page.screenshot({ path: `${S}/m10-katex.png` });
+    const text = fs.readFileSync(`${ROOT}/Math.md`, "utf8");
+    if (!text.includes("$\\alpha + \\beta^2$") || !text.includes("\\frac{1}{3}")) throw new Error("math source changed on disk: " + text);
   });
   console.log("\nRICH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

@@ -35,6 +35,19 @@ pub enum BackendEvent {
     References { line: u32, col: u32 },
     /// The cursor moved (throttled by the view); presence (Milestone 9).
     Cursor { line: u32, col: u32 },
+    /// `[[query` typed (spec 012); answer with `completion_result` — items
+    /// whose labels are page targets.
+    WikiQuery { id: u32, query: String },
+    /// Ctrl/Cmd+click on a `[[link]]`.
+    WikiLink { target: String },
+}
+
+/// A `[[link]]` span in UTF-16 offsets, for decorations (spec 012).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct WikiMark {
+    pub from: u32,
+    pub to: u32,
+    pub resolved: bool,
 }
 
 /// A mounted backend instance. Dropping it tears the view down.
@@ -51,16 +64,21 @@ pub trait CodeEditorBackend {
     /// Other people's positions in this document: `(line, label)`.
     fn set_presence(&self, marks: &[(u32, String)]);
     fn set_cursor(&self, line: u32, col: u32);
+    /// `[[link]]` spans and whether they resolve (spec 012).
+    fn set_wiki_links(&self, marks: &[WikiMark]);
 }
 
 /// How the panel mounts a backend. `element_id` is the id of the host `div`;
 /// `initial` is the text to show; `on_event` receives backend events.
+/// `language` is Rust's id for the document (`Node::language_hint`), which
+/// picks the grammar for highlighting (spec 010); `None` = plain text.
 pub fn mount(
     element_id: String,
     initial: String,
+    language: Option<String>,
     on_event: Callback<BackendEvent>,
 ) -> Box<dyn CodeEditorBackend> {
     Box::new(codemirror::CodeMirrorBackend::mount(
-        element_id, initial, on_event,
+        element_id, initial, language, on_event,
     ))
 }

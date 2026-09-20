@@ -5,13 +5,16 @@
 // as whole documents (like @moonkale/codemirror in its first milestone).
 
 import { Crepe } from "@milkdown/crepe"
-import { replaceAll } from "@milkdown/kit/utils"
+import { $prose, replaceAll } from "@milkdown/kit/utils"
+import { WikiState, wikiPlugin, setStatus as wikiSetStatus, complete as wikiComplete, type WikiCandidate } from "./wiki"
 import "@milkdown/crepe/theme/common/style.css"
 import "@milkdown/crepe/theme/frame-dark.css"
 
 type OnChange = (markdown: string) => void
 type OnWikiLink = (target: string) => void
-type Entry = { crepe: Crepe; suppress: boolean; last: string }
+type OnWikiQuery = (id: number, query: string) => void
+type MountOptions = { katexMacros?: Record<string, string>; onWikiQuery?: OnWikiQuery }
+type Entry = { crepe: Crepe; suppress: boolean; last: string; wiki: WikiState }
 
 const views = new WeakMap<HTMLElement, Entry>()
 
@@ -20,19 +23,29 @@ function unescapeWiki(md: string): string {
   return md.replace(/\\\[\\\[/g, "[[").replace(/\\\]\\\]/g, "]]").replace(/\[\[([^\]\n]*?)\\\]\]/g, "[[$1]]")
 }
 
-async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWikiLink?: OnWikiLink): Promise<void> {
+async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWikiLink?: OnWikiLink, opts: MountOptions = {}): Promise<void> {
   destroy(el)
-  const entry: Entry = { crepe: undefined as unknown as Crepe, suppress: false, last: markdown }
+  const entry: Entry = { crepe: undefined as unknown as Crepe, suppress: false, last: markdown, wiki: new WikiState() }
   const crepe = new Crepe({
     root: el,
     defaultValue: markdown,
     features: {
-      // Keep the surface small: no image upload UI, no LaTeX.
+      // No image upload UI (pictures are spec 008). LaTeX on: inline `$…$`
+      // and block `$$…$$` render with KaTeX; its CSS + fonts are the
+      // `assets/katex/` folder that Rust links (spec 013).
       [Crepe.Feature.ImageBlock]: false,
-      [Crepe.Feature.Latex]: false,
+      [Crepe.Feature.Latex]: true,
+    },
+    featureConfigs: {
+      [Crepe.Feature.Latex]: { katexOptions: { throwOnError: false, macros: { ...(opts.katexMacros ?? {}) } } },
     },
   })
   entry.crepe = crepe
+  // [[wiki-links]]: decorations, click-to-follow, `[[` completion (spec 012).
+  crepe.editor.use($prose(() => wikiPlugin(entry.wiki, el, {
+    onFollow: (target) => onWikiLink?.(target),
+    onQuery: (id, query) => opts.onWikiQuery?.(id, query),
+  })))
   crepe.on((listener) => {
     listener.markdownUpdated((_ctx, raw, prev) => {
       if (entry.suppress || raw === prev) return
@@ -44,32 +57,6 @@ async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWi
   })
   await crepe.create()
   views.set(el, entry)
-  // Ctrl/Cmd+click on a [[wiki-link]]: find the brackets around the caret.
-  el.addEventListener("click", (e) => {
-    if (!(e.ctrlKey || e.metaKey) || !onWikiLink) return
-    const target = wikiLinkAt(e.clientX, e.clientY)
-    if (target) { e.preventDefault(); onWikiLink(target) }
-  })
-}
-
-function wikiLinkAt(x: number, y: number): string | null {
-  const doc = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null }
-  let node: Node | null = null
-  let offset = 0
-  if (doc.caretPositionFromPoint) {
-    const p = doc.caretPositionFromPoint(x, y)
-    if (p) { node = p.offsetNode; offset = p.offset }
-  } else if (document.caretRangeFromPoint) {
-    const r = document.caretRangeFromPoint(x, y)
-    if (r) { node = r.startContainer; offset = r.startOffset }
-  }
-  if (!node || node.nodeType !== Node.TEXT_NODE) return null
-  const text = node.textContent ?? ""
-  const open = text.lastIndexOf("[[", offset)
-  const close = text.indexOf("]]", open + 2)
-  if (open < 0 || close < 0 || offset > close + 2) return null
-  const inner = text.slice(open + 2, close)
-  return inner.split("|")[0].split("#")[0].trim() || null
 }
 
 /** Replace the document (reload / revert / switched from source mode). */
@@ -97,4 +84,16 @@ function destroy(el: HTMLElement): void {
 
 declare global { interface Window { moonkale?: Record<string, unknown> } }
 window.moonkale = window.moonkale ?? {}
-window.moonkale.milkdown = { mount, setText, getText, focus, destroy }
+/** Rust → view: which `[[targets]]` resolve (decoration classes). */
+function setWikiStatus(el: HTMLElement, entries: { target: string; resolved: boolean }[]): void {
+  const e = views.get(el)
+  if (e) wikiSetStatus(e.wiki, entries)
+}
+
+/** Rust → view: the answer to `onWikiQuery(id, …)`. */
+function wikiCandidates(el: HTMLElement, id: number, items: WikiCandidate[]): void {
+  const e = views.get(el)
+  if (e) wikiComplete(e.wiki, el, id, items)
+}
+
+window.moonkale.milkdown = { mount, setText, getText, focus, destroy, setWikiStatus, wikiCandidates }

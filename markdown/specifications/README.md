@@ -15,7 +15,7 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[007]] | Android app is called "Mobile" and has no logo — the release build should have the right name and icon | open |
 | [[008]] | View png/jpg/svg inside Moonkale | open |
 | [[009]] | Activity bar on the left, fuller menus, icons + colours per source (phone: the bottom bar with a More… sheet) | open |
-| [[010]] | CodeMirror has no syntax highlighting for the requested languages (see [[Core Languages]]) | open |
+| [[010]] | Syntax highlighting for the core languages (Lezer/legacy grammars in the view, P-093) | done |
 | [[011]] | Every panel closeable (×), reopen via activity bar / View menu; empty tiles collapse | open |
-| [[012]] | `[[wiki-links]]` like in Obsidian: rendered, clickable, `[[` completion, create-on-click, rename rewrites, embeds | open |
-| [[013]] | Formulas (KaTeX) in the rich editor — Crepe's Latex feature is switched off and fonts are stripped | open |
+| [[012]] | `[[wiki-links]]` like in Obsidian: rendered, clickable, `[[` completion, create-on-click, rename rewrites (embeds + hover preview deferred) | done |
+| [[013]] | Formulas (KaTeX) in the rich editor, with per-folder macros | done |

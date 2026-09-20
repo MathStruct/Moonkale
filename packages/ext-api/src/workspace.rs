@@ -732,6 +732,14 @@ impl Workspace {
         }
     }
 
+    /// The text of `rel` under `source`, `None` if it does not exist or is
+    /// not readable (a small config file such as `.moonkale/katex.json`).
+    pub async fn read_text_at(&self, source: &SourceId, rel: &str) -> Option<String> {
+        let node = self.node_at_path(source, rel).await?;
+        let src = self.source(source)?;
+        src.fetch_text(node.id).await.ok().map(|(text, _)| text)
+    }
+
     /// Read `.moonkale/settings.json` of `folder` (missing = defaults).
     pub async fn load_workspace_settings(mut self, folder: &SourceId) {
         let file = match self
@@ -1514,6 +1522,12 @@ impl Workspace {
     pub async fn rename_node(mut self, node: &Node, to: &str) -> Result<NodeId, SourceError> {
         let source_id = node.source.clone();
         let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
+        // Who links here — asked before the rename (spec 012: links follow).
+        let linking = if node.native_key.ends_with(".md") {
+            self.wiki_backlinks(node.id).await
+        } else {
+            Vec::new()
+        };
         let new_id = self
             .apply_one(&source, Transaction::rename(node.id, to))
             .await?;
@@ -1577,9 +1591,12 @@ impl Workspace {
         self.record(moonkale_core::EventKind::Rename {
             from: node.id,
             to: new_id,
-            from_key: from,
-            to_key: to,
+            from_key: from.clone(),
+            to_key: to.clone(),
         });
+        if !linking.is_empty() {
+            self.rewrite_wiki_links(linking, &from, &to).await;
+        }
         Ok(new_id)
     }
 

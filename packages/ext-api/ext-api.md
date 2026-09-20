@@ -51,3 +51,8 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - `presence.rs`: `Member.line: Option<u32>`.
 - `assets.rs`: `Stylesheet { href: Asset }` — the component every panel uses instead of `document::Stylesheet`. An effect inserts `<link rel="stylesheet" href=…>` through `document::eval` if no link with that href exists, and re-checks whenever `Workspace::assets_epoch` bumps (the frame bumps it from its `onmounted`). Needed because the Android WebView drops head elements created during the first render (P-087); on desktop and web it is equivalent to the built-in component.
 - `workspace.rs`: `assets_epoch: Signal<u64>`.
+
+## Milestone 10 (specs 012, 013)
+- `wiki.rs`: the editor-facing half of `[[wiki-links]]`. `spans(text)` parses `[[target#heading|alias]]` (byte ranges); `Workspace::resolve_wiki` / `wiki_spans` / `wiki_candidates` / `follow_wiki(from, target, create)` / `wiki_backlinks(node)` / `rewrite_wiki_links(linking, old, new)` work over the index's page list (`Query::All { kinds: [File] }`), so they are the same on desktop and through `RemoteSource`. Resolution: path-like relative to the note then from the root, else by stem — same directory first, then shortest path; `wiki_candidates` completes ambiguous stems as paths. `rename_node` asks for backlinks *before* the rename and rewrites `[[old]]`, `[[old|`, `[[old#` (stem and path forms) afterwards; open documents receive the rewrite as an unsaved edit. Two unit tests.
+- `workspace.rs`: `read_text_at(source, rel)` (small config files such as `.moonkale/katex.json`).
+- `assets.rs`: `StylesheetUrl { href: String }` for a file inside a folder asset; `Stylesheet` delegates to it.

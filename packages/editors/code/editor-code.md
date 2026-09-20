@@ -48,3 +48,7 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 ## Milestone 9
 - Bundle: `onCursor(line, col)` from a throttled (250 ms) selection listener; `setPresence(el, [{line, label}])` drives a gutter (`cm-presence-gutter`, `PresenceMarker` with initials) through a `StateField` of gutter markers.
 - Bridge: `BackendEvent::Cursor`, `set_presence`; the panel reports the cursor to `Workspace::set_cursor_line` and pushes other members' lines for this document into the gutter.
+
+## Milestone 10 (specs 010, 012)
+- **Highlighting** (P-093): `backend::mount(.., language, ..)` passes Rust's `language_hint` as `init.language`; `packages/js/codemirror/src/languages.ts` maps it to a Lezer grammar (Rust, JS/TS+JSX, C/C++, Go, JSON, Markdown, SQL, YAML, Python, CSS, HTML, Typst) or a legacy stream mode (Julia, TOML, Cypher, shell, Lua). With a grammar: fold gutter, bracket matching, indent-on-input, `Mod-/` toggle comment. Bundle 1.0 MB.
+- **Wiki-links in markdown sources**: `BackendEvent::{WikiQuery, WikiLink}`, `CodeEditorBackend::set_wiki_links(&[WikiMark])` (UTF-16 offsets — the panel converts from the byte offsets of `wiki_spans`); the bundle's `wikiField` decorations, `wikiComplete` completion source (`[[` prefix, keeps a typed `]]`), Ctrl/Cmd+click via `wikiTargetAt`. Only mounted for `language == "markdown"`.

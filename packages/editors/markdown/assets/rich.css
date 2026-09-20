@@ -4,3 +4,17 @@
 .mk-rich-host .milkdown .ProseMirror { padding: 12px 24px; min-height: 100%; outline: none; }
 .mk-rich-loading { padding: 12px; color: #9aa0aa; }
 .mk-rich .crepe { --crepe-color-background: #14161b; --crepe-color-on-background: #d7dae0; --crepe-color-surface: #1b1e25; --crepe-color-outline: #3a3f4b; --crepe-color-primary: #4fb3e8; --crepe-font-default: system-ui, sans-serif; }
+/* [[wiki-links]] (spec 012): decorated text spans, brackets hidden unless the caret is inside. */
+.mk-rich-host .mk-wikilink { color: #4fb3e8; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(79, 179, 232, 0.5); text-underline-offset: 2px; }
+.mk-rich-host .mk-wikilink:hover { text-decoration-color: #4fb3e8; }
+.mk-rich-host .mk-wikilink-unresolved { color: #9aa0aa; text-decoration-style: dashed; }
+.mk-rich-host .mk-wiki-bracket { display: none; }
+.mk-rich-host .ProseMirror-focused .mk-wikilink { cursor: text; }
+.mk-rich-host .ProseMirror-focused .mk-wikilink:hover { cursor: pointer; }
+.mk-rich-host { position: relative; }
+.mk-wiki-popup { position: absolute; z-index: 20; min-width: 260px; max-width: 480px; max-height: 260px; overflow: auto; background: #1b1e25; border: 1px solid #3a3f4b; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); font: 13px system-ui, sans-serif; }
+.mk-wiki-item { display: flex; gap: 10px; align-items: baseline; padding: 5px 10px; cursor: pointer; }
+.mk-wiki-item.mk-active, .mk-wiki-item:hover { background: #262b36; }
+.mk-wiki-item .mk-wiki-target { color: #d7dae0; }
+.mk-wiki-item .mk-wiki-key { color: #7d8390; font-size: 11px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-wiki-empty { color: #9aa0aa; font-style: italic; }

@@ -20,7 +20,7 @@ From [[Prompt10]] (2026-09-19). This is the list Moonkale is built *for*: these 
 ## What "core support" means, per language
 A core language extension provides, in this order of importance:
 1. **Detection** — extensions, first line, `Node::language_hint` *(exists for most, see below)*.
-2. **Highlighting** — a tree-sitter grammar (wasm asset for the browser, native for desktop/server) + `highlights.scm`, rendered through the editor's decoration channel. **Missing for every language today**: the CodeMirror bundle has no language modes by design (`packages/js/codemirror` — "no language knowledge"; Rust was to own it), and the Rust side never sent highlights. This is the biggest single gap on the list.
+2. **Highlighting** — today a Lezer/legacy grammar in the CodeMirror bundle (P-093, spec [[010]]); tree-sitter + `highlights.scm` through Rust remains the design for the Rust-native editor.
 3. **Symbols in the graph** — tree-sitter queries → `Symbol` nodes and `Defines`/`References` edges in the index *(Rust and Markdown only today)*.
 4. **LSP** — a discovered server with an install hint *(rust-analyzer, gopls, lake serve, typescript-language-server, pyright — no clangd, no LanguageServer.jl, no nil/nixd, no SQL/GraphQL servers yet)*.
 5. **Comments / brackets / indentation** rules for the editor.
@@ -30,26 +30,26 @@ A core language extension provides, in this order of importance:
 
 | language | detect | highlight | symbols | LSP (discovered) | run / preview |
 |---|---|---|---|---|---|
-| Rust | `.rs` ✅ | ❌ | ✅ (`tree-sitter-rust`) | rust-analyzer ✅ (+ cargo-check diagnostics) | — |
-| Julia | `.jl` ✅ | ❌ | ❌ | ❌ (`LanguageServer.jl`: `julia --project=@lsp -e 'using LanguageServer; runserver()'`) | flow editor targets Lux.jl *(exists)*; no REPL |
-| C/C++ | ❌ (`.c .h .cc .cpp .hpp` not mapped) | ❌ | ❌ | ❌ (`clangd`) | — |
-| JavaScript/TypeScript | `.js .mjs .ts .mts` ✅ (`.jsx .tsx` ❌) | ❌ | ❌ | typescript-language-server ✅ | — |
-| Go | `.go` ✅ | ❌ | ❌ | gopls ✅ | — |
-| Lean 4 | `.lean` ✅ | ❌ | ❌ | `lake serve` ✅ | no infoview — Lean's goal state needs the `$/lean/plainGoal` extension; a real Lean extension shows it in a side panel |
-| Nix | ❌ (`.nix`) | ❌ | ❌ | ❌ (`nil` or `nixd`) | — |
-| Pixi | `pixi.toml` → TOML ✅ | ❌ | ❌ | ❌ (`taplo` with the pixi schema) | — |
-| SQL | `.sql` ✅ | ❌ | — | ❌ | ✅ table editor runs it against SQLite/DuckDB/Postgres-later |
-| Cypher | ❌ (`.cypher .cql`) | ❌ | — | ❌ | ✅ graph sources (LadybugDB) |
-| HelixQL | ❌ (`.hx`) | ❌ | — | ❌ | ❌ ([[002]]) |
-| TypeQL | ❌ (`.tql`) | ❌ | — | ❌ | ❌ (TypeDB stub) |
-| GraphQL | ❌ (`.graphql .gql`) | ❌ | — | ❌ (`graphql-language-service-cli`) | ❌ — the API source kind in [[Projects and Sources]] is where it would run |
-| JSON | `.json` ✅ | ❌ | — | ❌ (`vscode-json-language-server`) | — |
-| TOML | `.toml` ✅ | ❌ | — | ❌ (`taplo`) | — |
-| YAML | `.yml .yaml` ✅ | ❌ | — | ❌ | — |
-| Markdown | `.md` ✅ | (rich editor ✅, source view ❌) | ✅ wiki-links | — | ✅ rich editor, backlinks, graph |
-| Typst | `.typ` ✅ | ❌ | ❌ | ❌ (`tinymist`) | ✅ preview |
+| Rust | `.rs` ✅ | ✅ Lezer | ✅ (`tree-sitter-rust`) | rust-analyzer ✅ (+ cargo-check diagnostics) | — |
+| Julia | `.jl` ✅ | ✅ legacy mode | ❌ | ✅ discovered (`julia --project=@lsp -e 'using LanguageServer; runserver()'`, install hint) | flow editor targets Lux.jl *(exists)*; no REPL |
+| C/C++ | ✅ `.c .h .cc .cpp .cxx .hh .hpp .hxx .cu` | ✅ Lezer | ❌ | ✅ clangd discovered | — |
+| JavaScript/TypeScript | ✅ `.js .mjs .cjs .jsx .ts .mts .cts .tsx` | ✅ Lezer (JSX) | ❌ | typescript-language-server ✅ | — |
+| Go | `.go` ✅ | ✅ Lezer | ❌ | gopls ✅ | — |
+| Lean 4 | `.lean` ✅ | ❌ (no grammar on npm) | ❌ | `lake serve` ✅ | no infoview — Lean's goal state needs the `$/lean/plainGoal` extension; a real Lean extension shows it in a side panel |
+| Nix | ✅ `.nix` | ❌ (no grammar on npm) | ❌ | ✅ nil / nixd discovered | — |
+| Pixi | `pixi.toml` → TOML ✅ | ✅ (TOML) | ❌ | ✅ taplo discovered (schema later) | — |
+| SQL | `.sql` ✅ | ✅ Lezer (SQLite dialect) | — | ❌ | ✅ table editor runs it against SQLite/DuckDB/Postgres-later |
+| Cypher | ✅ `.cypher .cql` | ✅ legacy mode | — | ❌ | ✅ graph sources (LadybugDB) |
+| HelixQL | ✅ `.hx` | ❌ | — | ❌ | ❌ ([[002]]) |
+| TypeQL | ✅ `.tql` | ❌ | — | ❌ | ❌ (TypeDB stub) |
+| GraphQL | ✅ `.graphql .gql` | ❌ (`cm6-graphql` drags in 500 KB of `graphql`) | — | ✅ graphql-lsp discovered | ❌ — the API source kind in [[Projects and Sources]] is where it would run |
+| JSON | `.json .jsonc .ipynb` ✅ | ✅ Lezer | — | ✅ vscode-json-language-server discovered | — |
+| TOML | `.toml` ✅ | ✅ legacy mode | — | ✅ taplo discovered | — |
+| YAML | `.yml .yaml` ✅ | ✅ Lezer | — | ✅ yaml-language-server discovered | — |
+| Markdown | `.md` ✅ | ✅ rich editor + Lezer in source view | ✅ wiki-links ([[012]]: completion, follow/create, rename rewrites) | — | ✅ rich editor with KaTeX ([[013]]), backlinks, graph |
+| Typst | `.typ` ✅ | ✅ Lezer (`codemirror-lang-typst`) | ❌ | ✅ tinymist discovered | ✅ preview |
 
-Highlighting column: ❌ everywhere is one problem, not sixteen — one decoration channel plus one grammar per language.
+Highlighting (2026-09-20, [[010]]): grammars ship in the CodeMirror bundle — decision P-093 — so every language with a Lezer or legacy grammar highlights; Lean, Nix, HelixQL, TypeQL and GraphQL wait for one. "LSP discovered" means the server is started when it is on `PATH`, with an install hint otherwise.
 
 ## How they get bundled
 - **Core language extensions** live in `packages/extensions/lang-<id>/` as static Rust crates registered in `ui::default_extensions()` (`core` tier — always on), each carrying its grammar (native `tree-sitter-<x>` crate; the `.wasm` grammar as an asset for the browser) and queries. Bundling all sixteen costs grammar size only (≈ 0.2–1 MB each as wasm); on Android that argues for the lazy asset loading in [[Android Extensions and Bundling]].
@@ -57,8 +57,8 @@ Highlighting column: ❌ everywhere is one problem, not sixteen — one decorati
 - LSP servers are never bundled; they are discovered on `PATH` with an install hint *(exists)*, and later per-language settings for a custom command.
 
 ## Order to build (suggested)
-1. The highlighting channel (Rust → editor decorations) with Rust and Markdown as the first grammars — it unblocks the whole column.
-2. Detection for the unmapped extensions (a one-line change in `Node::language_hint`, then the extension-owned table).
-3. LSP discovery for clangd, `nil`/`nixd`, `taplo`, `tinymist`, LanguageServer.jl, the JSON and GraphQL servers.
-4. Symbols for Julia, Go, TypeScript, C/C++ (grammars exist; queries are the work).
+1. ~~Highlighting~~ done via the bundle (P-093); Lean/Nix grammars when one appears.
+2. ~~Detection~~ done for the whole list.
+3. ~~LSP discovery~~ done; per-language custom commands in settings next.
+4. Symbols for Julia, Go, TypeScript, C/C++ (tree-sitter grammars exist; queries are the work).
 5. Lean infoview, Julia REPL — real extensions with panels, once the UI contribution model exists.

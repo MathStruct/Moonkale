@@ -52,3 +52,6 @@
 /* Presence gutter (Milestone 9) */
 .cm-presence-gutter { width: 22px; }
 .cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: #6ea8fe; color: #0b0d12; }
+/* [[wiki-links]] in markdown sources (spec 012): Ctrl/Cmd+click follows. */
+.cm-wikilink { color: #4fb3e8; text-decoration: underline; text-decoration-color: rgba(79, 179, 232, 0.45); text-underline-offset: 2px; }
+.cm-wikilink-unresolved { color: #9aa0aa; text-decoration-style: dashed; }

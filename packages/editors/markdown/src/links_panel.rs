@@ -117,11 +117,29 @@ fn LinkSection(
                                             if let Err(e) = ws.open_node(n).await { ws2.set_status(e.to_string()); }
                                         });
                                     } else {
-                                        ws2.set_status(format!("{} does not exist yet", n.label));
+                                        ws2.set_status(format!("{} does not exist yet — Create makes the page", n.label));
                                     }
                                 },
                                 span { class: "mk-links-label", "{node.label}" }
                                 if !phantom { span { class: "mk-links-path", "{node.native_key}" } }
+                                if phantom {
+                                    // Spec 012: an unresolved link becomes a page next to the linking document.
+                                    button { class: "mk-btn mk-links-create", title: "Create this page",
+                                        onclick: {
+                                            let target = node.label.clone();
+                                            move |e: MouseEvent| {
+                                                e.stop_propagation();
+                                                let target = target.clone();
+                                                spawn(async move {
+                                                    let Some((_, d)) = ws.active_document() else { return };
+                                                    let from = d.peek().node.clone();
+                                                    let _ = ws.follow_wiki(&from, &target, true).await;
+                                                });
+                                            }
+                                        },
+                                        "Create"
+                                    }
+                                }
                             }
                         }
                     }

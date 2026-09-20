@@ -30,8 +30,9 @@ try {
   });
   await step("hover over `add` shows a tooltip from the server", async () => {
     const h = await page.evaluateHandle(() => {
-      const w = document.evaluate("//div[contains(@class,'cm-line')]//text()[contains(., 'add(1, 2)')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-      const r = document.createRange(); const i = w.textContent.indexOf("add("); r.setStart(w, i); r.setEnd(w, i + 3); return r.getBoundingClientRect();
+      const w = document.evaluate("//div[contains(@class,'cm-line')][contains(., 'add(1, 2)')]//text()[contains(., 'add')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      // With highlighting (spec 010) `add` is its own token: the range covers that text node.
+      const r = document.createRange(); const i = w.textContent.indexOf("add"); r.setStart(w, i); r.setEnd(w, Math.min(i + 3, w.textContent.length)); return r.getBoundingClientRect();
     });
     const rect = await h.jsonValue();
     await page.mouse.move(rect.x + 4, rect.y + rect.height / 2);
@@ -42,8 +43,9 @@ try {
   });
   await step("F12 on `add(` jumps to the definition (line 1)", async () => {
     const rect = await page.evaluate(() => {
-      const w = document.evaluate("//div[contains(@class,'cm-line')]//text()[contains(., 'add(1, 2)')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-      const r = document.createRange(); const i = w.textContent.indexOf("add("); r.setStart(w, i + 1); r.setEnd(w, i + 2); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2 };
+      const w = document.evaluate("//div[contains(@class,'cm-line')][contains(., 'add(1, 2)')]//text()[contains(., 'add')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+      // With highlighting (spec 010) `add` is its own token: the range covers that text node.
+      const r = document.createRange(); const i = w.textContent.indexOf("add"); r.setStart(w, i + 1); r.setEnd(w, Math.min(i + 2, w.textContent.length)); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2 };
     });
     await page.mouse.click(rect.x, rect.y);
     await page.keyboard.press("F12");

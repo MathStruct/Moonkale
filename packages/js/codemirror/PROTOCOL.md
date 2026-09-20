@@ -61,3 +61,8 @@ language server and replies with `hoverResult` carrying the same `id`.
 3. Edits stream as `change`; Rust updates its `Document`.
 4. On panel unmount Rust drops the eval; JS receives nothing more. The
    element is removed by Dioxus, which releases the view via the WeakMap.
+
+## Spec 010 / 012 (2026-09-20)
+- `mount(el, text, onChange, features)`: `features.language` (Rust's id) picks the grammar in `src/languages.ts` — the one place with language knowledge (P-093); `features.onWikiQuery(id, query)` and `features.onWikiLink(target)` for markdown sources.
+- `setWikiLinks(el, [{from, to, resolved}])` — UTF-16 offsets; marks are mapped through later edits until the next call.
+- `[[` completion answers arrive through the existing `completionResult(el, id, items)`; the labels are page targets and are inserted as `[[target]]`.

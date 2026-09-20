@@ -9,8 +9,17 @@ use dioxus::prelude::*;
 
 #[component]
 pub fn Stylesheet(href: Asset) -> Element {
+    rsx! {
+        StylesheetUrl { href: href.to_string() }
+    }
+}
+
+/// The same for a URL that is not an `Asset` on its own — a file inside a
+/// folder asset (`format!("{FOLDER}/katex.min.css")`).
+#[component]
+pub fn StylesheetUrl(href: String) -> Element {
     let ws = use_context::<Workspace>();
-    let url = href.to_string();
+    let url = href;
     use_effect(move || {
         let _ = ws.assets_epoch.read();
         let js = format!(

@@ -60,3 +60,6 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 ## Milestone 9
 
 `duckdb.mjs` (the fixture's `data/people.csv` + `orders.csv`: open as views, join in the table editor, write refused). `history.mjs` gained restore-with-cause, `presence.mjs` the cursor gutter, `graph3d.mjs` a 3D drag. The desktop hub client has a native test instead: `MOONKALE_HUB=http://127.0.0.1:8090 cargo test -p desktop --test hub -- --ignored` against a running `serve.sh` server.
+
+- `wiki.mjs` (spec 012): decorated links in source and rich mode, `[[` completion in both, click/Ctrl+click follows, create-on-click, Links panel *Create*, rename rewrites backlinks.
+- `highlight.mjs` (spec 010): grammar tokens for Rust/Markdown/TOML, fold gutter, `Mod-/`.

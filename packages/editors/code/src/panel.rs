@@ -88,6 +88,32 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     let mut ws = ws;
                     ws.set_cursor_line(node, line);
                 }
+                // Spec 012: `[[` completion and Ctrl+click in markdown sources.
+                BackendEvent::WikiQuery { id, query } => {
+                    spawn(async move {
+                        let items: Vec<moonkale_lsp::CompletionItem> = ws
+                            .wiki_candidates(&query, 12)
+                            .await
+                            .into_iter()
+                            .map(|c| moonkale_lsp::CompletionItem {
+                                label: c.target,
+                                kind: "text".into(),
+                                detail: Some(c.key),
+                                insert: None,
+                                sort: None,
+                            })
+                            .collect();
+                        if let Some(b) = backend.peek().as_ref() {
+                            b.completion_result(id, Some(&items));
+                        }
+                    });
+                }
+                BackendEvent::WikiLink { target } => {
+                    let from = doc.peek().node.clone();
+                    spawn(async move {
+                        let _ = ws.follow_wiki(&from, &target, true).await;
+                    });
+                }
                 BackendEvent::Completion { id, line, col } => {
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.clone())
@@ -206,7 +232,13 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     }
                 });
             }
-            backend.set(Some(backend::mount(element_id.clone(), initial, on_event)));
+            let language = doc.peek().node.language_hint().map(str::to_string);
+            backend.set(Some(backend::mount(
+                element_id.clone(),
+                initial,
+                language,
+                on_event,
+            )));
         }
     });
 
@@ -255,6 +287,45 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             if let Some(b) = backend.peek().as_ref() {
                 b.set_presence(&marks);
             }
+        });
+    }
+
+    // `[[links]]` in markdown sources → decorations (spec 012): re-checked
+    // 300 ms after the last edit and when the index changes.
+    if doc.peek().node.language_hint() == Some("markdown") {
+        let mut wiki_epoch = use_signal(|| 0u64);
+        use_effect(move || {
+            let _ = doc.read().text.len();
+            let _ = ws.graph_epoch.read();
+            if !ready() {
+                return;
+            }
+            let epoch = wiki_epoch.peek().wrapping_add(1);
+            wiki_epoch.set(epoch);
+            spawn(async move {
+                futures_timer::Delay::new(std::time::Duration::from_millis(300)).await;
+                if *wiki_epoch.peek() != epoch {
+                    return;
+                }
+                let (from, text) = {
+                    let d = doc.peek();
+                    (d.node.clone(), d.text.clone())
+                };
+                let spans = ws.wiki_spans(&from, &text).await;
+                // Byte offsets → UTF-16 units, what the view counts in.
+                let utf16_at = |byte: usize| text[..byte].encode_utf16().count() as u32;
+                let marks: Vec<backend::WikiMark> = spans
+                    .iter()
+                    .map(|sp| backend::WikiMark {
+                        from: utf16_at(sp.start),
+                        to: utf16_at(sp.end),
+                        resolved: sp.resolved,
+                    })
+                    .collect();
+                if let Some(b) = backend.peek().as_ref() {
+                    b.set_wiki_links(&marks);
+                }
+            });
         });
     }
 

@@ -20,6 +20,7 @@ pub const BUNDLE: Asset = asset!("/assets/codemirror.js");
 enum ToJs<'a> {
     Init {
         text: &'a str,
+        language: Option<&'a str>,
     },
     SetText {
         text: &'a str,
@@ -45,6 +46,9 @@ enum ToJs<'a> {
     SetCursor {
         line: u32,
         col: u32,
+    },
+    SetWikiLinks {
+        marks: &'a [super::WikiMark],
     },
 }
 
@@ -106,6 +110,13 @@ enum FromJs {
         line: u32,
         col: u32,
     },
+    WikiQuery {
+        id: u32,
+        query: String,
+    },
+    WikiLink {
+        target: String,
+    },
 }
 
 const SCRIPT: &str = r#"
@@ -124,6 +135,9 @@ cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
     onCodeActions: (line, col, endLine, endCol) => dioxus.send({ kind: "codeActions", line, col, endLine, endCol }),
     onReferences: (line, col) => dioxus.send({ kind: "references", line, col }),
     onCursor: (line, col) => dioxus.send({ kind: "cursor", line, col }),
+    onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }),
+    onWikiLink: (target) => dioxus.send({ kind: "wikiLink", target }),
+    language: init.language || null,
 });
 dioxus.send({ kind: "ready" });
 for (;;) {
@@ -137,6 +151,7 @@ for (;;) {
     else if (msg.kind === "completionResult") cm.completionResult(el, msg.id, msg.items);
     else if (msg.kind === "setPresence") cm.setPresence(el, msg.marks);
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
+    else if (msg.kind === "setWikiLinks") cm.setWikiLinks(el, msg.marks);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
 "#;
@@ -146,11 +161,19 @@ pub struct CodeMirrorBackend {
 }
 
 impl CodeMirrorBackend {
-    pub fn mount(element_id: String, initial: String, on_event: Callback<BackendEvent>) -> Self {
+    pub fn mount(
+        element_id: String,
+        initial: String,
+        language: Option<String>,
+        on_event: Callback<BackendEvent>,
+    ) -> Self {
         let script = SCRIPT.replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap());
         let eval = document::eval(&script);
         // The JS side blocks on the first recv for the initial text.
-        let _ = eval.send(ToJs::Init { text: &initial });
+        let _ = eval.send(ToJs::Init {
+            text: &initial,
+            language: language.as_deref(),
+        });
 
         let mut rx = eval;
         spawn(async move {
@@ -186,6 +209,12 @@ impl CodeMirrorBackend {
                     }
                     Ok(FromJs::Cursor { line, col }) => {
                         on_event.call(BackendEvent::Cursor { line, col })
+                    }
+                    Ok(FromJs::WikiQuery { id, query }) => {
+                        on_event.call(BackendEvent::WikiQuery { id, query })
+                    }
+                    Ok(FromJs::WikiLink { target }) => {
+                        on_event.call(BackendEvent::WikiLink { target })
                     }
                     Err(dioxus::document::EvalError::Serialization(e)) => {
                         tracing::warn!("codemirror bridge: unreadable message: {e}");
@@ -248,6 +277,10 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn set_cursor(&self, line: u32, col: u32) {
         let _ = self.eval.send(ToJs::SetCursor { line, col });
+    }
+
+    fn set_wiki_links(&self, marks: &[super::WikiMark]) {
+        let _ = self.eval.send(ToJs::SetWikiLinks { marks });
     }
 }
 

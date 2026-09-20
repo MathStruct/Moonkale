@@ -5,9 +5,11 @@
 // file only shows it and reports edits.
 
 import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from "@codemirror/search"
+import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from "@codemirror/language"
+import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
 import { EditorState, StateEffect, StateField, RangeSet } from "@codemirror/state"
-import { gutter, GutterMarker } from "@codemirror/view"
+import { gutter, GutterMarker, Decoration, type DecorationSet } from "@codemirror/view"
 import {
   EditorView,
   keymap,
@@ -18,7 +20,7 @@ import {
   rectangularSelection,
   crosshairCursor,
 } from "@codemirror/view"
-import { defaultKeymap, history, historyKeymap, indentWithTab, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
+import { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
 import { oneDark } from "@codemirror/theme-one-dark"
 import { setDiagnostics, lintGutter, type Diagnostic } from "@codemirror/lint"
 import { hoverTooltip } from "@codemirror/view"
@@ -40,7 +42,15 @@ type Features = {
   onReferences?: (line: number, col: number) => void
   /** Milestone 9: the cursor moved (throttled to 4/s); presence. */
   onCursor?: (line: number, col: number) => void
+  /** Spec 012: `[[query` typed → Rust answers with `completionResult(el, id, items)`
+   *  (items insert `[[target]]`); Ctrl/Cmd+click on a decorated link. */
+  onWikiQuery?: (id: number, query: string) => void
+  onWikiLink?: (target: string) => void
+  /** Spec 010: Rust's language id for the document; picks the grammar. */
+  language?: string | null
 }
+/** A `[[link]]` span in UTF-16 offsets, resolved or not (Rust computes both). */
+export type WikiSpan = { from: number; to: number; resolved: boolean }
 export type PresenceMark = { line: number; label: string }
 export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
 type Entry = {
@@ -78,6 +88,41 @@ const presenceField = StateField.define<RangeSet<GutterMarker>>({
 })
 const presenceGutter = [presenceField, gutter({ class: "cm-presence-gutter", markers: (v) => v.state.field(presenceField) })]
 
+// [[wiki-links]] in source mode (spec 012): marks from Rust, mapped through edits.
+const setWikiEffect = StateEffect.define<WikiSpan[]>()
+const wikiMarkResolved = Decoration.mark({ class: "cm-wikilink" })
+const wikiMarkUnresolved = Decoration.mark({ class: "cm-wikilink cm-wikilink-unresolved" })
+const wikiField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(set, tr) {
+    set = set.map(tr.changes)
+    for (const e of tr.effects) {
+      if (e.is(setWikiEffect)) {
+        const len = tr.state.doc.length
+        const ranges = e.value
+          .filter((w) => w.from >= 0 && w.to <= len && w.from < w.to)
+          .map((w) => (w.resolved ? wikiMarkResolved : wikiMarkUnresolved).range(w.from, w.to))
+          .sort((a, b) => a.from - b.from)
+        set = Decoration.set(ranges, true)
+      }
+    }
+    return set
+  },
+  provide: (f) => EditorView.decorations.from(f),
+})
+/** The `[[…]]` text around `pos`, as a target (before `#`/`|`), or null. */
+function wikiTargetAt(view: EditorView, pos: number): string | null {
+  const line = view.state.doc.lineAt(pos)
+  const text = line.text
+  const off = pos - line.from
+  const open = text.lastIndexOf("[[", off)
+  if (open < 0) return null
+  const close = text.indexOf("]]", open + 2)
+  if (close < 0 || off > close + 2) return null
+  const inner = text.slice(open + 2, close)
+  return inner.split("|")[0].split("#")[0].trim() || null
+}
+
 function lspPos(view: EditorView, pos: number): { line: number; col: number } {
   const line = view.state.doc.lineAt(pos)
   return { line: line.number - 1, col: pos - line.from }
@@ -105,6 +150,38 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
   }, { hoverTime: 250 })
   const gotoDef = keymap.of([{ key: "F12", run: (v) => { if (!features.onDefinition) return false; const { line, col } = lspPos(v, v.state.selection.main.head); features.onDefinition(line, col); return true } }])
   // Milestone 7: language features answered by Rust.
+  // Spec 012: `[[` completion of page names, answered by Rust.
+  const wikiComplete = async (ctx: CompletionContext): Promise<CompletionResult | null> => {
+    if (!features.onWikiQuery) return null
+    const m = ctx.matchBefore(/\[\[[^\]\n]*/)
+    if (!m) return null
+    const id = entry.nextHover!++
+    const items = await new Promise<CompletionItem[] | null>((resolve) => {
+      entry.pendingCompletion!.set(id, resolve)
+      setTimeout(() => { if (entry.pendingCompletion!.delete(id)) resolve(null) }, 4000)
+      features.onWikiQuery!(id, m.text.slice(2))
+    })
+    if (!items) return null
+    // Keep `]]` the user may already have typed.
+    const after = ctx.state.sliceDoc(ctx.pos, ctx.pos + 2)
+    return {
+      from: m.from,
+      filter: false,
+      options: items.map((it) => ({ label: it.label, detail: it.detail, type: "text", apply: after === "]]" ? `[[${it.label}` : `[[${it.label}]]` })),
+    }
+  }
+  const wikiClick = EditorView.domEventHandlers({
+    mousedown: (e, view) => {
+      if (!features.onWikiLink || !(e.ctrlKey || e.metaKey)) return false
+      const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
+      if (pos == null) return false
+      const target = wikiTargetAt(view, pos)
+      if (!target) return false
+      e.preventDefault()
+      features.onWikiLink(target)
+      return true
+    },
+  })
   const complete = async (ctx: CompletionContext): Promise<CompletionResult | null> => {
     if (!features.onCompletion) return null
     const word = ctx.matchBefore(/[\w$]*/)
@@ -169,6 +246,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
       extensions: [
         presenceGutter,
         cursorWatch,
+        ...(languageExtension(features.language) ? [languageExtension(features.language)!, foldGutter(), bracketMatching(), indentOnInput(), keymap.of([...foldKeymap, { key: "Mod-/", run: toggleComment }])] : []),
         lineNumbers(),
         highlightActiveLineGutter(),
         highlightActiveLine(),
@@ -182,7 +260,9 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         search({ top: true }),
         highlightSelectionMatches(),
         keymap.of([...searchKeymap, { key: "Mod-h", run: openSearchPanel }]),
-        autocompletion({ override: [complete], activateOnTyping: true, maxRenderedOptions: 50 }),
+        autocompletion({ override: [wikiComplete, complete], activateOnTyping: true, maxRenderedOptions: 50 }),
+        wikiField,
+        wikiClick,
         keymap.of(completionKeymap),
         featureKeys,
         keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
@@ -212,6 +292,12 @@ function setLspDiagnostics(el: HTMLElement, items: { line: number; col: number; 
     message: d.message,
   }))
   e.view.dispatch(setDiagnostics(e.view.state, diags))
+}
+
+/** `[[link]]` spans and whether they resolve (spec 012). */
+function setWikiLinks(el: HTMLElement, spans: WikiSpan[]): void {
+  const view = views.get(el)?.view
+  if (view) view.dispatch({ effects: setWikiEffect.of(spans) })
 }
 
 /** Other people's positions in this document (Milestone 9). */
@@ -293,4 +379,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks }

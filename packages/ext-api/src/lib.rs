@@ -32,7 +32,7 @@ pub mod manifest;
 pub mod session;
 pub mod workspace;
 
-pub use assets::Stylesheet;
+pub use assets::{Stylesheet, StylesheetUrl};
 pub use command::{fuzzy_score, CommandContribution, Keybinding};
 pub use contrib::{PanelContribution, PanelHome};
 pub use document::Document;
@@ -41,6 +41,7 @@ pub mod flow;
 pub mod git;
 pub mod presence;
 pub mod settings;
+pub mod wiki;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};

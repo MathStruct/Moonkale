@@ -15,8 +15,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Click into the text "needle" on a CodeMirror line, at character offset `off` inside it.
 const clickAt = async (needle, off) => {
   const p = await page.evaluate(([needle, off]) => {
-    const w = document.evaluate(`//div[contains(@class,'cm-line')]//text()[contains(., '${needle}')]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    const r = document.createRange(); const i = w.textContent.indexOf(needle); r.setStart(w, i + off); r.setEnd(w, i + off + 1); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2 };
+    // With highlighting (spec 010) a line is many text nodes: find the line, then walk its
+    // text nodes to the character `off` inside `needle`.
+    const line = document.evaluate(`//div[contains(@class,'cm-line')][contains(., '${needle}')]`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    const target = line.textContent.indexOf(needle) + off;
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    let seen = 0, n;
+    while ((n = walker.nextNode())) {
+      const len = n.textContent.length;
+      if (target < seen + len) { const r = document.createRange(); r.setStart(n, target - seen); r.setEnd(n, target - seen + 1); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2 }; }
+      seen += len;
+    }
+    throw new Error("offset past the line");
   }, [needle, off]);
   await page.mouse.click(p.x, p.y);
 };
