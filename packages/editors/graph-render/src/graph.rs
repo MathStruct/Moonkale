@@ -161,7 +161,22 @@ impl Graph {
 
     /// Axis-aligned bounds of all nodes (world units).
     pub fn bounds(&self) -> Option<(f32, f32, f32, f32)> {
-        let mut it = self.nodes.iter();
+        Self::bounds_of(self.nodes.iter())
+    }
+
+    /// Bounds for fitting: isolated nodes (degree 0) sit far out on the
+    /// gravity ring and would shrink everything else, so when the connected
+    /// part is the majority the fit is taken over it alone.
+    pub fn fit_bounds(&self) -> Option<(f32, f32, f32, f32)> {
+        let connected = self.nodes.iter().filter(|n| n.degree > 0).count();
+        if connected * 2 >= self.nodes.len() && connected > 0 {
+            Self::bounds_of(self.nodes.iter().filter(|n| n.degree > 0))
+        } else {
+            self.bounds()
+        }
+    }
+
+    fn bounds_of<'a>(mut it: impl Iterator<Item = &'a Node>) -> Option<(f32, f32, f32, f32)> {
         let first = it.next()?;
         let mut b = (first.x, first.y, first.x, first.y);
         for n in it {

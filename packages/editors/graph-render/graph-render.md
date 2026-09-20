@@ -41,3 +41,5 @@ Android (P-089–P-091): `create(canvas, overlay, onEvent, prefer)` takes an opt
 Touch (spec 006): `State.touches` tracks touch pointers (captured on down, dropped on up/cancel); two fingers → `Drag::Pinch { last_dist, last_angle, last_mid }` — `zoom_at(dist / last_dist, mid)`, `pan(Δmid)`, and in 3D `yaw -= Δangle`; one finger left continues as a pan without a click. `pointerleave` ignores captured touches. `GraphView::camera_state()` for tests.
 
 Incremental `set_graph` (spec 017): with ≥ 50 % shared node ids, positions/pins carry over, new nodes start at their known neighbours' mean, the layout is warmed (temperature 3) only if the node set or edge count changed, and the camera is not touched; otherwise a fresh layout + fit as before.
+
+Graph quality (2026-09-20): `layout.rs` — attraction divided by `1 + 0.5·ln(1+max degree)` (hubs pull less), gravity 0.12 for degree-0 nodes; `graph.rs` — `fit_bounds()` over the connected majority; `web.rs` — labels placed by importance with a rectangle collision test (≤ 400), `layout_state()` export.

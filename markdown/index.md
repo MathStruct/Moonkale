@@ -4,6 +4,12 @@ description: A graph-native code and knowledge editor — folders and databases 
 ---
 ![[assets/MoonkaleBanner.png|The Moonkale banner: a wizard tending a kale plant under a full moon]]
 
+| Desktop | Phone |
+|---|---|
+| ![[assets/UIDesktop.png\|Moonkale on the desktop: activity bar, Explorer, the vault as a graph, a note in the rich editor]] | ![[assets/UIAndroid.jpg\|Moonkale on a phone: a rich note above a Rust file, the bottom bar]] |
+
+*The look on 2026-09-20 — the vault's own graph next to a note in the rich editor; on the Galaxy S10e a note over a Rust file.*
+
 **Moonkale** is a code and knowledge editor built on one idea: *everything you open becomes a graph*. A folder of source files, a Postgres schema, a TypeDB database, a Redis keyspace and an Obsidian-style wiki all become nodes and edges in the same model — and every editor (code, markdown/Typst, tables, a GPU graph view, a no-code flow canvas, a terminal) is a view on that graph. Language servers, indexers and LLM agents work on the same graph through the same doors.
 
 It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, web and mobile from one codebase, and is extension-driven: the built-in editors are themselves extensions with no privileged access.

@@ -239,7 +239,7 @@ impl Camera {
     }
 
     pub fn fit(&mut self, graph: &Graph, padding: f32) {
-        let Some((x0, y0, x1, y1)) = graph.bounds() else {
+        let Some((x0, y0, x1, y1)) = graph.fit_bounds() else {
             return;
         };
         let w = (x1 - x0).max(1.0);

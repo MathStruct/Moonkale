@@ -2,6 +2,8 @@
 title: "Moonkale — Vault Home"
 tags: [moc]
 ---
+![[assets/UIDesktop.png|Moonkale on the desktop, 2026-09-20: activity bar, Explorer, the vault as a graph, a note in the rich editor]]
+
 Moonkale is a **graph-native code and knowledge editor**: it opens folders *and* database connections, shows everything as one graph, and is driven by extensions. This vault is the design record. Every choice has a note; every problem hit during implementation gets logged in [[Problem Log]].
 
 > [!info] Start here

@@ -1,5 +1,11 @@
 ![Moonkale — a wizard tending a kale plant under a full moon](assets/MoonkaleBanner.png)
 
+<p align="center">
+  <img src="assets/UIDesktop.png" alt="Moonkale on the desktop: activity bar, Explorer, the vault as a graph, a note in the rich editor" width="78%">
+  <img src="assets/UIAndroid.jpg" alt="Moonkale on a phone: rich note above a Rust file, the bottom bar" width="20%">
+</p>
+<p align="center"><sub>Desktop (2026-09-20): the vault's graph next to a note in the rich editor · Phone (Galaxy S10e): a note and a Rust file with the bottom bar.</sub></p>
+
 # Moonkale (Under development)
 
 **A graph-native code and knowledge editor.**

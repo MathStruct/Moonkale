@@ -260,11 +260,17 @@ impl GraphView {
                 }
             }
             let same_edges = next.edges.len() == s.graph.edges.len();
+            let new_count = known.iter().filter(|k| !**k).count();
+            let total = next.nodes.len().max(1);
             s.graph = next;
             if changed || !same_edges {
-                // Warm, not hot: known nodes drift a little, new ones settle in.
+                // A few newcomers: warm, so known nodes only drift. Many (an
+                // index still filling up): a full reheat from the kept
+                // positions — still no camera reset.
                 let mut l = Layout::new(&s.graph);
-                l.temperature = 3.0;
+                if new_count * 4 < total {
+                    l.temperature = 3.0;
+                }
                 s.layout = l;
             }
             s.hovered = None;
@@ -355,6 +361,21 @@ impl GraphView {
 
     pub fn node_count(&self) -> usize {
         self.state.borrow().graph.nodes.len()
+    }
+
+    /// `[running, temperature, iterations, x0, y0, x1, y1]` — the layout, for tests.
+    pub fn layout_state(&self) -> Vec<f32> {
+        let s = self.state.borrow();
+        let (x0, y0, x1, y1) = s.graph.bounds().unwrap_or((0.0, 0.0, 0.0, 0.0));
+        vec![
+            if s.layout.running { 1.0 } else { 0.0 },
+            s.layout.temperature,
+            s.layout.iterations as f32,
+            x0,
+            y0,
+            x1,
+            y1,
+        ]
     }
 
     /// `[scale, cx, cy, yaw, pitch, dist]` — the camera, for tests (spec 006).
@@ -456,7 +477,10 @@ fn draw_labels(s: &State) {
     let show_all = !huge && ((!s.camera.three_d && scale >= 0.9) || s.graph.nodes.len() <= 60);
     ctx.set_font("12px 'Segoe UI', sans-serif");
     ctx.set_text_baseline("middle");
-    let mut drawn = 0;
+    // Candidates by importance (hovered first, then degree), placed with a
+    // screen-space collision test so labels never pile onto each other in a
+    // dense cluster (spec 017 follow-up): the important ones win the space.
+    let mut candidates: Vec<(usize, f32, f32, f32)> = Vec::new();
     for (i, n) in s.graph.nodes.iter().enumerate() {
         let hovered = Some(i) == s.hovered;
         if !show_all && !hovered && (huge || n.degree < 3) {
@@ -478,15 +502,42 @@ fn draw_labels(s: &State) {
         if x < -100.0 || y < -20.0 || x > s.camera.width + 100.0 || y > s.camera.height + 20.0 {
             continue;
         }
+        candidates.push((i, x, y, r));
+    }
+    candidates.sort_by(|a, b| {
+        let ha = Some(a.0) == s.hovered;
+        let hb = Some(b.0) == s.hovered;
+        hb.cmp(&ha)
+            .then_with(|| s.graph.nodes[b.0].degree.cmp(&s.graph.nodes[a.0].degree))
+    });
+    let mut placed: Vec<(f32, f32, f32, f32)> = Vec::new(); // x0, y0, x1, y1
+    let mut drawn = 0;
+    for (i, x, y, r) in candidates {
+        let hovered = Some(i) == s.hovered;
         if drawn > 400 && !hovered {
             break;
         }
+        let n = &s.graph.nodes[i];
+        let width = ctx
+            .measure_text(&n.label)
+            .map(|m| m.width() as f32)
+            .unwrap_or(n.label.len() as f32 * 6.5);
+        let (x0, y0) = (x + r + 4.0, y - 8.0);
+        let (x1, y1) = (x0 + width, y + 8.0);
+        if !hovered
+            && placed
+                .iter()
+                .any(|p| x0 < p.2 && x1 > p.0 && y0 < p.3 && y1 > p.1)
+        {
+            continue;
+        }
+        placed.push((x0, y0, x1, y1));
         ctx.set_fill_style_str(if hovered {
             "#ffffff"
         } else {
             "rgba(230,232,238,0.85)"
         });
-        let _ = ctx.fill_text(&n.label, (x + r + 4.0) as f64, y as f64);
+        let _ = ctx.fill_text(&n.label, x0 as f64, y as f64);
         drawn += 1;
     }
 }

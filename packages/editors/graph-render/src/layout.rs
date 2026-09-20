@@ -15,7 +15,7 @@ pub struct Layout {
     pub temperature: f32,
     pub k: f32,
     pub running: bool,
-    iterations: u32,
+    pub iterations: u32,
 }
 
 impl Layout {
@@ -77,23 +77,30 @@ impl Layout {
                 disp[j][1] -= fy;
             }
         }
-        // Attraction along edges.
+        // Attraction along edges. Hubs pull less per edge ("dissuade hubs",
+        // as in ForceAtlas2): a vault whose index page links to everything
+        // would otherwise fold every note onto the line between its hubs
+        // (spec 017 follow-up).
         for e in &graph.edges {
             let (a, b) = (e.a, e.b);
             let dx = graph.nodes[a].x - graph.nodes[b].x;
             let dy = graph.nodes[a].y - graph.nodes[b].y;
             let d = (dx * dx + dy * dy).sqrt().max(0.01);
-            let f = d * d / k;
+            let hub = graph.nodes[a].degree.max(graph.nodes[b].degree) as f32;
+            let f = d * d / k / (1.0 + 0.5 * hub.ln_1p());
             let (fx, fy) = (dx / d * f, dy / d * f);
             disp[a][0] -= fx;
             disp[a][1] -= fy;
             disp[b][0] += fx;
             disp[b][1] += fy;
         }
-        // Gravity towards the origin keeps disconnected pieces together.
+        // Gravity towards the origin keeps disconnected pieces together;
+        // isolated nodes feel it more, so they ring the graph instead of
+        // flying off and stretching the fit.
         for (i, node) in graph.nodes.iter().enumerate() {
-            disp[i][0] -= node.x * 0.03;
-            disp[i][1] -= node.y * 0.03;
+            let g = if node.degree == 0 { 0.12 } else { 0.03 };
+            disp[i][0] -= node.x * g;
+            disp[i][1] -= node.y * g;
         }
         // Move, capped by temperature.
         let mut max_move = 0.0f32;
@@ -135,6 +142,66 @@ impl Layout {
 mod tests {
     use super::*;
     use crate::graph::{InEdge, InGraph, InNode};
+
+    /// Two hubs linked to every leaf (a vault's Home + index): the leaves
+    /// must not collapse onto the hub–hub line.
+    #[test]
+    fn two_hubs_do_not_flatten_the_graph() {
+        let leaves = 60;
+        let mut nodes: Vec<InNode> = (0..leaves + 2)
+            .map(|i| InNode {
+                id: format!("n{i}"),
+                label: format!("n{i}"),
+                kind: "file".into(),
+                key: String::new(),
+                color: None,
+            })
+            .collect();
+        nodes[0].id = "home".into();
+        nodes[1].id = "index".into();
+        let mut edges = Vec::new();
+        for l in 2..leaves + 2 {
+            edges.push(InEdge {
+                a: 0,
+                b: l,
+                kind: String::new(),
+                color: None,
+            });
+            edges.push(InEdge {
+                a: 1,
+                b: l,
+                kind: String::new(),
+                color: None,
+            });
+        }
+        let mut g = Graph::from_input(InGraph { nodes, edges });
+        let mut l = Layout::new(&g);
+        let mut steps = 0;
+        while l.running && steps < 1000 {
+            l.step(&mut g);
+            steps += 1;
+        }
+        let (x0, y0, x1, y1) = g.bounds().unwrap();
+        // Extent orthogonal to the hub axis relative to the extent along it.
+        let (hx, hy) = (g.nodes[1].x - g.nodes[0].x, g.nodes[1].y - g.nodes[0].y);
+        let hl = (hx * hx + hy * hy).sqrt().max(1.0);
+        let (ux, uy) = (hx / hl, hy / hl);
+        let (mut along_min, mut along_max, mut across_min, mut across_max) =
+            (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+        for n in &g.nodes {
+            let along = n.x * ux + n.y * uy;
+            let across = -n.x * uy + n.y * ux;
+            along_min = along_min.min(along);
+            along_max = along_max.max(along);
+            across_min = across_min.min(across);
+            across_max = across_max.max(across);
+        }
+        let ratio = (across_max - across_min) / (along_max - along_min).max(1.0);
+        assert!(
+            ratio > 0.5,
+            "graph flattened: across/along = {ratio:.2}, bounds {x0:.0},{y0:.0}..{x1:.0},{y1:.0}"
+        );
+    }
 
     fn chain(n: usize) -> Graph {
         let nodes = (0..n)

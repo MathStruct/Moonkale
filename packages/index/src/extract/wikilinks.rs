@@ -35,6 +35,11 @@ pub fn targets(text: &str) -> Vec<String> {
     }
     for cap in md_re().captures_iter(text) {
         let t = cap[1].trim().to_string();
+        // A markdown link to another site (`[core.md](https://github.com/…)`)
+        // is not a page of this folder: no phantom node for it.
+        if t.contains("://") {
+            continue;
+        }
         if !t.is_empty() && seen.insert(t.clone()) {
             out.push(t);
         }
@@ -122,5 +127,13 @@ mod tests {
             "See [[Alpha]] and [[docs/Beta#top|B]] plus [gamma](../gamma.md) and [[Alpha]] again.",
         );
         assert_eq!(t, vec!["Alpha", "docs/Beta", "../gamma.md"]);
+    }
+
+    #[test]
+    fn external_markdown_links_are_not_pages() {
+        let t = targets(
+            "[core.md](https://github.com/x/y/blob/master/core.md) and [local](notes/x.md)",
+        );
+        assert_eq!(t, vec!["notes/x.md"]);
     }
 }

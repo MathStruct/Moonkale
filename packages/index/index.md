@@ -18,3 +18,5 @@ Tests: `cargo test -p moonkale-index` (4 integration on a tempdir vault + 2 unit
 
 ## Milestone 7
 `refresh(node)` handles the three new cases: a vanished node (rename/delete) drops its subtree, derived data and `Contains` edges and re-extracts the files that linked to it (their links become phantoms); a new directory is walked; a new file gets its parent's `Contains` edge and the files whose phantom links it resolves are re-extracted. `IndexGraph::{subtree, remove_subtree, origins_linking_to, phantoms_for, add_edge}`. Test `refresh_follows_rename_delete_and_new_directories`.
+
+- `extract/wikilinks.rs` (2026-09-20): markdown links whose target contains `://` are external and produce no phantom page.
