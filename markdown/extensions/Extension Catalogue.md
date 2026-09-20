@@ -35,6 +35,8 @@ Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence 
 | extension | design | tier | where it should live | needs |
 |---|---|---|---|---|
 | `lang-rust`, `lang-julia`, `lang-c`, `lang-ts`, `lang-go`, `lang-lean`, `lang-nix`, `lang-pixi`, `lang-sql`, `lang-cypher`, `lang-helixql`, `lang-typeql`, `lang-graphql`, `lang-json`, `lang-toml`, `lang-markdown`, `lang-typst` | [[Core Languages]] | core (data-only: grammar, queries, LSP command) | this repo, `packages/extensions/lang-*` | the highlighting channel first |
+| `tabs` (Rust), Typst math + CeTZ fences (Rust via `typst`), `mermaid` (JS, lazy), `tikz` (desktop only: native TeX or TikZJax) — all through a fence-renderer contribution | [[Markdown Diagrams and Math]] | tabs/typst-math: optional; mermaid/tikz: opt-in | tikz in a separate repo (heavy wasm), the rest here | TeX on `PATH` for tikz's native backend |
+| Annotations (comments on nodes/ranges, GitHub issues import) | [[Annotations]] | optional | this repo | host tokens for import |
 | Unicode input tables | [[Unicode Input]] | core (Julia + Lean tables) | this repo (`ui/assets/unicode`) | the `unicode` contribution point |
 | Claude Code | [[Claude Code Extension]] | opt-in | this repo while the provider/IDE-bridge hooks settle; a separate repo later if the CLI protocol churns | the `claude` binary |
 | HelixDB source | [[002]] | opt-in | separate (`moonkale-sources-extra`): git dependency, heavy tree | the published crate |
@@ -80,4 +82,4 @@ What is good: the boundaries that exist are real — JS behind traits with a pro
 
 ## Changelog of this page
 - 2026-09-19 — created after Milestone 9 with 13 static + 1 wasm extension.
-- 2026-09-20 — planned rows for the Julia depot source, MTK editor and the Lenticulum editor ([[Julia and Lenticulum]]).
+- 2026-09-20 — planned rows for the Julia depot source, MTK editor and the Lenticulum editor ([[Julia and Lenticulum]]); markdown fence renderers (tabs, Typst math, Mermaid, TikZ) and Annotations.

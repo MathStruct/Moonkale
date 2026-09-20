@@ -9,11 +9,11 @@ From [[Prompt10]] (2026-09-19). This is the list Moonkale is built *for*: these 
 
 | group | languages | why |
 |---|---|---|
-| programming | **Rust**, **Julia**, **C/C++**, **JavaScript/TypeScript**, **Go**, **Lean 4** | what Daniel writes |
+| programming | **Rust**, **Julia**, **Python**, **C/C++**, **JavaScript/TypeScript**, **Go**, **Lean 4** | what Daniel writes (Python added 2026-09-20, [[Prompt19]]) |
 | environments / builds | **Nix**, **Pixi** (`pixi.toml`, TOML with a schema) | how the projects are set up |
 | databases | **SQL**, **Cypher**, **HelixQL**, **TypeQL**, **GraphQL** | the sources Moonkale opens ([[Data Sources]]) |
 | data | **JSON**, **TOML**, (YAML — used by Quartz and CI, so it stays) | configuration everywhere |
-| typesetting | **Markdown**, **Typst** | notes and papers |
+| typesetting | **Markdown** (with Typst or KaTeX math, TikZ, Mermaid, tabs — [[Markdown Diagrams and Math]]), **Typst** | notes and papers |
 
 "Maybe some more I forgot" → add rows here; the table is the contract.
 
@@ -31,6 +31,7 @@ A core language extension provides, in this order of importance:
 | language | detect | highlight | symbols | LSP (discovered) | run / preview |
 |---|---|---|---|---|---|
 | Rust | `.rs` ✅ | ✅ Lezer | ✅ (`tree-sitter-rust`) | rust-analyzer ✅ (+ cargo-check diagnostics) | — |
+| Python | `.py` ✅ | ✅ Lezer | ❌ | pyright / pylsp ✅ | — (a notebook editor for `.ipynb` is not planned yet) |
 | Julia | `.jl` ✅ | ✅ legacy mode | ❌ | ✅ discovered (`julia --project=@lsp -e 'using LanguageServer; runserver()'`, install hint) | flow editor targets Lux.jl *(exists)*; no REPL |
 | C/C++ | ✅ `.c .h .cc .cpp .cxx .hh .hpp .hxx .cu` | ✅ Lezer | ❌ | ✅ clangd discovered | — |
 | JavaScript/TypeScript | ✅ `.js .mjs .cjs .jsx .ts .mts .cts .tsx` | ✅ Lezer (JSX) | ❌ | typescript-language-server ✅ | — |
