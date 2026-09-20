@@ -31,7 +31,7 @@ A core language extension provides, in this order of importance:
 | language | detect | highlight | symbols | LSP (discovered) | run / preview |
 |---|---|---|---|---|---|
 | Rust | `.rs` ✅ | ✅ Lezer | ✅ (`tree-sitter-rust`) | rust-analyzer ✅ (+ cargo-check diagnostics) | — |
-| Python | `.py` ✅ | ✅ Lezer | ❌ | pyright / pylsp ✅ | — (a notebook editor for `.ipynb` is not planned yet) |
+| Python | `.py` ✅ | ✅ Lezer | ❌ | pyright / pylsp ✅ | `.ipynb` viewer/editor + ipykernel execution planned as an opt-in extension ([[Notebook Editor]]) |
 | Julia | `.jl` ✅ | ✅ legacy mode | ❌ | ✅ discovered (`julia --project=@lsp -e 'using LanguageServer; runserver()'`, install hint) | flow editor targets Lux.jl *(exists)*; no REPL |
 | C/C++ | ✅ `.c .h .cc .cpp .cxx .hh .hpp .hxx .cu` | ✅ Lezer | ❌ | ✅ clangd discovered | — |
 | JavaScript/TypeScript | ✅ `.js .mjs .cjs .jsx .ts .mts .cts .tsx` | ✅ Lezer (JSX) | ❌ | typescript-language-server ✅ | — |

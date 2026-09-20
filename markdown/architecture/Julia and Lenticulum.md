@@ -44,4 +44,6 @@ What that needs from Moonkale, concretely — each a piece of existing machinery
 ## Not decided
 The wire format between Julia and Moonkale (JSON lines first); whether the factor-graph document is a flow-editor document with a stricter schema or its own; how a schedule is authored (overlay vs. a second, small DAG); what "large" is for a factor graph in practice (measure with Lenticulum's own examples once they exist).
 
+A Julia REPL with rich output comes cheapest through IJulia in the [[Notebook Editor]].
+
 Related: [[Core Languages]] (Julia is a core language: grammar, LanguageServer.jl, REPL), [[Extension Catalogue]] (`moonkale-julia`), [[Flow Editor]], [[Graph View]], [[Case Selector]], [[Projects and Sources]] (read-only sources).

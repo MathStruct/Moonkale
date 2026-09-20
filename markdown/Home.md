@@ -24,6 +24,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Extension Catalogue]] — every extension, tiers, platform fit, core vs separate repo, critique
 - [[Claude Code Extension]] — Moonkale as Claude Code's IDE + Claude Code as an agent, no API key (plan)
 - [[Markdown Diagrams and Math]] — Typst math (Rust), TikZ (desktop extension), Mermaid, tabs via one fence-renderer mechanism (design)
+- [[Notebook Editor]] — `.ipynb` viewer/editor with no new deps, kernels behind a feature (plan)
 - [[Annotations]] — comments anchored to files/rows/nodes, GitHub issues as the same thing (plan)
 - [[Case Selector]] — backend by size: rich/plain/viewer text, exact/approximate/coarse graph (design)
 - [[Unicode Input]] — `\int` → ∫ everywhere (design)
