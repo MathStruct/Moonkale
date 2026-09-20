@@ -29,6 +29,11 @@ enum Item {
     },
     /// A recent folder (label is the path).
     Recent(usize, String),
+    /// A registry command known only at runtime (Show <panel>, extension menus).
+    Dyn {
+        label: String,
+        id: String,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -41,9 +46,14 @@ fn menus(
     controls: Option<WindowControls>,
     recent: &[String],
     flow_enabled: bool,
-) -> Vec<(&'static str, Vec<Item>)> {
+    registry: &crate::commands::Registry,
+) -> Vec<(String, Vec<Item>)> {
     let desktop = controls.is_some();
     let mut file = vec![
+        Item::Cmd {
+            label: "New File…",
+            id: "file.new",
+        },
         Item::Cmd {
             label: "Open Folder…",
             id: "workspace.openFolder",
@@ -77,6 +87,14 @@ fn menus(
             id: "file.save",
         },
         Item::Cmd {
+            label: "Save All",
+            id: "file.saveAll",
+        },
+        Item::Cmd {
+            label: "Close All Editors",
+            id: "editor.closeAll",
+        },
+        Item::Cmd {
             label: "Close Editor",
             id: "editor.close",
         },
@@ -98,6 +116,43 @@ fn menus(
             id: "view.quickOpen",
         },
         Item::Sep,
+    ];
+    // Show <panel> for every static panel, from the registry (spec 009).
+    let mut shows: Vec<&crate::commands::Entry> = registry
+        .entries
+        .iter()
+        .filter(|e| e.id.starts_with("view.panel."))
+        .collect();
+    shows.sort_by(|a, b| a.title.cmp(&b.title));
+    for e in shows {
+        view.push(Item::Dyn {
+            label: e.title.trim_start_matches("View: ").to_string(),
+            id: e.id.clone(),
+        });
+    }
+    view.extend([
+        Item::Sep,
+        Item::Cmd {
+            label: "Toggle Side Bar",
+            id: "view.toggleSide",
+        },
+        Item::Cmd {
+            label: "Toggle Bottom Panel",
+            id: "view.toggleBottom",
+        },
+        Item::Cmd {
+            label: "Toggle Word Wrap",
+            id: "editor.toggleWrap",
+        },
+        Item::Cmd {
+            label: "Fold All",
+            id: "editor.foldAll",
+        },
+        Item::Cmd {
+            label: "Unfold All",
+            id: "editor.unfoldAll",
+        },
+        Item::Sep,
         Item::Cmd {
             label: "New Window",
             id: "view.newWindow",
@@ -111,7 +166,7 @@ fn menus(
             label: "Reset Layout",
             id: "view.resetLayout",
         },
-    ];
+    ]);
     if controls.and_then(|c| c.devtools).is_some() {
         view.push(Item::Sep);
         view.push(Item::Native {
@@ -119,42 +174,104 @@ fn menus(
             kind: Native::DevTools,
         });
     }
-    vec![
-        ("File", file),
-        (
-            "Edit",
-            vec![
-                Item::Cmd {
-                    label: "Undo",
-                    id: "edit.undo",
-                },
-                Item::Cmd {
-                    label: "Redo",
-                    id: "edit.redo",
-                },
-                Item::Sep,
-                Item::Cmd {
-                    label: "Find in Workspace…",
-                    id: "search.workspace",
-                },
-            ],
-        ),
-        ("View", view),
-        (
-            "Help",
-            vec![Item::Cmd {
+    let edit = vec![
+        Item::Cmd {
+            label: "Undo",
+            id: "edit.undo",
+        },
+        Item::Cmd {
+            label: "Redo",
+            id: "edit.redo",
+        },
+        Item::Sep,
+        Item::Cmd {
+            label: "Find",
+            id: "editor.find",
+        },
+        Item::Cmd {
+            label: "Replace",
+            id: "editor.replace",
+        },
+        Item::Cmd {
+            label: "Find in Workspace…",
+            id: "search.workspace",
+        },
+        Item::Sep,
+        Item::Cmd {
+            label: "Rename Symbol",
+            id: "editor.rename",
+        },
+        Item::Cmd {
+            label: "Code Actions",
+            id: "editor.codeActions",
+        },
+        Item::Cmd {
+            label: "Go to Definition",
+            id: "editor.definition",
+        },
+        Item::Cmd {
+            label: "Find References",
+            id: "editor.references",
+        },
+        Item::Cmd {
+            label: "Toggle Comment",
+            id: "editor.toggleComment",
+        },
+    ];
+    let mut out: Vec<(String, Vec<Item>)> = vec![
+        ("File".into(), file),
+        ("Edit".into(), edit),
+        ("View".into(), view),
+    ];
+    // Extension menus (spec 009): commands whose title category ("Git: …",
+    // "Agent: …") is not one of the built-in menus form their own menu.
+    let builtin = ["File", "Edit", "View", "Help", "Search", "Go to File…"];
+    let mut groups: Vec<(String, Vec<Item>)> = Vec::new();
+    for e in registry.entries.iter() {
+        if e.id.starts_with("view.panel.") {
+            continue;
+        }
+        let Some((cat, label)) = e.title.split_once(": ") else {
+            continue;
+        };
+        if builtin.contains(&cat) {
+            continue;
+        }
+        let item = Item::Dyn {
+            label: label.to_string(),
+            id: e.id.clone(),
+        };
+        match groups.iter_mut().find(|(c, _)| c == cat) {
+            Some((_, items)) => items.push(item),
+            None => groups.push((cat.to_string(), vec![item])),
+        }
+    }
+    out.extend(groups);
+    out.push((
+        "Help".into(),
+        vec![
+            Item::Cmd {
                 label: "About Moonkale",
                 id: "help.about",
-            }],
-        ),
-    ]
+            },
+            Item::Cmd {
+                label: "Keyboard Shortcuts",
+                id: "view.settings",
+            },
+            Item::Direct {
+                label: "Documentation",
+                cmd: Command::Docs,
+            },
+        ],
+    ));
+    out
 }
 
 #[component]
 pub fn TitleBar(controls: Option<WindowControls>) -> Element {
     let mut ws = use_context::<Workspace>();
     let registry = use_context::<crate::commands::CommandRegistry>();
-    let mut open: Signal<Option<&'static str>> = use_signal(|| None);
+    let mut open: Signal<Option<String>> = use_signal(|| None);
 
     let title = {
         let active = ws.active_document().map(|(_, d)| {
@@ -200,23 +317,27 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
             ondoubleclick: move |_| { if let Some(c) = controls { c.toggle_maximize.call(()) } },
             div { class: "mk-titlebar-left", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),
                 img { class: "mk-titlebar-logo", src: LOGO, alt: "Moonkale", width: "16", height: "16", draggable: false }
-                for (name, items) in menus(
-                    controls,
-                    &ws.settings.read().recent_folders,
-                    ws.settings.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
-                ) {
-                    div { class: "mk-menu",
+                for (name, items) in {
+                    let reg = registry.read();
+                    menus(
+                        controls,
+                        &ws.settings.read().recent_folders,
+                        ws.settings.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
+                        &reg,
+                    )
+                } {
+                    div { class: "mk-menu", key: "{name}",
                         button {
                             class: "mk-menu-button",
-                            class: if open() == Some(name) { "mk-menu-button-open" },
+                            class: if open().as_deref() == Some(name.as_str()) { "mk-menu-button-open" },
                             r#type: "button",
                             "aria-haspopup": "true",
-                            "aria-expanded": if open() == Some(name) { "true" } else { "false" },
-                            onclick: move |_| open.set(if open() == Some(name) { None } else { Some(name) }),
-                            onmouseenter: move |_| { if open().is_some() { open.set(Some(name)) } },
+                            "aria-expanded": if open().as_deref() == Some(name.as_str()) { "true" } else { "false" },
+                            onclick: { let name = name.clone(); move |_| open.set(if open().as_deref() == Some(name.as_str()) { None } else { Some(name.clone()) }) },
+                            onmouseenter: { let name = name.clone(); move |_| { if open().is_some() { open.set(Some(name.clone())) } } },
                             "{name}"
                         }
-                        if open() == Some(name) {
+                        if open().as_deref() == Some(name.as_str()) {
                             div { class: "mk-menu-popup", role: "menu",
                                 for item in items {
                                     match item {
@@ -239,6 +360,13 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                                             button { class: "mk-menu-item mk-menu-recent", role: "menuitem", r#type: "button", title: "{path}",
                                                 onclick: move |_| { open.set(None); ws.dispatch(Command::OpenRecent(i)); },
                                                 span { class: "mk-menu-recent-path", "{path}" }
+                                            }
+                                        },
+                                        Item::Dyn { label, id } => rsx! {
+                                            button { class: "mk-menu-item", role: "menuitem", r#type: "button",
+                                                onclick: { let id = id.clone(); move |_| { open.set(None); crate::commands::run(&id, ws); } },
+                                                span { "{label}" }
+                                                span { class: "mk-menu-shortcut", "{registry.read().shortcut(&id)}" }
                                             }
                                         },
                                         Item::Native { label, kind } => rsx! {

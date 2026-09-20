@@ -52,9 +52,10 @@ impl Extension for LinksExtension {
             id: PANEL_ID.into(),
             title: "Links".into(),
             home: PanelHome::Side,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("links", 30, "Links").phone_secondary()),
         }];
         // A preview tab exists while any .typ document is open and the platform can compile.
         let any_typ = ws
@@ -67,9 +68,10 @@ impl Extension for LinksExtension {
                 id: PREVIEW_ID.into(),
                 title: "Typst preview".into(),
                 home: PanelHome::Main,
-                closable: false,
+                closable: true,
                 dirty: false,
                 node: None,
+                activity: None,
             });
         }
         // Markdown documents: one editor tab each (Source | Rich).
@@ -83,6 +85,7 @@ impl Extension for LinksExtension {
                     closable: true,
                     dirty: d.dirty(),
                     node: Some(*id),
+                    activity: None,
                 });
             }
         }

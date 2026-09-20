@@ -13,10 +13,10 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[005]] | A Claude Code extension without an API key — plan in [[Claude Code Extension]] | planned |
 | [[006]] | Android graph: no pinch-zoom or two-finger rotation | open |
 | [[007]] | Android app is called "Mobile" and has no logo — the release build should have the right name and icon | open |
-| [[008]] | View png/jpg/svg inside Moonkale | open |
-| [[009]] | Activity bar on the left, fuller menus, icons + colours per source (phone: the bottom bar with a More… sheet) | open |
+| [[008]] | View png/jpg/svg inside Moonkale — image viewer extension (zoom, pan, SVG source) | done |
+| [[009]] | Activity bar with badges, Ctrl+B/J, menus from the registry (Show ▸, Git/Agent, editor actions), source icons/colours/lock, phone More sheet | done |
 | [[010]] | Syntax highlighting for the core languages (Lezer/legacy grammars in the view, P-093) | done |
-| [[011]] | Every panel closeable (×), reopen via activity bar / View menu; empty tiles collapse | open |
+| [[011]] | Every panel closeable (×), reopen via palette/rail/phone bar; empty tiles collapse and come back at their edge | done |
 | [[012]] | `[[wiki-links]]` like in Obsidian: rendered, clickable, `[[` completion, create-on-click, rename rewrites (embeds + hover preview deferred) | done |
 | [[013]] | Formulas (KaTeX) in the rich editor, with per-folder macros | done |
 | [[014]] | Word wrap in the code editor: `editor.wrap`, toolbar button, Alt+Z, Settings → Editor | done |

@@ -24,7 +24,7 @@ try {
     const buttons = await page.$$eval(".mk-phone-btn", (b) => b.map((x) => x.textContent.trim()));
     console.log("\n  tiles:", n, "rail:", rail, "bar:", buttons.join(" | "));
     if (n !== 1 || rail !== "none") throw new Error("not collapsed");
-    if (!buttons.includes("Files") || !buttons.includes("Agent")) throw new Error("bar incomplete");
+    if (!buttons.includes("Files") || !buttons.includes("Agent") || !buttons.includes("More")) throw new Error("bar incomplete");
     const h = await page.$eval(".mk-phone-btn", (b) => b.getBoundingClientRect().height);
     if (h < 44) throw new Error(`touch target ${h}px`);
     await page.screenshot({ path: `${S}/m6-phone-start.png` });
@@ -42,13 +42,24 @@ try {
     if ((await tiles()) !== 1) throw new Error("split appeared");
     await page.screenshot({ path: `${S}/m6-phone-editor.png` });
   });
-  await step("bar switches Graph → Terminal → Agent → Settings → Editor", async () => {
-    for (const id of ["graph", "terminal", "agent", "settings"]) {
+  await step("bar switches Graph → Terminal → Agent → (More) Settings → Editor", async () => {
+    for (const id of ["graph", "terminal", "agent"]) {
       await page.click(`.mk-phone-btn[data-panel=${id}]`);
       await sleep(250);
       if ((await front()) !== id) throw new Error(`${id} not in front (${await front()})`);
     }
+    // Settings and the rarely used side panels live in the More sheet (spec 009).
+    await page.click(".mk-phone-btn[data-panel=more]");
+    await page.waitForSelector(".mk-phone-more", { timeout: 5000 });
+    const more = await page.$$eval(".mk-phone-more .mk-phone-btn", (b) => b.map((x) => x.dataset.panel));
+    console.log("\n  more:", more.join(" | "));
+    if (!more.includes("settings") || !more.includes("links")) throw new Error("More sheet incomplete");
+    await page.click(".mk-phone-more .mk-phone-btn[data-panel=settings]");
+    await sleep(250);
+    if (await page.$(".mk-phone-more")) throw new Error("More sheet stayed open");
+    // Settings is not a bar button, so the bar shows no active entry; the panel itself is in front.
     await page.waitForSelector(".mk-settings", { timeout: 5000 });
+    if ((await tiles()) !== 1) throw new Error("split appeared");
     await page.click(".mk-phone-btn:has-text('Editor')");
     await sleep(250);
     if (!(await front()).startsWith("editor:")) throw new Error("editor not back");

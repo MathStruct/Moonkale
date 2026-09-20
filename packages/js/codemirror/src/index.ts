@@ -4,7 +4,7 @@
 // knowledge, no DOM outside the mount element. Rust owns the document; this
 // file only shows it and reports edits.
 
-import { search, searchKeymap, highlightSelectionMatches, openSearchPanel } from "@codemirror/search"
+import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search"
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from "@codemirror/language"
 import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
@@ -21,6 +21,8 @@ import {
   crosshairCursor,
 } from "@codemirror/view"
 import { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
+import { openSearchPanel } from "@codemirror/search"
+import { foldAll, unfoldAll } from "@codemirror/language"
 import { oneDark } from "@codemirror/theme-one-dark"
 import { setDiagnostics, lintGutter, type Diagnostic } from "@codemirror/lint"
 import { hoverTooltip } from "@codemirror/view"
@@ -58,6 +60,7 @@ export type CompletionItem = { label: string; kind?: string; detail?: string; in
 type Entry = {
   view: EditorView
   wrap: Compartment
+  features: Features
   pendingHover: Map<number, (text: string | null) => void>
   nextHover: number
   pendingCompletion: Map<number, (items: CompletionItem[] | null) => void>
@@ -138,7 +141,7 @@ function cmPos(view: EditorView, line: number, col: number): number {
 
 function mount(el: HTMLElement, text: string, onChange: OnChange, features: Features = {}): void {
   destroy(el)
-  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment() }
+  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment(), features }
   const hover = hoverTooltip(async (v, pos) => {
     if (!features.onHover) return null
     const { line, col } = lspPos(v, pos)
@@ -298,6 +301,27 @@ function setLspDiagnostics(el: HTMLElement, items: { line: number; col: number; 
   e.view.dispatch(setDiagnostics(e.view.state, diags))
 }
 
+/** A menu action on the editor (spec 009): the same things the keys do. */
+function run(el: HTMLElement, action: string): void {
+  const e = views.get(el)
+  if (!e) return
+  const v = e.view
+  const f = e.features
+  const { line, col } = lspPos(v, v.state.selection.main.head)
+  switch (action) {
+    case "find": openSearchPanel(v); break
+    case "replace": openSearchPanel(v); break
+    case "rename": { if (f.onRename) { const w = v.state.wordAt(v.state.selection.main.head); f.onRename(line, col, w ? v.state.sliceDoc(w.from, w.to) : "") } break }
+    case "codeActions": { if (f.onCodeActions) { const s = v.state.selection.main; const a = lspPos(v, s.from), b = lspPos(v, s.to); f.onCodeActions(a.line, a.col, b.line, b.col) } break }
+    case "definition": f.onDefinition?.(line, col); break
+    case "references": f.onReferences?.(line, col); break
+    case "toggleComment": toggleComment(v); break
+    case "foldAll": foldAll(v); break
+    case "unfoldAll": unfoldAll(v); break
+  }
+  v.focus()
+}
+
 /** Soft wrap on/off (spec 014). */
 function setWrap(el: HTMLElement, wrap: boolean): void {
   const e = views.get(el)
@@ -389,4 +413,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, run }

@@ -34,7 +34,7 @@ pub mod workspace;
 
 pub use assets::{Stylesheet, StylesheetUrl};
 pub use command::{fuzzy_score, CommandContribution, Keybinding};
-pub use contrib::{PanelContribution, PanelHome};
+pub use contrib::{Activity, PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub mod flow;
@@ -46,17 +46,17 @@ pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};
 pub use workspace::{
-    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, ForeignDrag,
-    GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions,
-    PickFolder, PickFolderFuture, Reveal, SecretStore, SettingsFuture, SettingsStore, SourceHandle,
-    WasmExtensions, WasmList, WasmRun, Workspace, WorkspaceConfig,
+    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, EditorAction,
+    ForeignDrag, GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder, OpenFolderFuture,
+    OpenOptions, PickFolder, PickFolderFuture, Reveal, SecretStore, SettingsFuture, SettingsStore,
+    SourceHandle, WasmExtensions, WasmList, WasmRun, Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.
 pub mod prelude {
     pub use crate::{
-        Command, CommandContribution, Document, Extension, Manifest, PanelContribution, PanelHome,
-        SourceHandle, Workspace,
+        Activity, Command, CommandContribution, Document, Extension, Manifest, PanelContribution,
+        PanelHome, SourceHandle, Workspace,
     };
     pub use moonkale_core::{
         Node, NodeId, NodeKind, Query, Source, SourceError, SourceId, Version,

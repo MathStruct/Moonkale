@@ -65,6 +65,17 @@ impl Source for RemoteSource {
             .map_err(transport)?
     }
 
+    async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
+        use base64::Engine;
+        let (b64, version) = crate::fetch_bytes_from(self.id(), node)
+            .await
+            .map_err(transport)??;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .map_err(|e| SourceError::Io(e.to_string()))?;
+        Ok((bytes, version))
+    }
+
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
         crate::apply_to(self.id(), tx).await.map_err(transport)?
     }

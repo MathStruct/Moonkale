@@ -20,9 +20,10 @@ impl Extension for GraphExtension {
             id: PANEL_ID.into(),
             title: "Graph".into(),
             home: PanelHome::Main,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("graph", 80, "Graph")),
         }]
     }
 

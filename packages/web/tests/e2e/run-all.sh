@@ -15,12 +15,12 @@ E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 export PORT="${PORT:-8090}" M1_ROOT="$E/m2root" M1_SHOTS="$E/shots"
 mkdir -p "$E/e2e" "$E/shots"
 cp "$HERE"/*.mjs "$E/e2e/"   # playwright resolves from the working directory
-ALL="menubar session graph links-sqlite terminal typst lsp ladybug agent search-trace settings rich agent-writes flow wasm-ext phone palette files replace lsp2 git auth history presence graph3d duckdb wiki highlight"
+ALL="menubar session graph links-sqlite terminal typst lsp ladybug agent search-trace settings rich agent-writes flow wasm-ext phone palette files replace lsp2 git auth history presence graph3d duckdb wiki highlight panels image shell"
 reset() {
   # Back to the committed fixture (the folder is a git repository).
   git -C "$E/m2root" reset -q --hard "$(git -C "$E/m2root" rev-list --max-parents=0 HEAD)" 2>/dev/null; git -C "$E/m2root" clean -fdq 2>/dev/null
   rm -rf "$E/m2root/.moonkale" "$E/m2root"/*.flow.json "$E/m2root/model.jl" "$E/m2root"/untitled* \
-    "$E/m2root"/todo.md "$E/m2root"/TODO.md "$E/m2root/notes/drafts" "$E/m2root/notes/TODO.md" "$E/m2root"/note.md "$E/m2root"/notes.md "$E/m2root"/Math.md "$E/m2root"/Missing.md "$E/m2root"/Nowhere.md "$E/m2root"/Alpha2.md   # files.mjs, history.mjs, rich.mjs, wiki.mjs
+    "$E/m2root"/todo.md "$E/m2root"/TODO.md "$E/m2root/notes/drafts" "$E/m2root/notes/TODO.md" "$E/m2root"/note.md "$E/m2root"/notes.md "$E/m2root"/Math.md "$E/m2root"/Missing.md "$E/m2root"/Nowhere.md "$E/m2root"/Alpha2.md "$E/m2root/pics"   # files.mjs, history.mjs, rich.mjs, wiki.mjs
   printf '# Home\nSee [[Alpha]] and [[notes/Beta]] and [[Missing]].\n' > "$E/m2root/Home.md"
   printf 'Back to [[Home]]. Code: [lib](src/lib.md)\n' > "$E/m2root/Alpha.md"
   printf 'Beta links [[Alpha]].\n' > "$E/m2root/notes/Beta.md"

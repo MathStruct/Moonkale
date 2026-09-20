@@ -1,13 +1,13 @@
-use crate::panel::TablePanel;
+use crate::panel::ImagePanel;
 use dioxus::prelude::*;
-use moonkale_core::{NodeId, NodeKind};
+use moonkale_core::NodeId;
 use moonkale_ext_api::prelude::*;
 
-pub const PANEL_PREFIX: &str = "table:";
+pub const PANEL_PREFIX: &str = "image:";
 
-pub struct TableExtension;
+pub struct ImageExtension;
 
-impl TableExtension {
+impl ImageExtension {
     pub fn panel_id(node: NodeId) -> String {
         format!("{PANEL_PREFIX}{node}")
     }
@@ -16,12 +16,12 @@ impl TableExtension {
     }
 }
 
-impl Extension for TableExtension {
+impl Extension for ImageExtension {
     fn manifest(&self) -> Manifest {
         Manifest::optional(
-            "dev.moonkale.editor-table",
-            "Tables",
-            "SQL / Cypher query box and result grid for database sources.",
+            "dev.moonkale.editor-image",
+            "Image viewer",
+            "Shows png, jpg, gif, webp, svg, bmp, ico and avif files: zoom, pan, dimensions.",
         )
     }
 
@@ -29,7 +29,7 @@ impl Extension for TableExtension {
         ws.views
             .read()
             .iter()
-            .filter(|n| n.kind == NodeKind::Table)
+            .filter(|n| crate::is_image(n))
             .map(|n| PanelContribution {
                 id: Self::panel_id(n.id),
                 title: n.label.clone(),
@@ -46,8 +46,8 @@ impl Extension for TableExtension {
         match Self::node_of(panel_id)
             .and_then(|id| ws.views.read().iter().find(|n| n.id == id).cloned())
         {
-            Some(node) => rsx! { TablePanel { ws, node } },
-            None => rsx! { "unknown table panel {panel_id}" },
+            Some(node) => rsx! { ImagePanel { ws, node } },
+            None => rsx! { "unknown image panel {panel_id}" },
         }
     }
 

@@ -57,3 +57,5 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - `workspace.rs`: `read_text_at(source, rel)` (small config files such as `.moonkale/katex.json`).
 - `assets.rs`: `StylesheetUrl { href: String }` for a file inside a folder asset; `Stylesheet` delegates to it.
 - `workspace.rs`: `close_source(id)` (spec 015) and `SettingsFile.reopen_last`; `Command::CloseFolder`.
+- `workspace.rs`: blobs open as views in `open_node`; `fetch_bytes(node)`, `open_as_text(node)` (spec 008). `core::Source::fetch_bytes` has a default `Unsupported`.
+- `contrib.rs`: `Activity { icon, order, badge, label, phone_secondary }` on `PanelContribution` (spec 009). `workspace.rs`: `Command::{SaveAll, CloseAllEditors, ToggleSide, ToggleBottom, Editor(EditorAction), Docs}`, `EditorAction`, `hidden_tiles`.

@@ -63,3 +63,6 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 
 - `wiki.mjs` (spec 012): decorated links in source and rich mode, `[[` completion in both, click/Ctrl+click follows, create-on-click, Links panel *Create*, rename rewrites backlinks.
 - `highlight.mjs` (spec 010): grammar tokens for Rust/Markdown/TOML, fold gutter, `Mod-/`.
+- `panels.mjs` (spec 011): close/reopen static panels, side-bar collapse and return.
+- `image.mjs` (spec 008): png/svg open in the viewer, zoom states, SVG Source.
+- `shell.mjs` (spec 009): activity bar, badges, hide/show, Ctrl+B, registry-built menus, source row decoration.

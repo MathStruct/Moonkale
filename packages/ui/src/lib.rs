@@ -16,6 +16,7 @@ pub mod commands;
 mod explorer;
 mod frame;
 mod history;
+pub mod icons;
 mod palette;
 mod search;
 mod settings_panel;
@@ -53,6 +54,7 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
             }),
         ),
         Box::new(moonkale_editor_table::TableExtension),
+        Box::new(moonkale_editor_image::ImageExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),
         Box::new(moonkale_editor_agent::AgentExtension),
         // Opt-in (off until enabled in Settings → Extensions):

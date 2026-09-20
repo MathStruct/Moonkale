@@ -57,9 +57,10 @@ impl Extension for HistoryExtension {
             id: PANEL_ID.into(),
             title: "History".into(),
             home: PanelHome::Side,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("history", 50, "History").phone_secondary()),
         }];
         for (ev, _, key) in self.state.views.read().iter() {
             out.push(PanelContribution {
@@ -69,6 +70,7 @@ impl Extension for HistoryExtension {
                 closable: true,
                 dirty: false,
                 node: None,
+                activity: None,
             });
         }
         out

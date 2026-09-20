@@ -1,0 +1,12 @@
+[package]
+name = "moonkale-editor-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Image viewer: png/jpg/gif/webp/svg/bmp/ico/avif files open as a zoomable, pannable view (spec 008). Rust-native, no JS."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }
+base64 = "0.22"

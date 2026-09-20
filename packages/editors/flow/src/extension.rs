@@ -38,6 +38,7 @@ impl Extension for FlowExtension {
                     closable: true,
                     dirty: d.dirty(),
                     node: Some(*id),
+                    activity: None,
                 }
             })
             .collect()

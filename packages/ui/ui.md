@@ -60,3 +60,13 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 
 ## Milestone 9
 - `history.rs`: **Compact (n)** (keeps the last 200 events) and the log size in KB in the head; **Restore** in `TextAtPanel` when the text differs from the open document.
+
+## Milestone 10 (spec 011)
+- `shell.rs`: static panels the user closed are in `Workspace::closed_panels` and skipped when contributions are collected; `on_close` records them; `home_zone(layout, home)` docks a returning panel at its edge when its tile was pruned, and the `ShowPanel` handler sets the new split's ratio (0.22 / 0.72 / 0.7). `commands.rs`: `Run::ShowPanel(id)` and a generated `view.panel.<id>` per static panel.
+
+## Milestone 10 (spec 009)
+- `icons.rs`: inline SVG `Icon { name }`, `source_icon(&SourceDescriptor) -> (icon, kind)`, `source_color(id)` (FNV hash → 8-colour palette).
+- `shell.rs`: the rail and the phone bar come from `PanelContribution.activity` (sorted by `order`; `front_of` marks the entry whose panel is its tile's front tab; click hides an active entry, shows otherwise); People entry from presence; phone bar = primary entries (≤ 5) + Editor + **More** sheet (secondary/overflow). Handlers for `ToggleSide`/`ToggleBottom` (remember in `Workspace::hidden_tiles`), `SaveAll`, `CloseAllEditors`, `Docs`.
+- `commands.rs`: `file.new`, `file.saveAll`, `editor.closeAll`, `view.toggleSide/Bottom`, `editor.{find,replace,rename,codeActions,definition,references,toggleComment,foldAll,unfoldAll}` (`Command::Editor(EditorAction)`).
+- `titlebar.rs`: `menus(.., &Registry)` — `Item::Dyn` for runtime commands; View lists every `view.panel.*`; extension commands grouped by title category into their own menus (Git, Agent); Help → Keyboard Shortcuts, Documentation.
+- `explorer.rs`: source rows carry `data-kind`, `--mk-source-color`, the kind icon and a lock for read-only sources.

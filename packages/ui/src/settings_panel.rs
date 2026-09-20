@@ -26,9 +26,10 @@ impl Extension for SettingsExtension {
             id: PANEL_ID.into(),
             title: "Settings".into(),
             home: PanelHome::Main,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("settings", 900, "Settings")),
         }]
     }
 

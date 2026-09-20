@@ -124,17 +124,48 @@ pub fn Shell() -> Element {
                 // Our copy of the layout only learns about attached panels
                 // through mutations, so reconcile with the current
                 // contributions first (the workbench does the same on click).
+                ws.closed_panels.with_mut(|c| {
+                    c.remove(id);
+                });
                 let ext_settings = ws.settings.peek().extensions.clone();
                 let is_narrow = *narrow.peek();
+                let mut target = if is_narrow { phone_layout } else { layout };
+                let mut next = target.peek().clone();
+                let closed = ws.closed_panels.peek().clone();
                 let placements: Vec<PanelPlacement> = exts
                     .iter()
                     .filter(|e| ext_settings.is_enabled(&e.manifest()))
                     .flat_map(|e| e.panels(ws))
-                    .map(|c| PanelPlacement::new(PanelId::from(c.id.as_str()), TileId::from(home_tile(is_narrow, c.home))))
+                    .filter(|c| c.node.is_some() || !closed.contains(&c.id))
+                    .map(|c| {
+                        let home = home_tile(is_narrow, c.home);
+                        PanelPlacement::new(PanelId::from(c.id.as_str()), TileId::from(home))
+                            .with_zone(home_zone(&next, home))
+                    })
                     .collect();
-                let mut target = if is_narrow { phone_layout } else { layout };
-                let mut next = target.peek().clone();
+                let before = next.split_ids();
                 next.reconcile(&placements);
+                // A home tile that had been pruned (every panel in it closed,
+                // spec 011) comes back as a fresh edge split at 0.5: give it
+                // the default proportion of that edge.
+                let home = exts
+                    .iter()
+                    .flat_map(|e| e.panels(ws))
+                    .find(|c| c.id == id)
+                    .map(|c| home_tile(is_narrow, c.home));
+                if let Some(home) = home {
+                    for sid in next.split_ids() {
+                        if !before.contains(&sid) {
+                            let ratio = match home {
+                                "side" => 0.22,
+                                "bottom" => 0.72,
+                                "right" => 0.7,
+                                _ => 0.5,
+                            };
+                            next.set_split_ratio(&sid, ratio);
+                        }
+                    }
+                }
                 if next.activate(&PanelId::from(id)) {
                     target.set(next);
                 }
@@ -145,6 +176,70 @@ pub fn Shell() -> Element {
                         ws.set_status(format!("Open folder failed: {e}"));
                     }
                 });
+            }
+            // Ctrl+B / Ctrl+J (spec 009): hide every panel of the tile and
+            // remember them; the next toggle shows them again.
+            Some(Command::ToggleSide) | Some(Command::ToggleBottom) => {
+                let tile = if matches!(cmd, Some(Command::ToggleSide)) { "side" } else { "bottom" };
+                let remembered = ws.hidden_tiles.peek().get(tile).cloned().unwrap_or_default();
+                let ext_settings = ws.settings.peek().extensions.clone();
+                let closed = ws.closed_panels.peek().clone();
+                let visible: Vec<String> = exts
+                    .iter()
+                    .filter(|e| ext_settings.is_enabled(&e.manifest()))
+                    .flat_map(|e| e.panels(ws))
+                    .filter(|c| c.node.is_none() && !closed.contains(&c.id) && c.home.tile_id() == tile)
+                    .map(|c| c.id)
+                    .collect();
+                if !visible.is_empty() {
+                    ws.hidden_tiles.with_mut(|h| { h.insert(tile.to_string(), visible.clone()); });
+                    ws.closed_panels.with_mut(|c| c.extend(visible));
+                } else if !remembered.is_empty() {
+                    ws.hidden_tiles.with_mut(|h| { h.remove(tile); });
+                    let first = remembered[0].clone();
+                    ws.closed_panels.with_mut(|c| { for id in &remembered { c.remove(id); } });
+                    ws.show_panel(&first);
+                } else {
+                    ws.set_status(format!("Nothing to show in the {tile} area"));
+                }
+            }
+            Some(Command::SaveAll) => {
+                let dirty: Vec<moonkale_core::NodeId> = ws
+                    .documents
+                    .peek()
+                    .iter()
+                    .filter(|(_, d)| d.peek().dirty())
+                    .map(|(id, _)| *id)
+                    .collect();
+                spawn(async move {
+                    let mut n = 0;
+                    for id in dirty {
+                        if ws.save(id).await.is_ok() {
+                            n += 1;
+                        }
+                    }
+                    ws.set_status(format!("Saved {n} document(s)"));
+                });
+            }
+            Some(Command::CloseAllEditors) => {
+                let clean: Vec<moonkale_core::NodeId> = ws
+                    .documents
+                    .peek()
+                    .iter()
+                    .filter(|(_, d)| !d.peek().dirty())
+                    .map(|(id, _)| *id)
+                    .collect();
+                let kept = ws.documents.peek().len() - clean.len();
+                for id in clean {
+                    ws.close_node(id);
+                }
+                let views: Vec<moonkale_core::NodeId> = ws.views.peek().iter().map(|n| n.id).collect();
+                for id in views {
+                    ws.close_node(id);
+                }
+                if kept > 0 {
+                    ws.set_status(format!("{kept} unsaved document(s) left open"));
+                }
             }
             Some(Command::CloseFolder) => {
                 let first = ws
@@ -161,6 +256,9 @@ pub fn Shell() -> Element {
                     }
                     None => ws.set_status("No folder is open"),
                 }
+            }
+            Some(Command::Docs) => {
+                let _ = dioxus::document::eval("window.open('https://mathstruct.github.io/Moonkale/', '_blank');");
             }
             Some(Command::About) => ws.set_status("Moonkale 0.1.0 — graph-native code and knowledge editor · mathstruct.github.io/Moonkale"),
             _ => {}
@@ -189,27 +287,44 @@ pub fn Shell() -> Element {
     }
     // Panel ids present this render, for the phone bar.
     let mut present: Vec<String> = Vec::new();
+    // Static panels the user closed (spec 011) contribute nothing.
+    let closed = ws.closed_panels.read().clone();
+    // Whether a contribution is a static panel (no document behind it).
+    let mut is_static: HashMap<String, bool> = HashMap::new();
+    let current_layout = if is_narrow {
+        phone_layout.read().clone()
+    } else {
+        layout.read().clone()
+    };
     // The panel of the most recently active document, for the phone bar's
     // "Editor" button.
     let mut editor_panel: Option<String> = None;
+    // Activity-bar entries (spec 009): every static panel that declares one,
+    // closed or not — the bar is how a closed panel comes back.
+    let mut activities: Vec<(String, moonkale_ext_api::Activity)> = Vec::new();
     for (i, ext) in exts.iter().enumerate() {
         if !ext_settings.is_enabled(&ext.manifest()) {
             continue;
         }
         for c in ext.panels(ws) {
+            if let (None, Some(act)) = (&c.node, &c.activity) {
+                activities.push((c.id.clone(), act.clone()));
+            }
+            if c.node.is_none() && closed.contains(&c.id) {
+                continue;
+            }
             owner.insert(c.id.clone(), i);
+            is_static.insert(c.id.clone(), c.node.is_none());
             present.push(c.id.clone());
             if c.node.is_some() && c.node == active_node {
                 active_panel = Some(PanelId::from(c.id.as_str()));
                 editor_panel = Some(c.id.clone());
             }
-            let mut panel = Panel::new(
-                c.id.as_str(),
-                c.title.as_str(),
-                home_tile(is_narrow, c.home),
-                ext.render(&c.id, ws),
-            )
-            .with_closable(c.closable);
+            let home = home_tile(is_narrow, c.home);
+            let mut panel =
+                Panel::new(c.id.as_str(), c.title.as_str(), home, ext.render(&c.id, ws))
+                    .with_closable(c.closable)
+                    .with_home_zone(home_zone(&current_layout, home));
             // Tab accessories: the unsaved dot, and the git status letter of
             // the document's file (Milestone 7).
             let vcs = c
@@ -261,6 +376,14 @@ pub fn Shell() -> Element {
             if let Some(&i) = owner.get(&id_str) {
                 exts[i].on_panel_closed(&id_str, ws);
             }
+            // A static panel stays closed until View → Show / the activity
+            // bar / the palette brings it back (spec 011); documents close
+            // through their extension.
+            if is_static.get(&id_str).copied().unwrap_or(false) {
+                ws.closed_panels.with_mut(|c| {
+                    c.insert(id_str);
+                });
+            }
         }
     };
 
@@ -297,6 +420,12 @@ pub fn Shell() -> Element {
         .read()
         .first()
         .map(|s| s.descriptor.display_name.clone());
+    // The first source's accent (spec 009), matching its Explorer stripe.
+    let source_color: Option<&'static str> = ws
+        .sources
+        .read()
+        .first()
+        .map(|s| crate::icons::source_color(s.descriptor.id.as_str()));
     let active_doc = active_node.and_then(|n| ws.document(n)).map(|d| {
         let d = d.read();
         (d.node.native_key.clone(), d.dirty())
@@ -325,33 +454,78 @@ pub fn Shell() -> Element {
             phone_layout.set(next);
         }
     };
-    let bar: Vec<(String, &'static str, bool)> = if is_narrow {
-        let mut v = Vec::new();
-        for (id, label) in [("explorer", "Files"), ("search", "Search")] {
-            if present.iter().any(|p| p == id) {
-                v.push((id.to_string(), label, front.as_deref() == Some(id)));
-            }
+    activities.sort_by(|a, b| a.1.order.cmp(&b.1.order).then_with(|| a.0.cmp(&b.0)));
+    // Which activity is "current": the one whose panel is the front tab of
+    // its tile (desktop), or the front panel (phone).
+    let front_of = |id: &str| -> bool {
+        if is_narrow {
+            front.as_deref() == Some(id)
+        } else {
+            let l = current_layout.clone();
+            l.tile_for_panel(&PanelId::from(id))
+                .and_then(|t| l.tile(&t).and_then(|tile| tile.active.clone()))
+                .is_some_and(|p| p.to_string() == id)
+                && !closed.contains(id)
         }
-        let editor_front = front.as_deref().is_some_and(|f| f.starts_with("editor:"));
-        v.push((
-            editor_panel.clone().unwrap_or_default(),
-            "Editor",
-            editor_front,
-        ));
-        for (id, label) in [
-            ("graph", "Graph"),
-            ("terminal", "Terminal"),
-            ("agent", "Agent"),
-            ("settings", "Settings"),
-        ] {
-            if present.iter().any(|p| p == id) {
-                v.push((id.to_string(), label, front.as_deref() == Some(id)));
-            }
-        }
-        v
-    } else {
-        Vec::new()
     };
+    // Phone bar (spec 009): the same registry — Files, Search, Editor, then
+    // the rest in order, Settings last; entries past six go into "More".
+    // Phone bar (spec 009): primary entries in order (the editor after
+    // Search) fill the bar up to five; secondary ones and the overflow go to
+    // the More sheet.
+    type BarEntry = (String, String, &'static str, bool, u32);
+    let (phone_main, phone_more): (Vec<BarEntry>, Vec<BarEntry>) = if is_narrow {
+        let mut main = Vec::new();
+        let mut more = Vec::new();
+        let mut primary = 0;
+        let editor_front = front.as_deref().is_some_and(|f| f.starts_with("editor:"));
+        for (id, act) in activities.iter() {
+            let entry = (
+                id.clone(),
+                act.label.clone(),
+                act.icon,
+                front_of(id),
+                act.badge,
+            );
+            if act.phone_secondary || primary >= 5 {
+                more.push(entry);
+            } else {
+                main.push(entry);
+                primary += 1;
+            }
+            if act.order == 20 {
+                main.push((
+                    editor_panel.clone().unwrap_or_default(),
+                    "Editor".into(),
+                    "editor",
+                    editor_front,
+                    0,
+                ));
+            }
+        }
+        (main, more)
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    let mut more_open = use_signal(|| false);
+    let rail: Vec<(String, String, &'static str, bool, u32, bool)> = if is_narrow {
+        Vec::new()
+    } else {
+        activities
+            .iter()
+            .map(|(id, act)| {
+                (
+                    id.clone(),
+                    act.label.clone(),
+                    act.icon,
+                    front_of(id),
+                    act.badge,
+                    act.order >= 900,
+                )
+            })
+            .collect()
+    };
+    let others_count = others.len() as u32;
 
     rsx! {
         moonkale_ext_api::Stylesheet { href: SHELL_CSS }
@@ -360,7 +534,53 @@ pub fn Shell() -> Element {
                 rail: rsx! {
                     if !is_narrow {
                         ActivityRail {
-                            ActivityButton { label: "Explorer", icon: rsx! { FilesIcon {} }, active: true, onclick: move |_| {} }
+                            for (id, label, icon, active, badge, bottom) in rail.iter().cloned() {
+                                ActivityButton {
+                                    id: format!("mk-rail-{id}"),
+                                    label: label.clone(),
+                                    title: format!("{label} — click again to hide"),
+                                    icon: rsx! {
+                                        span { class: "mk-rail-icon",
+                                            crate::icons::Icon { name: icon }
+                                            if badge > 0 {
+                                                span { class: "mk-badge", "data-count": "{badge}", if badge > 99 { "99+" } else { "{badge}" } }
+                                            }
+                                        }
+                                    },
+                                    active,
+                                    bottom,
+                                    onclick: {
+                                        let id = id.clone();
+                                        move |_| {
+                                            // Click on the current entry hides it (spec 009);
+                                            // otherwise show (reopening if closed).
+                                            if active {
+                                                ws.closed_panels.with_mut(|c| { c.insert(id.clone()); });
+                                            } else {
+                                                ws.show_panel(&id);
+                                            }
+                                        }
+                                    },
+                                }
+                            }
+                            // Presence: who else is here (spec 009).
+                            ActivityButton {
+                                id: "mk-rail-presence".to_string(),
+                                label: "People".to_string(),
+                                title: if others_names.is_empty() { "Nobody else is here".to_string() } else { format!("Here: {others_names}") },
+                                icon: rsx! {
+                                    span { class: "mk-rail-icon",
+                                        crate::icons::Icon { name: "presence" }
+                                        if others_count > 0 { span { class: "mk-badge", "{others_count}" } }
+                                    }
+                                },
+                                active: false,
+                                bottom: true,
+                                onclick: {
+                                    let names = others_names.clone();
+                                    move |_| ws.set_status(if names.is_empty() { "Nobody else is looking at this folder".to_string() } else { format!("Here: {names}") })
+                                },
+                            }
                         }
                     }
                 },
@@ -368,7 +588,11 @@ pub fn Shell() -> Element {
                     StatusBar {
                         left: rsx! {
                             StatusItem {
-                                StatusDot { tone: if source_name.is_some() { StatusTone::Good } else { StatusTone::Neutral } }
+                                if let Some(color) = source_color {
+                                    span { class: "mk-source-dot", style: "background: {color};" }
+                                } else {
+                                    StatusDot { tone: StatusTone::Neutral }
+                                }
                                 {source_name.clone().unwrap_or_else(|| "No folder open".into())}
                             }
                         },
@@ -410,14 +634,37 @@ pub fn Shell() -> Element {
                             on_panel_close: on_close,
                             on_layout_change: move |_| {},
                         }
+                        if more_open() {
+                            div { class: "mk-phone-more", onclick: move |_| more_open.set(false),
+                                for (id, label, icon, active, badge) in phone_more.iter().cloned() {
+                                    button {
+                                        class: if active { "mk-phone-btn mk-active" } else { "mk-phone-btn" },
+                                        "data-panel": "{id}",
+                                        onclick: { let mut show = show.clone(); let id = id.clone(); move |_| { more_open.set(false); ws.show_panel(&id); show(&id) } },
+                                        span { class: "mk-rail-icon", crate::icons::Icon { name: icon } if badge > 0 { span { class: "mk-badge", "{badge}" } } }
+                                        span { "{label}" }
+                                    }
+                                }
+                            }
+                        }
                         nav { class: "mk-phone-bar", "aria-label": "Panels",
-                            for (id, label, active) in bar {
+                            for (id, label, icon, active, badge) in phone_main.iter().cloned() {
                                 button {
                                     class: if active { "mk-phone-btn mk-active" } else { "mk-phone-btn" },
                                     disabled: id.is_empty(),
                                     "data-panel": "{id}",
-                                    onclick: { let mut show = show.clone(); let id = id.clone(); move |_| show(&id) },
-                                    "{label}"
+                                    onclick: { let mut show = show.clone(); let id = id.clone(); move |_| { ws.show_panel(&id); show(&id) } },
+                                    span { class: "mk-rail-icon", crate::icons::Icon { name: icon } if badge > 0 { span { class: "mk-badge", "{badge}" } } }
+                                    span { "{label}" }
+                                }
+                            }
+                            if !phone_more.is_empty() {
+                                button {
+                                    class: if more_open() { "mk-phone-btn mk-active" } else { "mk-phone-btn" },
+                                    "data-panel": "more",
+                                    onclick: move |_| more_open.toggle(),
+                                    span { class: "mk-rail-icon", crate::icons::Icon { name: "more" } }
+                                    span { "More" }
                                 }
                             }
                         }
@@ -439,6 +686,22 @@ pub fn Shell() -> Element {
 
 /// Where a panel first appears: its declared home, or the single tile of
 /// the phone-sized shell.
+/// How a panel joins its home when that tile is gone from the layout (all
+/// its panels were closed and the tile was pruned): dock at the edge the
+/// home stands for, so the side bar comes back on the left, the bottom
+/// panel at the bottom. An existing home tile takes it as a tab.
+fn home_zone(layout: &PanelLayout, home: &str) -> DockZone {
+    if layout.tile(&TileId::from(home)).is_some() {
+        return DockZone::Center;
+    }
+    match home {
+        "side" => DockZone::Left,
+        "bottom" => DockZone::Bottom,
+        "right" => DockZone::Right,
+        _ => DockZone::Center,
+    }
+}
+
 fn home_tile(narrow: bool, home: moonkale_ext_api::PanelHome) -> &'static str {
     if narrow {
         "main"
@@ -456,12 +719,3 @@ function watch(px) {
 }
 for (;;) { await dioxus.recv(); }
 "#;
-
-#[component]
-fn FilesIcon() -> Element {
-    rsx! {
-        svg { class: "mk-icon", view_box: "0 0 24 24", fill: "none", stroke: "currentColor", stroke_width: "2",
-            path { d: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" }
-        }
-    }
-}

@@ -5,7 +5,9 @@
 
 use crate::frame::Extensions_;
 use dioxus::prelude::*;
-use moonkale_ext_api::{Command, CommandContribution, Extension, Keybinding, Workspace};
+use moonkale_ext_api::{
+    Command, CommandContribution, EditorAction, Extension, Keybinding, Workspace,
+};
 use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -13,6 +15,8 @@ pub enum Run {
     Builtin(Command),
     /// Index into the extension list.
     Extension(usize),
+    /// Show (reopening if closed, spec 011) a static panel by id.
+    ShowPanel(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,7 +45,63 @@ fn builtins() -> Vec<(CommandContribution, Command)> {
             c("workspace.closeFolder", "File: Close Folder"),
             Command::CloseFolder,
         ),
+        (
+            c("file.new", "File: New File…").key("Ctrl+N"),
+            Command::NewFile("untitled.md", "# Untitled\n\n"),
+        ),
         (c("file.save", "File: Save").key("Ctrl+S"), Command::Save),
+        (
+            c("file.saveAll", "File: Save All").key("Ctrl+Alt+S"),
+            Command::SaveAll,
+        ),
+        (
+            c("editor.closeAll", "File: Close All Editors").key("Ctrl+Shift+W"),
+            Command::CloseAllEditors,
+        ),
+        (
+            c("view.toggleSide", "View: Toggle Side Bar").key("Ctrl+B"),
+            Command::ToggleSide,
+        ),
+        (
+            c("view.toggleBottom", "View: Toggle Bottom Panel").key("Ctrl+J"),
+            Command::ToggleBottom,
+        ),
+        (
+            c("editor.find", "Edit: Find"),
+            Command::Editor(EditorAction::Find),
+        ),
+        (
+            c("editor.replace", "Edit: Replace"),
+            Command::Editor(EditorAction::Replace),
+        ),
+        (
+            c("editor.rename", "Edit: Rename Symbol"),
+            Command::Editor(EditorAction::Rename),
+        ),
+        (
+            c("editor.codeActions", "Edit: Code Actions"),
+            Command::Editor(EditorAction::CodeActions),
+        ),
+        (
+            c("editor.definition", "Edit: Go to Definition"),
+            Command::Editor(EditorAction::Definition),
+        ),
+        (
+            c("editor.references", "Edit: Find References"),
+            Command::Editor(EditorAction::References),
+        ),
+        (
+            c("editor.toggleComment", "Edit: Toggle Comment"),
+            Command::Editor(EditorAction::ToggleComment),
+        ),
+        (
+            c("editor.foldAll", "View: Fold All"),
+            Command::Editor(EditorAction::FoldAll),
+        ),
+        (
+            c("editor.unfoldAll", "View: Unfold All"),
+            Command::Editor(EditorAction::UnfoldAll),
+        ),
         (
             c("editor.close", "File: Close Editor").key("Ctrl+W"),
             Command::CloseEditor,
@@ -108,7 +168,9 @@ impl Registry {
         let mut entries: Vec<Entry> = Vec::new();
         let mut push = |c: CommandContribution, run: Run| {
             if entries.iter().any(|e| e.id == c.id) {
-                tracing::warn!("commands: duplicate id {} ignored", c.id);
+                if !c.id.starts_with("view.panel.") {
+                    tracing::warn!("commands: duplicate id {} ignored", c.id);
+                }
                 return;
             }
             let binding = match settings.keybindings.get(&c.id) {
@@ -135,6 +197,17 @@ impl Registry {
             }
             for c in ext.commands(ws) {
                 push(c, Run::Extension(i));
+            }
+            // `View: Show <panel>` for every static panel (spec 011), so a
+            // closed one can always be brought back from the palette.
+            for p in ext.panels(ws).into_iter().filter(|p| p.node.is_none()) {
+                // (`push` itself ignores duplicates, so the five built-in
+                // `view.panel.*` entries win.)
+                let id = format!("view.panel.{}", p.id);
+                push(
+                    CommandContribution::new(id, format!("View: Show {}", p.title)),
+                    Run::ShowPanel(p.id.clone()),
+                );
             }
         }
         Self { entries }
@@ -181,6 +254,7 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
     };
     match &entry.run {
         Run::Builtin(cmd) => ws.dispatch(*cmd),
+        Run::ShowPanel(id) => ws.show_panel(id),
         Run::Extension(i) => {
             let exts = use_context::<Extensions_>().0;
             if let Some(ext) = exts.get(*i) {

@@ -94,7 +94,10 @@ impl FolderSource {
         } else if looks_textual(rel) {
             Some(ContentRef::Text { len, lang: None })
         } else {
-            Some(ContentRef::Blob { len, mime: None })
+            Some(ContentRef::Blob {
+                len,
+                mime: mime_of(rel).map(str::to_string),
+            })
         };
         let mut node = Node {
             id: self.node_id(rel),
@@ -138,11 +141,28 @@ impl FolderSource {
 
 /// Heuristic until the index knows better: anything with a known text
 /// extension or no extension at all is offered as text.
+/// A MIME type for the blobs Moonkale can show (images, spec 008).
+fn mime_of(rel: &str) -> Option<&'static str> {
+    let ext = rel.rsplit('.').next()?.to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "avif" => "image/avif",
+        "pdf" => "application/pdf",
+        _ => return None,
+    })
+}
+
 fn looks_textual(rel: &str) -> bool {
     const BINARY: &[&str] = &[
         "png", "jpg", "jpeg", "gif", "webp", "ico", "pdf", "zip", "gz", "tar", "wasm", "so", "dll",
         "dylib", "o", "a", "class", "jar", "sqlite", "db", "duckdb", "ttf", "otf", "woff", "woff2",
-        "mp3", "mp4", "mov",
+        "mp3", "mp4", "mov", "svg", "bmp", "avif",
     ];
     match rel.rsplit('.').next() {
         Some(ext) if rel.contains('.') => !BINARY.contains(&ext.to_ascii_lowercase().as_str()),
@@ -246,6 +266,14 @@ impl Source for FolderSource {
             }
         })?;
         Ok((text, version))
+    }
+
+    async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
+        let rel = self.rel_of(node)?;
+        let path = tree::absolute(&self.root, &rel);
+        let (_, version) = self.stat(&rel).await?;
+        let bytes = tokio::fs::read(&path).await?;
+        Ok((bytes, version))
     }
 
     async fn apply(&self, tx: moonkale_core::Transaction) -> Result<Applied, SourceError> {

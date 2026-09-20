@@ -29,6 +29,7 @@ members = [
     "packages/editors/code",
     "packages/editors/markdown",
     "packages/editors/table",
+    "packages/editors/image",
     "packages/editors/graph",
     "packages/editors/flow",
     "packages/editors/terminal",
@@ -72,6 +73,7 @@ moonkale-terminal-pty = { path = "packages/terminal-pty" }
 moonkale-editor-code = { path = "packages/editors/code" }
 moonkale-editor-markdown = { path = "packages/editors/markdown" }
 moonkale-editor-table = { path = "packages/editors/table" }
+moonkale-editor-image = { path = "packages/editors/image" }
 moonkale-editor-graph = { path = "packages/editors/graph" }
 moonkale-editor-flow = { path = "packages/editors/flow" }
 moonkale-editor-terminal = { path = "packages/editors/terminal" }

@@ -48,6 +48,13 @@ pub trait Source: MaybeSendSync {
     /// The text body of a node plus the version it was read at.
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError>;
 
+    /// The raw bytes of a node (images and other blobs, spec 008). Default:
+    /// unsupported — text-only sources need not implement it.
+    async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
+        let _ = node;
+        Err(SourceError::Unsupported("binary content".into()))
+    }
+
     /// Apply a transaction. Partial success is reported per op in `Applied`.
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError>;
 

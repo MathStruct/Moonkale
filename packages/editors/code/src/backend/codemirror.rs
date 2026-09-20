@@ -54,6 +54,9 @@ enum ToJs<'a> {
     SetWrap {
         wrap: bool,
     },
+    Run {
+        action: &'a str,
+    },
 }
 
 #[derive(Serialize)]
@@ -158,6 +161,7 @@ for (;;) {
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
     else if (msg.kind === "setWikiLinks") cm.setWikiLinks(el, msg.marks);
     else if (msg.kind === "setWrap") cm.setWrap(el, msg.wrap);
+    else if (msg.kind === "run") cm.run(el, msg.action);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
 "#;
@@ -293,6 +297,22 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn set_wrap(&self, wrap: bool) {
         let _ = self.eval.send(ToJs::SetWrap { wrap });
+    }
+
+    fn run(&self, action: moonkale_ext_api::EditorAction) {
+        use moonkale_ext_api::EditorAction as A;
+        let action = match action {
+            A::Find => "find",
+            A::Replace => "replace",
+            A::Rename => "rename",
+            A::CodeActions => "codeActions",
+            A::Definition => "definition",
+            A::References => "references",
+            A::ToggleComment => "toggleComment",
+            A::FoldAll => "foldAll",
+            A::UnfoldAll => "unfoldAll",
+        };
+        let _ = self.eval.send(ToJs::Run { action });
     }
 }
 

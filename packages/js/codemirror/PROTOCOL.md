@@ -67,3 +67,4 @@ language server and replies with `hoverResult` carrying the same `id`.
 - `setWikiLinks(el, [{from, to, resolved}])` — UTF-16 offsets; marks are mapped through later edits until the next call.
 - `[[` completion answers arrive through the existing `completionResult(el, id, items)`; the labels are page targets and are inserted as `[[target]]`.
 - `features.wrap` at mount and `setWrap(el, bool)` later: soft wrap through a compartment (spec 014).
+- `run(el, action)` (spec 009): `find | replace | rename | codeActions | definition | references | toggleComment | foldAll | unfoldAll`.

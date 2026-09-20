@@ -183,7 +183,8 @@ pub enum Command {
     /// Open a terminal; `Workspace::terminal_cwd` may carry a directory.
     NewTerminal,
     About,
-    /// Bring a panel's tab to the front (the shell owns the layout).
+    /// Bring a panel's tab to the front (the shell owns the layout); a
+    /// closed static panel is reopened first (spec 011).
     ShowPanel(&'static str),
     /// Open the n-th entry of `settings.recent_folders`.
     OpenRecent(usize),
@@ -198,6 +199,32 @@ pub enum Command {
     QuickOpen,
     /// Focus the workspace search (Ctrl+Shift+F).
     SearchWorkspace,
+    /// Save every dirty document.
+    SaveAll,
+    /// Close every document (unsaved ones stay open).
+    CloseAllEditors,
+    /// Show/hide the side bar (Ctrl+B) and the bottom panel (Ctrl+J).
+    ToggleSide,
+    ToggleBottom,
+    /// An action for the active editor (menus: Find, Rename, …).
+    Editor(EditorAction),
+    /// Open the documentation site (Help menu).
+    Docs,
+}
+
+/// Actions the menus can ask the active editor for (spec 009); the editor
+/// forwards them to its view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditorAction {
+    Find,
+    Replace,
+    Rename,
+    CodeActions,
+    Definition,
+    References,
+    ToggleComment,
+    FoldAll,
+    UnfoldAll,
 }
 
 #[derive(Clone, Copy)]
@@ -240,6 +267,11 @@ pub struct Workspace {
     pub settings: Signal<crate::settings::Settings>,
     /// The folder whose `.moonkale/settings.json` is loaded, if any.
     pub settings_folder: Signal<Option<SourceId>>,
+    /// Static panels (Graph, Agent, Explorer, …) the user closed (spec 011);
+    /// the shell contributes nothing for them until `show_panel` is called.
+    pub closed_panels: Signal<std::collections::BTreeSet<String>>,
+    /// Panels hidden by Ctrl+B / Ctrl+J, to bring back on the next toggle.
+    pub hidden_tiles: Signal<std::collections::BTreeMap<String, Vec<String>>>,
     /// Directory for the next `NewTerminal` (set by "New terminal here").
     pub terminal_cwd: Signal<Option<String>>,
     /// Bumped whenever derived data may have changed (after a save was
@@ -329,6 +361,8 @@ impl Workspace {
                 ScopeId::ROOT,
             ),
             settings_folder: Signal::new_in_scope(None, ScopeId::ROOT),
+            closed_panels: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
+            hidden_tiles: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
             config,
         }
@@ -805,6 +839,12 @@ impl Workspace {
         }
     }
 
+    /// The raw bytes of a node (images, spec 008).
+    pub async fn fetch_bytes(&self, node: &Node) -> Result<Vec<u8>, SourceError> {
+        let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
+        source.fetch_bytes(node.id).await.map(|(b, _)| b)
+    }
+
     /// The text of `rel` under `source`, `None` if it does not exist or is
     /// not readable (a small config file such as `.moonkale/katex.json`).
     pub async fn read_text_at(&self, source: &SourceId, rel: &str) -> Option<String> {
@@ -1204,6 +1244,17 @@ impl Workspace {
         self.presence_link.set(Some(link));
     }
 
+    /// Reopen a closed static panel (spec 011) and bring it to the front.
+    /// Ids come from contributions at runtime, so the one the command
+    /// carries is interned (panel ids are few and stable).
+    pub fn show_panel(&mut self, id: &str) {
+        self.closed_panels.with_mut(|c| {
+            c.remove(id);
+        });
+        let id: &'static str = intern_panel_id(id);
+        self.dispatch(Command::ShowPanel(id));
+    }
+
     /// Tell the hub what this window looks at now.
     pub fn publish_presence(&self) {
         if let Some(link) = self.presence_link.peek().as_ref() {
@@ -1386,13 +1437,16 @@ impl Workspace {
     /// Load a node's text (if not already open) and make it the active
     /// document.
     pub async fn open_node(mut self, node: Node) -> Result<(), SourceError> {
-        // Nodes without a text body (tables) open as views, not documents.
-        if matches!(node.kind, NodeKind::Table) {
+        // Nodes without a text body (tables, images and other blobs) open as
+        // views, not documents (spec 008).
+        if matches!(node.kind, NodeKind::Table)
+            || matches!(node.content, Some(moonkale_core::ContentRef::Blob { .. }))
+        {
             if !self.views.peek().iter().any(|n| n.id == node.id) {
                 self.views.with_mut(|v| v.push(node.clone()));
             }
             self.active.set(Some(node.id));
-            self.set_status(format!("Opened table {}", node.label));
+            self.set_status(format!("Opened {}", node.label));
             return Ok(());
         }
         if self.document(node.id).is_none() {
@@ -1404,6 +1458,20 @@ impl Workspace {
         }
         self.active.set(Some(node.id));
         self.set_status(format!("Opened {}", node.native_key));
+        Ok(())
+    }
+
+    /// Open a blob as a text document anyway (an SVG's source, spec 008).
+    pub async fn open_as_text(mut self, node: Node) -> Result<(), SourceError> {
+        if self.document(node.id).is_none() {
+            let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
+            let (text, version) = source.fetch_text(node.id).await?;
+            let doc =
+                Signal::new_in_scope(Document::new(node.clone(), text, version), ScopeId::ROOT);
+            self.documents.with_mut(|v| v.push((node.id, doc)));
+        }
+        self.views.with_mut(|v| v.retain(|n| n.id != node.id));
+        self.active.set(Some(node.id));
         Ok(())
     }
 
@@ -1844,3 +1912,18 @@ try {
     dioxus.send({ kind: "error", error: String(e && e.message || e) });
 }
 "#;
+
+/// `&'static str` for a panel id (a small, bounded set: one per static
+/// panel), so `Command::ShowPanel` can carry ids only known at runtime.
+fn intern_panel_id(id: &str) -> &'static str {
+    use std::collections::BTreeSet;
+    use std::sync::Mutex;
+    static POOL: Mutex<BTreeSet<&'static str>> = Mutex::new(BTreeSet::new());
+    let mut pool = POOL.lock().unwrap();
+    if let Some(s) = pool.get(id) {
+        return s;
+    }
+    let leaked: &'static str = Box::leak(id.to_string().into_boxed_str());
+    pool.insert(leaked);
+    leaked
+}

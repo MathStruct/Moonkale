@@ -112,3 +112,13 @@
 }
 .mk-tab-presence { margin-left: 4px; }
 .mk-tree-presence { margin-left: 6px; }
+/* Activity bar and phone bar (spec 009). */
+.mk-rail-icon { position: relative; display: inline-flex; }
+.mk-rail-icon .mk-icon { width: 22px; height: 22px; }
+.mk-badge { position: absolute; top: -6px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--wb-accent); color: #0b0d12; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+.mk-phone-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.mk-phone-btn .mk-icon { width: 20px; height: 20px; }
+.mk-phone-more { position: absolute; left: 0; right: 0; bottom: 52px; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; background: var(--wb-surface); border-top: 1px solid var(--wb-line); box-shadow: 0 -6px 20px rgba(0,0,0,0.4); }
+.mk-phone-more .mk-phone-btn { min-height: 56px; }
+.mk-phone { position: relative; }
+.mk-source-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }

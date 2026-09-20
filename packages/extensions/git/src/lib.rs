@@ -54,9 +54,14 @@ impl Extension for GitExtension {
             id: PANEL_ID.into(),
             title: "Changes".into(),
             home: PanelHome::Side,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(
+                Activity::new("git", 40, "Git")
+                    .phone_secondary()
+                    .badge(ws.vcs_status.read().len() as u32),
+            ),
         }];
         if ws.git().is_none() {
             return out;
@@ -73,6 +78,7 @@ impl Extension for GitExtension {
                 closable: true,
                 dirty: false,
                 node: None,
+                activity: None,
             });
         }
         out

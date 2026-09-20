@@ -228,6 +228,21 @@ pub async fn fetch_text_from(
     Ok(s.fetch_text(node).await)
 }
 
+/// Bytes come back base64-encoded (JSON transport); the client decodes.
+#[post("/api/sources/fetch_bytes")]
+pub async fn fetch_bytes_from(
+    source: SourceId,
+    node: NodeId,
+) -> Result<Result<(String, Version), SourceError>, ServerFnError> {
+    use base64::Engine;
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.fetch_bytes(node)
+        .await
+        .map(|(bytes, v)| (base64::engine::general_purpose::STANDARD.encode(bytes), v)))
+}
+
 #[post("/api/sources/apply")]
 pub async fn apply_to(
     source: SourceId,

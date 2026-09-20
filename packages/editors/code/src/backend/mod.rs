@@ -68,6 +68,8 @@ pub trait CodeEditorBackend {
     fn set_wiki_links(&self, marks: &[WikiMark]);
     /// Soft-wrap long lines (spec 014).
     fn set_wrap(&self, wrap: bool);
+    /// A menu action (spec 009): what the corresponding key would do.
+    fn run(&self, action: moonkale_ext_api::EditorAction);
 }
 
 /// How the panel mounts a backend. `element_id` is the id of the host `div`;

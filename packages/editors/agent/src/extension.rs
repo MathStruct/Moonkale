@@ -21,9 +21,10 @@ impl Extension for AgentExtension {
             id: PANEL_ID.into(),
             title: "Agent".into(),
             home: PanelHome::Right,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("agent", 60, "Agent")),
         }]
     }
 

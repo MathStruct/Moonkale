@@ -37,9 +37,13 @@ impl Extension for TerminalExtension {
             id: PANEL_ID.into(),
             title: "Terminal".into(),
             home: PanelHome::Bottom,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(
+                Activity::new("terminal", 70, "Terminal")
+                    .badge(self.sessions.list.read().len() as u32),
+            ),
         }]
     }
 

@@ -25,9 +25,10 @@ impl Extension for SearchExtension {
             id: PANEL_ID.into(),
             title: "Search".into(),
             home: PanelHome::Side,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("search", 20, "Search")),
         }]
     }
 

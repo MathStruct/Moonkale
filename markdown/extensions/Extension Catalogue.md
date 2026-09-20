@@ -19,6 +19,7 @@ Platform columns: ✅ works · ⚙️ works through the server (the web client's
 | `dev.moonkale.editor-code` | Code editor | `editors/code` (1 143) | core | editor for every text node; LSP hover/definition/completion/rename/actions/references; presence gutter | ✅ | ✅ (LSP ⚙️) | ✅ (LSP ❌) | LSP servers on `PATH` (desktop) or on the server; CodeMirror bundle |
 | `dev.moonkale.editor-markdown` | Markdown & links | `editors/markdown` (635) | optional | rich (Milkdown) + source editing, backlinks/Links panel, Typst preview | ✅ | ✅ (Typst ⚙️) | ✅ (Typst ⏳: `compile_typst: None`) | Milkdown bundle; the `typst` crate (in-process; server on web) |
 | `dev.moonkale.editor-graph` | Graph | `editors/graph` + `graph-render` (819 + 1 883) | optional | the graph panel (2D/3D, wgpu, Barnes–Hut), stack-trace graphs | ✅ (WebKitGTK: GL) | ✅ | ✅ (WebGL2, P-089) | a GPU context in the webview |
+| `dev.moonkale.editor-image` | Image viewer | `editors/image` (≈ 300) | optional | viewer for png/jpg/gif/webp/svg/bmp/ico/avif: fit/zoom/pan, SVG source | ✅ | ✅ (bytes via `/api/sources/fetch_bytes`) | ✅ | — |
 | `dev.moonkale.editor-table` | Table | `editors/table` (226) | optional | editor for SQL/graph sources: schema, rows, queries | ✅ | ⚙️ | ⏳ (no drivers in the mobile build) | drivers: SQLite / DuckDB / LadybugDB (`sources-sql`, `sources-graph`) |
 | `dev.moonkale.editor-terminal` | Terminal | `editors/terminal` (395) + `terminal`, `terminal-pty`, `trace` | optional | terminal panel (xterm), trace → graph | ✅ | ⚙️ | ❌ (no PTY) | a PTY; xterm bundle |
 | `dev.moonkale.editor-agent` | Agent | `editors/agent` (1 026) + `llm` (2 239) | optional | chat panel, tools under the policy gate, transcripts as pages, MCP for external agents (server) | ✅ | ⚙️ | ❌ (`llm: None`) | an LLM provider: Anthropic / OpenAI-compatible / Ollama / mock, keys via `SecretRef` |
@@ -83,4 +84,4 @@ What is good: the boundaries that exist are real — JS behind traits with a pro
 
 ## Changelog of this page
 - 2026-09-19 — created after Milestone 9 with 13 static + 1 wasm extension.
-- 2026-09-20 — planned rows for the Julia depot source, MTK editor and the Lenticulum editor ([[Julia and Lenticulum]]); markdown fence renderers (tabs, Typst math, Mermaid, TikZ), Annotations, and the Notebook editor.
+- 2026-09-20 — `editor-image` added (spec 008); planned rows for the Julia depot source, MTK editor and the Lenticulum editor ([[Julia and Lenticulum]]); markdown fence renderers (tabs, Typst math, Mermaid, TikZ), Annotations, and the Notebook editor.

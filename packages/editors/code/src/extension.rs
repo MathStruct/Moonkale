@@ -66,6 +66,7 @@ impl Extension for CodeEditorExtension {
                     closable: true,
                     dirty: d.dirty(),
                     node: Some(*id),
+                    activity: None,
                 }
             })
             .collect()

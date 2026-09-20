@@ -99,9 +99,10 @@ impl Extension for ExplorerExtension {
             id: "explorer".into(),
             title: "Explorer".into(),
             home: PanelHome::Side,
-            closable: false,
+            closable: true,
             dirty: false,
             node: None,
+            activity: Some(Activity::new("files", 10, "Files")),
         }]
     }
 
@@ -295,8 +296,13 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                 p { class: "mk-muted", "Open a folder to browse its files." }
             }
             for s in sources {
-                div { class: "mk-explorer-source",
-                    div { class: "mk-explorer-source-name",
+                {
+                    let (icon, kind) = crate::icons::source_icon(&s.descriptor);
+                    let color = crate::icons::source_color(s.descriptor.id.as_str());
+                    let read_only = !s.descriptor.capabilities.write;
+                    rsx! {
+                div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
+                    div { class: "mk-explorer-source-name", title: if read_only { "{kind} · read-only" } else { "{kind}" },
                         oncontextmenu: {
                             let root_id = s.descriptor.root;
                             let sid = s.descriptor.id.clone();
@@ -308,12 +314,16 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                                 state.menu.set(Some(Menu { node: root, is_dir: true, x: c.x, y: c.y }));
                             }
                         },
-                        "{s.descriptor.display_name}"
+                        span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
+                        span { class: "mk-source-label", "{s.descriptor.display_name}" }
+                        if read_only { span { class: "mk-source-lock", title: "read-only", crate::icons::Icon { name: "lock" } } }
                     }
                     if let Some(edit) = state.edit.read().clone().filter(|e| e.parent_id() == s.descriptor.root && !matches!(e, Edit::Rename { .. })) {
                         InlineEdit { ws, state, edit, depth: 0 }
                     }
                     TreeLevel { ws, state, parent: s.descriptor.root, depth: 0 }
+                }
+                    }
                 }
             }
         }
@@ -356,6 +366,9 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     let is_dir = node.kind == NodeKind::Directory && !is_db_path;
                     let open = expanded.contains(&node.id);
                     let is_text = matches!(node.content, Some(ContentRef::Text { .. }));
+                    // Blobs with a viewer (images, spec 008) open as views; the
+                    // source says which by giving them a MIME type.
+                    let is_viewable = matches!(&node.content, Some(ContentRef::Blob { mime: Some(m), .. }) if m.starts_with("image/"));
                     let is_db = node.kind == NodeKind::Table || is_db_path;
                     let n = node.clone();
                     let mut ws2 = ws;
@@ -367,7 +380,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                         li { key: "{node.id}",
                             div {
                                 class: if is_dir { "mk-tree-row mk-tree-dir" } else { "mk-tree-row mk-tree-file" },
-                                class: if !is_dir && !is_text && !is_db { "mk-tree-binary" },
+                                class: if !is_dir && !is_text && !is_db && !is_viewable { "mk-tree-binary" },
                                 class: if is_db { "mk-tree-db" },
                                 class: if drop_target { "mk-tree-droppable" },
                                 class: if !vcs_class.is_empty() { "{vcs_class}" },
@@ -417,7 +430,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                                 ws2.set_status(format!("Could not open database: {e}"));
                                             }
                                         });
-                                    } else if is_text {
+                                    } else if is_text || is_viewable {
                                         spawn(async move {
                                             if let Err(e) = ws.open_node(n).await {
                                                 ws2.set_status(match e { SourceError::Unsupported(m) => m, other => other.to_string() });

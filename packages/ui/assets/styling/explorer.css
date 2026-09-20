@@ -55,3 +55,9 @@
 .mk-vcs-renamed .mk-tree-label { color: #6ea8fe; }
 .mk-vcs-conflict .mk-tree-label { color: #e07a75; }
 .mk-vcs-dir > .mk-tree-label::after { content: " •"; color: #c9a75f; }
+/* Source rows (spec 009): kind icon, accent stripe, read-only lock. */
+.mk-explorer-source { border-left: 3px solid var(--mk-source-color, transparent); }
+.mk-explorer-source-name { display: flex; align-items: center; gap: 6px; }
+.mk-source-icon .mk-icon, .mk-source-lock .mk-icon { width: 14px; height: 14px; color: var(--mk-source-color, currentColor); }
+.mk-source-lock .mk-icon { color: var(--wb-ink-soft); }
+.mk-source-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

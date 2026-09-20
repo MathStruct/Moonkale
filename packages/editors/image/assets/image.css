@@ -1,0 +1,14 @@
+.mk-image { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-image-stage { flex: 1; min-height: 0; overflow: auto; background: #0e1014 repeating-conic-gradient(#14161b 0% 25%, #0e1014 0% 50%) 50% / 20px 20px; outline: none; cursor: grab; }
+.mk-image-stage:active { cursor: grabbing; }
+.mk-image-fit { display: flex; align-items: center; justify-content: center; cursor: default; }
+.mk-image-img { display: block; image-rendering: auto; user-select: none; }
+.mk-image-stage:not(.mk-image-fit) .mk-image-img { margin: 12px; }
+/* The toolbar rules live in the code editor's stylesheet, which need not be loaded here. */
+.mk-image .mk-editor-toolbar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: 12px; border-bottom: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-surface, #161922); color: var(--wb-ink-soft, #a3a9b8); }
+.mk-image .mk-editor-path { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--wb-ink, #e6e8ee); }
+.mk-image .mk-editor-spacer { flex: 1; }
+.mk-image .mk-editor-meta { opacity: 0.7; margin-right: 8px; }
+.mk-image-zoom { min-width: 48px; text-align: center; color: #9aa0aa; font-size: 12px; font-variant-numeric: tabular-nums; }
+.mk-image-note { padding: 16px; color: #9aa0aa; }
+.mk-image-error { color: #ff7b7b; }

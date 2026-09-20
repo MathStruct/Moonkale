@@ -413,6 +413,11 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 }
             }
             Some(Command::CloseEditor) => ws.close_node(node),
+            Some(Command::Editor(action)) => {
+                if let Some(b) = backend.peek().as_ref() {
+                    b.run(action);
+                }
+            }
             _ => {}
         }
     });
