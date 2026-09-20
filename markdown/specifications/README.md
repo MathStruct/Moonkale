@@ -11,8 +11,8 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[003]] | Projects: several sources at once, a selector, import/export and sync — desired behaviour in [[Projects and Sources]] | documented |
 | [[004]] | Unicode input: `\int` → ∫ with a dropdown, in every text field — design in [[Unicode Input]] | documented |
 | [[005]] | A Claude Code extension without an API key — plan in [[Claude Code Extension]] | planned |
-| [[006]] | Android graph: no pinch-zoom or two-finger rotation | open |
-| [[007]] | Android app is called "Mobile" and has no logo — the release build should have the right name and icon | open |
+| [[006]] | Android graph: pinch zooms, two fingers pan, rotation orbits in 3D | done |
+| [[007]] | Android app name + icon via `packages/mobile/build-android.sh` (dx 0.7.10 ignores both) | done |
 | [[008]] | View png/jpg/svg inside Moonkale — image viewer extension (zoom, pan, SVG source) | done |
 | [[009]] | Activity bar with badges, Ctrl+B/J, menus from the registry (Show ▸, Git/Agent, editor actions), source icons/colours/lock, phone More sheet | done |
 | [[010]] | Syntax highlighting for the core languages (Lezer/legacy grammars in the view, P-093) | done |

@@ -37,6 +37,15 @@ dx serve --platform android
 
 ### Build for a phone (verified on a Galaxy S10e, Android 13)
 
+The short way (spec 007 — sets the app name and icon, which dx 0.7.10 does not, and reassembles):
+
+```bash
+packages/mobile/build-android.sh            # release arm64 APK with name + icon
+packages/mobile/build-android.sh install    # … and adb install -r + launch
+```
+
+The long way, step by step:
+
 ```bash
 export ANDROID_HOME=$HOME/Android/Sdk
 export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865 NDK_HOME=$ANDROID_NDK_HOME
@@ -58,4 +67,4 @@ adb forward tcp:9222 localabstract:webview_devtools_remote_$PID     # WebView De
 adb shell run-as io.github.mathstruct.moonkale cat files/vault/Home.md
 ```
 
-With the forward in place any CDP client can evaluate JavaScript in the page (the E2E scratchpad has `cdp.mjs '<expr>'`). Logs: `adb logcat -s RustStdoutStderr chromium`.
+With the forward in place any CDP client can evaluate JavaScript in the page — `node packages/web/tests/e2e/android-cdp.mjs '<expr>'` — and inject touch gestures: `android-pinch.mjs` pinches and rotates the graph through the WebView's `Input.dispatchTouchEvent` (spec 006). Logs: `adb logcat -s RustStdoutStderr chromium`.

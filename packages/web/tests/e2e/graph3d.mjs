@@ -118,6 +118,39 @@ try {
     await page.click("button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
   });
+  await step("two-finger gestures (spec 006): pinch zooms in 2D, finger rotation orbits in 3D (CDP touch events)", async () => {
+    const cdp = await ctx.newCDPSession(page);
+    const host = await page.$eval(".mk-graph-overlay", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    const cx = host.x + host.w / 2, cy = host.y + host.h / 2;
+    const touch = async (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, i) => ({ x: p[0], y: p[1], id: i })) });
+    const cam = () => page.evaluate(() => Array.from(Object.values(window.moonkale.graphViews)[0].camera_state()));
+    // The 3D button toggles: back to 2D for the pinch.
+    if ((await info()).mode === "3d") await page.click("button:has-text('3D')");
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
+    await sleep(300);
+    const c0 = await cam();
+    await touch("touchStart", [[cx - 40, cy], [cx + 40, cy]]);
+    for (let d = 40; d <= 160; d += 20) { await touch("touchMove", [[cx - d, cy], [cx + d, cy]]); await sleep(30); }
+    await touch("touchEnd", []);
+    await sleep(200);
+    const c1 = await cam();
+    console.log("\n  2d scale:", c0[0].toFixed(3), "→", c1[0].toFixed(3));
+    if (!(c1[0] > c0[0] * 2)) throw new Error("pinch did not zoom");
+    // 3D: rotate the two fingers around their midpoint → yaw changes, distance does not.
+    await page.click("button:has-text('3D')");
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "3d", null, { timeout: 5000 });
+    await sleep(300);
+    const c2 = await cam();
+    const pt = (ang, r = 80) => [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+    await touch("touchStart", [pt(0), pt(Math.PI)]);
+    for (let a = 0.1; a <= 1.2; a += 0.1) { await touch("touchMove", [pt(a), pt(Math.PI + a)]); await sleep(30); }
+    await touch("touchEnd", []);
+    await sleep(200);
+    const c3 = await cam();
+    console.log("  3d yaw:", c2[3].toFixed(3), "→", c3[3].toFixed(3), "dist:", c2[5].toFixed(1), "→", c3[5].toFixed(1));
+    if (Math.abs(c3[3] - c2[3]) < 0.5) throw new Error("rotation did not orbit");
+    if (Math.abs(c3[5] - c2[5]) > c2[5] * 0.05) throw new Error("a pure rotation changed the distance");
+  });
   console.log("GRAPH3D E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

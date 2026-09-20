@@ -36,6 +36,8 @@ struct State {
     /// Fit the view when the layout settles — only until the user has moved
     /// the camera or a node; after that, their view is theirs.
     auto_fit: bool,
+    /// Active touch pointers `(id, x, y)`, for two-finger gestures.
+    touches: Vec<(i32, f32, f32)>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -43,6 +45,13 @@ enum Drag {
     None,
     Pan {
         last: (f32, f32),
+    },
+    /// Two fingers (spec 006): pinch zooms at the midpoint, the midpoint's
+    /// motion pans, and the fingers' rotation orbits in 3D.
+    Pinch {
+        last_dist: f32,
+        last_angle: f32,
+        last_mid: (f32, f32),
     },
     Node {
         index: usize,
@@ -155,6 +164,7 @@ pub async fn create(
         alive: true,
         last_click_ms: 0.0,
         auto_fit: true,
+        touches: Vec::new(),
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -256,6 +266,12 @@ impl GraphView {
 
     pub fn node_count(&self) -> usize {
         self.state.borrow().graph.nodes.len()
+    }
+
+    /// `[scale, cx, cy, yaw, pitch, dist]` — the camera, for tests (spec 006).
+    pub fn camera_state(&self) -> Vec<f32> {
+        let c = &self.state.borrow().camera;
+        vec![c.scale, c.cx, c.cy, c.yaw, c.pitch, c.dist]
     }
 
     /// Screen position of a node by id (for tests and for the host's popup).
@@ -397,100 +413,164 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
         )
     };
 
-    // pointer down: start pan or node drag
+    // pointer down: start pan or node drag; a second finger starts a pinch
     {
         let st = state.clone();
         let local = local.clone();
-        let cb = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
-            e.prevent_default();
-            let (x, y) = local(&e);
-            let mut s = st.borrow_mut();
-            if s.camera.three_d {
-                if e.button() == 2 || e.shift_key() {
-                    s.dragging = Drag::Orbit { last: (x, y) };
+        let el = overlay.clone();
+        let cb =
+            Closure::<dyn FnMut(web_sys::PointerEvent)>::new(move |e: web_sys::PointerEvent| {
+                e.prevent_default();
+                let (x, y) = local(&e);
+                let mut s = st.borrow_mut();
+                if e.pointer_type() == "touch" {
+                    // Keep receiving moves after the finger leaves the canvas.
+                    let _ = el.set_pointer_capture(e.pointer_id());
+                    s.touches.retain(|t| t.0 != e.pointer_id());
+                    s.touches.push((e.pointer_id(), x, y));
+                    if s.touches.len() >= 2 {
+                        let (a, b) = (s.touches[0], s.touches[1]);
+                        // A node picked up by the first finger stays where it is.
+                        if let Drag::Node { index } = s.dragging {
+                            s.graph.nodes[index].pinned = true;
+                        }
+                        s.dragging = Drag::Pinch {
+                            last_dist: ((a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt().max(1.0),
+                            last_angle: (b.2 - a.2).atan2(b.1 - a.1),
+                            last_mid: ((a.1 + b.1) / 2.0, (a.2 + b.2) / 2.0),
+                        };
+                        return;
+                    }
+                }
+                if s.camera.three_d {
+                    if e.button() == 2 || e.shift_key() {
+                        s.dragging = Drag::Orbit { last: (x, y) };
+                        return;
+                    }
+                    // A node under the pointer drags in its own depth plane (Milestone 9).
+                    if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                        s.graph.nodes[i].pinned = true;
+                        s.dragging = Drag::Node { index: i };
+                    } else {
+                        s.dragging = Drag::Pan { last: (x, y) };
+                    }
                     return;
                 }
-                // A node under the pointer drags in its own depth plane (Milestone 9).
-                if let Some(i) = s.camera.hit(&s.graph, x, y) {
-                    s.graph.nodes[i].pinned = true;
-                    s.dragging = Drag::Node { index: i };
-                } else {
-                    s.dragging = Drag::Pan { last: (x, y) };
-                }
-                return;
-            }
-            let hit = s.camera.hit(&s.graph, x, y);
-            s.dragging = match hit {
-                Some(i) => {
-                    s.graph.nodes[i].pinned = true;
-                    Drag::Node { index: i }
-                }
-                None => Drag::Pan { last: (x, y) },
-            };
-        });
+                let hit = s.camera.hit(&s.graph, x, y);
+                s.dragging = match hit {
+                    Some(i) => {
+                        s.graph.nodes[i].pinned = true;
+                        Drag::Node { index: i }
+                    }
+                    None => Drag::Pan { last: (x, y) },
+                };
+            });
         let _ = target.add_event_listener_with_callback("pointerdown", cb.as_ref().unchecked_ref());
         cb.forget();
     }
-    // pointer move: pan / drag node / hover
+    // pointer move: pan / drag node / hover / pinch
     {
         let st = state.clone();
         let local = local.clone();
-        let cb = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
-            let (x, y) = local(&e);
-            let mut s = st.borrow_mut();
-            match s.dragging {
-                Drag::Pan { last } => {
-                    s.auto_fit = false;
-                    s.camera.pan(x - last.0, y - last.1);
-                    s.dragging = Drag::Pan { last: (x, y) };
-                    s.dirty = true;
+        let cb = Closure::<dyn FnMut(web_sys::PointerEvent)>::new(
+            move |e: web_sys::PointerEvent| {
+                let (x, y) = local(&e);
+                let mut s = st.borrow_mut();
+                if e.pointer_type() == "touch" {
+                    if let Some(t) = s.touches.iter_mut().find(|t| t.0 == e.pointer_id()) {
+                        t.1 = x;
+                        t.2 = y;
+                    }
                 }
-                Drag::Orbit { last } => {
-                    s.auto_fit = false;
-                    s.camera.orbit(x - last.0, y - last.1);
-                    s.dragging = Drag::Orbit { last: (x, y) };
-                    s.dirty = true;
-                }
-                Drag::Node { index } => {
-                    s.auto_fit = false;
-                    if s.camera.three_d {
-                        let n = &s.graph.nodes[index];
-                        if let Some((_, _, w)) = s.camera.project(n.x, n.y, n.z) {
-                            let (wx, wy, wz) = s.camera.unproject(x, y, w);
-                            let n = &mut s.graph.nodes[index];
-                            n.x = wx;
-                            n.y = wy;
-                            n.z = wz;
-                        }
-                        s.dirty = true;
+                if let Drag::Pinch {
+                    last_dist,
+                    last_angle,
+                    last_mid,
+                } = s.dragging
+                {
+                    if s.touches.len() < 2 {
                         return;
                     }
-                    let (wx, wy) = s.camera.screen_to_world(x, y);
-                    s.graph.nodes[index].x = wx;
-                    s.graph.nodes[index].y = wy;
-                    if !s.layout.running {
-                        s.layout.temperature = 2.0;
-                        s.layout.running = true;
+                    let (a, b) = (s.touches[0], s.touches[1]);
+                    let dist = ((a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt().max(1.0);
+                    let angle = (b.2 - a.2).atan2(b.1 - a.1);
+                    let mid = ((a.1 + b.1) / 2.0, (a.2 + b.2) / 2.0);
+                    s.auto_fit = false;
+                    s.camera.zoom_at(dist / last_dist, mid.0, mid.1);
+                    s.camera.pan(mid.0 - last_mid.0, mid.1 - last_mid.1);
+                    if s.camera.three_d {
+                        // Fingers turning = the camera turning around its target.
+                        let mut da = angle - last_angle;
+                        if da > std::f32::consts::PI {
+                            da -= 2.0 * std::f32::consts::PI;
+                        } else if da < -std::f32::consts::PI {
+                            da += 2.0 * std::f32::consts::PI;
+                        }
+                        s.camera.yaw -= da;
                     }
+                    s.dragging = Drag::Pinch {
+                        last_dist: dist,
+                        last_angle: angle,
+                        last_mid: mid,
+                    };
                     s.dirty = true;
+                    return;
                 }
-                Drag::None => {
-                    let hit = s.camera.hit(&s.graph, x, y);
-                    if hit != s.hovered {
-                        s.hovered = hit;
+                match s.dragging {
+                    Drag::Pan { last } => {
+                        s.auto_fit = false;
+                        s.camera.pan(x - last.0, y - last.1);
+                        s.dragging = Drag::Pan { last: (x, y) };
                         s.dirty = true;
-                        let payload = match hit {
-                            Some(i) => {
-                                let n = &s.graph.nodes[i];
-                                serde_json::json!({ "kind": "hover", "id": n.id, "label": n.label, "nodeKind": n.kind, "key": n.key, "x": x, "y": y })
+                    }
+                    Drag::Orbit { last } => {
+                        s.auto_fit = false;
+                        s.camera.orbit(x - last.0, y - last.1);
+                        s.dragging = Drag::Orbit { last: (x, y) };
+                        s.dirty = true;
+                    }
+                    Drag::Node { index } => {
+                        s.auto_fit = false;
+                        if s.camera.three_d {
+                            let n = &s.graph.nodes[index];
+                            if let Some((_, _, w)) = s.camera.project(n.x, n.y, n.z) {
+                                let (wx, wy, wz) = s.camera.unproject(x, y, w);
+                                let n = &mut s.graph.nodes[index];
+                                n.x = wx;
+                                n.y = wy;
+                                n.z = wz;
                             }
-                            None => serde_json::json!({ "kind": "hover", "id": null }),
-                        };
-                        emit(&s, payload);
+                            s.dirty = true;
+                            return;
+                        }
+                        let (wx, wy) = s.camera.screen_to_world(x, y);
+                        s.graph.nodes[index].x = wx;
+                        s.graph.nodes[index].y = wy;
+                        if !s.layout.running {
+                            s.layout.temperature = 2.0;
+                            s.layout.running = true;
+                        }
+                        s.dirty = true;
+                    }
+                    Drag::Pinch { .. } => {}
+                    Drag::None => {
+                        let hit = s.camera.hit(&s.graph, x, y);
+                        if hit != s.hovered {
+                            s.hovered = hit;
+                            s.dirty = true;
+                            let payload = match hit {
+                                Some(i) => {
+                                    let n = &s.graph.nodes[i];
+                                    serde_json::json!({ "kind": "hover", "id": n.id, "label": n.label, "nodeKind": n.kind, "key": n.key, "x": x, "y": y })
+                                }
+                                None => serde_json::json!({ "kind": "hover", "id": null }),
+                            };
+                            emit(&s, payload);
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
         let _ = target.add_event_listener_with_callback("pointermove", cb.as_ref().unchecked_ref());
         cb.forget();
     }
@@ -498,36 +578,68 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
     {
         let st = state.clone();
         let local = local.clone();
-        let cb = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |e: web_sys::MouseEvent| {
-            let (x, y) = local(&e);
-            let mut s = st.borrow_mut();
-            // A node the user placed stays put (pinned) until Relayout.
-            s.dragging = Drag::None;
-            if let Some(i) = s.camera.hit(&s.graph, x, y) {
-                let now = js_sys::Date::now();
-                let dbl = now - s.last_click_ms < 350.0;
-                s.last_click_ms = if dbl { 0.0 } else { now };
-                let id = s.graph.nodes[i].id.clone();
-                emit(
-                    &s,
-                    serde_json::json!({ "kind": if dbl { "dblclick" } else { "click" }, "id": id }),
-                );
-            }
-        });
+        let cb = Closure::<dyn FnMut(web_sys::PointerEvent)>::new(
+            move |e: web_sys::PointerEvent| {
+                let (x, y) = local(&e);
+                let mut s = st.borrow_mut();
+                if e.pointer_type() == "touch" {
+                    s.touches.retain(|t| t.0 != e.pointer_id());
+                    if matches!(s.dragging, Drag::Pinch { .. }) {
+                        // One finger left: it pans from where it is; no click.
+                        s.dragging = match s.touches.first() {
+                            Some(t) => Drag::Pan { last: (t.1, t.2) },
+                            None => Drag::None,
+                        };
+                        return;
+                    }
+                }
+                // A node the user placed stays put (pinned) until Relayout.
+                s.dragging = Drag::None;
+                if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                    let now = js_sys::Date::now();
+                    let dbl = now - s.last_click_ms < 350.0;
+                    s.last_click_ms = if dbl { 0.0 } else { now };
+                    let id = s.graph.nodes[i].id.clone();
+                    emit(
+                        &s,
+                        serde_json::json!({ "kind": if dbl { "dblclick" } else { "click" }, "id": id }),
+                    );
+                }
+            },
+        );
         let _ = target.add_event_listener_with_callback("pointerup", cb.as_ref().unchecked_ref());
+        cb.forget();
+    }
+    // pointer cancel (the system took the touch): forget the finger
+    {
+        let st = state.clone();
+        let cb =
+            Closure::<dyn FnMut(web_sys::PointerEvent)>::new(move |e: web_sys::PointerEvent| {
+                let mut s = st.borrow_mut();
+                s.touches.retain(|t| t.0 != e.pointer_id());
+                if s.touches.len() < 2 {
+                    s.dragging = Drag::None;
+                }
+            });
+        let _ =
+            target.add_event_listener_with_callback("pointercancel", cb.as_ref().unchecked_ref());
         cb.forget();
     }
     // leave: clear hover
     {
         let st = state.clone();
-        let cb = Closure::<dyn FnMut(web_sys::MouseEvent)>::new(move |_e: web_sys::MouseEvent| {
-            let mut s = st.borrow_mut();
-            s.dragging = Drag::None;
-            if s.hovered.take().is_some() {
-                s.dirty = true;
-                emit(&s, serde_json::json!({ "kind": "hover", "id": null }));
-            }
-        });
+        let cb =
+            Closure::<dyn FnMut(web_sys::PointerEvent)>::new(move |e: web_sys::PointerEvent| {
+                let mut s = st.borrow_mut();
+                if e.pointer_type() == "touch" {
+                    return; // captured pointers report leave while still down
+                }
+                s.dragging = Drag::None;
+                if s.hovered.take().is_some() {
+                    s.dirty = true;
+                    emit(&s, serde_json::json!({ "kind": "hover", "id": null }));
+                }
+            });
         let _ =
             target.add_event_listener_with_callback("pointerleave", cb.as_ref().unchecked_ref());
         cb.forget();

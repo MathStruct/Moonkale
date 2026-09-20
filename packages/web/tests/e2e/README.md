@@ -66,3 +66,5 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 - `panels.mjs` (spec 011): close/reopen static panels, side-bar collapse and return.
 - `image.mjs` (spec 008): png/svg open in the viewer, zoom states, SVG Source.
 - `shell.mjs` (spec 009): activity bar, badges, hide/show, Ctrl+B, registry-built menus, source row decoration.
+- `android-cdp.mjs` / `android-pinch.mjs`: not suites — helpers for the phone over `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` (evaluate JS; inject a pinch and a rotation, spec 006).
+- `graph3d.mjs` gained a two-finger step (CDP `Input.dispatchTouchEvent`).
