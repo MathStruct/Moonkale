@@ -20,7 +20,9 @@ reset() {
   # Back to the committed fixture (the folder is a git repository).
   git -C "$E/m2root" reset -q --hard "$(git -C "$E/m2root" rev-list --max-parents=0 HEAD)" 2>/dev/null; git -C "$E/m2root" clean -fdq 2>/dev/null
   rm -rf "$E/m2root/.moonkale" "$E/m2root"/*.flow.json "$E/m2root/model.jl" "$E/m2root"/untitled* \
-    "$E/m2root"/todo.md "$E/m2root"/TODO.md "$E/m2root/notes/drafts" "$E/m2root/notes/TODO.md" "$E/m2root"/note.md "$E/m2root"/notes.md "$E/m2root"/Math.md "$E/m2root"/Missing.md "$E/m2root"/Nowhere.md "$E/m2root"/Alpha2.md "$E/m2root/pics" "$E/m2root"/big.txt "$E/m2root"/Front.md   # files.mjs, history.mjs, rich.mjs, wiki.mjs
+    "$E/m2root"/todo.md "$E/m2root"/TODO.md "$E/m2root/notes/drafts" "$E/m2root/notes/TODO.md" "$E/m2root"/note.md "$E/m2root"/notes.md "$E/m2root"/Math.md "$E/m2root"/Missing.md "$E/m2root"/Nowhere.md "$E/m2root"/Alpha2.md "$E/m2root/pics" "$E/m2root"/big.txt "$E/m2root"/Front.md "$E/m2root"/Norm.md   # files.mjs, history.mjs, rich.mjs, wiki.mjs
+  # The suites drive the Source editor; markdown opens in Rich mode by default (spec 021).
+  mkdir -p "$E/m2root/.moonkale" && printf '{"editor":{"markdown_rich":false}}\n' > "$E/m2root/.moonkale/settings.json"
   printf '# Home\nSee [[Alpha]] and [[notes/Beta]] and [[Missing]].\n' > "$E/m2root/Home.md"
   printf 'Back to [[Home]]. Code: [lib](src/lib.md)\n' > "$E/m2root/Alpha.md"
   printf 'Beta links [[Alpha]].\n' > "$E/m2root/notes/Beta.md"

@@ -55,5 +55,20 @@ try {
     await page.click(".mk-graph-check:has-text('unresolved') input");
     await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === b + 2, before, { timeout: 15000 });
   });
+  await step("spec 020: a second folder joins the same graph, coloured, and the picker narrows to one", async () => {
+    const before = Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
+    await page.fill(".mk-explorer-open input.mk-input", "notes");
+    await page.click(".mk-explorer-open button[type=submit]");
+    await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info")?.getAttribute("data-nodes")) > b, before, { timeout: 30000 });
+    const options = await page.$$eval(".mk-graph-source option", (o) => o.map((x) => x.textContent.trim()));
+    const legend = await page.$$eval(".mk-graph-legend-item", (l) => l.map((x) => x.textContent.trim()));
+    console.log("\n  picker:", options.join(" | "), "· legend:", legend.join(", "));
+    if (options[0] !== "all folders" || !options.some((o) => o === "folder: notes")) throw new Error("picker lacks the folders");
+    if (legend.length !== 2) throw new Error("expected one legend entry per folder");
+    const all = Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
+    await page.selectOption(".mk-graph-source", { label: "folder: notes" });
+    await page.waitForFunction((n) => { const v = Number(document.querySelector(".mk-graph-info")?.getAttribute("data-nodes")); return v > 0 && v < n; }, all, { timeout: 15000 });
+    console.log("  all folders:", all, "· notes only:", await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
+  });
   console.log("\nGRAPH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); process.exitCode = 1; } finally { await browser.close(); }

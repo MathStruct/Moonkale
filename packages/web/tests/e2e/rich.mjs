@@ -97,5 +97,26 @@ try {
     if (!saved.startsWith('---\ntitle: "Front"\ntags: [demo, edited]\n---\n')) throw new Error("front matter not saved intact");
     if (!/Body text\. More\./.test(saved)) throw new Error("body edit lost");
   });
+  await step("spec 021: without the workspace override markdown opens in Rich mode, and loading does not dirty the file", async () => {
+    // run-all.sh writes .moonkale/settings.json with markdown_rich=false for the other suites.
+    fs.rmSync(`${ROOT}/.moonkale/settings.json`, { force: true });
+    fs.writeFileSync(`${ROOT}/Norm.md`, "Title\n=====\n\n* one\n* two\n\n\nDone.\n");
+    await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".wb-workspace");
+    await page.click(".mk-explorer-open button[type=submit]");
+    await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
+    await page.click(".mk-tree-file >> text=Norm.md");
+    await page.waitForSelector(".mk-rich-host:visible .ProseMirror h1", { timeout: 30000 });
+    const on = await page.$eval(".mk-md-modes button:has-text('Rich'):visible", (b) => b.classList.contains("mk-btn-on"));
+    if (!on) throw new Error("Rich is not the default mode");
+    await page.waitForTimeout(800);
+    if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("opening in Rich mode marked the file dirty");
+    if (fs.readFileSync(`${ROOT}/Norm.md`, "utf8") !== "Title\n=====\n\n* one\n* two\n\n\nDone.\n") throw new Error("file changed on open");
+    await page.click(".mk-rich-host:visible .ProseMirror h1");
+    await page.keyboard.press("End");
+    await page.keyboard.type(" X");
+    await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { timeout: 10000 });
+    console.log("\n  clean on open, dirty after typing");
+  });
   console.log("\nRICH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

@@ -352,12 +352,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
 
     // (Re)load the graph whenever its inputs change.
     use_effect(move || {
-        let index = ws
+        // Every open folder's index goes into one graph (spec 020: two
+        // repositories, two vaults to merge); the picker narrows to one.
+        let indices: Vec<_> = ws
             .sources
             .read()
             .iter()
-            .find(|s| s.descriptor.family == SourceFamily::Index)
-            .cloned();
+            .filter(|s| s.descriptor.family == SourceFamily::Index)
+            .cloned()
+            .collect();
         let m = mode();
         let f = filters();
         let active = *ws.active.read();
@@ -376,8 +379,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         // after a local trace); only the newest load may publish.
         let gen = *load_gen.peek() + 1;
         load_gen.set(gen);
+        let picked_index = picked_id
+            .as_ref()
+            .and_then(|pid| indices.iter().find(|s| &s.descriptor.id == pid).cloned());
         // A database source: draw its schema (or the requested query's result).
-        if let Some(pid) = picked_id {
+        if let (Some(pid), None) = (picked_id.clone(), &picked_index) {
             let Some(handle) = ws
                 .sources
                 .read()
@@ -474,10 +480,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             });
             return;
         }
-        let Some(index) = index else {
+        let indices: Vec<_> = match picked_index {
+            Some(one) => vec![one],
+            None => indices,
+        };
+        if indices.is_empty() {
             counts.set((0, 0, false));
             return;
-        };
+        }
         spawn(async move {
             let mut kinds = Vec::new();
             if f.files {
@@ -503,27 +513,55 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     kinds: Some(kinds.clone()),
                 },
             };
-            let Ok(res) = index.source.query(query).await else {
-                return;
-            };
+            // One query per index, merged: ids are derived per index so
+            // they never collide; with several folders each gets a colour.
+            let mut res = moonkale_core::QueryResult::default();
+            let mut owner: Vec<usize> = Vec::new();
+            let mut groups: Vec<(String, &'static str)> = Vec::new();
+            for (i, index) in indices.iter().enumerate() {
+                let Ok(r) = index.source.query(query.clone()).await else {
+                    continue;
+                };
+                owner.extend(std::iter::repeat_n(i, r.nodes.len()));
+                res.nodes.extend(r.nodes);
+                res.edges.extend(r.edges);
+                res.truncated |= r.truncated;
+                if indices.len() > 1 {
+                    let name = index
+                        .descriptor
+                        .id
+                        .as_str()
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or(index.descriptor.id.as_str())
+                        .to_string();
+                    groups.push((name.clone(), label_color(&name)));
+                }
+            }
             if *load_gen.peek() != gen {
                 return;
             }
-            let nodes: Vec<&Node> = res
+            let nodes: Vec<(&Node, Option<&'static str>)> = res
                 .nodes
                 .iter()
-                .filter(|n| kinds.contains(&n.kind))
+                .zip(owner.iter())
+                .filter(|(n, _)| kinds.contains(&n.kind))
+                .map(|(n, o)| (n, groups.get(*o).map(|g| g.1)))
                 .collect();
-            let idx: HashMap<_, _> = nodes.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
+            let idx: HashMap<_, _> = nodes
+                .iter()
+                .enumerate()
+                .map(|(i, (n, _))| (n.id, i))
+                .collect();
             let out = OutGraph {
                 nodes: nodes
                     .iter()
-                    .map(|n| OutNode {
+                    .map(|(n, color)| OutNode {
                         id: n.id.to_string(),
                         label: &n.label,
                         kind: kind_name(&n.kind),
                         key: &n.native_key,
-                        color: None,
+                        color: *color,
                     })
                     .collect(),
                 edges: res
@@ -540,11 +578,12 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     .collect(),
             };
             counts.set((out.nodes.len(), out.edges.len(), res.truncated));
+            legend.set(groups);
             let _ = ev.send(ToJs::SetGraph { graph: out });
             shown.set(
                 nodes
                     .into_iter()
-                    .map(|n| (n.id.to_string(), n.clone()))
+                    .map(|(n, _)| (n.id.to_string(), n.clone()))
                     .collect(),
             );
         });
@@ -556,14 +595,43 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         .read()
         .iter()
         .any(|s| s.descriptor.family == SourceFamily::Index);
-    // Sources worth drawing besides the index: databases (schema graphs).
+    // Sources worth drawing besides "every folder": databases (schema
+    // graphs), and each folder's own index when more than one is open.
+    let index_count = ws
+        .sources
+        .read()
+        .iter()
+        .filter(|s| s.descriptor.family == SourceFamily::Index)
+        .count();
     let databases: Vec<(SourceId, String)> = ws
         .sources
         .read()
         .iter()
-        .filter(|s| is_pickable(&s.descriptor.family))
-        .map(|s| (s.descriptor.id.clone(), s.descriptor.display_name.clone()))
+        .filter(|s| {
+            is_pickable(&s.descriptor.family)
+                || (index_count > 1 && s.descriptor.family == SourceFamily::Index)
+        })
+        .map(|s| {
+            let name = if s.descriptor.family == SourceFamily::Index {
+                format!(
+                    "folder: {}",
+                    s.descriptor.id.as_str().rsplit('/').next().unwrap_or("?")
+                )
+            } else {
+                s.descriptor.display_name.clone()
+            };
+            (s.descriptor.id.clone(), name)
+        })
         .collect();
+    let picked_is_index = picked()
+        .and_then(|p| {
+            ws.sources
+                .read()
+                .iter()
+                .find(|s| s.descriptor.id == p)
+                .map(|s| s.descriptor.family == SourceFamily::Index)
+        })
+        .unwrap_or(false);
     let picked_is_trace = picked()
         .and_then(|p| {
             ws.sources
@@ -578,7 +646,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut paste_text = use_signal(String::new);
     let has_request = ws.graph_request.read().is_some();
     let picked_str = picked().map(|p| p.to_string()).unwrap_or_default();
-    let is_index = picked().is_none();
+    let is_index = picked().is_none() || picked_is_index;
     let has_any = has_index || !databases.is_empty();
 
     rsx! {
@@ -593,7 +661,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                             picked.set(if v.is_empty() { None } else { Some(SourceId::new(v)) });
                             if db_mode() == DbMode::Query { db_mode.set(DbMode::Data); }
                         },
-                        option { value: "", selected: is_index, "index" }
+                        option { value: "", selected: picked().is_none(), if index_count > 1 { "all folders" } else { "index" } }
                         for (sid, name) in databases.iter() {
                             option { key: "{sid}", value: "{sid}", selected: picked().as_ref() == Some(sid), "{name}" }
                         }
@@ -619,6 +687,13 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                             for (name, color) in legend() {
                                 span { key: "{name}", class: "mk-graph-legend-item", span { class: "mk-graph-swatch", style: "background: {color}" } "{name}" }
                             }
+                        }
+                    }
+                }
+                if is_index && !legend().is_empty() {
+                    span { class: "mk-graph-legend",
+                        for (name, color) in legend() {
+                            span { key: "{name}", class: "mk-graph-legend-item", span { class: "mk-graph-swatch", style: "background: {color}" } "{name}" }
                         }
                     }
                 }

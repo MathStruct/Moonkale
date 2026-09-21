@@ -1,6 +1,6 @@
 //! `IndexSource` — the derived graph as a `Source`.
 
-use crate::extract::{symbols_rust, wikilinks, Derived};
+use crate::extract::{symbols_julia, symbols_python, symbols_rust, wikilinks, Derived};
 use crate::graph::IndexGraph;
 use crate::search::{Hit, SearchIndex};
 use crate::walk::{self, Limits};
@@ -213,6 +213,8 @@ impl IndexSource {
             }) {
                 Some("markdown") => d.merge(wikilinks::extract(&g, &self.id, file, text)),
                 Some("rust") => d.merge(symbols_rust::extract(&self.id, file, text)),
+                Some("julia") => d.merge(symbols_julia::extract(&self.id, file, text)),
+                Some("python") => d.merge(symbols_python::extract(&self.id, file, text)),
                 _ => {}
             }
             d

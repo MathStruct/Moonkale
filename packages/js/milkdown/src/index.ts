@@ -55,7 +55,19 @@ async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWi
       onChange(md)
     })
   })
-  await crepe.create()
+  // Loading is not an edit: Crepe's parse → serialize round trip changes
+  // the text a little (bullets, escapes, blank lines), and reporting that
+  // would mark the document dirty on open (spec 021). The normalised form
+  // becomes the baseline; the first real edit is reported relative to it,
+  // and the file is written in the normalised form only when the user
+  // actually changed something.
+  entry.suppress = true
+  try {
+    await crepe.create()
+    entry.last = unescapeWiki(crepe.getMarkdown())
+  } finally {
+    entry.suppress = false
+  }
   views.set(el, entry)
 }
 

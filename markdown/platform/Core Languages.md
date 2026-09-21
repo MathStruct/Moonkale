@@ -31,8 +31,8 @@ A core language extension provides, in this order of importance:
 | language | detect | highlight | symbols | LSP (discovered) | run / preview |
 |---|---|---|---|---|---|
 | Rust | `.rs` ✅ | ✅ Lezer | ✅ (`tree-sitter-rust`) | rust-analyzer ✅ (+ cargo-check diagnostics) | — |
-| Python | `.py` ✅ | ✅ Lezer | ❌ | pyright / pylsp ✅ | `.ipynb` viewer/editor + ipykernel execution planned as an opt-in extension ([[Notebook Editor]]) |
-| Julia | `.jl` ✅ | ✅ legacy mode | ❌ | ✅ discovered (`julia --project=@lsp -e 'using LanguageServer; runserver()'`, install hint) | flow editor targets Lux.jl *(exists)*; no REPL |
+| Python | `.py` ✅ | ✅ Lezer | ✅ `def`/`class` (spec 022) | pyright / pylsp ✅ | `.ipynb` viewer/editor + ipykernel execution planned as an opt-in extension ([[Notebook Editor]]) |
+| Julia | `.jl` ✅ | ✅ legacy mode | ✅ functions, structs, modules, macros, consts (spec 022) | ✅ discovered (`julia --project=@lsp -e 'using LanguageServer; runserver()'`, install hint) | flow editor targets Lux.jl *(exists)*; no REPL |
 | C/C++ | ✅ `.c .h .cc .cpp .cxx .hh .hpp .hxx .cu` | ✅ Lezer | ❌ | ✅ clangd discovered | — |
 | JavaScript/TypeScript | ✅ `.js .mjs .cjs .jsx .ts .mts .cts .tsx` | ✅ Lezer (JSX) | ❌ | typescript-language-server ✅ | — |
 | Go | `.go` ✅ | ✅ Lezer | ❌ | gopls ✅ | — |
@@ -61,5 +61,5 @@ Highlighting (2026-09-20, [[010]]): grammars ship in the CodeMirror bundle — d
 1. ~~Highlighting~~ done via the bundle (P-093); Lean/Nix grammars when one appears.
 2. ~~Detection~~ done for the whole list.
 3. ~~LSP discovery~~ done; per-language custom commands in settings next.
-4. Symbols for Julia, Go, TypeScript, C/C++ (tree-sitter grammars exist; queries are the work).
+4. Symbols for Go, TypeScript, C/C++, Lean, Nix (tree-sitter grammars exist; Julia and Python were done in spec 022 with a walker each — ~150 lines per language); references and calls for any language.
 5. Lean infoview, Julia REPL — real extensions with panels, once the UI contribution model exists.

@@ -8,7 +8,7 @@ Whole-document events, like CodeMirror's first milestone.
 
 | function | effect |
 |---|---|
-| `mount(el, markdown, onChange, onWikiLink?, opts?)` | create the editor in `el`; `onChange(markdown)` after every change (wiki-link brackets un-escaped); `onWikiLink(target)` on a click on a decorated `[[target]]`; `opts.katexMacros` (KaTeX macros), `opts.onWikiQuery(id, query)` (`[[` typed) |
+| `mount(el, markdown, onChange, onWikiLink?, opts?)` | create the editor in `el`; `onChange(markdown)` after every *user* change (wiki-link brackets un-escaped) — the parse → serialize normalisation at load is the baseline and is not reported (spec 021); `onWikiLink(target)` on a click on a decorated `[[target]]`; `opts.katexMacros` (KaTeX macros), `opts.onWikiQuery(id, query)` (`[[` typed) |
 | `setWikiStatus(el, [{target, resolved}])` | which targets resolve (decoration classes) |
 | `wikiCandidates(el, id, [{target, key}])` | the answer to `onWikiQuery` |
 | `setText(el, markdown)` | replace the document without firing `onChange` |

@@ -25,3 +25,7 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[017]] | Graph view reset on resize / focus change — `set_graph` is incremental now (positions, pins and camera survive reloads) | done |
 | [[018]] | Splices instead of the whole document per keystroke (P-037): 3 MB file, 87 ms per key | done |
 | [[019]] | Front matter as a Properties bar in the rich editor, body-only view, saved intact | done |
+| [[020]] | Several folders in one graph: every index drawn, per-folder colours, picker narrows to one; cross-folder links wait for projects | done |
+| [[021]] | Markdown opens in Rich mode by default (`editor.markdown_rich`); loading no longer marks the file dirty | done |
+| [[022]] | Julia and Python symbols in the index/graph (tree-sitter); calls/references still not extracted for any language | done |
+| [[023]] | Why a pull costs a 30-minute build: two debug builds of 1.8 GB, feature changes, a thrashed `target/`; `debug = "line-tables-only"` applied: clean debug build 399 s, binaries 449 + 470 MB instead of 1.8 + 1.7 GB | done |

@@ -4,7 +4,7 @@ use crate::typst_preview::TypstPreviewPanel;
 use dioxus::prelude::*;
 use moonkale_editor_code::{lsp::LspManager, CodeEditorPanel};
 use moonkale_ext_api::prelude::*;
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 pub const PANEL_ID: &str = "links";
 pub const PREVIEW_ID: &str = "typst-preview";
@@ -19,8 +19,9 @@ pub fn is_markdown(node: &Node) -> bool {
 
 pub struct LinksExtension {
     lsp: LspManager,
-    /// Documents currently shown in Rich mode (per window).
-    rich: Signal<HashSet<NodeId>>,
+    /// Documents whose mode the user chose by hand (per window): `true` =
+    /// Rich, `false` = Source; the rest follow `editor.markdown_rich`.
+    rich: Signal<HashMap<NodeId, bool>>,
 }
 
 impl Default for LinksExtension {
@@ -33,7 +34,7 @@ impl LinksExtension {
     pub fn new() -> Self {
         Self {
             lsp: LspManager::new(),
-            rich: Signal::new_in_scope(HashSet::new(), ScopeId::ROOT),
+            rich: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
         }
     }
 }
@@ -121,14 +122,19 @@ fn MarkdownPanel(
     ws: Workspace,
     node: NodeId,
     lsp: LspManager,
-    rich: Signal<HashSet<NodeId>>,
+    rich: Signal<HashMap<NodeId, bool>>,
 ) -> Element {
-    let is_rich = rich.read().contains(&node);
+    // The user's choice for this document, else the setting (spec 021).
+    let is_rich = rich
+        .read()
+        .get(&node)
+        .copied()
+        .unwrap_or_else(|| ws.settings.read().editor.markdown_rich);
     rsx! {
         div { class: "mk-md",
             div { class: "mk-md-modes",
-                button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.remove(&node); }); }, title: "Markdown source (CodeMirror)", "Source" }
-                button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node); }); }, title: "WYSIWYG (Milkdown) — the markdown is what gets saved", "Rich" }
+                button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, false); }); }, title: "Markdown source (CodeMirror)", "Source" }
+                button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, true); }); }, title: "WYSIWYG (Milkdown) — the markdown is what gets saved", "Rich" }
             }
             div { class: "mk-md-body",
                 if is_rich {

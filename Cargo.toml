@@ -88,6 +88,16 @@ moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }
 moonkale-graph-render = { path = "packages/editors/graph-render" }
 moonkale-typst = { path = "packages/typst" }
 
+# Debug builds: line tables only (backtraces keep file:line), no debug info
+# for dependencies — the desktop and server debug binaries were 1.8 GB each
+# and a pull that touched features cost a 30-minute build (spec 023). Set
+# `debug = 2` for a session that steps through a dependency in a debugger.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 # Size-optimised profile for standalone wasm modules (the graph renderer).
 # Used by packages/editors/graph-render/build.sh.
 [profile.wasm-release]

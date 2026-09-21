@@ -16,3 +16,7 @@ Only the index-backed part exists so far: `LinksExtension` contributes a **Links
 - **Wiki-links**: `packages/js/milkdown/src/wiki.ts` (ProseMirror plugin: decorations over the literal text, hidden brackets, click-to-follow, `[[` popup) ↔ `rich.rs` (`wikiStatus` / `wikiCandidates` down, `wikiLink` / `wikiQuery` up). Status is recomputed 300 ms after the last change (`futures-timer`) and on `graph_epoch`; follow uses `Workspace::follow_wiki(.., create = true)`. The Links panel's phantom rows have a **Create** button.
 - The rich toolbar hint reads "click a [[link]] to follow it · type [[ to link a page".
 - **Front matter** (spec 019): `split_frontmatter` / `frontmatter_yaml` / `join_frontmatter` in `rich.rs`; the view shows the body, the Properties bar edits the YAML; both write the same document text.
+
+## Spec 021 (2026-09-21)
+- `extension.rs`: the per-document mode is `HashMap<NodeId, bool>` of *explicit* choices; a document without one follows `settings.editor.markdown_rich` (default true — Settings → Editor). `ext-api::settings`: `EditorFile.markdown_rich`, `EditorSettings.markdown_rich`.
+- `packages/js/milkdown/src/index.ts`: loading is not an edit — `entry.last` is set to Crepe's normalised markdown after `create()` with reporting suppressed, so the dirty dot appears only after a real edit (P-102). `rich.mjs` last step checks both.

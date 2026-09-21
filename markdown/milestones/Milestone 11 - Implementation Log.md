@@ -53,3 +53,10 @@ Plan: [[Milestone 11 - Remote]]. Design: [[Remote and Server Modes]].
 - Server binary: 188 MB release (142 MB stripped), 1.7 GB debug; release build 229 s. Desktop app: 193 MB release (147 MB stripped) + 6.9 MB assets; release build 361 s.
 - Desktop RSS with a remote folder open: `moonkale` 202 MB (48 MB anonymous, the rest the binary's own pages) + WebKit web process ~485 MB (240 MB anonymous) + network process 61 MB — see [[Why Not a Plugin or Electron]] for the breakdown.
 - Tests: 3 native suites new (`remote` unit, `remote/shim`, `ext-api/remote_flow`), `server.mjs` (6 checks), 4 browser suites re-run; 34 browser suites in `run-all.sh`.
+
+## Same-day follow-ups (specs 020–023, from Daniel's first day with the build)
+- **020** every open folder in one graph, coloured per folder, picker narrows to one (`graph.mjs` step).
+- **021** markdown opens in Rich mode (`editor.markdown_rich`), and loading no longer dirties the file (P-102; `rich.mjs` step). The E2E fixture turns Rich off in `.moonkale/settings.json` (and `session.mjs` in the user scope) because the suites drive the source editor.
+- **022** Julia and Python symbols in the index (`tree-sitter-julia`, `tree-sitter-python`; unit tests).
+- **023** the 30-minute build after a pull: two gigabyte debug binaries and feature changes (P-101); `[profile.dev] debug = "line-tables-only"` + no dependency debug info — clean debug build 399 s, binaries 449 + 470 MB; the agent's cargo runs now use `CARGO_TARGET_DIR=target/agent`. `serve.sh` waits for the server to answer instead of dx's banner (which appears before the build ends).
+- Full browser batch: 34/34 pass.

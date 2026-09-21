@@ -5,6 +5,9 @@ import { firefox } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
 const browser = await firefox.launch();
 const ctx = await browser.newContext({ viewport: { width: 1200, height: 800 } });
+// The suite drives the source editor; window B attaches the folder without its
+// workspace settings, so the user scope turns Rich mode off (spec 021).
+await ctx.addInitScript(() => { try { localStorage.setItem("moonkale.settings", JSON.stringify({ editor: { markdown_rich: false } })); } catch {} });
 const a = await ctx.newPage();
 const logs = [];
 a.on("console", (m) => logs.push(`[A ${m.type()}] ${m.text()}`));

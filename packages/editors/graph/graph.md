@@ -25,3 +25,6 @@ Notes for `moonkale-editor-graph` (Milestone 2), the Dioxus host of the renderer
 
 ## Milestone 9
 - Android WebView: asset URLs are resolved against `document.baseURI || location.href` before `import()` / `init` (an eval script has no base URL there, P-088); when the user agent is an Android WebView (`Android` + `wv`) `create()` gets `prefer: "gl"` (P-089). The stylesheet goes through `moonkale_ext_api::Stylesheet` (P-087).
+
+## Spec 020 (2026-09-21)
+Every open folder's index is drawn in one graph: `panel.rs` queries each `SourceFamily::Index` source (the same `Query::All` / `Query::Neighbours`), merges the results (ids are derived per index, so they never collide) and colours nodes per folder with `label_color(folder name)` + a legend when more than one is open. The source picker lists `folder: <name>` per index next to "all folders" (`picked_index` narrows the load to one); databases and traces are unchanged. Cross-folder edges do not exist yet (each index resolves links inside its own folder — [[Projects and Sources]]).

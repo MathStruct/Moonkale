@@ -184,6 +184,11 @@ fn SettingsPanel(ws: Workspace) -> Element {
                             onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.editor.wrap = Some(v))); } }
                         "Wrap long lines in the code editor (Alt+Z toggles)"
                     }
+                    label { class: "mk-settings-check",
+                        input { r#type: "checkbox", checked: settings.editor.markdown_rich,
+                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.editor.markdown_rich = Some(v))); } }
+                        "Open markdown files in Rich mode (Source | Rich still switches)"
+                    }
 
                     h3 { "Terminal" }
                     label { "Shell"

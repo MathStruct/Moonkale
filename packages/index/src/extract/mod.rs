@@ -4,6 +4,8 @@
 //! `applies()`/`extract()` and extension-contributed extractors arrive with
 //! the language contribution point.
 
+pub mod symbols_julia;
+pub mod symbols_python;
 pub mod symbols_rust;
 pub mod wikilinks;
 

@@ -141,6 +141,9 @@ pub struct EditorFile {
     /// Soft-wrap long lines at the view's edge.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wrap: Option<bool>,
+    /// Open markdown in Rich mode (spec 021).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown_rich: Option<bool>,
 }
 
 impl SettingsFile {
@@ -187,6 +190,7 @@ impl SettingsFile {
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
         self.terminal.shell = other.terminal.shell.clone().or(self.terminal.shell.take());
         self.editor.wrap = other.editor.wrap.or(self.editor.wrap);
+        self.editor.markdown_rich = other.editor.markdown_rich.or(self.editor.markdown_rich);
         // Extensions: a later scope's explicit choice wins per id.
         for id in &other.extensions.enabled {
             self.extensions.set_enabled(id, true);
@@ -275,6 +279,9 @@ pub struct TerminalSettings {
 pub struct EditorSettings {
     /// Soft-wrap long lines (default off, like most code editors).
     pub wrap: bool,
+    /// Open markdown documents in Rich (WYSIWYG) mode rather than Source
+    /// (default on, spec 021); the Source | Rich buttons still switch.
+    pub markdown_rich: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -380,6 +387,7 @@ impl Settings {
             },
             editor: EditorSettings {
                 wrap: merged.editor.wrap.unwrap_or(false),
+                markdown_rich: merged.editor.markdown_rich.unwrap_or(true),
             },
             keybindings: merged.keybindings.clone(),
             user_name: merged.user_name.clone().unwrap_or_else(default_user_name),

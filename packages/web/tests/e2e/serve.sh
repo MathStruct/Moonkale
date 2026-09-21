@@ -17,9 +17,11 @@ case "${1:-start}" in
     MOONKALE_CONFIG_DIR="$E/cfg" MOONKALE_LLM="${MOONKALE_LLM:-mock}" MOONKALE_ROOT="$root" \
       nohup dx serve --port "$PORT" > "$E/dx-$PORT.log" 2>&1 &
     echo $! > "$E/dx-$PORT.pid"
-    for _ in $(seq 1 120); do
+    # dx prints its banner before the build is done: wait until the server answers.
+    for _ in $(seq 1 240); do
       sleep 5
-      if grep -q "Serving your app" "$E/dx-$PORT.log"; then echo "serving $root on :$PORT (pid $(cat "$E/dx-$PORT.pid"))"; exit 0; fi
+      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/login" 2>/dev/null)
+      if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "404" ]; then echo "serving $root on :$PORT (pid $(cat "$E/dx-$PORT.pid"))"; exit 0; fi
       if grep -q "Build failed" "$E/dx-$PORT.log"; then echo "build failed — see $E/dx-$PORT.log"; exit 1; fi
     done
     echo "timeout — see $E/dx-$PORT.log"; exit 1 ;;
