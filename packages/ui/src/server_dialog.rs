@@ -20,7 +20,9 @@ pub fn ServerDialog(open: Signal<bool>) -> Element {
     let mut connect = move || {
         let (u, t) = (url.peek().clone(), token.peek().clone());
         open.set(false);
-        spawn(async move {
+        // The dialog unmounts with `open`; a task of its own scope would be
+        // cancelled with it (P-108, P-116).
+        dioxus::core::spawn_forever(async move {
             ws.connect_server(u, Some(t)).await;
         });
     };

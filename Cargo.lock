@@ -9422,6 +9422,8 @@ version = "0.1.0"
 dependencies = [
  "api",
  "dioxus",
+ "dioxus-core",
+ "dioxus-html",
  "dioxus-workbench",
  "moonkale-core",
  "moonkale-editor-agent",
@@ -9442,6 +9444,7 @@ dependencies = [
  "moonkale-sources-sql",
  "moonkale-terminal",
  "serde",
+ "tokio",
  "tracing",
 ]
 

@@ -14,7 +14,8 @@ pub fn TerminalChooser(open: Signal<bool>) -> Element {
         open.set(false);
         if remember() {
             let w = which.to_string();
-            spawn(async move {
+            // Outlives the dialog (P-108).
+            dioxus::core::spawn_forever(async move {
                 ws.update_user_settings(|f| f.terminal.implementation = Some(w))
                     .await;
             });

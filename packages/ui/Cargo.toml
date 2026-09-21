@@ -30,3 +30,8 @@ serde = { version = "1", features = ["derive"] }
 
 [features]
 server = ["api/server"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+dioxus-core = "0.7.10"
+dioxus-html = { version = "0.7.10", features = ["serialize"] }

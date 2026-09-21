@@ -40,6 +40,7 @@ pub use moonkale_ext_api::{
 };
 pub use moonkale_lsp::{LspTransport, LspTransportFuture, SpawnLsp};
 pub use moonkale_terminal::{SpawnTerminal, SpawnTerminalFuture, TerminalBackend};
+pub use server_dialog::ServerDialog;
 pub use shell::Shell;
 pub use titlebar::TitleBar;
 
