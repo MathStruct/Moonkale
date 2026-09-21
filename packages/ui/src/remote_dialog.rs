@@ -42,16 +42,24 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                 p { class: "mk-remote-hint",
                     "The folder is opened through your system "
                     code { "ssh" }
-                    ": keys, agent, passwords and host checks work exactly as in a terminal, and every prompt shows up in the Terminal panel. Moonkale's server is copied to the host once per version (into "
+                    ": keys, agent, passwords and host checks work exactly as in a terminal, and every prompt shows up in the Terminal panel. Type the host the way you would after "
+                    code { "ssh" }
+                    " — options and leading variables included, e.g. "
+                    code { "SSH_AUTH_SOCK=0 -p 443 daniel@192.168.178.62" }
+                    " or "
+                    code { "-i ~/.ssh/MathStruct daniel@dtrmblog.de" }
+                    "; aliases from "
+                    code { "~/.ssh/config" }
+                    " are offered. Moonkale's server is copied to the host once per version (into "
                     code { "~/.local/share/moonkale" }
                     ") and runs only for this session."
                 }
                 label { class: "mk-remote-field",
-                    span { "Host" }
+                    span { "Host (as typed after ssh)" }
                     input {
                         class: "mk-palette-input mk-remote-host",
                         r#type: "text",
-                        placeholder: "build-box or user@10.0.0.2",
+                        placeholder: "build-box · user@10.0.0.2 · -p 443 -i ~/.ssh/key user@host",
                         list: "mk-remote-hosts",
                         autofocus: true,
                         value: "{host}",

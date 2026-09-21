@@ -5,7 +5,7 @@ tags: [crate-notes, milestone-11]
 Notes for `moonkale-remote` (Milestone 11). Desktop only. Design: [[Remote and Server Modes]], plan [[Milestone 11 - Remote]].
 
 ## What it does
-`SshSession::open(SshTarget { host, path }, server_binary, on_phase)` turns a folder on another machine into a Moonkale server the desktop talks to:
+`SshSession::open(SshTarget::parse(spec, path)?, server_binary, on_phase)` turns a folder on another machine into a Moonkale server the desktop talks to:
 
 1. **One `ssh` under a PTY** (`PtyBackend::spawn_args`) is the whole session: `ssh -M -S <tmp>/cm-<port> -o ControlPersist=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -L 127.0.0.1:<local>:127.0.0.1:<remote> <host> -- sh -c '<script>'`. Its output goes through a `TeeBackend` to a **terminal tab** (so passphrase / password / host-key prompts are visible and typed by the user) and to the session's own reader, which watches for the script's marker lines.
 2. **The remote script** (`remote_script`, plain `sh`): `mkdir -p ~/.local/share/moonkale/server/<version>`; if `moonkale-server` is missing there it prints `MOONKALE_NEED_UPLOAD <uname -m>` and waits for a `.ready` flag; then `stty -echo`, prints `MOONKALE_TOKEN?`, `read TOKEN`, prints `MOONKALE_STARTING`, and `exec`s the server with `--port <remote> --bind 127.0.0.1 --root <path> --token-stdin`, the token piped in through `printf`.
@@ -18,6 +18,8 @@ Notes for `moonkale-remote` (Milestone 11). Desktop only. Design: [[Remote and S
 `Phase` (`Connecting → Prompt(line) | Uploading → Starting → Ready { url } | Failed(msg) | Closed`) is pushed through the `on_phase` callback from the handshake, which always runs on a thread of its own with a current-thread runtime (the desktop's runtime is not to be relied on), and the `Workspace` turns it into status-bar text (`ext-api`'s `remote.rs`).
 
 `server_binary()`: `MOONKALE_SERVER_BINARY`, else `moonkale-server` next to the executable, else the dev build under `target/dx/web/{release,debug}/web/server` (cwd and two parents up).
+
+`SshTarget::parse("SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62", path)`: leading `VAR=value` words → `env` (set on the `ssh` process through `PtyBackend::spawn_with_env`, and on the upload's `Command`), the words before the last → `options` (placed right before the destination on both command lines), the last word → `host`; a trailing option that takes an argument (`-p 443` with nothing after) is an error. `spec()` gives the line back.
 
 ## Decisions
 - **ControlMaster after all.** The plan said no control master; the upload needs a second authenticated channel and a second prompt would be a worse experience. `-o ControlPersist=no` plus the socket in a per-process temp dir means nothing outlives the master, which Moonkale kills on close.

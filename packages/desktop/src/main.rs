@@ -205,7 +205,7 @@ fn open_remote(
     sink: ui::remote::PhaseSink,
 ) -> Result<ui::remote::Opened, String> {
     use moonkale_remote::Phase;
-    let target = moonkale_remote::SshTarget { host, path };
+    let target = moonkale_remote::SshTarget::parse(&host, &path)?;
     let binary = moonkale_remote::server_binary();
     if binary.is_none() {
         tracing::warn!("remote: no moonkale-server binary to upload (MOONKALE_SERVER_BINARY)");
@@ -264,8 +264,10 @@ fn ssh_hosts_in(text: &str) -> Vec<String> {
     hosts
 }
 
-/// `MOONKALE_SSH=host:/path` (or `--ssh host:/path`): open that remote
-/// folder when the window starts.
+/// `MOONKALE_SSH='[VAR=v …] [ssh options …] host:/path'` (or `--ssh …`):
+/// open that remote folder when the window starts — `--ssh "SSH_AUTH_SOCK=0
+/// -p 443 daniel@192.168.178.62:/home/daniel/Code"`. The last word is
+/// `host:path`; everything before it is what `ssh` gets.
 fn ssh_at_start() -> Option<(String, String)> {
     let spec = std::env::var("MOONKALE_SSH").ok().or_else(|| {
         let mut args = std::env::args().skip(1);
@@ -279,8 +281,15 @@ fn ssh_at_start() -> Option<(String, String)> {
         }
         None
     })?;
-    let (host, path) = spec.split_once(':')?;
-    Some((host.to_string(), path.to_string()))
+    let spec = spec.trim();
+    let (head, last) = spec.rsplit_once(char::is_whitespace).unwrap_or(("", spec));
+    let (host, path) = last.split_once(':')?;
+    let host = if head.is_empty() {
+        host.to_string()
+    } else {
+        format!("{head} {host}")
+    };
+    Some((host, path.to_string()))
 }
 
 /// Local terminal: the user's shell in a PTY — or the server's (Milestone 11).
@@ -637,6 +646,24 @@ fn App() -> Element {
 
 #[cfg(test)]
 mod remote_tests {
+    #[test]
+    fn start_spec_keeps_options() {
+        std::env::set_var(
+            "MOONKALE_SSH",
+            "SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62:/home/daniel/Code",
+        );
+        assert_eq!(
+            super::ssh_at_start(),
+            Some((
+                "SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62".to_string(),
+                "/home/daniel/Code".to_string()
+            ))
+        );
+        std::env::set_var("MOONKALE_SSH", "box:/srv");
+        assert_eq!(super::ssh_at_start(), Some(("box".into(), "/srv".into())));
+        std::env::remove_var("MOONKALE_SSH");
+    }
+
     #[test]
     fn ssh_config_hosts() {
         let cfg = "Host build-box\n  HostName 10.0.0.2\n\nHost *\n  ServerAliveInterval 30\nHost lab lab2 !lab-*\n\tUser me\nHost\tzed\n";

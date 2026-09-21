@@ -33,6 +33,19 @@ impl PtyBackend {
         cols: u16,
         rows: u16,
     ) -> Result<Self, String> {
+        Self::spawn_with_env(cwd, program, args, &[], cols, rows)
+    }
+
+    /// `spawn_args` plus environment variables for the child (`SSH_AUTH_SOCK=0
+    /// ssh …`, the way a line typed in a shell would set them).
+    pub fn spawn_with_env(
+        cwd: Option<&str>,
+        program: Option<&str>,
+        args: &[String],
+        env: &[(String, String)],
+        cols: u16,
+        rows: u16,
+    ) -> Result<Self, String> {
         let pty = native_pty_system();
         let pair = pty
             .openpty(PtySize {
@@ -55,6 +68,9 @@ impl PtyBackend {
         }
         cmd.env("TERM", "xterm-256color");
         cmd.env("MOONKALE", "1");
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
         let child = pair
             .slave
             .spawn_command(cmd)

@@ -15,9 +15,12 @@ use std::time::Duration;
 const SHIM: &str = r#"#!/bin/sh
 # fake ssh: run the remote command here, under a scratch HOME
 export HOME=__HOME__
-fwd=""
+# The target's environment and options must reach every ssh call.
+[ "$SSH_AUTH_SOCK" = 0 ] || { echo "SSH_AUTH_SOCK not set" >&2; exit 9; }
+fwd=""; port=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    -p) port="$2"; shift 2 ;;
     -L) fwd="$2"; shift 2 ;;
     -S|-o) shift 2 ;;
     -M) shift ;;
@@ -25,6 +28,7 @@ while [ $# -gt 0 ]; do
     *) shift ;;
   esac
 done
+[ "$port" = 443 ] || { echo "-p 443 missing" >&2; exit 8; }
 cmd="$*"
 if [ -n "$fwd" ]; then
   L=$(printf '%s' "$fwd" | cut -d: -f2); R=$(printf '%s' "$fwd" | cut -d: -f4)
@@ -71,10 +75,8 @@ fn fake_ssh_session_reaches_ready() {
     // The desktop installs this before launch; server functions go through it.
     dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
     let (tx, rx) = mpsc::channel();
-    let target = SshTarget {
-        host: "fake-host".into(),
-        path: root.to_string_lossy().into_owned(),
-    };
+    let target =
+        SshTarget::parse("SSH_AUTH_SOCK=0 -p 443 fake-host", &root.to_string_lossy()).unwrap();
     let (session, mut tee) = SshSession::open(target, Some(bin), move |p| {
         let _ = tx.send(p);
     })

@@ -79,8 +79,11 @@ pub struct RemoteState {
 }
 
 impl RemoteState {
+    /// `user@host:path` — the host's last word (the spec may carry `ssh`
+    /// options and variables before it).
     pub fn label(&self) -> String {
-        format!("{}:{}", self.host, self.path)
+        let host = self.host.split_whitespace().last().unwrap_or(&self.host);
+        format!("{host}:{}", self.path)
     }
 }
 

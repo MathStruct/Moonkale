@@ -11,4 +11,4 @@ Used in-process by the desktop app and on the server behind `api::terminal_socke
 Tests: `cargo test -p moonkale-terminal-pty` (`echo` round trip through a real PTY).
 
 ## Milestone 11
-`spawn_args(cwd, program, args, cols, rows)` runs a program with arguments (`ssh …` for `moonkale-remote`); `spawn` delegates to it. `kill()` ends the child now (a remote session being closed) without waiting for the drop. `is_running()` lets the session fail fast when `ssh` exits.
+`spawn_args(cwd, program, args, cols, rows)` runs a program with arguments (`ssh …` for `moonkale-remote`); `spawn_with_env` adds environment variables for the child (`SSH_AUTH_SOCK=0`); `spawn` delegates to them. `kill()` ends the child now (a remote session being closed) without waiting for the drop. `is_running()` lets the session fail fast when `ssh` exits.

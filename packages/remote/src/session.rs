@@ -10,17 +10,83 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-/// Where to go: `host` is anything `ssh` accepts (`box`, `me@10.0.0.2`, a
-/// `~/.ssh/config` alias), `path` the folder on that machine.
+/// Where to go: `host` is anything `ssh` accepts as its destination
+/// (`box`, `me@10.0.0.2`, a `~/.ssh/config` alias, `ssh://me@host:443`),
+/// `options` go on the command line before it (`-p 443`, `-i ~/.ssh/key`,
+/// `-J jump`, `-v`), `env` is set for the `ssh` process (`SSH_AUTH_SOCK=0`),
+/// `path` is the folder on that machine.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SshTarget {
     pub host: String,
+    pub options: Vec<String>,
+    pub env: Vec<(String, String)>,
     pub path: String,
 }
 
 impl SshTarget {
+    /// Parse what a person types after `ssh` in a shell — leading `VAR=value`
+    /// words become environment, everything up to the last word is options,
+    /// the last word is the destination:
+    /// `SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62`,
+    /// `-i ~/.ssh/MathStruct daniel@dtrmblog.de`, `build-box`.
+    pub fn parse(spec: &str, path: &str) -> Result<Self, String> {
+        let words: Vec<&str> = spec.split_whitespace().collect();
+        let Some((host, rest)) = words.split_last() else {
+            return Err("no host".into());
+        };
+        if host.starts_with('-') {
+            return Err(format!(
+                "the last word must be the host, not the option {host}"
+            ));
+        }
+        // `ssh -p 443` — the last word is an option's argument, not a host.
+        const WITH_ARG: [&str; 22] = [
+            "-B", "-b", "-c", "-D", "-E", "-e", "-F", "-I", "-i", "-J", "-L", "-l", "-m", "-O",
+            "-o", "-P", "-p", "-Q", "-R", "-S", "-W", "-w",
+        ];
+        if rest.last().is_some_and(|o| WITH_ARG.contains(o)) {
+            return Err(format!(
+                "{} {host} needs a host after it",
+                rest[rest.len() - 1]
+            ));
+        }
+        let mut env = Vec::new();
+        let mut options = Vec::new();
+        let mut in_options = false;
+        for w in rest {
+            match w.split_once('=') {
+                Some((k, v))
+                    if !in_options
+                        && !k.is_empty()
+                        && k.chars()
+                            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') =>
+                {
+                    env.push((k.to_string(), v.to_string()));
+                }
+                _ => {
+                    in_options = true;
+                    options.push(w.to_string());
+                }
+            }
+        }
+        Ok(Self {
+            host: host.to_string(),
+            options,
+            env,
+            path: path.trim().to_string(),
+        })
+    }
+
     pub fn label(&self) -> String {
         format!("{}:{}", self.host, self.path)
+    }
+
+    /// The whole spec back as one line (what the dialog shows again).
+    pub fn spec(&self) -> String {
+        let mut words: Vec<String> = self.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        words.extend(self.options.iter().cloned());
+        words.push(self.host.clone());
+        words.join(" ")
     }
 }
 
@@ -74,7 +140,7 @@ impl SshSession {
         std::fs::create_dir_all(&dir).map_err(|e| format!("temp dir: {e}"))?;
         let control = dir.join(format!("cm-{local_port}"));
         let script = remote_script(&target.path, remote_port);
-        let args: Vec<String> = vec![
+        let mut args: Vec<String> = vec![
             "-M".into(),
             "-S".into(),
             control.to_string_lossy().into_owned(),
@@ -86,14 +152,17 @@ impl SshSession {
             "ServerAliveInterval=15".into(),
             "-L".into(),
             format!("127.0.0.1:{local_port}:127.0.0.1:{remote_port}"),
+        ];
+        args.extend(target.options.iter().cloned());
+        args.extend([
             target.host.clone(),
             "--".into(),
             "sh".into(),
             "-c".into(),
             shell_quote(&script),
-        ];
+        ]);
         tracing::info!("remote: ssh {}", args.join(" "));
-        let mut pty = PtyBackend::spawn_args(None, Some("ssh"), &args, 100, 30)?;
+        let mut pty = PtyBackend::spawn_with_env(None, Some("ssh"), &args, &target.env, 100, 30)?;
         let output = pty.take_output();
         let pty = Arc::new(pty);
         let handle = PtyHandle {
@@ -156,9 +225,7 @@ impl SshSession {
                             set(Phase::Uploading);
                             match server_binary.clone() {
                                 Some(bin) => {
-                                    if let Err(e) =
-                                        upload(&control, &target.host, &bin, &arch).await
-                                    {
+                                    if let Err(e) = upload(&control, &target, &bin, &arch).await {
                                         set(Phase::Failed(e));
                                         return;
                                     }
@@ -300,7 +367,8 @@ printf '%s\n' "$TOKEN" | MOONKALE_ROOT={path} exec "$d/moonkale-server" --port {
 /// Stream `bin` into the host's server directory over the control socket
 /// (no second authentication), mark it executable, and set the ready flag
 /// the script waits for.
-async fn upload(control: &Path, host: &str, bin: &Path, arch: &str) -> Result<(), String> {
+async fn upload(control: &Path, target: &SshTarget, bin: &Path, arch: &str) -> Result<(), String> {
+    let host = &target.host;
     let dir = format!("{REMOTE_DIR}/{VERSION}");
     tracing::info!(
         "remote: uploading {} for {arch} to {host}:{dir}",
@@ -317,6 +385,8 @@ async fn upload(control: &Path, host: &str, bin: &Path, arch: &str) -> Result<()
         .arg(control)
         .arg("-o")
         .arg("BatchMode=yes")
+        .args(&target.options)
+        .envs(target.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
         .arg(host)
         .arg("--")
         .arg("sh")
@@ -468,6 +538,23 @@ mod tests {
         assert!(!looks_like_prompt("MOONKALE_STARTING"));
         assert_eq!(shell_quote("a'b"), "'a'\\''b'");
         assert_eq!(strip_ansi("\u{1b}[32mok\u{1b}[0m"), "ok");
+        let t = SshTarget::parse(
+            "SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62",
+            "/home/daniel/Code",
+        )
+        .unwrap();
+        assert_eq!(t.host, "daniel@192.168.178.62");
+        assert_eq!(t.options, ["-p", "443", "-v"]);
+        assert_eq!(t.env, [("SSH_AUTH_SOCK".to_string(), "0".to_string())]);
+        assert_eq!(t.spec(), "SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62");
+        let t = SshTarget::parse("-i ~/.ssh/MathStruct daniel@dtrmblog.de", "/srv").unwrap();
+        assert_eq!(t.options, ["-i", "~/.ssh/MathStruct"]);
+        assert!(t.env.is_empty());
+        // `-o Foo=bar` after an option is an option, not environment.
+        let t = SshTarget::parse("-o IdentityAgent=none box", "/").unwrap();
+        assert_eq!(t.options, ["-o", "IdentityAgent=none"]);
+        assert!(SshTarget::parse("-p 443", "/").is_err());
+        assert!(SshTarget::parse("", "/").is_err());
         let s = remote_script("/srv/code", 41234);
         assert!(s.contains("--token-stdin"));
         assert!(s.contains(NEED_UPLOAD));
