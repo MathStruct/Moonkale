@@ -38,5 +38,7 @@ Two cursors: the **caret** (where typing goes) and the **mouse pointer** (hover)
 
 So the answer: **CodeMirror yes (and Rust now gets the word); the Rust editor knows the caret through one property read, and nothing about the pointer.**
 
+Why it matters (Daniel, after Milestone 14): the symbol under the cursor is the anchor for *go to definition* and *centre a graph view on it* from a menu or a double/right click — [[024]] — with a five-button mouse as the expected device — [[025]].
+
 ## Also in this milestone
 The Rust terminal cut its lower rows (Prompt22): the grid measured the container before the panel had its final size and no resize event followed on desktop — fixed by re-measuring on a timer as well as `onresize`, and by anchoring the grid to the bottom so the prompt is the last thing to vanish (P-112).

@@ -21,9 +21,12 @@ Plan: [[Milestone 13 - Packaging]] (from [[Prompt21]]).
 Everything except signing. GitHub-hosted runners for public repositories are free for `windows-latest` and `macos-13`/`macos-14` (Intel and Apple silicon); `dx bundle` on them produces `.msi`/NSIS `.exe` and `.dmg`, and the workflow attaches them to the release. What they cannot do: **code signing** — Windows needs a code-signing certificate (SmartScreen otherwise warns "unknown publisher"), macOS needs an Apple Developer account for notarisation (Gatekeeper otherwise wants right-click → Open). Both cost money and are Daniel's decision; until then the builds are labelled unsigned and untested on the [[Install]] page, and whoever tries one is asked to report. Testing them here is impossible (no machine); a friend with either OS is the test.
 
 ## What to switch on here (Daniel)
-- `sudo systemctl enable --now nix-daemon`, `sudo usermod -aG nix-users daniel`, `experimental-features = nix-command flakes` in `/etc/nix/nix.conf` → `nix build` can be verified locally (the flake is otherwise verified only by the workflow).
+- `sudo systemctl enable --now nix-daemon` and `experimental-features = nix-command flakes` in `/etc/nix/nix.conf` (Arch's `nix` package has no `nix-users` group — its daemon socket is world-writable; a shell needs `NIX_REMOTE=daemon`, which `/etc/profile.d/nix-daemon.sh` sets on login) → `nix build` can be verified locally (the flake is otherwise verified only by the workflow).
 - `sudo systemctl enable --now docker` + `docker` group → the `.deb` can be installed in a `debian:12` container as a check (`apt install ./moonkale_0.1.0_amd64.deb`).
 - The first release: `git tag v0.1.0 && git push --tags` runs the workflow; the AUR upload of `moonkale-git`/`moonkale-bin` needs an AUR account.
+
+## Nix, verified later the same day
+Daniel switched the daemon on (Arch's `nix` package: no `nix-users` group; the socket is world-writable, `NIX_REMOTE=daemon` from `/etc/profile.d/nix-daemon.sh`). `nix build .#default` then failed twice and succeeded on the third try: `--cargo-args=--frozen` (dx 0.7.10 rejects the two-token form), and LadybugDB's build-time download (P-115) — the flake now fetches the prebuilt `liblbug` archive as a fixed-output derivation. Result: `moonkale` + `moonkale-server` + assets in ~15 min. Running it on this Arch host needs `nixGL` (EGL); on NixOS it does not. [[NixOS]] has the details.
 
 ## Deviations from the plan
 1. **`THIRD-PARTY.md` lists the crates only when `cargo-license` is installed** (it is not here); the file always names the JavaScript bundles and fonts and links the [[Licensing]] page. `cargo install cargo-license` once makes the full list appear in the next build.

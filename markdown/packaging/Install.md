@@ -25,7 +25,7 @@ nix profile install github:MathStruct/Moonkale      # builds from source (10–1
 # or try without installing:
 nix run github:MathStruct/Moonkale
 ```
-Needs `experimental-features = nix-command flakes`. The flake also has a dev shell (`nix develop`) and `nix flake check`.
+Needs `experimental-features = nix-command flakes`. On **NixOS** that is all. On another distro with Nix installed, a Nix-built GTK app cannot open the GPU on its own (`Could not create default EGL display`): run it through [nixGL](https://github.com/nix-community/nixGL) — `nix run --impure github:nix-community/nixGL -- moonkale` — or use the tarball/package for your distro instead. The flake also has a dev shell (`nix develop`) and `nix flake check`.
 
 ## Any Linux (tarball)
 ```sh

@@ -24,7 +24,7 @@ Record: [[Milestone 13 - Implementation Log]]. Builds on [[Packaging Overview]],
 **Deferred**: signing/notarisation, the AUR upload (Daniel's account), Flatpak/Snap, an RPM (`dx bundle --package-types rpm` exists, no Fedora here to test), Windows and macOS smoke tests (no machine).
 
 ## What to install / switch on here (Daniel)
-- **Nix**: `sudo systemctl enable --now nix-daemon` and `sudo usermod -aG nix-users daniel` (re-login), and `experimental-features = nix-command flakes` in `/etc/nix/nix.conf` — then `nix build` can be verified locally instead of only in CI.
+- **Nix**: `sudo systemctl enable --now nix-daemon` and `experimental-features = nix-command flakes` in `/etc/nix/nix.conf` (no `nix-users` group on Arch — the socket is world-writable; `NIX_REMOTE=daemon` in the shell, set by `/etc/profile.d/nix-daemon.sh` on login) — then `nix build` can be verified locally instead of only in CI.
 - **Docker** (optional, to test the `.deb` in a real Debian): `sudo systemctl enable --now docker` and `sudo usermod -aG docker daniel`.
 - Nothing else: `makepkg`, `ar`, `tar`, `dx` are here.
 

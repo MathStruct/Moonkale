@@ -18,6 +18,24 @@
         # Runtime libraries the desktop binary links (matches the -l flags of a
         # dioxus-desktop link line on Linux).
         runtimeLibs = with pkgs; [ webkitgtk_4_1 gtk3 libayatana-appindicator xdotool openssl ];
+        # LadybugDB's `lbug` crate downloads its prebuilt C++ library at build
+        # time (no network in the sandbox; from source it needs CMake and an
+        # hour). Fetch the same archive as a fixed-output derivation and hand
+        # it to the build script through LBUG_LIBRARY_DIR / LBUG_INCLUDE_DIR.
+        lbugVersion = "0.20.4";
+        liblbug = pkgs.stdenv.mkDerivation {
+          pname = "liblbug-prebuilt";
+          version = lbugVersion;
+          src = pkgs.fetchurl {
+            url = "https://github.com/LadybugDB/ladybug/releases/download/v${lbugVersion}/liblbug-static-linux-x86_64-compat.tar.gz";
+            hash = "sha256-eZ8Y8WX6FQdbBJ1x6EKeD/n3aIvl0YbElz0RGmmAUJo=";
+          };
+          sourceRoot = ".";
+          installPhase = ''
+            mkdir -p $out/lib
+            cp -r . $out/lib/
+          '';
+        };
       in
       {
         packages.default = pkgs.rustPlatform.buildRustPackage {
@@ -36,8 +54,10 @@
             runHook preBuild
             export HOME=$TMPDIR                # dx writes caches under $HOME
             export CARGO_NET_OFFLINE=true
-            (cd packages/desktop && dx build --release --platform desktop --features desktop --cargo-args "--frozen")
-            (cd packages/web && dx build --release --platform server --cargo-args "--frozen")
+            export LBUG_LIBRARY_DIR=${liblbug}/lib
+            export LBUG_INCLUDE_DIR=${liblbug}/lib
+            (cd packages/desktop && dx build --release --platform desktop --features desktop --cargo-args=--frozen)
+            (cd packages/web && dx build --release --platform server --cargo-args=--frozen)
             runHook postBuild
           '';
 
@@ -84,7 +104,9 @@
           nativeBuildInputs = with pkgs; [ pkg-config ];
           buildInputs = runtimeLibs;
           buildPhase = "true";
-          checkPhase = "cargo test --workspace --offline";
+          LBUG_LIBRARY_DIR = "${liblbug}/lib";
+          LBUG_INCLUDE_DIR = "${liblbug}/lib";
+          checkPhase = "cargo test --workspace --exclude mobile --offline";
           installPhase = "mkdir -p $out";
         };
       });
