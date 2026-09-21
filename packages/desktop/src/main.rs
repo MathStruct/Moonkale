@@ -22,8 +22,15 @@ use ui::{
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
-    // Milestone 11: `MOONKALE_REMOTE=http://host:port` (+ `MOONKALE_TOKEN`)
-    // makes this desktop a client of that Moonkale server from the start.
+    // Milestone 11: server functions always go to a loopback relay of our
+    // own (dioxus's server URL can be set only once, before launch — P-098);
+    // the relay pipes to the remote that is active, if any.
+    match api::relay::install() {
+        Ok(url) => dioxus::fullstack::set_server_url(url.leak()),
+        Err(e) => eprintln!("moonkale: client relay not started ({e}); remote folders are off"),
+    }
+    // `MOONKALE_REMOTE=http://host:port` (+ `MOONKALE_TOKEN`) makes this
+    // desktop a client of that Moonkale server from the start.
     if let Ok(url) = std::env::var("MOONKALE_REMOTE") {
         let token = std::env::var("MOONKALE_TOKEN").ok();
         api::client::connect(&url, token.as_deref(), &url);

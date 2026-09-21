@@ -428,12 +428,15 @@ fn start_loop(state: Rc<RefCell<State>>) {
             }
             s.graph = g;
             s.dirty = true;
+            // An untouched view follows the layout while it spreads (O(n)
+            // per frame, nothing next to a layout step), so a big graph is
+            // never off screen while it settles; the last fit is exact.
+            if s.auto_fit {
+                let g = std::mem::take(&mut s.graph);
+                s.camera.fit(&g, 40.0);
+                s.graph = g;
+            }
             if !s.layout.running {
-                if s.auto_fit {
-                    let g = std::mem::take(&mut s.graph);
-                    s.camera.fit(&g, 40.0);
-                    s.graph = g;
-                }
                 emit(&s, serde_json::json!({ "kind": "settled" }));
             }
         }

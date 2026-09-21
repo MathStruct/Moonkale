@@ -28,9 +28,13 @@ static REMOTE: RwLock<Option<Remote>> = RwLock::new(None);
 
 /// Point every server function at `url`, with `token` as the bearer.
 /// Not for the web client (its URL is the page's origin).
+///
+/// The server functions themselves always call the process's fixed server
+/// URL — on the desktop the loopback relay installed before launch
+/// ([`crate::relay::install`]), because dioxus's URL is a `OnceLock`
+/// (P-098) — and the relay pipes to whatever this function last set.
 pub fn connect(url: &str, token: Option<&str>, label: &str) {
     let url = url.trim_end_matches('/').to_string();
-    dioxus::fullstack::set_server_url(Box::leak(url.clone().into_boxed_str()));
     let mut headers = http::HeaderMap::new();
     if let Some(t) = token {
         if let Ok(v) = http::HeaderValue::from_str(&format!("Bearer {t}")) {
@@ -153,6 +157,13 @@ mod tests {
     #[test]
     fn connect_and_disconnect_track_the_remote() {
         assert!(active().is_none());
+        // Installed once per process (a OnceLock in dioxus-fullstack).
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let relay = crate::relay::install().unwrap();
+            assert!(relay.starts_with("http://127.0.0.1:"));
+            dioxus::fullstack::set_server_url(relay.leak());
+        }
         connect("http://127.0.0.1:9/", Some("abc"), "test");
         let r = active().unwrap();
         assert_eq!(r.url, "http://127.0.0.1:9");

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "llm": {},
+  "policy": {},
+  "search": {},
+  "terminal": {},
+  "editor": {},
+  "extensions": {},
+  "layout": "{\"version\":1,\"next_id\":1,\"root\":{\"kind\":\"split\",\"id\":\"root\",\"axis\":\"horizontal\",\"ratio\":0.22,\"first\":{\"kind\":\"tile\",\"id\":\"side\",\"panels\":[\"explorer\",\"search\",\"links\",\"git\",\"history\"],\"active\":\"explorer\",\"preserve_when_empty\":false},\"second\":{\"kind\":\"split\",\"id\":\"main-right\",\"axis\":\"horizontal\",\"ratio\":0.7,\"first\":{\"kind\":\"split\",\"id\":\"main-rows\",\"axis\":\"vertical\",\"ratio\":0.72,\"first\":{\"kind\":\"tile\",\"id\":\"main\",\"panels\":[\"settings\",\"graph\",\"editor:c093dc8d-553e-5620-be54-e1815b7d306c\"],\"active\":\"editor:c093dc8d-553e-5620-be54-e1815b7d306c\",\"preserve_when_empty\":true},\"second\":{\"kind\":\"tile\",\"id\":\"bottom\",\"panels\":[\"terminal\"],\"active\":\"terminal\",\"preserve_when_empty\":false}},\"second\":{\"kind\":\"tile\",\"id\":\"right\",\"panels\":[\"agent\"],\"active\":\"agent\",\"preserve_when_empty\":false}}}}",
+  "open_documents": [
+    "markdown/architecture/Remote and Server Modes.md"
+  ],
+  "active_document": "markdown/architecture/Remote and Server Modes.md"
+}

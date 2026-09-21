@@ -68,13 +68,23 @@ The **server process** is the same core the desktop runs in-process — sources,
 | the E2E fixture folder opened and indexed (a dozen files) | 28 MB |
 | the Moonkale repository opened and indexed — 750 files, 785 links, 2 054 symbols | **51 MB** |
 
-The **desktop app** adds the system webview on top of that. It could not be measured from this shell (no display — P-097), so the number for the app as a whole is Daniel's to take:
+The **desktop app** adds the system webview on top of that. Measured the same day on the KDE Wayland session (release build, WebKitGTK, NVIDIA), with the Moonkale repository open and indexed (752 files, 812 links, 2 062 symbols, 1 504 chunks embedded, the graph panel showing 2 849 nodes):
+
+| process | RSS | of which anonymous (heap, buffers) | of which file-backed (code pages of the binary and libraries, shared and evictable) |
+|---|---|---|---|
+| `moonkale` (the Rust side: UI state, sources, index, embeddings, git, LSP client) | 233 MB | **77 MB** | 147 MB — the 147 MB stripped binary itself, paged in |
+| `WebKitWebProcess` (the page: DOM, CodeMirror/Milkdown/xterm, the wasm graph renderer, WebGL) | 485 MB | **240 MB** | 204 MB — libwebkit/libjavascriptcore, shared with every other WebKitGTK app |
+| `WebKitNetworkProcess` | 61 MB | 19 MB | 42 MB |
+| **total** | **778 MB** | **336 MB** | 393 MB |
+
+With the small remote-folder fixture instead of the repository the Rust side drops to 48 MB anonymous (202 MB RSS). So the honest statement is: **the Rust side of Moonkale, with a real repository indexed and embedded, is ~80 MB of private memory; the webview is three times that**, and about half of the RSS figure is shared, pageable library code that `ps` charges to the process but the system holds once. The one-liner, if you want your own numbers:
 
 ```sh
 ps -o rss=,comm= -C moonkale,WebKitWebProcess,WebKitNetworkProcess | awk '{s+=$1; print} END {printf "total %.0f MB\n", s/1024}'
+for p in $(pgrep -x moonkale); do awk '/RssAnon|RssFile/{printf "%s %.0f MB  ", $1, $2/1024} END{print ""}' /proc/$p/status; done
 ```
 
-Expect the WebKit web process to dominate: a page with CodeMirror, Milkdown, xterm and the wasm graph renderer loaded is typically 100–250 MB in WebKitGTK, so **~150–300 MB for the whole app with a folder open** is the reasonable expectation, against the 22–51 MB of the Rust side. For comparison, publicly reported idle figures for the Electron editors are in the 300–500 MB range for VS Code (spread over five or six processes) and 200–300 MB for Obsidian; treat both as ballpark, not measurements made here. The graph renderer's layout numbers at 100k nodes are in [[Milestone 6 - Implementation Log]].
+For comparison, publicly reported idle figures for the Electron editors are in the 300–500 MB range for VS Code (spread over five or six processes) and 200–300 MB for Obsidian; treat both as ballpark, not measurements made here — and note that they, too, are dominated by their web process. Where Moonkale differs is the split: the data side lives outside the JavaScript heap and would be the same 22–80 MB on a server or a phone without any webview at all.
 
 ### On disk
 | artefact | size | why |

@@ -39,6 +39,8 @@ pub use git::git_run;
 pub use wasm::module_bytes;
 pub use wasm::{list_wasm_extensions, run_wasm_command};
 pub mod client;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod relay;
 mod remote;
 mod terminal;
 pub use llm::ProviderInfo;

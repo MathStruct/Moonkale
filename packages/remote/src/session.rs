@@ -61,7 +61,7 @@ pub struct SshSession {
 impl SshSession {
     /// Start a session. Returns immediately with the tee backend (a
     /// terminal tab for the `ssh` output and prompts) and the session; the
-    /// session runs the handshake on the tokio runtime and updates `phase`.
+    /// session runs the handshake on a thread of its own and updates `phase`.
     /// `server_binary` is the file to upload when the host has none.
     pub fn open(
         target: SshTarget,
@@ -208,23 +208,19 @@ impl SshSession {
                 }
             }
         };
-        match tokio::runtime::Handle::try_current() {
-            Ok(h) => {
-                h.spawn(handshake);
-            }
-            Err(_) => {
-                std::thread::Builder::new()
-                    .name("moonkale-remote-handshake".into())
-                    .spawn(move || {
-                        let rt = tokio::runtime::Builder::new_current_thread()
-                            .enable_all()
-                            .build()
-                            .expect("tokio");
-                        rt.block_on(handshake);
-                    })
-                    .map_err(|e| e.to_string())?;
-            }
-        }
+        // Always a thread of its own with its own runtime: the desktop's
+        // tokio runtime is only polled when the event loop wakes, and the
+        // handshake stalled there after the server's first answer (P-098).
+        std::thread::Builder::new()
+            .name("moonkale-remote-handshake".into())
+            .spawn(move || {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("tokio");
+                rt.block_on(handshake);
+            })
+            .map_err(|e| e.to_string())?;
         Ok((session, tee))
     }
 

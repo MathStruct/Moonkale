@@ -5,6 +5,13 @@
 
 use crate::graph::Graph;
 
+/// The furthest the 2D camera zooms out. A layout of a few thousand nodes
+/// spans tens of thousands of world units (ideal edge length 28 + 6·ln n);
+/// with the old floor of 0.05 the Moonkale repository (2 849 nodes) could
+/// not be seen whole. Nodes keep a 2 px minimum radius in the shader, so a
+/// zoomed-out graph stays a cloud of dots rather than vanishing.
+pub const MIN_SCALE: f32 = 0.002;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Camera {
     /// World point at the viewport centre (2D) / orbit target (3D).
@@ -232,13 +239,14 @@ impl Camera {
             return;
         }
         let (wx, wy) = self.screen_to_world(sx, sy);
-        self.scale = (self.scale * factor).clamp(0.05, 20.0);
+        self.scale = (self.scale * factor).clamp(MIN_SCALE, 20.0);
         let (nx, ny) = self.screen_to_world(sx, sy);
         self.cx += wx - nx;
         self.cy += wy - ny;
     }
 
     pub fn fit(&mut self, graph: &Graph, padding: f32) {
+        // See MIN_SCALE: a large graph must fit on screen.
         let Some((x0, y0, x1, y1)) = graph.fit_bounds() else {
             return;
         };
@@ -253,7 +261,7 @@ impl Camera {
         self.cz = if z0 <= z1 { (z0 + z1) / 2.0 } else { 0.0 };
         self.scale = ((self.width - 2.0 * padding) / w)
             .min((self.height - 2.0 * padding) / h)
-            .clamp(0.05, 12.0);
+            .clamp(MIN_SCALE, 12.0);
         // 3D: far enough that the bounding sphere fits the 50° field of view.
         let radius = (w * w + h * h + (z1 - z0).max(0.0).powi(2)).sqrt() / 2.0;
         self.dist = (radius / (25f32.to_radians()).sin() * 1.1).clamp(200.0, 60_000.0);

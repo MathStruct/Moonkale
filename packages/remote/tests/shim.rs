@@ -68,6 +68,8 @@ fn fake_ssh_session_reaches_ready() {
             .unwrap_or(0)
     );
 
+    // The desktop installs this before launch; server functions go through it.
+    dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
     let (tx, rx) = mpsc::channel();
     let target = SshTarget {
         host: "fake-host".into(),

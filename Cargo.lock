@@ -114,7 +114,9 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-rustls",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -5438,6 +5440,7 @@ name = "moonkale-remote"
 version = "0.1.0"
 dependencies = [
  "api",
+ "dioxus",
  "futures-channel",
  "futures-executor",
  "futures-util",

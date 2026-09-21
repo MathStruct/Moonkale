@@ -12,6 +12,7 @@ use moonkale_core::{NodeKind, Query, SourceFamily};
 async fn open_query_read_and_git_over_the_server() {
     let url = std::env::var("MOONKALE_REMOTE").expect("MOONKALE_REMOTE");
     let token = std::env::var("MOONKALE_TOKEN").ok();
+    dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
     api::client::connect(&url, token.as_deref(), "test");
     assert!(api::client::active().is_some());
 

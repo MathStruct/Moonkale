@@ -17,7 +17,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 
 ## Architecture
 - [[Overview]]
-- [[Why Not a Plugin or Electron]] — why not a VS Code/Obsidian plugin, why Dioxus rather than Electron, and what Moonkale weighs (22–51 MB for the Rust side; the webview on top)
+- [[Why Not a Plugin or Electron]] — why not a VS Code/Obsidian plugin, why Dioxus rather than Electron, and what Moonkale weighs (measured: ~80 MB private for the Rust side with a repo indexed, ~240 MB for the webview)
 - [[Project Structure]] — rationale for `packages/`
 - [[Platform Matrix]] — desktop / web / mobile: what runs where
 - [[Graph-Native Model]] — nodes, edges, sources, views

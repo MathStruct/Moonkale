@@ -30,8 +30,13 @@ moonkale-sources-graph = { workspace = true, optional = true, features = ["ladyb
 moonkale-terminal-pty = { workspace = true, optional = true }
 moonkale-typst = { workspace = true, optional = true }
 moonkale-lsp-local = { workspace = true, optional = true }
-tokio = { version = "1", features = ["macros", "rt"], optional = true }
+# tokio is needed on every native target: the server, and the desktop's client
+# relay (Milestone 11) — a loopback listener the server functions always point
+# at, piped to the active remote (TLS for https).
+tokio = { version = "1", features = ["macros", "rt", "net", "io-util"] }
 axum = { version = "0.8", optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
 
 [features]
-server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:tokio", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]

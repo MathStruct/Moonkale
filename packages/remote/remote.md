@@ -12,9 +12,10 @@ Notes for `moonkale-remote` (Milestone 11). Desktop only. Design: [[Remote and S
 3. **Upload** (`upload`): a second `ssh -S <socket> -o BatchMode=yes host -- sh -c 'cat > …tmp && chmod +x && mv && touch .ready'` over the **multiplexed** connection — no second authentication — streams the binary from disk (`tokio::io::copy`, never read into memory: the debug server is 1.7 GB, the release one 188 MB / 142 MB stripped).
 4. **Token**: `api::client::session_token()` (32 random bytes, hex) is written to the PTY when the script asks — with echo already off, so it never shows in the terminal tab — and becomes the bearer.
 5. **Ready**: `wait_for_server` polls `POST /api/sources/list` on the forwarded port with the bearer (5 s request timeout, 60 s budget, fails fast if `ssh` exits) and then `api::client::connect(url, token, "host:path")`; from here the desktop's `WorkspaceConfig` callbacks dispatch to the server (`api::client::active()`).
+   `connect` does not change dioxus's server URL (a `OnceLock`, P-098): the desktop's `api::relay` pipes to the active remote.
 6. **Close** (`close`, also on drop): kill the master `ssh` → forward and remote server die (the server is a child of the ssh session); `api::client::disconnect()`.
 
-`Phase` (`Connecting → Prompt(line) | Uploading → Starting → Ready { url } | Failed(msg) | Closed`) is pushed through the `on_phase` callback from the handshake task (tokio runtime if one is current, else a thread with a current-thread runtime), and the `Workspace` turns it into status-bar text (`ext-api`'s `remote.rs`).
+`Phase` (`Connecting → Prompt(line) | Uploading → Starting → Ready { url } | Failed(msg) | Closed`) is pushed through the `on_phase` callback from the handshake, which always runs on a thread of its own with a current-thread runtime (the desktop's runtime is not to be relied on), and the `Workspace` turns it into status-bar text (`ext-api`'s `remote.rs`).
 
 `server_binary()`: `MOONKALE_SERVER_BINARY`, else `moonkale-server` next to the executable, else the dev build under `target/dx/web/{release,debug}/web/server` (cwd and two parents up).
 
