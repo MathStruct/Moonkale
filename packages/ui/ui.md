@@ -75,3 +75,9 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `remote_dialog.rs`: **Open Remote Folder…** (`.mk-remote-dialog` on the palette backdrop) — host (datalist from `ws.remote_hosts()`), folder path, Connect → `ws.open_remote`; Escape/Cancel closes. Explains that the system `ssh` does the authenticating and that the server is copied once per version.
 - `frame.rs`: `Command::OpenRemote` opens the dialog, `Command::CloseRemote` → `ws.close_remote()`. `commands.rs`: `remote.open` ("File: Open Remote Folder… (SSH)"), `remote.close`. `titlebar.rs`: `menus(.., remote: Option<bool>, ..)` adds *Open Remote Folder…* and, while connected, *Disconnect Remote* to File when the platform has `WorkspaceConfig::remote`.
 - `shell.rs`: status-bar item `⇅ host:path · <phase>` (`.mk-status-remote`) while a session exists. `explorer.rs`: a folder opened through the session gets the `folder-remote` icon.
+
+## Milestone 12
+- `extensions_panel.rs`: the Extensions panel (`dev.moonkale.extensions`, activity `puzzle`, order 910) and `ExtensionsList`, shared with Settings → Extensions (whose `Target` is now `pub`).
+- `server_dialog.rs`: *Connect to Server…* (URL + token → `Workspace::connect_server`); `commands.rs`: `server.connect`, `server.disconnect`; `titlebar.rs`: `menus(.., server: Option<bool>, ..)`; `shell.rs`: `⇅ url` status item.
+- `terminal_chooser.rs` + `frame::open_terminal_in(ws, which)`: `Command::NewTerminal` is resolved in the frame from the enabled terminal extensions and `terminal.implementation` — one implementation → `show_panel` then, two renders later (`YieldNow`, root-owned task, P-107/P-108), `Command::NewTerminalIn(which)`; both → the chooser (with *remember*). Settings → Terminal → Implementation.
+- `lib.rs`: `NativeTerminalExtension` registered (opt-in tier); Settings → Language model: the `claude-code` provider's fields and *Run agent turns on the server*.

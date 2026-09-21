@@ -9,6 +9,9 @@ ui = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-index = { workspace = true }
+# A server's client on the phone (Milestone 12): *Connect to Server…*.
+api = { workspace = true }
+moonkale-terminal = { workspace = true }
 tracing = "0.1"
 
 [features]

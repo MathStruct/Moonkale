@@ -38,6 +38,7 @@ pub use git::git_run;
 #[cfg(feature = "server")]
 pub use wasm::module_bytes;
 pub use wasm::{list_wasm_extensions, run_wasm_command};
+pub mod agent_sessions;
 pub mod client;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod relay;

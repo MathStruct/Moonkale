@@ -116,6 +116,18 @@ fn config() -> WorkspaceConfig {
             hosts: || vec!["box".into()],
             at_start: || None,
         }),
+        agent_sessions: None,
+        server: None,
+    }
+}
+
+async fn settle(dom: &mut VirtualDom) {
+    for _ in 0..20 {
+        tokio::select! {
+            _ = dom.wait_for_work() => {}
+            _ = tokio::time::sleep(std::time::Duration::from_millis(20)) => {}
+        }
+        dom.render_immediate(&mut dioxus_core::NoOpMutations);
     }
 }
 
@@ -165,15 +177,6 @@ async fn phases_open_the_folder_and_closing_ends_the_session() {
     assert_eq!(p.0, Some(RemotePhase::Connecting));
     assert_eq!(p.3, 1, "the ssh terminal is offered to the terminal panel");
     let send = |p: RemotePhase| (SINK.lock().unwrap().as_ref().unwrap())(p);
-    async fn settle(dom: &mut VirtualDom) {
-        for _ in 0..20 {
-            tokio::select! {
-                _ = dom.wait_for_work() => {}
-                _ = tokio::time::sleep(std::time::Duration::from_millis(20)) => {}
-            }
-            dom.render_immediate(&mut dioxus_core::NoOpMutations);
-        }
-    }
     send(RemotePhase::Prompt("box's password:".into()));
     settle(&mut dom).await;
     let p = phase(&dom);
@@ -185,7 +188,7 @@ async fn phases_open_the_folder_and_closing_ends_the_session() {
     settle(&mut dom).await;
     let p = phase(&dom);
     assert_eq!(p.0, Some(RemotePhase::Ready));
-    assert_eq!(OPENED.lock().unwrap().as_slice(), ["/srv/code"]);
+    assert!(OPENED.lock().unwrap().iter().any(|p| p == "/srv/code"));
     assert_eq!(p.2, 1, "the remote folder is a source");
     assert_eq!(p.1, 1, "…and remembered as remote");
     let ws = dom.in_scope(ScopeId::ROOT, ws);
@@ -210,4 +213,65 @@ async fn phases_open_the_folder_and_closing_ends_the_session() {
     assert_eq!(p.0, None);
     assert_eq!(p.2, 0);
     let _ = Command::CloseRemote;
+}
+
+// ---- Connect to Server… (Milestone 12) ----
+
+static CONNECTED: Mutex<Option<(String, Option<String>)>> = Mutex::new(None);
+static DISCONNECTS: AtomicUsize = AtomicUsize::new(0);
+
+fn server_config() -> WorkspaceConfig {
+    let mut c = config();
+    c.remote = None;
+    c.server = Some(moonkale_ext_api::ServerClient {
+        connect: |url, token| {
+            *CONNECTED.lock().unwrap() = Some((url, token));
+            Ok(())
+        },
+        disconnect: || {
+            DISCONNECTS.fetch_add(1, Ordering::SeqCst);
+        },
+        active: || CONNECTED.lock().unwrap().as_ref().map(|(u, _)| u.clone()),
+    });
+    c
+}
+
+#[component]
+fn ServerApp() -> Element {
+    let ws = use_context_provider(|| Workspace::new(server_config()));
+    use_hook(move || {
+        WS.with(|w| w.set(Some(ws)));
+        spawn(async move {
+            ws.connect_server("http://box:8443/".into(), Some("tok".into()))
+                .await;
+        });
+    });
+    rsx! { div {} }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn connect_server_opens_the_root_and_disconnect_closes_it() {
+    // Tests share the statics and run in parallel: check membership, not equality.
+    let mut dom = VirtualDom::new(ServerApp);
+    dom.rebuild_in_place();
+    settle(&mut dom).await;
+    assert_eq!(
+        CONNECTED.lock().unwrap().clone(),
+        Some(("http://box:8443".to_string(), Some("tok".to_string())))
+    );
+    // The server's root folder ("") was opened and recorded on the link.
+    assert!(OPENED.lock().unwrap().iter().any(|p| p.is_empty()));
+    let ws = dom.in_scope(ScopeId::ROOT, ws);
+    let link = ws.server_link.peek().clone().expect("linked");
+    assert_eq!(link.0, "http://box:8443");
+    assert_eq!(link.1.len(), 1);
+    assert!(
+        ws.settings_user.peek().recent_folders.is_empty(),
+        "server paths are not recents"
+    );
+    let mut ws2 = ws;
+    dom.in_scope(ScopeId::ROOT, move || ws2.disconnect_server());
+    assert_eq!(DISCONNECTS.load(Ordering::SeqCst), 1);
+    assert!(ws.server_link.peek().is_none());
+    assert_eq!(ws.sources.peek().len(), 0);
 }

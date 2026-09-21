@@ -1,0 +1,14 @@
+[package]
+name = "moonkale-editor-terminal-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Terminal panel without JavaScript (Milestone 12): a vt100 screen rendered by Dioxus, keys encoded in Rust, the same backends as the xterm.js panel."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }
+moonkale-terminal = { workspace = true }
+vt100 = "0.16"
+futures-util = { version = "0.3", default-features = false }

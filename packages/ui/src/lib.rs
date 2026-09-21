@@ -14,14 +14,17 @@
 
 pub mod commands;
 mod explorer;
+mod extensions_panel;
 mod frame;
 mod history;
 pub mod icons;
 mod palette;
 mod remote_dialog;
 mod search;
+mod server_dialog;
 mod settings_panel;
 mod shell;
+mod terminal_chooser;
 mod titlebar;
 
 pub use explorer::ExplorerExtension;
@@ -32,8 +35,8 @@ pub use moonkale_ext_api::remote;
 pub use moonkale_ext_api::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, LlmProvider,
     LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions, PickFolder, PickFolderFuture,
-    Reveal, SecretStore, SessionBus, SessionMessage, SettingsFile, SettingsFuture, SettingsStore,
-    WasmExtensions, WindowId, WorkspaceConfig,
+    Reveal, SecretStore, ServerClient, SessionBus, SessionMessage, SettingsFile, SettingsFuture,
+    SettingsStore, WasmExtensions, WindowId, WorkspaceConfig,
 };
 pub use moonkale_lsp::{LspTransport, LspTransportFuture, SpawnLsp};
 pub use moonkale_terminal::{SpawnTerminal, SpawnTerminalFuture, TerminalBackend};
@@ -48,6 +51,7 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
         Box::new(ExplorerExtension::new()),
         Box::new(search::SearchExtension),
         Box::new(settings_panel::SettingsExtension),
+        Box::new(extensions_panel::ExtensionsExtension),
         Box::new(moonkale_editor_graph::GraphExtension),
         Box::new(moonkale_editor_markdown::LinksExtension::new()),
         Box::new(
@@ -58,6 +62,7 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
         Box::new(moonkale_editor_table::TableExtension),
         Box::new(moonkale_editor_image::ImageExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),
+        Box::new(moonkale_editor_terminal_native::NativeTerminalExtension::new()),
         Box::new(moonkale_editor_agent::AgentExtension),
         // Opt-in (off until enabled in Settings → Extensions):
         Box::new(moonkale_editor_flow::FlowExtension),

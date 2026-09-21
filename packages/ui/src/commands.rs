@@ -54,6 +54,14 @@ fn builtins() -> Vec<(CommandContribution, Command)> {
             Command::CloseRemote,
         ),
         (
+            c("server.connect", "File: Connect to Server…"),
+            Command::ConnectServer,
+        ),
+        (
+            c("server.disconnect", "File: Disconnect Server"),
+            Command::DisconnectServer,
+        ),
+        (
             c("file.new", "File: New File…").key("Ctrl+N"),
             Command::NewFile("untitled.md", "# Untitled\n\n"),
         ),

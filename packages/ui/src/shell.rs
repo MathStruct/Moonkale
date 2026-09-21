@@ -419,6 +419,7 @@ pub fn Shell() -> Element {
         .read()
         .as_ref()
         .map(|r| (r.label(), r.phase.label()));
+    let server = ws.server_link.read().as_ref().map(|(u, _)| u.clone());
     let windows = ws.peers.read().len() + 1;
     let window_id = ws.window.read().to_string();
     let source_name = ws
@@ -604,6 +605,11 @@ pub fn Shell() -> Element {
                         },
                         message: rsx! { StatusMessage { "{status}" } },
                         right: rsx! {
+                            if let Some(url) = server {
+                                StatusItem { title: "This app is a client of a Moonkale server",
+                                    span { class: "mk-status-remote", "⇅ {url}" }
+                                }
+                            }
                             if let Some((label, phase)) = remote {
                                 StatusItem { title: "Remote folder over SSH — {phase}",
                                     span { class: "mk-status-remote", "⇅ {label} · {phase}" }

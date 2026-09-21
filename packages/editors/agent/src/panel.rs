@@ -161,6 +161,19 @@ pub fn AgentPanel(ws: Workspace) -> Element {
             {
                 let mut g = a.borrow_mut();
                 g.system = system_prompt(ws);
+                // Where a turn acts (Milestone 12): the first open folder.
+                g.cwd = ws
+                    .sources
+                    .peek()
+                    .iter()
+                    .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
+                    .and_then(|s| {
+                        s.descriptor
+                            .id
+                            .as_str()
+                            .strip_prefix("folder:")
+                            .map(str::to_string)
+                    });
                 g.tools = moonkale_llm::builtin_tools();
                 g.tools.extend(crate::host::wasm_tools(ws));
                 let (ps, ext) = {

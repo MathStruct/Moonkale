@@ -14,3 +14,14 @@ mod panel;
 mod transcript;
 
 pub use extension::{AgentExtension, PANEL_ID};
+
+pub mod server_panel;
+
+/// An async pause that works in the browser and on desktop (the server
+/// session poller).
+pub async fn sleep_ms(ms: u32) {
+    #[cfg(target_arch = "wasm32")]
+    gloo_timers::future::TimeoutFuture::new(ms).await;
+    #[cfg(not(target_arch = "wasm32"))]
+    tokio::time::sleep(std::time::Duration::from_millis(ms as u64)).await;
+}

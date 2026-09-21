@@ -10,6 +10,8 @@ default = []
 # HTTP providers (Anthropic, OpenAI-compatible, Ollama). Native only; the web
 # client reaches them through the server's `/api/llm` relay.
 http = ["dep:reqwest", "dep:tokio"]
+# Claude Code as a provider (Milestone 12): spawns the `claude` CLI. Native only.
+claude-code = ["dep:tokio", "tokio/process", "tokio/io-util", "tokio/time", "dep:uuid"]
 
 [dependencies]
 moonkale-core = { workspace = true }
@@ -18,6 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
+tracing = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 dirs = "6"
@@ -25,6 +28,8 @@ dirs = "6"
 # directly behind `trait Provider` so adding one is a file, not a dependency tree.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"], optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time"] }
+futures-executor = "0.3"

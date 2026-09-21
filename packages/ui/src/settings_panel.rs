@@ -2,11 +2,9 @@
 //! field with a scope switch (user / workspace), plus the raw JSON of both
 //! files. Changes apply live and persist on change.
 
-use crate::frame::Extensions_;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::settings::{Scope, SettingsFile};
-use std::rc::Rc;
 
 pub const PANEL_ID: &str = "settings";
 
@@ -40,7 +38,7 @@ impl Extension for SettingsExtension {
 
 /// Which file a change goes to.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Target {
+pub enum Target {
     User,
     Workspace,
 }
@@ -62,7 +60,6 @@ fn SettingsPanel(ws: Workspace) -> Element {
     let mut secret_value = use_signal(String::new);
     let mut secret_status = use_signal(String::new);
 
-    let catalog: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     let registry = use_context::<crate::commands::CommandRegistry>();
     let settings = ws.settings.read().clone();
     let user = ws.settings_user.read().clone();
@@ -119,18 +116,39 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     label { "Provider"
                         select { class: "mk-input", value: "{provider}",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.provider = Some(v))); },
-                            for (k, name) in [("mock", "mock (offline)"), ("anthropic", "Anthropic"), ("openai", "OpenAI-compatible (OpenAI, Mistral, …)"), ("ollama", "Ollama (local)")] {
+                            for (k, name) in [("mock", "mock (offline)"), ("claude-code", "Claude Code (subscription, no API key)"), ("anthropic", "Anthropic"), ("openai", "OpenAI-compatible (OpenAI, Mistral, …)"), ("ollama", "Ollama (local)")] {
                                 option { value: "{k}", selected: provider == k, "{name}" }
                             }
                         }
                     }
                     label { "Model"
-                        input { class: "mk-input", value: "{model}", placeholder: "provider default",
+                        input { class: "mk-input", value: "{model}", placeholder: if provider == "claude-code" { "the subscription's default (or e.g. claude-sonnet-5)" } else { "provider default" },
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.model = opt(v))); } }
                     }
-                    label { "Endpoint"
-                        input { class: "mk-input", value: "{base_url}", placeholder: "https://api.openai.com/v1 · https://api.mistral.ai/v1 · http://127.0.0.1:11434",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.base_url = opt(v))); } }
+                    if provider == "claude-code" {
+                        // Milestone 12: the CLI runs its own tools in the open folder; these are its knobs.
+                        label { "Command"
+                            input { class: "mk-input", value: "{base_url}", placeholder: "claude (on PATH)",
+                                onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.base_url = opt(v))); } }
+                        }
+                        label { "Permissions"
+                            select { class: "mk-input", value: "{settings.llm.options.get(\"permission_mode\").cloned().unwrap_or_else(|| \"plan\".into())}",
+                                onchange: move |e| { let v = e.value(); apply(Box::new(move |f| { f.llm.options.insert("permission_mode".into(), v); })); },
+                                for (k, name) in [("plan", "plan — read and propose only"), ("default", "default — Claude Code's own rules (.claude/settings.json)"), ("acceptEdits", "acceptEdits — may edit files in the folder"), ("bypassPermissions", "bypassPermissions — everything (careful)")] {
+                                    option { value: "{k}", selected: settings.llm.options.get("permission_mode").map(|m| m == k).unwrap_or(k == "plan"), "{name}" }
+                                }
+                            }
+                        }
+                        label { "Allowed tools"
+                            input { class: "mk-input", value: "{settings.llm.options.get(\"allowed_tools\").cloned().unwrap_or_default()}", placeholder: "e.g. Read,Grep,Bash(git:*)",
+                                onchange: move |e| { let v = e.value(); apply(Box::new(move |f| { f.llm.options.insert("allowed_tools".into(), v); })); } }
+                        }
+                        p { class: "mk-muted", "Runs the claude CLI headless in the open folder with your subscription login (`claude login`); no key, nothing stored by Moonkale. Its tool calls appear in the transcript as ▸ lines. On the web the CLI runs on the server." }
+                    } else {
+                        label { "Endpoint"
+                            input { class: "mk-input", value: "{base_url}", placeholder: "https://api.openai.com/v1 · https://api.mistral.ai/v1 · http://127.0.0.1:11434",
+                                onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.base_url = opt(v))); } }
+                        }
                     }
                     label { "Embedding model"
                         input { class: "mk-input", value: "{embed_model}", placeholder: "none (keyword search only)",
@@ -139,6 +157,11 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     label { "Secret name"
                         input { class: "mk-input", value: "{secret}", placeholder: "defaults to the provider name",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.secret = opt(v))); } }
+                    }
+                    label { class: "mk-settings-check",
+                        input { r#type: "checkbox", checked: settings.agent.on_server,
+                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.agent.on_server = Some(v))); } }
+                        "Run agent turns on the server — they finish even when no window is open, and another device sees the state (web, or the desktop connected to a server)"
                     }
                     p { class: "mk-muted", "Keys are never stored in settings. They come from MOONKALE_SECRET_<NAME>, the classic ANTHROPIC_API_KEY / OPENAI_API_KEY, or the secrets file written below (desktop) / on the server (web)." }
                     if ws.secret_store().is_some() {
@@ -195,112 +218,17 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         input { class: "mk-input", value: "{settings.terminal.shell.clone().unwrap_or_default()}", placeholder: "$SHELL",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.shell = opt(v))); } }
                     }
+                    label { "Implementation"
+                        select { class: "mk-input", value: "{settings.terminal.implementation}",
+                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.implementation = Some(v))); },
+                            for (k, name) in [("ask", "ask when both terminal extensions are enabled"), ("xterm", "xterm.js (JavaScript)"), ("native", "Rust (Dioxus-rendered, no JavaScript)")] {
+                                option { value: "{k}", selected: settings.terminal.implementation == k, "{name}" }
+                            }
+                        }
+                    }
 
                     h3 { "Extensions" }
-                    p { class: "mk-muted", "Optional features load only when switched on. Permissions are what an extension may do; untick to restrict it." }
-                    for ext in catalog.iter() {
-                        {
-                            let m = ext.manifest();
-                            let id = m.id;
-                            let on = settings.extensions.is_enabled(&m);
-                            let granted = settings.extensions.granted(&m);
-                            let perms: Vec<&'static str> = m.permissions.to_vec();
-                            rsx! {
-                                div { key: "{id}", class: "mk-settings-ext",
-                                    label { class: "mk-settings-check",
-                                        input { r#type: "checkbox", checked: on, disabled: !m.optional,
-                                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.extensions.set_enabled(id, v))); } }
-                                        span { class: "mk-settings-ext-name", "{m.name}" }
-                                        if !m.optional { span { class: "mk-settings-scope", "core" } }
-                                        if m.optional && !m.default_enabled { span { class: "mk-settings-scope", "opt-in" } }
-                                    }
-                                    div { class: "mk-settings-ext-desc", "{m.description}" }
-                                    if !perms.is_empty() {
-                                        div { class: "mk-settings-ext-perms",
-                                            for p in perms {
-                                                {
-                                                    let has = granted.iter().any(|g| g == p);
-                                                    let all: Vec<&'static str> = m.permissions.to_vec();
-                                                    rsx! {
-                                                        label { key: "{p}", class: "mk-settings-perm",
-                                                            input { r#type: "checkbox", checked: has,
-                                                                onchange: move |e| {
-                                                                    let v = e.checked();
-                                                                    let all = all.clone();
-                                                                    apply(Box::new(move |f| {
-                                                                        let cur = f.extensions.permissions.get(id).cloned().unwrap_or_else(|| all.iter().map(|s| s.to_string()).collect());
-                                                                        let mut next: Vec<String> = cur.into_iter().filter(|c| c != p).collect();
-                                                                        if v { next.push(p.to_string()); }
-                                                                        f.extensions.permissions.insert(id.to_string(), next);
-                                                                    }));
-                                                                } }
-                                                            "{p}"
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    {
-                        let wasm = ws.wasm_extensions.read().clone();
-                        rsx! {
-                            if !wasm.is_empty() {
-                                h4 { class: "mk-settings-sub", "Installed (wasm)" }
-                                p { class: "mk-muted", "Third-party modules from ~/.config/moonkale/extensions and <folder>/.moonkale/extensions. Off until enabled; no permission is granted until ticked." }
-                            }
-                            for m in wasm {
-                                {
-                                    let id: String = m.id.clone();
-                                    let on = settings.extensions.is_enabled_id(&id, false);
-                                    let granted = settings.extensions.permissions.get(&id).cloned().unwrap_or_default();
-                                    let perms = m.permissions.clone();
-                                    let id_toggle = id.clone();
-                                    rsx! {
-                                        div { key: "{id}", class: "mk-settings-ext",
-                                            label { class: "mk-settings-check",
-                                                input { r#type: "checkbox", checked: on,
-                                                    onchange: move |e| { let v = e.checked(); let id = id_toggle.clone(); apply(Box::new(move |f| f.extensions.set_enabled(&id, v))); } }
-                                                span { class: "mk-settings-ext-name", "{m.name}" }
-                                                span { class: "mk-settings-scope", "wasm" }
-                                            }
-                                            div { class: "mk-settings-ext-desc", "{m.description} · commands: {m.commands.iter().map(|c| c.id.as_str()).collect::<Vec<_>>().join(\", \")}" }
-                                            if !perms.is_empty() {
-                                                div { class: "mk-settings-ext-perms",
-                                                    for p in perms {
-                                                        {
-                                                            let has = granted.contains(&p);
-                                                            let (id2, p2) = (id.clone(), p.clone());
-                                                            rsx! {
-                                                                label { key: "{p}", class: "mk-settings-perm",
-                                                                    input { r#type: "checkbox", checked: has,
-                                                                        onchange: move |e| {
-                                                                            let v = e.checked();
-                                                                            let (id, p) = (id2.clone(), p2.clone());
-                                                                            apply(Box::new(move |f| {
-                                                                                let cur = f.extensions.permissions.get(&id).cloned().unwrap_or_default();
-                                                                                let mut next: Vec<String> = cur.into_iter().filter(|c| *c != p).collect();
-                                                                                if v { next.push(p); }
-                                                                                f.extensions.permissions.insert(id, next);
-                                                                            }));
-                                                                        } }
-                                                                    "{p}"
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    crate::extensions_panel::ExtensionsList { ws, target: target() }
 
                     h3 { "You" }
                     label { "Name"

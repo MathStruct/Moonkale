@@ -30,6 +30,13 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
+**Milestone 12 — "Agents and a native terminal"** (2026-09-21). Claude
+Code is one of Moonkale's agents — on the subscription, no API key — and
+agent sessions can live on the server, finishing without a window and
+readable from the phone, which can now *Connect to Server…*. The first
+JavaScript-free editor: a Rust/Dioxus terminal next to the xterm.js one,
+with a chooser. An Extensions button in the activity bar.
+
 **Milestone 11 — "Remote"** (2026-09-21). *File → Open Remote Folder…*:
 the system `ssh` runs in a terminal tab (your keys, agent, passwords and
 host-key prompts, untouched by Moonkale), Moonkale's own server is copied to

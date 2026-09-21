@@ -36,6 +36,8 @@ pub struct SettingsFile {
     pub llm: LlmFile,
     pub policy: PolicyFile,
     pub search: SearchFile,
+    #[serde(default)]
+    pub agent: AgentFile,
     pub terminal: TerminalFile,
     pub editor: EditorFile,
     pub extensions: ExtensionsFile,
@@ -81,6 +83,11 @@ pub struct LlmFile {
     /// Which secret holds the API key (default: the provider's name).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub secret: Option<SecretRef>,
+    /// Provider-specific options (Milestone 12): `claude-code` reads
+    /// `permission_mode` (`plan` | `default` | `acceptEdits` |
+    /// `bypassPermissions`) and `allowed_tools` (comma-separated).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub options: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -98,6 +105,16 @@ pub struct PolicyFile {
 pub struct SearchFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embeddings: Option<bool>,
+}
+
+/// The agent (Milestone 12).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentFile {
+    /// Run turns on the server (they finish without a client; the phone
+    /// sees the state) when the sources are a server's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_server: Option<bool>,
 }
 
 /// Which optional extensions are on: an explicit list per state; anything
@@ -132,6 +149,10 @@ impl ExtensionsFile {
 pub struct TerminalFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell: Option<String>,
+    /// Which terminal panel *New Terminal* opens when both are enabled:
+    /// `ask` (default), `xterm`, `native` (Milestone 12).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<String>,
 }
 
 /// Code editor preferences (spec 014).
@@ -181,6 +202,9 @@ impl SettingsFile {
         l.base_url = o.base_url.clone().or(l.base_url.take());
         l.embed_model = o.embed_model.clone().or(l.embed_model.take());
         l.secret = o.secret.clone().or(l.secret.take());
+        for (k, v) in &o.options {
+            l.options.insert(k.clone(), v.clone());
+        }
         self.policy.allow_writes = other.policy.allow_writes.or(self.policy.allow_writes);
         self.policy.denied_tools = other
             .policy
@@ -188,7 +212,13 @@ impl SettingsFile {
             .clone()
             .or(self.policy.denied_tools.take());
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
+        self.agent.on_server = other.agent.on_server.or(self.agent.on_server);
         self.terminal.shell = other.terminal.shell.clone().or(self.terminal.shell.take());
+        self.terminal.implementation = other
+            .terminal
+            .implementation
+            .clone()
+            .or(self.terminal.implementation.take());
         self.editor.wrap = other.editor.wrap.or(self.editor.wrap);
         self.editor.markdown_rich = other.editor.markdown_rich.or(self.editor.markdown_rich);
         // Extensions: a later scope's explicit choice wins per id.
@@ -245,6 +275,7 @@ pub struct Settings {
     pub llm: LlmSettings,
     pub policy: PolicySettings,
     pub search: SearchSettings,
+    pub agent: AgentSettings,
     pub terminal: TerminalSettings,
     pub editor: EditorSettings,
     pub extensions: ExtensionsSettings,
@@ -271,8 +302,16 @@ pub struct SearchSettings {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct AgentSettings {
+    /// Turns run on the server when the sources are a server's (default off).
+    pub on_server: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TerminalSettings {
     pub shell: Option<String>,
+    /// `ask` | `xterm` | `native`.
+    pub implementation: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -341,9 +380,11 @@ impl Default for Settings {
                 base_url: String::new(),
                 embed_model: None,
                 secret: String::new(),
+                options: Default::default(),
             },
             policy: PolicySettings::default(),
             search: SearchSettings { embeddings: true },
+            agent: AgentSettings::default(),
             terminal: TerminalSettings::default(),
             editor: EditorSettings::default(),
             keybindings: BTreeMap::new(),
@@ -373,6 +414,7 @@ impl Settings {
                 model: merged.llm.model.unwrap_or_default(),
                 base_url: merged.llm.base_url.unwrap_or_default(),
                 embed_model: merged.llm.embed_model,
+                options: merged.llm.options,
                 provider,
             },
             policy: PolicySettings {
@@ -382,8 +424,15 @@ impl Settings {
             search: SearchSettings {
                 embeddings: merged.search.embeddings.unwrap_or(true),
             },
+            agent: AgentSettings {
+                on_server: merged.agent.on_server.unwrap_or(false),
+            },
             terminal: TerminalSettings {
                 shell: merged.terminal.shell,
+                implementation: merged
+                    .terminal
+                    .implementation
+                    .unwrap_or_else(|| "ask".into()),
             },
             editor: EditorSettings {
                 wrap: merged.editor.wrap.unwrap_or(false),

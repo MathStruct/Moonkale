@@ -29,7 +29,11 @@ impl Extension for AgentExtension {
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
-        rsx! { AgentPanel { ws } }
+        // Sources on a server → the session runs there (Milestone 12).
+        match ws.agent_sessions() {
+            Some(api) => rsx! { crate::server_panel::ServerAgentPanel { ws, api } },
+            None => rsx! { AgentPanel { ws } },
+        }
     }
 
     // Milestone 7: the first extension-contributed command.

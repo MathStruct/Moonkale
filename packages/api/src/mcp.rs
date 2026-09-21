@@ -108,7 +108,7 @@ pub async fn handler(headers: HeaderMap, body: Json<Value>) -> Response {
 
 /// The read-only tools over the server's registry (mirrors the in-app
 /// `WorkspaceHost`, without a workspace).
-async fn run(call: ToolCall) -> Result<String, String> {
+pub(crate) async fn run(call: ToolCall) -> Result<String, String> {
     let reg = crate::state::registry();
     let source_of = |call: &ToolCall| -> Result<std::sync::Arc<dyn moonkale_core::Source>, String> {
         let id = call.str("source").ok_or("source is required")?;

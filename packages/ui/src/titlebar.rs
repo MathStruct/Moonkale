@@ -47,6 +47,7 @@ fn menus(
     recent: &[String],
     flow_enabled: bool,
     remote: Option<bool>,
+    server: Option<bool>,
     registry: &crate::commands::Registry,
 ) -> Vec<(String, Vec<Item>)> {
     let desktop = controls.is_some();
@@ -75,6 +76,22 @@ fn menus(
             file.push(Item::Cmd {
                 label: "Disconnect Remote",
                 id: "remote.close",
+            });
+        }
+    }
+    // A server's client (Milestone 12): `Some(connected)` on desktop and mobile.
+    if let Some(connected) = server {
+        if remote.is_none() {
+            file.push(Item::Sep);
+        }
+        file.push(Item::Cmd {
+            label: "Connect to Server…",
+            id: "server.connect",
+        });
+        if connected {
+            file.push(Item::Cmd {
+                label: "Disconnect Server",
+                id: "server.disconnect",
             });
         }
     }
@@ -339,6 +356,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                         &ws.settings.read().recent_folders,
                         ws.settings.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
                         ws.has_remote().then(|| ws.remote.read().is_some()),
+                        ws.has_server_client().then(|| ws.server_link.read().is_some()),
                         &reg,
                     )
                 } {

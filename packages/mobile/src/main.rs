@@ -14,7 +14,66 @@ use ui::{
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    // Milestone 12: server functions go to a loopback relay of our own
+    // (dioxus's server URL is set once, P-098); it pipes to the server the
+    // user connects to with *File → Connect to Server…*.
+    match api::relay::install() {
+        Ok(url) => dioxus::fullstack::set_server_url(url.leak()),
+        Err(e) => {
+            tracing::warn!("mobile: client relay not started ({e}); Connect to Server is off")
+        }
+    }
     dioxus::launch(App);
+}
+
+/// Sources: the phone's own folder, or the connected server's.
+fn open_any(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
+    if api::client::active().is_some() {
+        return api::client::open_folder(path, options);
+    }
+    open_local(path, options)
+}
+
+fn attach_any(descriptor: SourceDescriptor) -> AttachFuture {
+    if api::client::active().is_some() {
+        return api::client::attach_source(descriptor);
+    }
+    attach_local(descriptor)
+}
+
+/// A shell on the connected server (the phone has none of its own).
+fn spawn_terminal(
+    cwd: Option<String>,
+    cols: u16,
+    rows: u16,
+) -> moonkale_terminal::SpawnTerminalFuture {
+    if api::client::active().is_some() {
+        return api::client::spawn_terminal(cwd, cols, rows);
+    }
+    Box::pin(async {
+        Err(
+            "no terminal on the phone — connect to a server (File → Connect to Server…)"
+                .to_string(),
+        )
+    })
+}
+
+fn git_any(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
+    if api::client::active().is_some() {
+        return api::client::git(root, req);
+    }
+    Box::pin(async { Err("git needs a server on the phone".to_string()) })
+}
+
+fn server_client() -> ui::ServerClient {
+    ui::ServerClient {
+        connect: |url, token| {
+            api::client::connect(&url, token.as_deref(), &url);
+            Ok(())
+        },
+        disconnect: api::client::disconnect,
+        active: || api::client::active().map(|r| r.label),
+    }
 }
 
 /// The app's private files directory (Milestone 9, Android): the folder a
@@ -132,7 +191,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None, attach_source: attach_local, spawn_terminal: None, compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: None, presence: None, wasm_module_url: None, remote: None },
+                workspace: WorkspaceConfig { open_folder: open_any, pick_folder: None, attach_source: attach_any, spawn_terminal: Some(spawn_terminal), compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: Some(git_any), presence: None, wasm_module_url: None, remote: None, agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()) },
                 session,
                 new_window: None,
             },

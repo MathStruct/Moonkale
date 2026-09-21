@@ -20,3 +20,7 @@ E2E: `packages/web/tests/e2e/agent.mjs` (mock provider through the relay: echo, 
 ## Milestone 6
 - `wasm_tools(ws)`: every `llm_tool` command of an enabled wasm extension becomes a `ToolDef` (`<ext>.<name>`, its `input_schema`); `wasm_owner` maps a tool name back to the extension and `host.rs` dispatches through `Workspace::run_wasm_command` (granted permissions from settings). Policy: unknown/third-party tools are `Mutating` → *Ask* unless `allow_writes`.
 - Permissions gate the built-in write tools too: an agent extension without `write-files` granted denies `editor.replace` / `file.create`, without `run-commands` denies `terminal.run` (Settings → Extensions → Agent).
+
+## Milestone 12
+- `server_panel.rs`: `ServerAgentPanel` — used by the extension's `render` when `ws.agent_sessions()` is `Some` (the sources are a server's and `agent.on_server` is set, or the platform has no local provider). Sends through `AgentSessions::send`, polls `events(since)` every 700 ms while a turn runs (re-reading the last item, which may still be streaming; a final full fetch at the end), lists the folder's sessions (a running one is opened on arrival), answers approvals with `approve`. Root-scope signals, so the state survives panel remounts. `sleep_ms` (gloo-timers on wasm, tokio natively).
+- `panel.rs`: the local agent's `cwd` is the first open folder (`Request.cwd`, what the `claude-code` provider runs in).

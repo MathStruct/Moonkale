@@ -15,9 +15,23 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProviderKind {
-    Anthropic { api_key: String },
-    OpenAi { base_url: String, api_key: String },
-    Ollama { host: String },
+    Anthropic {
+        api_key: String,
+    },
+    OpenAi {
+        base_url: String,
+        api_key: String,
+    },
+    Ollama {
+        host: String,
+    },
+    /// The `claude` CLI on the subscription login (Milestone 12): `path`
+    /// (empty = `claude` on PATH), permission mode, allowed tools.
+    ClaudeCode {
+        path: String,
+        permission_mode: String,
+        allowed_tools: String,
+    },
     Mock,
 }
 
@@ -100,6 +114,7 @@ impl Config {
         base_url: &str,
         embed_model: Option<String>,
         key: Option<String>,
+        options: &std::collections::BTreeMap<String, String>,
     ) -> Self {
         let (kind, default_model) = match provider {
             "anthropic" => (
@@ -129,6 +144,17 @@ impl Config {
                 },
                 "qwen2.5:1.5b",
             ),
+            "claude-code" => (
+                ProviderKind::ClaudeCode {
+                    path: base_url.to_string(),
+                    permission_mode: options
+                        .get("permission_mode")
+                        .cloned()
+                        .unwrap_or_else(|| "plan".into()),
+                    allowed_tools: options.get("allowed_tools").cloned().unwrap_or_default(),
+                },
+                "",
+            ),
             _ => (ProviderKind::Mock, "mock"),
         };
         Self {
@@ -153,6 +179,7 @@ impl Config {
             &s.base_url,
             s.embed_model.clone(),
             key,
+            &s.options,
         )
     }
 
@@ -162,8 +189,12 @@ impl Config {
             ProviderKind::Anthropic { .. } => "anthropic",
             ProviderKind::OpenAi { .. } => "openai",
             ProviderKind::Ollama { .. } => "ollama",
+            ProviderKind::ClaudeCode { .. } => "claude-code",
             ProviderKind::Mock => "mock",
         };
+        if self.model.is_empty() {
+            return k.to_string();
+        }
         format!("{k} · {}", self.model)
     }
 }
@@ -187,6 +218,19 @@ pub fn build(config: &Config) -> Box<dyn crate::Provider> {
             config.model.clone(),
             config.embed_model.clone(),
         )),
+        #[cfg(feature = "claude-code")]
+        ProviderKind::ClaudeCode {
+            path,
+            permission_mode,
+            allowed_tools,
+        } => Box::new(crate::claude_code::ClaudeCode::new(
+            path.clone(),
+            config.model.clone(),
+            permission_mode.clone(),
+            allowed_tools.clone(),
+        )),
+        #[cfg(not(feature = "claude-code"))]
+        ProviderKind::ClaudeCode { .. } => Box::new(crate::MockProvider::scripted()),
         ProviderKind::Mock => Box::new(crate::MockProvider::scripted()),
     }
 }

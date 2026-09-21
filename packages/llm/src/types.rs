@@ -85,6 +85,10 @@ pub struct LlmSettings {
     pub embed_model: Option<String>,
     /// Name of the secret holding the API key.
     pub secret: String,
+    /// Provider-specific options (Milestone 12): for `claude-code`,
+    /// `permission_mode` and `allowed_tools`.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub options: std::collections::BTreeMap<String, String>,
 }
 
 /// A tool the model may call; `input_schema` is JSON Schema.
@@ -99,6 +103,10 @@ pub struct ToolDef {
 pub struct Request {
     /// `None` = the provider's configured default.
     pub model: Option<String>,
+    /// Where a turn runs, for providers that act on a folder (`claude-code`
+    /// spawns the CLI there); the server refuses paths outside its root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
     pub system: String,
     pub messages: Vec<Message>,
     pub tools: Vec<ToolDef>,

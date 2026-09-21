@@ -28,10 +28,13 @@
 
 pub mod agent;
 pub mod audit;
+#[cfg(feature = "claude-code")]
+pub mod claude_code;
 pub mod config;
 pub mod mock;
 pub mod policy;
 pub mod provider;
+pub mod sessions;
 pub mod sse;
 pub mod tools;
 pub mod types;

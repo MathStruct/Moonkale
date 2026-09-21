@@ -122,7 +122,8 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     // View → New Terminal / "New terminal here".
     use_effect(move || {
         let (_, cmd) = *ws.commands.read();
-        if cmd == Some(Command::NewTerminal) {
+        // The frame resolves `NewTerminal` to an implementation (Milestone 12).
+        if cmd == Some(Command::NewTerminalIn("xterm")) {
             let cwd = ws.terminal_cwd.peek().clone();
             spawn(start_session(ws, sessions, cwd));
         }

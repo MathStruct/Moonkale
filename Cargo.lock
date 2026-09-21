@@ -116,6 +116,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing",
+ "uuid",
  "webpki-roots",
 ]
 
@@ -5168,10 +5169,12 @@ dependencies = [
 name = "mobile"
 version = "0.1.0"
 dependencies = [
+ "api",
  "dioxus",
  "moonkale-core",
  "moonkale-index",
  "moonkale-project-fs",
+ "moonkale-terminal",
  "tracing",
  "ui",
 ]
@@ -5194,10 +5197,12 @@ dependencies = [
  "dioxus",
  "futures-channel",
  "futures-util",
+ "gloo-timers 0.3.0",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-llm",
  "serde_json",
+ "tokio",
  "uuid",
 ]
 
@@ -5291,6 +5296,18 @@ dependencies = [
  "moonkale-trace",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "moonkale-editor-terminal-native"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "futures-util",
+ "moonkale-core",
+ "moonkale-ext-api",
+ "moonkale-terminal",
+ "vt100",
 ]
 
 [[package]]
@@ -5395,6 +5412,7 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "futures-channel",
+ "futures-executor",
  "futures-util",
  "moonkale-core",
  "moonkale-sources-sql",
@@ -5402,6 +5420,8 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -9066,6 +9086,7 @@ dependencies = [
  "moonkale-editor-markdown",
  "moonkale-editor-table",
  "moonkale-editor-terminal",
+ "moonkale-editor-terminal-native",
  "moonkale-ext-api",
  "moonkale-ext-git",
  "moonkale-ext-lux",
@@ -9401,6 +9422,27 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vt100"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "054ff75fb8fa83e609e685106df4faeffdf3a735d3c74ebce97ec557d5d36fd9"
+dependencies = [
+ "itoa",
+ "unicode-width",
+ "vte",
+]
+
+[[package]]
+name = "vte"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5924018406ce0063cd67f8e008104968b74b563ee1b85dde3ed1f7cb87d3dbd"
+dependencies = [
+ "arrayvec",
+ "memchr",
+]
 
 [[package]]
 name = "walkdir"

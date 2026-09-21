@@ -83,6 +83,8 @@ pub fn Frame(
         use_context_provider(|| Signal::new(Rc::new(crate::commands::Registry::default())));
     let mut palette: crate::palette::PaletteState = use_context_provider(|| Signal::new(None));
     let mut remote_dialog = use_signal(|| false);
+    let mut server_dialog = use_signal(|| false);
+    let mut terminal_chooser = use_signal(|| false);
     {
         let exts = exts.clone();
         use_effect(move || {
@@ -281,6 +283,30 @@ pub fn Frame(
             }
             Some(Command::OpenRemote) => remote_dialog.set(true),
             Some(Command::CloseRemote) => ws.close_remote(),
+            Some(Command::ConnectServer) => server_dialog.set(true),
+            // Which terminal panel (Milestone 12): the one enabled, the
+            // setting's choice, or a chooser when both are on and it is `ask`.
+            Some(Command::NewTerminal) => {
+                let (xterm_on, native_on, pref) = {
+                    let s = ws.settings.peek();
+                    (
+                        s.extensions
+                            .is_enabled_id("dev.moonkale.editor-terminal", true),
+                        s.extensions
+                            .is_enabled_id("dev.moonkale.editor-terminal-native", false),
+                        s.terminal.implementation.clone(),
+                    )
+                };
+                match (xterm_on, native_on, pref.as_str()) {
+                    (true, true, "xterm") | (true, false, _) => open_terminal_in(ws, "xterm"),
+                    (true, true, "native") | (false, true, _) => open_terminal_in(ws, "native"),
+                    (true, true, _) => terminal_chooser.set(true),
+                    (false, false, _) => {
+                        ws.set_status("No terminal extension is enabled (Extensions panel)")
+                    }
+                }
+            }
+            Some(Command::DisconnectServer) => ws.disconnect_server(),
             Some(Command::Palette) => palette.set(Some(crate::palette::PaletteMode::Commands)),
             Some(Command::QuickOpen) => palette.set(Some(crate::palette::PaletteMode::Files)),
             Some(Command::SearchWorkspace) => crate::search::focus_search(ws),
@@ -358,6 +384,12 @@ pub fn Frame(
             crate::palette::Palette {}
             if remote_dialog() {
                 crate::remote_dialog::RemoteDialog { open: remote_dialog }
+            }
+            if server_dialog() {
+                crate::server_dialog::ServerDialog { open: server_dialog }
+            }
+            if terminal_chooser() {
+                crate::terminal_chooser::TerminalChooser { open: terminal_chooser }
             }
             // Another window of this session is dragging a document: become a
             // drop target while the drag is live, and keep a banner afterwards
@@ -477,3 +509,41 @@ document.addEventListener("keydown", (e) => {
 });
 for (;;) { await dioxus.recv(); }
 "#;
+
+/// Show the terminal panel of `which` and, once it is mounted, ask it for a
+/// session. Two dispatches in one tick would overwrite each other (the
+/// commands signal holds the latest), so the second waits a render.
+pub(crate) fn open_terminal_in(mut ws: Workspace, which: &'static str) {
+    let panel = if which == "native" {
+        "terminal-native"
+    } else {
+        "terminal"
+    };
+    ws.show_panel(panel);
+    // Root-owned: the chooser dialog that calls this unmounts right away,
+    // and a task owned by its scope would be cancelled with it.
+    dioxus::core::spawn_forever(async move {
+        YieldNow(false).await;
+        YieldNow(false).await;
+        ws.dispatch(Command::NewTerminalIn(which));
+    });
+}
+
+/// A future that is pending exactly once: lets the scheduler run a render
+/// between two dispatches.
+struct YieldNow(bool);
+impl std::future::Future for YieldNow {
+    type Output = ();
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        if self.0 {
+            std::task::Poll::Ready(())
+        } else {
+            self.0 = true;
+            cx.waker().wake_by_ref();
+            std::task::Poll::Pending
+        }
+    }
+}

@@ -15,6 +15,7 @@ moonkale-editor-markdown = { workspace = true }
 moonkale-editor-table = { workspace = true }
 moonkale-editor-image = { workspace = true }
 moonkale-editor-terminal = { workspace = true }
+moonkale-editor-terminal-native = { workspace = true }
 moonkale-editor-agent = { workspace = true }
 moonkale-editor-flow = { workspace = true }
 moonkale-ext-lux = { workspace = true }

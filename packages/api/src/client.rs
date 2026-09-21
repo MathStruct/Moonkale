@@ -142,6 +142,64 @@ pub fn wasm_run(
     })
 }
 
+// ---- Agent sessions on the server (Milestone 12) ----
+
+pub fn agent_available() -> bool {
+    active().is_some()
+}
+
+pub fn agent_list(folder: String) -> SettingsFuture<Vec<moonkale_llm::sessions::SessionSummary>> {
+    Box::pin(async move {
+        crate::agent_sessions::agent_list(folder)
+            .await
+            .map_err(|e| e.to_string())
+    })
+}
+
+pub fn agent_send(
+    session: Option<String>,
+    folder: String,
+    text: String,
+    settings: moonkale_llm::sessions::TurnSettings,
+) -> SettingsFuture<String> {
+    Box::pin(async move {
+        crate::agent_sessions::agent_send(session, folder, text, settings)
+            .await
+            .map_err(|e| e.to_string())
+    })
+}
+
+pub fn agent_events(
+    session: String,
+    since: usize,
+) -> SettingsFuture<moonkale_llm::sessions::SessionState> {
+    Box::pin(async move {
+        crate::agent_sessions::agent_events(session, since)
+            .await
+            .map_err(|e| e.to_string())
+    })
+}
+
+pub fn agent_approve(session: String, call_id: String, allow: bool) -> SettingsFuture<()> {
+    Box::pin(async move {
+        crate::agent_sessions::agent_approve(session, call_id, allow)
+            .await
+            .map_err(|e| e.to_string())
+    })
+}
+
+/// The `WorkspaceConfig` half for server sessions: `available` says whether
+/// the sources are a server's — always on the web, when connected on the desktop.
+pub fn agent_sessions(available: fn() -> bool) -> moonkale_ext_api::AgentSessions {
+    moonkale_ext_api::AgentSessions {
+        available,
+        list: agent_list,
+        send: agent_send,
+        events: agent_events,
+        approve: agent_approve,
+    }
+}
+
 /// A random session token: 32 bytes from the OS, hex — what the remote
 /// server is told over stdin and what every request carries as the bearer.
 pub fn session_token() -> String {

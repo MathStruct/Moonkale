@@ -29,7 +29,7 @@ Exact names and payloads are to be **verified against the open-source reimplemen
 
 The result: a `claude` running in Moonkale's terminal panel — started with `--ide` or through a *Claude Code: Start here* command that opens a terminal with the right cwd — sees what you have selected, opens files in your tabs, and proposes every edit as a diff you accept in Moonkale. This is what the VS Code extension gives, with no API key, and it is the level with the best value per line of code.
 
-### Level 3 — Claude Code as a Moonkale agent provider
+### Level 3 — Claude Code as a Moonkale agent provider *(built in Milestone 12 — see [[Milestone 12 - Implementation Log]]; the provider lives in `moonkale-llm` behind the `claude-code` feature, with `permission_mode` + `allowed_tools` instead of the permission tool, and `--resume` per folder)*
 The agent panel talks to a `Provider` (`anthropic`, `openai`, `ollama`, `mock`, `remote`). A **`claude-code` provider** spawns the CLI headless:
 
 ```text

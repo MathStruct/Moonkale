@@ -68,3 +68,6 @@ adb shell run-as io.github.mathstruct.moonkale cat files/vault/Home.md
 ```
 
 With the forward in place any CDP client can evaluate JavaScript in the page — `node packages/web/tests/e2e/android-cdp.mjs '<expr>'` — and inject touch gestures: `android-pinch.mjs` pinches and rotates the graph through the WebView's `Input.dispatchTouchEvent` (spec 006). Logs: `adb logcat -s RustStdoutStderr chromium`.
+
+## Milestone 12 — the phone as a server's client
+`main()` installs `api::relay` before launch (P-098) and *File → Connect to Server…* (`ServerClient` over `api::client`) makes the app a client of a Moonkale server: `open_any`/`attach_any` route to the server while connected, `spawn_terminal` gives a shell *on the server* (the phone has none), `git_any` likewise, and the Agent panel uses **server sessions** (the phone has no local provider, so `agent_sessions()` needs no setting): a Claude Code turn started elsewhere keeps running there and the phone shows its state. Over the network the server should be reached through HTTPS (`MOONKALE_TLS_CERT/KEY`) or a tunnel; `MOONKALE_INSECURE_HTTP=1` on the server for a trusted LAN. Not yet built and installed on the device in this milestone (`cargo check -p mobile` on the host only).

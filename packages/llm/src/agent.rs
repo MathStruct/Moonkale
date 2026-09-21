@@ -24,7 +24,7 @@ pub trait ToolHost {
     fn approve(&self, call: ToolCall, class: Class) -> HostFuture<bool>;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ToolOutcome {
     Ran { ok: bool },
     Denied,
@@ -70,6 +70,9 @@ pub struct Agent {
     /// Safety valve against a model looping on tools.
     pub max_tool_rounds: usize,
     pub max_tokens: u32,
+    /// The folder a turn acts in (`Request.cwd`; providers that spawn a
+    /// process, such as `claude-code`, run there).
+    pub cwd: Option<String>,
 }
 
 impl Agent {
@@ -83,6 +86,7 @@ impl Agent {
             audit: AuditLog::default(),
             max_tool_rounds: 12,
             max_tokens: 2048,
+            cwd: None,
         }
     }
 
@@ -98,6 +102,7 @@ impl Agent {
         for _round in 0..=self.max_tool_rounds {
             let request = Request {
                 model: None,
+                cwd: self.cwd.clone(),
                 system: self.system.clone(),
                 messages: self.messages.clone(),
                 tools: self.tools.clone(),

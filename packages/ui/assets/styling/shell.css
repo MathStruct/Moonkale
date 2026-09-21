@@ -132,3 +132,8 @@
 .mk-remote-actions .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
 .mk-remote-actions .mk-button-primary { background: var(--wb-accent, #6ea8fe); color: #0b0d12; border-color: transparent; }
 .mk-status-remote { color: var(--wb-accent, #6ea8fe); }
+/* Which terminal? (Milestone 12) */
+.mk-terminal-choices { display: flex; flex-direction: column; gap: 8px; }
+.mk-terminal-choices .mk-button { text-align: left; font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
+.mk-terminal-choices .mk-button-primary { background: var(--wb-accent, #6ea8fe); color: #0b0d12; border-color: transparent; }
+.mk-terminal-choices .mk-button-primary .mk-muted { color: #0b0d12; opacity: 0.75; }

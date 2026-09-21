@@ -111,6 +111,7 @@ pub async fn llm_info(
         .map(|s| {
             s.provider == "mock"
                 || s.provider == "ollama"
+                || s.provider == "claude-code"
                 || moonkale_llm::secrets::available(&s.secret)
         })
         .unwrap_or(true);
@@ -146,7 +147,26 @@ pub async fn llm_socket(
             }
         };
         match msg {
-            ClientMsg::Complete { request, settings } => {
+            ClientMsg::Complete {
+                mut request,
+                settings,
+            } => {
+                // A turn acts in a folder (Milestone 12): inside the jail,
+                // or the jail itself.
+                request.cwd = match crate::state::jail_dir(request.cwd.as_deref()) {
+                    Ok(dir) => Some(dir),
+                    Err(e) => {
+                        let _ = socket
+                            .send(Frame(
+                                serde_json::to_string(&ServerMsg::Error {
+                                    message: format!("cwd refused: {e}"),
+                                })
+                                .unwrap(),
+                            ))
+                            .await;
+                        return;
+                    }
+                };
                 let owned = settings.as_ref().and_then(provider_for);
                 let p: &dyn Provider = match &owned {
                     Some(p) => p.as_ref(),

@@ -143,6 +143,48 @@ pub struct WorkspaceConfig {
     pub wasm_module_url: Option<fn(String) -> String>,
     /// Remote folders over SSH (Milestone 11; desktop only).
     pub remote: Option<crate::remote::RemoteHosts>,
+    /// Agent sessions that live on the server (Milestone 12): the web
+    /// client always, the desktop while it is a server's client.
+    pub agent_sessions: Option<AgentSessions>,
+    /// *Connect to Server…* (Milestone 12): make this app a client of a
+    /// Moonkale server by URL + token (desktop and mobile).
+    pub server: Option<ServerClient>,
+}
+
+/// How a native app becomes a server's client (`api::client`).
+#[derive(Clone, Copy)]
+pub struct ServerClient {
+    /// `(url, token)`; the sources then come from that server.
+    pub connect: fn(String, Option<String>) -> Result<(), String>,
+    pub disconnect: fn(),
+    /// The connected server's label, if any.
+    pub active: fn() -> Option<String>,
+}
+
+/// How a client reaches the server's agent sessions (`api::agent_sessions`).
+#[derive(Clone, Copy)]
+pub struct AgentSessions {
+    /// Are the sources a server's right now?
+    pub available: fn() -> bool,
+    pub list: fn(String) -> SettingsFuture<Vec<moonkale_llm::sessions::SessionSummary>>,
+    /// `(session or None, folder, text, settings)` → session id.
+    pub send: fn(
+        Option<String>,
+        String,
+        String,
+        moonkale_llm::sessions::TurnSettings,
+    ) -> SettingsFuture<String>,
+    /// `(session, since)`.
+    pub events: fn(String, usize) -> SettingsFuture<moonkale_llm::sessions::SessionState>,
+    /// `(session, call id, allow)`.
+    pub approve: fn(String, String, bool) -> SettingsFuture<()>,
+}
+
+/// One platform, one set of pointers: equal by construction (a prop).
+impl PartialEq for AgentSessions {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -184,7 +226,11 @@ pub enum Command {
     ResetLayout,
     NewWindow,
     /// Open a terminal; `Workspace::terminal_cwd` may carry a directory.
+    /// The frame turns it into `NewTerminalIn` (Milestone 12).
     NewTerminal,
+    /// Open a terminal in a named implementation: `"xterm"` (the JS
+    /// panel) or `"native"` (the Rust panel).
+    NewTerminalIn(&'static str),
     About,
     /// Bring a panel's tab to the front (the shell owns the layout); a
     /// closed static panel is reopened first (spec 011).
@@ -218,6 +264,10 @@ pub enum Command {
     OpenRemote,
     /// End the SSH session and close what it opened.
     CloseRemote,
+    /// Ask for a server URL + token and become its client (Milestone 12).
+    ConnectServer,
+    /// Drop the server connection and its sources.
+    DisconnectServer,
 }
 
 /// Actions the menus can ask the active editor for (spec 009); the editor
@@ -287,6 +337,9 @@ pub struct Workspace {
     pub adopt_terminals: Signal<Vec<Rc<RefCell<Option<moonkale_terminal::Session>>>>>,
     /// The window's remote session, if any (Milestone 11).
     pub remote: Signal<Option<crate::remote::RemoteState>>,
+    /// The server this app is a client of (Milestone 12): label and the
+    /// sources opened through it.
+    pub server_link: Signal<Option<(String, Vec<SourceId>)>>,
     /// Bumped whenever derived data may have changed (after a save was
     /// refreshed into the index); graph/backlink panels re-query on it.
     pub graph_epoch: Signal<u64>,
@@ -353,6 +406,7 @@ impl Workspace {
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
             adopt_terminals: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             remote: Signal::new_in_scope(None, ScopeId::ROOT),
+            server_link: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
             reveal: Signal::new_in_scope(None, ScopeId::ROOT),
@@ -555,6 +609,16 @@ impl Workspace {
 
     // ---- Remote folders (Milestone 11) ----
 
+    /// The server's agent sessions, when the sources live there (Milestone 12).
+    pub fn agent_sessions(&self) -> Option<AgentSessions> {
+        // Opt-in (`agent.on_server`), except on a platform without a local
+        // provider (the phone), which always uses them when connected.
+        if !self.settings.read().agent.on_server && self.config.llm.is_some() {
+            return None;
+        }
+        self.config.agent_sessions.filter(|a| (a.available)())
+    }
+
     /// Can this platform open folders over SSH?
     pub fn has_remote(&self) -> bool {
         self.config.remote.is_some()
@@ -688,6 +752,76 @@ impl Workspace {
             self.graph_epoch.with_mut(|e| *e += 1);
         }
         self.set_status(format!("Remote: disconnected from {}", state.label()));
+    }
+
+    // ---- A server's client (Milestone 12) ----
+
+    pub fn has_server_client(&self) -> bool {
+        self.config.server.is_some()
+    }
+
+    /// Become `url`'s client and open its root folder.
+    pub async fn connect_server(mut self, url: String, token: Option<String>) {
+        let Some(sc) = self.config.server else {
+            self.set_status("Connecting to a server is not available on this platform");
+            return;
+        };
+        let url = url.trim().trim_end_matches('/').to_string();
+        if url.is_empty() {
+            self.set_status("Server: a URL is needed");
+            return;
+        }
+        if self.server_link.peek().is_some() {
+            self.disconnect_server();
+        }
+        if let Err(e) = (sc.connect)(url.clone(), token.filter(|t| !t.trim().is_empty())) {
+            self.set_status(format!("Server: {e}"));
+            return;
+        }
+        self.server_link.set(Some((url.clone(), Vec::new())));
+        self.set_status(format!("Connected to {url}; opening its folder…"));
+        if let Err(e) = self.open_folder(String::new()).await {
+            self.set_status(format!(
+                "Server {url}: connected, but its folder did not open: {e}"
+            ));
+        }
+    }
+
+    /// Drop the connection and the sources it opened.
+    pub fn disconnect_server(&mut self) {
+        let Some((url, ids)) = self.server_link.take() else {
+            return;
+        };
+        if let Some(sc) = self.config.server {
+            (sc.disconnect)();
+        }
+        let docs: Vec<NodeId> = self
+            .documents
+            .peek()
+            .iter()
+            .filter(|(_, d)| ids.contains(&d.peek().node.source))
+            .map(|(n, _)| *n)
+            .collect();
+        for n in docs {
+            self.close_node(n);
+        }
+        if !ids.is_empty() {
+            self.sources
+                .with_mut(|v| v.retain(|s| !ids.contains(&s.descriptor.id)));
+            if self
+                .settings_folder
+                .peek()
+                .as_ref()
+                .is_some_and(|f| ids.contains(f))
+            {
+                self.settings_folder.set(None);
+                self.settings_workspace
+                    .set(crate::settings::SettingsFile::new());
+                self.resolve_settings();
+            }
+            self.graph_epoch.with_mut(|e| *e += 1);
+        }
+        self.set_status(format!("Disconnected from {url}"));
     }
 
     /// Hand a running terminal to the terminal panel (it becomes a tab).
@@ -1577,7 +1711,15 @@ impl Workspace {
                 }
             });
         }
-        if first.family == moonkale_core::SourceFamily::Folder && !remote {
+        let via_server = self.server_link.peek().is_some();
+        if via_server {
+            self.server_link.with_mut(|l| {
+                if let Some((_, ids)) = l {
+                    ids.extend(opened.iter().cloned());
+                }
+            });
+        }
+        if first.family == moonkale_core::SourceFamily::Folder && !remote && !via_server {
             // Workspace settings + remember the folder.
             self.load_workspace_settings(&first.id).await;
             self.refresh_wasm_extensions().await;

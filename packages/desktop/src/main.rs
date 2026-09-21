@@ -264,6 +264,18 @@ fn ssh_hosts_in(text: &str) -> Vec<String> {
     hosts
 }
 
+/// *Connect to Server…* (Milestone 12): URL + token through the relay.
+fn server_client() -> ui::ServerClient {
+    ui::ServerClient {
+        connect: |url, token| {
+            api::client::connect(&url, token.as_deref(), &url);
+            Ok(())
+        },
+        disconnect: api::client::disconnect,
+        active: || api::client::active().map(|r| r.label),
+    }
+}
+
 /// `MOONKALE_SSH='[VAR=v …] [ssh options …] host:/path'` (or `--ssh …`):
 /// open that remote folder when the window starts — `--ssh "SSH_AUTH_SOCK=0
 /// -p 443 daniel@192.168.178.62:/home/daniel/Code"`. The last word is
@@ -345,7 +357,10 @@ fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture
 /// The LLM provider from the environment (`MOONKALE_LLM`, keys), built
 /// once; HTTP providers run in-process on desktop.
 fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
-    let needs_key = !matches!(settings.provider.as_str(), "mock" | "ollama");
+    let needs_key = !matches!(
+        settings.provider.as_str(),
+        "mock" | "ollama" | "claude-code"
+    );
     if needs_key && !moonkale_llm::secrets::available(&settings.secret) {
         let name = settings.secret.clone();
         return Box::pin(async move {
@@ -634,7 +649,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }) },
+                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()) },
                 session,
                 new_window: open_window,
             },

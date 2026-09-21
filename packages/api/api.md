@@ -52,3 +52,8 @@ Holds a `SourceDescriptor`, implements `Source` by calling the functions above. 
 - `auth.rs` — `same_host(origin, host)` and a **403 on cross-origin websocket upgrades**; `tls_files()` (`MOONKALE_TLS_CERT` + `MOONKALE_TLS_KEY`); `bind_mode(ip, has_token, tls, insecure_ok)`: off loopback a token *and* TLS are required, `MOONKALE_INSECURE_HTTP=1` opts out behind a TLS proxy.
 - `terminal.rs` — `MOONKALE_TERMINAL=0` answers every `Open` with `Exit { message: "the terminal is switched off on this server (MOONKALE_TERMINAL=0)" }` and an audit line.
 - Verified by `packages/web/tests/e2e/server.mjs` against the standalone binary (token over stdin, 401/200, terminal off, cross-origin 403, plain-HTTP bind refused, HTTPS with a self-signed certificate) and `desktop/tests/remote.rs` (ignored; `MOONKALE_REMOTE=http://127.0.0.1:8090`).
+
+## Milestone 12
+- `agent_sessions.rs` — sessions that live on the server: `Record { summary, items, messages, pending }` in a global store and appended to `<folder>/.moonkale/agent-sessions/<id>.jsonl` (reloaded by `agent_list` after a restart); `agent_send(session?, folder, text, TurnSettings)` starts a turn on a thread of its own (current-thread runtime + `LocalSet`; `Agent::send` with `ServerHost` — the MCP read-only tools via `mcp::run`, other tools refused; `approve` waits on a channel a client answers through `agent_approve`, 10 min → declined, `allow_writes` → yes); `agent_events(session, since)` returns the tail and `running`/`pending`; `agent_approve`. Folder paths are jailed.
+- `llm.rs` — the relay jails `Request.cwd` (`state::jail_dir`) and lets `claude-code` through without a key; feature `claude-code` on the server.
+- `client.rs` — `agent_*` wrappers and `agent_sessions(available)` for `WorkspaceConfig`.
