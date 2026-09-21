@@ -297,7 +297,11 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             }
             for s in sources {
                 {
-                    let (icon, kind) = crate::icons::source_icon(&s.descriptor);
+                    let (icon, kind) = if ws.is_remote_source(&s.descriptor.id) && s.descriptor.family == moonkale_core::SourceFamily::Folder {
+                        ("folder-remote", "remote folder")
+                    } else {
+                        crate::icons::source_icon(&s.descriptor)
+                    };
                     let color = crate::icons::source_color(s.descriptor.id.as_str());
                     let read_only = !s.descriptor.capabilities.write;
                     rsx! {

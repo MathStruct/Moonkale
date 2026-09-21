@@ -1,6 +1,7 @@
 // Spec 010: syntax highlighting per language (Lezer/legacy grammars picked by Rust's language id),
 // with folding, bracket matching and Mod-/ comment toggling.
 import { firefox } from "playwright";
+import fs from "node:fs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const browser = await firefox.launch();
@@ -56,6 +57,23 @@ try {
     const saved = await page.evaluate(() => Object.keys(localStorage).map((k) => localStorage.getItem(k) || "").join("\n"));
     console.log("\n  wrap persisted in the settings store:", /"wrap"\s*:\s*true/.test(saved) ? "yes" : "no");
     if (!/"wrap"\s*:\s*true/.test(saved)) throw new Error("editor.wrap not saved to localStorage");
+  });
+  await step("a 3 MB file: a keystroke reaches Rust as a splice, not the whole text (spec 018) — dirty within a second", async () => {
+    const line = "let value = compute(alpha, beta, gamma) + 42; // filler text to make the line long enough\n";
+    fs.writeFileSync(`${process.env.M1_ROOT}/big.txt`, line.repeat(Math.ceil(3_000_000 / line.length)));
+    await page.click(".mk-explorer-open button[type=submit]");
+    await page.waitForSelector(".mk-tree-file >> text=big.txt", { timeout: 15000 });
+    await page.click(".mk-tree-file >> text=big.txt");
+    await page.waitForFunction(() => [...document.querySelectorAll(".cm-content")].some((c) => c.offsetParent && c.textContent.includes("filler")), null, { timeout: 60000 });
+    await page.click(".cm-content:visible");
+    await page.keyboard.press("Control+Home");
+    const t0 = Date.now();
+    await page.keyboard.type("x");
+    await page.waitForSelector(".mk-tab-dirty", { timeout: 5000 });
+    const dt = Date.now() - t0;
+    console.log(`\n  3 MB file: dirty after ${dt} ms`);
+    if (dt > 1500) throw new Error("keystroke took " + dt + " ms to reach Rust");
+    await page.click(".mk-editor-toolbar button:has-text('Reload'):visible");
   });
   console.log("\nHIGHLIGHT E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m10-highlight-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

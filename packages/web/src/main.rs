@@ -19,20 +19,97 @@ fn main() {
     // The server adds the MCP endpoint next to the app's own routes.
     #[cfg(feature = "server")]
     {
-        // Refuse a non-loopback bind without MOONKALE_TOKEN (Milestone 7).
+        // Standalone server flags (Milestone 11): what an SSH-launched or a
+        // hand-started `moonkale-server` is told on its command line.
+        //   --port N        listen port (also PORT)
+        //   --bind IP       listen address (also IP; loopback unless a token is set)
+        //   --root PATH     the folder jail (also MOONKALE_ROOT)
+        //   --token-stdin   read the access token from the first line of stdin
+        //   --version       print the version and exit
+        let mut args = std::env::args().skip(1);
+        while let Some(a) = args.next() {
+            match a.as_str() {
+                "--port" => {
+                    if let Some(v) = args.next() {
+                        std::env::set_var("PORT", v);
+                    }
+                }
+                "--bind" => {
+                    if let Some(v) = args.next() {
+                        std::env::set_var("IP", v);
+                    }
+                }
+                "--root" => {
+                    if let Some(v) = args.next() {
+                        std::env::set_var("MOONKALE_ROOT", v);
+                    }
+                }
+                "--token-stdin" => {
+                    let mut line = String::new();
+                    let _ = std::io::stdin().read_line(&mut line);
+                    let t = line.trim().to_string();
+                    if t.is_empty() {
+                        eprintln!("moonkale: --token-stdin: no token on stdin");
+                        std::process::exit(2);
+                    }
+                    std::env::set_var("MOONKALE_TOKEN", t);
+                }
+                "--version" => {
+                    println!("moonkale-server {}", env!("CARGO_PKG_VERSION"));
+                    return;
+                }
+                other => {
+                    eprintln!("moonkale: unknown argument {other}");
+                    std::process::exit(2);
+                }
+            }
+        }
+        // Refuse a non-loopback bind without MOONKALE_TOKEN (Milestone 7)
+        // or without TLS (Milestone 11).
         api::auth::guard_bind();
-        dioxus::server::serve(|| async {
+        fn build_router() -> axum::Router {
             let router = dioxus::server::router(App)
                 .route("/mcp", axum::routing::post(api::mcp::handler))
                 .route(
                     "/api/ext/module/{id}",
                     axum::routing::get(api::module_bytes),
                 );
-            Ok(api::auth::protect(router))
-        });
+            api::auth::protect(router)
+        }
+        if let Some((cert, key)) = api::auth::tls_files() {
+            serve_tls(cert, key, build_router);
+        }
+        dioxus::server::serve(|| async { Ok(build_router()) });
     }
     #[cfg(not(feature = "server"))]
     dioxus::launch(App);
+}
+
+/// HTTPS with the PEM files in `MOONKALE_TLS_CERT`/`MOONKALE_TLS_KEY`
+/// (Milestone 11): the same router, served by `axum-server` + rustls on
+/// the `IP`/`PORT` address. No hot reload here — this is the deployed path.
+#[cfg(feature = "server")]
+fn serve_tls(cert: String, key: String, build: fn() -> axum::Router) -> ! {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let addr = dioxus::cli_config::fullstack_address_or_localhost();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+    rt.block_on(async move {
+        let config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert, &key)
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("moonkale: TLS: cannot load {cert} / {key}: {e}");
+                std::process::exit(2);
+            });
+        eprintln!("moonkale: serving https://{addr}");
+        axum_server::bind_rustls(addr, config)
+            .serve(build().into_make_service())
+            .await
+            .expect("https server");
+    });
+    std::process::exit(0)
 }
 
 fn open_remote(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
@@ -224,7 +301,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote), presence: Some(join_presence), wasm_module_url: Some(|id| format!("/api/ext/module/{id}")) },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote), presence: Some(join_presence), wasm_module_url: Some(|id| format!("/api/ext/module/{id}")), remote: None },
                 session,
                 new_window: Some(new_window),
             },

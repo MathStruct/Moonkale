@@ -18,3 +18,11 @@
 .mk-wiki-item .mk-wiki-target { color: #d7dae0; }
 .mk-wiki-item .mk-wiki-key { color: #7d8390; font-size: 11px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mk-wiki-empty { color: #9aa0aa; font-style: italic; }
+/* Front matter as Properties (spec 019). */
+.mk-props { border-bottom: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-surface, #161922); font-size: 12px; }
+.mk-props-head { display: flex; gap: 8px; align-items: center; width: 100%; padding: 4px 10px; border: 0; background: none; color: var(--wb-ink-soft, #a3a9b8); font: inherit; cursor: pointer; text-align: left; }
+.mk-props-head:hover { color: var(--wb-ink, #e6e8ee); }
+.mk-props-caret { width: 10px; opacity: 0.7; }
+.mk-props-label { font-weight: 600; }
+.mk-props-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
+.mk-props-yaml { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 10px 8px 28px; border: 0; border-top: 1px dashed var(--wb-line, #2a2e3a); background: #12141a; color: #d7dae0; font: 12px 'JetBrains Mono', Consolas, monospace; resize: vertical; outline: none; }

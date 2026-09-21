@@ -94,6 +94,8 @@ dependencies = [
  "dioxus",
  "futures-channel",
  "futures-util",
+ "getrandom 0.3.4",
+ "http",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-ext-git",
@@ -140,6 +142,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
 dependencies = [
  "derive_arbitrary",
+]
+
+[[package]]
+name = "arc-swap"
+version = "1.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c049c0be4daef0b145cb3555416b3b8ef5b7888a38aea1a3a155801fe7b0810b"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]
@@ -568,6 +579,28 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "axum-server"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1ab4a3ec9ea8a657c72d99a03a824af695bd0fb5ec639ccbd9cd3543b41a5f9"
+dependencies = [
+ "arc-swap",
+ "bytes",
+ "fs-err",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-util",
+ "pin-project-lite",
+ "rustls",
+ "rustls-pemfile",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls",
+ "tower-service",
 ]
 
 [[package]]
@@ -1824,6 +1857,7 @@ dependencies = [
 name = "desktop"
 version = "0.1.0"
 dependencies = [
+ "api",
  "dioxus",
  "futures-channel",
  "futures-util",
@@ -1836,6 +1870,7 @@ dependencies = [
  "moonkale-lsp",
  "moonkale-lsp-local",
  "moonkale-project-fs",
+ "moonkale-remote",
  "moonkale-sources",
  "moonkale-sources-graph",
  "moonkale-sources-sql",
@@ -3023,6 +3058,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-err"
+version = "3.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b91aa448ca50d7e79433bdf3ee8d99215430d2ec02ade5aefab2a073a1822e8a"
+dependencies = [
+ "autocfg",
+ "tokio",
+]
+
+[[package]]
 name = "futf"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3285,9 +3330,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 5.3.0",
  "wasip2",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -5249,6 +5296,9 @@ name = "moonkale-ext-api"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "dioxus-core",
+ "futures-channel",
+ "futures-util",
  "js-sys",
  "moonkale-core",
  "moonkale-ext-host",
@@ -5257,6 +5307,7 @@ dependencies = [
  "moonkale-terminal",
  "serde",
  "serde_json",
+ "tokio",
  "uuid",
 ]
 
@@ -5380,6 +5431,22 @@ dependencies = [
  "moonkale-core",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "moonkale-remote"
+version = "0.1.0"
+dependencies = [
+ "api",
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "moonkale-core",
+ "moonkale-terminal",
+ "moonkale-terminal-pty",
+ "reqwest",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -7211,6 +7278,15 @@ dependencies = [
  "rustls-webpki",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rustls-pemfile"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]
@@ -9745,11 +9821,14 @@ version = "0.1.0"
 dependencies = [
  "api",
  "axum",
+ "axum-server",
  "dioxus",
  "moonkale-core",
  "moonkale-ext-host",
  "moonkale-llm",
+ "rustls",
  "serde_json",
+ "tokio",
  "tracing",
  "ui",
  "web-sys",

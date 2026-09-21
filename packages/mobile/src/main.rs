@@ -132,7 +132,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None, attach_source: attach_local, spawn_terminal: None, compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: None, presence: None, wasm_module_url: None },
+                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: None, attach_source: attach_local, spawn_terminal: None, compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: None, presence: None, wasm_module_url: None, remote: None },
                 session,
                 new_window: None,
             },

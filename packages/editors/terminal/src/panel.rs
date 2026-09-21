@@ -127,6 +127,28 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
             spawn(start_session(ws, sessions, cwd));
         }
     });
+    // Sessions started elsewhere — the `ssh` of a remote folder (Milestone
+    // 11) — become tabs here, so their prompts can be answered.
+    use_effect(move || {
+        let mut ws = ws;
+        let pending: Vec<Session> = ws
+            .adopt_terminals
+            .read()
+            .iter()
+            .filter_map(|s| s.borrow_mut().take())
+            .collect();
+        if pending.is_empty() {
+            return;
+        }
+        ws.adopt_terminals.with_mut(|v| v.clear());
+        for session in pending {
+            let id = session.id;
+            sessions
+                .list
+                .with_mut(|l| l.push(Rc::new(RefCell::new(session))));
+            sessions.active.set(Some(id));
+        }
+    });
     let list = sessions.list.read().clone();
     let active = *sessions.active.read();
     let available = ws.spawn_terminal().is_some();

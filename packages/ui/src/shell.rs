@@ -413,6 +413,12 @@ pub fn Shell() -> Element {
         })
         .collect();
     let lsp = ws.lsp_status.read().clone();
+    // The remote session (Milestone 11): "⇅ host:path · connected".
+    let remote = ws
+        .remote
+        .read()
+        .as_ref()
+        .map(|r| (r.label(), r.phase.label()));
     let windows = ws.peers.read().len() + 1;
     let window_id = ws.window.read().to_string();
     let source_name = ws
@@ -598,6 +604,11 @@ pub fn Shell() -> Element {
                         },
                         message: rsx! { StatusMessage { "{status}" } },
                         right: rsx! {
+                            if let Some((label, phase)) = remote {
+                                StatusItem { title: "Remote folder over SSH — {phase}",
+                                    span { class: "mk-status-remote", "⇅ {label} · {phase}" }
+                                }
+                            }
                             if let Some(l) = lsp {
                                 StatusItem { title: "Language server", "{l}" }
                             }

@@ -82,6 +82,7 @@ pub fn Frame(
     let mut registry: crate::commands::CommandRegistry =
         use_context_provider(|| Signal::new(Rc::new(crate::commands::Registry::default())));
     let mut palette: crate::palette::PaletteState = use_context_provider(|| Signal::new(None));
+    let mut remote_dialog = use_signal(|| false);
     {
         let exts = exts.clone();
         use_effect(move || {
@@ -278,6 +279,8 @@ pub fn Frame(
             Some(Command::Settings) => {
                 ws.dispatch(Command::ShowPanel(crate::settings_panel::PANEL_ID))
             }
+            Some(Command::OpenRemote) => remote_dialog.set(true),
+            Some(Command::CloseRemote) => ws.close_remote(),
             Some(Command::Palette) => palette.set(Some(crate::palette::PaletteMode::Commands)),
             Some(Command::QuickOpen) => palette.set(Some(crate::palette::PaletteMode::Files)),
             Some(Command::SearchWorkspace) => crate::search::focus_search(ws),
@@ -353,6 +356,9 @@ pub fn Frame(
             TitleBar { controls }
             div { class: "mk-frame-body", {children} }
             crate::palette::Palette {}
+            if remote_dialog() {
+                crate::remote_dialog::RemoteDialog { open: remote_dialog }
+            }
             // Another window of this session is dragging a document: become a
             // drop target while the drag is live, and keep a banner afterwards
             // (an OS drag doesn't reach other windows on every platform).

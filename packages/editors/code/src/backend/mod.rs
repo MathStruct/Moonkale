@@ -17,8 +17,10 @@ pub enum BackendEvent {
     /// The view could not be created (a JavaScript error while mounting);
     /// the panel shows the message instead of waiting forever (spec 016).
     Failed(String),
-    /// The document changed; the whole text (Milestone 1).
-    Changed(String),
+    /// The document changed: splices in UTF-16 offsets into the text
+    /// *before* the change, in document order (spec 018, P-037), and the
+    /// view's length afterwards (UTF-16 units) as a consistency check.
+    Spliced { changes: Vec<Splice>, length: u32 },
     /// The view wants hover text at an LSP position; answer with `hover_result`.
     Hover { id: u32, line: u32, col: u32 },
     /// F12 at a position.
@@ -43,6 +45,53 @@ pub enum BackendEvent {
     WikiQuery { id: u32, query: String },
     /// Ctrl/Cmd+click on a `[[link]]`.
     WikiLink { target: String },
+}
+
+/// One replacement the view made: `[from, to)` in UTF-16 units of the text
+/// before the change, replaced by `insert`.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+pub struct Splice {
+    pub from: u32,
+    pub to: u32,
+    pub insert: String,
+}
+
+/// Apply splices (document order, old-text offsets) to `text` in place.
+/// Returns `false` (leaving `text` untouched) when an offset is out of range
+/// — the caller then resyncs by asking the view for the whole text.
+pub fn apply_splices(text: &mut String, changes: &[Splice]) -> bool {
+    // Old-text offsets: apply from the end so earlier offsets stay valid.
+    for c in changes.iter().rev() {
+        let Some(from) = utf16_to_byte(text, c.from as usize) else {
+            return false;
+        };
+        let Some(to) = utf16_to_byte(text, c.to as usize) else {
+            return false;
+        };
+        if from > to {
+            return false;
+        }
+        text.replace_range(from..to, &c.insert);
+    }
+    true
+}
+
+/// Byte offset of the `n`-th UTF-16 code unit (`Some(len)` at the end).
+pub fn utf16_to_byte(text: &str, n: usize) -> Option<usize> {
+    if n == 0 {
+        return Some(0);
+    }
+    let mut units = 0usize;
+    for (i, ch) in text.char_indices() {
+        if units == n {
+            return Some(i);
+        }
+        units += ch.len_utf16();
+        if units > n {
+            return None; // inside a surrogate pair
+        }
+    }
+    (units == n).then_some(text.len())
 }
 
 /// A `[[link]]` span in UTF-16 offsets, for decorations (spec 012).
@@ -89,4 +138,39 @@ pub fn mount(
     Box::new(codemirror::CodeMirrorBackend::mount(
         element_id, initial, language, wrap, on_event,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sp(from: u32, to: u32, insert: &str) -> Splice {
+        Splice {
+            from,
+            to,
+            insert: insert.into(),
+        }
+    }
+
+    #[test]
+    fn splices_apply_in_document_order_with_old_offsets() {
+        let mut t = String::from("hello world");
+        assert!(apply_splices(
+            &mut t,
+            &[sp(0, 5, "HELLO"), sp(6, 11, "there")]
+        ));
+        assert_eq!(t, "HELLO there");
+        // Insert, delete, and a unicode text with an astral char (2 units).
+        let mut t = String::from("a😀b");
+        assert!(apply_splices(&mut t, &[sp(3, 4, "B")]));
+        assert_eq!(t, "a😀B");
+        assert!(apply_splices(&mut t, &[sp(1, 3, "")]));
+        assert_eq!(t, "aB");
+        assert!(apply_splices(&mut t, &[sp(2, 2, "!")]));
+        assert_eq!(t, "aB!");
+        // Out of range: untouched, false.
+        let mut t = String::from("abc");
+        assert!(!apply_splices(&mut t, &[sp(2, 9, "x")]));
+        assert_eq!(t, "abc");
+    }
 }

@@ -18,6 +18,7 @@ mod frame;
 mod history;
 pub mod icons;
 mod palette;
+mod remote_dialog;
 mod search;
 mod settings_panel;
 mod shell;
@@ -27,6 +28,7 @@ pub use explorer::ExplorerExtension;
 pub use frame::{Frame, ResizeEdge, SessionFactory, ShellConfig, WindowControls};
 pub use moonkale_ext_api::git::{GitRequest, GitResponse};
 pub use moonkale_ext_api::presence::{Member as PresenceMember, PresenceLink, PresenceMessage};
+pub use moonkale_ext_api::remote;
 pub use moonkale_ext_api::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, LlmProvider,
     LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions, PickFolder, PickFolderFuture,

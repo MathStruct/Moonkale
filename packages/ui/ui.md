@@ -70,3 +70,8 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `commands.rs`: `file.new`, `file.saveAll`, `editor.closeAll`, `view.toggleSide/Bottom`, `editor.{find,replace,rename,codeActions,definition,references,toggleComment,foldAll,unfoldAll}` (`Command::Editor(EditorAction)`).
 - `titlebar.rs`: `menus(.., &Registry)` — `Item::Dyn` for runtime commands; View lists every `view.panel.*`; extension commands grouped by title category into their own menus (Git, Agent); Help → Keyboard Shortcuts, Documentation.
 - `explorer.rs`: source rows carry `data-kind`, `--mk-source-color`, the kind icon and a lock for read-only sources.
+
+## Milestone 11 (remote folders)
+- `remote_dialog.rs`: **Open Remote Folder…** (`.mk-remote-dialog` on the palette backdrop) — host (datalist from `ws.remote_hosts()`), folder path, Connect → `ws.open_remote`; Escape/Cancel closes. Explains that the system `ssh` does the authenticating and that the server is copied once per version.
+- `frame.rs`: `Command::OpenRemote` opens the dialog, `Command::CloseRemote` → `ws.close_remote()`. `commands.rs`: `remote.open` ("File: Open Remote Folder… (SSH)"), `remote.close`. `titlebar.rs`: `menus(.., remote: Option<bool>, ..)` adds *Open Remote Folder…* and, while connected, *Disconnect Remote* to File when the platform has `WorkspaceConfig::remote`.
+- `shell.rs`: status-bar item `⇅ host:path · <phase>` (`.mk-status-remote`) while a session exists. `explorer.rs`: a folder opened through the session gets the `folder-remote` icon.

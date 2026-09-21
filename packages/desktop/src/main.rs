@@ -22,6 +22,13 @@ use ui::{
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    // Milestone 11: `MOONKALE_REMOTE=http://host:port` (+ `MOONKALE_TOKEN`)
+    // makes this desktop a client of that Moonkale server from the start.
+    if let Ok(url) = std::env::var("MOONKALE_REMOTE") {
+        let token = std::env::var("MOONKALE_TOKEN").ok();
+        api::client::connect(&url, token.as_deref(), &url);
+        eprintln!("moonkale: remote mode — sources, terminal, LSP and git on {url}");
+    }
     #[cfg(all(feature = "desktop", target_os = "linux"))]
     mute_webkit_exit_dumps();
     #[cfg(feature = "desktop")]
@@ -71,6 +78,17 @@ fn registry() -> &'static SourceRegistry {
 /// Native build: open the folder in-process with `FolderSource`, index it,
 /// and register both process-wide. A `.sqlite`/`.db` file or a
 /// `.lbug`/`.kuzu` database opens as that database instead.
+/// Milestone 11: when the desktop is connected to a Moonkale server
+/// (`api::client::active()`), sources, terminal, LSP, git, Typst and wasm
+/// extensions go to that server; otherwise everything is local. The LLM
+/// provider is always local (keys stay on this machine).
+fn open_folder(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
+    if api::client::active().is_some() {
+        return api::client::open_folder(path, options);
+    }
+    open_local(path, options)
+}
+
 fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
@@ -142,6 +160,13 @@ fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
 }
 
 /// Another window opened it: take the shared instance from the registry.
+fn attach_source(descriptor: SourceDescriptor) -> AttachFuture {
+    if api::client::active().is_some() {
+        return api::client::attach_source(descriptor);
+    }
+    attach_local(descriptor)
+}
+
 fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
     Box::pin(async move {
         if let Some(s) = registry().get(&descriptor.id) {
@@ -163,20 +188,114 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
     })
 }
 
-/// Local terminal: the user's shell in a PTY.
+// ---- Remote folders over SSH (Milestone 11) ----
+
+/// `File → Open Remote Folder…`: start the ssh session; the workspace gets
+/// the `ssh` terminal and a handle to close it.
+fn open_remote(
+    host: String,
+    path: String,
+    sink: ui::remote::PhaseSink,
+) -> Result<ui::remote::Opened, String> {
+    use moonkale_remote::Phase;
+    let target = moonkale_remote::SshTarget { host, path };
+    let binary = moonkale_remote::server_binary();
+    if binary.is_none() {
+        tracing::warn!("remote: no moonkale-server binary to upload (MOONKALE_SERVER_BINARY)");
+    }
+    let (session, tee) = moonkale_remote::SshSession::open(target, binary, move |p| {
+        sink(match p {
+            Phase::Connecting => ui::remote::RemotePhase::Connecting,
+            Phase::Prompt(l) => ui::remote::RemotePhase::Prompt(l),
+            Phase::Uploading => ui::remote::RemotePhase::Uploading,
+            Phase::Starting => ui::remote::RemotePhase::Starting,
+            Phase::Ready { .. } => ui::remote::RemotePhase::Ready,
+            Phase::Failed(e) => ui::remote::RemotePhase::Failed(e),
+            Phase::Closed => ui::remote::RemotePhase::Closed,
+        })
+    })?;
+    Ok((Box::new(tee), Arc::new(RemoteHandle(session))))
+}
+
+struct RemoteHandle(moonkale_remote::SshSession);
+impl ui::remote::RemoteSession for RemoteHandle {
+    fn close(&self) {
+        self.0.close();
+    }
+}
+
+/// `Host` aliases of `~/.ssh/config` (no wildcards), for the dialog.
+fn ssh_hosts() -> Vec<String> {
+    let Some(home) = std::env::var_os("HOME") else {
+        return Vec::new();
+    };
+    let Ok(text) = std::fs::read_to_string(std::path::Path::new(&home).join(".ssh/config")) else {
+        return Vec::new();
+    };
+    ssh_hosts_in(&text)
+}
+
+fn ssh_hosts_in(text: &str) -> Vec<String> {
+    let mut hosts: Vec<String> = text
+        .lines()
+        .filter_map(|l| {
+            let l = l.trim();
+            let rest = l
+                .strip_prefix("Host ")
+                .or_else(|| l.strip_prefix("Host\t"))?;
+            Some(
+                rest.split_whitespace()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .flatten()
+        .filter(|h| !h.contains('*') && !h.contains('?') && !h.starts_with('!'))
+        .collect();
+    hosts.sort();
+    hosts.dedup();
+    hosts
+}
+
+/// `MOONKALE_SSH=host:/path` (or `--ssh host:/path`): open that remote
+/// folder when the window starts.
+fn ssh_at_start() -> Option<(String, String)> {
+    let spec = std::env::var("MOONKALE_SSH").ok().or_else(|| {
+        let mut args = std::env::args().skip(1);
+        while let Some(a) = args.next() {
+            if a == "--ssh" {
+                return args.next();
+            }
+            if let Some(v) = a.strip_prefix("--ssh=") {
+                return Some(v.to_string());
+            }
+        }
+        None
+    })?;
+    let (host, path) = spec.split_once(':')?;
+    Some((host.to_string(), path.to_string()))
+}
+
+/// Local terminal: the user's shell in a PTY — or the server's (Milestone 11).
 fn spawn_terminal(
     cwd: Option<String>,
     cols: u16,
     rows: u16,
 ) -> moonkale_terminal::SpawnTerminalFuture {
+    if api::client::active().is_some() {
+        return api::client::spawn_terminal(cwd, cols, rows);
+    }
     Box::pin(async move {
         moonkale_terminal_pty::PtyBackend::spawn(cwd.as_deref(), None, cols, rows)
             .map(|p| Box::new(p) as Box<dyn moonkale_terminal::TerminalBackend>)
     })
 }
 
-/// Typst compiles in-process (embedded fonts).
+/// Typst compiles in-process (embedded fonts) — or on the server.
 fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
+    if api::client::active().is_some() {
+        return api::client::compile_typst(root, main_rel, text);
+    }
     Box::pin(async move {
         moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text).map_err(|d| {
             d.into_iter()
@@ -189,8 +308,11 @@ fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTyp
     })
 }
 
-/// Language servers run locally over stdio.
+/// Language servers run locally over stdio — or on the server.
 fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
+    if api::client::active().is_some() {
+        return api::client::spawn_lsp(language, root);
+    }
     Box::pin(async move {
         let spec = moonkale_lsp_local::discover::find(&language).ok_or_else(|| {
             match moonkale_lsp_local::discover::install_hint(&language) {
@@ -276,6 +398,9 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 
 /// wasm extensions run in-process (wasmtime) over the process registry.
 fn git_local(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
+    if api::client::active().is_some() {
+        return api::client::git(root, req);
+    }
     Box::pin(async move { moonkale_ext_git::cli::run(std::path::Path::new(&root), req).await })
 }
 
@@ -300,6 +425,26 @@ mod wasm_ext {
     fn runtime() -> &'static Mutex<Runtime> {
         static RT: OnceLock<Mutex<Runtime>> = OnceLock::new();
         RT.get_or_init(|| Mutex::new(Runtime::new().expect("wasmtime engine")))
+    }
+
+    /// Server-side modules when connected (Milestone 11), local ones otherwise.
+    pub fn list_any(folder: Option<String>) -> ui::SettingsFuture<Vec<WasmManifest>> {
+        if api::client::active().is_some() {
+            return api::client::wasm_list(folder);
+        }
+        list(folder)
+    }
+
+    pub fn run_any(
+        ext: String,
+        command: String,
+        args: serde_json::Value,
+        granted: Vec<String>,
+    ) -> ui::SettingsFuture<String> {
+        if api::client::active().is_some() {
+            return api::client::wasm_run(ext, command, args, granted);
+        }
+        run(ext, command, args, granted)
     }
 
     pub fn list(folder: Option<String>) -> ui::SettingsFuture<Vec<WasmManifest>> {
@@ -473,12 +618,24 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_local, pick_folder: Some(pick_folder), attach_source: attach_local, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list, run: wasm_ext::run }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None },
+                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }) },
                 session,
                 new_window: open_window,
             },
             controls,
             Shell {}
         }
+    }
+}
+
+#[cfg(test)]
+mod remote_tests {
+    #[test]
+    fn ssh_config_hosts() {
+        let cfg = "Host build-box\n  HostName 10.0.0.2\n\nHost *\n  ServerAliveInterval 30\nHost lab lab2 !lab-*\n\tUser me\nHost\tzed\n";
+        assert_eq!(
+            super::ssh_hosts_in(cfg),
+            vec!["build-box", "lab", "lab2", "zed"]
+        );
     }
 }

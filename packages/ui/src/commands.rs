@@ -46,6 +46,14 @@ fn builtins() -> Vec<(CommandContribution, Command)> {
             Command::CloseFolder,
         ),
         (
+            c("remote.open", "File: Open Remote Folder… (SSH)"),
+            Command::OpenRemote,
+        ),
+        (
+            c("remote.close", "File: Disconnect Remote"),
+            Command::CloseRemote,
+        ),
+        (
             c("file.new", "File: New File…").key("Ctrl+N"),
             Command::NewFile("untitled.md", "# Untitled\n\n"),
         ),

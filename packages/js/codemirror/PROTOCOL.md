@@ -68,3 +68,4 @@ language server and replies with `hoverResult` carrying the same `id`.
 - `[[` completion answers arrive through the existing `completionResult(el, id, items)`; the labels are page targets and are inserted as `[[target]]`.
 - `features.wrap` at mount and `setWrap(el, bool)` later: soft wrap through a compartment (spec 014).
 - `run(el, action)` (spec 009): `find | replace | rename | codeActions | definition | references | toggleComment | foldAll | unfoldAll`.
+- `onChange(changes, length)` (spec 018): `changes` are `{from, to, insert}` splices in UTF-16 offsets of the text before the transaction, in document order; `length` is the new document length. The whole text is never sent on a change.

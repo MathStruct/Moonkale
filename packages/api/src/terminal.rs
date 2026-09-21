@@ -25,6 +25,13 @@ pub async fn terminal_socket(
             let _ = socket.send(TerminalMessage::Exit { code: None, message: Some("expected an Open message".into()) }).await;
             return;
         };
+        // `MOONKALE_TERMINAL=0`: a server meant for editing hands out no
+        // shell (Milestone 11 — the token is not a shell then).
+        if std::env::var("MOONKALE_TERMINAL").map(|v| v == "0").unwrap_or(false) {
+            tracing::warn!(target: "moonkale::audit", "terminal refused: MOONKALE_TERMINAL=0");
+            let _ = socket.send(TerminalMessage::Exit { code: None, message: Some("the terminal is switched off on this server (MOONKALE_TERMINAL=0)".into()) }).await;
+            return;
+        }
         // Confine the working directory to the allowed root.
         let cwd = match crate::state::jail_dir(cwd.as_deref()) {
             Ok(p) => p,

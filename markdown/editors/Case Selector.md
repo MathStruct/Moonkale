@@ -41,7 +41,7 @@ Sparsification in the coarse tier, concretely: (1) hierarchy-based — the index
 - Verification when built: E2E opens a generated 50 MB file and scrolls/edits fluently in the plain tier (frame time asserted via `performance.now()`), and a synthetic 1 M-node source shows a coarse graph in < 2 s with a region that expands.
 
 ## Order (when scheduled)
-1. P-037 splices (raises the rich threshold, prerequisite for plain).
+1. ~~P-037 splices~~ done 2026-09-21 ([[018]]): the rich tier's limit is now the LSP's full-text `didChange` and the index, not the bridge.
 2. Text selector + `backend::plain` + indicator/override.
 3. Graph coarse tier from the hierarchy the index already has + picking buffer + binary transfer.
 4. Viewer tier; community coarsening; GPU compute as an accelerator.

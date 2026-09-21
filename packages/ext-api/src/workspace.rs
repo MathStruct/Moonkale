@@ -16,6 +16,7 @@ use moonkale_core::{
     Node, NodeId, NodeKind, Query, QueryResult, Source, SourceDescriptor, SourceError, SourceId,
     TextPatch, Transaction,
 };
+use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -140,6 +141,8 @@ pub struct WorkspaceConfig {
     /// Where the browser runtime fetches a wasm extension's bytes (by id);
     /// `Some` enables running modules in the page (Milestone 8, web).
     pub wasm_module_url: Option<fn(String) -> String>,
+    /// Remote folders over SSH (Milestone 11; desktop only).
+    pub remote: Option<crate::remote::RemoteHosts>,
 }
 
 /// "Draw this query's result": set by the table editor's *Show in Graph*,
@@ -210,6 +213,11 @@ pub enum Command {
     Editor(EditorAction),
     /// Open the documentation site (Help menu).
     Docs,
+    /// Ask for a host and a path, then open that folder over SSH
+    /// (Milestone 11).
+    OpenRemote,
+    /// End the SSH session and close what it opened.
+    CloseRemote,
 }
 
 /// Actions the menus can ask the active editor for (spec 009); the editor
@@ -274,6 +282,11 @@ pub struct Workspace {
     pub hidden_tiles: Signal<std::collections::BTreeMap<String, Vec<String>>>,
     /// Directory for the next `NewTerminal` (set by "New terminal here").
     pub terminal_cwd: Signal<Option<String>>,
+    /// Terminal sessions started elsewhere (the `ssh` of a remote session)
+    /// that the terminal panel adopts as tabs (Milestone 11).
+    pub adopt_terminals: Signal<Vec<Rc<RefCell<Option<moonkale_terminal::Session>>>>>,
+    /// The window's remote session, if any (Milestone 11).
+    pub remote: Signal<Option<crate::remote::RemoteState>>,
     /// Bumped whenever derived data may have changed (after a save was
     /// refreshed into the index); graph/backlink panels re-query on it.
     pub graph_epoch: Signal<u64>,
@@ -338,6 +351,8 @@ impl Workspace {
             cursor_line: Signal::new_in_scope(None, ScopeId::ROOT),
             assets_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
+            adopt_terminals: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            remote: Signal::new_in_scope(None, ScopeId::ROOT),
             lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
             graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
             reveal: Signal::new_in_scope(None, ScopeId::ROOT),
@@ -528,10 +543,158 @@ impl Workspace {
         self.sources
             .with_mut(|v| v.retain(|s| !closing.contains(&s.descriptor.id)));
         self.graph_epoch.with_mut(|e| *e += 1);
-        self.update_user_settings(|f| f.reopen_last = Some(false))
-            .await;
+        if self.is_remote_source(id) {
+            self.close_remote();
+        } else {
+            self.update_user_settings(|f| f.reopen_last = Some(false))
+                .await;
+        }
         self.set_status(format!("Closed {}", handle.descriptor.display_name));
         Ok(())
+    }
+
+    // ---- Remote folders (Milestone 11) ----
+
+    /// Can this platform open folders over SSH?
+    pub fn has_remote(&self) -> bool {
+        self.config.remote.is_some()
+    }
+
+    /// Host aliases from `~/.ssh/config` (desktop), for the dialog.
+    pub fn remote_hosts(&self) -> Vec<String> {
+        self.config.remote.map(|r| (r.hosts)()).unwrap_or_default()
+    }
+
+    /// Was `id` opened through the remote session?
+    pub fn is_remote_source(&self, id: &SourceId) -> bool {
+        self.remote
+            .peek()
+            .as_ref()
+            .is_some_and(|r| r.sources.contains(id))
+    }
+
+    /// Start a session to `host` and open `path` there when it is up. The
+    /// `ssh` process becomes a terminal tab (its prompts are answered
+    /// there); phases arrive on a channel and drive the status bar.
+    pub fn open_remote(mut self, host: String, path: String) {
+        let Some(remote) = self.config.remote else {
+            self.set_status("Remote folders are not available on this platform");
+            return;
+        };
+        if self.remote.peek().is_some() {
+            self.close_remote();
+        }
+        let host = host.trim().to_string();
+        let path = path.trim().to_string();
+        if host.is_empty() || path.is_empty() {
+            self.set_status("Remote: a host and a path are needed");
+            return;
+        }
+        let (tx, mut rx) = futures_channel::mpsc::unbounded::<crate::remote::RemotePhase>();
+        let sink: crate::remote::PhaseSink = Box::new(move |p| {
+            let _ = tx.unbounded_send(p);
+        });
+        let (backend, session) = match (remote.open)(host.clone(), path.clone(), sink) {
+            Ok(x) => x,
+            Err(e) => {
+                self.set_status(format!("Remote: {e}"));
+                return;
+            }
+        };
+        self.remote.set(Some(crate::remote::RemoteState {
+            host: host.clone(),
+            path: path.clone(),
+            phase: crate::remote::RemotePhase::Connecting,
+            session,
+            sources: Vec::new(),
+        }));
+        let title = backend.title();
+        self.adopt_terminal(moonkale_terminal::Session {
+            id: moonkale_terminal::SessionId::fresh(),
+            title,
+            cwd: None,
+            backend,
+        });
+        self.set_status(format!("Remote: connecting to {host}…"));
+        spawn(async move {
+            use crate::remote::RemotePhase as P;
+            use futures_util::StreamExt;
+            while let Some(p) = rx.next().await {
+                if self.remote.peek().is_none() {
+                    break; // closed meanwhile
+                }
+                self.remote.with_mut(|r| {
+                    if let Some(r) = r {
+                        r.phase = p.clone();
+                    }
+                });
+                match &p {
+                    P::Prompt(line) => {
+                        self.set_status(format!("ssh {host}: {line} — answer in the terminal"));
+                        self.dispatch(Command::ShowPanel("terminal"));
+                    }
+                    P::Uploading => self.set_status(format!(
+                        "Remote: {host} has no Moonkale server yet — uploading it (once per version)…"
+                    )),
+                    P::Starting => self.set_status(format!("Remote: starting the server on {host}…")),
+                    P::Ready => {
+                        self.set_status(format!("Remote: connected to {host}, opening {path}…"));
+                        if let Err(e) = self.open_folder(path.clone()).await {
+                            self.set_status(format!("Remote: {host} is connected but {path} did not open: {e}"));
+                        }
+                    }
+                    P::Failed(e) => self.set_status(format!("Remote: {e}")),
+                    P::Connecting | P::Closed => {}
+                }
+                if p.is_final() {
+                    break;
+                }
+            }
+        });
+    }
+
+    /// End the session: the sources it opened go, `ssh` and the remote
+    /// server with it, and the desktop is local again.
+    pub fn close_remote(&mut self) {
+        let Some(state) = self.remote.take() else {
+            return;
+        };
+        state.session.close();
+        let closing = state.sources.clone();
+        let docs: Vec<NodeId> = self
+            .documents
+            .peek()
+            .iter()
+            .filter(|(_, d)| closing.contains(&d.peek().node.source))
+            .map(|(n, _)| *n)
+            .collect();
+        for n in docs {
+            self.close_node(n);
+        }
+        if !closing.is_empty() {
+            self.sources
+                .with_mut(|v| v.retain(|s| !closing.contains(&s.descriptor.id)));
+            if self
+                .settings_folder
+                .peek()
+                .as_ref()
+                .is_some_and(|f| closing.contains(f))
+            {
+                self.settings_folder.set(None);
+                self.settings_workspace
+                    .set(crate::settings::SettingsFile::new());
+                self.resolve_settings();
+            }
+            self.graph_epoch.with_mut(|e| *e += 1);
+        }
+        self.set_status(format!("Remote: disconnected from {}", state.label()));
+    }
+
+    /// Hand a running terminal to the terminal panel (it becomes a tab).
+    pub fn adopt_terminal(&mut self, session: moonkale_terminal::Session) {
+        self.adopt_terminals
+            .with_mut(|v| v.push(Rc::new(RefCell::new(Some(session)))));
+        self.dispatch(Command::ShowPanel("terminal"));
     }
 
     pub async fn attach_source(mut self, descriptor: SourceDescriptor) -> Result<(), SourceError> {
@@ -808,7 +971,14 @@ impl Workspace {
             Err(e) => self.set_status(format!("Settings not loaded: {e}")),
         }
         self.refresh_wasm_extensions().await;
-        // Desktop: come back to where you were.
+        // Desktop: a remote folder asked for on the command line wins
+        // (Milestone 11) …
+        if let Some((host, path)) = self.config.remote.and_then(|r| (r.at_start)()) {
+            tracing::info!("remote: opening {host}:{path} at start");
+            self.open_remote(host, path);
+            return;
+        }
+        // … else come back to where you were.
         if self.config.reopen_last_folder
             && self.sources.peek().is_empty()
             && self.settings_user.peek().reopen_last != Some(false)
@@ -1373,8 +1543,10 @@ impl Workspace {
         let sources = (self.config.open_folder)(path, options).await?;
         tracing::info!("open_folder: {} sources", sources.len());
         let mut first: Option<SourceDescriptor> = None;
+        let mut opened: Vec<SourceId> = Vec::new();
         for source in sources {
             let descriptor = source.descriptor();
+            opened.push(descriptor.id.clone());
             self.sources.with_mut(|v| {
                 v.retain(|s| s.descriptor.id != descriptor.id);
                 v.push(SourceHandle {
@@ -1391,7 +1563,21 @@ impl Workspace {
         let first = first.ok_or_else(|| SourceError::Invalid("nothing opened".into()))?;
         self.set_status(format!("Opened {}", self.sources_summary()));
         tracing::info!("open_folder: first {} ({:?})", first.id, first.family);
-        if first.family == moonkale_core::SourceFamily::Folder {
+        let remote = self
+            .remote
+            .peek()
+            .as_ref()
+            .is_some_and(|r| r.phase == crate::remote::RemotePhase::Ready);
+        if remote {
+            // Opened through the SSH session: remember it there, not in the
+            // recent folders (the path is not on this machine).
+            self.remote.with_mut(|r| {
+                if let Some(r) = r {
+                    r.sources.extend(opened.iter().cloned());
+                }
+            });
+        }
+        if first.family == moonkale_core::SourceFamily::Folder && !remote {
             // Workspace settings + remember the folder.
             self.load_workspace_settings(&first.id).await;
             self.refresh_wasm_extensions().await;

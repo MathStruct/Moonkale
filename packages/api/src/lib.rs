@@ -38,6 +38,7 @@ pub use git::git_run;
 #[cfg(feature = "server")]
 pub use wasm::module_bytes;
 pub use wasm::{list_wasm_extensions, run_wasm_command};
+pub mod client;
 mod remote;
 mod terminal;
 pub use llm::ProviderInfo;

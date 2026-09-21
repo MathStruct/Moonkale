@@ -15,6 +15,10 @@ tracing = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 axum = { version = "0.8", optional = true }
+axum-server = { version = "0.7", features = ["tls-rustls-no-provider"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"], optional = true }
+tracing = "0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Window", "Storage"] }
@@ -22,4 +26,4 @@ web-sys = { version = "0.3", features = ["Window", "Storage"] }
 [features]
 default = []
 web = ["dioxus/web"]
-server = ["dioxus/server", "ui/server", "api/server", "dep:axum"]
+server = ["dioxus/server", "ui/server", "api/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio"]

@@ -21,6 +21,18 @@ impl PtyBackend {
         cols: u16,
         rows: u16,
     ) -> Result<Self, String> {
+        Self::spawn_args(cwd, program, &[], cols, rows)
+    }
+
+    /// `spawn` with arguments for `program` (Milestone 11: `ssh host …`
+    /// under a PTY so its prompts work).
+    pub fn spawn_args(
+        cwd: Option<&str>,
+        program: Option<&str>,
+        args: &[String],
+        cols: u16,
+        rows: u16,
+    ) -> Result<Self, String> {
         let pty = native_pty_system();
         let pair = pty
             .openpty(PtySize {
@@ -35,6 +47,9 @@ impl PtyBackend {
             .or_else(|| std::env::var("SHELL").ok())
             .unwrap_or_else(|| "/bin/sh".into());
         let mut cmd = CommandBuilder::new(&shell);
+        for a in args {
+            cmd.arg(a);
+        }
         if let Some(dir) = cwd {
             cmd.cwd(dir);
         }
@@ -85,6 +100,13 @@ impl PtyBackend {
 
     pub fn is_running(&self) -> bool {
         matches!(self.child.lock().unwrap().try_wait(), Ok(None))
+    }
+
+    /// End the child now (a remote session being closed).
+    pub fn kill(&self) {
+        if let Ok(mut c) = self.child.lock() {
+            let _ = c.kill();
+        }
     }
 }
 

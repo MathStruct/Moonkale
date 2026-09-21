@@ -30,6 +30,22 @@ were built with graph databases or retrieval-augmented agents in mind.
 
 ## Where it stands
 
+**Milestone 11 — "Remote"** (2026-09-21). *File → Open Remote Folder…*:
+the system `ssh` runs in a terminal tab (your keys, agent, passwords and
+host-key prompts, untouched by Moonkale), Moonkale's own server is copied to
+the host once per version and started on its loopback with a per-session
+token over stdin, the port is forwarded — the folder, index, LSP, git and
+terminal run *there*, the editor, the graph and the LLM keys stay *here*;
+closing the folder ends everything. A standalone `moonkale-server` with
+built-in TLS, a terminal switch and Origin checks for the servers you
+expose. Also `moonkale --ssh host:/path`.
+
+**Milestone 10 — "Daily use"** (2026-09-21). Nineteen small specifications
+from daily use, all done: KaTeX formulas and Obsidian-style `[[wiki-links]]`
+in the rich editor, syntax highlighting for the core languages, word wrap,
+closeable panels, an image viewer, an activity bar with menus and source
+icons, front matter as properties, two-finger gestures on Android.
+
 **Milestone 9 — "Second halves"** (2026-09-19). History you can act on —
 compaction into snapshots and *Restore* of any earlier text as an unsaved
 edit with provenance; presence with cursor lines in the editor gutter and a

@@ -69,5 +69,33 @@ try {
     const text = fs.readFileSync(`${ROOT}/Math.md`, "utf8");
     if (!text.includes("$\\alpha + \\beta^2$") || !text.includes("\\frac{1}{3}")) throw new Error("math source changed on disk: " + text);
   });
+  await step("front matter (spec 019): hidden from the rich view, shown as Properties, editable, saved intact", async () => {
+    fs.writeFileSync(`${ROOT}/Front.md`, "---\ntitle: \"Front\"\ntags: [demo]\n---\n# Front\n\nBody text.\n");
+    await page.click(".mk-explorer-open button[type=submit]");
+    await page.waitForSelector(".mk-tree-file >> text=Front.md", { timeout: 15000 });
+    await page.click(".mk-tree-file >> text=Front.md");
+    await page.waitForSelector(".mk-md .cm-content:visible", { timeout: 15000 });
+    await page.click(".mk-md-modes button:has-text('Rich'):visible");
+    await page.waitForSelector(".mk-rich-host:visible .ProseMirror h1", { timeout: 30000 });
+    const pm = await page.$eval(".mk-rich-host:visible .ProseMirror", (e) => e.textContent);
+    if (/title:|---/.test(pm)) throw new Error("front matter leaked into the rich view: " + pm.slice(0, 60));
+    const summary = await page.$eval(".mk-rich:visible .mk-props-summary", (e) => e.textContent);
+    console.log("\n  properties:", summary);
+    if (!/title: Front/.test(summary)) throw new Error("summary wrong");
+    await page.click(".mk-rich:visible .mk-props-head");
+    await page.waitForSelector(".mk-rich:visible .mk-props-yaml", { timeout: 5000 });
+    await page.fill(".mk-rich:visible .mk-props-yaml", 'title: "Front"\ntags: [demo, edited]');
+    await page.click(".mk-rich-host:visible .ProseMirror p");
+    await page.keyboard.press("End");
+    await page.keyboard.type(" More.");
+    await page.waitForFunction(() => [...document.querySelectorAll(".mk-rich-host .ProseMirror")].some((e) => e.offsetParent && /More\./.test(e.textContent)), null, { timeout: 5000 });
+    await page.waitForTimeout(400);
+    await page.click(".mk-rich button:has-text('Save'):visible");
+    await page.waitForFunction(() => ![...document.querySelectorAll(".mk-rich .mk-editor-dirty")].some((e) => e.offsetParent !== null), null, { timeout: 15000 });
+    const saved = fs.readFileSync(`${ROOT}/Front.md`, "utf8");
+    console.log("  saved:", JSON.stringify(saved));
+    if (!saved.startsWith('---\ntitle: "Front"\ntags: [demo, edited]\n---\n')) throw new Error("front matter not saved intact");
+    if (!/Body text\. More\./.test(saved)) throw new Error("body edit lost");
+  });
   console.log("\nRICH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

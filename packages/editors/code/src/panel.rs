@@ -65,9 +65,29 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
                 BackendEvent::Ready => ready.set(true),
                 BackendEvent::Failed(message) => mount_error.set(Some(message)),
-                BackendEvent::Changed(text) => {
-                    view_text.set(text.clone());
-                    doc.with_mut(|d| d.text = text.clone());
+                // Spec 018 / P-037: the view sends splices; `view_text` is
+                // Rust's mirror of the view and receives them first, then
+                // the document takes the mirror (a memcpy, not a JSON hop).
+                BackendEvent::Spliced { changes, length } => {
+                    let ok = view_text.with_mut(|t| backend::apply_splices(t, &changes));
+                    let mirrored_len = view_text.peek().encode_utf16().count() as u32;
+                    if !ok || mirrored_len != length {
+                        // Out of sync (should not happen): the whole text is
+                        // logged and the view is asked to replace ours.
+                        tracing::warn!(
+                            "editor: splice mismatch (ok={ok}, len {mirrored_len} vs {length}); resyncing"
+                        );
+                        let text = doc.peek().text.clone();
+                        view_text.set(text.clone());
+                        if let Some(b) = backend.peek().as_ref() {
+                            b.set_text(&text);
+                        }
+                        return;
+                    }
+                    let text = view_text.peek().clone();
+                    if doc.peek().text != text {
+                        doc.with_mut(|d| d.text = text.clone());
+                    }
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.as_ref())
                     {
@@ -250,13 +270,14 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         }
     };
 
-    // Text changed outside the view (an agent edit, a reload): push it.
+    // Text changed outside the view (an agent edit, a reload): push it. The
+    // mirror is *not* updated here — the view answers with the splice it
+    // applied, and that brings the mirror up to date (spec 018).
     use_effect(move || {
         let text = doc.read().text.clone();
         if !ready() || *view_text.peek() == text {
             return;
         }
-        view_text.set(text.clone());
         if let Some(b) = backend.peek().as_ref() {
             b.set_text(&text);
         }

@@ -38,7 +38,9 @@ pub fn token() -> Option<String> {
 /// the router is built; prints the mode once.
 pub fn guard_bind() {
     let ip: Option<IpAddr> = std::env::var("IP").ok().and_then(|s| s.parse().ok());
-    match bind_mode(ip, token().is_some()) {
+    let tls = tls_files().is_some();
+    let insecure = std::env::var("MOONKALE_INSECURE_HTTP").is_ok_and(|v| v == "1");
+    match bind_mode(ip, token().is_some(), tls, insecure) {
         Ok(msg) => eprintln!("moonkale: {msg}"),
         Err(msg) => {
             eprintln!("moonkale: {msg}");
@@ -47,13 +49,38 @@ pub fn guard_bind() {
     }
 }
 
-/// What serving on `ip` means with or without a token: `Ok(mode)` or the
-/// reason to refuse.
-pub fn bind_mode(ip: Option<IpAddr>, has_token: bool) -> Result<String, String> {
+/// `MOONKALE_TLS_CERT` + `MOONKALE_TLS_KEY` (PEM files): serve HTTPS
+/// (Milestone 11). Both or neither.
+pub fn tls_files() -> Option<(String, String)> {
+    let cert = std::env::var("MOONKALE_TLS_CERT").ok()?;
+    let key = std::env::var("MOONKALE_TLS_KEY").ok()?;
+    Some((cert, key))
+}
+
+/// What serving on `ip` means with or without a token and TLS: `Ok(mode)`
+/// or the reason to refuse. Off loopback, a token is required (Milestone 7)
+/// and so is TLS (Milestone 11) — the token would otherwise cross the
+/// network in clear — unless `MOONKALE_INSECURE_HTTP=1` says a reverse
+/// proxy or a VPN terminates TLS in front of us.
+pub fn bind_mode(
+    ip: Option<IpAddr>,
+    has_token: bool,
+    tls: bool,
+    insecure_ok: bool,
+) -> Result<String, String> {
     let loopback = ip.map(|i| i.is_loopback()).unwrap_or(true);
+    let scheme = if tls { "https" } else { "http" };
     match (has_token, loopback) {
-        (true, _) => Ok("access token required (MOONKALE_TOKEN); log in at /login".into()),
-        (false, true) => Ok("dev mode — no MOONKALE_TOKEN, serving on loopback only".into()),
+        (true, false) if !tls && !insecure_ok => Err(format!(
+            "refusing to bind {} over plain HTTP — set MOONKALE_TLS_CERT/MOONKALE_TLS_KEY, or MOONKALE_INSECURE_HTTP=1 behind a TLS proxy",
+            ip.map(|i| i.to_string()).unwrap_or_default()
+        )),
+        (true, _) => Ok(format!(
+            "access token required (MOONKALE_TOKEN); log in at /login ({scheme})"
+        )),
+        (false, true) => Ok(format!(
+            "dev mode — no MOONKALE_TOKEN, serving on loopback only ({scheme})"
+        )),
         (false, false) => Err(format!(
             "refusing to bind {} without MOONKALE_TOKEN — set a token to expose the server",
             ip.map(|i| i.to_string()).unwrap_or_default()
@@ -88,6 +115,50 @@ fn presented(req: &Request) -> Option<String> {
         .find_map(|kv| kv.strip_prefix(&format!("{COOKIE}=")).map(str::to_string))
 }
 
+fn is_upgrade(req: &Request) -> bool {
+    req.headers()
+        .get(header::UPGRADE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
+}
+
+/// `Some(origin)` when the request carries an `Origin` whose host differs
+/// from the `Host` it was sent to (scheme and port ignored: a reverse proxy
+/// may terminate TLS on another port).
+fn cross_origin(req: &Request) -> Option<String> {
+    let origin = req
+        .headers()
+        .get(header::ORIGIN)?
+        .to_str()
+        .ok()?
+        .to_string();
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    (!same_host(&origin, host)).then_some(origin)
+}
+
+/// Compare the host part of an origin (`https://a.b:1`) with a `Host` header (`a.b:2`).
+pub fn same_host(origin: &str, host: &str) -> bool {
+    let o = origin
+        .split("://")
+        .nth(1)
+        .unwrap_or(origin)
+        .split('/')
+        .next()
+        .unwrap_or("");
+    let strip = |s: &str| -> String {
+        // `[::1]:8080` keeps its brackets; `host:port` loses the port.
+        if let Some(end) = s.strip_prefix('[').and_then(|r| r.find(']')) {
+            return s[..end + 2].to_string();
+        }
+        s.rsplit_once(':').map(|(h, _)| h).unwrap_or(s).to_string()
+    };
+    !o.is_empty() && strip(o).eq_ignore_ascii_case(&strip(host))
+}
+
 /// The client address: `X-Forwarded-For` (the reverse proxy this server is
 /// meant to sit behind), else the socket (when the host installs
 /// `ConnectInfo`; dioxus's `serve` does not), else `?`.
@@ -110,6 +181,20 @@ fn client_ip(req: &Request) -> String {
 /// The gate: see the module docs.
 pub async fn middleware(req: Request, next: Next) -> Response {
     let path = req.uri().path().to_string();
+    // Websocket upgrades from a *different* origin are refused outright: a
+    // page elsewhere must not drive the terminal or the LSP relay with the
+    // user's cookie (Milestone 11). Native clients send no Origin at all.
+    if is_upgrade(&req) {
+        if let Some(bad) = cross_origin(&req) {
+            let ip = client_ip(&req);
+            tracing::warn!(target: "moonkale::audit", "{ip} upgrade {path} from origin {bad} → 403");
+            return (
+                StatusCode::FORBIDDEN,
+                "moonkale: cross-origin websocket refused",
+            )
+                .into_response();
+        }
+    }
     let public = path == "/login"
         || path.starts_with("/assets/")
         || path.starts_with("/wasm/")
@@ -254,13 +339,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn origin_host_comparison() {
+        assert!(same_host("http://127.0.0.1:8090", "127.0.0.1:8090"));
+        assert!(same_host("https://moon.example", "moon.example:8443"));
+        assert!(same_host("http://[::1]:3000", "[::1]:3000"));
+        assert!(!same_host("http://evil.example", "127.0.0.1:8090"));
+        assert!(!same_host("", "127.0.0.1:8090"));
+    }
+
+    #[test]
     fn bind_rules() {
         let lo: IpAddr = "127.0.0.1".parse().unwrap();
         let any: IpAddr = "0.0.0.0".parse().unwrap();
-        assert!(bind_mode(Some(lo), false).is_ok());
-        assert!(bind_mode(None, false).is_ok());
-        assert!(bind_mode(Some(any), false).is_err());
-        assert!(bind_mode(Some(any), true).is_ok());
+        assert!(bind_mode(Some(lo), false, false, false).is_ok());
+        assert!(bind_mode(None, false, false, false).is_ok());
+        assert!(bind_mode(Some(any), false, false, false).is_err());
+        // Off loopback: token and TLS (or an explicit opt-out).
+        assert!(bind_mode(Some(any), true, false, false).is_err());
+        assert!(bind_mode(Some(any), true, true, false).is_ok());
+        assert!(bind_mode(Some(any), true, false, true).is_ok());
+        assert!(bind_mode(Some(any), false, true, false).is_err());
     }
 
     #[test]

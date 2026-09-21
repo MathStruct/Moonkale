@@ -27,6 +27,8 @@ moonkale-typst = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-lsp-local = { workspace = true }
 moonkale-llm = { workspace = true, features = ["http"] }
+api = { workspace = true }
+moonkale-remote = { workspace = true }
 moonkale-ext-host = { workspace = true, features = ["wasmtime"] }
 moonkale-ext-git = { workspace = true, features = ["cli"] }
 serde_json = "1"

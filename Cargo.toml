@@ -25,6 +25,7 @@ members = [
     "packages/lsp-local",
     "packages/terminal",
     "packages/terminal-pty",
+    "packages/remote",
     # Editors ("windows")
     "packages/editors/code",
     "packages/editors/markdown",
@@ -70,6 +71,7 @@ moonkale-lsp = { path = "packages/lsp" }
 moonkale-lsp-local = { path = "packages/lsp-local" }
 moonkale-terminal = { path = "packages/terminal" }
 moonkale-terminal-pty = { path = "packages/terminal-pty" }
+moonkale-remote = { path = "packages/remote" }
 moonkale-editor-code = { path = "packages/editors/code" }
 moonkale-editor-markdown = { path = "packages/editors/markdown" }
 moonkale-editor-table = { path = "packages/editors/table" }

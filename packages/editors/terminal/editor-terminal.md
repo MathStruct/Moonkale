@@ -13,3 +13,6 @@ E2E: `packages/web/tests/e2e/terminal.mjs` (prompt appears, `echo` output, secon
 
 ## Milestone 4
 **Trace → Graph** button in the tab bar: bumps `Sessions::trace_tick`; the visible `SessionView` asks JS for the whole buffer (`allText`), `moonkale_trace::parse`s it and adds a `TraceSource` per trace to the workspace (the Graph panel switches to it). Status bar reports "No stack trace … found" otherwise.
+
+## Milestone 11
+`TerminalPanel` adopts sessions pushed through `Workspace::adopt_terminals` (the `ssh` of a remote folder, a `TeeBackend`): they become tabs like any other and are activated, so `ssh`'s prompts are answered where they appear. The workspace also dispatches `ShowPanel("terminal")`, so a closed panel comes back first.

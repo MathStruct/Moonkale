@@ -40,6 +40,7 @@ pub use extension::Extension;
 pub mod flow;
 pub mod git;
 pub mod presence;
+pub mod remote;
 pub mod settings;
 pub mod wiki;
 pub use manifest::Manifest;

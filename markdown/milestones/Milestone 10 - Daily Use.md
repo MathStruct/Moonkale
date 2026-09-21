@@ -11,6 +11,8 @@ After Milestone 9 the work changed shape: Daniel uses Moonkale daily and files [
 |---|---|---|---|
 | 2026-09-20 | [[013]] Formulas | KaTeX in the rich editor: Crepe's Latex feature on, KaTeX css + woff2 fonts as a dx **folder asset** (`asset!("/assets/katex", AssetOptions::folder())`) linked through the new `StylesheetUrl`; per-folder macros from `.moonkale/katex.json` | `rich.mjs` (render, css, fonts, macro, disk unchanged); desktop `dx build` bundles `assets/katex/` |
 | 2026-09-20 | [[012]] Wiki-links | `ext-api::wiki` (parse, resolve, complete, follow-or-create, backlinks, rename rewrite) + a ProseMirror decoration plugin (`js/milkdown/src/wiki.ts`: hidden brackets, plain click, `[[` popup) + CodeMirror marks/completion/Ctrl+click for markdown sources + **Create** in the Links panel + `rename_node` rewriting links in every linking file | `wiki.mjs` (8 steps), 2 unit tests; `rich.mjs` adapted |
+| 2026-09-21 | [[018]] Splices (P-037) | bundle emits `iterChanges` splices; `backend::apply_splices` + `utf16_to_byte`; `view_text` mirror, resync on mismatch; outside edits no longer pre-mirrored | unit test; all editor suites; 3 MB step in `highlight.mjs` (87 ms) |
+| 2026-09-21 | [[019]] Front matter | rich view gets the body only; Properties bar (summary / YAML editor) above it; `split_frontmatter` / `join_frontmatter` | unit test; `rich.mjs` step |
 | 2026-09-20 | screenshots (README, vault index/Home) | `assets/UIDesktop.png` (web build, Chromium/SwiftShader, the vault as folder) + Daniel's `UIAndroid.jpg`; on the way: external markdown links no longer phantom pages, label collision avoidance, hub dissuasion, isolated-node gravity, fit over the connected part | index unit test; graph suites |
 | 2026-09-20 | [[017]] Graph reset | incremental `set_graph` in the renderer: shared nodes keep positions/pins, new nodes placed by neighbours, warm relayout only when the set changed, camera untouched | `graph3d.mjs` step |
 | 2026-09-20 | [[016]] "Loading editor…" hang | code editor mounts from `onmounted` (P-047 family), `try/catch` around `cm.mount` → `BackendEvent::Failed` shown in the panel, grammars degrade to plain text on error | editor suites; the desktop case is timing-dependent — Daniel's next open of the file |
@@ -33,6 +35,9 @@ After Milestone 9 the work changed shape: Daniel uses Moonkale daily and files [
 - Forgetting to rebuild a JS bundle after editing its TypeScript cost one debugging round (`moonkale-wiki` plugin key absent from the served file) — `npm run check` is not `npm run build`.
 - **P-094** `load` events on `<img>` never reach dioxus's delegated listener (non-bubbling); use `onmounted` + `img.decode()`. Also: an eval script is a *function body* — a bare IIFE expression returns `undefined`; `return` the value.
 - Test selectors: `:visible` is Playwright-only and invalid inside `page.evaluate`; hidden bracket spans share the link class, so tests select `.mk-wikilink:not(.mk-wiki-bracket)`; with highlighting a CodeMirror line is many text nodes, so XPath lookups walk the line's text nodes.
+
+## Closed 2026-09-21
+Specs 001–019 are done or documented; the next work is [[Milestone 11 - Remote]].
 
 ## Open (from the specifications folder)
 (none from the numbered specs — 001–015 are done, 002/003/004/005 documented); deferred parts of 012 (hover preview, embeds). Open question: whether the search stall was the embedding call (fixed) or something else Daniel sees.

@@ -80,8 +80,9 @@ struct PresenceOut<'a> {
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum FromJs {
     Ready,
-    Change {
-        text: String,
+    Splice {
+        changes: Vec<super::Splice>,
+        length: u32,
     },
     Hover {
         id: u32,
@@ -138,7 +139,7 @@ while (!(window.moonkale && window.moonkale.codemirror)) {
 const cm = window.moonkale.codemirror;
 const init = await dioxus.recv();
 try {
-cm.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), {
+cm.mount(el, init.text, (changes, length) => dioxus.send({ kind: "splice", changes, length }), {
     onHover: (id, line, col) => dioxus.send({ kind: "hover", id, line, col }),
     onDefinition: (line, col) => dioxus.send({ kind: "definition", line, col }),
     onCompletion: (id, line, col) => dioxus.send({ kind: "completion", id, line, col }),
@@ -201,7 +202,9 @@ impl CodeMirrorBackend {
             loop {
                 match rx.recv::<FromJs>().await {
                     Ok(FromJs::Ready) => on_event.call(BackendEvent::Ready),
-                    Ok(FromJs::Change { text }) => on_event.call(BackendEvent::Changed(text)),
+                    Ok(FromJs::Splice { changes, length }) => {
+                        on_event.call(BackendEvent::Spliced { changes, length })
+                    }
                     Ok(FromJs::Hover { id, line, col }) => {
                         on_event.call(BackendEvent::Hover { id, line, col })
                     }

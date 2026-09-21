@@ -46,6 +46,7 @@ fn menus(
     controls: Option<WindowControls>,
     recent: &[String],
     flow_enabled: bool,
+    remote: Option<bool>,
     registry: &crate::commands::Registry,
 ) -> Vec<(String, Vec<Item>)> {
     let desktop = controls.is_some();
@@ -63,6 +64,20 @@ fn menus(
             id: "workspace.closeFolder",
         },
     ];
+    // Remote folders (Milestone 11): `Some(connected)` where the platform has ssh.
+    if let Some(connected) = remote {
+        file.push(Item::Sep);
+        file.push(Item::Cmd {
+            label: "Open Remote Folder…",
+            id: "remote.open",
+        });
+        if connected {
+            file.push(Item::Cmd {
+                label: "Disconnect Remote",
+                id: "remote.close",
+            });
+        }
+    }
     if flow_enabled {
         file.push(Item::Direct {
             label: "New Flow…",
@@ -323,6 +338,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                         controls,
                         &ws.settings.read().recent_folders,
                         ws.settings.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
+                        ws.has_remote().then(|| ws.remote.read().is_some()),
                         &reg,
                     )
                 } {

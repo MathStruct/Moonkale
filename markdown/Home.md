@@ -84,7 +84,8 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 7 - Daily Driver]] (plan) → [[Milestone 7 - Implementation Log]] (what happened) ✅
 - [[Milestone 8 - Research]] (plan) → [[Milestone 8 - Implementation Log]] (what happened) ✅
 - [[Milestone 9 - Second Halves]] (plan) → [[Milestone 9 - Implementation Log]] (what happened) ✅ — incl. the first Android build on a phone
-- [[Milestone 10 - Daily Use]] — the specifications as the backlog: formulas, wiki-links, highlighting done (2026-09-20) ⏳
+- [[Milestone 10 - Daily Use]] — the specifications as the backlog: 001–019 done ✅
+- [[Milestone 11 - Remote]] (plan) → [[Milestone 11 - Implementation Log]] (what happened) ✅ — remote folders over SSH, the desktop as a client of a server, TLS
 
 ## Problems & planning
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done

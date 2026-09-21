@@ -1,0 +1,21 @@
+[package]
+name = "moonkale-remote"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Desktop only: opens a folder on another machine the way Zed does — the system ssh starts Moonkale's own server there, forwards its port, and the desktop becomes that server's client (Milestone 11)."
+
+[dependencies]
+moonkale-terminal = { workspace = true }
+moonkale-terminal-pty = { workspace = true }
+api = { workspace = true }
+futures-channel = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+futures-executor = "0.3"
+tokio = { version = "1", features = ["rt", "time", "process", "io-util", "net", "macros"] }
+tracing = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[dev-dependencies]
+moonkale-core = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "process", "io-util", "net"] }

@@ -27,3 +27,8 @@ WebKitGTK's web process crashes inside the NVIDIA EGL driver while tearing down 
 ## Milestone 9
 - `presence.rs`: the hub client. `MOONKALE_HUB=http(s)://host:port` → `ws(s)://…/api/presence`; `Authorization: Bearer $MOONKALE_TOKEN` when set; `Join` on connect, `Update`s from a channel, `Members` lists back to the UI thread through a channel drained by a spawned future. Frames are JSON in binary websocket messages (what dioxus typed websockets send; text accepted too). `tests/hub.rs` (ignored) joins a running hub and checks the reply — run with `MOONKALE_HUB=http://127.0.0.1:8090 cargo test -p desktop --test hub -- --ignored`.
 - `open_database`: `.duckdb` files and CSV/TSV/Parquet files (their folder) open as `DuckDbSource`.
+
+## Milestone 11 — remote
+- `MOONKALE_REMOTE=http://host:port` (+ `MOONKALE_TOKEN`) at start → `api::client::connect`; every platform callback (`open_folder`, `attach_source`, `spawn_terminal`, `compile_typst`, `spawn_lsp`, `git_local`, `wasm_ext::{list_any, run_any}`) dispatches on `api::client::active()`. The LLM provider stays local.
+- `open_remote(host, path, sink)` → `moonkale_remote::SshSession::open` with `server_binary()`; `RemoteHandle` implements `ui::remote::RemoteSession` (close kills the master `ssh`). `ssh_hosts()` reads `Host` aliases (no wildcards, no `!`) from `~/.ssh/config` for the dialog (`ssh_hosts_in` is unit-tested). `ssh_at_start()`: `MOONKALE_SSH=host:/path` or `--ssh host:/path` opens the remote folder when the window starts (before the recent-folder reopen). `WorkspaceConfig::remote = Some(RemoteHosts { open, hosts, at_start })`.
+- `tests/remote.rs` (ignored): the client wiring against a running server.

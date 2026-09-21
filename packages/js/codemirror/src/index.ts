@@ -27,7 +27,10 @@ import { oneDark } from "@codemirror/theme-one-dark"
 import { setDiagnostics, lintGutter, type Diagnostic } from "@codemirror/lint"
 import { hoverTooltip } from "@codemirror/view"
 
-type OnChange = (text: string) => void
+/** Spec 018 / P-037: the view reports *splices* (UTF-16 offsets into the
+ *  document before the change, in document order), never the whole text. */
+export type Splice = { from: number; to: number; insert: string }
+type OnChange = (changes: Splice[], length: number) => void
 /** Language-feature hooks: Rust answers hover requests asynchronously and
  *  receives go-to-definition requests. Positions are LSP-style
  *  (0-based line, UTF-16 column). */
@@ -278,7 +281,11 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         gotoDef,
         oneDark,
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) onChange(u.state.doc.toString())
+          if (u.docChanged) {
+            const changes: Splice[] = []
+            u.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => { changes.push({ from: fromA, to: toA, insert: inserted.toString() }) })
+            onChange(changes, u.state.doc.length)
+          }
         }),
       ],
     }),

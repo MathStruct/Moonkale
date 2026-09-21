@@ -182,6 +182,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     let mut backend: Signal<Option<std::rc::Rc<MilkdownBackend>>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut error: Signal<Option<String>> = use_signal(|| None);
+    let mut props_open = use_signal(|| false);
     // Bumped on ready and on every change; the effect below re-checks which
     // links resolve (debounced) and pushes the status into the view.
     let mut wiki_epoch = use_signal(|| 0u64);
@@ -215,14 +216,22 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             if backend.peek().is_some() {
                 return;
             }
-            let initial = doc.peek().text.clone();
+            // The view shows the body only; the YAML front matter stays in
+            // Rust and is edited in the Properties bar (spec 019).
+            let initial = {
+                let full = doc.peek().text.clone();
+                split_frontmatter(&full).1.to_string()
+            };
             let on_event = Callback::new(move |ev: RichEvent| match ev {
                 RichEvent::Ready => {
                     ready.set(true);
                     wiki_epoch += 1;
                 }
-                RichEvent::Changed(text) => {
-                    doc.with_mut(|d| d.text = text);
+                RichEvent::Changed(body) => {
+                    doc.with_mut(|d| {
+                        let (fm, _) = split_frontmatter(&d.text);
+                        d.text = format!("{fm}{body}");
+                    });
                     wiki_epoch += 1;
                 }
                 RichEvent::WikiLink(target) => {
@@ -263,14 +272,15 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             if !ready() {
                 return;
             }
-            // Only when the document jumped (not our own keystrokes): the
-            // view already has what it emitted.
-            if *last_seen.peek() == text {
+            // Only when the body jumped (not our own keystrokes, not a
+            // front-matter edit): the view already has what it emitted.
+            let (_, body) = split_frontmatter(&text);
+            if *last_seen.peek() == body {
                 return;
             }
-            last_seen.set(text.clone());
+            last_seen.set(body.to_string());
             if let Some(b) = backend.peek().as_ref() {
-                b.set_text(&text);
+                b.set_text(body);
             }
         });
     }
@@ -316,6 +326,39 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             if let Some(e) = error() {
                 div { class: "mk-editor-error", "{e}" }
             }
+            // Front matter as a Properties bar: a one-line summary, click to
+            // edit the YAML itself (spec 019).
+            {
+                let text = doc.read().text.clone();
+                let (fm, _) = split_frontmatter(&text);
+                let yaml = frontmatter_yaml(fm).to_string();
+                let summary = frontmatter_summary(&yaml);
+                let has = !fm.is_empty();
+                rsx! {
+                    div { class: if props_open() { "mk-props mk-props-open" } else { "mk-props" },
+                        button { class: "mk-props-head", r#type: "button", title: if has { "Front matter (YAML) — click to edit" } else { "Add front matter" },
+                            onclick: move |_| props_open.toggle(),
+                            span { class: "mk-props-caret", if props_open() { "▾" } else { "▸" } }
+                            span { class: "mk-props-label", "Properties" }
+                            span { class: "mk-props-summary", if has { "{summary}" } else { "none" } }
+                        }
+                        if props_open() {
+                            textarea { class: "mk-props-yaml", rows: "{yaml.lines().count().max(2) + 1}", spellcheck: "false",
+                                placeholder: "title: …\ntags: [a, b]",
+                                value: "{yaml}",
+                                oninput: move |e| {
+                                    let v = e.value();
+                                    doc.with_mut(|d| {
+                                        let (_, body) = split_frontmatter(&d.text);
+                                        let body = body.to_string();
+                                        d.text = join_frontmatter(&v, &body);
+                                    });
+                                },
+                            }
+                        }
+                    }
+                }
+            }
             if !ready() {
                 div { class: "mk-rich-loading", "Loading rich editor…" }
             }
@@ -340,5 +383,95 @@ async fn katex_macros(mut ws: Workspace, source: &moonkale_core::SourceId) -> se
             ws.set_status(format!("{KATEX_FILE} ignored: {e}"));
             serde_json::json!({})
         }
+    }
+}
+
+/// Split leading YAML front matter (`---\n…\n---\n`) from the body. The
+/// first part keeps its delimiters and trailing newline so the two halves
+/// concatenate back to the original text.
+pub fn split_frontmatter(text: &str) -> (&str, &str) {
+    let Some(rest) = text
+        .strip_prefix("---\n")
+        .or_else(|| text.strip_prefix("---\r\n"))
+    else {
+        return ("", text);
+    };
+    let mut offset = text.len() - rest.len();
+    for line in rest.split_inclusive('\n') {
+        offset += line.len();
+        if line.trim_end() == "---" {
+            return (&text[..offset], &text[offset..]);
+        }
+    }
+    ("", text)
+}
+
+/// The YAML between the delimiters of a front-matter block ("" when none).
+pub fn frontmatter_yaml(fm: &str) -> &str {
+    let inner = fm
+        .strip_prefix("---\n")
+        .or_else(|| fm.strip_prefix("---\r\n"))
+        .unwrap_or("");
+    let inner = inner.trim_end_matches('\n').trim_end_matches('\r');
+    inner
+        .strip_suffix("---")
+        .map(|s| s.trim_end_matches(['\n', '\r']))
+        .unwrap_or("")
+}
+
+/// Front matter from YAML + body; empty YAML removes the block.
+pub fn join_frontmatter(yaml: &str, body: &str) -> String {
+    if yaml.trim().is_empty() {
+        return body.to_string();
+    }
+    format!("---\n{}\n---\n{body}", yaml.trim_end_matches('\n'))
+}
+
+/// `title: "X" · tags: [a, b] · …` for the collapsed bar (first three keys).
+fn frontmatter_summary(yaml: &str) -> String {
+    let parts: Vec<String> = yaml
+        .lines()
+        .filter(|l| !l.starts_with(' ') && l.contains(':'))
+        .take(3)
+        .map(|l| {
+            let (k, v) = l.split_once(':').unwrap_or((l, ""));
+            let v = v.trim().trim_matches('"');
+            let v: String = if v.chars().count() > 40 {
+                format!("{}…", v.chars().take(40).collect::<String>())
+            } else {
+                v.to_string()
+            };
+            if v.is_empty() {
+                k.trim().to_string()
+            } else {
+                format!("{}: {v}", k.trim())
+            }
+        })
+        .collect();
+    parts.join(" · ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frontmatter_round_trips() {
+        let text = "---\ntitle: \"A\"\ntags: [x]\n---\n# A\n\nbody\n";
+        let (fm, body) = split_frontmatter(text);
+        assert_eq!(fm, "---\ntitle: \"A\"\ntags: [x]\n---\n");
+        assert_eq!(body, "# A\n\nbody\n");
+        assert_eq!(format!("{fm}{body}"), text);
+        assert_eq!(frontmatter_yaml(fm), "title: \"A\"\ntags: [x]");
+        assert_eq!(join_frontmatter(frontmatter_yaml(fm), body), text);
+        assert_eq!(join_frontmatter("", body), body);
+        assert_eq!(
+            split_frontmatter("no front matter\n---\n"),
+            ("", "no front matter\n---\n")
+        );
+        assert_eq!(
+            frontmatter_summary("title: \"A\"\ntags: [x]\ndescription: long\nmore: 1"),
+            "title: A · tags: [x] · description: long"
+        );
     }
 }

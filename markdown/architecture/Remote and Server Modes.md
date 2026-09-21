@@ -10,13 +10,14 @@ From Daniel's question (2026-09-20): he works in a browser against code-server o
 | piece | state |
 |---|---|
 | **Moonkale server + web client** (the code-server model) | ✅ `packages/web`: the client is served by the same process that holds the sources; terminal (PTY), LSP, git, Typst, the agent and wasm extensions run **on the server**; `MOONKALE_ROOT` jails every path; `MOONKALE_TOKEN` gates every request (HttpOnly, SameSite=Strict cookie from `/login`, or `Authorization: Bearer`; `Secure` when behind an HTTPS proxy); `/login` rate-limited (10/min per address); every `/api/*` and `/mcp` request writes an audit line; the server **refuses to bind a non-loopback address without a token** (`guard_bind`); COOP/COEP headers for the browser wasm runtime |
-| TLS | ❌ none built in — a reverse proxy (Caddy, nginx) terminates HTTPS today |
+| TLS | ✅ built in since Milestone 11: `MOONKALE_TLS_CERT` + `MOONKALE_TLS_KEY` (PEM, rustls); off loopback the server refuses plain HTTP unless `MOONKALE_INSECURE_HTTP=1` says a reverse proxy terminates TLS |
 | user accounts / roles | ❌ one token = one identity; presence names are self-declared (`Settings → You`) |
-| **Desktop app as a client of a remote server** | ⏳ the desktop joins a server's presence hub (`MOONKALE_HUB` + `MOONKALE_TOKEN`) but opens only local sources; `RemoteSource` (the client for every server function) exists in the `api` crate and is what the web client uses — pointing the desktop at a server is config, not architecture |
-| **Remote folder over SSH** (Zed model) | ❌ designed in [[Projects and Sources]], not built |
+| **Desktop app as a client of a remote server** | ✅ Milestone 11: `MOONKALE_REMOTE=http://host:port` + `MOONKALE_TOKEN` (or a session's forwarded port) makes the desktop a client of that server for sources, terminal, LSP, git, Typst and wasm extensions (`api::client`); the LLM provider stays local |
+| **Remote folder over SSH** (Zed model) | ✅ Milestone 11: `File → Open Remote Folder…` (`moonkale-remote`) — the system `ssh` in a terminal tab, the server uploaded once per version into `~/.local/share/moonkale/server/<version>/`, started on loopback with a per-session token over stdin, port forwarded, closed with the source. Details in [[Milestone 11 - Implementation Log]] |
+| Standalone server binary + hardening | ✅ `moonkale-server --port --bind --root --token-stdin --version`; `MOONKALE_TERMINAL=0` switches the terminal off; cross-origin websocket upgrades refused |
 | **Collaboration** | presence only (who is here, which file, which line — [[Milestone 8 - Implementation Log]], [[Milestone 9 - Implementation Log]]); no shared editing (CRDT deferred, [[Collaboration]]) |
 
-**Usable right now, safely, with nothing new**: on the remote machine run the server on loopback (`MOONKALE_ROOT=/home/me/Code MOONKALE_TOKEN=… ./moonkale-server --port 8080` — or `dx serve --port 8080` in `packages/web`), then from the laptop `ssh -L 8080:127.0.0.1:8080 host` and open `http://127.0.0.1:8080`. The only credential in play is the SSH key or password already in use; the token is a second lock on the tunnel's local end. This is exactly the code-server situation, with the same trust model.
+**Usable right now** (Milestone 11): `File → Open Remote Folder…` in the desktop app, or `moonkale --ssh host:/path`. **By hand, with nothing but ssh**: on the remote machine run the server on loopback (`MOONKALE_ROOT=/home/me/Code MOONKALE_TOKEN=… ./moonkale-server --port 8080` — or `dx serve --port 8080` in `packages/web`), then from the laptop `ssh -L 8080:127.0.0.1:8080 host` and open `http://127.0.0.1:8080`. The only credential in play is the SSH key or password already in use; the token is a second lock on the tunnel's local end. This is exactly the code-server situation, with the same trust model.
 
 ## The three modes
 
@@ -60,9 +61,8 @@ Several people connect to one server, see each other (presence exists), and even
 - **Rooms are folders**: a user sees the folders their role grants; `MOONKALE_ROOT` stays the outer jail.
 
 ## Recommendation
-- **Now**: mode 2 behind SSH port forwarding (or WireGuard) — it is what code-server gives, with the same trust model, and it needs nothing built.
-- **Next (a Milestone 11 step)**: mode 1 — the remote-folder source over the system `ssh`, with the remote server upload, the per-session token and local LLM keys. It is the daily-driver answer to "another PC", and it is the foundation the desktop-as-client and the multi-source projects build on.
-- **Then**: TLS built in, `MOONKALE_TERMINAL=0`, Origin checks, accounts + roles — the pieces that make mode 2 and mode 3 exposable. Collaboration proper (shared history, CRDT) after that.
+- **Now (built in Milestone 11)**: mode 1 — `File → Open Remote Folder…`; the remote-folder session over the system `ssh`, the server uploaded once per version, a per-session token, LLM keys local. Mode 2 with the desktop app or a browser behind SSH port forwarding / WireGuard / built-in TLS also works.
+- **Then**: accounts + roles — what makes mode 3 exposable. Collaboration proper (shared history, CRDT) after that.
 
-## Not decided
-Whether the desktop uploads the remote server binary or asks the user to install it (Zed uploads); whether the per-session token travels over stdin or `SSH`'s `SendEnv`; the account store format (`users.toml` vs OIDC first).
+## Decided in Milestone 11
+The desktop **uploads** the server binary (Zed's way; no install step on the host), over the same multiplexed `ssh` connection; the token travels over **stdin** (`--token-stdin`), typed into the PTY with echo off — `SendEnv` needs `AcceptEnv` on the host's `sshd`, which most hosts do not allow. Still open: the account store format (`users.toml` vs OIDC first); a checksum on the uploaded binary once releases are signed.

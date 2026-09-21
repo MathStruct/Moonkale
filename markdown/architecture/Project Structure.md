@@ -29,6 +29,7 @@ packages/
 ├─ lsp-local/                moonkale-lsp-local    spawn servers                   [platform: desktop/server]
 ├─ terminal/                 moonkale-terminal     session model, VT grid          [layer]
 ├─ terminal-pty/             moonkale-terminal-pty local PTY                       [platform: desktop/server]
+├─ remote/                   moonkale-remote       folder over ssh → own server    [platform: desktop]
 │
 ├─ editors/
 │  ├─ code/                  moonkale-editor-code      CodeMirror ⇄ native         [swap point]
