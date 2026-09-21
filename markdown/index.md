@@ -14,6 +14,8 @@ description: A graph-native code and knowledge editor — folders and databases 
 
 It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, web and mobile from one codebase, and is extension-driven: the built-in editors are themselves extensions with no privileged access.
 
+> [!tip] New to Moonkale? Read **[[Getting Started]]** — written for people who use VS Code and Obsidian — then [[Install]].
+
 > [!info] Status — Milestone 14 done: a Rust code editor with tree-sitter for every core language (2026-09-21); packages: [[Install]]
 > **Agents and a native terminal.** **Claude Code** is one of Moonkale's agents — on the subscription, no API key: the `claude` CLI runs headless in the open folder, its tool calls appear as `▸` lines, the session resumes across turns. **Agent sessions can live on the server**: a turn finishes whether or not a window is open, and the phone (now a server's client through *Connect to Server…*) reads the transcript and answers approvals. The first **JavaScript-free editor**: a Rust/Dioxus terminal next to the xterm.js one, with a chooser. **Extensions** in the activity bar. See [[Milestone 12 - Implementation Log]].
 > **Remote.** `File → Open Remote Folder…`: the system `ssh` in a terminal tab (your keys, agent, passwords and host-key prompts, untouched by Moonkale), Moonkale's own server copied to the host once per version and started on its loopback with a per-session token over stdin, the port forwarded — the folder, index, LSP, git and terminal run *there*, the editor, the graph and the LLM keys stay *here*; closing the folder ends everything. A standalone `moonkale-server` with built-in TLS, a terminal switch and Origin checks for the servers you expose. See [[Milestone 11 - Implementation Log]].

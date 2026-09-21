@@ -3,7 +3,7 @@ title: "Install"
 description: How to install Moonkale — Arch (pacman), Debian/Ubuntu (apt), Nix, any Linux (tarball), Windows and macOS (unsigned builds) — and what to expect.
 tags: [packaging, install]
 ---
-Releases live at <https://github.com/MathStruct/Moonkale/releases>. Each one carries the same files, built by [[Milestone 13 - Packaging|the release workflow]]: a Linux tarball, a `.deb`, an Arch package, an AppImage, Windows `.msi`/`.exe`, macOS `.dmg`, and `sha256sums.txt`. Every package contains the desktop app **and** `moonkale-server` (for *Open Remote Folder…* and self-hosting).
+Releases live at <https://github.com/MathStruct/Moonkale/releases>. Each one carries the same files, built by [[Milestone 13 - Packaging|the release workflow]]: a Linux tarball, a `.deb`, an Arch package, an AppImage, an Android APK, Windows `.msi`/`.exe`, macOS `.dmg`, and `sha256sums.txt`. Every package contains the desktop app **and** `moonkale-server` (for *Open Remote Folder…* and self-hosting).
 
 ## Arch Linux (pacman)
 ```sh
@@ -35,6 +35,9 @@ cd moonkale-<version>-linux-x86_64
 ./install.sh ~/.local             # or: sudo ./install.sh /usr/local
 ```
 Needs WebKitGTK 4.1, GTK 3 and `libxdo` from your distribution. The AppImage (`Moonkale_<version>_amd64.AppImage`, `chmod +x` then run) bundles nothing extra either — WebKitGTK is too large and too system-bound to embed.
+
+## Android
+`moonkale-<version>-android-arm64.apk` (release build, debug-signed, ~45 MB; Android 8+ on arm64). Allow "install from unknown sources" for your file manager, or from a computer with `adb`: `adb install -r moonkale-<version>-android-arm64.apk`. The app opens its own vault in its private storage; **File → Connect to Server…** makes it a client of a Moonkale server (the folder, terminal, git and agent sessions run there). Built by `packages/mobile/build-android.sh` (needs the Android SDK + NDK, see `packages/mobile/README.md`) and by the release workflow.
 
 ## Windows and macOS — unsigned
 GitHub's runners build `Moonkale_<version>_x64-setup.exe` / `.msi` and `Moonkale_<version>_{arm64,x86_64}.dmg` on every release, but **nobody in the project has a Windows or Mac machine to test them on**, and they are **not code-signed**:

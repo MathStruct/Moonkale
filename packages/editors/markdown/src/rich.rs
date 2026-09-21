@@ -285,6 +285,20 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
         });
     }
 
+    let typography = {
+        let s = ws.settings.read();
+        let mut css = format!("--mk-rich-size: {}px;", s.editor.rich_font_size);
+        if !s.editor.rich_font.trim().is_empty() {
+            css.push_str(&format!(" --mk-rich-font: {};", s.editor.rich_font.trim()));
+        }
+        if !s.editor.rich_code_font.trim().is_empty() {
+            css.push_str(&format!(
+                " --mk-rich-code-font: {};",
+                s.editor.rich_code_font.trim()
+            ));
+        }
+        css
+    };
     let dirty = doc.read().dirty();
     let save = move |_: ()| {
         spawn(async move {
@@ -362,7 +376,9 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             if !ready() {
                 div { class: "mk-rich-loading", "Loading rich editor…" }
             }
-            div { id: "{element_id}", class: "mk-rich-host", onmounted: mount }
+            // Typography from the settings (Prompt23): CSS variables the
+            // stylesheet applies to the ProseMirror content and code blocks.
+            div { id: "{element_id}", class: "mk-rich-host", style: "{typography}", onmounted: mount }
         }
     }
 }

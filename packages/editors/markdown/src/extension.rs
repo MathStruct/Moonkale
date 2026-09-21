@@ -117,12 +117,33 @@ impl Extension for LinksExtension {
 
     // Milestone 13: the markdown editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let rich = ws.settings.read().editor.markdown_rich;
+        let (rich, size, font, code_font) = {
+            let s = ws.settings.read();
+            (
+                s.editor.markdown_rich,
+                s.editor.rich_font_size,
+                s.editor.rich_font.clone(),
+                s.editor.rich_code_font.clone(),
+            )
+        };
         Some(rsx! {
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: rich,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.markdown_rich = Some(v)); } }
                 "Open markdown files in Rich mode (Source | Rich still switches)"
+            }
+            // Typography of the rich editor (Prompt23).
+            label { class: "mk-settings-field", "Rich editor font size (px)"
+                input { class: "mk-input mk-settings-rich-size", r#type: "number", min: "8", max: "48", value: "{size}",
+                    onchange: move |e| { if let Ok(v) = e.value().parse::<u32>() { ws.update_settings_in(target, move |f| f.editor.rich_font_size = Some(v)); } } }
+            }
+            label { class: "mk-settings-field", "Rich editor font (CSS font-family; empty = the theme's)"
+                input { class: "mk-input mk-settings-rich-font", value: "{font}", placeholder: "e.g. \"Source Serif 4\", Georgia, serif",
+                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_font = if v.trim().is_empty() { None } else { Some(v) }); } }
+            }
+            label { class: "mk-settings-field", "Code font in rich notes (CSS font-family)"
+                input { class: "mk-input mk-settings-rich-code-font", value: "{code_font}", placeholder: "e.g. \"JetBrains Mono\", monospace",
+                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_code_font = if v.trim().is_empty() { None } else { Some(v) }); } }
             }
         })
     }

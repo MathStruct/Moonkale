@@ -118,5 +118,22 @@ try {
     await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { timeout: 10000 });
     console.log("\n  clean on open, dirty after typing");
   });
+  await step("Prompt23: the rich editor's font size and family follow the settings", async () => {
+    // A fresh context: the app persists its own settings on changes, so editing localStorage
+    // under a running page races with it.
+    const ctx2 = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+    await ctx2.addInitScript(() => { try { localStorage.setItem("moonkale.settings", JSON.stringify({ editor: { rich_font_size: 22, rich_font: "Georgia, serif" } })); } catch {} });
+    const p2 = await ctx2.newPage();
+    await p2.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
+    await p2.waitForSelector(".wb-workspace");
+    await p2.click(".mk-explorer-open button[type=submit]");
+    await p2.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
+    await p2.click(".mk-tree-file >> text=Norm.md");
+    await p2.waitForSelector(".mk-rich-host:visible .ProseMirror", { timeout: 30000 });
+    const style = await p2.$eval(".mk-rich-host:visible .ProseMirror", (e) => { const c = getComputedStyle(e); return { size: c.fontSize, family: c.fontFamily }; });
+    await ctx2.close();
+    console.log("\n  ProseMirror:", JSON.stringify(style));
+    if (style.size !== "22px" || !/Georgia/.test(style.family)) throw new Error("typography settings not applied");
+  });
   console.log("\nRICH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

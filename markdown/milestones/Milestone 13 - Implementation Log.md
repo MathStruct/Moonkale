@@ -28,6 +28,9 @@ Everything except signing. GitHub-hosted runners for public repositories are fre
 ## Nix, verified later the same day
 Daniel switched the daemon on (Arch's `nix` package: no `nix-users` group; the socket is world-writable, `NIX_REMOTE=daemon` from `/etc/profile.d/nix-daemon.sh`). `nix build .#default` then failed twice and succeeded on the third try: `--cargo-args=--frozen` (dx 0.7.10 rejects the two-token form), and LadybugDB's build-time download (P-115) — the flake now fetches the prebuilt `liblbug` archive as a fixed-output derivation. Result: `moonkale` + `moonkale-server` + assets in ~15 min. Running it on this Arch host needs `nixGL` (EGL); on NixOS it does not. [[NixOS]] has the details.
 
+## Android APK (Prompt23, 2026-09-22)
+`packages/mobile/build-android.sh` → `dist/moonkale-0.1.0-android-arm64.apk`, **45 MB** (23 MB in Milestone 9: the phone now carries `api` + the client relay with rustls, the Rust terminal's `vt100` and the Rust code editor's 20 tree-sitter grammars). Built here in 3 minutes; not installed — the phone was not connected (`adb install -r dist/moonkale-0.1.0-android-arm64.apk` when it is). An `android` job (`setup-android` with NDK 29, JDK 17, the same script) joined `release.yml`; it is untested there like the other non-Linux jobs.
+
 ## Deviations from the plan
 1. **`THIRD-PARTY.md` lists the crates only when `cargo-license` is installed** (it is not here); the file always names the JavaScript bundles and fonts and links the [[Licensing]] page. `cargo install cargo-license` once makes the full list appear in the next build.
 2. **The AppImage is built only in CI** (`dx bundle --package-types appimage` downloads `linuxdeploy` at build time; not tried here) and is marked non-fatal in the workflow.

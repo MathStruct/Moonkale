@@ -120,6 +120,40 @@ jobs:
           name: macos-${{ matrix.arch }}
           path: target/dx/moonkale/bundle/**/*.dmg
 
+  android:
+    name: Android (arm64 APK) — debug-signed
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;29.0.14206865"
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Dioxus CLI
+        run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
+      - name: Pillow (launcher icons)
+        run: pip3 install --user pillow
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the APK (packages/mobile/build-android.sh)
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+        run: packages/mobile/build-android.sh
+      - name: Name the artefact
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          mkdir -p dist && cp target/dx/mobile/release/android/app/app/build/outputs/apk/debug/app-debug.apk dist/moonkale-$VERSION-android-arm64.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*.apk
+
   nix:
     name: Nix (flake build)
     runs-on: ubuntu-24.04
@@ -133,7 +167,7 @@ jobs:
   release:
     name: GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, arch, windows, macos]
+    needs: [linux, arch, windows, macos, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -147,5 +181,5 @@ jobs:
           files: artefacts/*
           generate_release_notes: true
           body: |
-            Packages for Linux (tarball, .deb, Arch), Windows (.msi / .exe, unsigned) and macOS (.dmg, unsigned).
+            Packages for Linux (tarball, .deb, Arch), Android (arm64 APK, debug-signed), Windows (.msi / .exe, unsigned) and macOS (.dmg, unsigned).
             Install instructions: https://mathstruct.github.io/Moonkale/packaging/Install

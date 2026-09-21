@@ -28,6 +28,12 @@ Moonkale grew out of the frustration that code editors, knowledge editors,
 database tools and no-code tools are separate worlds — and that none of them
 were built with graph databases or retrieval-augmented agents in mind.
 
+## New here?
+
+[Getting Started](https://mathstruct.github.io/Moonkale/Getting-Started) —
+Moonkale explained for people who already use VS Code and Obsidian: the
+four ideas, what maps to what, a ten-minute first session.
+
 ## Install
 
 Packages for every release are on the
@@ -39,6 +45,7 @@ Packages for every release are on the
 | Debian 12+ / Ubuntu 22.04+ | `moonkale_<v>_amd64.deb` | `sudo apt install ./<file>` |
 | Nix / NixOS | (from source) | `nix profile install github:MathStruct/Moonkale` |
 | any Linux | `moonkale-<v>-linux-x86_64.tar.gz` | unpack, `./bin/moonkale`, or `./install.sh ~/.local` |
+| Android (arm64) | `moonkale-<v>-android-arm64.apk` | sideload, or `adb install -r <file>` |
 | Windows / macOS | `.msi` / `.exe` / `.dmg` | **unsigned and untested** — see the install page |
 
 Details, what the unsigned warnings mean, and how to report a problem:

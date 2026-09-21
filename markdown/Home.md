@@ -6,7 +6,10 @@ tags: [moc]
 
 Moonkale is a **graph-native code and knowledge editor**: it opens folders *and* database connections, shows everything as one graph, and is driven by extensions. This vault is the design record. Every choice has a note; every problem hit during implementation gets logged in [[Problem Log]].
 
-> [!info] Start here
+> [!tip] New here?
+> **[[Getting Started]]** — Moonkale for people who use VS Code and Obsidian: the four ideas, what maps to what, a ten-minute first session. Then [[Install]].
+
+> [!info] Start here (the design record)
 > 1. [[Overview]] — what the system is, in one diagram.
 > 2. [[Project Structure]] — the crate layout and *why* each crate exists.
 > 3. [[Problem Ranking]] and [[Roadmap]] — what is hard, and in which order to build.

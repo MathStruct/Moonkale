@@ -169,6 +169,14 @@ pub struct EditorFile {
     /// `codemirror` (default) or `native` (Milestone 14).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation: Option<String>,
+    /// Rich (Milkdown) editor typography (Prompt23): font size in px,
+    /// body font family, code font family.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rich_font_size: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rich_font: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rich_code_font: Option<String>,
 }
 
 impl SettingsFile {
@@ -230,6 +238,17 @@ impl SettingsFile {
             .implementation
             .clone()
             .or(self.editor.implementation.take());
+        self.editor.rich_font_size = other.editor.rich_font_size.or(self.editor.rich_font_size);
+        self.editor.rich_font = other
+            .editor
+            .rich_font
+            .clone()
+            .or(self.editor.rich_font.take());
+        self.editor.rich_code_font = other
+            .editor
+            .rich_code_font
+            .clone()
+            .or(self.editor.rich_code_font.take());
         // Extensions: a later scope's explicit choice wins per id.
         for id in &other.extensions.enabled {
             self.extensions.set_enabled(id, true);
@@ -332,6 +351,11 @@ pub struct EditorSettings {
     pub markdown_rich: bool,
     /// `codemirror` | `native` (Milestone 14).
     pub implementation: String,
+    /// Rich editor typography: size in px (default 16), body and code
+    /// font families (empty = the theme's).
+    pub rich_font_size: u32,
+    pub rich_font: String,
+    pub rich_code_font: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -452,6 +476,9 @@ impl Settings {
                     .editor
                     .implementation
                     .unwrap_or_else(|| "codemirror".into()),
+                rich_font_size: merged.editor.rich_font_size.unwrap_or(16).clamp(8, 48),
+                rich_font: merged.editor.rich_font.unwrap_or_default(),
+                rich_code_font: merged.editor.rich_code_font.unwrap_or_default(),
             },
             keybindings: merged.keybindings.clone(),
             user_name: merged.user_name.clone().unwrap_or_else(default_user_name),

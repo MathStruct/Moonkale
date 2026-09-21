@@ -20,3 +20,6 @@ Only the index-backed part exists so far: `LinksExtension` contributes a **Links
 ## Spec 021 (2026-09-21)
 - `extension.rs`: the per-document mode is `HashMap<NodeId, bool>` of *explicit* choices; a document without one follows `settings.editor.markdown_rich` (default true — Settings → Editor). `ext-api::settings`: `EditorFile.markdown_rich`, `EditorSettings.markdown_rich`.
 - `packages/js/milkdown/src/index.ts`: loading is not an edit — `entry.last` is set to Crepe's normalised markdown after `create()` with reporting suppressed, so the dirty dot appears only after a real edit (P-102). `rich.mjs` last step checks both.
+
+## Spec 026 (2026-09-22)
+`rich.rs`: the host gets `--mk-rich-size/-font/-code-font` from `settings.editor.rich_font_size/rich_font/rich_code_font`; `rich.css` applies them to `.ProseMirror` (and `pre`/`code`) — Crepe's own `--crepe-base-font-size` stays 16, headings scale in `em`. `extension.rs`: the three fields under the extension's settings.
