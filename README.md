@@ -109,6 +109,29 @@ a `<crate>.md` next to its code.
 
 Next: Android folder access through the Storage Access Framework and a signed release; then Postgres/Turso, TypeDB/Helix, a JS-free desktop and CRDT text merge — all waiting for an environment or a milestone of their own.
 
+## License
+
+Moonkale is released under the **MIT License** — see [LICENSE](LICENSE).
+
+That covers the code in this repository. What you *build* also contains
+third-party software under its own licenses, all permissive but not all
+MIT — a binary or bundle is a combination, and their notices travel with
+it:
+
+- Rust crates: 991 in the lock file, mostly `MIT OR Apache-2.0`; notable
+  ones bundled into the binaries are **DuckDB** (MIT), **LadybugDB/Kuzu** (MIT),
+  **wasmtime** (Apache-2.0 WITH LLVM-exception), **Typst** (Apache-2.0),
+  **tree-sitter** and its grammars (MIT), **rustls** (Apache-2.0/ISC/MIT),
+  the **ICU4X** crates (Unicode-3.0), `webpki-roots` (CDLA-Permissive-2.0),
+  `option-ext` (MPL-2.0). No GPL/LGPL-only crate is in the tree.
+- JavaScript bundled into the app: **CodeMirror**, **Milkdown**, **xterm.js**,
+  **KaTeX** (all MIT); the KaTeX **fonts** are SIL Open Font License 1.1.
+- The documentation site is built with **Quartz** (MIT).
+
+To list every dependency with its license: `cargo install cargo-license`
+then `cargo license` in the workspace (Rust), and `npm ls --all` with
+`license-checker` in each `packages/js/*` package (JavaScript).
+
 ## Learn more
 
 - Website / design docs: <https://mathstruct.github.io/Moonkale/>

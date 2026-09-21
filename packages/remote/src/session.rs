@@ -106,6 +106,12 @@ pub enum Phase {
     Closed,
 }
 
+impl Phase {
+    pub fn is_final(&self) -> bool {
+        matches!(self, Phase::Ready { .. } | Phase::Failed(_) | Phase::Closed)
+    }
+}
+
 /// The version string a remote server must match (`moonkale-server 0.1.0`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -135,12 +141,26 @@ impl SshSession {
         on_phase: impl Fn(Phase) + Send + Sync + 'static,
     ) -> Result<(Self, TeeBackend), String> {
         let local_port = free_port()?;
-        let remote_port = 40_000 + (local_port % 20_000);
+        // A random port on the host **below** the ephemeral range (Linux
+        // 32768–60999, macOS 49152+): a busy host has thousands of TIME_WAIT
+        // sockets up there and a bind to one of them fails (P-105 — 3 of 5
+        // sessions failed while host and desktop were the same machine).
+        // A real listener on the chosen port is the remaining, rare case;
+        // then the server fails to bind and the terminal tab shows why.
+        let remote_port = {
+            let mut b = [0u8; 2];
+            getrandom::fill(&mut b).expect("OS randomness");
+            20_000 + (u16::from_le_bytes(b) % 12_000)
+        };
         let dir = std::env::temp_dir().join(format!("moonkale-ssh-{}", std::process::id()));
         std::fs::create_dir_all(&dir).map_err(|e| format!("temp dir: {e}"))?;
         let control = dir.join(format!("cm-{local_port}"));
         let script = remote_script(&target.path, remote_port);
         let mut args: Vec<String> = vec![
+            // A remote PTY: the script's `stty -echo` then really hides the
+            // token, ssh puts our PTY in raw mode (no local echo), and the
+            // remote server gets SIGHUP when the session ends (P-104).
+            "-t".into(),
             "-M".into(),
             "-S".into(),
             control.to_string_lossy().into_owned(),
@@ -157,9 +177,7 @@ impl SshSession {
         args.extend([
             target.host.clone(),
             "--".into(),
-            "sh".into(),
-            "-c".into(),
-            shell_quote(&script),
+            wrap_for_any_shell(&script),
         ]);
         tracing::info!("remote: ssh {}", args.join(" "));
         let mut pty = PtyBackend::spawn_with_env(None, Some("ssh"), &args, &target.env, 100, 30)?;
@@ -170,6 +188,7 @@ impl SshSession {
             output,
         };
         let (tee, mut watch) = TeeBackend::new(Box::new(handle), &format!("ssh {}", target.host));
+        let notice = tee.notices();
         let phase = Arc::new(Mutex::new(Phase::Connecting));
         let session = Self {
             target: target.clone(),
@@ -184,7 +203,17 @@ impl SshSession {
         let set = {
             let phase = phase.clone();
             let on_phase = Arc::new(on_phase);
+            let master = pty.clone();
             move |p: Phase| {
+                // A failure is written into the terminal tab too (the status
+                // bar line is easy to miss) and ends the master `ssh`, so the
+                // host's script stops waiting (P-106).
+                if let Phase::Failed(reason) = &p {
+                    let _ = notice.unbounded_send(
+                        format!("\r\n[moonkale] remote session failed: {reason}\r\n").into_bytes(),
+                    );
+                    master.kill();
+                }
                 *phase.lock().unwrap() = p.clone();
                 on_phase(p);
             }
@@ -233,7 +262,7 @@ impl SshSession {
                                 }
                                 None => {
                                     set(Phase::Failed(format!(
-                                        "the host has no moonkale-server ({arch}) and no binary to upload was found (MOONKALE_SERVER_BINARY)"
+                                        "the host has no moonkale-server ({arch}) and this machine has none to upload — build one with `cd packages/web && dx build --platform server --release`, or point MOONKALE_SERVER_BINARY at it"
                                     )));
                                     return;
                                 }
@@ -389,9 +418,7 @@ async fn upload(control: &Path, target: &SshTarget, bin: &Path, arch: &str) -> R
         .envs(target.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
         .arg(host)
         .arg("--")
-        .arg("sh")
-        .arg("-c")
-        .arg(shell_quote(&remote_cmd))
+        .arg(wrap_for_any_shell(&remote_cmd))
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::piped())
@@ -464,15 +491,32 @@ pub fn server_binary() -> Option<PathBuf> {
         return p.is_file().then_some(p);
     }
     let mut candidates = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("moonkale-server"));
-        }
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(Path::to_path_buf));
+    if let Some(dir) = &exe_dir {
+        candidates.push(dir.join("moonkale-server"));
     }
+    // The dev build: walk up from the executable (dx runs it from
+    // `target/dx/<app>/debug/linux/app`, P-106) and from the cwd to the
+    // workspace root (the directory with a `[workspace]` Cargo.toml).
+    let mut starts: Vec<PathBuf> = exe_dir.into_iter().collect();
     if let Ok(cwd) = std::env::current_dir() {
-        for root in [cwd.clone(), cwd.join(".."), cwd.join("../..")] {
-            candidates.push(root.join("target/dx/web/release/web/server"));
-            candidates.push(root.join("target/dx/web/debug/web/server"));
+        starts.push(cwd);
+    }
+    for start in starts {
+        let mut dir = Some(start.as_path());
+        while let Some(d) = dir {
+            let manifest = d.join("Cargo.toml");
+            if std::fs::read_to_string(&manifest)
+                .map(|t| t.contains("[workspace]"))
+                .unwrap_or(false)
+            {
+                candidates.push(d.join("target/dx/web/release/web/server"));
+                candidates.push(d.join("target/dx/web/debug/web/server"));
+                break;
+            }
+            dir = d.parent();
         }
     }
     candidates.into_iter().find(|p| p.is_file())
@@ -485,7 +529,20 @@ fn free_port() -> Result<u16, String> {
         .map_err(|e| format!("no free local port: {e}"))
 }
 
-/// POSIX single-quote quoting.
+/// The remote command as the host's **login shell** will see it — and that
+/// shell may be bash, zsh, fish or nushell, each with its own quoting. The
+/// only argument they all pass through unchanged is a single-quoted string
+/// without quotes or backslashes inside, so the script travels as base64:
+/// `sh -c 'eval "$(echo <b64> | base64 -d)"'` — `sh` does the decoding and
+/// runs the script with the PTY still on stdin (a pipe into `sh` would
+/// swallow the token prompt). P-103.
+fn wrap_for_any_shell(script: &str) -> String {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(script.as_bytes());
+    format!("sh -c 'eval \"$(echo {b64} | base64 -d)\"'")
+}
+
+/// POSIX single-quote quoting (inside scripts that `sh` runs).
 fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
@@ -537,6 +594,12 @@ mod tests {
         ));
         assert!(!looks_like_prompt("MOONKALE_STARTING"));
         assert_eq!(shell_quote("a'b"), "'a'\\''b'");
+        let w = wrap_for_any_shell("echo 'hi' \"$x\"");
+        assert!(w.starts_with("sh -c 'eval \"$(echo ") && w.ends_with(" | base64 -d)\"'"));
+        assert!(
+            !w[6..].contains('\'') || w.matches('\'').count() == 2,
+            "no quotes inside: {w}"
+        );
         assert_eq!(strip_ansi("\u{1b}[32mok\u{1b}[0m"), "ok");
         let t = SshTarget::parse(
             "SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62",

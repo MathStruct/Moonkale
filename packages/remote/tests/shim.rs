@@ -30,12 +30,86 @@ while [ $# -gt 0 ]; do
 done
 [ "$port" = 443 ] || { echo "-p 443 missing" >&2; exit 8; }
 cmd="$*"
+# The command is `sh -c 'eval "$(echo <b64> | base64 -d)"'` (P-103): decode it here
+# so the remote port in the script can be turned into the local one.
+b64=$(printf '%s' "$cmd" | sed -n 's/.*echo \([A-Za-z0-9+\/=]*\) | base64 -d.*/\1/p')
+[ -n "$b64" ] || { echo "not a base64-wrapped command: $cmd" >&2; exit 7; }
+script=$(printf '%s' "$b64" | base64 -d)
 if [ -n "$fwd" ]; then
   L=$(printf '%s' "$fwd" | cut -d: -f2); R=$(printf '%s' "$fwd" | cut -d: -f4)
-  cmd=$(printf '%s' "$cmd" | sed "s/--port $R/--port $L/")
+  script=$(printf '%s' "$script" | sed "s/--port $R/--port $L/")
 fi
-eval "exec $cmd"
+exec sh -c "$script"
 "#;
+
+/// The same session against a **real** `sshd` — `MOONKALE_TEST_SSH` is the
+/// host spec (`-i key -o UserKnownHostsFile=… -p 2299 me@127.0.0.1`),
+/// `MOONKALE_TEST_SSH_PATH` a folder on that host containing `Hello.md`;
+/// the server is really uploaded into that host's
+/// `~/.local/share/moonkale/server/<version>/`. ControlMaster, the login
+/// shell's quoting (P-103) and the port forward are exercised for real.
+#[test]
+#[ignore]
+fn real_sshd_session_reaches_ready() {
+    let (Ok(spec), Ok(path)) = (
+        std::env::var("MOONKALE_TEST_SSH"),
+        std::env::var("MOONKALE_TEST_SSH_PATH"),
+    ) else {
+        eprintln!("MOONKALE_TEST_SSH / MOONKALE_TEST_SSH_PATH not set; skipping");
+        return;
+    };
+    let bin = server_binary().expect("server binary");
+    dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
+    let target = SshTarget::parse(&spec, &path).unwrap();
+    let (session, tee) = SshSession::open(target, Some(bin), |_| ()).expect("open");
+    echo_tee(tee);
+    let deadline = std::time::Instant::now() + Duration::from_secs(300);
+    while !session.phase().is_final() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    let Phase::Ready { url } = session.phase() else {
+        panic!("session ended in {:?}", session.phase());
+    };
+    eprintln!("ready at {url}");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let text = rt.block_on(read_hello(&path));
+    assert!(text.contains("from the other side"), "got {text:?}");
+    session.close();
+}
+
+fn echo_tee(mut tee: moonkale_remote::TeeBackend) {
+    if let Some(mut out) = moonkale_terminal::TerminalBackend::take_output(&mut tee) {
+        std::thread::spawn(move || {
+            use futures_util::StreamExt;
+            futures_executor::block_on(async move {
+                while let Some(chunk) = out.next().await {
+                    eprint!("{}", String::from_utf8_lossy(&chunk));
+                }
+            })
+        });
+    }
+}
+
+async fn read_hello(root: &str) -> String {
+    let sources = api::client::open_folder(root.to_string(), Default::default())
+        .await
+        .expect("open_folder over the session");
+    let folder = sources
+        .iter()
+        .find(|s| s.descriptor().family == SourceFamily::Folder)
+        .expect("a folder source");
+    let d = folder.descriptor();
+    let top = folder
+        .query(Query::Children(d.root))
+        .await
+        .expect("children");
+    let file = top
+        .nodes
+        .iter()
+        .find(|n| n.kind == NodeKind::File && n.native_key.ends_with("Hello.md"))
+        .expect("Hello.md at the root");
+    folder.fetch_text(file.id).await.expect("fetch_text").0
+}
 
 #[test]
 #[ignore]

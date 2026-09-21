@@ -40,26 +40,41 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                 onkeydown: move |e| { if e.key() == Key::Escape { open.set(false); } },
                 div { class: "mk-remote-title", "Open Remote Folder" }
                 p { class: "mk-remote-hint",
-                    "The folder is opened through your system "
+                    "Opens a folder on another machine through your system "
                     code { "ssh" }
-                    ": keys, agent, passwords and host checks work exactly as in a terminal, and every prompt shows up in the Terminal panel. Type the host the way you would after "
+                    ". Authentication is ssh's own — keys, agent, passwords and host-key checks work exactly as in a terminal; whatever ssh asks appears in the Terminal panel, and Moonkale never sees a secret."
+                }
+                p { class: "mk-remote-hint",
+                    b { "Host" }
+                    ": what you would type after "
                     code { "ssh" }
-                    " — options and leading variables included, e.g. "
-                    code { "SSH_AUTH_SOCK=0 -p 443 daniel@192.168.178.62" }
-                    " or "
-                    code { "-i ~/.ssh/MathStruct daniel@dtrmblog.de" }
-                    "; aliases from "
+                    " — a name or "
+                    code { "user@host" }
+                    ", an alias from "
                     code { "~/.ssh/config" }
-                    " are offered. Moonkale's server is copied to the host once per version (into "
-                    code { "~/.local/share/moonkale" }
-                    ") and runs only for this session."
+                    " (offered below), with any ssh options in front ("
+                    code { "-p 2222" }
+                    ", "
+                    code { "-i ~/.ssh/key" }
+                    ", "
+                    code { "-J jumphost" }
+                    ", "
+                    code { "-o …" }
+                    "); "
+                    code { "VAR=value" }
+                    " words at the start are set in ssh's environment."
+                }
+                p { class: "mk-remote-hint",
+                    "The first time per host and version, Moonkale's own server (about 150 MB) is copied to the host into "
+                    code { "~/.local/share/moonkale/server/" }
+                    " and started there for this session only: the folder, its index, git, language servers and terminals then run on that machine; the editor and your API keys stay here. Closing the folder ends the session and the server."
                 }
                 label { class: "mk-remote-field",
                     span { "Host (as typed after ssh)" }
                     input {
                         class: "mk-palette-input mk-remote-host",
                         r#type: "text",
-                        placeholder: "build-box · user@10.0.0.2 · -p 443 -i ~/.ssh/key user@host",
+                        placeholder: "user@host  ·  alias  ·  -p 2222 -i ~/.ssh/key user@host",
                         list: "mk-remote-hosts",
                         autofocus: true,
                         value: "{host}",

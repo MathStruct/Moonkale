@@ -49,6 +49,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 
 ## Packaging
 - [[Packaging Overview]] — what `dx build` produces and where the binary looks for assets
+- [[Licensing]] — Moonkale is MIT; what a built Moonkale additionally carries (DuckDB, wasmtime, Typst, ICU4X, KaTeX fonts …) and how to list it
 - [[Arch Linux]] (PKGBUILD) · [[NixOS]] (flake) · [[Android]] (APK/AAB) · [[Android Extensions and Bundling]] (what can be added after install, app size, Play/F-Droid)
 
 ## Testing

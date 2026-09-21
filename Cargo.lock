@@ -5442,10 +5442,12 @@ name = "moonkale-remote"
 version = "0.1.0"
 dependencies = [
  "api",
+ "base64 0.22.1",
  "dioxus",
  "futures-channel",
  "futures-executor",
  "futures-util",
+ "getrandom 0.3.4",
  "moonkale-core",
  "moonkale-terminal",
  "moonkale-terminal-pty",

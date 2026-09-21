@@ -21,6 +21,13 @@ Notes for `moonkale-remote` (Milestone 11). Desktop only. Design: [[Remote and S
 
 `SshTarget::parse("SSH_AUTH_SOCK=0 -p 443 -v daniel@192.168.178.62", path)`: leading `VAR=value` words → `env` (set on the `ssh` process through `PtyBackend::spawn_with_env`, and on the upload's `Command`), the words before the last → `options` (placed right before the destination on both command lines), the last word → `host`; a trailing option that takes an argument (`-p 443` with nothing after) is an error. `spec()` gives the line back.
 
+## Real-ssh lessons (2026-09-21, P-103–P-106)
+- The remote command is parsed by the host's **login shell**: everything travels base64-wrapped in `sh -c 'eval "$(echo … | base64 -d)"'` (`wrap_for_any_shell`).
+- `-t`: a remote PTY, so `stty -echo` hides the token, the local PTY is raw (no echo), and the server dies with the session.
+- The remote port is random in 20000–31999 (below the ephemeral range).
+- `server_binary()` walks up to the workspace root from the executable and the cwd; a `Failed` phase is written into the terminal tab and kills the master `ssh`.
+- `tests/shim.rs::real_sshd_session_reaches_ready` (ignored) runs the whole thing against a real `sshd`: `MOONKALE_TEST_SSH="-i key -o UserKnownHostsFile=kh -p 2299 me@127.0.0.1" MOONKALE_TEST_SSH_PATH=/folder/with/Hello.md cargo test -p moonkale-remote --test shim real -- --ignored`. A private sshd for it: `ssh-keygen -t ed25519 -f host_key`, `-f client_key`, `cp client_key.pub authorized_keys`, a config with `Port 2299`, `HostKey`, `AuthorizedKeysFile`, `PasswordAuthentication no`, `UsePAM no`, `StrictModes no`, then `/usr/sbin/sshd -f sshd_config -E sshd.log` (no root needed on a high port). Six consecutive runs pass; the first uploads 188 MB in under a second on loopback.
+
 ## Decisions
 - **ControlMaster after all.** The plan said no control master; the upload needs a second authenticated channel and a second prompt would be a worse experience. `-o ControlPersist=no` plus the socket in a per-process temp dir means nothing outlives the master, which Moonkale kills on close.
 - **Prompt detection is heuristic** (`looks_like_prompt`: `password:`, `passphrase`, `(yes/no`, `verification code:`), only for the status bar — the terminal tab shows everything anyway.

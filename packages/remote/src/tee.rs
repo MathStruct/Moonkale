@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 pub struct TeeBackend {
     inner: Arc<Mutex<Box<dyn TerminalBackend + Send>>>,
     panel_out: Option<Output>,
+    /// Lines the session itself adds to the tab (failure notices).
+    notices: mpsc::UnboundedSender<Vec<u8>>,
     title: String,
 }
 
@@ -19,6 +21,7 @@ impl TeeBackend {
         let source = inner.take_output();
         let (panel_tx, panel_rx) = mpsc::unbounded::<Vec<u8>>();
         let (watch_tx, watch_rx) = mpsc::unbounded::<Vec<u8>>();
+        let notices = panel_tx.clone();
         if let Some(mut src) = source {
             std::thread::Builder::new()
                 .name("moonkale-remote-tee".into())
@@ -37,10 +40,17 @@ impl TeeBackend {
             Self {
                 inner: Arc::new(Mutex::new(inner)),
                 panel_out: Some(panel_rx),
+                notices,
                 title: title.to_string(),
             },
             watch_rx,
         )
+    }
+
+    /// A sender whose bytes appear in the terminal tab as if the PTY had
+    /// printed them (the session's own notices).
+    pub fn notices(&self) -> mpsc::UnboundedSender<Vec<u8>> {
+        self.notices.clone()
     }
 
     /// A handle that writes to the same PTY (the session answers the

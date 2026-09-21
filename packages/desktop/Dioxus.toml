@@ -10,7 +10,7 @@ publisher = "MathStruct"
 category = "DeveloperTool"
 short_description = "Graph-native code and knowledge editor"
 long_description = "Moonkale opens folders and databases as one graph and edits them with dockable code, markdown, table, graph and flow editors."
-copyright = "MIT OR Apache-2.0"
+copyright = "MIT — see LICENSE"
 icon = ["assets/icon.png"]   # 512x512, from /assets/Moonkale512.png
 
 # Used by `dx bundle --package-types deb` (Debian/Ubuntu). Arch and Nix
