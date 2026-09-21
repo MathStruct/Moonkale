@@ -48,10 +48,13 @@ The web build is `dx build --release --platform web --package web` → a `server
 
 | file | purpose |
 |---|---|
-| `packaging/arch/PKGBUILD` | AUR-style recipe (`moonkale-git`) |
+| `packaging/build-release.sh` | the release build: staging tree → tarball, `.deb`, Arch package, checksums (Milestone 13) |
+| `packaging/arch-bin/PKGBUILD` | `moonkale-bin`: installs the release tarball (what friends use) |
+| `packaging/arch/PKGBUILD` | AUR-style recipe (`moonkale-git`, from source) |
+| `.github/workflows/release.yml` | Linux + Arch + Windows + macOS + Nix on `v*` tags → GitHub Release |
 | `packaging/linux/moonkale.desktop` | XDG desktop entry, shared by Arch and Nix |
 | `flake.nix` | Nix package, dev shell, and `nix flake check` |
 | `packages/desktop/Dioxus.toml`, `packages/mobile/Dioxus.toml` | bundle metadata |
 
-> [!warning] Status
-> All three recipes are written from the CLI source and the documented layout, but **none has been run on a clean machine yet**: the dev box can't link the desktop app (P-038, fixed by installing `xdotool`) and has no Nix or Android SDK. Each note ends with the exact command that proves it works; run it and log the result in [[Problem Log]].
+> [!info] Status (Milestone 13, 2026-09-21)
+> `packaging/build-release.sh` builds the desktop app + `moonkale-server` and produces the tarball, the `.deb` (assembled by hand) and the Arch package (`packaging/arch-bin`) in `dist/`; the tarball was run from `/tmp` (assets found, editor loads), the `.deb`'s layout and control file checked, `moonkale-bin` built with `makepkg`. The from-source `moonkale-git` PKGBUILD and `flake.nix` were updated to dx's current layout (`target/dx/moonkale/…`); the flake is verified only by CI (no nix-daemon here). `.github/workflows/release.yml` builds all of it plus Windows/macOS bundles on tags. Friend-facing instructions: [[Install]].

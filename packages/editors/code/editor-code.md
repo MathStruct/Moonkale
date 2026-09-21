@@ -56,3 +56,8 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 - **Menu actions** (spec 009): `CodeEditorBackend::run(EditorAction)` → the bundle's `run(el, action)` (find/replace open the search panel; rename/codeActions/definition/references call the same hooks as the keys; toggleComment/foldAll/unfoldAll are CodeMirror commands). The panel forwards `Command::Editor(_)` for the active document.
 - **Mounting** (spec 016): from the host div's `onmounted`, never an effect (P-047); a thrown `cm.mount` becomes `BackendEvent::Failed(message)` and the panel shows it.
 - **Splices** (spec 018, P-037): `BackendEvent::Spliced { changes, length }` replaces `Changed(String)`; `backend::{Splice, apply_splices, utf16_to_byte}`; the panel's `view_text` is the mirror of the view and the document copies it; a mismatch resyncs the view from the document.
+
+## Milestone 14
+- `panels()` claims only documents `Workspace::editor_for(node) == "codemirror"`; the toolbar has a *Rust* switch when the native editor extension is enabled (`choose_editor`).
+- `BackendEvent::Cursor { line, col }` now reaches `Workspace::set_cursor` (line and column; `cursor_word()` derives the identifier) — before, only the line was used for presence.
+- `EditorImplementationSetting` (also re-declared in the native crate): `editor.implementation`.

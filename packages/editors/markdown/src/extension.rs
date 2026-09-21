@@ -114,6 +114,18 @@ impl Extension for LinksExtension {
             ws.close_node(node);
         }
     }
+
+    // Milestone 13: the markdown editor's settings live with the extension.
+    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
+        let rich = ws.settings.read().editor.markdown_rich;
+        Some(rsx! {
+            label { class: "mk-settings-check",
+                input { r#type: "checkbox", checked: rich,
+                    onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.markdown_rich = Some(v)); } }
+                "Open markdown files in Rich mode (Source | Rich still switches)"
+            }
+        })
+    }
 }
 
 /// Source (CodeMirror) or Rich (Milkdown) for one markdown document.

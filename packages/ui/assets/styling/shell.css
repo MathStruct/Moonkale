@@ -137,3 +137,7 @@
 .mk-terminal-choices .mk-button { text-align: left; font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
 .mk-terminal-choices .mk-button-primary { background: var(--wb-accent, #6ea8fe); color: #0b0d12; border-color: transparent; }
 .mk-terminal-choices .mk-button-primary .mk-muted { color: #0b0d12; opacity: 0.75; }
+/* Extension settings under the extension row (Milestone 13) */
+.mk-settings-ext-settings { margin: 6px 0 4px 26px; padding: 8px 10px; border-left: 2px solid var(--wb-line, #2a2e3a); display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.mk-settings-ext-settings .mk-settings-field { display: flex; flex-direction: column; gap: 3px; color: var(--wb-ink-faint, #7f8595); }
+.mk-settings-ext-settings .mk-input { max-width: 420px; }

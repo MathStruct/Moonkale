@@ -111,6 +111,21 @@ impl Extension for NativeTerminalExtension {
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
         rsx! { NativeTerminalPanel { ws, sessions: self.sessions } }
     }
+
+    // Milestone 13: the same chooser setting as the xterm.js panel.
+    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
+        let implementation = ws.settings.read().terminal.implementation.clone();
+        Some(rsx! {
+            label { class: "mk-settings-field", "Which terminal opens on New Terminal"
+                select { class: "mk-input", value: "{implementation}",
+                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.terminal.implementation = Some(v)); },
+                    for (k, name) in [("ask", "ask when both terminal extensions are enabled"), ("xterm", "xterm.js (JavaScript)"), ("native", "Rust (Dioxus-rendered, no JavaScript)")] {
+                        option { value: "{k}", selected: implementation == k, "{name}" }
+                    }
+                }
+            }
+        })
+    }
 }
 
 async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<String>) {
@@ -394,6 +409,7 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
     let s_wheel = session.clone();
     let measure_mount = measure.clone();
     let measure_resize = measure.clone();
+    let measure_tick = measure.clone();
     let measure_probe = measure;
     let (cw, ch) = cell_size();
 
@@ -406,6 +422,15 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                 mounted.set(Some(e.data()));
                 pump();
                 measure_mount();
+                // The webview does not always deliver `onresize` for a tile
+                // that grows or shrinks later (P-112): measure on a timer too.
+                let measure_tick = measure_tick.clone();
+                spawn(async move {
+                    loop {
+                        crate::sleep_ms(600).await;
+                        measure_tick();
+                    }
+                });
             },
             onresize: move |_| measure_resize(),
             onfocus: move |_| focused.set(true),

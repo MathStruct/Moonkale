@@ -17,3 +17,6 @@ Mouse selection and copy, paste, search, Sixel/images, mouse reporting to the pr
 
 ## Tests
 `cargo test -p moonkale-editor-terminal-native` (key table); `packages/web/tests/e2e/terminal-native.mjs` (open with Ctrl+`, prompt, `echo`, colours and bold, Ctrl+click on `src/main.rs:2:1`, the chooser with `ask`).
+
+## Milestone 14 (P-112)
+The panel re-measures every 600 ms (`sleep_ms` timer from `onmounted`) besides `onresize`, because the webview did not report a tile that changed size after mount, leaving the grid sized for the old height; and `.mk-tn-screen` is a bottom-anchored flex column, so an oversized grid loses its top rows, never the prompt.

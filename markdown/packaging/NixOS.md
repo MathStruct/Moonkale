@@ -18,7 +18,7 @@ Recipe: `flake.nix` at the repo root. Background: [[Packaging Overview]].
 - **`rustPlatform.buildRustPackage` with `cargoLock.lockFile`** — vendors crates from the committed `Cargo.lock`; no `cargoHash` to keep updating. Works because every dependency is on crates.io (no git deps).
 - **`dx build` inside `buildPhase`** — plain `cargo build` would leave the binary without its hashed assets ([[Packaging Overview]]). `dioxus-cli` comes from nixpkgs (`pkgs.dioxus-cli`) and goes in `nativeBuildInputs`. dx spawns `cargo`, which picks up the vendored-source config `buildRustPackage` wrote, so the sandbox's no-network rule holds. `HOME=$TMPDIR` because dx keeps caches under `$HOME`.
 - **`wrapGAppsHook3`** — wraps the binary so GTK finds its schemas, GIO modules and the WebKitGTK process binaries; without it a Nix-built GTK app typically starts with a blank window or GSettings errors.
-- **`installPhase`** copies `target/dx/desktop/release/linux/app/{moonkale,assets}` into `$out/bin` and `$out/lib/Moonkale/assets` — the layout the asset resolver checks first.
+- **`installPhase`** copies `target/dx/moonkale/release/linux/app/{moonkale,assets}` into `$out/bin` and `$out/lib/Moonkale/assets` — the layout the asset resolver checks first.
 - **`doCheck = false`** in the package, tests in a separate `checks` derivation, so `nix build` doesn't rebuild the world twice.
 
 ## Build, run, install
@@ -43,3 +43,6 @@ nix flake check         # workspace tests
 
 ## Android on NixOS
 `androidenv.composeAndroidPackages` can provide SDK + NDK declaratively; export `ANDROID_HOME`/`ANDROID_NDK_HOME` from it in a dev shell and follow [[Android]]. Not wired into the flake yet.
+
+## Status (Milestone 13, 2026-09-21)
+`flake.nix` updated to dx's current layout and made to install `moonkale-server` and the icon too; licence `mit`. Not built here — the dev box's `nix-daemon` is not running (`opening lock file /nix/var/nix/db/big-lock: Permission denied`); the `nix` job in `.github/workflows/release.yml` builds it on every release, and `nix profile install github:MathStruct/Moonkale` is the user path ([[Install]]). To verify locally: `sudo systemctl enable --now nix-daemon`, add yourself to `nix-users`, `experimental-features = nix-command flakes`, then `nix build`.

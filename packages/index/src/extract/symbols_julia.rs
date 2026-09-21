@@ -10,8 +10,8 @@
 
 use super::Derived;
 use crate::graph::derived_id;
+use arborium_tree_sitter::{Node as TsNode, Parser};
 use moonkale_core::{Edge, EdgeKind, Node, NodeId, NodeKind, SourceId};
-use tree_sitter::{Node as TsNode, Parser};
 
 const ITEM_KINDS: &[(&str, &str)] = &[
     ("function_definition", "function"),
@@ -26,7 +26,7 @@ const ITEM_KINDS: &[(&str, &str)] = &[
 pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let mut parser = Parser::new();
     if parser
-        .set_language(&tree_sitter_julia::LANGUAGE.into())
+        .set_language(&arborium_julia::language().into())
         .is_err()
     {
         return Derived::default();

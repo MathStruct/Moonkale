@@ -11,10 +11,14 @@ moonkale-llm = { workspace = true }
 regex = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tree-sitter = "0.27"
-tree-sitter-rust = "0.24"
-tree-sitter-julia = "0.23"
-tree-sitter-python = "0.25"
+# The tree-sitter runtime and grammars come from arborium (tree-sitter
+# compiled to Rust and wasm): one runtime for the index and the Rust code
+# editor (`dioxus-code` links the same C library; Cargo allows one — P-113),
+# and the grammars are `LanguageFn`s like upstream's.
+arborium-tree-sitter = "2.18"
+arborium-rust = "2.18"
+arborium-julia = "2.18"
+arborium-python = "2.18"
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tracing = "0.1"
 

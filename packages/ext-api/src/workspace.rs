@@ -332,6 +332,12 @@ pub struct Workspace {
     pub hidden_tiles: Signal<std::collections::BTreeMap<String, Vec<String>>>,
     /// Directory for the next `NewTerminal` (set by "New terminal here").
     pub terminal_cwd: Signal<Option<String>>,
+    /// Which code editor shows a document, when chosen by hand
+    /// (Milestone 14): `"codemirror"` | `"native"`.
+    pub editor_choice: Signal<std::collections::HashMap<NodeId, &'static str>>,
+    /// The caret of the active document: (line, column), 0-based, from
+    /// whichever editor shows it (Milestone 14).
+    pub cursor: Signal<Option<(u32, u32)>>,
     /// Terminal sessions started elsewhere (the `ssh` of a remote session)
     /// that the terminal panel adopts as tabs (Milestone 11).
     pub adopt_terminals: Signal<Vec<Rc<RefCell<Option<moonkale_terminal::Session>>>>>,
@@ -404,6 +410,8 @@ impl Workspace {
             cursor_line: Signal::new_in_scope(None, ScopeId::ROOT),
             assets_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
+            editor_choice: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            cursor: Signal::new_in_scope(None, ScopeId::ROOT),
             adopt_terminals: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             remote: Signal::new_in_scope(None, ScopeId::ROOT),
             server_link: Signal::new_in_scope(None, ScopeId::ROOT),
@@ -1127,6 +1135,20 @@ impl Workspace {
         }
     }
 
+    /// Change one scope and persist it (extension settings, Milestone 13).
+    pub fn update_settings_in(
+        self,
+        target: crate::SettingsTarget,
+        f: impl FnOnce(&mut crate::settings::SettingsFile) + 'static,
+    ) {
+        spawn(async move {
+            match target {
+                crate::SettingsTarget::User => self.update_user_settings(f).await,
+                crate::SettingsTarget::Workspace => self.update_workspace_settings(f).await,
+            }
+        });
+    }
+
     /// Change the user scope and persist it.
     pub async fn update_user_settings(
         mut self,
@@ -1534,6 +1556,57 @@ impl Workspace {
             self.cursor_line.set(Some(line));
             self.publish_presence();
         }
+    }
+
+    /// The editor reports the caret of `node` (line, column; 0-based).
+    /// Keeps `cursor_line` (presence) in step (Milestone 14).
+    pub fn set_cursor(&mut self, node: NodeId, line: u32, col: u32) {
+        if *self.active.peek() != Some(node) {
+            return;
+        }
+        if *self.cursor.peek() != Some((line, col)) {
+            self.cursor.set(Some((line, col)));
+        }
+        self.set_cursor_line(node, line);
+    }
+
+    /// The identifier under the active document's caret, if any.
+    pub fn cursor_word(&self) -> Option<String> {
+        let (line, col) = (*self.cursor.read())?;
+        let (_, doc) = self.active_document()?;
+        let text = doc.read().text.clone();
+        word_at(&text, line, col)
+    }
+
+    /// Which code editor shows `node` (Milestone 14): the per-document
+    /// choice, else `editor.implementation`, else the one enabled.
+    pub fn editor_for(&self, node: NodeId) -> &'static str {
+        if let Some(c) = self.editor_choice.read().get(&node) {
+            return c;
+        }
+        let s = self.settings.read();
+        let codemirror = s.extensions.is_enabled_id("dev.moonkale.editor-code", true);
+        let native = s
+            .extensions
+            .is_enabled_id("dev.moonkale.editor-code-native", false);
+        match (codemirror, native) {
+            (true, false) => "codemirror",
+            (false, true) => "native",
+            _ => {
+                if s.editor.implementation == "native" {
+                    "native"
+                } else {
+                    "codemirror"
+                }
+            }
+        }
+    }
+
+    /// Move `node` to the other code editor (the toolbar switch).
+    pub fn choose_editor(&mut self, node: NodeId, which: &'static str) {
+        self.editor_choice.with_mut(|m| {
+            m.insert(node, which);
+        });
     }
 
     /// Join the folder's presence room (called when a folder opens); a
@@ -2254,4 +2327,47 @@ fn intern_panel_id(id: &str) -> &'static str {
     let leaked: &'static str = Box::leak(id.to_string().into_boxed_str());
     pool.insert(leaked);
     leaked
+}
+
+/// The identifier (letters, digits, `_`) around column `col` of line `line`
+/// (both 0-based, `col` in characters), or `None` on whitespace/punctuation.
+pub fn word_at(text: &str, line: u32, col: u32) -> Option<String> {
+    let l = text.lines().nth(line as usize)?;
+    let chars: Vec<char> = l.chars().collect();
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let col = (col as usize).min(chars.len());
+    // Prefer the character under the caret, else the one before it.
+    let anchor = if col < chars.len() && is_word(chars[col]) {
+        col
+    } else if col > 0 && is_word(chars[col - 1]) {
+        col - 1
+    } else {
+        return None;
+    };
+    let mut start = anchor;
+    while start > 0 && is_word(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = anchor + 1;
+    while end < chars.len() && is_word(chars[end]) {
+        end += 1;
+    }
+    Some(chars[start..end].iter().collect())
+}
+
+#[cfg(test)]
+mod word_tests {
+    use super::word_at;
+
+    #[test]
+    fn finds_the_identifier_around_the_caret() {
+        let t = "fn main() {\n    let total_sum = add(1, 2);\n}";
+        assert_eq!(word_at(t, 0, 0).as_deref(), Some("fn"));
+        assert_eq!(word_at(t, 0, 2).as_deref(), Some("fn")); // just after the word
+        assert_eq!(word_at(t, 0, 3).as_deref(), Some("main"));
+        assert_eq!(word_at(t, 1, 12).as_deref(), Some("total_sum"));
+        assert_eq!(word_at(t, 1, 24).as_deref(), Some("1"));
+        assert_eq!(word_at(t, 0, 10), None); // between `)` and `{`
+        assert_eq!(word_at(t, 9, 0), None);
+    }
 }

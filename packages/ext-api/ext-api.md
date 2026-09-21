@@ -69,3 +69,9 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - `workspace.rs`: `WorkspaceConfig::{agent_sessions, server}`; `AgentSessions { available, list, send, events, approve }` (constant `PartialEq`); `ServerClient { connect, disconnect, active }`; `Workspace::{agent_sessions(), has_server_client, connect_server, disconnect_server}`, `server_link` (url + the sources opened through it; not recorded as recents); `Command::{ConnectServer, DisconnectServer, NewTerminalIn(&str)}`.
 - `settings.rs`: `agent.on_server`, `terminal.implementation`, `llm.options`.
 - `tests/remote_flow.rs`: `connect_server_opens_the_root_and_disconnect_closes_it`.
+
+## Milestone 13
+`Extension::settings(&self, ws, target: SettingsTarget) -> Option<Element>` — an extension's own settings section, rendered under its row in the Extensions panel (`ui/extensions_panel.rs`); `Workspace::update_settings_in(target, f)` writes the chosen scope. Implemented by code (wrap), markdown (Rich by default), terminal + terminal-native (shell, implementation), agent (on the server).
+
+## Milestone 14
+`Workspace::{editor_choice, editor_for, choose_editor}` (which code editor shows a document), `cursor` + `set_cursor(node, line, col)` + `cursor_word()` with `word_at(text, line, col)` (unit-tested); `editor.implementation` setting.

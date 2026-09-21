@@ -1,10 +1,10 @@
 {
   description = "Moonkale — graph-native code and knowledge editor";
 
-  # Status: written against dioxus-cli 0.7.10's output layout; not yet built
-  # under Nix. See markdown/packaging/NixOS.md for the reasoning and caveats
-  # (dx must run inside the sandbox because plain cargo does not collect the
-  # hashed `asset!()` files).
+  # Written against dioxus-cli 0.7.10's output layout (target/dx/moonkale/…,
+  # Milestone 13); dx must run inside the sandbox because plain cargo does not
+  # collect the hashed `asset!()` files. See markdown/packaging/NixOS.md.
+  # Verified in CI (release.yml) — the dev box's nix-daemon is off.
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -36,19 +36,20 @@
             runHook preBuild
             export HOME=$TMPDIR                # dx writes caches under $HOME
             export CARGO_NET_OFFLINE=true
-            cd packages/desktop
-            dx build --release --platform linux --package desktop --cargo-args "--frozen"
-            cd ../..
+            (cd packages/desktop && dx build --release --platform desktop --features desktop --cargo-args "--frozen")
+            (cd packages/web && dx build --release --platform server --cargo-args "--frozen")
             runHook postBuild
           '';
 
           installPhase = ''
             runHook preInstall
-            app=target/dx/desktop/release/linux/app
+            app=target/dx/moonkale/release/linux/app
             install -Dm755 "$app/moonkale" "$out/bin/moonkale"
+            install -Dm755 target/dx/web/release/web/server "$out/bin/moonkale-server"
             mkdir -p "$out/lib/Moonkale"
             cp -r "$app/assets" "$out/lib/Moonkale/assets"
             install -Dm644 packaging/linux/moonkale.desktop "$out/share/applications/moonkale.desktop"
+            install -Dm644 packages/desktop/assets/icon.png "$out/share/icons/hicolor/512x512/apps/moonkale.png"
             runHook postInstall
           '';
 
@@ -58,7 +59,7 @@
           meta = with pkgs.lib; {
             description = "Graph-native code and knowledge editor";
             homepage = "https://github.com/MathStruct/Moonkale";
-            license = with licenses; [ mit asl20 ];
+            license = licenses.mit;
             mainProgram = "moonkale";
             platforms = platforms.linux;
           };

@@ -37,4 +37,18 @@ pub trait Extension: 'static {
     fn flow_libraries(&self) -> Vec<crate::flow::FlowLibrary> {
         Vec::new()
     }
+
+    /// The extension's own settings, shown under its row in the Extensions
+    /// panel (Milestone 13). `target` says which file a change goes to; use
+    /// [`Workspace::update_settings_in`]. Default: none.
+    fn settings(&self, _ws: Workspace, _target: crate::SettingsTarget) -> Option<Element> {
+        None
+    }
+}
+
+/// Which settings file a change goes to (the Extensions panel's switch).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingsTarget {
+    User,
+    Workspace,
 }

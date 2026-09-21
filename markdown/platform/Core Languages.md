@@ -63,3 +63,6 @@ Highlighting (2026-09-20, [[010]]): grammars ship in the CodeMirror bundle — d
 3. ~~LSP discovery~~ done; per-language custom commands in settings next.
 4. Symbols for Go, TypeScript, C/C++, Lean, Nix (tree-sitter grammars exist; Julia and Python were done in spec 022 with a walker each — ~150 lines per language); references and calls for any language.
 5. Lean infoview, Julia REPL — real extensions with panels, once the UI contribution model exists.
+
+## Milestone 14: highlighting for every core language, in Rust
+The Rust code editor ([[Code Editor Implementations]]) highlights with tree-sitter grammars compiled to Rust/wasm (`arborium`): Rust, Julia, Python, C/C++, JavaScript/TypeScript, Go, **Lean, Nix, Typst**, TOML, JSON, YAML, Markdown, SQL, GraphQL, HTML, CSS, shell — including the ones CodeMirror's bundle lacks (Lean, Nix). The "highlighting channel" item above is therefore answered for the Rust editor; CodeMirror keeps its Lezer set.

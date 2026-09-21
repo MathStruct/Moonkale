@@ -28,7 +28,37 @@ Moonkale grew out of the frustration that code editors, knowledge editors,
 database tools and no-code tools are separate worlds — and that none of them
 were built with graph databases or retrieval-augmented agents in mind.
 
+## Install
+
+Packages for every release are on the
+[releases page](https://github.com/MathStruct/Moonkale/releases):
+
+| platform | file | install |
+|---|---|---|
+| Arch Linux | `moonkale-bin-<v>-1-x86_64.pkg.tar.zst` | `sudo pacman -U <file>` |
+| Debian 12+ / Ubuntu 22.04+ | `moonkale_<v>_amd64.deb` | `sudo apt install ./<file>` |
+| Nix / NixOS | (from source) | `nix profile install github:MathStruct/Moonkale` |
+| any Linux | `moonkale-<v>-linux-x86_64.tar.gz` | unpack, `./bin/moonkale`, or `./install.sh ~/.local` |
+| Windows / macOS | `.msi` / `.exe` / `.dmg` | **unsigned and untested** — see the install page |
+
+Details, what the unsigned warnings mean, and how to report a problem:
+[Install](https://mathstruct.github.io/Moonkale/packaging/Install). To build
+the packages yourself: `packaging/build-release.sh` (Linux) — the same script
+the release workflow runs.
+
 ## Where it stands
+
+**Milestone 14 — "A Rust code editor"** (2026-09-21). A second code
+editor built on `dioxus-code-editor` — tree-sitter highlighting compiled to
+Rust and wasm for every core language, Lean, Nix and Typst included — next
+to CodeMirror, switchable per document; the word under the caret is a
+workspace signal for both.
+
+**Milestone 13 — "Packaging"** (2026-09-21). Packages to hand to friends:
+an Arch package, a `.deb`, a Nix flake, a tarball with an installer, and a
+GitHub release workflow that also produces Windows and macOS bundles
+(unsigned, untested). Every extension's settings now sit with the extension
+in the Extensions panel.
 
 **Milestone 12 — "Agents and a native terminal"** (2026-09-21). Claude
 Code is one of Moonkale's agents — on the subscription, no API key — and

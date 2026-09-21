@@ -1,0 +1,17 @@
+[package]
+name = "moonkale-editor-code-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Code editor without JavaScript bundles (Milestone 14): dioxus-code-editor — tree-sitter highlighting in Rust/wasm for every core language — behind Moonkale's document model."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }
+# The core languages only (Core Languages page); `all-languages` would be ~100 grammars.
+dioxus-code = { version = "0.1.2", default-features = false, features = ["runtime", "lang-julia", "lang-python", "lang-c", "lang-cpp", "lang-javascript", "lang-typescript", "lang-tsx", "lang-go", "lang-lean", "lang-nix", "lang-toml", "lang-json", "lang-yaml", "lang-markdown", "lang-typst", "lang-sql", "lang-graphql", "lang-html", "lang-css", "lang-bash"] }
+dioxus-code-editor = { version = "0.1.2", default-features = false }
+
+[build-dependencies]
+cc = "1"

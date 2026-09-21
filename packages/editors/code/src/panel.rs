@@ -110,9 +110,9 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         b.hover_result(id, None);
                     }
                 }
-                BackendEvent::Cursor { line, .. } => {
+                BackendEvent::Cursor { line, col } => {
                     let mut ws = ws;
-                    ws.set_cursor_line(node, line);
+                    ws.set_cursor(node, line, col);
                 }
                 // Spec 012: `[[` completion and Ctrl+click in markdown sources.
                 BackendEvent::WikiQuery { id, query } => {
@@ -544,6 +544,10 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 }
                 button { class: "mk-btn", disabled: !dirty, onclick: save, "Save" }
                 button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
+                // Milestone 14: move this document to the Rust editor.
+                if ws.settings.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
+                    button { class: "mk-btn mk-editor-switch", title: "Show this file in the Rust editor (dioxus-code-editor)", onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }, "Rust" }
+                }
             }
             if let Some((_, _, word)) = rename_prompt() {
                 div { class: "mk-editor-bar mk-editor-rename",

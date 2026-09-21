@@ -47,4 +47,17 @@ impl Extension for AgentExtension {
             ws.focus_element(crate::panel::INPUT_ID);
         }
     }
+
+    // Milestone 13: the agent's own settings; the language model stays under Settings.
+    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
+        let on_server = ws.settings.read().agent.on_server;
+        Some(rsx! {
+            label { class: "mk-settings-check",
+                input { r#type: "checkbox", checked: on_server,
+                    onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.agent.on_server = Some(v)); } }
+                "Run turns on the server — they finish without a window, and another device sees the state (web, or a desktop connected to a server)"
+            }
+            p { class: "mk-muted", "The language model, its keys and the policy are under Settings → Language model." }
+        })
+    }
 }

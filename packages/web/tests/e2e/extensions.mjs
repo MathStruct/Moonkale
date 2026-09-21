@@ -29,6 +29,16 @@ try {
     if (after === before) throw new Error("checkbox did not toggle");
     await box.click();
   });
+  await step("an extension's settings sit under its row (Milestone 13): the Terminal row has the implementation select; changing it persists", async () => {
+    const row = page.locator(".mk-extensions .mk-settings-ext", { hasText: "Shell sessions" }).first();
+    const select = row.locator(".mk-settings-ext-settings select").first();
+    await select.waitFor({ timeout: 5000 });
+    await select.selectOption("native");
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem("moonkale.settings")).terminal.implementation === "native"; } catch { return false; } }, null, { timeout: 5000 });
+    await select.selectOption("ask");
+    const md = page.locator(".mk-extensions .mk-settings-ext", { hasText: /Markdown/ }).first();
+    if (!(await md.locator(".mk-settings-ext-settings input[type=checkbox]").count())) throw new Error("markdown settings missing");
+  });
   await step("View → Show Extensions exists in the palette", async () => {
     await page.keyboard.press("Control+Shift+P");
     await page.waitForSelector(".mk-palette-input", { timeout: 10000 });

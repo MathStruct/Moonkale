@@ -5,7 +5,8 @@
 .mk-tn-tab-active { background: var(--wb-surface, #161922); color: var(--wb-ink, #e6e8ee); }
 .mk-tn-close, .mk-tn-new { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0 4px; }
 .mk-tn-empty { padding: 12px; }
-.mk-tn-screen { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4px; outline: none; position: relative; font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.3; }
+/* Bottom-anchored: if the grid is ever taller than the panel, the prompt (last row) stays visible (P-112). */
+.mk-tn-screen { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4px; outline: none; position: relative; display: flex; flex-direction: column; justify-content: flex-end; font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.3; }
 .mk-tn-screen.mk-tn-hidden { display: none; }
 .mk-tn-screen.mk-tn-focused { box-shadow: inset 0 0 0 1px var(--wb-accent, #6ea8fe); }
 .mk-tn-probe { position: absolute; visibility: hidden; white-space: pre; top: 0; left: 0; }

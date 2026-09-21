@@ -158,11 +158,6 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         input { class: "mk-input", value: "{secret}", placeholder: "defaults to the provider name",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.secret = opt(v))); } }
                     }
-                    label { class: "mk-settings-check",
-                        input { r#type: "checkbox", checked: settings.agent.on_server,
-                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.agent.on_server = Some(v))); } }
-                        "Run agent turns on the server — they finish even when no window is open, and another device sees the state (web, or the desktop connected to a server)"
-                    }
                     p { class: "mk-muted", "Keys are never stored in settings. They come from MOONKALE_SECRET_<NAME>, the classic ANTHROPIC_API_KEY / OPENAI_API_KEY, or the secrets file written below (desktop) / on the server (web)." }
                     if ws.secret_store().is_some() {
                         div { class: "mk-settings-secret",
@@ -201,32 +196,8 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         "Use embeddings when an embedding model is configured (applies to folders opened afterwards)"
                     }
 
-                    h3 { "Editor" }
-                    label { class: "mk-settings-check",
-                        input { r#type: "checkbox", checked: settings.editor.wrap,
-                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.editor.wrap = Some(v))); } }
-                        "Wrap long lines in the code editor (Alt+Z toggles)"
-                    }
-                    label { class: "mk-settings-check",
-                        input { r#type: "checkbox", checked: settings.editor.markdown_rich,
-                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.editor.markdown_rich = Some(v))); } }
-                        "Open markdown files in Rich mode (Source | Rich still switches)"
-                    }
-
-                    h3 { "Terminal" }
-                    label { "Shell"
-                        input { class: "mk-input", value: "{settings.terminal.shell.clone().unwrap_or_default()}", placeholder: "$SHELL",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.shell = opt(v))); } }
-                    }
-                    label { "Implementation"
-                        select { class: "mk-input", value: "{settings.terminal.implementation}",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.implementation = Some(v))); },
-                            for (k, name) in [("ask", "ask when both terminal extensions are enabled"), ("xterm", "xterm.js (JavaScript)"), ("native", "Rust (Dioxus-rendered, no JavaScript)")] {
-                                option { value: "{k}", selected: settings.terminal.implementation == k, "{name}" }
-                            }
-                        }
-                    }
-
+                    // Editor, markdown, terminal and agent settings live with their
+                    // extensions (Milestone 13): see the Extensions section below.
                     h3 { "Extensions" }
                     crate::extensions_panel::ExtensionsList { ws, target: target() }
 

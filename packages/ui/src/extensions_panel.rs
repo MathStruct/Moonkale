@@ -73,6 +73,10 @@ fn ExtensionsPanel(ws: Workspace) -> Element {
 pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
     let catalog: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     let settings = ws.settings.read().clone();
+    let ext_target = match target {
+        Target::User => moonkale_ext_api::SettingsTarget::User,
+        Target::Workspace => moonkale_ext_api::SettingsTarget::Workspace,
+    };
     let apply = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
         spawn(async move {
             match target {
@@ -100,6 +104,12 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                             if m.optional && !m.default_enabled { span { class: "mk-settings-scope", "opt-in" } }
                         }
                         div { class: "mk-settings-ext-desc", "{m.description}" }
+                        // Milestone 13: the extension's own settings, with the extension.
+                        if on {
+                            if let Some(section) = ext.settings(ws, ext_target) {
+                                div { class: "mk-settings-ext-settings", {section} }
+                            }
+                        }
                         if !perms.is_empty() {
                             div { class: "mk-settings-ext-perms",
                                 for p in perms {

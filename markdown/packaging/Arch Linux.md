@@ -3,27 +3,29 @@ title: "Arch Linux"
 description: Packaging Moonkale's desktop app for Arch (PKGBUILD / AUR).
 tags: [packaging, arch]
 ---
-Recipe: `packaging/arch/PKGBUILD`. Background: [[Packaging Overview]]. System prerequisites for *running* it: [[Linux Desktop Setup]].
+Two recipes (Milestone 13): **`packaging/arch-bin/PKGBUILD`** (`moonkale-bin`) installs a release tarball in seconds — what to send friends, see [[Install]] — and **`packaging/arch/PKGBUILD`** (`moonkale-git`) builds from source, for the AUR. Background: [[Packaging Overview]]. System prerequisites for *running* it: [[Linux Desktop Setup]].
 
 ## Dependencies
 
 | kind | packages | why |
 |---|---|---|
-| runtime `depends` | `webkit2gtk-4.1 gtk3 libappindicator-gtk3 xdotool openssl gcc-libs glibc` | what the binary links; `xdotool` provides `libxdo.so` (P-038) |
+| runtime `depends` | `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl gcc-libs glibc` | what the binary links; `xdotool` provides `libxdo.so` (P-038) |
 | `makedepends` | `git cargo rust dioxus-cli pkgconf` | `dioxus-cli` is in the AUR (`dioxus-cli`, or `dioxus-cli-bin` for a prebuilt); must be **≥ 0.7.10** |
 
 ## How the PKGBUILD works
 
 1. `pkgver()` — `0.1.0.r<commits>.g<sha>` from git (it's a `-git` package; a tagged release becomes a plain `moonkale` package with a tarball source and real checksums).
 2. `prepare()` — `cargo fetch --locked` so `build()` needs no network (makepkg runs builds offline in a clean chroot with `extra-x86_64-build`).
-3. `build()` — `dx build --release --platform linux --package desktop --cargo-args "--frozen"` from `packages/desktop`. **dx, not cargo**, because only dx collects the hashed assets. `CARGO_TARGET_DIR` is pinned so `package()` knows where the output is.
+3. `build()` — `dx build --release --platform desktop --features desktop` in `packages/desktop`, then `dx build --release --platform server` in `packages/web`. **dx, not cargo**, because only dx collects the hashed assets. `CARGO_TARGET_DIR` is pinned so `package()` knows where the output is (`target/dx/moonkale/release/linux/app`, `target/dx/web/release/web/server`).
 4. `package()` — install to the layout the asset resolver expects:
    ```text
    /usr/bin/moonkale
+   /usr/bin/moonkale-server
    /usr/lib/Moonkale/assets/…
    /usr/share/applications/moonkale.desktop
    /usr/share/icons/hicolor/512x512/apps/moonkale.png
    ```
+   Test without pushing: `MOONKALE_GIT_URL="file:///path/to/Moonkale" makepkg -f` (the `source` line honours it).
 
 ## Build and install
 

@@ -81,3 +81,6 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `server_dialog.rs`: *Connect to Server…* (URL + token → `Workspace::connect_server`); `commands.rs`: `server.connect`, `server.disconnect`; `titlebar.rs`: `menus(.., server: Option<bool>, ..)`; `shell.rs`: `⇅ url` status item.
 - `terminal_chooser.rs` + `frame::open_terminal_in(ws, which)`: `Command::NewTerminal` is resolved in the frame from the enabled terminal extensions and `terminal.implementation` — one implementation → `show_panel` then, two renders later (`YieldNow`, root-owned task, P-107/P-108), `Command::NewTerminalIn(which)`; both → the chooser (with *remember*). Settings → Terminal → Implementation.
 - `lib.rs`: `NativeTerminalExtension` registered (opt-in tier); Settings → Language model: the `claude-code` provider's fields and *Run agent turns on the server*.
+
+## Milestone 13
+`extensions_panel.rs` renders `ext.settings(ws, target)` under an enabled extension's row (`.mk-settings-ext-settings`); Settings lost its Editor and Terminal sections and the *run on the server* checkbox to the extensions. `packaging/build-release.sh`, `packaging/arch-bin/PKGBUILD`, `.github/workflows/release.yml` are the packaging side ([[Install]]).

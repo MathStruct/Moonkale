@@ -50,4 +50,29 @@ impl Extension for TerminalExtension {
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
         rsx! { TerminalPanel { ws, sessions: self.sessions } }
     }
+
+    // Milestone 13: the terminal's settings live with the extension.
+    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
+        let (shell, implementation) = {
+            let s = ws.settings.read();
+            (
+                s.terminal.shell.clone().unwrap_or_default(),
+                s.terminal.implementation.clone(),
+            )
+        };
+        Some(rsx! {
+            label { class: "mk-settings-field", "Shell"
+                input { class: "mk-input", value: "{shell}", placeholder: "$SHELL",
+                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.terminal.shell = if v.trim().is_empty() { None } else { Some(v) }); } }
+            }
+            label { class: "mk-settings-field", "Which terminal opens on New Terminal"
+                select { class: "mk-input", value: "{implementation}",
+                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.terminal.implementation = Some(v)); },
+                    for (k, name) in [("ask", "ask when both terminal extensions are enabled"), ("xterm", "xterm.js (JavaScript)"), ("native", "Rust (Dioxus-rendered, no JavaScript)")] {
+                        option { value: "{k}", selected: implementation == k, "{name}" }
+                    }
+                }
+            }
+        })
+    }
 }

@@ -43,6 +43,7 @@ pub mod presence;
 pub mod remote;
 pub mod settings;
 pub mod wiki;
+pub use extension::SettingsTarget;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};
@@ -58,7 +59,7 @@ pub use workspace::{
 pub mod prelude {
     pub use crate::{
         Activity, Command, CommandContribution, Document, Extension, Manifest, PanelContribution,
-        PanelHome, SourceHandle, Workspace,
+        PanelHome, SettingsTarget, SourceHandle, Workspace,
     };
     pub use moonkale_core::{
         Node, NodeId, NodeKind, Query, Source, SourceError, SourceId, Version,

@@ -23,3 +23,6 @@ Tests: `cargo test -p moonkale-index` (4 integration on a tempdir vault + 2 unit
 
 ## Spec 022 (2026-09-21)
 - `extract/symbols_julia.rs` (`tree-sitter-julia` 0.23): `function` (long and short form `f(x) = …`, dotted `Base.show` kept), `struct`/`mutable struct`, `abstract type`, `primitive type`, `module`, `macro`, `const`; the grammar has almost no named fields, so `head_name` reduces `signature → call_expression → identifier` through `where`/`::`/`{…}`; definitions inside a `module` get `Contains`. `extract/symbols_python.rs` (`tree-sitter-python` 0.25): `def`/`class` (through `decorated_definition`), methods `Contains`ed by their class. Dispatch in `source.rs::extract_into` by `language_hint` (`julia`, `python`). Neither extracts calls or references — nor does Rust's.
+
+## Milestone 14
+The tree-sitter runtime is `arborium-tree-sitter` and the grammars `arborium-rust/-julia/-python` (P-113: one `links = "tree-sitter"` per binary, shared with the Rust code editor). Same `Parser`/`Node` API and node kinds; the three extractors changed two lines each and their tests pass unchanged.

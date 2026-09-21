@@ -30,6 +30,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Remote and Server Modes]] — SSH remote folders (Zed), a Moonkale server (code-server), a shared server; the security of each
 - [[Notebook Editor]] — `.ipynb` viewer/editor with no new deps, kernels behind a feature (plan)
 - [[Annotations]] — comments anchored to files/rows/nodes, GitHub issues as the same thing (plan)
+- [[Code Editor Implementations]] — CodeMirror and the Rust editor side by side; switching; does the editor know the word under the cursor?
 - [[Case Selector]] — backend by size: rich/plain/viewer text, exact/approximate/coarse graph (design)
 - [[Unicode Input]] — `\int` → ∫ everywhere (design)
 - [[Core Languages]] — the languages Moonkale ships core extensions for, and where each stands
@@ -48,6 +49,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why
 
 ## Packaging
+- [[Install]] — pacman, apt, nix, tarball; unsigned Windows/macOS builds (Milestone 13)
 - [[Packaging Overview]] — what `dx build` produces and where the binary looks for assets
 - [[Licensing]] — Moonkale is MIT; what a built Moonkale additionally carries (DuckDB, wasmtime, Typst, ICU4X, KaTeX fonts …) and how to list it
 - [[Arch Linux]] (PKGBUILD) · [[NixOS]] (flake) · [[Android]] (APK/AAB) · [[Android Extensions and Bundling]] (what can be added after install, app size, Play/F-Droid)
@@ -89,6 +91,8 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 10 - Daily Use]] — the specifications as the backlog: 001–019 done ✅
 - [[Milestone 11 - Remote]] (plan) → [[Milestone 11 - Implementation Log]] (what happened) ✅ — remote folders over SSH, the desktop as a client of a server, TLS
 - [[Milestone 12 - Agents and a Native Terminal]] (plan) → [[Milestone 12 - Implementation Log]] (what happened) ✅ — Claude Code as a provider, server-side agent sessions, Connect to Server on the phone, the Rust terminal, the Extensions activity
+- [[Milestone 13 - Packaging]] (plan) → [[Milestone 13 - Implementation Log]] (what happened) ✅ — pacman/apt/nix/tarball packages, the release workflow, extension settings with the extension
+- [[Milestone 14 - Rust Code Editor]] (plan) → [[Milestone 14 - Implementation Log]] (what happened) ✅ — the dioxus-code-editor extension, switching editors, the caret's word
 
 ## Problems & planning
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done

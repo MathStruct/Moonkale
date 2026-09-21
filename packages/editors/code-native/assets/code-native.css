@@ -1,0 +1,5 @@
+/* The Rust code editor panel (Milestone 14). The editor itself is styled by dioxus-code-editor's stylesheet. */
+.mk-cn { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-cn-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.mk-cn-body .dxc-editor { min-height: 100%; font-size: 13px; }
+.mk-cn-word { color: var(--wb-ink-faint, #7f8595); font-size: 12px; margin-right: 8px; }

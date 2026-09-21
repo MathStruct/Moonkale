@@ -59,6 +59,12 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
                 moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)
             }),
         ),
+        // Milestone 14: the Rust code editor, for documents `editor_for` gives it.
+        Box::new(
+            moonkale_editor_code_native::NativeCodeExtension::new().skipping(|n| {
+                moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)
+            }),
+        ),
         Box::new(moonkale_editor_table::TableExtension),
         Box::new(moonkale_editor_image::ImageExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),

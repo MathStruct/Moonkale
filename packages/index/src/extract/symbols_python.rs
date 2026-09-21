@@ -4,13 +4,13 @@
 
 use super::Derived;
 use crate::graph::derived_id;
+use arborium_tree_sitter::{Node as TsNode, Parser};
 use moonkale_core::{Edge, EdgeKind, Node, NodeId, NodeKind, SourceId};
-use tree_sitter::{Node as TsNode, Parser};
 
 pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let mut parser = Parser::new();
     if parser
-        .set_language(&tree_sitter_python::LANGUAGE.into())
+        .set_language(&arborium_python::language().into())
         .is_err()
     {
         return Derived::default();

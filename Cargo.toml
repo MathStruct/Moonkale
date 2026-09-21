@@ -28,6 +28,7 @@ members = [
     "packages/remote",
     # Editors ("windows")
     "packages/editors/code",
+    "packages/editors/code-native",
     "packages/editors/markdown",
     "packages/editors/table",
     "packages/editors/image",
@@ -74,6 +75,7 @@ moonkale-terminal = { path = "packages/terminal" }
 moonkale-terminal-pty = { path = "packages/terminal-pty" }
 moonkale-remote = { path = "packages/remote" }
 moonkale-editor-code = { path = "packages/editors/code" }
+moonkale-editor-code-native = { path = "packages/editors/code-native" }
 moonkale-editor-markdown = { path = "packages/editors/markdown" }
 moonkale-editor-table = { path = "packages/editors/table" }
 moonkale-editor-image = { path = "packages/editors/image" }

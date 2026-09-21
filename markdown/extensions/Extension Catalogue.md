@@ -9,7 +9,9 @@ Tiers ([[Extension System]]): **core** — always on, cannot be disabled; **opti
 
 Platform columns: ✅ works · ⚙️ works through the server (the web client's process has no PTY/binaries/drivers; the server has) · ❌ not available · ⏳ compiles, not wired. The phone today has no server behind it, so anything that needs a process, a binary or a network driver is ❌ there until it talks to a hub.
 
-## Current (Milestone 9)
+## Current (Milestone 13)
+
+Milestone 14 added the Rust code editor next to CodeMirror ([[Code Editor Implementations]]). Since Milestone 13 an extension can contribute its own **settings** (`Extension::settings`), shown under its row in the Extensions panel: the code editor (wrap), markdown (Rich by default), both terminals (shell, which one opens), the agent (run on the server). Cross-cutting settings — language model, policy, search, keybindings, You — stay under Settings.
 
 | id | name | crate (lines) | tier | contributes | desktop | web | mobile | needs from outside |
 |---|---|---|---|---|---|---|---|---|
@@ -18,6 +20,7 @@ Platform columns: ✅ works · ⚙️ works through the server (the web client's
 | `settings` | Settings | `ui/settings_panel.rs` | core | panel: LLM, policy, keybindings, extensions, You | ✅ | ✅ | ✅ | — |
 | `dev.moonkale.extensions` | Extensions | `ui/extensions_panel.rs` | core | panel + activity-bar entry (Milestone 12): built-ins by tier with toggles and permissions, installed wasm modules | ✅ | ✅ | ✅ | — |
 | `dev.moonkale.editor-code` | Code editor | `editors/code` (1 143) | core | editor for every text node; LSP hover/definition/completion/rename/actions/references; presence gutter | ✅ | ✅ (LSP ⚙️) | ✅ (LSP ❌) | LSP servers on `PATH` (desktop) or on the server; CodeMirror bundle |
+| `dev.moonkale.editor-code-native` | Code Editor (Rust) | `editors/code-native` (≈ 330) | **opt-in** | the JS-free code editor (Milestone 14): `dioxus-code-editor`, tree-sitter in Rust/wasm for every core language incl. Lean, Nix, Typst; save/reload/Ctrl+S, the caret's word; no LSP/decorations. `editor.implementation` and a toolbar switch pick per document | ✅ | ✅ | ✅ | `dioxus-code` + `arborium` (two crates, MIT) |
 | `dev.moonkale.editor-markdown` | Markdown & links | `editors/markdown` (635) | optional | rich (Milkdown) + source editing, backlinks/Links panel, Typst preview | ✅ | ✅ (Typst ⚙️) | ✅ (Typst ⏳: `compile_typst: None`) | Milkdown bundle; the `typst` crate (in-process; server on web) |
 | `dev.moonkale.editor-graph` | Graph | `editors/graph` + `graph-render` (819 + 1 883) | optional | the graph panel (2D/3D, wgpu, Barnes–Hut), stack-trace graphs | ✅ (WebKitGTK: GL) | ✅ | ✅ (WebGL2, P-089) | a GPU context in the webview |
 | `dev.moonkale.editor-image` | Image viewer | `editors/image` (≈ 300) | optional | viewer for png/jpg/gif/webp/svg/bmp/ico/avif: fit/zoom/pan, SVG source | ✅ | ✅ (bytes via `/api/sources/fetch_bytes`) | ✅ | — |

@@ -1,0 +1,38 @@
+# Maintainer: Daniel Boigk <daniel@mathstruct.org>
+#
+# moonkale-bin: installs a release tarball (built by packaging/build-release.sh
+# or the GitHub release workflow) — seconds, no Rust toolchain. The from-source
+# recipe is packaging/arch/PKGBUILD (moonkale-git). Milestone 13.
+#
+# Build locally: packaging/build-release.sh puts the tarball next to this file
+# and runs `MOONKALE_VERSION=<v> makepkg -f --skipchecksums`. For a published
+# release, set pkgver, point source at the GitHub asset and fill sha256sums.
+
+pkgname=moonkale-bin
+pkgver=${MOONKALE_VERSION:-0.1.0}
+pkgrel=1
+pkgdesc="Graph-native code and knowledge editor (binary release, with moonkale-server)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/MathStruct/Moonkale"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'xdotool' 'openssl' 'gcc-libs' 'glibc')
+provides=('moonkale' 'moonkale-server')
+conflicts=('moonkale' 'moonkale-git')
+options=('!debug' '!strip')
+_name="moonkale-${pkgver}-linux-${CARCH}"
+source=("${_name}.tar.gz")
+# Local builds pass --skipchecksums; releases put the real sum here.
+sha256sums=('SKIP')
+
+package() {
+  cd "$srcdir/$_name"
+  install -Dm755 bin/moonkale "$pkgdir/usr/bin/moonkale"
+  install -Dm755 bin/moonkale-server "$pkgdir/usr/bin/moonkale-server"
+  install -d "$pkgdir/usr/lib/Moonkale"
+  cp -r lib/Moonkale/assets "$pkgdir/usr/lib/Moonkale/assets"
+  install -Dm644 share/applications/moonkale.desktop "$pkgdir/usr/share/applications/moonkale.desktop"
+  install -Dm644 share/icons/hicolor/512x512/apps/moonkale.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/moonkale.png"
+  install -Dm644 share/doc/moonkale/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 share/doc/moonkale/THIRD-PARTY.md "$pkgdir/usr/share/doc/$pkgname/THIRD-PARTY.md"
+  install -Dm644 share/doc/moonkale/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
