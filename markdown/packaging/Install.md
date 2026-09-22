@@ -51,6 +51,14 @@ Signing needs a certificate (Windows, ~€200/yr) or an Apple Developer account 
 - NVIDIA + Wayland on Linux and the window stays blank: start with `WEBKIT_DISABLE_DMABUF_RENDERER=1 moonkale` (see [[Linux Desktop Setup]]).
 - Language servers (rust-analyzer, pyright, …) are found on `PATH`; Claude Code needs the `claude` CLI logged in; nothing else is required.
 
+## Server in a container
+```sh
+docker run --rm -p 8080:8080 -v /srv/notes:/data \
+  -e MOONKALE_TOKEN=$(openssl rand -hex 16) -e MOONKALE_INSECURE_HTTP=1 \
+  ghcr.io/mathstruct/moonkale-server
+```
+`ghcr.io/mathstruct/moonkale-server:<version>` / `:latest` holds `moonkale-server` alone (Ubuntu 24.04, ~120 MB), serving `/data`. A token is required for any non-loopback bind; put TLS or a reverse proxy in front and drop `MOONKALE_INSECURE_HTTP` ([[Remote and Server Modes]]). The desktop app then connects with *File → Connect to Server…*.
+
 ## Verify a download
 ```sh
 sha256sum -c sha256sums.txt --ignore-missing

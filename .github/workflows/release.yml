@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  packages: write   # the container job publishes to ghcr.io
 
 env:
   DX_VERSION: 0.7.10
@@ -86,7 +87,7 @@ jobs:
         run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
       - uses: Swatinem/rust-cache@v2
       - name: Bundle
-        run: cd packages/desktop && dx bundle --platform desktop --release --features desktop --package-types msi nsis
+        run: cd packages/desktop && dx bundle --platform desktop --release --features desktop --package-types msi --package-types nsis
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -101,7 +102,7 @@ jobs:
         include:
           - runner: macos-14        # arm64 (Apple silicon)
             arch: arm64
-          - runner: macos-13        # x86_64 (Intel)
+          - runner: macos-15-intel  # x86_64 (Intel; macos-13 was retired and its jobs queue forever)
             arch: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
@@ -132,6 +133,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: System libraries
+        # `dx build --platform android` also builds the fullstack **server**
+        # binary for the host (DuckDB, LadybugDB, Typst, wasmtime), so this
+        # job needs the Linux job's dev packages plus cmake — LadybugDB falls
+        # back to compiling its C++ when the prebuilt download fails.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libssl-dev pkg-config binutils cmake
       - uses: android-actions/setup-android@v3
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;29.0.14206865"
@@ -144,7 +153,9 @@ jobs:
       - name: Build the APK (packages/mobile/build-android.sh)
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-        run: packages/mobile/build-android.sh
+        # -v: dx hides cargo's error text otherwise (the first run of this job
+        # failed with nothing but "cargo build finished with errors").
+        run: DX_BUILD_ARGS=-v packages/mobile/build-android.sh
       - name: Name the artefact
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
@@ -153,6 +164,39 @@ jobs:
         with:
           name: android
           path: dist/*.apk
+
+  container:
+    name: Container image (ghcr.io/moonkale-server)
+    needs: linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux
+          path: dist
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        # The image only repackages the tarball's `moonkale-server`; it is what
+        # the repository's **Packages** sidebar lists. Pushed for tags only —
+        # a manual run builds it and stops.
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          TARBALL=$(ls dist/moonkale-*-linux-x86_64.tar.gz | head -1)
+          IMAGE=ghcr.io/$(echo "${{ github.repository_owner }}" | tr 'A-Z' 'a-z')/moonkale-server
+          docker build -f packaging/Dockerfile --build-arg TARBALL="$TARBALL" -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
+          # Smoke test: the binary runs and prints its version, then exits.
+          docker run --rm "$IMAGE:$VERSION" --version
+          if [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ]; then
+            docker push "$IMAGE:$VERSION" && docker push "$IMAGE:latest"
+          else
+            echo "not a tag — built but not pushed"
+          fi
 
   nix:
     name: Nix (flake build)
@@ -170,7 +214,7 @@ jobs:
     # (nobody has the machines to test them); a failure there must not hold
     # back the Linux packages. The release notes say which jobs failed.
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, arch, windows, macos, android]
+    needs: [linux, arch, windows, macos, android, container]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -183,7 +227,7 @@ jobs:
         id: failed
         run: |
           failed=""
-          for j in linux:${{ needs.linux.result }} arch:${{ needs.arch.result }} windows:${{ needs.windows.result }} macos:${{ needs.macos.result }} android:${{ needs.android.result }}; do
+          for j in linux:${{ needs.linux.result }} arch:${{ needs.arch.result }} windows:${{ needs.windows.result }} macos:${{ needs.macos.result }} android:${{ needs.android.result }} container:${{ needs.container.result }}; do
             case "$j" in *:success) ;; *) failed="$failed ${j%%:*}" ;; esac
           done
           echo "list=$failed" >> "$GITHUB_OUTPUT"
