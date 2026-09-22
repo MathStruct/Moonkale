@@ -62,9 +62,37 @@ open(sx, "w").write('<resources>\n    <string name="app_name">Moonkale</string>\
 print("icons + label written to", res)
 PY
 
-(cd "$PROJECT" && ./gradlew --quiet assembleDebug)
-APK="$PROJECT/app/build/outputs/apk/debug/app-debug.apk"
+# Signing (P-131). With a keystore, build the **release** APK signed by it, so
+# every build of every machine carries the same signature and one release
+# installs over the last. Without one, the debug APK as before — signed with a
+# throwaway key, installable but never updatable.
+#   MOONKALE_ANDROID_KEYSTORE           path to the .jks
+#   MOONKALE_ANDROID_KEYSTORE_PASSWORD  store password
+#   MOONKALE_ANDROID_KEY_ALIAS          key alias (default: moonkale)
+#   MOONKALE_ANDROID_KEY_PASSWORD       key password (default: the store one)
+KS="${MOONKALE_ANDROID_KEYSTORE:-}"
+if [ -n "$KS" ]; then
+  [ -f "$KS" ] || { echo "MOONKALE_ANDROID_KEYSTORE=$KS does not exist" >&2; exit 1; }
+  KS="$(cd "$(dirname "$KS")" && pwd)/$(basename "$KS")"   # gradle needs it absolute
+  KS_PW="${MOONKALE_ANDROID_KEYSTORE_PASSWORD:?set MOONKALE_ANDROID_KEYSTORE_PASSWORD}"
+  KEY_ALIAS="${MOONKALE_ANDROID_KEY_ALIAS:-moonkale}"
+  KEY_PW="${MOONKALE_ANDROID_KEY_PASSWORD:-$KS_PW}"
+  echo "signing with $KS (alias $KEY_ALIAS)"
+  (cd "$PROJECT" && ./gradlew --quiet assembleRelease \
+    -Pandroid.injected.signing.store.file="$KS" \
+    -Pandroid.injected.signing.store.password="$KS_PW" \
+    -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+    -Pandroid.injected.signing.key.password="$KEY_PW")
+  APK="$PROJECT/app/build/outputs/apk/release/app-release.apk"
+else
+  echo "no MOONKALE_ANDROID_KEYSTORE: debug-signed APK (not updatable — P-131)"
+  (cd "$PROJECT" && ./gradlew --quiet assembleDebug)
+  APK="$PROJECT/app/build/outputs/apk/debug/app-debug.apk"
+fi
 ls -la "$APK"
+# Who signed it, so a release never goes out with an accidental debug key.
+APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)/apksigner"
+[ -x "$APKSIGNER" ] && "$APKSIGNER" verify --print-certs "$APK" | grep -iE "signer #1 certificate (DN|SHA-256)" || true
 if [ "${1:-}" = "install" ]; then
   adb install -r "$APK"
   adb shell monkey -p io.github.mathstruct.moonkale -c android.intent.category.LAUNCHER 1 >/dev/null

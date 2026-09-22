@@ -162,16 +162,34 @@ jobs:
       - name: Pillow (launcher icons)
         run: pip3 install --user pillow
       - uses: Swatinem/rust-cache@v2
+      - name: Release keystore (skipped when the secret is absent)
+        # A stable signature, so one release installs over the last (P-131).
+        # Without the secret the script falls back to a debug key and the
+        # release notes below say so.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "MOONKALE_ANDROID_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — the APK gets a throwaway debug key and will not install over an earlier release (P-131)."
+          fi
       - name: Build the APK (packages/mobile/build-android.sh)
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          MOONKALE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MOONKALE_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MOONKALE_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         # --verbose (dx has no short -v): dx hides cargo's error text otherwise; the
         # first run of this job failed with nothing but "cargo build finished with errors".
         run: DX_BUILD_ARGS=--verbose packages/mobile/build-android.sh
       - name: Name the artefact
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          mkdir -p dist && cp target/dx/mobile/release/android/app/app/build/outputs/apk/debug/app-debug.apk dist/moonkale-$VERSION-android-arm64.apk
+          OUT=target/dx/mobile/release/android/app/app/build/outputs/apk
+          APK="$OUT/release/app-release.apk"; [ -f "$APK" ] || APK="$OUT/debug/app-debug.apk"
+          mkdir -p dist && cp "$APK" dist/moonkale-$VERSION-android-arm64.apk
       - uses: actions/upload-artifact@v4
         with:
           name: android

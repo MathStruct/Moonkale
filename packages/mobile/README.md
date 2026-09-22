@@ -71,3 +71,60 @@ With the forward in place any CDP client can evaluate JavaScript in the page —
 
 ## Milestone 12 — the phone as a server's client
 `main()` installs `api::relay` before launch (P-098) and *File → Connect to Server…* (`ServerClient` over `api::client`) makes the app a client of a Moonkale server: `open_any`/`attach_any` route to the server while connected, `spawn_terminal` gives a shell *on the server* (the phone has none), `git_any` likewise, and the Agent panel uses **server sessions** (the phone has no local provider, so `agent_sessions()` needs no setting): a Claude Code turn started elsewhere keeps running there and the phone shows its state. Over the network the server should be reached through HTTPS (`MOONKALE_TLS_CERT/KEY`) or a tunnel; `MOONKALE_INSECURE_HTTP=1` on the server for a trusted LAN. Verified on the device 2026-09-22 against a LAN server (`server --bind 0.0.0.0 --port 8443 --token-stdin` with `MOONKALE_INSECURE_HTTP=1`): status `⇅ http://…:8443`, the server's folder next to the phone's vault, its files open. The first attempt did nothing — P-116, the dialog's task was cancelled with the dialog.
+
+## Signing the APK (P-131)
+
+Until 2026-09-22 every build signed the APK with whatever debug key the machine
+had — the developer's `~/.android/debug.keystore` locally, a throwaway one on
+the CI runner. Two builds therefore never shared a signature, so a new release
+refused to install over an older one (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) and
+a user had to uninstall, losing the vault in the app's private storage.
+
+`build-android.sh` now builds a **release** APK signed with a keystore when one
+is named, and the debug APK otherwise:
+
+```sh
+MOONKALE_ANDROID_KEYSTORE=~/keys/moonkale-release.jks \
+MOONKALE_ANDROID_KEYSTORE_PASSWORD=… \
+MOONKALE_ANDROID_KEY_ALIAS=moonkale \
+MOONKALE_ANDROID_KEY_PASSWORD=…  \
+  packages/mobile/build-android.sh install
+```
+
+It passes them to Gradle as `-Pandroid.injected.signing.*` (nothing is written
+into `Dioxus.toml`, so no password can reach git) and prints the signer's
+certificate afterwards, so a release never goes out with an accidental debug
+key. Verified on 2026-09-22: 24.6 MB instead of 45.6 MB (R8 runs for the
+release build type), starts on a Galaxy S10e, no `ClassNotFound` from
+minification.
+
+**One-time setup.** Generate the key *once* and keep it forever — losing it
+means no existing install can ever be updated again:
+
+```sh
+keytool -genkeypair -v -keystore moonkale-release.jks -alias moonkale \
+  -keyalg RSA -keysize 4096 -validity 10000
+base64 -w0 moonkale-release.jks   # the value of ANDROID_KEYSTORE_BASE64
+```
+
+Store the file somewhere safe **outside the repository** (a password manager or
+an encrypted backup), then add four repository secrets under *Settings →
+Secrets and variables → Actions*: `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The
+release job decodes the keystore into the runner's temp directory and deletes
+it with the runner. Without the secrets the job still builds, prints a warning
+and produces the old debug-signed APK.
+
+**The switch costs one uninstall.** A phone that carries a debug-signed build
+cannot update to the release-signed one; it must be uninstalled, and the app's
+private vault goes with it. `run-as` works on the debug build only, so back up
+*before* switching:
+
+```sh
+adb exec-out run-as io.github.mathstruct.moonkale tar -cf - files > moonkale-phone.tar
+```
+
+and note that the same command cannot restore into the release build — it is
+not debuggable. Anything typed on the phone should be copied to a server
+(*File → Connect to Server…*) first. After that one switch, updates keep the
+data.
