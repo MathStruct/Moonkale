@@ -93,3 +93,6 @@ dx 0.7.10 labels the app after the crate (`Mobile`) and ships its own launcher i
 - [ ] `dx serve --platform android` shows the shell on an emulator
 - [ ] `dx bundle --release --platform android --package-types apk` produces `app-release.apk` (signing configured)
 - [ ] the APK installs and opens on a device; log the result in [[Problem Log]]
+
+## Signing
+The release APK is signed with a keystore whose base64 lives in the `ANDROID_KEYSTORE_BASE64` repository secret; `packages/mobile/build-android.sh` takes it through `MOONKALE_ANDROID_KEYSTORE` and builds `assembleRelease`. Why it matters, how to generate the key and what the one-time switch costs users: `packages/mobile/README.md` and [[Problem Log]] P-131.
