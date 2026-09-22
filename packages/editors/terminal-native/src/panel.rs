@@ -113,19 +113,7 @@ impl Extension for NativeTerminalExtension {
     }
 
     // Milestone 13: the same chooser setting as the xterm.js panel.
-    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let implementation = ws.settings.read().terminal.implementation.clone();
-        Some(rsx! {
-            label { class: "mk-settings-field", "Which terminal opens on New Terminal"
-                select { class: "mk-input", value: "{implementation}",
-                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.terminal.implementation = Some(v)); },
-                    for (k, name) in [("ask", "ask when both terminal extensions are enabled"), ("xterm", "xterm.js (JavaScript)"), ("native", "Rust (Dioxus-rendered, no JavaScript)")] {
-                        option { value: "{k}", selected: implementation == k, "{name}" }
-                    }
-                }
-            }
-        })
-    }
+    // Which terminal opens is Settings → Which extension (Milestone 15).
 }
 
 async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<String>) {

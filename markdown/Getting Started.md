@@ -13,7 +13,7 @@ You use **VS Code** for code and **Obsidian** for notes. Moonkale is one app tha
 
 **3. Your vault stays your vault.** Notes are plain markdown with Obsidian's `[[wiki-links]]`, `[[note#heading|alias]]`, front matter and `$…$` / `$$…$$` KaTeX. Open the same folder in Obsidian tomorrow; nothing was changed behind your back. What Moonkale adds lives in one hidden folder, `.moonkale/`, that you can delete.
 
-**4. Everything is an extension, and the agent is part of the app.** The editors, the terminal, git, the graph — each is an extension you can switch off in the Extensions panel (the puzzle icon). The **Agent** panel is a chat with an LLM that can *use* your sources: list them, read files, query the graph and the databases, search — and, only with your click on *Allow*, edit files. It works with your own keys (Anthropic, OpenAI-compatible, Ollama) or with **Claude Code on your subscription, no key**.
+**4. Everything is an extension, and the agent is part of the app.** The editors, the terminal, git, the graph — each is an extension you can switch off in the Extensions panel (the puzzle icon). The **Agent** panel is a chat with an LLM that can *use* your sources: list them, read files, query the graph and the databases, search — and, only with your click on *Allow*, edit files. It works with your own keys (Anthropic, OpenAI-compatible, Ollama) or with **Claude Code on your subscription, no key** — a *Log in* button in Settings runs its browser sign-in. You can save several agents and run several sessions at once; their history stays in the folder.
 
 ## Coming from VS Code
 | you are used to | in Moonkale |
@@ -24,7 +24,7 @@ You use **VS Code** for code and **Obsidian** for notes. Moonkale is one app tha
 | the integrated terminal | `` Ctrl+` ``; on a remote folder the shell runs on the remote machine |
 | Source Control | the **Git** entry: stage, commit, diffs, and the history *as a graph* |
 | Remote-SSH | **File → Open Remote Folder…**: your system `ssh` (keys, config aliases, passwords typed in the terminal tab), the folder, its terminal, git and language servers run on the other machine, the editor here |
-| Settings JSON | Settings panel with user and workspace scopes (`.moonkale/settings.json` in the folder); each extension's settings sit under the extension |
+| Settings JSON | Settings panel with user and workspace scopes (`.moonkale/settings.json` in the folder); each extension's on/off switch and settings sit under the extension in the Extensions panel |
 | extensions marketplace | none yet — built-in extensions, plus wasm modules you drop into a folder ([[Extension Catalogue]]) |
 
 Differences you will notice: no debugger, no tasks, no multi-cursor in the Rust editor, and the language-server features exist in the CodeMirror editor only.
@@ -48,7 +48,7 @@ Differences you will notice: no canvas, no daily notes, no templates plugin, few
 3. Click **Graph** (bottom-left). *Whole* shows everything; *Local* shows two hops around the file you have open; **3D** for the layered view. Scroll to zoom, drag to pan, click a node to open it.
 4. Open a `.md` note: you are in **Rich** mode. Type `[[` — completion lists the notes. Type `$\int_0^1$` — it renders. The **Properties** bar holds the front matter.
 5. Open a `.rs`/`.py`/`.jl` file: CodeMirror with the language server if you have one installed (the status bar says what it found). Try *Rust* in the toolbar for the other editor.
-6. **Agent** (right): ask "what does this folder contain?" — the mock provider answers offline; in Settings → Language model pick Claude Code (subscription) or a provider with a key stored as a *secret* (never in settings).
+6. **Agent** (right): ask "what does this folder contain?" — the mock provider answers offline; in Settings → Agents add an agent: Claude Code (subscription; *Log in* opens the browser) or a provider with a key stored as a *secret* (never in settings). *New* starts a second session while the first works.
 7. **Terminal** (`` Ctrl+` ``): a shell in the folder. Ctrl+click a `path:line` in its output to open the file.
 8. **Ctrl+Shift+F** searches the folder — keyword search always; semantic search when an embedding model is configured.
 

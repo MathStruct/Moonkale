@@ -50,6 +50,7 @@ fn config() -> WorkspaceConfig {
             disconnect: || {},
             active: || None,
         }),
+        spawn_program: None,
     }
 }
 

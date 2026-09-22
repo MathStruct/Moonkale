@@ -28,3 +28,6 @@ Watching (`watch.rs` note), web/mobile backends (`platform.rs` note), the `Backe
 
 ## Milestone 7
 `Op::CreateDir`, `Op::Rename { node, to }` (new id from the new path, old id forgotten; refuses clashes, escapes and moving a directory into itself), `Op::Delete` (moves to `.moonkale/trash/<unix-ms>/<path>`; the root cannot be deleted). Test `create_dir_rename_and_delete_to_trash`.
+
+## Milestone 15 — the `ls` dialect
+`Query::Text { dialect: "ls", text: "<rel>" }` lists a directory by relative path with a plain `read_dir`: hidden entries and ignored ones included, sorted by name, root-jailed (`..` refused), empty for a missing directory. `Children` keeps the explorer's rules (hidden and `.gitignore`d entries skipped), which is why `.moonkale/agent-sessions/local/` needed this (P-118).

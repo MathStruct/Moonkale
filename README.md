@@ -55,6 +55,13 @@ the release workflow runs.
 
 ## Where it stands
 
+**Milestone 15 — "Agents, profiles and connections"** (2026-09-22). Saved
+agents (language-model profiles) in Settings, one chosen per session; the
+Agent panel runs several sessions at once and keeps their history in the
+folder; a Log in button for Claude Code (the CLI's browser flow in a
+terminal tab); saved SSH connections; extension settings only with the
+extension.
+
 **Milestone 14 — "A Rust code editor"** (2026-09-21). A second code
 editor built on `dioxus-code-editor` — tree-sitter highlighting compiled to
 Rust and wasm for every core language, Lean, Nix and Typst included — next

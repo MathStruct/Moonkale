@@ -51,7 +51,7 @@ pub use audit::{AuditEntry, AuditLog};
 pub use config::{Config, ProviderKind};
 pub use mock::MockProvider;
 pub use policy::{Class, Decision, Policy};
-pub use provider::{BoxFuture, EventStream, Provider};
+pub use provider::{BoxFuture, EventStream, Provider, ProviderStatus};
 pub use tools::{builtin_tools, ToolCall};
 pub use types::{Content, Event, LlmSettings, Message, Request, Role, StopReason, ToolDef, Usage};
 

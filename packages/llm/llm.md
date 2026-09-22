@@ -30,3 +30,6 @@ Tests: `cargo test -p moonkale-llm --features http` (SSE parser, both translator
 - `types.rs`: `Request.cwd`, `LlmSettings.options` (`permission_mode`, `allowed_tools` for `claude-code`); `config.rs`: `ProviderKind::ClaudeCode`, `from_parts(.., &options)`.
 - `sessions.rs`: the wire types of server-side agent sessions (`SessionItem`, `PendingApproval`, `SessionSummary`, `SessionState`, `TurnSettings`) shared by `api`, `ext-api` and the agent panel.
 - `agent.rs`: `Agent.cwd`; `ToolOutcome` is serialisable.
+
+## Milestone 15
+`Provider::status() -> Option<ProviderStatus>` (default `None`): `ok`, one-line `summary`, `hint`, `can_login`. `claude_code::cli_status(path)` runs `claude --version` and `claude auth status --json` (15 s timeout, `CLAUDECODE` unset so it works from inside a Claude Code session) → not installed (+ install command) / not logged in / logged in as … / login unknown (older CLI). The mock CLI answers both (`MOCK_CLAUDE_LOGGED_OUT=1` for the logged-out case). Logging in is the CLI's own `claude auth login` in a terminal tab (the ui crate); this crate never handles the credential.

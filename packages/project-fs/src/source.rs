@@ -217,8 +217,43 @@ impl Source for FolderSource {
                     v,
                 )))
             }
+            // `ls`: the entries of a directory by relative path, hidden ones
+            // included and nothing ignored (Milestone 15: the saved agent
+            // sessions under `.moonkale/`, which `Children` never lists).
+            Query::Text { dialect, text } if dialect == "ls" => {
+                let rel = text.trim().trim_start_matches("./").trim_matches('/').to_string();
+                if rel.split('/').any(|p| p == "..") {
+                    return Err(SourceError::Invalid("path escapes the folder".into()));
+                }
+                let dir = tree::absolute(&self.root, &rel);
+                let mut result = QueryResult::default();
+                let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
+                    return Ok(result);
+                };
+                let parent = self.node_id(&rel);
+                let mut listed = Vec::new();
+                while let Ok(Some(e)) = entries.next_entry().await {
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    let child_rel = if rel.is_empty() {
+                        name
+                    } else {
+                        format!("{rel}/{name}")
+                    };
+                    if let Ok(meta) = e.metadata().await {
+                        listed.push((child_rel, meta));
+                    }
+                }
+                listed.sort_by(|a, b| a.0.cmp(&b.0));
+                for (child_rel, meta) in listed {
+                    let node =
+                        self.node_for(&child_rel, meta.is_dir(), meta.len(), Self::version_of(&meta));
+                    result.edges.push(Edge::contains(&self.id, parent, node.id));
+                    result.nodes.push(node);
+                }
+                Ok(result)
+            }
             Query::All { .. } | Query::Text { .. } => Err(SourceError::Unsupported(
-                "folders answer Node/Children/Neighbours and Text{path}; the index has the whole graph"
+                "folders answer Node/Children/Neighbours and Text{path|ls}; the index has the whole graph"
                     .into(),
             )),
             Query::Node(id) => {

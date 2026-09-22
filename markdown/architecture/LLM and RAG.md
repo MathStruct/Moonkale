@@ -34,5 +34,8 @@ Conversations are stored as `Page`-like nodes with `Links` to everything cited. 
 
 **Claude Code specifically** — both directions (Moonkale as its IDE; Claude Code as a Moonkale agent provider on a subscription, no API key): [[Claude Code Extension]] (plan).
 
+## Saved agents and sessions (Milestone 15)
+Several language-model profiles live in settings (*Default* is the flat `llm` block, more under `agents[]`), one is the default, every session in the Agent panel picks one; sessions run side by side and are saved in the folder. Detail: [[Agent Sessions and Profiles]].
+
 ## Platform
 Providers are HTTP → all platforms. Web/mobile route through `api` so keys never reach the client.

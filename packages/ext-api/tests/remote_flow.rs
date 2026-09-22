@@ -118,6 +118,7 @@ fn config() -> WorkspaceConfig {
         }),
         agent_sessions: None,
         server: None,
+        spawn_program: None,
     }
 }
 

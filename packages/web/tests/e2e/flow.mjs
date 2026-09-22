@@ -36,9 +36,9 @@ try {
     if (await page.$(".mk-menu-item:has-text('New Flow')")) throw new Error("New Flow visible while disabled");
     await page.click(".mk-menu-backdrop");
   });
-  await step("Settings → Extensions: enable Flow editor and Lux.jl (user scope)", async () => {
-    await page.click(".wb-status-bar");
-    await page.keyboard.press("Control+,");
+  await step("Extensions panel: enable Flow editor and Lux.jl (user scope)", async () => {
+    // Extensions live in their own panel since Milestone 15 (Settings keeps only the selectors).
+    await page.click("#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
     const names = await page.$$eval(".mk-settings-ext-name", (e) => e.map((x) => x.textContent));
     console.log("\n  catalog:", names.join(", "));
@@ -119,7 +119,7 @@ try {
     if (!/Conv\(\(3, 3\), 1 => 16, relu; pad=1\)/.test(jl)) throw new Error("unexpected codegen");
   });
   await step("disabling Lux hides its blocks: the flow reports unknown kinds", async () => {
-    await page.click(".wb-tab:has-text('Settings')");
+    await page.click(".wb-tab:has-text('Extensions')");
     await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Lux.jl library')) > label input");
     await page.click(".wb-tab:has-text('untitled.flow.json')");
     await page.waitForFunction(() => +document.querySelector(".mk-flow-status")?.dataset.issues >= 7, null, { timeout: 10000 });

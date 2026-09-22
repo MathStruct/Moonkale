@@ -33,7 +33,16 @@ pub type SecretRef = String;
 #[serde(default)]
 pub struct SettingsFile {
     pub version: u32,
+    /// The language model — since Milestone 15 the profile called
+    /// **Default**; `agents` holds the other saved ones.
     pub llm: LlmFile,
+    /// Saved agents (Milestone 15, Prompt24): more language-model profiles,
+    /// by name; a later scope replaces a profile of the same name.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub agents: Vec<AgentProfileFile>,
+    /// Saved SSH connections for *Open Remote Folder…* (user scope).
+    #[serde(default)]
+    pub remote: RemoteFile,
     pub policy: PolicyFile,
     pub search: SearchFile,
     #[serde(default)]
@@ -90,6 +99,33 @@ pub struct LlmFile {
     pub options: std::collections::BTreeMap<String, String>,
 }
 
+/// A saved agent: a name and the same fields as `llm` (Milestone 15).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentProfileFile {
+    pub name: String,
+    #[serde(flatten)]
+    pub llm: LlmFile,
+}
+
+/// Saved SSH connections (Milestone 15).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RemoteFile {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub saved: Vec<SavedConnection>,
+}
+
+/// One saved connection: what goes into the *Open Remote Folder…* fields.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SavedConnection {
+    pub name: String,
+    /// The host as typed after `ssh` (options and `VAR=value` words included).
+    pub host: String,
+    pub path: String,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PolicyFile {
@@ -115,6 +151,10 @@ pub struct AgentFile {
     /// sees the state) when the sources are a server's.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_server: Option<bool>,
+    /// The saved agent that runs unless a session picks another
+    /// (Milestone 15); `None` or an unknown name = **Default**.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
 }
 
 /// Which optional extensions are on: an explicit list per state; anything
@@ -207,16 +247,7 @@ impl SettingsFile {
 
     /// Overlay `other` on `self`: set fields win, lists replace.
     pub fn overlay(&mut self, other: &SettingsFile) {
-        let o = &other.llm;
-        let l = &mut self.llm;
-        l.provider = o.provider.clone().or(l.provider.take());
-        l.model = o.model.clone().or(l.model.take());
-        l.base_url = o.base_url.clone().or(l.base_url.take());
-        l.embed_model = o.embed_model.clone().or(l.embed_model.take());
-        l.secret = o.secret.clone().or(l.secret.take());
-        for (k, v) in &o.options {
-            l.options.insert(k.clone(), v.clone());
-        }
+        overlay_llm(&mut self.llm, &other.llm);
         self.policy.allow_writes = other.policy.allow_writes.or(self.policy.allow_writes);
         self.policy.denied_tools = other
             .policy
@@ -225,6 +256,17 @@ impl SettingsFile {
             .or(self.policy.denied_tools.take());
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
         self.agent.on_server = other.agent.on_server.or(self.agent.on_server);
+        self.agent.default = other.agent.default.clone().or(self.agent.default.take());
+        // Saved agents: by name, the later scope's set fields winning.
+        for a in &other.agents {
+            match self.agents.iter_mut().find(|p| p.name == a.name) {
+                Some(p) => overlay_llm(&mut p.llm, &a.llm),
+                None => self.agents.push(a.clone()),
+            }
+        }
+        if !other.remote.saved.is_empty() {
+            self.remote.saved = other.remote.saved.clone();
+        }
         self.terminal.shell = other.terminal.shell.clone().or(self.terminal.shell.take());
         self.terminal.implementation = other
             .terminal
@@ -300,7 +342,13 @@ pub enum Scope {
 /// The resolved settings the app reads.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
+    /// The language model of the default agent (`agent.default`, else the
+    /// profile called Default = the flat `llm` fields).
     pub llm: LlmSettings,
+    /// Every saved agent, **Default** first (Milestone 15).
+    pub agents: Vec<AgentProfile>,
+    /// Saved SSH connections (user scope).
+    pub remote_saved: Vec<SavedConnection>,
     pub policy: PolicySettings,
     pub search: SearchSettings,
     pub agent: AgentSettings,
@@ -318,6 +366,16 @@ pub struct Settings {
 
 pub use moonkale_llm::LlmSettings;
 
+/// A saved agent, resolved (Milestone 15).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AgentProfile {
+    pub name: String,
+    pub llm: LlmSettings,
+}
+
+/// The name of the profile made of the flat `llm` fields.
+pub const DEFAULT_AGENT: &str = "Default";
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct PolicySettings {
     pub allow_writes: bool,
@@ -333,6 +391,8 @@ pub struct SearchSettings {
 pub struct AgentSettings {
     /// Turns run on the server when the sources are a server's (default off).
     pub on_server: bool,
+    /// The saved agent that runs unless a session picks another.
+    pub default: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -417,6 +477,8 @@ impl Default for Settings {
                 secret: String::new(),
                 options: Default::default(),
             },
+            agents: Vec::new(),
+            remote_saved: Vec::new(),
             policy: PolicySettings::default(),
             search: SearchSettings { embeddings: true },
             agent: AgentSettings::default(),
@@ -434,7 +496,41 @@ impl Default for Settings {
     }
 }
 
+/// Set fields of `o` win over `l`; options merge per key.
+fn overlay_llm(l: &mut LlmFile, o: &LlmFile) {
+    l.provider = o.provider.clone().or(l.provider.take());
+    l.model = o.model.clone().or(l.model.take());
+    l.base_url = o.base_url.clone().or(l.base_url.take());
+    l.embed_model = o.embed_model.clone().or(l.embed_model.take());
+    l.secret = o.secret.clone().or(l.secret.take());
+    for (k, v) in &o.options {
+        l.options.insert(k.clone(), v.clone());
+    }
+}
+
+/// One profile's file fields → settings (the secret defaults to the provider).
+fn resolve_llm(f: &LlmFile, d: &LlmSettings) -> LlmSettings {
+    let provider = f.provider.clone().unwrap_or_else(|| d.provider.clone());
+    LlmSettings {
+        secret: f.secret.clone().unwrap_or_else(|| provider.clone()),
+        model: f.model.clone().unwrap_or_default(),
+        base_url: f.base_url.clone().unwrap_or_default(),
+        embed_model: f.embed_model.clone(),
+        options: f.options.clone(),
+        provider,
+    }
+}
+
 impl Settings {
+    /// The saved agent called `name` (Default for an unknown one).
+    pub fn agent(&self, name: &str) -> &AgentProfile {
+        self.agents
+            .iter()
+            .find(|a| a.name == name)
+            .or_else(|| self.agents.first())
+            .expect("Default is always present")
+    }
+
     /// Resolve: defaults ← user ← workspace ← env.
     pub fn resolve(user: &SettingsFile, workspace: &SettingsFile, env: &SettingsFile) -> Self {
         let mut merged = SettingsFile::new();
@@ -442,16 +538,40 @@ impl Settings {
         merged.overlay(workspace);
         merged.overlay(env);
         let d = Settings::default();
-        let provider = merged.llm.provider.unwrap_or(d.llm.provider);
+        let flat = resolve_llm(&merged.llm, &d.llm);
+        // Every profile, Default first; the default agent's settings are
+        // what `Settings.llm` carries (embeddings stay with Default: they
+        // belong to search, not to an agent).
+        let mut agents = vec![AgentProfile {
+            name: DEFAULT_AGENT.into(),
+            llm: flat.clone(),
+        }];
+        for a in &merged.agents {
+            if a.name.trim().is_empty() || a.name == DEFAULT_AGENT {
+                continue;
+            }
+            let mut llm = resolve_llm(&a.llm, &d.llm);
+            llm.embed_model = flat.embed_model.clone();
+            agents.push(AgentProfile {
+                name: a.name.clone(),
+                llm,
+            });
+        }
+        let default = merged
+            .agent
+            .default
+            .clone()
+            .filter(|n| agents.iter().any(|a| &a.name == n))
+            .unwrap_or_else(|| DEFAULT_AGENT.into());
+        let llm = agents
+            .iter()
+            .find(|a| a.name == default)
+            .map(|a| a.llm.clone())
+            .unwrap_or(flat);
         Self {
-            llm: LlmSettings {
-                secret: merged.llm.secret.unwrap_or_else(|| provider.clone()),
-                model: merged.llm.model.unwrap_or_default(),
-                base_url: merged.llm.base_url.unwrap_or_default(),
-                embed_model: merged.llm.embed_model,
-                options: merged.llm.options,
-                provider,
-            },
+            llm,
+            agents,
+            remote_saved: merged.remote.saved,
             policy: PolicySettings {
                 allow_writes: merged.policy.allow_writes.unwrap_or(false),
                 denied_tools: merged.policy.denied_tools.unwrap_or_default(),
@@ -461,6 +581,7 @@ impl Settings {
             },
             agent: AgentSettings {
                 on_server: merged.agent.on_server.unwrap_or(false),
+                default,
             },
             terminal: TerminalSettings {
                 shell: merged.terminal.shell,
@@ -607,6 +728,75 @@ mod tests {
         .is_enabled(&opt_in));
         assert!(s.extensions.has(&opt_in, "network"));
         assert!(!s.extensions.has(&opt, "network"));
+    }
+
+    #[test]
+    fn saved_agents_merge_by_name_and_one_is_the_default() {
+        let mut user = SettingsFile::new();
+        user.llm.provider = Some("openai".into());
+        user.llm.model = Some("gpt-4o-mini".into());
+        user.llm.embed_model = Some("text-embedding-3-small".into());
+        user.agents.push(AgentProfileFile {
+            name: "Claude".into(),
+            llm: LlmFile {
+                provider: Some("claude-code".into()),
+                ..Default::default()
+            },
+        });
+        user.agents.push(AgentProfileFile {
+            name: "Local".into(),
+            llm: LlmFile {
+                provider: Some("ollama".into()),
+                model: Some("qwen2.5".into()),
+                ..Default::default()
+            },
+        });
+        let mut ws = SettingsFile::new();
+        ws.agents.push(AgentProfileFile {
+            name: "Local".into(),
+            llm: LlmFile {
+                provider: Some("ollama".into()),
+                model: Some("codellama".into()),
+                ..Default::default()
+            },
+        });
+        ws.agent.default = Some("Local".into());
+        let s = Settings::resolve(&user, &ws, &SettingsFile::new());
+        let names: Vec<&str> = s.agents.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["Default", "Claude", "Local"]);
+        assert_eq!(s.agent.default, "Local");
+        assert_eq!(s.llm.provider, "ollama");
+        assert_eq!(s.llm.model, "codellama", "the workspace replaced Local");
+        assert_eq!(s.agent("Default").llm.provider, "openai");
+        assert_eq!(s.agent("Claude").llm.secret, "claude-code");
+        assert_eq!(
+            s.agent("Local").llm.embed_model.as_deref(),
+            Some("text-embedding-3-small"),
+            "embeddings belong to search: every profile carries Default's"
+        );
+        assert_eq!(s.agent("no such").name, "Default");
+        // An unknown default name falls back to Default.
+        ws.agent.default = Some("gone".into());
+        let s = Settings::resolve(&user, &ws, &SettingsFile::new());
+        assert_eq!(s.agent.default, "Default");
+        assert_eq!(s.llm.provider, "openai");
+        // Round trip keeps the flattened shape.
+        let json = user.to_json();
+        assert!(json.contains("\"agents\""), "{json}");
+        assert_eq!(SettingsFile::parse(&json).unwrap(), user);
+    }
+
+    #[test]
+    fn saved_connections_come_from_the_user_file() {
+        let mut user = SettingsFile::new();
+        user.remote.saved.push(SavedConnection {
+            name: "blog".into(),
+            host: "-i ~/.ssh/MathStruct daniel@dtrmblog.de".into(),
+            path: "/srv/blog".into(),
+        });
+        let s = Settings::resolve(&user, &SettingsFile::new(), &SettingsFile::new());
+        assert_eq!(s.remote_saved.len(), 1);
+        assert_eq!(s.remote_saved[0].path, "/srv/blog");
     }
 
     #[test]

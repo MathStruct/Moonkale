@@ -28,4 +28,24 @@ pub trait Provider: Send + Sync {
     fn supports_embed(&self) -> bool {
         false
     }
+    /// What the provider knows about its own readiness before a turn
+    /// (Milestone 15): the `claude-code` provider reports the CLI's version
+    /// and login; `None` = nothing to report (keyed HTTP providers, the
+    /// web client's proxy).
+    fn status(&self) -> BoxFuture<Option<ProviderStatus>> {
+        Box::pin(async { None })
+    }
+}
+
+/// A provider's readiness, for the settings panel.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderStatus {
+    /// Ready to run a turn.
+    pub ok: bool,
+    /// One line: "claude 2.1.278 · logged in as x@y" / "not installed".
+    pub summary: String,
+    /// What to do about it, when not ok ("Log in", an install command).
+    pub hint: Option<String>,
+    /// `true` when logging in through the CLI would help (`claude auth login`).
+    pub can_login: bool,
 }

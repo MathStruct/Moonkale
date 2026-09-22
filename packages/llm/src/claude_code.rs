@@ -23,7 +23,7 @@
 //! (`subtype`, `is_error`, `result`, `usage`). Unknown kinds are logged
 //! and skipped.
 
-use crate::provider::{BoxFuture, EventStream, Provider};
+use crate::provider::{BoxFuture, EventStream, Provider, ProviderStatus};
 use crate::types::{Content, Event, Message, Request, Role, StopReason, Usage};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -233,7 +233,88 @@ pub fn map_line(line: &str, tx: &futures_channel::mpsc::UnboundedSender<Event>) 
     }
 }
 
+/// `claude --version` + `claude auth status --json` → one line (Milestone 15).
+/// An older CLI without `auth status` reports the version and "login
+/// unknown"; a missing binary says how to install it.
+pub async fn cli_status(path: &str) -> ProviderStatus {
+    let run = |args: &'static [&'static str]| {
+        let path = path.to_string();
+        async move {
+            tokio::time::timeout(
+                Duration::from_secs(15),
+                tokio::process::Command::new(&path)
+                    .args(args)
+                    .stdin(Stdio::null())
+                    .env_remove("CLAUDECODE")
+                    .output(),
+            )
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+        }
+    };
+    let Some(ver) = run(&["--version"]).await else {
+        return ProviderStatus {
+            ok: false,
+            summary: format!("`{path}` is not installed (or not on PATH)"),
+            hint: Some("Install Claude Code: curl -fsSL https://claude.ai/install.sh | bash — or npm install -g @anthropic-ai/claude-code — then log in.".into()),
+            can_login: false,
+        };
+    };
+    let version = String::from_utf8_lossy(&ver.stdout)
+        .split_whitespace()
+        .next()
+        .unwrap_or("?")
+        .to_string();
+    let Some(st) = run(&["auth", "status", "--json"]).await else {
+        return ProviderStatus {
+            ok: true,
+            summary: format!("claude {version} · login unknown (no `auth status` in this version)"),
+            hint: None,
+            can_login: true,
+        };
+    };
+    let text = String::from_utf8_lossy(&st.stdout).to_string();
+    match serde_json::from_str::<Value>(text.trim()) {
+        Ok(v) if v.get("loggedIn").and_then(Value::as_bool) == Some(true) => {
+            let who = v
+                .get("email")
+                .and_then(Value::as_str)
+                .map(|e| format!(" as {e}"))
+                .unwrap_or_default();
+            let how = v
+                .get("authMethod")
+                .and_then(Value::as_str)
+                .map(|m| format!(" ({m})"))
+                .unwrap_or_default();
+            ProviderStatus {
+                ok: true,
+                summary: format!("claude {version} · logged in{who}{how}"),
+                hint: None,
+                can_login: true,
+            }
+        }
+        Ok(_) => ProviderStatus {
+            ok: false,
+            summary: format!("claude {version} · not logged in"),
+            hint: Some("Log in: the browser opens claude.ai, sign in there and paste the code into the terminal tab.".into()),
+            can_login: true,
+        },
+        Err(_) => ProviderStatus {
+            ok: true,
+            summary: format!("claude {version} · login unknown"),
+            hint: None,
+            can_login: true,
+        },
+    }
+}
+
 impl Provider for ClaudeCode {
+    fn status(&self) -> BoxFuture<Option<ProviderStatus>> {
+        let path = self.path.clone();
+        Box::pin(async move { Some(cli_status(&path).await) })
+    }
+
     fn name(&self) -> String {
         "claude-code".into()
     }

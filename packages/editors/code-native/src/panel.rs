@@ -87,36 +87,8 @@ impl Extension for NativeCodeExtension {
         }
     }
 
-    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let implementation = ws.settings.read().editor.implementation.clone();
-        Some(rsx! {
-            moonkale_editor_code_setting::EditorImplementationSetting { ws, target, implementation }
-        })
-    }
-}
-
-/// The shared "which editor" select lives in the CodeMirror crate; this
-/// crate does not depend on it, so the section is re-declared here.
-mod moonkale_editor_code_setting {
-    use dioxus::prelude::*;
-    use moonkale_ext_api::{SettingsTarget, Workspace};
-
-    #[component]
-    pub fn EditorImplementationSetting(
-        ws: Workspace,
-        target: SettingsTarget,
-        implementation: String,
-    ) -> Element {
-        rsx! {
-            label { class: "mk-settings-field", "Which editor opens a text file (when both are enabled)"
-                select { class: "mk-input", value: "{implementation}",
-                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.implementation = Some(v)); },
-                    option { value: "codemirror", selected: implementation == "codemirror", "CodeMirror (JavaScript; LSP, wiki-links, wrap)" }
-                    option { value: "native", selected: implementation == "native", "Rust (dioxus-code-editor; tree-sitter for every core language, no LSP yet)" }
-                }
-            }
-        }
-    }
+    // Which editor opens a file is Settings → Which extension (Milestone 15);
+    // this extension has no settings of its own yet.
 }
 
 /// `Node::language_hint` → the grammar; unknown or none → plain text

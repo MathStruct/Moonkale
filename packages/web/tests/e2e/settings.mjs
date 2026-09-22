@@ -41,9 +41,12 @@ try {
     await page.waitForFunction(() => /test-model/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
     await page.screenshot({ path: `${S}/m5-settings.png` });
   });
-  await step("workspace-scope 'allow writes' → the agent runs a write without asking", async () => {
-    await page.click(".mk-settings-toolbar button:has-text('workspace')");
-    await page.click(".mk-settings-form label:has-text('Allow mutating') input");
+  await step("workspace-scope 'allow writes' (on the Agent extension's row, Milestone 15) → the agent runs a write without asking", async () => {
+    await page.click("#mk-rail-extensions");
+    await page.waitForSelector(".mk-extensions", { timeout: 10000 });
+    await page.selectOption(".mk-extensions .mk-settings-target select", "workspace");
+    const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
+    await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").click();
     let f; for (let i = 0; i < 30; i++) { try { f = wsFile(); if (f.policy?.allow_writes) break; } catch {} await new Promise((r) => setTimeout(r, 300)); }
     if (!f.policy?.allow_writes) throw new Error("allow_writes not saved");
     const src = await page.$eval(".mk-agent", () => "");

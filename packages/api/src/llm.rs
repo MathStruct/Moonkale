@@ -123,6 +123,18 @@ pub async fn llm_info(
     })
 }
 
+/// The provider's readiness on the server (Milestone 15): for `claude-code`
+/// the CLI's version and login there.
+#[post("/api/llm/status")]
+pub async fn llm_status(
+    settings: moonkale_llm::LlmSettings,
+) -> Result<Option<moonkale_llm::ProviderStatus>, ServerFnError> {
+    let Some(p) = provider_for(&settings) else {
+        return Ok(None);
+    };
+    Ok(p.status().await)
+}
+
 #[get("/api/llm")]
 pub async fn llm_socket(
     options: WebSocketOptions,
@@ -231,6 +243,17 @@ impl RemoteProvider {
 
 #[cfg(target_arch = "wasm32")]
 impl Provider for RemoteProvider {
+    fn status(&self) -> moonkale_llm::BoxFuture<Option<moonkale_llm::ProviderStatus>> {
+        let settings = self.settings.clone();
+        Box::pin(async move {
+            llm_status(settings).await.ok().flatten().map(|mut s| {
+                s.summary = format!("{} (on the server)", s.summary);
+                // Logging in happens on the server machine, not from here.
+                s.can_login = false;
+                s
+            })
+        })
+    }
     fn name(&self) -> String {
         format!("{} (server)", self.info.name)
     }

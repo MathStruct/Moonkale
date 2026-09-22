@@ -99,17 +99,14 @@ impl Extension for CodeEditorExtension {
 
     // Milestone 13: the editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let (wrap, implementation) = {
-            let s = ws.settings.read();
-            (s.editor.wrap, s.editor.implementation.clone())
-        };
+        let wrap = ws.settings.read().editor.wrap;
+        // Which editor opens a file is Settings → Which extension (Milestone 15).
         Some(rsx! {
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: wrap,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.wrap = Some(v)); } }
                 "Wrap long lines (Alt+Z toggles)"
             }
-            EditorImplementationSetting { ws, target, implementation }
         })
     }
 }
@@ -122,23 +119,4 @@ pub fn toggle_wrap(ws: Workspace) {
         ws.update_user_settings(|f| f.editor.wrap = Some(next))
             .await;
     });
-}
-
-/// Which code editor opens a document (Milestone 14) — shared by both
-/// editors' settings sections.
-#[component]
-pub fn EditorImplementationSetting(
-    ws: Workspace,
-    target: SettingsTarget,
-    implementation: String,
-) -> Element {
-    rsx! {
-        label { class: "mk-settings-field", "Which editor opens a text file (when both are enabled)"
-            select { class: "mk-input", value: "{implementation}",
-                onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.implementation = Some(v)); },
-                option { value: "codemirror", selected: implementation == "codemirror", "CodeMirror (JavaScript; LSP, wiki-links, wrap)" }
-                option { value: "native", selected: implementation == "native", "Rust (dioxus-code-editor; tree-sitter for every core language, no LSP yet)" }
-            }
-        }
-    }
 }

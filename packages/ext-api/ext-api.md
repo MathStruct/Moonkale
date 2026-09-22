@@ -75,3 +75,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 
 ## Milestone 14
 `Workspace::{editor_choice, editor_for, choose_editor}` (which code editor shows a document), `cursor` + `set_cursor(node, line, col)` + `cursor_word()` with `word_at(text, line, col)` (unit-tested); `editor.implementation` setting.
+
+## Milestone 15
+- `settings.rs`: `AgentProfileFile` (`name` + flattened `LlmFile`) in `SettingsFile::agents`, `agent.default`, `RemoteFile { saved: Vec<SavedConnection> }`; resolved `Settings::agents` (Default = the flat `llm`, first), `Settings::llm` = the default agent's, `Settings::agent(name)`, `remote_saved`; same-name profiles overlay field-wise (`overlay_llm`); `DEFAULT_AGENT`.
+- `workspace.rs`: `remote_saved / save_remote / forget_remote` (user file); `WorkspaceConfig::spawn_program` (`SpawnProgram = fn(program, args, cols, rows)`) + `run_in_terminal(title, program, args)` → `adopt_terminal`; `write_text_at(source, rel, text)` (create or replace) and `list_at(source, rel)` (the `ls` dialect: hidden entries too).

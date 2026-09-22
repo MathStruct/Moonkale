@@ -3,6 +3,14 @@
 # `claude` 2.1.278 emits), for tests: `claude -p <prompt> --output-format stream-json …`.
 # Replies "mock claude: <prompt>" after one pretend Read of README.md; `--resume` is
 # acknowledged so session continuity can be checked. a prompt containing MOCK_FAIL exits with an error result.
+# Milestone 15: `--version` and `auth status --json` (logged in unless MOCK_CLAUDE_LOGGED_OUT is set).
+case "$1" in
+  --version) echo "9.9.9 (Claude Code)"; exit 0 ;;
+  auth) if [ "$2" = status ]; then
+          if [ -n "$MOCK_CLAUDE_LOGGED_OUT" ]; then echo '{"loggedIn":false}'; else echo '{"loggedIn":true,"authMethod":"claude.ai","email":"mock@example.org"}'; fi
+        else echo "mock login: open https://claude.ai/login and paste the code"; fi
+        exit 0 ;;
+esac
 prompt=""; session=""; resumed=no; mode=""
 while [ $# -gt 0 ]; do
   case "$1" in

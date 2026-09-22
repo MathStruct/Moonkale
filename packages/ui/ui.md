@@ -84,3 +84,7 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 
 ## Milestone 13
 `extensions_panel.rs` renders `ext.settings(ws, target)` under an enabled extension's row (`.mk-settings-ext-settings`); Settings lost its Editor and Terminal sections and the *run on the server* checkbox to the extensions. `packaging/build-release.sh`, `packaging/arch-bin/PKGBUILD`, `.github/workflows/release.yml` are the packaging side ([[Install]]).
+
+## Milestone 15
+- `settings_panel.rs`: no extension list any more (the Extensions panel has it). Sections: **Agents** (`AgentProfileCard` per saved agent — Default is the flat `llm`; rename, *runs by default*, provider/model/endpoint/secret, the Claude Code knobs and `ClaudeStatus`: `Provider::status` through `ws.llm()`, *Log in* → `ws.run_in_terminal("claude login", cmd, ["auth","login"])`, *Check again*), **Search** (embedding model + toggle), **Which extension** (`editor.implementation`, `terminal.implementation` — the only extension-related thing left here), You, Keybindings, Remembered. `edit_profile` routes a change to `f.llm` (Default) or the named `f.agents[]` entry in the target scope.
+- `remote_dialog.rs`: saved connections — select fills host/path, *Save* (`ws.save_remote`, `spawn_forever`), *Forget*; `tests/remote_dialog.rs` drives it in a `VirtualDom` (listeners found from the mutations, in DOM order; clicks carry `SerializedMouseData`).

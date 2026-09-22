@@ -141,3 +141,20 @@
 .mk-settings-ext-settings { margin: 6px 0 4px 26px; padding: 8px 10px; border-left: 2px solid var(--wb-line, #2a2e3a); display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
 .mk-settings-ext-settings .mk-settings-field { display: flex; flex-direction: column; gap: 3px; color: var(--wb-ink-faint, #7f8595); }
 .mk-settings-ext-settings .mk-input { max-width: 420px; }
+
+/* Milestone 15: saved agents in Settings */
+.mk-settings-agent { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 6px; }
+.mk-settings-agent-default { border-color: var(--wb-accent, #4c8dff); }
+.mk-settings-agent-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.mk-settings-agent-head .mk-settings-agent-name { font-weight: 600; }
+.mk-settings-agent-head input.mk-settings-agent-name { max-width: 200px; }
+.mk-settings-form .mk-settings-agent-head label.mk-settings-agent-runs { margin: 0; font-size: 12px; }
+.mk-settings-actions { margin: 6px 0 10px; }
+.mk-settings-claude { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 4px 148px; font-size: 12px; }
+.mk-settings-claude p { flex-basis: 100%; margin: 2px 0 0; }
+.mk-settings-ok { color: var(--wb-ok, #7bd88f); }
+.mk-settings-bad { color: var(--wb-warn, #e5a53b); }
+.mk-remote-save { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+.mk-remote-save .mk-palette-input { flex: 1; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 6px; padding: 6px 10px; color: var(--wb-ink, #e6e8ee); }
+.mk-remote-save .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
+.mk-remote-field select.mk-palette-input { background: var(--wb-sunken, #0b0d12); }

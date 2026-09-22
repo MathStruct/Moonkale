@@ -24,10 +24,51 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
             .map(|r| r.path.clone())
             .unwrap_or_default()
     });
+    // Saved connections (Milestone 15): pick one to fill the fields, save
+    // the fields under a name, forget one.
+    let saved = use_memo(move || ws.settings.read().remote_saved.clone());
+    let mut picked = use_signal(String::new);
+    let mut save_name = use_signal(String::new);
     let mut connect = move || {
         let (h, p) = (host.peek().clone(), path.peek().clone());
         open.set(false);
         ws.open_remote(h, p);
+    };
+    let mut pick = move |name: String| {
+        picked.set(name.clone());
+        save_name.set(name.clone());
+        if let Some(c) = saved.peek().iter().find(|c| c.name == name) {
+            host.set(c.host.clone());
+            path.set(c.path.clone());
+        }
+    };
+    let save = move |_| {
+        let (n, h, p) = (
+            save_name.peek().trim().to_string(),
+            host.peek().clone(),
+            path.peek().clone(),
+        );
+        if n.is_empty() {
+            let mut ws = ws;
+            ws.set_status("Give the connection a name to save it");
+            return;
+        }
+        picked.set(n.clone());
+        // Outlives the dialog if it closes meanwhile (P-108).
+        dioxus::core::spawn_forever(async move {
+            ws.save_remote(n, h, p).await;
+        });
+    };
+    let forget = move |_| {
+        let n = picked.peek().clone();
+        if n.is_empty() {
+            return;
+        }
+        picked.set(String::new());
+        save_name.set(String::new());
+        dioxus::core::spawn_forever(async move {
+            ws.forget_remote(n).await;
+        });
     };
     rsx! {
         div {
@@ -69,6 +110,20 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                     code { "~/.local/share/moonkale/server/" }
                     " and started there for this session only: the folder, its index, git, language servers and terminals then run on that machine; the editor and your API keys stay here. Closing the folder ends the session and the server."
                 }
+                if !saved.read().is_empty() {
+                    label { class: "mk-remote-field",
+                        span { "Saved connection" }
+                        select {
+                            class: "mk-palette-input mk-remote-saved",
+                            value: "{picked}",
+                            onchange: move |e| pick(e.value()),
+                            option { value: "", selected: picked().is_empty(), "— type a host below, or pick one —" }
+                            for c in saved.read().iter() {
+                                option { key: "{c.name}", value: "{c.name}", selected: picked() == c.name, "{c.name} — {c.host}:{c.path}" }
+                            }
+                        }
+                    }
+                }
                 label { class: "mk-remote-field",
                     span { "Host (as typed after ssh)" }
                     input {
@@ -94,6 +149,19 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                         placeholder: "/home/me/project",
                         value: "{path}",
                         oninput: move |e| path.set(e.value()),
+                    }
+                }
+                div { class: "mk-remote-save",
+                    input {
+                        class: "mk-palette-input mk-remote-save-name",
+                        r#type: "text",
+                        placeholder: "name to save this connection as",
+                        value: "{save_name}",
+                        oninput: move |e| save_name.set(e.value()),
+                    }
+                    button { r#type: "button", class: "mk-button mk-remote-save-btn", onclick: save, title: "Remember host and folder under this name (user settings)", "Save" }
+                    if !picked().is_empty() {
+                        button { r#type: "button", class: "mk-button mk-remote-forget-btn", onclick: forget, "Forget" }
                     }
                 }
                 div { class: "mk-remote-actions",

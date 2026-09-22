@@ -30,3 +30,11 @@
 .mk-agent-diff-old { background: #3a2224; color: #ffb4b4; }
 .mk-agent-diff-new { background: #1f3325; color: #b8f0b0; }
 .mk-agent-diff-cmd { background: #1b1e25; color: #d7dae0; }
+
+/* Milestone 15: sessions and saved agents */
+.mk-agent-toolbar .mk-agent-sessions { max-width: 200px; }
+.mk-agent-toolbar .mk-agent-profile { max-width: 130px; }
+.mk-agent-toolbar select { font: inherit; font-size: 12px; background: var(--wb-sunken, #0b0d12); color: inherit; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 4px; padding: 2px 4px; }
+.mk-agent-running-count { font-size: 11px; color: var(--wb-accent, #4c8dff); }
+.mk-agent-close { padding: 0 8px; }
+.mk-agent-toolbar { flex-wrap: wrap; row-gap: 4px; }

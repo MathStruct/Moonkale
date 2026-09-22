@@ -15,7 +15,7 @@ E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 export PORT="${PORT:-8090}" M1_ROOT="$E/m2root" M1_SHOTS="$E/shots" MOONKALE_REPO="$(cd "$HERE/../../../.." && pwd)"
 mkdir -p "$E/e2e" "$E/shots"
 cp "$HERE"/*.mjs "$E/e2e/"   # playwright resolves from the working directory
-ALL="menubar session graph links-sqlite terminal typst lsp ladybug agent search-trace settings rich agent-writes flow wasm-ext phone palette files replace lsp2 git auth history presence graph3d duckdb wiki highlight panels image shell server extensions claude-code agent-server terminal-native code-native"
+ALL="menubar session graph links-sqlite terminal typst lsp ladybug agent search-trace settings rich agent-writes flow wasm-ext phone palette files replace lsp2 git auth history presence graph3d duckdb wiki highlight panels image shell server extensions claude-code agent-server terminal-native code-native agents"
 reset() {
   # Back to the committed fixture (the folder is a git repository).
   git -C "$E/m2root" reset -q --hard "$(git -C "$E/m2root" rev-list --max-parents=0 HEAD)" 2>/dev/null; git -C "$E/m2root" clean -fdq 2>/dev/null

@@ -43,6 +43,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[JS Interop Boundary]] — CodeMirror / Milkdown / xterm, kept replaceable
 - [[JavaScript Inventory]] — where JS still is, distance to zero, node/deno/bun
 - [[LLM and RAG]]
+- [[Agent Sessions and Profiles]] — saved agents, sessions side by side, history, Claude Code login (Milestone 15)
 - [[LSP and Terminal]]
 - [[Debugging and Logging]] — where output goes on each platform, and in compiled builds
 - [[Version Management]] — git for files, an append-only UUID+timestamp entity log for the graph
@@ -96,6 +97,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 12 - Agents and a Native Terminal]] (plan) → [[Milestone 12 - Implementation Log]] (what happened) ✅ — Claude Code as a provider, server-side agent sessions, Connect to Server on the phone, the Rust terminal, the Extensions activity
 - [[Milestone 13 - Packaging]] (plan) → [[Milestone 13 - Implementation Log]] (what happened) ✅ — pacman/apt/nix/tarball packages, the release workflow, extension settings with the extension
 - [[Milestone 14 - Rust Code Editor]] (plan) → [[Milestone 14 - Implementation Log]] (what happened) ✅ — the dioxus-code-editor extension, switching editors, the caret's word
+- [[Milestone 15 - Agents, Profiles and Connections]] (plan) → [[Milestone 15 - Implementation Log]] (what happened) ✅ — saved agents, sessions side by side with history, saved SSH connections, Claude Code login
 
 ## Problems & planning
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done

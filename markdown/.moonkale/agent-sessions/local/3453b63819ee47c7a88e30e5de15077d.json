@@ -1,0 +1,35 @@
+{
+  "id": "3453b63819ee47c7a88e30e5de15077d",
+  "title": "Hallo",
+  "profile": "Claude",
+  "created": 1790067792199,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hallo"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hallo Daniel! Plan mode is active, but I don't have a task yet. What would you like to plan? For context, the working tree has a lot of uncommitted Milestone 15 work (agents, profiles, connections) on the `session-pause` branch — if you want to continue there, or start something else, just tell me what you have in mind."
+        }
+      ]
+    }
+  ],
+  "items": [
+    {
+      "User": "Hallo"
+    },
+    {
+      "Assistant": "Hallo Daniel! Plan mode is active, but I don't have a task yet. What would you like to plan? For context, the working tree has a lot of uncommitted Milestone 15 work (agents, profiles, connections) on the `session-pause` branch — if you want to continue there, or start something else, just tell me what you have in mind."
+    }
+  ],
+  "cited": []
+}

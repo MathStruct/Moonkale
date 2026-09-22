@@ -94,3 +94,22 @@ async fn a_missing_binary_is_a_readable_error() {
     .await;
     assert!(matches!(last, Some(Event::Error { message }) if message.contains("claude login")));
 }
+
+#[tokio::test]
+async fn cli_status_reads_version_and_login() {
+    let bin = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/mock-claude.sh");
+    let st = moonkale_llm::claude_code::cli_status(bin).await;
+    assert!(st.ok, "{st:?}");
+    assert!(
+        st.summary.contains("9.9.9") && st.summary.contains("mock@example.org"),
+        "{}",
+        st.summary
+    );
+    assert!(st.can_login);
+    let st = moonkale_llm::claude_code::cli_status("/no/such/claude").await;
+    assert!(!st.ok && !st.can_login);
+    assert!(
+        st.hint.as_deref().unwrap_or("").contains("install"),
+        "{st:?}"
+    );
+}

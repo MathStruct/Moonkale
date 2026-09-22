@@ -191,7 +191,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_any, pick_folder: None, attach_source: attach_any, spawn_terminal: Some(spawn_terminal), compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: Some(git_any), presence: None, wasm_module_url: None, remote: None, agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()) },
+                workspace: WorkspaceConfig { open_folder: open_any, pick_folder: None, attach_source: attach_any, spawn_terminal: Some(spawn_terminal), compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: Some(git_any), presence: None, wasm_module_url: None, remote: None, agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: None },
                 session,
                 new_window: None,
             },

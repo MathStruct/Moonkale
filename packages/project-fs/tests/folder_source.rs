@@ -289,3 +289,42 @@ async fn create_dir_rename_and_delete_to_trash() {
         moonkale_core::OpResult::Refused { .. }
     ));
 }
+
+/// Milestone 15: `Text{ls}` lists a hidden, ignored directory (the saved
+/// agent sessions under `.moonkale/`), which `Children` never shows.
+#[tokio::test]
+async fn ls_dialect_lists_hidden_directories() {
+    let dir = fixture();
+    std::fs::create_dir_all(dir.path().join(".moonkale/agent-sessions/local")).unwrap();
+    std::fs::write(
+        dir.path().join(".moonkale/agent-sessions/local/a.json"),
+        "{}",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join(".moonkale/agent-sessions/local/b.json"),
+        "{}",
+    )
+    .unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let ls = |p: &str| Query::Text {
+        dialect: "ls".into(),
+        text: p.into(),
+    };
+    let r = src
+        .query(ls(".moonkale/agent-sessions/local"))
+        .await
+        .unwrap();
+    let names: Vec<String> = r.nodes.iter().map(|n| n.label.clone()).collect();
+    assert_eq!(names, ["a.json", "b.json"]);
+    // The listed nodes are known: their text can be fetched.
+    let (text, _) = src.fetch_text(r.nodes[0].id).await.unwrap();
+    assert_eq!(text, "{}");
+    assert!(src
+        .query(ls(".moonkale/nothing"))
+        .await
+        .unwrap()
+        .nodes
+        .is_empty());
+    assert!(src.query(ls("../etc")).await.is_err());
+}

@@ -29,15 +29,25 @@ try {
     if (after === before) throw new Error("checkbox did not toggle");
     await box.click();
   });
-  await step("an extension's settings sit under its row (Milestone 13): the Terminal row has the implementation select; changing it persists", async () => {
+  await step("an extension's settings sit under its row (Milestone 13): the Terminal row has the shell field, the Agent row the policy; Markdown its checkboxes", async () => {
     const row = page.locator(".mk-extensions .mk-settings-ext", { hasText: "Shell sessions" }).first();
-    const select = row.locator(".mk-settings-ext-settings select").first();
-    await select.waitFor({ timeout: 5000 });
-    await select.selectOption("native");
-    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem("moonkale.settings")).terminal.implementation === "native"; } catch { return false; } }, null, { timeout: 5000 });
-    await select.selectOption("ask");
+    await row.locator(".mk-settings-ext-settings input.mk-input").first().waitFor({ timeout: 5000 });
+    if (await row.locator(".mk-settings-ext-settings select").count()) throw new Error("the implementation select must live in Settings → Which extension, not under the extension (Milestone 15)");
+    const agent = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
+    if (!(await agent.locator(".mk-settings-ext-settings label:has-text('Allow mutating')").count())) throw new Error("agent policy missing under the Agent row");
     const md = page.locator(".mk-extensions .mk-settings-ext", { hasText: /Markdown/ }).first();
     if (!(await md.locator(".mk-settings-ext-settings input[type=checkbox]").count())) throw new Error("markdown settings missing");
+  });
+  await step("Settings has no extension list any more, only the 'Which extension' selectors (Milestone 15); the terminal one persists", async () => {
+    await page.click(".wb-status-bar");
+    await page.keyboard.press("Control+,");
+    await page.waitForSelector(".mk-settings-terminal-impl", { timeout: 10000 });
+    if (await page.$(".mk-settings:not(.mk-extensions) .mk-settings-ext")) throw new Error("Settings still lists extensions");
+    await page.selectOption(".mk-settings-terminal-impl", "native");
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem("moonkale.settings")).terminal.implementation === "native"; } catch { return false; } }, null, { timeout: 5000 });
+    await page.selectOption(".mk-settings-terminal-impl", "ask");
+    await page.click("#mk-rail-extensions");
+    await page.waitForSelector(".mk-extensions", { timeout: 10000 });
   });
   await step("View → Show Extensions exists in the palette", async () => {
     await page.keyboard.press("Control+Shift+P");

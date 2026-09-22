@@ -149,7 +149,13 @@ pub struct WorkspaceConfig {
     /// *Connect to Server…* (Milestone 12): make this app a client of a
     /// Moonkale server by URL + token (desktop and mobile).
     pub server: Option<ServerClient>,
+    /// Run a program with arguments under a PTY (Milestone 15: `claude auth
+    /// login` as a terminal tab); `None` where there is no PTY.
+    pub spawn_program: Option<SpawnProgram>,
 }
+
+/// `(program, args, cols, rows)` → a terminal backend running it.
+pub type SpawnProgram = fn(String, Vec<String>, u16, u16) -> moonkale_terminal::SpawnTerminalFuture;
 
 /// How a native app becomes a server's client (`api::client`).
 #[derive(Clone, Copy)]
@@ -635,6 +641,58 @@ impl Workspace {
     /// Host aliases from `~/.ssh/config` (desktop), for the dialog.
     pub fn remote_hosts(&self) -> Vec<String> {
         self.config.remote.map(|r| (r.hosts)()).unwrap_or_default()
+    }
+
+    /// Saved SSH connections (Milestone 15; the user file).
+    pub fn remote_saved(&self) -> Vec<crate::settings::SavedConnection> {
+        self.settings.peek().remote_saved.clone()
+    }
+
+    /// Save (or replace by name) a connection in the user file.
+    pub async fn save_remote(self, name: String, host: String, path: String) {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        self.update_user_settings(move |f| {
+            f.remote.saved.retain(|c| c.name != name);
+            f.remote
+                .saved
+                .push(crate::settings::SavedConnection { name, host, path });
+            f.remote.saved.sort_by(|a, b| a.name.cmp(&b.name));
+        })
+        .await;
+    }
+
+    pub async fn forget_remote(self, name: String) {
+        self.update_user_settings(move |f| f.remote.saved.retain(|c| c.name != name))
+            .await;
+    }
+
+    /// Can this platform run a program in a terminal tab?
+    pub fn can_run_program(&self) -> bool {
+        self.config.spawn_program.is_some()
+    }
+
+    /// Start `program args…` under a PTY and hand it to the terminal panel
+    /// as a tab titled `title` (Milestone 15: `claude auth login`).
+    pub async fn run_in_terminal(mut self, title: &str, program: &str, args: Vec<String>) {
+        let Some(spawn) = self.config.spawn_program else {
+            self.set_status("Running a program in a terminal is not available on this platform");
+            return;
+        };
+        match spawn(program.to_string(), args, 100, 30).await {
+            Ok(backend) => {
+                let session = moonkale_terminal::Session {
+                    id: moonkale_terminal::SessionId::fresh(),
+                    title: title.to_string(),
+                    cwd: None,
+                    backend,
+                };
+                self.adopt_terminal(session);
+            }
+            Err(e) => self.set_status(format!("Could not start {program}: {e}")),
+        }
     }
 
     /// Was `id` opened through the remote session?
@@ -1177,6 +1235,57 @@ impl Workspace {
         let node = self.node_at_path(source, rel).await?;
         let src = self.source(source)?;
         src.fetch_text(node.id).await.ok().map(|(text, _)| text)
+    }
+
+    /// Write `rel` under `source`, creating it (and its parents, where the
+    /// source does) or replacing the whole text. Small state files only
+    /// (`.moonkale/agent-sessions/local/<id>.json`).
+    pub async fn write_text_at(
+        self,
+        source: &SourceId,
+        rel: &str,
+        text: &str,
+    ) -> Result<(), SourceError> {
+        let src = self.source(source).ok_or(SourceError::NotFound)?;
+        let result = match self.node_at_path(source, rel).await {
+            Some(node) => {
+                let chars = src
+                    .fetch_text(node.id)
+                    .await
+                    .map(|(t, _)| t.chars().count())
+                    .unwrap_or(0);
+                src.apply(Transaction::write_text(
+                    node.id,
+                    node.version,
+                    TextPatch::whole(text, chars),
+                ))
+                .await?
+            }
+            None => {
+                let root = src.descriptor().root;
+                src.apply(Transaction::create_text(root, rel, text)).await?
+            }
+        };
+        match result.first_error() {
+            Some(e) => Err(e.clone()),
+            None => Ok(()),
+        }
+    }
+
+    /// The entries of the directory `rel` under `source`, hidden ones
+    /// included (the folder source's `ls` dialect; empty for other sources
+    /// or a missing directory).
+    pub async fn list_at(&self, source: &SourceId, rel: &str) -> Vec<Node> {
+        let Some(src) = self.source(source) else {
+            return Vec::new();
+        };
+        src.query(Query::Text {
+            dialect: "ls".into(),
+            text: rel.to_string(),
+        })
+        .await
+        .map(|r| r.nodes)
+        .unwrap_or_default()
     }
 
     /// Read `.moonkale/settings.json` of `folder` (missing = defaults).

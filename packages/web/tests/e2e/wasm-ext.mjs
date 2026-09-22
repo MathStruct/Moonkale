@@ -22,8 +22,8 @@ try {
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".wb-status-bar");
-    await page.keyboard.press("Control+,");
+    // Extensions live in their own panel since Milestone 15 (Settings keeps only the selectors).
+    await page.click("#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Word count (wasm example)'))", { timeout: 15000 });
     const on = await page.$eval(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Word count (wasm example)')) > label input", (e) => e.checked);
     if (on) throw new Error("wasm extension enabled by default");

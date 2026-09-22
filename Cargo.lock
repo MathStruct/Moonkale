@@ -5577,6 +5577,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-llm",
+ "serde",
  "serde_json",
  "tokio",
  "uuid",

@@ -20,6 +20,8 @@ struct ServerChat {
     running: Signal<bool>,
     pending: Signal<Option<PendingApproval>>,
     provider: Signal<String>,
+    /// The saved agent the next send runs (Milestone 15).
+    profile: Signal<String>,
     sessions: Signal<Vec<SessionSummary>>,
     /// Bumped by the poller to keep one loop per session.
     poll_gen: Signal<u64>,
@@ -49,6 +51,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         running: Signal::new_in_scope(false, ScopeId::ROOT),
         pending: Signal::new_in_scope(None, ScopeId::ROOT),
         provider: Signal::new_in_scope("server".into(), ScopeId::ROOT),
+        profile: Signal::new_in_scope(ws.settings.peek().agent.default.clone(), ScopeId::ROOT),
         sessions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
         poll_gen: Signal::new_in_scope(0, ScopeId::ROOT),
         restart: Signal::new_in_scope(0, ScopeId::ROOT),
@@ -59,6 +62,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         mut running,
         mut pending,
         mut provider,
+        mut profile,
         mut sessions,
         mut poll_gen,
         mut restart,
@@ -162,7 +166,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         let settings = {
             let s = ws.settings.peek();
             TurnSettings {
-                llm: s.llm.clone(),
+                llm: s.agent(&profile.peek()).llm.clone(),
                 allow_writes: s.policy.allow_writes,
                 denied_tools: s.policy.denied_tools.clone(),
             }
@@ -200,6 +204,14 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
 
     let list = sessions();
     let current = session();
+    let agents: Vec<String> = ws
+        .settings
+        .read()
+        .agents
+        .iter()
+        .map(|a| a.name.clone())
+        .collect();
+    let profile_now = profile();
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-agent mk-agent-server",
@@ -215,6 +227,13 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                     }
                 }
                 button { class: "mk-btn", disabled: running(), onclick: move |_| { session.set(None); items.set(Vec::new()); pending.set(None); }, "New" }
+                select { class: "mk-agent-profile", title: "Which saved agent the next turn runs (Settings → Agents)",
+                    value: "{profile_now}",
+                    onchange: move |e| profile.set(e.value()),
+                    for name in agents.iter() {
+                        option { key: "{name}", value: "{name}", selected: *name == profile_now, "{name}" }
+                    }
+                }
             }
             div { class: "mk-agent-log",
                 if items().is_empty() {

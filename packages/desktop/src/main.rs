@@ -319,6 +319,19 @@ fn spawn_terminal(
     })
 }
 
+/// A program under a PTY as a terminal tab (Milestone 15: `claude auth login`).
+fn spawn_program(
+    program: String,
+    args: Vec<String>,
+    cols: u16,
+    rows: u16,
+) -> moonkale_terminal::SpawnTerminalFuture {
+    Box::pin(async move {
+        moonkale_terminal_pty::PtyBackend::spawn_args(None, Some(&program), &args, cols, rows)
+            .map(|p| Box::new(p) as Box<dyn moonkale_terminal::TerminalBackend>)
+    })
+}
+
 /// Typst compiles in-process (embedded fonts) — or on the server.
 fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
     if api::client::active().is_some() {
@@ -649,7 +662,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()) },
+                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: Some(spawn_program) },
                 session,
                 new_window: open_window,
             },
