@@ -14,7 +14,7 @@ description: A graph-native code and knowledge editor — folders and databases 
 
 It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, web and mobile from one codebase, and is extension-driven: the built-in editors are themselves extensions with no privileged access.
 
-> [!tip] New to Moonkale? Read **[[Getting Started]]** — written for people who use VS Code and Obsidian — then [[Install]]. Something wrong? [[Feedback]] says where it goes.
+> [!tip] **[Download 0.1.0](https://github.com/MathStruct/Moonkale/releases/latest)** — Linux, Android, Windows and macOS packages. New to Moonkale? Read **[[Getting Started]]** — written for people who use VS Code and Obsidian — then [[Install]]. Something wrong? [[Feedback]] says where it goes.
 
 > [!info] Status — Milestone 15 done: saved agents, sessions side by side, Claude Code login (2026-09-22); packages: [[Install]]
 > **Agents, profiles and connections.** Several **saved agents** (language-model profiles) in Settings, one chosen per session; the Agent panel runs **sessions side by side** — one waits for your approval while another answers — and keeps their **history in the folder**; the Claude Code card shows whether the CLI is installed and logged in, with a **Log in** button that runs its browser flow in a terminal tab; **saved SSH connections** in *Open Remote Folder…*; Settings no longer duplicates the Extensions panel. See [[Milestone 15 - Implementation Log]] and [[Agent Sessions and Profiles]].

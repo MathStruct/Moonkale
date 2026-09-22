@@ -10,6 +10,18 @@
 
 **A graph-native code and knowledge editor.**
 
+[![Latest release](https://img.shields.io/github/v/release/MathStruct/Moonkale?label=download&color=4c8dff)](https://github.com/MathStruct/Moonkale/releases/latest)
+[![Vault](https://img.shields.io/badge/docs-vault-7bd88f)](https://mathstruct.github.io/Moonkale/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+**⬇️ Download:** [**the latest release**](https://github.com/MathStruct/Moonkale/releases/latest)
+— Linux (tarball, `.deb`, Arch package, AppImage), Android (`.apk`), Windows
+(`.msi` / `.exe`, unsigned) and macOS (`.dmg`, unsigned). Install instructions
+per platform: [Install](https://mathstruct.github.io/Moonkale/packaging/Install).
+The server alone runs in a container:
+`docker run -p 8080:8080 -v /your/notes:/data ghcr.io/mathstruct/moonkale-server`
+([what the two binaries are](https://mathstruct.github.io/Moonkale/packaging/Two-Binaries)).
+
 Moonkale opens *folders and databases* — a source tree, a Postgres schema, a
 TypeDB or LadybugDB graph, a Redis keyspace, an Obsidian-style wiki — and shows
 them as **one graph**. Every editor is a view on that graph: a code editor with

@@ -3,7 +3,7 @@ title: "Install"
 description: How to install Moonkale — Arch (pacman), Debian/Ubuntu (apt), Nix, any Linux (tarball), Windows and macOS (unsigned builds) — and what to expect.
 tags: [packaging, install]
 ---
-Releases live at <https://github.com/MathStruct/Moonkale/releases>. Each one carries the same files, built by [[Milestone 13 - Packaging|the release workflow]]: a Linux tarball, a `.deb`, an Arch package, an AppImage, an Android APK, Windows `.msi`/`.exe`, macOS `.dmg`, and `sha256sums.txt`. Every package contains the desktop app **and** `moonkale-server` (for *Open Remote Folder…* and self-hosting).
+**Downloads: <https://github.com/MathStruct/Moonkale/releases/latest>** — the *Releases* box in the right sidebar of the repository page leads there too, and every file is listed under *Assets* at the bottom of the release (GitHub collapses that list, which is why it is easy to miss). Each one carries the same files, built by [[Milestone 13 - Packaging|the release workflow]]: a Linux tarball, a `.deb`, an Arch package, an AppImage, an Android APK, Windows `.msi`/`.exe`, macOS `.dmg`, and `sha256sums.txt`. Every package contains the desktop app **and** `moonkale-server` (for *Open Remote Folder…* and self-hosting).
 
 ## Arch Linux (pacman)
 ```sh
@@ -38,6 +38,9 @@ Needs WebKitGTK 4.1, GTK 3 and `libxdo` from your distribution. The AppImage (`M
 
 ## Android
 `moonkale-<version>-android-arm64.apk` (release build, debug-signed, ~45 MB; Android 8+ on arm64). Allow "install from unknown sources" for your file manager, or from a computer with `adb`: `adb install -r moonkale-<version>-android-arm64.apk`. The app opens its own vault in its private storage; **File → Connect to Server…** makes it a client of a Moonkale server (the folder, terminal, git and agent sessions run there). Built by `packages/mobile/build-android.sh` (needs the Android SDK + NDK, see `packages/mobile/README.md`) and by the release workflow.
+
+> [!note] Which Windows file?
+> `Moonkale_<version>_x64-setup.exe` is the NSIS installer and `Moonkale_<version>_x64.msi` the MSI — take either. The v0.1.0 release also carries a bare `moonkale.exe`, which is the unpackaged binary that slipped into the upload (P-128); it works but installs nothing, and it is gone from later releases.
 
 ## Windows and macOS — unsigned
 GitHub's runners build `Moonkale_<version>_x64-setup.exe` / `.msi` and `Moonkale_<version>_{arm64,x86_64}.dmg` on every release, but **nobody in the project has a Windows or Mac machine to test them on**, and they are **not code-signed**:

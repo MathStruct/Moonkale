@@ -91,9 +91,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows
+          # Installers only: the bundle directory also holds the raw
+          # `moonkale.exe`, which landed in the v0.1.0 release and confused
+          # everyone who saw two .exe files (P-128).
           path: |
             target/dx/moonkale/bundle/**/*.msi
-            target/dx/moonkale/bundle/**/*.exe
+            target/dx/moonkale/bundle/**/*-setup.exe
 
   macos:
     name: macOS (dmg) — unsigned
@@ -114,8 +117,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Bundle
         run: cd packages/desktop && dx bundle --platform desktop --release --features desktop --package-types dmg
-      - name: Name by architecture
-        run: for f in target/dx/moonkale/bundle/**/*.dmg target/dx/moonkale/bundle/*/*/*.dmg; do [ -f "$f" ] && mv "$f" "${f%.dmg}-${{ matrix.arch }}.dmg" || true; done
+      # No renaming: dx already puts the architecture in the name
+      # (`Moonkale_0.1.0_aarch64.dmg`), and appending ours made
+      # `…_aarch64-arm64.dmg` in v0.1.0 (P-128).
       - uses: actions/upload-artifact@v4
         with:
           name: macos-${{ matrix.arch }}
