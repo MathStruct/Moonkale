@@ -44,5 +44,19 @@ nix flake check         # workspace tests
 ## Android on NixOS
 `androidenv.composeAndroidPackages` can provide SDK + NDK declaratively; export `ANDROID_HOME`/`ANDROID_NDK_HOME` from it in a dev shell and follow [[Android]]. Not wired into the flake yet.
 
+## The binary cache (2026-09-22)
+A tagged release spent **1 h 49 m** compiling the flake in CI, and anyone running `nix run github:MathStruct/Moonkale` pays the same on their own machine. Two caches now sit in front of it, both free:
+
+1. **Cachix** — `cachix/cachix-action` in the `nix` job pushes the built closure to the public cache `moonkale`. Cachix is free for open-source projects with a **5 GB** limit, which is why the push filter drops sources and `.drv` files and keeps the app's own closure. Users get it with two lines:
+   ```sh
+   nix profile install nixpkgs#cachix     # once
+   cachix use moonkale                    # adds the substituter + public key
+   nix run github:MathStruct/Moonkale     # now downloads instead of compiling
+   ```
+   On NixOS the same thing belongs in the config (`nix.settings.substituters` / `trusted-public-keys`), which `cachix use` prints.
+2. **The GitHub Actions cache** (`nix-community/cache-nix-action`) keeps `/nix/store` between runs — free, no account, 10 GB per repository, purged after a week of disuse. It speeds CI up even if Cachix is not configured; it does nothing for users.
+
+Both steps are `continue-on-error`, so a missing token or a cache miss never fails the build. **One-time setup for the maintainer:** create the cache at <https://app.cachix.org> (sign in with GitHub, *Create binary cache*, name it `moonkale`, public), copy the auth token, and put it in the repository as the secret `CACHIX_AUTH_TOKEN` (*Settings → Secrets and variables → Actions*). Until that exists the job simply builds as before.
+
 ## Status (Milestone 13, 2026-09-21)
 `flake.nix` updated to dx's current layout and made to install `moonkale-server` and the icon too; licence `mit`. Not built here — the dev box's `nix-daemon` is not running (`opening lock file /nix/var/nix/db/big-lock: Permission denied`); the `nix` job in `.github/workflows/release.yml` builds it on every release, and `nix profile install github:MathStruct/Moonkale` is the user path ([[Install]]). Verified locally on 2026-09-21 once the daemon ran (`sudo systemctl enable --now nix-daemon`, flakes enabled in `/etc/nix/nix.conf`; on Arch there is no `nix-users` group — the socket is world-writable and `NIX_REMOTE=daemon` comes from `/etc/profile.d/nix-daemon.sh`): **Built 2026-09-21** on this machine: `nix build .#default` → `result/bin/{moonkale,moonkale-server}` (wrapped by `wrapGAppsHook3`; 228 MB + 225 MB unstripped) plus `lib/Moonkale/assets` (35 files), in ~15 minutes after nixpkgs' `dioxus-cli 0.7.10` was fetched from the cache. Two things the sandbox needed: `--cargo-args=--frozen` (the two-token form is rejected) and **LadybugDB's prebuilt library** — the `lbug` crate downloads `liblbug-static-linux-x86_64-compat.tar.gz` at build time, which no network forbids and CMake-from-source would take an hour; the flake fetches that archive as a fixed-output derivation (`liblbug`, sha256 pinned) and passes it through `LBUG_LIBRARY_DIR`/`LBUG_INCLUDE_DIR` (P-115). **Running the result on a non-NixOS host** (this Arch box) aborts with `Could not create default EGL display` — the usual Nix-on-foreign-distro OpenGL problem; `nix run --impure github:nix-community/nixGL -- ./result/bin/moonkale` starts it (NVIDIA here). On NixOS itself none of that applies.

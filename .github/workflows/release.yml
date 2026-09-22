@@ -218,6 +218,28 @@ jobs:
       - uses: cachix/install-nix-action@v30
         with:
           extra_nix_config: "experimental-features = nix-command flakes"
+      # A binary cache, so this stops costing ~1 h 50 m per tag and so users
+      # of `nix run github:MathStruct/Moonkale` download instead of compile.
+      # Free for open source (5 GB). Without the secret the step still works:
+      # it pulls from the public cache and skips the push.
+      - uses: cachix/cachix-action@v15
+        with:
+          name: moonkale
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          # Only the app's own closure; the toolchain would fill 5 GB fast.
+          pushFilter: "(-source$|nixpkgs\\.tar\\.gz$|\\.drv$)"
+        continue-on-error: true
+      # The Nix store between runs, when no Cachix token is configured: the
+      # GitHub Actions cache is free and needs no account (10 GB per repo).
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'Cargo.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+          purge: true
+          purge-prefixes: nix-${{ runner.os }}-
+          purge-created: 604800
+        continue-on-error: true
       - run: nix build .#default --print-build-logs
 
   release:

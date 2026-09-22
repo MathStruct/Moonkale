@@ -58,8 +58,10 @@ build() {
   (cd packages/desktop && dx build --release --platform desktop --features desktop)
   (cd packages/web && dx build --release --platform server)
   # The server's browser client (P-126): `--platform server` builds the binary
-  # only and leaves public/ without an index.html.
-  (cd packages/web && dx build --release --platform web)
+  # only and leaves public/ without an index.html. makepkg exports x86-specific
+  # CFLAGS (`-march=…`); cc-rs hands them to clang for wasm32, which refuses
+  # them (P-130), so the client is built with those variables cleared.
+  (cd packages/web && env -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS dx build --release --platform web)
 }
 
 package() {
