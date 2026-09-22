@@ -10,7 +10,7 @@
 # Local test without pushing: MOONKALE_GIT_URL="file://$PWD/../.." makepkg -s
 
 pkgname=moonkale-git
-pkgver=0.1.0.r55.g1eda12a
+pkgver=0.1.0.r64.gadb926c
 pkgrel=1
 pkgdesc="Graph-native code and knowledge editor (git)"
 arch=('x86_64' 'aarch64')
@@ -31,7 +31,14 @@ sha256sums=('SKIP')
 
 pkgver() {
   cd Moonkale
-  printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  # On a release tag, the plain version (`0.1.0`); otherwise the usual
+  # `-git` form so an installed build is ordered after the release.
+  local tag
+  if tag="$(git describe --tags --exact-match 2>/dev/null)"; then
+    printf '%s' "${tag#v}"
+  else
+    printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  fi
 }
 
 prepare() {
@@ -50,6 +57,9 @@ build() {
   # binary. The desktop app, then the server it uploads to remote hosts.
   (cd packages/desktop && dx build --release --platform desktop --features desktop)
   (cd packages/web && dx build --release --platform server)
+  # The server's browser client (P-126): `--platform server` builds the binary
+  # only and leaves public/ without an index.html.
+  (cd packages/web && dx build --release --platform web)
 }
 
 package() {

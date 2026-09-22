@@ -52,25 +52,33 @@ jobs:
   arch:
     name: Arch Linux (pacman package)
     runs-on: ubuntu-24.04
-    needs: linux
     container:
       image: archlinux:latest
     steps:
+      # Built **from source on Arch**, not repackaged from the Ubuntu tarball:
+      # Arch ships xdotool 4 (`libxdo.so.4`) while Ubuntu 24.04 has
+      # `libxdo.so.3`, so the repackaged binary did not start at all (P-129).
       - name: Tools
-        run: pacman -Syu --noconfirm --needed base-devel git sudo
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git sudo rust cargo pkgconf \
+            webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl cmake python-pillow
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
         with:
-          name: linux
-          path: dist
+          fetch-depth: 0
+      - name: Dioxus CLI (no AUR in the container)
+        run: |
+          curl -fsSL https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz | tar -xz -C /usr/local/bin
+          cargo-binstall -y --install-path /usr/local/bin dioxus-cli@${{ env.DX_VERSION }}
       - name: makepkg (as an unprivileged user — makepkg refuses root)
         run: |
           useradd -m builder && echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           chown -R builder .
-          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          cp dist/moonkale-$VERSION-linux-x86_64.tar.gz packaging/arch-bin/
-          sudo -u builder env MOONKALE_VERSION=$VERSION bash -c 'cd packaging/arch-bin && makepkg -f --skipchecksums --nodeps'
-          mv packaging/arch-bin/moonkale-bin-*.pkg.tar.zst dist/
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sudo -u builder git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # Build the checked-out commit itself (the tag), not master.
+          sudo -u builder env PATH="$PATH" MOONKALE_GIT_URL="file://$GITHUB_WORKSPACE#commit=$GITHUB_SHA" \
+            bash -c 'cd packaging/arch && makepkg -f --noconfirm --nodeps --skipchecksums'
+          mkdir -p dist && mv packaging/arch/moonkale-*.pkg.tar.zst dist/
       - uses: actions/upload-artifact@v4
         with:
           name: arch

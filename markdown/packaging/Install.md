@@ -7,10 +7,13 @@ tags: [packaging, install]
 
 ## Arch Linux (pacman)
 ```sh
-sudo pacman -U moonkale-bin-<version>-1-x86_64.pkg.tar.zst
+sudo pacman -U moonkale-<version>-1-x86_64.pkg.tar.zst
 moonkale
 ```
-Runtime packages pacman pulls in: `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl`. To build from source instead: `git clone https://github.com/MathStruct/Moonkale && cd Moonkale/packaging/arch && makepkg -si` (needs `dioxus-cli` ≥ 0.7.10 from the AUR; ~10 minutes).
+Runtime packages pacman pulls in: `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl`.
+
+> [!warning] v0.1.0's Arch package is broken — use a source build
+> It was the Ubuntu tarball repackaged, and Arch's xdotool 4 has no `libxdo.so.3`, so the app does not start (P-129). From the next release the Arch package is built from source on Arch. For 0.1.0: `makepkg -si` below, or wait for the next tag. To build from source instead: `git clone https://github.com/MathStruct/Moonkale && cd Moonkale/packaging/arch && makepkg -si` (needs `dioxus-cli` ≥ 0.7.10 from the AUR; ~10 minutes).
 
 ## Debian / Ubuntu (apt)
 ```sh
@@ -34,7 +37,7 @@ cd moonkale-<version>-linux-x86_64
 ./bin/moonkale                    # runs from here, nothing installed
 ./install.sh ~/.local             # or: sudo ./install.sh /usr/local
 ```
-Needs WebKitGTK 4.1, GTK 3 and `libxdo` from your distribution. The AppImage (`Moonkale_<version>_amd64.AppImage`, `chmod +x` then run) bundles nothing extra either — WebKitGTK is too large and too system-bound to embed.
+Needs WebKitGTK 4.1, GTK 3 and `libxdo` **in the versions Ubuntu 24.04 has**, because that is where the binaries are built: `libxdo.so.3` specifically (Arch's xdotool 4 provides `libxdo.so.4` and the app will not start — P-129). On a non-Debian distribution, use that distribution's package or build from source. The AppImage (`moonkale_<version>_x86_64.AppImage`, `chmod +x` then run) carries a few libraries but not WebKitGTK, and it looks for WebKit's helper processes under Debian's path (`/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/`), so it too is effectively a Debian/Ubuntu artefact today.
 
 ## Android
 `moonkale-<version>-android-arm64.apk` (release build, debug-signed, ~45 MB; Android 8+ on arm64). Allow "install from unknown sources" for your file manager, or from a computer with `adb`: `adb install -r moonkale-<version>-android-arm64.apk`. The app opens its own vault in its private storage; **File → Connect to Server…** makes it a client of a Moonkale server (the folder, terminal, git and agent sessions run there). Built by `packages/mobile/build-android.sh` (needs the Android SDK + NDK, see `packages/mobile/README.md`) and by the release workflow.
@@ -68,4 +71,4 @@ sha256sum -c sha256sums.txt --ignore-missing
 ```
 
 ## What is in a package
-`bin/moonkale` (the desktop app), `bin/moonkale-server` (the server — [[Two Binaries]] explains the difference), `lib/Moonkale/assets/` (the editors' JavaScript bundles, KaTeX, the graph renderer), `lib/Moonkale/public/` (the server's browser client), a desktop entry and icon, `share/doc/moonkale/{README.md,LICENSE,THIRD-PARTY.md}`. Moonkale is MIT; the third-party notices are in `THIRD-PARTY.md` ([[Licensing]]). Sizes: ~130 MB compressed, ~490 MB installed (the two binaries carry DuckDB, wasmtime, Typst and tree-sitter).
+`bin/moonkale` (the desktop app), `bin/moonkale-server` (the server — [[Two Binaries]] explains the difference), `lib/Moonkale/assets/` (the editors' JavaScript bundles, KaTeX, the graph renderer), `lib/Moonkale/public/` (the server's browser client), a desktop entry and icon, `share/doc/moonkale/{README.md,LICENSE,THIRD-PARTY.md}`. Moonkale is MIT; the third-party notices are in `THIRD-PARTY.md` ([[Licensing]]). Sizes: ~130 MB compressed, ~420 MB installed (the two binaries carry DuckDB, wasmtime, Typst and tree-sitter).
