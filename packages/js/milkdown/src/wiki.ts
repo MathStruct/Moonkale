@@ -8,6 +8,10 @@
 import { Plugin, PluginKey, type EditorState, type Transaction } from "@milkdown/kit/prose/state"
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view"
 
+/** The platform's primary modifier on a mouse event: Cmd on a Mac, Ctrl elsewhere (spec 027). */
+const primaryKey = (e: MouseEvent | KeyboardEvent) => (/Mac|iPhone|iPad/.test(navigator.platform) ? e.metaKey : e.ctrlKey)
+
+
 export type WikiCandidate = { target: string; key: string }
 export type WikiHooks = {
   /** Plain click on a link: follow (Rust creates the page if it is missing). */
@@ -181,7 +185,7 @@ export function wikiPlugin(ws: WikiState, root: HTMLElement, hooks: WikiHooks): 
         // link (editing it) is left to the editor. Ctrl/Cmd always follows.
         const $pos = view.state.doc.resolve(pos)
         const sel = view.state.selection
-        if (!(e.ctrlKey || e.metaKey) && sel.from <= $pos.pos && sel.to >= $pos.pos && !sel.empty) return false
+        if (!primaryKey(e) && sel.from <= $pos.pos && sel.to >= $pos.pos && !sel.empty) return false
         e.preventDefault()
         hooks.onFollow(target)
         return true

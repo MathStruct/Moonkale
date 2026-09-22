@@ -42,7 +42,7 @@ Needs WebKitGTK 4.1, GTK 3 and `libxdo` from your distribution. The AppImage (`M
 ## Windows and macOS — unsigned
 GitHub's runners build `Moonkale_<version>_x64-setup.exe` / `.msi` and `Moonkale_<version>_{arm64,x86_64}.dmg` on every release, but **nobody in the project has a Windows or Mac machine to test them on**, and they are **not code-signed**:
 - Windows: SmartScreen says "Windows protected your PC" → *More info* → *Run anyway*.
-- macOS: Gatekeeper refuses a double-click → right-click the app → *Open* (once), or `xattr -d com.apple.quarantine /Applications/Moonkale.app`.
+- macOS: Gatekeeper refuses a double-click → right-click the app → *Open* (once), or `xattr -d com.apple.quarantine /Applications/Moonkale.app`. Shortcuts are Cmd-based on a Mac (`Cmd+O`, `Cmd+P`, `Cmd+Shift+P`); Ctrl+letter is left to the text system as macOS users expect ([[027]]).
 
 Signing needs a certificate (Windows, ~€200/yr) or an Apple Developer account (macOS notarisation, $99/yr); neither exists yet. If you try one of these builds, please say what happened in an issue — that is the only testing they get.
 

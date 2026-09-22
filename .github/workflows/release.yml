@@ -166,7 +166,10 @@ jobs:
 
   release:
     name: GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # `always()`: the Windows, macOS and Android jobs have never run on GitHub
+    # (nobody has the machines to test them); a failure there must not hold
+    # back the Linux packages. The release notes say which jobs failed.
+    if: always() && startsWith(github.ref, 'refs/tags/v')
     needs: [linux, arch, windows, macos, android]
     runs-on: ubuntu-24.04
     steps:
@@ -175,11 +178,21 @@ jobs:
           path: artefacts
           merge-multiple: true
       - name: Checksums
-        run: cd artefacts && sha256sum * > sha256sums.txt && cat sha256sums.txt
+        run: cd artefacts && ls -la && sha256sum * > sha256sums.txt && cat sha256sums.txt
+      - name: Note failed builds
+        id: failed
+        run: |
+          failed=""
+          for j in linux:${{ needs.linux.result }} arch:${{ needs.arch.result }} windows:${{ needs.windows.result }} macos:${{ needs.macos.result }} android:${{ needs.android.result }}; do
+            case "$j" in *:success) ;; *) failed="$failed ${j%%:*}" ;; esac
+          done
+          echo "list=$failed" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
           files: artefacts/*
           generate_release_notes: true
           body: |
+            ${{ steps.failed.outputs.list != '' && format('**Builds that failed on the runners and are missing here:** {0}', steps.failed.outputs.list) || '' }}
+
             Packages for Linux (tarball, .deb, Arch), Android (arm64 APK, debug-signed), Windows (.msi / .exe, unsigned) and macOS (.dmg, unsigned).
             Install instructions: https://mathstruct.github.io/Moonkale/packaging/Install

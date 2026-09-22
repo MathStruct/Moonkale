@@ -283,7 +283,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                 textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: "Commit message (Ctrl+Enter)", value: "{message}",
                                     oninput: move |e| message.set(e.value()),
                                     onkeydown: move |e| {
-                                        if e.key() == Key::Enter && (e.modifiers().ctrl() || e.modifiers().meta()) {
+                                        if e.key() == Key::Enter && moonkale_ext_api::keys::primary(&e.modifiers()) {
                                             e.prevent_default();
                                             let m = message.peek().clone();
                                             if !m.trim().is_empty() && !staged_paths.is_empty() { message.set(String::new()); act(GitRequest::Commit { message: m }); }

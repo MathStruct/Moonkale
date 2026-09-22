@@ -32,3 +32,4 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[024]] | Go to definition / centre a graph view from the symbol under the cursor (menu, double or right click); builds on `cursor_word` and the index's symbols | documented |
 | [[025]] | A five-button mouse is the expected device: thumb buttons = back/forward, middle click = open aside, configurable; guard the webview's own button handling | documented |
 | [[026]] | Rich editor typography: font size, body font, code font — settings under the Markdown extension | done |
+| [[027]] | macOS keybindings: `Ctrl` in a binding means Cmd on a Mac and only Cmd; Ctrl stays the text system's (Emacs keys); `keys::primary` everywhere | done (unverified on a Mac) |

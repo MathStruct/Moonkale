@@ -130,7 +130,7 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                 class: if zoom().is_none() { "mk-image-stage mk-image-fit" } else { "mk-image-stage" },
                 tabindex: "0",
                 onwheel: move |e| {
-                    if e.modifiers().ctrl() || e.modifiers().meta() {
+                    if moonkale_ext_api::keys::primary(&e.modifiers()) {
                         e.prevent_default();
                         let dy = e.delta().strip_units().y;
                         step(if dy < 0.0 { 1 } else { -1 });

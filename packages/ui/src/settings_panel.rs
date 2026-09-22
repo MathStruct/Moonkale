@@ -194,7 +194,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     }
 
                     h3 { "Keybindings" }
-                    p { class: "mk-muted", "Ctrl also matches Cmd. Empty = unbound; a scope only stores the bindings changed there." }
+                    p { class: "mk-muted", "Ctrl in a binding means Cmd on macOS (and only Cmd — Ctrl stays free for Emacs-style cursor keys). Empty = unbound; a scope only stores the bindings changed there." }
                     for entry in registry.read().entries.iter() {
                         {
                             let id = entry.id.clone();

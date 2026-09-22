@@ -28,6 +28,7 @@ mod command;
 pub mod contrib;
 pub mod document;
 pub mod extension;
+pub mod keys;
 pub mod manifest;
 pub mod session;
 pub mod workspace;

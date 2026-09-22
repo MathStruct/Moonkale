@@ -323,7 +323,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
         div {
             class: "mk-rich",
             onkeydown: move |e| {
-                if (e.modifiers().ctrl() || e.modifiers().meta()) && e.key() == Key::Character("s".into()) {
+                if moonkale_ext_api::keys::primary(&e.modifiers()) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
                     e.stop_propagation(); // the frame would dispatch Save again
                     save(());

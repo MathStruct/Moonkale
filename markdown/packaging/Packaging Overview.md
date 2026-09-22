@@ -58,3 +58,17 @@ The web build is `dx build --release --platform web --package web` → a `server
 
 > [!info] Status (Milestone 13, 2026-09-21)
 > `packaging/build-release.sh` builds the desktop app + `moonkale-server` and produces the tarball, the `.deb` (assembled by hand) and the Arch package (`packaging/arch-bin`) in `dist/`; the tarball was run from `/tmp` (assets found, editor loads), the `.deb`'s layout and control file checked, `moonkale-bin` built with `makepkg`. The from-source `moonkale-git` PKGBUILD and `flake.nix` were updated to dx's current layout (`target/dx/moonkale/…`); the flake is verified only by CI (no nix-daemon here). `.github/workflows/release.yml` builds all of it plus Windows/macOS bundles on tags. Friend-facing instructions: [[Install]].
+
+## Cutting a release (Prompt25)
+The workflow `.github/workflows/release.yml` runs on any tag `v*` and attaches every package it managed to build to a GitHub Release ([[Install]]). The recipe:
+
+```sh
+git checkout master && git pull            # release from master, working tree clean
+grep '^version' Cargo.toml                 # the tag must match: 0.1.0 → v0.1.0
+git tag -a v0.1.0 -m "Moonkale 0.1.0"      # annotated: it carries a date and a message
+git push origin v0.1.0                     # push the one tag, not --tags (that pushes every local tag)
+```
+
+Then watch *Actions → Release packages*. Since 2026-09-22 the release job runs **even when a platform job fails** (`if: always()`): the Windows, macOS and Android jobs have never run on GitHub, and a failure there must not hold back the Linux packages. The release notes list the jobs that failed, so the missing files are explained. If the Linux job itself fails, the release is created empty except for `sha256sums.txt` — delete it (*Releases → Delete*), fix, `git tag -d v0.1.0 && git push origin :v0.1.0`, and tag again; a tag must never be moved silently once someone may have downloaded from it.
+
+Before the first tag: bump `version` in `Cargo.toml` when the last tag had the same number; `packaging/arch/PKGBUILD` and the release jobs read it from there. `dist/` is git-ignored — the local `packaging/build-release.sh` output is for hand-outs over the LAN, the release is what friends should install from.

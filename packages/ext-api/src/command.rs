@@ -31,8 +31,9 @@ impl CommandContribution {
 
 /// A parsed keybinding: modifiers plus one key name (lower case for
 /// characters, `F1`…`F12`, `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`,
-/// `Space`, `ArrowUp`… as the DOM names them). `Ctrl` also matches `Meta`
-/// (Cmd on macOS) so one table serves every platform.
+/// `Space`, `ArrowUp`… as the DOM names them). `Ctrl` means the platform's
+/// primary modifier — Cmd on macOS, Ctrl elsewhere (spec 027) — so one
+/// table serves every platform; `crate::keys::primary` decides per event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Keybinding {
     pub ctrl: bool,
@@ -71,19 +72,22 @@ impl Keybinding {
         }
     }
 
-    /// Does a DOM `keydown` (modifiers + `KeyboardEvent.key`) match?
-    pub fn matches(&self, ctrl_or_meta: bool, shift: bool, alt: bool, key: &str) -> bool {
-        self.ctrl == ctrl_or_meta
+    /// Does a DOM `keydown` match? `primary` is the platform's primary
+    /// modifier (`crate::keys::primary`), not "Ctrl or Meta".
+    pub fn matches(&self, primary: bool, shift: bool, alt: bool, key: &str) -> bool {
+        self.ctrl == primary
             && self.shift == shift
             && self.alt == alt
             && self.key == normalize_key(key)
     }
 
-    /// Human form for menus and the palette: `Ctrl+Shift+P`.
+    /// Human form for menus and the palette: `Ctrl+Shift+P` (`Cmd+Shift+P`
+    /// on a Mac).
     pub fn display(&self) -> String {
         let mut s = String::new();
         if self.ctrl {
-            s.push_str("Ctrl+");
+            s.push_str(crate::keys::primary_name());
+            s.push('+');
         }
         if self.shift {
             s.push_str("Shift+");

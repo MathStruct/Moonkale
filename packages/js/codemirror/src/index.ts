@@ -27,6 +27,10 @@ import { oneDark } from "@codemirror/theme-one-dark"
 import { setDiagnostics, lintGutter, type Diagnostic } from "@codemirror/lint"
 import { hoverTooltip } from "@codemirror/view"
 
+/** The platform's primary modifier on a mouse event: Cmd on a Mac, Ctrl elsewhere (spec 027). */
+const primaryKey = (e: MouseEvent | KeyboardEvent) => (/Mac|iPhone|iPad/.test(navigator.platform) ? e.metaKey : e.ctrlKey)
+
+
 /** Spec 018 / P-037: the view reports *splices* (UTF-16 offsets into the
  *  document before the change, in document order), never the whole text. */
 export type Splice = { from: number; to: number; insert: string }
@@ -181,7 +185,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
   }
   const wikiClick = EditorView.domEventHandlers({
     mousedown: (e, view) => {
-      if (!features.onWikiLink || !(e.ctrlKey || e.metaKey)) return false
+      if (!features.onWikiLink || !primaryKey(e)) return false
       const pos = view.posAtCoords({ x: e.clientX, y: e.clientY })
       if (pos == null) return false
       const target = wikiTargetAt(view, pos)

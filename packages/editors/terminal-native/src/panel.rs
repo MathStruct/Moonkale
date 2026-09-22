@@ -430,7 +430,12 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                 if m.ctrl() && m.shift() {
                     return;
                 }
-                if let Some(bytes) = encode(&key, m.ctrl() || m.meta(), m.alt(), m.shift(), app_cursor) {
+                // Control bytes come from Ctrl on every platform; Cmd on a Mac is
+                // the app's (copy, palette), never a control character (spec 027).
+                if m.meta() && !m.ctrl() {
+                    return;
+                }
+                if let Some(bytes) = encode(&key, m.ctrl(), m.alt(), m.shift(), app_cursor) {
                     e.prevent_default();
                     e.stop_propagation();
                     let s = s_key.borrow();
@@ -467,7 +472,7 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                         onclick: {
                             let s_click = s_click.clone();
                             move |e: MouseEvent| {
-                                if !(e.modifiers().ctrl() || e.modifiers().meta()) { return; }
+                                if !moonkale_ext_api::keys::primary(&e.modifiers()) { return; }
                                 let text = {
                                     let s = s_click.borrow();
                                     let screen = s.parser.screen();

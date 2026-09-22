@@ -525,7 +525,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             // Ctrl+S / Cmd+S anywhere in the panel, including inside CodeMirror.
             onkeydown: move |e| {
                 let mods = e.modifiers();
-                if (mods.ctrl() || mods.meta()) && e.key() == Key::Character("s".into()) {
+                if moonkale_ext_api::keys::primary(&mods) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
                     e.stop_propagation(); // the frame would dispatch Save again
                     save_now.call(());

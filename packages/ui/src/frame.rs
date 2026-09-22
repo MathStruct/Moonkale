@@ -372,7 +372,7 @@ pub fn Frame(
                 if key.is_empty() {
                     return;
                 }
-                if crate::commands::handle_key(ws, m.ctrl() || m.meta(), m.shift(), m.alt(), &key) {
+                if crate::commands::handle_key(ws, moonkale_ext_api::keys::primary(&m), m.shift(), m.alt(), &key) {
                     e.prevent_default();
                     e.stop_propagation();
                 }

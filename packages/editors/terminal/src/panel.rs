@@ -78,7 +78,8 @@ const size = x.mount(el, {
     onResize: (cols, rows) => dioxus.send({ kind: "resize", cols, rows }),
 });
 el.addEventListener("click", (e) => {
-    if (!e.ctrlKey && !e.metaKey) return;
+    // Cmd+click on a Mac, Ctrl+click elsewhere (spec 027).
+    if (!(/Mac|iPhone|iPad/.test(navigator.platform) ? e.metaKey : e.ctrlKey)) return;
     const lines = x.lineAt(el, e.clientY);
     if (lines) dioxus.send({ kind: "link", lines });
 });
