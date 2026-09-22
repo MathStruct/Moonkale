@@ -61,6 +61,8 @@ package() {
   install -Dm755 "target/dx/web/release/web/server" "$pkgdir/usr/bin/moonkale-server"
   install -d "$pkgdir/usr/lib/Moonkale"
   cp -r "$app/assets" "$pkgdir/usr/lib/Moonkale/assets"
+  # The server's browser client, where moonkale-server looks for it (P-126).
+  cp -r "target/dx/web/release/web/public" "$pkgdir/usr/lib/Moonkale/public"
   install -Dm644 packaging/linux/moonkale.desktop "$pkgdir/usr/share/applications/moonkale.desktop"
   install -Dm644 packages/desktop/assets/icon.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/moonkale.png"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

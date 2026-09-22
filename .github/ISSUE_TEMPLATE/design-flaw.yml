@@ -1,0 +1,26 @@
+name: Design flaw — the idea itself is wrong
+description: Not a bug in the code but a decision that does not hold up (a model, an interaction, a security assumption).
+labels: ["design flaw"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are the most valuable reports and the hardest to act on quickly. Decisions live in the vault under
+        [decisions](https://mathstruct.github.io/Moonkale/decisions/) — if one of them is what you disagree with, name it.
+  - type: textarea
+    id: what
+    attributes:
+      label: The decision or behaviour you think is wrong
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Where it breaks down
+      description: The case it does not survive — a workflow, a scale, a platform, an attacker.
+    validations:
+      required: true
+  - type: textarea
+    id: instead
+    attributes:
+      label: What you would do instead

@@ -44,7 +44,7 @@ GitHub's runners build `Moonkale_<version>_x64-setup.exe` / `.msi` and `Moonkale
 - Windows: SmartScreen says "Windows protected your PC" → *More info* → *Run anyway*.
 - macOS: Gatekeeper refuses a double-click → right-click the app → *Open* (once), or `xattr -d com.apple.quarantine /Applications/Moonkale.app`. Shortcuts are Cmd-based on a Mac (`Cmd+O`, `Cmd+P`, `Cmd+Shift+P`); Ctrl+letter is left to the text system as macOS users expect ([[027]]).
 
-Signing needs a certificate (Windows, ~€200/yr) or an Apple Developer account (macOS notarisation, $99/yr); neither exists yet. If you try one of these builds, please say what happened in an issue — that is the only testing they get.
+Signing needs a certificate (Windows, ~€200/yr) or an Apple Developer account (macOS notarisation, $99/yr); neither exists yet. If you try one of these builds, please say what happened in an issue — that is the only testing they get ([[Feedback]]).
 
 ## After installing
 - Start it, *File → Open Folder…*, and open a `.md` or `.rs` file. If the editor shows "Loading editor…" forever, the assets were not found next to the binary: tell us the install method.
@@ -57,7 +57,7 @@ docker run --rm -p 8080:8080 -v /srv/notes:/data \
   -e MOONKALE_TOKEN=$(openssl rand -hex 16) -e MOONKALE_INSECURE_HTTP=1 \
   ghcr.io/mathstruct/moonkale-server
 ```
-`ghcr.io/mathstruct/moonkale-server:<version>` / `:latest` holds `moonkale-server` alone (Ubuntu 24.04, ~120 MB), serving `/data`. A token is required for any non-loopback bind; put TLS or a reverse proxy in front and drop `MOONKALE_INSECURE_HTTP` ([[Remote and Server Modes]]). The desktop app then connects with *File → Connect to Server…*.
+`ghcr.io/mathstruct/moonkale-server:<version>` / `:latest` holds `moonkale-server` and its browser client (Ubuntu 24.04, ~190 MB), serving `/data`. It is the server only — the desktop app is not in it ([[Two Binaries]]). A token is required for any non-loopback bind; put TLS or a reverse proxy in front and drop `MOONKALE_INSECURE_HTTP` ([[Remote and Server Modes]]). The desktop app then connects with *File → Connect to Server…*.
 
 ## Verify a download
 ```sh
@@ -65,4 +65,4 @@ sha256sum -c sha256sums.txt --ignore-missing
 ```
 
 ## What is in a package
-`bin/moonkale`, `bin/moonkale-server`, `lib/Moonkale/assets/` (the editors' JavaScript bundles, KaTeX, the graph renderer), a desktop entry and icon, `share/doc/moonkale/{README.md,LICENSE,THIRD-PARTY.md}`. Moonkale is MIT; the third-party notices are in `THIRD-PARTY.md` ([[Licensing]]). Sizes: ~115 MB compressed, ~430 MB installed (the two binaries carry DuckDB, wasmtime, Typst and tree-sitter).
+`bin/moonkale` (the desktop app), `bin/moonkale-server` (the server — [[Two Binaries]] explains the difference), `lib/Moonkale/assets/` (the editors' JavaScript bundles, KaTeX, the graph renderer), `lib/Moonkale/public/` (the server's browser client), a desktop entry and icon, `share/doc/moonkale/{README.md,LICENSE,THIRD-PARTY.md}`. Moonkale is MIT; the third-party notices are in `THIRD-PARTY.md` ([[Licensing]]). Sizes: ~130 MB compressed, ~490 MB installed (the two binaries carry DuckDB, wasmtime, Typst and tree-sitter).

@@ -153,9 +153,9 @@ jobs:
       - name: Build the APK (packages/mobile/build-android.sh)
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
-        # -v: dx hides cargo's error text otherwise (the first run of this job
-        # failed with nothing but "cargo build finished with errors").
-        run: DX_BUILD_ARGS=-v packages/mobile/build-android.sh
+        # --verbose (dx has no short -v): dx hides cargo's error text otherwise; the
+        # first run of this job failed with nothing but "cargo build finished with errors".
+        run: DX_BUILD_ARGS=--verbose packages/mobile/build-android.sh
       - name: Name the artefact
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
@@ -221,8 +221,20 @@ jobs:
         with:
           path: artefacts
           merge-multiple: true
-      - name: Checksums
-        run: cd artefacts && ls -la && sha256sum * > sha256sums.txt && cat sha256sums.txt
+      - name: Collect the files and checksum them
+        # `merge-multiple` keeps each artifact's directory structure (the
+        # macOS bundles arrive under `bundle/**`), so `sha256sum *` hit a
+        # directory and killed the whole release (P-127). Flatten first.
+        run: |
+          mkdir -p release
+          find artefacts -type f \( -name '*.tar.gz' -o -name '*.deb' -o -name '*.pkg.tar.*' \
+            -o -name '*.AppImage' -o -name '*.apk' -o -name '*.msi' -o -name '*.exe' \
+            -o -name '*.dmg' \) -exec mv -t release {} + || true
+          cd release
+          ls -la
+          if [ -z "$(ls -A)" ]; then echo "no artefacts at all — nothing built"; exit 1; fi
+          sha256sum * > sha256sums.txt
+          cat sha256sums.txt
       - name: Note failed builds
         id: failed
         run: |
@@ -233,7 +245,7 @@ jobs:
           echo "list=$failed" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          files: artefacts/*
+          files: release/*
           generate_release_notes: true
           body: |
             ${{ steps.failed.outputs.list != '' && format('**Builds that failed on the runners and are missing here:** {0}', steps.failed.outputs.list) || '' }}

@@ -21,7 +21,8 @@ ICON="$HERE/assets/icon.png"
 
 # Stale hashed assets accumulate in the generated project (P-092): start clean.
 rm -rf "$PROJECT/app/src/main/assets"
-# DX_BUILD_ARGS: extra flags for dx (CI passes -v; dx hides cargo errors otherwise).
+# DX_BUILD_ARGS: extra flags for dx (CI passes --verbose; dx hides cargo errors
+# otherwise — and it has no short `-v`, P-124).
 (cd "$HERE" && dx build --release --platform android --features mobile --target aarch64-linux-android ${DX_BUILD_ARGS:-})
 
 # Launcher icon: bitmaps for every density plus an adaptive icon whose

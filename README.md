@@ -53,6 +53,13 @@ Details, what the unsigned warnings mean, and how to report a problem:
 the packages yourself: `packaging/build-release.sh` (Linux) — the same script
 the release workflow runs.
 
+## Feedback
+
+Bugs, feature requests, suggestions, design flaws and "I cannot get it to work":
+[open an issue](https://github.com/MathStruct/Moonkale/issues/new/choose) — pick the
+kind and the form labels it for you. What makes a report useful and what happens
+to it afterwards: <https://mathstruct.github.io/Moonkale/Feedback>.
+
 ## Where it stands
 
 **Milestone 15 — "Agents, profiles and connections"** (2026-09-22). Saved

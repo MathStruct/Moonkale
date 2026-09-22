@@ -30,6 +30,8 @@ package() {
   install -Dm755 bin/moonkale-server "$pkgdir/usr/bin/moonkale-server"
   install -d "$pkgdir/usr/lib/Moonkale"
   cp -r lib/Moonkale/assets "$pkgdir/usr/lib/Moonkale/assets"
+  # The server's browser client, where moonkale-server looks for it (P-126).
+  cp -r lib/Moonkale/public "$pkgdir/usr/lib/Moonkale/public"
   install -Dm644 share/applications/moonkale.desktop "$pkgdir/usr/share/applications/moonkale.desktop"
   install -Dm644 share/icons/hicolor/512x512/apps/moonkale.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/moonkale.png"
   install -Dm644 share/doc/moonkale/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

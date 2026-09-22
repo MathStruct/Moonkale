@@ -1,0 +1,30 @@
+name: Labels
+
+# Creates (or updates) the labels the issue forms use. GitHub does not create a
+# missing label, so an issue would arrive unlabelled. Run by hand after editing
+# .github/labels.yml — there is nothing to do on a normal push.
+on:
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply .github/labels.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -c "
+          import json, yaml
+          print(json.dumps(yaml.safe_load(open('.github/labels.yml'))))" > labels.json
+          jq -c '.[]' labels.json | while read -r l; do
+            name=$(echo "$l" | jq -r .name)
+            color=$(echo "$l" | jq -r .color)
+            desc=$(echo "$l" | jq -r .description)
+            gh label create "$name" --color "$color" --description "$desc" --force
+          done
+          gh label list --limit 50

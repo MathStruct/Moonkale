@@ -1,0 +1,36 @@
+# The labels the issue forms apply (.github/ISSUE_TEMPLATE/*.yml). GitHub does
+# not create a missing label — the issue silently arrives unlabelled — so this
+# list is applied by the "Labels" workflow (run it by hand after changing it).
+- name: bug
+  color: d73a4a
+  description: Something is broken - it crashes, loses data or does the wrong thing
+- name: feature request
+  color: 0e8a16
+  description: A capability Moonkale does not have yet
+- name: suggestion
+  color: c5def5
+  description: A smaller change to something that exists - wording, a default, a shortcut
+- name: design flaw
+  color: 5319e7
+  description: A decision that does not hold up, not a bug in the code
+- name: help
+  color: fbca04
+  description: Cannot get it to work - install, build, server, model, phone
+- name: needs info
+  color: e4e669
+  description: Waiting for the reporter
+- name: confirmed
+  color: b60205
+  description: Reproduced here; in the Problem Log
+- name: platform:windows
+  color: ededed
+  description: Untested platform - reports are the only testing it gets
+- name: platform:macos
+  color: ededed
+  description: Untested platform - reports are the only testing it gets
+- name: platform:android
+  color: ededed
+  description: The Android app
+- name: platform:web
+  color: ededed
+  description: The browser build or a Moonkale server

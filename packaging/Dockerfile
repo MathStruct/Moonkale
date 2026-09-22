@@ -15,14 +15,24 @@
 # Ubuntu 24.04 to match the runner the binary is built on (glibc 2.39).
 FROM ubuntu:24.04
 
+# So GitHub links the package to this repository and shows a description.
+LABEL org.opencontainers.image.source="https://github.com/MathStruct/Moonkale" \
+      org.opencontainers.image.description="moonkale-server: the Moonkale server and its browser client — open a folder over HTTP, with terminal, git, language servers and agent sessions on this machine." \
+      org.opencontainers.image.documentation="https://mathstruct.github.io/Moonkale/packaging/Install" \
+      org.opencontainers.image.licenses="MIT"
+
 ARG TARBALL
 COPY ${TARBALL} /tmp/moonkale.tar.gz
+
+# The browser client: the binary looks for ../lib/Moonkale/public next to
+# itself (P-126), so /usr/local/bin + /usr/local/lib/Moonkale/public.
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates libssl3 libstdc++6 libbrotli1 libzstd1 zlib1g git openssh-client \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /tmp/x && tar -xzf /tmp/moonkale.tar.gz -C /tmp/x --strip-components=1 \
  && install -m755 /tmp/x/bin/moonkale-server /usr/local/bin/moonkale-server \
+ && mkdir -p /usr/local/lib/Moonkale && cp -r /tmp/x/lib/Moonkale/public /usr/local/lib/Moonkale/public \
  && rm -rf /tmp/x /tmp/moonkale.tar.gz \
  && useradd -r -u 10001 -m -d /home/moonkale moonkale \
  && mkdir -p /data && chown moonkale:moonkale /data

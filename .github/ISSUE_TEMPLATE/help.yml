@@ -1,0 +1,29 @@
+name: Help — I cannot get it to work
+description: Installing, building, connecting to a server, a language model, the phone app.
+labels: ["help"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you are trying to do and where it stops
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where
+      options:
+        - Linux desktop
+        - Windows desktop
+        - macOS desktop
+        - Android
+        - Web (browser)
+        - Building from source
+        - A Moonkale server / remote folder
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: The exact command and its output
+      render: text

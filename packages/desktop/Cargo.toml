@@ -49,3 +49,10 @@ libc = "0.2"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 serde_json = "1"
+
+# Windows has no system OpenSSL, and `dioxus-desktop` depends on
+# `tungstenite` with `native-tls` (not optional, P-125) → `openssl-sys`.
+# `vendored` compiles OpenSSL from source with perl + nasm, both preinstalled
+# on GitHub's Windows runners. Windows only: Linux and macOS use theirs.
+[target.'cfg(windows)'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"] }

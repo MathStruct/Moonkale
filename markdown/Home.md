@@ -53,6 +53,8 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why
 
 ## Packaging
+- [[Feedback]] — where a bug, a feature request, a suggestion, a design flaw or a plea for help goes, and what happens to it
+- [[Two Binaries]] — `moonkale` (the app) and `moonkale-server` (the server + its browser client), and when you want the second
 - [[Install]] — pacman, apt, nix, tarball; unsigned Windows/macOS builds (Milestone 13)
 - [[Packaging Overview]] — what `dx build` produces and where the binary looks for assets
 - [[Licensing]] — Moonkale is MIT; what a built Moonkale additionally carries (DuckDB, wasmtime, Typst, ICU4X, KaTeX fonts …) and how to list it

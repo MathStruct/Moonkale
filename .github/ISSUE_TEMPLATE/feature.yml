@@ -1,0 +1,21 @@
+name: Feature request — something is missing
+description: A capability Moonkale does not have yet.
+labels: ["feature request"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want to be able to do
+      description: The task, not the button — "jump from a call to the definition", not "add a context menu entry".
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why, and how you work around it today
+      description: What you do instead right now (another editor, a script, by hand).
+  - type: input
+    id: elsewhere
+    attributes:
+      label: Somewhere this already exists
+      placeholder: VS Code's …, Obsidian's …, a paper, a screenshot

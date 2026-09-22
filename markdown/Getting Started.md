@@ -53,6 +53,6 @@ Differences you will notice: no canvas, no daily notes, no templates plugin, few
 8. **Ctrl+Shift+F** searches the folder — keyword search always; semantic search when an embedding model is configured.
 
 ## What to expect
-Moonkale is at version 0.1: usable daily by its author, rough at the edges. Things that are solid: opening folders and databases, the graph, the rich editor with wiki-links and KaTeX, CodeMirror with language servers, git, history, the agent, remote folders over SSH. Things that are not there: a debugger, a marketplace, sync, most of Obsidian's plugin ecosystem, signed Windows/macOS builds. When something is wrong, say so — the [[Problem Log]] is where every reported problem ends up with its fix.
+Moonkale is at version 0.1: usable daily by its author, rough at the edges. Things that are solid: opening folders and databases, the graph, the rich editor with wiki-links and KaTeX, CodeMirror with language servers, git, history, the agent, remote folders over SSH. Things that are not there: a debugger, a marketplace, sync, most of Obsidian's plugin ecosystem, signed Windows/macOS builds. When something is wrong, say so — [[Feedback]] says where it goes (the issue forms label it for you), and the [[Problem Log]] is where every reported problem ends up with its fix.
 
-Next: [[Install]] · the [[Extension Catalogue]] (what each extension does and where it runs) · [[Remote and Server Modes]] (working on another machine) · [[Overview]] (how it is built).
+Next: [[Install]] · [[Feedback]] (how to report anything) · the [[Extension Catalogue]] (what each extension does and where it runs) · [[Remote and Server Modes]] (working on another machine) · [[Overview]] (how it is built).

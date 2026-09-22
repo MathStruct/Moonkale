@@ -1,0 +1,50 @@
+name: Bug — something is broken
+description: It crashed, it lost data, it does the wrong thing, or it does nothing.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Moonkale is version 0.1 and rough at the edges — a report is welcome even when you are not sure it is a bug.
+        Every reported problem ends up in the [Problem Log](https://mathstruct.github.io/Moonkale/problems/Problem-Log) with its cause and fix.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+      placeholder: I opened a folder with 20 000 files and the Graph panel stayed empty.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where
+      description: Linux, web and Android are tested by the project; Windows and macOS builds are unsigned and untested — say so, that is the useful part.
+      options:
+        - Linux desktop
+        - Windows desktop
+        - macOS desktop
+        - Android
+        - Web (browser)
+        - A Moonkale server / remote folder
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and how you installed it
+      placeholder: 0.1.0, .deb from the release / built from source at <commit>
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything in the logs
+      description: The status bar's message, the terminal output of the app, or the log file (see Debugging and Logging in the vault). Pasted text, not a screenshot, where you can.
+      render: text

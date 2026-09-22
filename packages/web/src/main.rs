@@ -15,6 +15,92 @@ const FAVICON: Asset = asset!("/assets/favicon.ico");
 const ICON_PNG: Asset = asset!("/assets/icon.png");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
+/// The client directory to serve, given the executable's path: the dx
+/// convention first (`<exe>/public`, what `dx serve` and the SSH upload
+/// produce), then the packaged layouts. `exists` is the probe so this is
+/// testable without a filesystem.
+#[cfg(feature = "server")]
+fn public_dir(
+    exe: &std::path::Path,
+    exists: impl Fn(&std::path::Path) -> bool,
+) -> Option<std::path::PathBuf> {
+    let dir = exe.parent()?;
+    let candidates = [
+        dir.join("public"),
+        dir.join("../lib/Moonkale/public"),
+        std::path::PathBuf::from("/usr/lib/Moonkale/public"),
+        std::path::PathBuf::from("/usr/local/lib/Moonkale/public"),
+    ];
+    candidates.into_iter().find(|c| exists(&c.join("index.html")))
+}
+
+#[cfg(feature = "server")]
+fn set_public_path() {
+    if std::env::var_os("DIOXUS_PUBLIC_PATH").is_some() {
+        return;
+    }
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    match public_dir(&exe, |p| p.exists()) {
+        Some(dir) => std::env::set_var("DIOXUS_PUBLIC_PATH", dir),
+        None => {
+            // No client anywhere: serve the API only instead of panicking in
+            // dioxus-server's `serve_dir` (P-126).
+            let empty = std::env::temp_dir().join("moonkale-no-client");
+            let _ = std::fs::create_dir_all(&empty);
+            std::env::set_var("DIOXUS_PUBLIC_PATH", &empty);
+            eprintln!(
+                "moonkale: no browser client found next to {} — serving the API only \
+                 (expected ./public or ../lib/Moonkale/public)",
+                exe.display()
+            );
+        }
+    }
+}
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use super::*;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn finds_the_client_in_each_packaged_layout() {
+        let has = |these: Vec<PathBuf>| move |p: &Path| these.iter().any(|t| t == p);
+        // dx's own layout: public next to the binary.
+        let exe = Path::new("/opt/moonkale/bin/moonkale-server");
+        assert_eq!(
+            public_dir(exe, has(vec![PathBuf::from("/opt/moonkale/bin/public/index.html")])),
+            Some(PathBuf::from("/opt/moonkale/bin/public"))
+        );
+        // A distribution: bin/ and lib/ side by side.
+        assert_eq!(
+            public_dir(exe, has(vec![PathBuf::from("/opt/moonkale/bin/../lib/Moonkale/public/index.html")])),
+            Some(PathBuf::from("/opt/moonkale/bin/../lib/Moonkale/public"))
+        );
+        // The Arch/deb layout, from /usr/bin: the relative candidate is
+        // `/usr/bin/../lib/…`, the absolute one `/usr/lib/…`; either is the
+        // same directory, and a probe that only knows the canonical path
+        // still finds it.
+        assert_eq!(
+            public_dir(
+                Path::new("/usr/bin/moonkale-server"),
+                has(vec![PathBuf::from("/usr/lib/Moonkale/public/index.html")])
+            ),
+            Some(PathBuf::from("/usr/lib/Moonkale/public"))
+        );
+        assert_eq!(
+            public_dir(
+                Path::new("/usr/bin/moonkale-server"),
+                has(vec![PathBuf::from("/usr/bin/../lib/Moonkale/public/index.html")])
+            ),
+            Some(PathBuf::from("/usr/bin/../lib/Moonkale/public"))
+        );
+        // Nothing anywhere: the caller serves the API only.
+        assert_eq!(public_dir(exe, |_| false), None);
+    }
+}
+
 fn main() {
     // The server adds the MCP endpoint next to the app's own routes.
     #[cfg(feature = "server")]
@@ -66,6 +152,12 @@ fn main() {
         }
         // Refuse a non-loopback bind without MOONKALE_TOKEN (Milestone 7)
         // or without TLS (Milestone 11).
+        // Where the browser client lives (P-126). dioxus-server looks for
+        // `public/` next to the executable and *panics* when it is missing,
+        // which is what a packaged `moonkale-server` hits: distributions put
+        // the binary in `bin/` and its data in `lib/`. Point it at the first
+        // layout that exists; `DIOXUS_PUBLIC_PATH` still wins.
+        set_public_path();
         api::auth::guard_bind();
         fn build_router() -> axum::Router {
             let router = dioxus::server::router(App)

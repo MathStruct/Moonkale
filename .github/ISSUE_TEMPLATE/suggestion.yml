@@ -1,0 +1,14 @@
+name: Suggestion — something could be better
+description: "A smaller change to what already exists: wording, a default, a shortcut, a layout."
+labels: ["suggestion"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would change
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What is annoying about it now

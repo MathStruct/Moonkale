@@ -39,9 +39,14 @@ if [ "$BUILD" = 1 ]; then
   (cd packages/desktop && dx build --platform desktop --release --features desktop)
   echo "== building the server (release)"
   (cd packages/web && dx build --platform server --release)
+  # …and the browser client it serves: `--platform server` builds the binary
+  # only, leaving `public/` without an index.html (P-126).
+  echo "== building the browser client (release)"
+  (cd packages/web && dx build --platform web --release)
 fi
 [ -x "$APP/moonkale" ] || { echo "no desktop build at $APP (run without --no-build)" >&2; exit 1; }
 [ -x "$SERVER" ] || { echo "no server build at $SERVER" >&2; exit 1; }
+[ -f "$(dirname "$SERVER")/public/index.html" ] || { echo "no browser client at $(dirname "$SERVER")/public (run: cd packages/web && dx build --platform web --release)" >&2; exit 1; }
 
 echo "== staging $STAGE"
 rm -rf "$STAGE"
@@ -51,7 +56,10 @@ mkdir -p "$STAGE/bin" "$STAGE/lib/Moonkale" "$STAGE/share/applications" \
 install -m755 "$APP/moonkale" "$STAGE/bin/moonkale"
 cp -r "$APP/assets" "$STAGE/lib/Moonkale/assets"
 # The server: what Open Remote Folder… uploads, and `moonkale-server` on its own.
+# Its browser client goes to lib/Moonkale/public, where the binary looks for it
+# (P-126); without a client dioxus-server used to panic at startup.
 install -m755 "$SERVER" "$STAGE/bin/moonkale-server"
+cp -r "$(dirname "$SERVER")/public" "$STAGE/lib/Moonkale/public"
 strip "$STAGE/bin/moonkale" "$STAGE/bin/moonkale-server" 2>/dev/null || true
 install -m644 packaging/linux/moonkale.desktop "$STAGE/share/applications/moonkale.desktop"
 install -m644 packages/desktop/assets/icon.png "$STAGE/share/icons/hicolor/512x512/apps/moonkale.png"

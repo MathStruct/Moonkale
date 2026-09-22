@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question, idea or "is this supposed to work like that?"
+    url: https://github.com/MathStruct/Moonkale/discussions
+    about: Anything that is not a concrete report — open a discussion; it can become an issue later.
+  - name: How feedback is handled
+    url: https://mathstruct.github.io/Moonkale/Feedback
+    about: What happens to a report, what makes one useful, and where it ends up in the vault.
