@@ -246,7 +246,15 @@ fn split(text: &str) -> Vec<(usize, usize, &str)> {
         let mut o = 0;
         for l in text.lines() {
             v.push(o);
-            o += l.len() + 1;
+            // `lines()` strips a trailing `\r` too, but a CRLF terminator is
+            // 2 bytes — advance by the real terminator width so offsets stay
+            // on char boundaries (and on the true line starts) for slicing.
+            o += l.len();
+            if text[o..].starts_with("\r\n") {
+                o += 2;
+            } else {
+                o += 1;
+            }
         }
         v.push(text.len());
         v
@@ -341,5 +349,31 @@ mod tests {
         assert!(parts.len() >= 3);
         assert_eq!(parts[0].0, 0);
         assert!(parts.windows(2).all(|w| w[1].0 == w[0].1 + 1));
+    }
+    #[test]
+    fn crlf_files_chunk_on_char_boundaries() {
+        // 1 byte of offset drift per CRLF line previously put a later chunk
+        // seam inside the multi-byte `é` and panicked the slice in `split`.
+        let text = "café\r\n".repeat(120) + "xyz\r\n";
+        let parts = split(&text);
+        assert!(!parts.is_empty());
+        // Chunk bodies stay valid slices of the original text.
+        let joined: usize = parts.iter().map(|p| p.2.len()).sum();
+        assert!(joined <= text.len());
+        assert!(parts.iter().all(|p| text.contains(p.2)));
+        // Same content must chunk identically with LF endings.
+        let lf_text = text.replace("\r\n", "\n");
+        let lf = split(&lf_text);
+        assert_eq!(parts.len(), lf.len());
+        assert_eq!(parts[0].2.replace("\r\n", "\n"), lf[0].2);
+    }
+
+    #[test]
+    fn set_file_survives_crlf_with_multibyte_text() {
+        let mut s = SearchIndex::default();
+        s.set_file(&node("notes.md"), &("café\r\n".repeat(120) + "xyz\r\n"));
+        let hits = s.search("café", None, 5);
+        assert_eq!(hits[0].path, "notes.md");
+        assert_eq!(s.search("xyz", None, 5)[0].path, "notes.md");
     }
 }
