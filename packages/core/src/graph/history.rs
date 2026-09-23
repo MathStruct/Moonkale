@@ -153,7 +153,10 @@ impl Event {
                 format!("edited (+{ins} −{del})")
             }
             EventKind::Checkpoint { commit, message } => {
-                format!("commit {} {}", &commit[..commit.len().min(7)], message)
+                // Truncate on a char boundary: the commit id is free-form
+                // text from the log file, not guaranteed ASCII.
+                let head: String = commit.chars().take(7).collect();
+                format!("commit {} {}", head, message)
             }
             EventKind::Snapshot { live, folded, .. } => {
                 format!("snapshot of {} nodes ({folded} events folded)", live.len())
@@ -634,5 +637,19 @@ mod tests {
         ));
         assert_eq!(log.merge(&other), 1);
         assert_eq!(log.len(), 3);
+    }
+    #[test]
+    fn checkpoint_summary_truncates_on_a_char_boundary() {
+        // The commit id is free-form text from the log file; slicing it by
+        // bytes used to panic on a multi-byte character at offsets 5/6.
+        let e = Event::new(
+            1,
+            "u",
+            EventKind::Checkpoint {
+                commit: "abcde😀f".into(),
+                message: "hi".into(),
+            },
+        );
+        assert_eq!(e.summary(), "commit abcde😀f hi");
     }
 }
