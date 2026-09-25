@@ -8,10 +8,11 @@
   "terminal": {},
   "editor": {},
   "extensions": {},
-  "layout": "{\"version\":1,\"next_id\":3,\"root\":{\"kind\":\"split\",\"id\":\"root\",\"axis\":\"horizontal\",\"ratio\":0.22,\"first\":{\"kind\":\"tile\",\"id\":\"side\",\"panels\":[\"explorer\",\"search\",\"links\",\"git\",\"history\"],\"active\":\"explorer\",\"preserve_when_empty\":false},\"second\":{\"kind\":\"split\",\"id\":\"main-rows\",\"axis\":\"vertical\",\"ratio\":0.72,\"first\":{\"kind\":\"split\",\"id\":\"split-2\",\"axis\":\"horizontal\",\"ratio\":0.5,\"first\":{\"kind\":\"tile\",\"id\":\"main\",\"panels\":[\"settings\",\"graph\",\"extensions\",\"editor:6cf1d94a-453e-55a2-840a-6dcce131bafc\",\"editor:2cd419dc-9122-598b-b1b2-5762f5d83105\",\"editor:e8829a4e-c6f1-5b70-aa55-e8111f8030a8\"],\"active\":\"editor:e8829a4e-c6f1-5b70-aa55-e8111f8030a8\",\"preserve_when_empty\":true},\"second\":{\"kind\":\"tile\",\"id\":\"tile-1\",\"panels\":[\"editor:3b1f7561-2922-53f0-88e3-6b85b27af2ef\"],\"active\":\"editor:3b1f7561-2922-53f0-88e3-6b85b27af2ef\",\"preserve_when_empty\":false}},\"second\":{\"kind\":\"tile\",\"id\":\"bottom\",\"panels\":[\"terminal\"],\"active\":\"terminal\",\"preserve_when_empty\":false}}}}",
+  "layout": "{\"version\":1,\"next_id\":17,\"root\":{\"kind\":\"split\",\"id\":\"root\",\"axis\":\"horizontal\",\"ratio\":0.10680065524193548,\"first\":{\"kind\":\"tile\",\"id\":\"side\",\"panels\":[\"explorer\",\"search\",\"links\",\"git\",\"history\"],\"active\":\"explorer\",\"preserve_when_empty\":false},\"second\":{\"kind\":\"split\",\"id\":\"split-12\",\"axis\":\"vertical\",\"ratio\":0.8012585532746823,\"first\":{\"kind\":\"split\",\"id\":\"split-16\",\"axis\":\"horizontal\",\"ratio\":0.5,\"first\":{\"kind\":\"tile\",\"id\":\"main\",\"panels\":[\"graph\",\"extensions\",\"settings\"],\"active\":\"graph\",\"preserve_when_empty\":true},\"second\":{\"kind\":\"tile\",\"id\":\"tile-15\",\"panels\":[\"editor:4d866203-6a2c-5fb6-9c2d-33b06ec8c8b9\",\"editor:7e222ea2-f14a-5f67-b697-61c4dc3d2ff7\"],\"active\":\"editor:7e222ea2-f14a-5f67-b697-61c4dc3d2ff7\",\"preserve_when_empty\":false}},\"second\":{\"kind\":\"tile\",\"id\":\"tile-11\",\"panels\":[\"terminal\"],\"active\":\"terminal\",\"preserve_when_empty\":false}}}}",
   "open_documents": [
-    "markdown/architecture/Remote and Server Modes.md",
-    "markdown/prompts/02/Prompt26.md"
+    "clippy.toml",
+    "packages/core/src/graph/property.rs",
+    "packages/mobile/src/main.rs"
   ],
-  "active_document": "markdown/prompts/02/Prompt26.md"
+  "active_document": "packages/mobile/src/main.rs"
 }

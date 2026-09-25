@@ -23,3 +23,15 @@ for now. (The short githash)
 
 I do expect lot's of breaking changes so no need for other versioning now.
 
+
+
+The milkdown extension for whatever reason inserts <br /> into empty lines. It would be better if it would not do that.
+
+Android: Currently one can not Drag and drop to rearrange windows.
+
+
+Linux: Dragging between two windows might no follow the cursor but move faster sometimes
+
+After closing the session is not persistent.
+
+Linux: the Milkdown editor gets sometimes stuck in "Loading Rich editor..."
