@@ -33,3 +33,7 @@ packages/js/*/node_modules/
 /packaging/arch-bin/*.pkg.tar.*
 /packaging/arch-bin/*.tar.gz
 /packaging/arch/Moonkale/
+
+# Android signing keys must never be committed (P-131).
+*.jks
+*.keystore

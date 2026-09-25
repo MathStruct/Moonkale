@@ -171,6 +171,11 @@ jobs:
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            # Fail here, with a readable message, rather than 20 minutes later
+            # inside Gradle: a truncated secret or a wrong password shows up now.
+            keytool -list -keystore "$RUNNER_TEMP/release.jks" \
+              -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > /dev/null \
+              || { echo "::error::ANDROID_KEYSTORE_BASE64 is not a keystore, or ANDROID_KEYSTORE_PASSWORD is wrong"; exit 1; }
             echo "MOONKALE_ANDROID_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
           else
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — the APK gets a throwaway debug key and will not install over an earlier release (P-131)."
