@@ -70,6 +70,17 @@ PY
 #   MOONKALE_ANDROID_KEYSTORE_PASSWORD  store password
 #   MOONKALE_ANDROID_KEY_ALIAS          key alias (default: moonkale)
 #   MOONKALE_ANDROID_KEY_PASSWORD       key password (default: the store one)
+# Gradle keeps per-variant resource intermediates, and they can predate the
+# label/icon patch above — an APK then ships dx's defaults ("Mobile", the
+# template icon) although strings.xml on disk is right (P-132). Dropping the
+# processed resources and manifests costs seconds; the native libraries live
+# in src/main/jniLibs and are untouched.
+rm -rf "$PROJECT/app/build/intermediates/merged_manifest" \
+       "$PROJECT/app/build/intermediates/merged_manifests" \
+       "$PROJECT/app/build/intermediates/merged_res" \
+       "$PROJECT/app/build/intermediates/packaged_res" \
+       "$PROJECT/app/build/intermediates/incremental"
+
 KS="${MOONKALE_ANDROID_KEYSTORE:-}"
 if [ -n "$KS" ]; then
   [ -f "$KS" ] || { echo "MOONKALE_ANDROID_KEYSTORE=$KS does not exist" >&2; exit 1; }
@@ -91,8 +102,19 @@ else
 fi
 ls -la "$APK"
 # Who signed it, so a release never goes out with an accidental debug key.
-APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)/apksigner"
-[ -x "$APKSIGNER" ] && "$APKSIGNER" verify --print-certs "$APK" | grep -iE "signer #1 certificate (DN|SHA-256)" || true
+BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)"
+[ -x "$BUILD_TOOLS/apksigner" ] && "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | grep -iE "signer #1 certificate (DN|SHA-256)" || true
+# What the launcher will show. dx names the app after the crate ("Mobile") and
+# ships its own icon; the patch above fixes both, and this refuses to hand out
+# an APK where it did not take (P-132).
+if [ -x "$BUILD_TOOLS/aapt2" ]; then
+  badging="$("$BUILD_TOOLS/aapt2" dump badging "$APK" 2>/dev/null)"
+  label="$(printf '%s' "$badging" | sed -n "s/^application-label:'\(.*\)'/\1/p")"
+  icon="$(printf '%s' "$badging" | sed -n "s/^application-icon-320:'\(.*\)'/\1/p")"
+  echo "launcher: label='$label' icon='$icon'"
+  [ "$label" = "Moonkale" ] || { echo "the APK is labelled '$label', not Moonkale (P-132)" >&2; exit 1; }
+  [ -n "$icon" ] || { echo "the APK has no launcher icon (P-132)" >&2; exit 1; }
+fi
 if [ "${1:-}" = "install" ]; then
   adb install -r "$APK"
   adb shell monkey -p io.github.mathstruct.moonkale -c android.intent.category.LAUNCHER 1 >/dev/null
