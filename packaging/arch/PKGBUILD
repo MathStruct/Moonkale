@@ -22,7 +22,9 @@ depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'xdotool' 'openssl' '
 # >= 0.7.10 to match the workspace's dioxus version.
 # clang: C code compiled for wasm32 in the browser client (arborium-sysroot's
 # tree-sitter runtime); cc-rs finds no other compiler for that target.
-makedepends=('git' 'cargo' 'rust' 'dioxus-cli' 'pkgconf' 'clang')
+# llvm: dx strips the browser client with rust-objcopy, which Arch's rust ships
+# only as a symlink to /usr/bin/llvm-objcopy (in llvm, not in llvm-libs).
+makedepends=('git' 'cargo' 'rust' 'dioxus-cli' 'pkgconf' 'clang' 'llvm')
 provides=('moonkale' 'moonkale-server')
 conflicts=('moonkale' 'moonkale-bin')
 # !lto: makepkg's -flto in CFLAGS turns the C++ objects (DuckDB, ring) into GCC
@@ -55,6 +57,11 @@ prepare() {
   if [ ! -d "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" ] \
     && ! command -v rustup >/dev/null; then
     error "the wasm32-unknown-unknown target is missing: pacman -S rust-wasm (or use rustup)"
+    return 1
+  fi
+  # -e follows the symlink: Arch's rust-objcopy points into the llvm package.
+  if [ ! -e "$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/host: //p')/bin/rust-objcopy" ]; then
+    error "rust-objcopy is missing (dx strips the browser client with it): pacman -S llvm (or rustup component add llvm-tools)"
     return 1
   fi
   # Fetch everything now so build() can run offline (makepkg policy). For

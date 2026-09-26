@@ -91,7 +91,9 @@ jobs:
           # `rustup target add`, and the container has no rustup ("No such
           # file or directory" after an 80-minute build).
           # clang: cc-rs compiles C for wasm32 with it (arborium-sysroot).
-          pacman -Syu --noconfirm --needed base-devel git sudo rust rust-wasm clang cargo pkgconf \
+          # llvm: rust's rust-objcopy is a symlink to its llvm-objcopy, which dx
+          # runs to strip the browser client ("No such file or directory").
+          pacman -Syu --noconfirm --needed base-devel git sudo rust rust-wasm clang llvm cargo pkgconf \
             webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl cmake python-pillow
       - uses: actions/checkout@v4
         with:
