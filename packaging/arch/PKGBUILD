@@ -20,7 +20,9 @@ license=('MIT')
 depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'xdotool' 'openssl' 'gcc-libs' 'glibc')
 # Build: dioxus-cli is in the AUR (dioxus-cli or dioxus-cli-bin); it must be
 # >= 0.7.10 to match the workspace's dioxus version.
-makedepends=('git' 'cargo' 'rust' 'dioxus-cli' 'pkgconf')
+# clang: C code compiled for wasm32 in the browser client (arborium-sysroot's
+# tree-sitter runtime); cc-rs finds no other compiler for that target.
+makedepends=('git' 'cargo' 'rust' 'dioxus-cli' 'pkgconf' 'clang')
 provides=('moonkale' 'moonkale-server')
 conflicts=('moonkale' 'moonkale-bin')
 # !lto: makepkg's -flto in CFLAGS turns the C++ objects (DuckDB, ring) into GCC
@@ -69,14 +71,16 @@ build() {
   export CARGO_NET_OFFLINE=true
   export CARGO_TARGET_DIR="$srcdir/Moonkale/target"
   # dx (not plain cargo): it collects the hashed `asset!()` files next to the
-  # binary. The desktop app, then the server it uploads to remote hosts.
+  # binary. First the server's browser client (P-126): `--platform server`
+  # builds the binary only and leaves public/ without an index.html. It goes
+  # first because it is the fussiest step (wasm32 target, clang), so a
+  # missing tool fails the build in minutes rather than after the desktop app.
+  # makepkg exports x86-specific CFLAGS (`-march=…`); cc-rs hands them to
+  # clang for wasm32, which refuses them (P-130), so they are cleared here.
+  (cd packages/web && env -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS dx build --release --platform web)
+  # Then the desktop app, and the server it uploads to remote hosts.
   (cd packages/desktop && dx build --release --platform desktop --features desktop)
   (cd packages/web && dx build --release --platform server)
-  # The server's browser client (P-126): `--platform server` builds the binary
-  # only and leaves public/ without an index.html. makepkg exports x86-specific
-  # CFLAGS (`-march=…`); cc-rs hands them to clang for wasm32, which refuses
-  # them (P-130), so the client is built with those variables cleared.
-  (cd packages/web && env -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS dx build --release --platform web)
 }
 
 package() {

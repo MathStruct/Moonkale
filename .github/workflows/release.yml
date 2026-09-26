@@ -90,7 +90,8 @@ jobs:
           # rust-wasm: the browser client's wasm32 target. dx otherwise runs
           # `rustup target add`, and the container has no rustup ("No such
           # file or directory" after an 80-minute build).
-          pacman -Syu --noconfirm --needed base-devel git sudo rust rust-wasm cargo pkgconf \
+          # clang: cc-rs compiles C for wasm32 with it (arborium-sysroot).
+          pacman -Syu --noconfirm --needed base-devel git sudo rust rust-wasm clang cargo pkgconf \
             webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl cmake python-pillow
       - uses: actions/checkout@v4
         with:
@@ -206,9 +207,15 @@ jobs:
               || { echo "::error::ANDROID_KEYSTORE_BASE64 is not base64 — set it with: base64 -w0 release.jks | gh secret set ANDROID_KEYSTORE_BASE64"; exit 1; }
             # Fail here, with a readable message, rather than 20 minutes later
             # inside Gradle: a truncated secret or a wrong password shows up now.
-            keytool -list -keystore "$RUNNER_TEMP/release.jks" \
-              -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > /dev/null \
-              || { echo "::error::ANDROID_KEYSTORE_BASE64 is not a keystore, or ANDROID_KEYSTORE_PASSWORD is wrong"; exit 1; }
+            # keytool prints its error on stdout; show that line (it names
+            # the problem, never the password) instead of discarding it.
+            if ! out=$(keytool -list -keystore "$RUNNER_TEMP/release.jks" \
+                -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" 2>&1); then
+              echo "$out" | grep -i "error" | head -3
+              echo "decoded file: $(stat -c %s "$RUNNER_TEMP/release.jks") bytes, starts with $(head -c 4 "$RUNNER_TEMP/release.jks" | od -An -tx1)"
+              echo "::error::ANDROID_KEYSTORE_BASE64 is not a keystore, or ANDROID_KEYSTORE_PASSWORD is wrong"
+              exit 1
+            fi
             echo "MOONKALE_ANDROID_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
           else
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — the APK gets a throwaway debug key and will not install over an earlier release (P-131)."
