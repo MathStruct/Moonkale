@@ -22,7 +22,9 @@ for a in "$@"; do
   esac
 done
 
-VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+# The package version. CI passes the release's (`260926.prototype.342cd5d`:
+# no hyphens, which pacman and dpkg reserve); a local build uses Cargo.toml's.
+VERSION="${MOONKALE_VERSION:-$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)}"
 case "$(uname -m)" in
   x86_64) ARCH=x86_64; DEB_ARCH=amd64 ;;
   aarch64|arm64) ARCH=aarch64; DEB_ARCH=arm64 ;;

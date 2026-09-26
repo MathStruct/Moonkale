@@ -49,15 +49,17 @@ four ideas, what maps to what, a ten-minute first session.
 ## Install
 
 Packages for every release are on the
-[releases page](https://github.com/MathStruct/Moonkale/releases):
+[releases page](https://github.com/MathStruct/Moonkale/releases). Releases are
+named `moonkale-YYMMDD-prototype-<commit>` (e.g. `moonkale-260926-prototype-342cd5d`)
+and `<release>` below stands for that name; expect breaking changes between them.
 
 | platform | file | install |
 |---|---|---|
-| Arch Linux | `moonkale-bin-<v>-1-x86_64.pkg.tar.zst` | `sudo pacman -U <file>` |
-| Debian 12+ / Ubuntu 22.04+ | `moonkale_<v>_amd64.deb` | `sudo apt install ./<file>` |
+| Arch Linux | `<release>-arch-x86_64.pkg.tar.zst` | `sudo pacman -U <file>` |
+| Debian 12+ / Ubuntu 22.04+ | `<release>-debian-amd64.deb` | `sudo apt install ./<file>` |
 | Nix / NixOS | (from source) | `nix profile install github:MathStruct/Moonkale` |
-| any Linux | `moonkale-<v>-linux-x86_64.tar.gz` | unpack, `./bin/moonkale`, or `./install.sh ~/.local` |
-| Android (arm64) | `moonkale-<v>-android-arm64.apk` | sideload, or `adb install -r <file>` |
+| Debian/Ubuntu (tarball) | `<release>-linux-x86_64.tar.gz` | unpack, `./bin/moonkale`, or `./install.sh ~/.local` |
+| Android (arm64) | `<release>-android-arm64.apk` | sideload, or `adb install -r <file>` |
 | Windows / macOS | `.msi` / `.exe` / `.dmg` | **unsigned and untested** — see the install page |
 
 Details, what the unsigned warnings mean, and how to report a problem:

@@ -31,13 +31,17 @@ sha256sums=('SKIP')
 
 pkgver() {
   cd Moonkale
-  # On a release tag, the plain version (`0.1.0`); otherwise the usual
-  # `-git` form so an installed build is ordered after the release.
+  # On a release tag `moonkale-260926-prototype-342cd5d` → `260926.prototype.342cd5d`
+  # (pkgver allows no hyphens); an old `v0.1.0` tag → `0.1.0`. Otherwise the
+  # usual `-git` form, dated by the commit so it sorts among the releases.
   local tag
   if tag="$(git describe --tags --exact-match 2>/dev/null)"; then
-    printf '%s' "${tag#v}"
+    tag="${tag#moonkale-}"
+    tag="${tag#v}"
+    printf '%s' "${tag//-/.}"
   else
-    printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    printf '%s.r%s.g%s' "$(git log -1 --format=%cd --date=format:%y%m%d)" \
+      "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
   fi
 }
 
