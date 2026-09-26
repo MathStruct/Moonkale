@@ -47,6 +47,14 @@ pkgver() {
 
 prepare() {
   cd Moonkale
+  # The browser client needs the wasm32 target. dx installs a missing target
+  # with rustup; with Arch's own rust there is no rustup, so it must be the
+  # rust-wasm package (not a makedepend: it conflicts with rustup users).
+  if [ ! -d "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" ] \
+    && ! command -v rustup >/dev/null; then
+    error "the wasm32-unknown-unknown target is missing: pacman -S rust-wasm (or use rustup)"
+    return 1
+  fi
   # Fetch everything now so build() can run offline (makepkg policy). For
   # *every* target, not just the host: dx runs `cargo metadata`, which resolves
   # the whole lock file (Android-only crates included) and failed offline with

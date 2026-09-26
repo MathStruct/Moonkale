@@ -87,7 +87,10 @@ jobs:
       # `libxdo.so.3`, so the repackaged binary did not start at all (P-129).
       - name: Tools
         run: |
-          pacman -Syu --noconfirm --needed base-devel git sudo rust cargo pkgconf \
+          # rust-wasm: the browser client's wasm32 target. dx otherwise runs
+          # `rustup target add`, and the container has no rustup ("No such
+          # file or directory" after an 80-minute build).
+          pacman -Syu --noconfirm --needed base-devel git sudo rust rust-wasm cargo pkgconf \
             webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl cmake python-pillow
       - uses: actions/checkout@v4
         with:
