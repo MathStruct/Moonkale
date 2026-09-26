@@ -47,9 +47,12 @@ pkgver() {
 
 prepare() {
   cd Moonkale
-  # Fetch everything now so build() can run offline (makepkg policy).
+  # Fetch everything now so build() can run offline (makepkg policy). For
+  # *every* target, not just the host: dx runs `cargo metadata`, which resolves
+  # the whole lock file (Android-only crates included) and failed offline with
+  # "failed to download android_system_properties" on a fresh CARGO_HOME.
   export RUSTUP_TOOLCHAIN=stable
-  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+  cargo fetch --locked
 }
 
 build() {

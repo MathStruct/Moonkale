@@ -197,7 +197,10 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            # Whitespace stripped first: a secret pasted from a wrapped or
+            # CRLF terminal failed with "base64: invalid input".
+            printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks" \
+              || { echo "::error::ANDROID_KEYSTORE_BASE64 is not base64 — set it with: base64 -w0 release.jks | gh secret set ANDROID_KEYSTORE_BASE64"; exit 1; }
             # Fail here, with a readable message, rather than 20 minutes later
             # inside Gradle: a truncated secret or a wrong password shows up now.
             keytool -list -keystore "$RUNNER_TEMP/release.jks" \
