@@ -63,7 +63,7 @@ Tested on Linux (desktop and browser) and on one Android phone:
 - **Extensions**: WebAssembly extensions, and a node-based flow editor with a
   Lux.jl block library (off by default).
 - **Server mode**: `moonkale-server` serves the same app to a browser or to
-  the phone.
+  the phone. (Only test in local network!! Still has some security flaws)
 
 Windows and macOS builds are produced but **untested**: nobody on the project
 has those machines.
