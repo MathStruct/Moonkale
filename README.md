@@ -1,7 +1,7 @@
 ![Moonkale — a wizard tending a kale plant under a full moon](assets/MoonkaleBanner.png)
 
 <p align="center">
-  <img src="assets/UIDesktop.png" alt="Moonkale on the desktop: activity bar, Explorer, the vault as a graph, a file in the code editor" width="78%">
+  <img src="assets/UILinux.png" alt="Moonkale on the desktop: activity bar, Explorer, the vault as a graph, a file in the code editor" width="78%">
   <img src="assets/UIAndroid.jpg" alt="Moonkale on a phone: rich note above a Rust file, the bottom bar" width="20%">
 </p>
 
