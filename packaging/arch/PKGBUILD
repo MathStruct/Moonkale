@@ -78,16 +78,18 @@ build() {
   export CARGO_NET_OFFLINE=true
   export CARGO_TARGET_DIR="$srcdir/Moonkale/target"
   # dx (not plain cargo): it collects the hashed `asset!()` files next to the
-  # binary. First the server's browser client (P-126): `--platform server`
-  # builds the binary only and leaves public/ without an index.html. It goes
-  # first because it is the fussiest step (wasm32 target, clang), so a
-  # missing tool fails the build in minutes rather than after the desktop app.
-  # makepkg exports x86-specific CFLAGS (`-march=…`); cc-rs hands them to
-  # clang for wasm32, which refuses them (P-130), so they are cleared here.
-  (cd packages/web && env -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS dx build --release --platform web)
-  # Then the desktop app, and the server it uploads to remote hosts.
+  # binary. The desktop app, then the server it uploads to remote hosts.
   (cd packages/desktop && dx build --release --platform desktop --features desktop)
   (cd packages/web && dx build --release --platform server)
+  # The server's browser client (P-126), and it must come **last**:
+  # `--platform server` rewrites public/ without an index.html, so a client
+  # built before it is wiped (a package built in that order shipped
+  # public/ with assets/ only). makepkg exports x86-specific CFLAGS
+  # (`-march=…`); cc-rs hands them to clang for wasm32, which refuses them
+  # (P-130), so they are cleared here.
+  (cd packages/web && env -u CFLAGS -u CXXFLAGS -u CPPFLAGS -u LDFLAGS dx build --release --platform web)
+  # Refuse to package a server without its client.
+  [ -f target/dx/web/release/web/public/index.html ] || { error "no browser client in target/dx/web/release/web/public"; return 1; }
 }
 
 package() {
