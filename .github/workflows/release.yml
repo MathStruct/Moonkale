@@ -175,7 +175,7 @@ jobs:
           path: target/dx/moonkale/bundle/**/*.dmg
 
   android:
-    name: Android (arm64 APK) — debug-signed
+    name: Android (arm64 APK)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -351,5 +351,5 @@ jobs:
 
             A prototype: expect breaking changes between releases.
 
-            Packages for Linux (tarball, .deb, Arch — built on Arch), Android (arm64 APK, debug-signed), Windows (.msi / .exe, unsigned) and macOS (.dmg, unsigned).
+            Packages for Linux (tarball, .deb, Arch — built on Arch), Android (arm64 APK, release-signed), Windows (.msi / .exe, unsigned) and macOS (.dmg, unsigned).
             Install instructions: https://mathstruct.github.io/Moonkale/packaging/Install
