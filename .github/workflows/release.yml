@@ -21,6 +21,10 @@ permissions:
 env:
   DX_VERSION: 0.7.10
   CARGO_TERM_COLOR: always
+  # binstall gives each download check 15 s by default; on a slow check it
+  # silently falls back to another target's binary (the macOS arm64 job got
+  # the x86_64 dx, which then aborted looking for Intel Homebrew's OpenSSL).
+  BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT: 120
 
 jobs:
   meta:
@@ -154,7 +158,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: cargo-bins/cargo-binstall@main
       - name: Dioxus CLI
-        run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
+        # --targets: the runner's own architecture only, never a fallback to
+        # x86_64 under Rosetta (see BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT).
+        run: |
+          cargo binstall -y --targets "$(rustc -vV | sed -n 's/host: //p')" dioxus-cli@${{ env.DX_VERSION }}
       - uses: Swatinem/rust-cache@v2
       - name: Bundle
         run: cd packages/desktop && dx bundle --platform desktop --release --features desktop --package-types dmg
