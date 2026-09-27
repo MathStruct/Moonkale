@@ -10,10 +10,7 @@ tags: [packaging, install]
 sudo pacman -U moonkale-<release>-arch-x86_64.pkg.tar.zst
 moonkale
 ```
-Runtime packages pacman pulls in: `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl`.
-
-> [!warning] v0.1.0's Arch package is broken — use a source build
-> It was the Ubuntu tarball repackaged, and Arch's xdotool 4 has no `libxdo.so.3`, so the app does not start (P-129). Since 2026-09-27 the Arch package is built from source on Arch. To build from source instead: `git clone https://github.com/MathStruct/Moonkale && cd Moonkale/packaging/arch && makepkg -si` (needs `dioxus-cli` ≥ 0.7.10 from the AUR; ~10 minutes).
+Runtime packages pacman pulls in: `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl`. The package is built from source on Arch by the release workflow. To build it yourself: `git clone https://github.com/MathStruct/Moonkale && cd Moonkale/packaging/arch && makepkg -si` (needs `dioxus-cli` ≥ 0.7.10 from the AUR, and `rust-wasm`, `clang` and `llvm` or rustup; about an hour on a fresh machine).
 
 ## Debian / Ubuntu (apt)
 ```sh
@@ -50,7 +47,7 @@ Needs WebKitGTK 4.1, GTK 3 and `libxdo` **in the versions Ubuntu 24.04 has**, be
 > Each CI build signs the APK with a fresh throwaway debug key (P-131), so a new release will not install **over** an older one (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`): uninstall first, which deletes the notes the app keeps in its private storage. A stable release key is the fix and is not in place yet — back up anything you typed on the phone (`adb exec-out run-as io.github.mathstruct.moonkale tar -cf - files > moonkale-phone.tar`). The app opens its own vault in its private storage; **File → Connect to Server…** makes it a client of a Moonkale server (the folder, terminal, git and agent sessions run there). Built by `packages/mobile/build-android.sh` (needs the Android SDK + NDK, see `packages/mobile/README.md`) and by the release workflow.
 
 > [!note] Which Windows file?
-> `moonkale-<release>-windows-x64-setup.exe` is the NSIS installer and `moonkale-<release>-windows-x64.msi` the MSI — take either. The v0.1.0 release also carries a bare `moonkale.exe`, which is the unpackaged binary that slipped into the upload (P-128); it works but installs nothing, and it is gone from later releases.
+> `moonkale-<release>-windows-x64-setup.exe` is the NSIS installer and `moonkale-<release>-windows-x64.msi` the MSI — take either.
 
 ## Windows and macOS — unsigned
 GitHub's runners build `moonkale-<release>-windows-x64-setup.exe` / `.msi` and `moonkale-<release>-macos-{arm64,x86_64}.dmg` on every release, but **nobody in the project has a Windows or Mac machine to test them on**, and they are **not code-signed**:
