@@ -1,8 +1,8 @@
 name: Release packages
 
 # Builds every package (Milestone 13) and attaches them to a GitHub Release.
-#   - a tag `moonkale-YYMMDD-prototype-<hash>` (packaging/tag-release.sh) → a
-#     release of that name, every file named `<tag>-<platform>.<ext>`
+#   - a tag `YYMMDD-proto` (packaging/tag-release.sh) → a release of that
+#     name, every file named `moonkale-<tag>-<platform>.<ext>`
 #   - an old-style tag `v*` → the same
 #   - "Run workflow" by hand → the same artefacts as workflow artefacts, no release
 # Linux: tarball + .deb + Arch package + AppImage. Windows: .msi + NSIS .exe.
@@ -11,12 +11,11 @@ name: Release packages
 
 on:
   push:
-    tags: ["moonkale-*", "v*"]
+    tags: ["[0-9][0-9][0-9][0-9][0-9][0-9]-proto*", "moonkale-*", "v*"]
   workflow_dispatch:
 
 permissions:
   contents: write
-  packages: write   # the container job publishes to ghcr.io
 
 env:
   DX_VERSION: 0.7.10
@@ -31,11 +30,12 @@ jobs:
     name: Release name
     runs-on: ubuntu-24.04
     outputs:
-      # moonkale-260926-prototype-342cd5d: the tag, the release title and the
-      # stem of every file name.
+      # 260927-proto: the tag and the release title.
       release: ${{ steps.n.outputs.release }}
-      # 260926.prototype.342cd5d: the version *inside* the .deb and the
-      # pacman package, where hyphens are reserved.
+      # moonkale-260927-proto: the stem of every file name.
+      stem: ${{ steps.n.outputs.stem }}
+      # 260927.proto: the version *inside* the .deb and the pacman package,
+      # where hyphens are reserved.
       pkgver: ${{ steps.n.outputs.pkgver }}
     steps:
       - id: n
@@ -44,12 +44,13 @@ jobs:
             release="${{ github.ref_name }}"
           else
             # A manual run: named as if it were tagged now.
-            release="moonkale-$(date -u +%y%m%d)-prototype-${GITHUB_SHA::7}"
+            release="$(date -u +%y%m%d)-proto"
           fi
           v="${release#moonkale-}"; v="${v#v}"
           echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "stem=moonkale-$v" >> "$GITHUB_OUTPUT"
           echo "pkgver=${v//-/.}" >> "$GITHUB_OUTPUT"
-          echo "release $release, package version ${v//-/.}"
+          echo "release $release, files moonkale-$v-…, package version ${v//-/.}"
 
   linux:
     name: Linux (tarball, deb, AppImage)
@@ -254,39 +255,6 @@ jobs:
           name: android
           path: dist/*.apk
 
-  container:
-    name: Container image (ghcr.io/moonkale-server)
-    needs: [meta, linux]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: linux
-          path: dist
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        # The image only repackages the tarball's `moonkale-server`; it is what
-        # the repository's **Packages** sidebar lists. Pushed for tags only —
-        # a manual run builds it and stops.
-        run: |
-          VERSION="${{ needs.meta.outputs.release }}"; VERSION="${VERSION#moonkale-}"
-          TARBALL=$(ls dist/moonkale-*-linux-x86_64.tar.gz | head -1)
-          IMAGE=ghcr.io/$(echo "${{ github.repository_owner }}" | tr 'A-Z' 'a-z')/moonkale-server
-          docker build -f packaging/Dockerfile --build-arg TARBALL="$TARBALL" -t "$IMAGE:$VERSION" -t "$IMAGE:latest" .
-          # Smoke test: the binary runs and prints its version, then exits.
-          docker run --rm "$IMAGE:$VERSION" --version
-          if [ "${{ github.ref_type }}" = tag ]; then
-            docker push "$IMAGE:$VERSION" && docker push "$IMAGE:latest"
-          else
-            echo "not a tag — built but not pushed"
-          fi
-
   nix:
     name: Nix (flake build)
     runs-on: ubuntu-24.04
@@ -325,7 +293,7 @@ jobs:
     # (nobody has the machines to test them); a failure there must not hold
     # back the Linux packages. The release notes say which jobs failed.
     if: always() && github.ref_type == 'tag' && needs.meta.result == 'success'
-    needs: [meta, linux, arch, windows, macos, android, container]
+    needs: [meta, linux, arch, windows, macos, android]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -344,10 +312,10 @@ jobs:
           cd release
           ls -la
           if [ -z "$(ls -A)" ]; then echo "no artefacts at all — nothing built"; exit 1; fi
-          # One naming scheme for every file: <release>-<platform>.<ext>. The
+          # One naming scheme for every file: moonkale-<release>-<platform>.<ext>. The
           # builds name them after the package version (dx: Cargo.toml's
           # 0.1.0, which the .msi needs numeric), so rename here, once.
-          R="${{ needs.meta.outputs.release }}"
+          R="${{ needs.meta.outputs.stem }}"
           for f in *; do
             case "$f" in
               *.pkg.tar.*)        n="$R-arch-x86_64.pkg.tar.${f##*.pkg.tar.}" ;;
@@ -369,7 +337,7 @@ jobs:
         id: failed
         run: |
           failed=""
-          for j in linux:${{ needs.linux.result }} arch:${{ needs.arch.result }} windows:${{ needs.windows.result }} macos:${{ needs.macos.result }} android:${{ needs.android.result }} container:${{ needs.container.result }}; do
+          for j in linux:${{ needs.linux.result }} arch:${{ needs.arch.result }} windows:${{ needs.windows.result }} macos:${{ needs.macos.result }} android:${{ needs.android.result }}; do
             case "$j" in *:success) ;; *) failed="$failed ${j%%:*}" ;; esac
           done
           echo "list=$failed" >> "$GITHUB_OUTPUT"

@@ -62,16 +62,16 @@ The web build is `dx build --release --platform web --package web` → a `server
 ## The two binaries
 What `moonkale` and `moonkale-server` each are, what they carry and when the second one is wanted: [[Two Binaries]]. For packagers the rule is that both look for their data next to themselves — `lib/Moonkale/assets` for the app, `lib/Moonkale/public` for the server's browser client — and that the client needs its own `dx build --platform web` (P-126).
 
-## Cutting a release (Prompt25; naming since 2026-09-26)
-Releases are named **`moonkale-YYMMDD-prototype-<short hash>`**: the UTC date the tag was cut and the 7-character commit hash. Breaking changes are expected, so there is no semantic version for now. The workflow `.github/workflows/release.yml` runs on any tag `moonkale-*` (and the old `v*`) and attaches every package it managed to build to a GitHub Release of that name ([[Install]]). The recipe:
+## Cutting a release (Prompt25; naming since 2026-09-27)
+Releases are named **`YYMMDD-proto`**, the UTC date the tag was cut (`260927-proto`); the files are `moonkale-<release>-<platform>.<ext>`. Breaking changes are expected, so there is no semantic version for now, and there is at most one release a day. The workflow `.github/workflows/release.yml` runs on those tags (and the older `moonkale-*` and `v*`) and attaches every package it managed to build to a GitHub Release of that name ([[Install]]). The recipe:
 
 ```sh
-git checkout master && git pull            # release from master, working tree clean
-packaging/tag-release.sh                   # tags HEAD: moonkale-260926-prototype-342cd5d
-packaging/tag-release.sh --push            # …and pushes that one tag (not --tags)
+git checkout master && git pull                    # release from master, working tree clean
+packaging/tag-release.sh --push                    # tags HEAD as today's YYMMDD-proto and pushes that one tag
+packaging/tag-release.sh --replace --push          # rebuild today's: deletes its release and tag, tags HEAD again
 ```
 
-The release job renames every file to `<release>-<platform>.<ext>` (`…-arch-x86_64.pkg.tar.zst`, `…-debian-amd64.deb`, `…-linux-x86_64.tar.gz`, `…-windows-x64.msi`, `…-macos-arm64.dmg`, …). Inside the packages the version is the same name with dots, `260926.prototype.342cd5d`, because pacman and dpkg reserve the hyphen; the Windows and macOS bundles keep `Cargo.toml`'s `0.1.0`, since an MSI version must be numeric. The container image is tagged `260926-prototype-342cd5d` and `latest`. A new commit gets a new name by construction, so a failed release is fixed by the next commit and a new tag rather than by moving one.
+Rebuilding under the same name is deliberate: GitHub scopes the Actions caches by ref, so a rerun of `260927-proto` restores what the first `260927-proto` run cached, which a fresh name per attempt (the short-lived `moonkale-YYMMDD-prototype-<hash>` scheme of 2026-09-26) never could. The release job renames every file (`moonkale-260927-proto-arch-x86_64.pkg.tar.zst`, `…-debian-amd64.deb`, `…-linux-x86_64.tar.gz`, `…-windows-x64.msi`, `…-macos-arm64.dmg`, …). Inside the packages the version is the name with dots, `260927.proto`, because pacman and dpkg reserve the hyphen; the Windows and macOS bundles keep `Cargo.toml`'s `0.1.0`, since an MSI version must be numeric. No container image is published.
 
 Then watch *Actions → Release packages*. Since 2026-09-22 the release job runs **even when a platform job fails** (`if: always()`): the Windows, macOS and Android jobs have never run on GitHub, and a failure there must not hold back the Linux packages. The release notes list the jobs that failed, so the missing files are explained. If the Linux job itself fails, the release is created empty except for `sha256sums.txt` — delete it (*Releases → Delete*), fix, `git tag -d v0.1.0 && git push origin :v0.1.0`, and tag again; a tag must never be moved silently once someone may have downloaded from it.
 

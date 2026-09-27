@@ -35,8 +35,9 @@ Flags: `--root` (the folder it serves, also `MOONKALE_ROOT`), `--bind`, `--port`
 In a container, all of that is the same:
 ```sh
 docker run --rm -p 8080:8080 -v /srv/notes:/data \
-  -e MOONKALE_TOKEN=… -e MOONKALE_INSECURE_HTTP=1 ghcr.io/mathstruct/moonkale-server
+  -e MOONKALE_TOKEN=… -e MOONKALE_INSECURE_HTTP=1 moonkale-server
 ```
+(no published image; build it with `packaging/Dockerfile`, see [[Install]])
 
 ## Where the pieces sit on disk
 ```

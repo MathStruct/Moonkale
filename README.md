@@ -89,18 +89,17 @@ The design notes behind all of this, one note per decision, are the
 ## Install
 
 Download from the [releases page](https://github.com/MathStruct/Moonkale/releases).
-Releases are named `moonkale-YYMMDD-prototype-<commit>`; `<release>` below
-stands for that name.
+Releases are named by date, `YYMMDD-proto` (e.g. `260927-proto`), and the files
+`moonkale-<release>-<platform>`; `<release>` below stands for that name.
 
 | platform | file | install |
 |---|---|---|
-| Arch Linux | `<release>-arch-x86_64.pkg.tar.zst` | `sudo pacman -U <file>` |
-| Debian 12+ / Ubuntu 22.04+ | `<release>-debian-amd64.deb` | `sudo apt install ./<file>` |
+| Arch Linux | `moonkale-<release>-arch-x86_64.pkg.tar.zst` | `sudo pacman -U <file>` |
+| Debian 12+ / Ubuntu 22.04+ | `moonkale-<release>-debian-amd64.deb` | `sudo apt install ./<file>` |
 | Nix / NixOS | (from source) | `nix profile install github:MathStruct/Moonkale` |
-| Debian/Ubuntu (tarball) | `<release>-linux-x86_64.tar.gz` | unpack, `./bin/moonkale`, or `./install.sh ~/.local` |
-| Android (arm64) | `<release>-android-arm64.apk` | sideload, or `adb install -r <file>` |
+| Debian/Ubuntu (tarball) | `moonkale-<release>-linux-x86_64.tar.gz` | unpack, `./bin/moonkale`, or `./install.sh ~/.local` |
+| Android (arm64) | `moonkale-<release>-android-arm64.apk` | sideload, or `adb install -r <file>` |
 | Windows / macOS | `.msi` / `.exe` / `.dmg` | **unsigned and untested**, see the install page |
-| Server only | container | `docker run -p 8080:8080 -v /your/notes:/data ghcr.io/mathstruct/moonkale-server` |
 
 Details and troubleshooting:
 [Install](https://mathstruct.github.io/Moonkale/packaging/Install).
