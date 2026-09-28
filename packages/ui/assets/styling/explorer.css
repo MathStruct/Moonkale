@@ -61,3 +61,6 @@
 .mk-source-icon .mk-icon, .mk-source-lock .mk-icon { width: 14px; height: 14px; color: var(--mk-source-color, currentColor); }
 .mk-source-lock .mk-icon { color: var(--wb-ink-soft); }
 .mk-source-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Milestone 16: a source that is not watched for changes gets a refresh button. */
+.mk-source-refresh { margin-left: auto; border: 0; background: none; color: var(--wb-ink-soft); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 4px; border-radius: 3px; }
+.mk-source-refresh:hover { color: var(--wb-ink); background: var(--wb-hover, rgba(255,255,255,0.06)); }

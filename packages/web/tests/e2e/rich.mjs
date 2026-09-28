@@ -135,5 +135,31 @@ try {
     console.log("\n  ProseMirror:", JSON.stringify(style));
     if (style.size !== "22px" || !/Georgia/.test(style.family)) throw new Error("typography settings not applied");
   });
+  await step("Prompt26: no <br /> — old ones are dropped on the next save, blank lines typed become one", async () => {
+    // Written behind the app's back: the tree picks it up by itself (Milestone 16).
+    fs.writeFileSync(`${ROOT}/Gaps.md`, "# Gaps\n\nfirst\n\n<br />\n\n<br />\n\nsecond\n");
+    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer"); // the rail entry toggles
+    await page.waitForSelector(".mk-tree-file >> text=Gaps.md", { timeout: 15000 });
+    await page.click(".mk-tree-file >> text=Gaps.md");
+    await page.waitForSelector(".mk-md-modes:visible", { timeout: 15000 });
+    await page.click(".mk-md-modes:visible button:has-text('Rich')");
+    await page.waitForSelector(".mk-rich-host:visible .ProseMirror h1", { timeout: 30000 });
+    await new Promise((r) => setTimeout(r, 500));
+    if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("opening a file with <br /> lines marked it dirty");
+    await page.click(".mk-rich-host:visible .ProseMirror p:has-text('second')");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("third");
+    await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { timeout: 10000 });
+    await page.click(".mk-rich:visible button:has-text('Save')");
+    await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { state: "hidden", timeout: 15000 });
+    const text = fs.readFileSync(`${ROOT}/Gaps.md`, "utf8");
+    console.log("\n  file:", JSON.stringify(text));
+    if (/<br/i.test(text)) throw new Error("<br /> written: " + JSON.stringify(text));
+    if (!/first\n\n+second/.test(text) || !/third/.test(text)) throw new Error("text lost: " + JSON.stringify(text));
+    if (/\n\n\n/.test(text)) throw new Error("blank lines not collapsed: " + JSON.stringify(text));
+  });
   console.log("\nRICH E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

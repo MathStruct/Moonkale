@@ -18,6 +18,7 @@ pub mod query;
 pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
+pub use event::Changes;
 pub use query::{Direction, Query, QueryResult, Table};
 pub use transaction::{Applied, Op, OpResult, Splice, TextPatch, Transaction};
 
@@ -63,6 +64,16 @@ pub trait Source: MaybeSendSync {
     /// The index re-extracts the file; a folder has nothing to do.
     async fn refresh(&self, _node: NodeId) -> Result<(), SourceError> {
         Ok(())
+    }
+
+    /// Changes made to the source from outside Moonkale after log position
+    /// `since` (see [`Changes`]). A long poll: returns as soon as there is
+    /// something newer, or after a bounded wait with an empty `paths`.
+    /// `Ok(None)`: this source is not watched — the UI offers a refresh
+    /// button instead (Milestone 16). Pass `0` the first time; the answer's
+    /// `seq` is the position to continue from.
+    async fn changes_since(&self, _since: u64) -> Result<Option<Changes>, SourceError> {
+        Ok(None)
     }
 }
 

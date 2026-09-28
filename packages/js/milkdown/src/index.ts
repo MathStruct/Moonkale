@@ -6,6 +6,7 @@
 
 import { Crepe } from "@milkdown/crepe"
 import { $prose, replaceAll } from "@milkdown/kit/utils"
+import { dropEmptyLineBreaks } from "./clean"
 import { WikiState, wikiPlugin, setStatus as wikiSetStatus, complete as wikiComplete, type WikiCandidate } from "./wiki"
 import "@milkdown/crepe/theme/common/style.css"
 import "@milkdown/crepe/theme/frame-dark.css"
@@ -21,6 +22,11 @@ const views = new WeakMap<HTMLElement, Entry>()
 /** remark escapes `[[` / `]]`; wiki-links must survive the round trip. */
 function unescapeWiki(md: string): string {
   return md.replace(/\\\[\\\[/g, "[[").replace(/\\\]\\\]/g, "]]").replace(/\[\[([^\]\n]*?)\\\]\]/g, "[[$1]]")
+}
+
+/** Everything the view reports goes through here. */
+function clean(md: string): string {
+  return dropEmptyLineBreaks(unescapeWiki(md))
 }
 
 async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWikiLink?: OnWikiLink, opts: MountOptions = {}): Promise<void> {
@@ -49,7 +55,7 @@ async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWi
   crepe.on((listener) => {
     listener.markdownUpdated((_ctx, raw, prev) => {
       if (entry.suppress || raw === prev) return
-      const md = unescapeWiki(raw)
+      const md = clean(raw)
       if (md === entry.last) return
       entry.last = md
       onChange(md)
@@ -64,7 +70,7 @@ async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWi
   entry.suppress = true
   try {
     await crepe.create()
-    entry.last = unescapeWiki(crepe.getMarkdown())
+    entry.last = clean(crepe.getMarkdown())
   } finally {
     entry.suppress = false
   }
@@ -81,7 +87,7 @@ function setText(el: HTMLElement, markdown: string): void {
 
 function getText(el: HTMLElement): string | undefined {
   const e = views.get(el)
-  return e ? unescapeWiki(e.crepe.getMarkdown()) : undefined
+  return e ? clean(e.crepe.getMarkdown()) : undefined
 }
 
 function focus(el: HTMLElement): void {

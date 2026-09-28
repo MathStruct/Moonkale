@@ -6,7 +6,8 @@
   "description": "Thin Milkdown (Crepe) wrapper for Moonkale's rich markdown mode. Builds into packages/editors/markdown/assets/milkdown.{js,css}.",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --loader:.woff2=empty --loader:.woff=empty --loader:.ttf=empty --outfile=../../editors/markdown/assets/milkdown.js && node katex-assets.mjs",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "esbuild src/clean.ts --format=esm --outfile=test/clean.mjs --log-level=warning && node --test test/"
   },
   "devDependencies": {
     "esbuild": "^0.27.0",

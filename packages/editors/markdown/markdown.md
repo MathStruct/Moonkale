@@ -23,3 +23,7 @@ Only the index-backed part exists so far: `LinksExtension` contributes a **Links
 
 ## Spec 026 (2026-09-22)
 `rich.rs`: the host gets `--mk-rich-size/-font/-code-font` from `settings.editor.rich_font_size/rich_font/rich_code_font`; `rich.css` applies them to `.ProseMirror` (and `pre`/`code`) — Crepe's own `--crepe-base-font-size` stays 16, headings scale in `em`. `extension.rs`: the three fields under the extension's settings.
+
+## Milestone 16
+- **No `<br />`**: Milkdown's `remarkPreserveEmptyLinePlugin` writes empty paragraphs as `<br />`; `packages/js/milkdown/src/clean.ts` drops `<br />`-only lines and collapses blank runs outside fenced code in everything the view reports (changes, `getText`, the baseline after load). `npm test` in `packages/js/milkdown` (P-140).
+- **Bounded start**: the mount script waits at most ~1 s for the host element, inserts the bundle's `<script>` itself if it has not loaded after 300 ms and waits 20 s for it, and gives `crepe.create()` 20 s. A failure reaches Rust as `RichEvent::Failed`; the panel shows the reason and **Retry** (P-141).

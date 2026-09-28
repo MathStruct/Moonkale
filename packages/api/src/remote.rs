@@ -85,4 +85,14 @@ impl Source for RemoteSource {
             .await
             .map_err(transport)?
     }
+
+    /// The server's watcher, through one long poll per call (Milestone 16).
+    async fn changes_since(
+        &self,
+        since: u64,
+    ) -> Result<Option<moonkale_core::Changes>, SourceError> {
+        crate::source_changes(self.id(), since)
+            .await
+            .map_err(transport)?
+    }
 }

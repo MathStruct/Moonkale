@@ -153,7 +153,7 @@ fn builtins() -> Vec<(CommandContribution, Command)> {
             Command::ResetLayout,
         ),
         (
-            c("view.panel.explorer", "View: Show Explorer"),
+            c("view.panel.explorer", "View: Show Sources"),
             Command::ShowPanel("explorer"),
         ),
         (

@@ -31,7 +31,7 @@ try {
     if (!(await page.$("text=Working tree clean"))) throw new Error("expected clean tree");
   });
   await step("edit README.md and save → 'M README.md' under Changes; explorer and tab show the status", async () => {
-    await page.click(".wb-tab:has-text('Explorer')");
+    await page.click(".wb-tab:has-text('Sources')");
     await page.click(".mk-tree-file >> text=README.md");
     await page.waitForSelector(".cm-content", { timeout: 15000 });
     await page.click(".cm-content");

@@ -95,6 +95,13 @@ pub fn Frame(
         });
     }
 
+    // Follow changes on disk for every open source (Milestone 16): the
+    // workspace starts one loop per source it has not seen yet.
+    use_effect(move || {
+        let _ = ws.sources.read();
+        ws.follow_sources();
+    });
+
     // Join the session: incoming messages are handled by the workspace.
     use_hook(move || {
         let deliver = Callback::new(move |msg: SessionMessage| {
@@ -162,6 +169,8 @@ pub fn Frame(
         // The webview is up: stylesheets inserted during the first render
         // may have been lost (Android, P-087) — ask them to re-assert.
         ws.assets_epoch.with_mut(|e| *e += 1);
+        // Tabs can be dragged by touch too (Prompt26, Android).
+        crate::touch_drag::install();
         spawn(async move { ws.load_user_settings().await });
     };
 

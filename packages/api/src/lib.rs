@@ -204,6 +204,21 @@ pub async fn refresh_source(
     Ok(s.refresh(node).await)
 }
 
+/// Changes made on the server's disk after `since` (Milestone 16) — a long
+/// poll, see `Source::changes_since`. `Ok(None)`: that source is not watched.
+/// Every client (browser, phone, a desktop on a remote folder) follows the
+/// folder through this one request per source; it holds for at most ~25 s.
+#[post("/api/sources/changes")]
+pub async fn source_changes(
+    source: SourceId,
+    since: u64,
+) -> Result<Result<Option<moonkale_core::Changes>, SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.changes_since(since).await)
+}
+
 /// Descriptors of every open source.
 #[post("/api/sources/list")]
 pub async fn list_sources() -> Result<Vec<SourceDescriptor>, ServerFnError> {

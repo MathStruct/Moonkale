@@ -101,6 +101,17 @@ struct OutGraph<'a> {
 enum ToJs<'a> {
     SetGraph {
         graph: OutGraph<'a>,
+        /// Lay out from scratch instead of keeping known nodes' positions
+        /// (a Local neighbourhood, Prompt26).
+        fresh: bool,
+    },
+    /// Put the current view aside / bring it back (the Whole view while
+    /// Local is shown).
+    Stash {
+        name: &'a str,
+    },
+    Unstash {
+        name: &'a str,
     },
     Fit,
     Relayout,
@@ -224,7 +235,9 @@ const unload = () => {
 window.addEventListener("pagehide", unload, { once: true });
 for (;;) {
     const msg = await dioxus.recv();
-    if (msg.kind === "setGraph") view.set_graph(JSON.stringify(msg.graph));
+    if (msg.kind === "setGraph") { const g = JSON.stringify(msg.graph); if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g); }
+    else if (msg.kind === "stash") view.stash(msg.name);
+    else if (msg.kind === "unstash") view.unstash(msg.name);
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "relayout") view.relayout();
     else if (msg.kind === "setMode") view.set_mode(msg.mode);
@@ -258,6 +271,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut legend: Signal<Vec<(String, &'static str)>> = use_signal(Vec::new);
     let mut seen_request: Signal<Option<GraphRequest>> = use_signal(|| None);
     let mut counts = use_signal(|| (0usize, 0usize, false));
+    // The node the Local view is drawn around; `None` while Whole is shown.
+    // Entering Local stashes the Whole view in the renderer, a new centre is
+    // laid out from scratch, leaving Local brings the Whole view back as it
+    // was (Prompt26).
+    let mut local_center: Signal<Option<moonkale_core::NodeId>> = use_signal(|| None);
     // Nodes currently shown, by id string, so events can be resolved back to model nodes.
     let mut shown: Signal<HashMap<String, Node>> = use_signal(HashMap::new);
 
@@ -470,7 +488,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 groups.sort();
                 legend.set(groups);
                 counts.set((out.nodes.len(), out.edges.len(), res.truncated));
-                let _ = ev.send(ToJs::SetGraph { graph: out });
+                let _ = ev.send(ToJs::SetGraph {
+                    graph: out,
+                    fresh: false,
+                });
                 shown.set(
                     res.nodes
                         .iter()
@@ -487,6 +508,20 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         if indices.is_empty() {
             counts.set((0, 0, false));
             return;
+        }
+        let center = match (m, active) {
+            (Mode::Local, Some(node)) => Some(node),
+            _ => None,
+        };
+        let previous = *local_center.peek();
+        if previous.is_none() && center.is_some() {
+            let _ = ev.send(ToJs::Stash { name: "whole" });
+        } else if previous.is_some() && center.is_none() {
+            let _ = ev.send(ToJs::Unstash { name: "whole" });
+        }
+        let fresh = center.is_some() && center != previous;
+        if center != previous {
+            local_center.set(center);
         }
         spawn(async move {
             let mut kinds = Vec::new();
@@ -579,7 +614,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             };
             counts.set((out.nodes.len(), out.edges.len(), res.truncated));
             legend.set(groups);
-            let _ = ev.send(ToJs::SetGraph { graph: out });
+            let _ = ev.send(ToJs::SetGraph { graph: out, fresh });
             shown.set(
                 nodes
                     .into_iter()

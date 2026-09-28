@@ -158,3 +158,9 @@
 .mk-remote-save .mk-palette-input { flex: 1; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 6px; padding: 6px 10px; color: var(--wb-ink, #e6e8ee); }
 .mk-remote-save .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
 .mk-remote-field select.mk-palette-input { background: var(--wb-sunken, #0b0d12); }
+
+/* Tabs dragged by touch (Prompt26): a long press must neither select the
+   title nor open the WebView's callout; nothing is selectable while a tab
+   is carried. */
+.wb-tab { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mk-touch-dragging, .mk-touch-dragging * { -webkit-user-select: none; user-select: none; }

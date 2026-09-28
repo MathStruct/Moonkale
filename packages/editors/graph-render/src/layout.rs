@@ -11,6 +11,7 @@ use crate::quadtree::QuadTree;
 pub const BARNES_HUT_FROM: usize = 1500;
 const THETA: f32 = 0.8;
 
+#[derive(Clone, Copy, Debug)]
 pub struct Layout {
     pub temperature: f32,
     pub k: f32,

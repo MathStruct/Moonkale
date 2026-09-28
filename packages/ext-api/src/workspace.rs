@@ -356,8 +356,14 @@ pub struct Workspace {
     /// refreshed into the index); graph/backlink panels re-query on it.
     pub graph_epoch: Signal<u64>,
     /// Bumped after a file operation (create/rename/delete/move) so the
-    /// Explorer reloads the directories it shows (Milestone 7).
+    /// Explorer reloads the directories it shows (Milestone 7) — and, since
+    /// Milestone 16, after changes made on disk behind Moonkale's back.
     pub fs_epoch: Signal<u64>,
+    /// Sources whose changes on disk are followed (Milestone 16): their
+    /// `changes_since` answered. Every other source gets a refresh button.
+    pub watched: Signal<std::collections::HashSet<SourceId>>,
+    /// Sources with a follow loop running (answered or not yet).
+    followed: Signal<std::collections::HashSet<SourceId>>,
     /// Who else is in the open folder (Milestone 8); this window included.
     pub presence: Signal<Vec<crate::presence::Member>>,
     presence_link: Signal<Option<Rc<dyn crate::presence::PresenceLink>>>,
@@ -407,6 +413,8 @@ impl Workspace {
             peers: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            watched: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
+            followed: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
             vcs_status: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             history: Signal::new_in_scope(moonkale_core::EntityLog::new(), ScopeId::ROOT),
             presence: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
@@ -1789,7 +1797,7 @@ impl Workspace {
     /// `Ok(None)` means cancelled or no dialog on this platform.
     pub async fn open_folder_dialog(mut self) -> Result<Option<SourceDescriptor>, SourceError> {
         let Some(pick) = self.config.pick_folder else {
-            self.set_status("No folder dialog on this platform — type a path in the Explorer");
+            self.set_status("No folder dialog on this platform — type a path in Sources");
             return Ok(None);
         };
         match pick().await {
@@ -2145,6 +2153,119 @@ impl Workspace {
         }
         self.graph_epoch.with_mut(|e| *e += 1);
         self.fs_epoch.with_mut(|e| *e += 1);
+    }
+
+    /// Follow every open source that is not followed yet (Milestone 16): one
+    /// long-poll loop per source on `Source::changes_since`. Cheap to call
+    /// often — the shell calls it whenever `sources` changes.
+    pub fn follow_sources(self) {
+        let ids: Vec<SourceId> = self
+            .sources
+            .peek()
+            .iter()
+            .map(|s| s.descriptor.id.clone())
+            .collect();
+        let mut followed = self.followed;
+        for id in ids {
+            if followed.peek().contains(&id) {
+                continue;
+            }
+            followed.with_mut(|f| {
+                f.insert(id.clone());
+            });
+            // Root-owned: the loop outlives whichever component asked.
+            dioxus::core::spawn_forever(self.follow(id));
+        }
+    }
+
+    async fn follow(mut self, id: SourceId) {
+        let mut since = 0u64;
+        let mut failures = 0u32;
+        loop {
+            // Closed while the last poll was pending: stop.
+            let Some(source) = self.source(&id) else {
+                break;
+            };
+            match source.changes_since(since).await {
+                Ok(None) => break,
+                Ok(Some(changes)) => {
+                    failures = 0;
+                    if !self.watched.peek().contains(&id) {
+                        self.watched.with_mut(|w| {
+                            w.insert(id.clone());
+                        });
+                    }
+                    let first = since == 0;
+                    since = changes.seq;
+                    if first || self.source(&id).is_none() {
+                        continue;
+                    }
+                    if changes.reset {
+                        let root = source.descriptor().root;
+                        self.after_fs_change(&id, &[root]).await;
+                    } else if !changes.paths.is_empty() {
+                        self.apply_external(&id, &source, &changes.paths).await;
+                    }
+                }
+                Err(e) => {
+                    // A server restart, a dropped connection: try again,
+                    // slower each time, and show the source as not followed
+                    // meanwhile. The next answer's position will not be in
+                    // the new log, so it comes back as a reset.
+                    failures += 1;
+                    if failures == 1 {
+                        tracing::info!("follow {id}: {e}");
+                    }
+                    if self.watched.peek().contains(&id) {
+                        self.watched.with_mut(|w| {
+                            w.remove(&id);
+                        });
+                    }
+                    let secs = 2u64.saturating_pow(failures.min(5)).min(30);
+                    futures_timer::Delay::new(std::time::Duration::from_secs(secs)).await;
+                }
+            }
+        }
+        self.watched.with_mut(|w| {
+            w.remove(&id);
+        });
+        self.followed.with_mut(|f| {
+            f.remove(&id);
+        });
+    }
+
+    /// Paths that changed on disk: resolve each (it may be new, changed or
+    /// gone), let the index re-read them, and bump the epochs the Explorer,
+    /// the graph and the Changes panel follow.
+    async fn apply_external(&mut self, id: &SourceId, source: &Arc<dyn Source>, paths: &[String]) {
+        let mut nodes = Vec::with_capacity(paths.len());
+        for path in paths {
+            let query = Query::Text {
+                dialect: "path".into(),
+                text: path.clone(),
+            };
+            match source.query(query).await {
+                Ok(r) => nodes.extend(r.nodes.first().map(|n| n.id)),
+                // Gone: its id is derived from the path, which is what the
+                // index keys it by.
+                Err(SourceError::NotFound) => nodes.push(NodeId::derive(id, path)),
+                Err(_) => {}
+            }
+        }
+        tracing::info!("follow {id}: {} changed on disk", paths.len());
+        self.after_fs_change(id, &nodes).await;
+    }
+
+    /// Re-read a source by hand (the ↻ button of a source that is not
+    /// watched, Milestone 16): the index from the root, then the Explorer
+    /// and the graph.
+    pub async fn refresh_source(mut self, id: &SourceId) {
+        let Some(source) = self.source(id) else {
+            return;
+        };
+        let root = source.descriptor().root;
+        self.after_fs_change(id, &[root]).await;
+        self.set_status(format!("Refreshed {}", source.descriptor().display_name));
     }
 
     /// Create a directory under `parent` (Milestone 7).

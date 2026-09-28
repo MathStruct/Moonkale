@@ -29,7 +29,16 @@ pub struct FolderSource {
     root: PathBuf,
     /// `NodeId → relative path` for everything we have listed so far.
     known: RwLock<HashMap<NodeId, String>>,
+    /// The watcher, started by the first `changes_since` (Milestone 16) —
+    /// only folders somebody follows are watched. `None` inside: it could
+    /// not start (e.g. the inotify limit); the source then reports itself
+    /// as not watched.
+    watch: tokio::sync::OnceCell<Option<crate::watch::FolderWatch>>,
 }
+
+/// How long one `changes_since` call waits when nothing happens. Below the
+/// usual 30–60 s idle timeouts of proxies in front of a server.
+const LONG_POLL: std::time::Duration = std::time::Duration::from_secs(25);
 
 impl FolderSource {
     /// Open `root` (must be an existing directory). The source id is
@@ -49,6 +58,7 @@ impl FolderSource {
             id,
             root,
             known: RwLock::new(known),
+            watch: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -189,7 +199,7 @@ impl Source for FolderSource {
             capabilities: Capabilities {
                 read: true,
                 write: true,
-                watch: false,
+                watch: true,
                 text_query: None,
             },
             root: self.root_id(),
@@ -366,6 +376,32 @@ impl Source for FolderSource {
             }
         }
         Ok(applied)
+    }
+
+    async fn changes_since(
+        &self,
+        since: u64,
+    ) -> Result<Option<moonkale_core::Changes>, SourceError> {
+        let watch = self
+            .watch
+            .get_or_init(|| async {
+                let root = self.root.clone();
+                match tokio::task::spawn_blocking(move || crate::watch::FolderWatch::start(&root))
+                    .await
+                {
+                    Ok(Ok(w)) => Some(w),
+                    Ok(Err(e)) => {
+                        eprintln!("moonkale: cannot watch {}: {e}", self.root.display());
+                        None
+                    }
+                    Err(_) => None,
+                }
+            })
+            .await;
+        match watch {
+            Some(w) => Ok(Some(w.changes_since(since, LONG_POLL).await)),
+            None => Ok(None),
+        }
     }
 }
 

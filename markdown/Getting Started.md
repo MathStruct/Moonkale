@@ -7,7 +7,7 @@ You use **VS Code** for code and **Obsidian** for notes. Moonkale is one app tha
 
 ## The four ideas
 
-**1. Folders and databases are the same kind of thing.** In VS Code you open a folder; in Obsidian you open a vault. In Moonkale you open *sources*: a folder, but also a SQLite/DuckDB file, a CSV directory, a graph database. Each shows up in the Explorer with its own colour and icon, and each contributes to the same graph. You can have several open at once — two repositories, two vaults you are merging — and see them together.
+**1. Folders and databases are the same kind of thing.** In VS Code you open a folder; in Obsidian you open a vault. In Moonkale you open *sources*: a folder, but also a SQLite/DuckDB file, a CSV directory, a graph database. Each shows up in the **Sources** panel with its own colour and icon, and each contributes to the same graph. You can have several open at once — two repositories, two vaults you are merging — and see them together.
 
 **2. The graph is the point, not a feature.** Obsidian's graph shows notes and links. Moonkale's shows files *and* the functions, structs and modules inside them, *and* the wiki-links between notes, *and* the tables of a database — all connected. The Graph panel is a real renderer (GPU, 100 000 nodes), with a *Local* mode around the file you are in and a 3D mode with one plane per kind of thing. Click a node: it opens.
 
@@ -44,7 +44,7 @@ Differences you will notice: no canvas, no daily notes, no templates plugin, few
 
 ## A first session (ten minutes)
 1. **Install** — [[Install]]. Start `moonkale`.
-2. **File → Open Folder…** — pick a repository or a vault. The Explorer fills; the status bar says `index: N files · links · symbols` when the graph is ready.
+2. **File → Open Folder…** — pick a repository or a vault. The Sources panel fills (and follows changes made on disk from then on); the status bar says `index: N files · links · symbols` when the graph is ready.
 3. Click **Graph** (bottom-left). *Whole* shows everything; *Local* shows two hops around the file you have open; **3D** for the layered view. Scroll to zoom, drag to pan, click a node to open it.
 4. Open a `.md` note: you are in **Rich** mode. Type `[[` — completion lists the notes. Type `$\int_0^1$` — it renders. The **Properties** bar holds the front matter.
 5. Open a `.rs`/`.py`/`.jl` file: CodeMirror with the language server if you have one installed (the status bar says what it found). Try *Rust* in the toolbar for the other editor.

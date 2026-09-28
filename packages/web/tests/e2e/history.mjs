@@ -27,7 +27,7 @@ try {
     if ((await kinds()).length !== 0) throw new Error("expected no events");
   });
   await step("edit README.md and save → a content event by the user; the file records it", async () => {
-    await page.click(".wb-tab:has-text('Explorer')");
+    await page.click(".wb-tab:has-text('Sources')");
     await page.click(".mk-tree-file >> text=README.md");
     await page.waitForSelector(".cm-content", { timeout: 15000 });
     await page.click(".cm-content");
@@ -45,7 +45,7 @@ try {
     if (lines.length !== 1 || !/"kind":"content"/.test(lines[0])) throw new Error("file: " + lines.join(" | "));
   });
   await step("new file, rename, delete → add / rename / remove events", async () => {
-    await page.click(".wb-tab:has-text('Explorer')");
+    await page.click(".wb-tab:has-text('Sources')");
     await ctxMenu(".mk-explorer-source-name", "New File…");
     await page.waitForSelector("#mk-tree-edit");
     await page.keyboard.type("note.md");

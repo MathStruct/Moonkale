@@ -100,6 +100,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 13 - Packaging]] (plan) → [[Milestone 13 - Implementation Log]] (what happened) ✅ — pacman/apt/nix/tarball packages, the release workflow, extension settings with the extension
 - [[Milestone 14 - Rust Code Editor]] (plan) → [[Milestone 14 - Implementation Log]] (what happened) ✅ — the dioxus-code-editor extension, switching editors, the caret's word
 - [[Milestone 15 - Agents, Profiles and Connections]] (plan) → [[Milestone 15 - Implementation Log]] (what happened) ✅ — saved agents, sessions side by side with history, saved SSH connections, Claude Code login
+- [[Milestone 16 - Sources Follow the Disk]] (plan) → [[Milestone 16 - Implementation Log]] (what happened) ✅ — Sources follow changes on disk (↻ for the rest), the Local graph laid out on its own, no `<br />` from the rich editor, tabs dragged by touch
 
 ## Problems & planning
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done

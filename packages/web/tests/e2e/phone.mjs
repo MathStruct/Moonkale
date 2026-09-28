@@ -24,7 +24,7 @@ try {
     const buttons = await page.$$eval(".mk-phone-btn", (b) => b.map((x) => x.textContent.trim()));
     console.log("\n  tiles:", n, "rail:", rail, "bar:", buttons.join(" | "));
     if (n !== 1 || rail !== "none") throw new Error("not collapsed");
-    if (!buttons.includes("Files") || !buttons.includes("Agent") || !buttons.includes("More")) throw new Error("bar incomplete");
+    if (!buttons.includes("Sources") || !buttons.includes("Agent") || !buttons.includes("More")) throw new Error("bar incomplete");
     const h = await page.$eval(".mk-phone-btn", (b) => b.getBoundingClientRect().height);
     if (h < 44) throw new Error(`touch target ${h}px`);
     await page.screenshot({ path: `${S}/m6-phone-start.png` });

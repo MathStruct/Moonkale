@@ -80,6 +80,9 @@ dx uses `adb reverse` so the app reaches the dev server on `127.0.0.1` ([[Debugg
 ## Name and icon (spec 007)
 dx 0.7.10 labels the app after the crate (`Mobile`) and ships its own launcher icon; `packages/mobile/build-android.sh` fixes both after the dx build (writes `strings.xml`, generates the launcher and adaptive icons from `assets/icon.png`) and reassembles with Gradle. Use it instead of a bare `dx build` for anything that leaves the desk.
 
+
+**System bars (Milestone 16):** the same script writes a dark `AppTheme` (status bar, navigation bar and window background `#0b0d12`, the title bar's colour) instead of dx's AppCompat *Light* template, which left a grey strip above the app. Android 15's edge-to-edge enforcement (target 35) would ignore these colours; the opt-out needs compileSdk 35, dx's template uses 34 — open, untested.
+
 ## Extensions, app size and the stores
 [[Android Extensions and Bundling]] answers what can be added after install (wasm extensions from a URL, once the phone has a runtime and an installer — never native code), how small the APK can get (strip + a clean asset dir ≈ 15 MB, feature-trimmed ≈ 12 MB), and what Google Play and F-Droid require. Before a release build, delete `target/dx/mobile/release/android/app/app/src/main/assets` — dx keeps every previous hashed asset (P-092).
 

@@ -101,7 +101,7 @@ try {
     if (!fs.existsSync(`${ROOT}/Nowhere.md`)) throw new Error("Nowhere.md not created");
   });
   await step("rename Alpha.md → Alpha2.md rewrites [[Alpha]] in Home.md and notes/Beta.md", async () => {
-    await page.click(".wb-tab:has-text('Explorer')");
+    await page.click(".wb-tab:has-text('Sources')");
     await ctxMenu(".mk-tree-row[title='Alpha.md']", "Rename…");
     await page.waitForSelector("#mk-tree-edit");
     await page.fill("#mk-tree-edit", "Alpha2.md");

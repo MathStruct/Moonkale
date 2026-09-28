@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rail = () => page.$$eval(".wb-rail .wb-rail-item", (b) => b.map((x) => ({ id: x.id.replace("mk-rail-", ""), active: x.classList.contains("wb-rail-item-active"), bottom: x.classList.contains("wb-rail-item-bottom"), badge: x.querySelector(".mk-badge")?.textContent ?? "" })));
 const menu = async (name) => { await page.click(`.mk-menu-button:text-is('${name}')`); await page.waitForSelector(".mk-menu-popup", { timeout: 5000 }); return page.$$eval(".mk-menu-popup .mk-menu-item", (b) => b.map((x) => x.querySelector("span")?.textContent.trim())); };
 try {
-  await step("open folder: the rail lists Files … Settings in order, Explorer active, People at the bottom", async () => {
+  await step("open folder: the rail lists Sources … Settings in order, Explorer active, People at the bottom", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
     await page.click(".mk-explorer-open button[type=submit]");

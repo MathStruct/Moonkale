@@ -28,6 +28,10 @@ pub trait RichTextBackend {
 
 pub enum RichEvent {
     Ready,
+    /// The view could not start (no host element, the bundle never
+    /// loaded, Milkdown did not come up): the panel shows why and offers
+    /// Retry instead of "Loading…" forever (Prompt26).
+    Failed(String),
     Changed(String),
     /// A link was clicked (plain or Ctrl): follow it, creating the page if
     /// it does not exist.
@@ -79,19 +83,39 @@ enum FromJs {
     Error { message: String },
 }
 
+// Every wait is bounded (Prompt26: "sometimes stuck at Loading rich
+// editor…"): the host element, the bundle — a head <script> of the first
+// render can go missing (P-087), so it is inserted here if absent — and
+// Milkdown's own start. A failure is reported, never swallowed.
 const SCRIPT: &str = r#"
-const el = document.getElementById(ELEMENT_ID);
-if (!el) { return; }
-while (!(window.moonkale && window.moonkale.milkdown)) {
-    await new Promise((r) => setTimeout(r, 20));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fail = async (message) => {
+    dioxus.send({ kind: "error", message });
+    for (;;) { const m = await dioxus.recv(); if (m.kind === "destroy") return; }
+};
+let el = null;
+for (let i = 0; i < 50 && !(el = document.getElementById(ELEMENT_ID)); i++) await sleep(20);
+if (!el) return fail("the editor's host element never appeared");
+const ready = () => window.moonkale && window.moonkale.milkdown;
+for (let i = 0; i < 15 && !ready(); i++) await sleep(20);
+if (!ready()) {
+    const src = new URL(BUNDLE_URL, document.baseURI || location.href).href;
+    if (![...document.scripts].some((s) => s.src === src)) {
+        const s = document.createElement("script");
+        s.src = src;
+        document.head.appendChild(s);
+    }
+    for (let i = 0; i < 1000 && !ready(); i++) await sleep(20);
+    if (!ready()) return fail("the Milkdown bundle did not load (" + src + ")");
 }
 const md = window.moonkale.milkdown;
 const init = await dioxus.recv();
 try {
-    await md.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), (target) => dioxus.send({ kind: "wikiLink", target }), { katexMacros: init.katexMacros || {}, onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }) });
+    const started = md.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), (target) => dioxus.send({ kind: "wikiLink", target }), { katexMacros: init.katexMacros || {}, onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }) });
+    const timeout = sleep(20000).then(() => { throw new Error("Milkdown did not start within 20 s"); });
+    await Promise.race([started, timeout]);
 } catch (e) {
-    dioxus.send({ kind: "error", message: String(e && e.message ? e.message : e) });
-    for (;;) { const m = await dioxus.recv(); if (m.kind === "destroy") return; }
+    return fail(String(e && e.message ? e.message : e));
 }
 dioxus.send({ kind: "ready" });
 for (;;) {
@@ -115,7 +139,12 @@ impl MilkdownBackend {
         katex_macros: serde_json::Value,
         on_event: Callback<RichEvent>,
     ) -> Self {
-        let script = SCRIPT.replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap());
+        let script = SCRIPT
+            .replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap())
+            .replace(
+                "BUNDLE_URL",
+                &serde_json::to_string(&BUNDLE.to_string()).unwrap(),
+            );
         let eval = document::eval(&script);
         let _ = eval.send(ToJs::Init {
             text: &initial,
@@ -133,6 +162,7 @@ impl MilkdownBackend {
                     }
                     Ok(FromJs::Error { message }) => {
                         tracing::warn!("milkdown: {message}");
+                        on_event.call(RichEvent::Failed(message));
                         break;
                     }
                     Err(dioxus::document::EvalError::Serialization(_)) => continue,
@@ -210,9 +240,13 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
         });
     }
 
-    let mount = {
+    // Why the view could not start; shown with Retry in place of "Loading…".
+    let mut failed: Signal<Option<String>> = use_signal(|| None);
+    // A callback, not a closure: `onmounted` starts the view and Retry starts
+    // it again.
+    let mount = use_callback({
         let element_id = element_id.clone();
-        move |_| {
+        move |()| {
             if backend.peek().is_some() {
                 return;
             }
@@ -226,6 +260,9 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 RichEvent::Ready => {
                     ready.set(true);
                     wiki_epoch += 1;
+                }
+                RichEvent::Failed(why) => {
+                    failed.set(Some(why));
                 }
                 RichEvent::Changed(body) => {
                     doc.with_mut(|d| {
@@ -258,7 +295,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 ))));
             });
         }
-    };
+    });
 
     // Text replaced from outside (reload / revert): push it into the view.
     {
@@ -373,12 +410,21 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                     }
                 }
             }
-            if !ready() {
+            if let Some(why) = failed() {
+                div { class: "mk-rich-loading mk-rich-failed", role: "alert",
+                    span { "The rich editor did not start: {why}" }
+                    button { class: "mk-btn", onclick: move |_| {
+                        failed.set(None);
+                        backend.set(None); // dropping it tells the old script to stop
+                        mount.call(());
+                    }, "Retry" }
+                }
+            } else if !ready() {
                 div { class: "mk-rich-loading", "Loading rich editor…" }
             }
             // Typography from the settings (Prompt23): CSS variables the
             // stylesheet applies to the ProseMirror content and code blocks.
-            div { id: "{element_id}", class: "mk-rich-host", style: "{typography}", onmounted: mount }
+            div { id: "{element_id}", class: "mk-rich-host", style: "{typography}", onmounted: move |_| mount.call(()) }
         }
     }
 }

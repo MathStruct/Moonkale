@@ -18,7 +18,7 @@ Notes for `moonkale-project-fs` (Milestone 1). Design: [[Data Sources]], [[Platf
 - `spawn_blocking` for the walk; `tokio::fs` for reads/writes.
 
 ## Not done
-Watching (`watch.rs` note), web/mobile backends (`platform.rs` note), the `Backend` trait split — not before a second backend exists.
+Web/mobile backends (`platform.rs` note), the `Backend` trait split — not before a second backend exists.
 
 ## Tests
 `cargo test -p moonkale-project-fs` — 5 integration tests in `tests/folder_source.rs` on a tempdir fixture with a `.gitignore`, a binary file and a nested dir: listing order + ignore, stable ids across re-open, write round trip + atomicity, stale version → `Conflict` and disk untouched, unknown id → `NotFound`.
@@ -31,3 +31,6 @@ Watching (`watch.rs` note), web/mobile backends (`platform.rs` note), the `Backe
 
 ## Milestone 15 — the `ls` dialect
 `Query::Text { dialect: "ls", text: "<rel>" }` lists a directory by relative path with a plain `read_dir`: hidden entries and ignored ones included, sorted by name, root-jailed (`..` refused), empty for a missing directory. `Children` keeps the explorer's rules (hidden and `.gitignore`d entries skipped), which is why `.moonkale/agent-sessions/local/` needed this (P-118).
+
+## Milestone 16 — watching
+`watch.rs`: `FolderWatch` (native only, `notify` 8). One **non-recursive** watch per directory the `.gitignore`-aware walk visits — never `target/`, `node_modules/`, `.git/` (a Rust workspace's `target/` alone would exhaust the inotify limit); directories created later are added as they appear. Events for hidden paths, paths the root `.gitignore` excludes, `*.moonkale-tmp` and access events are dropped (a file ignored only by a nested `.gitignore` costs one harmless extra refresh). A thread keeps a bounded log (4 096 entries) of changed relative paths under increasing positions; the base is the start time, so a position from an earlier watcher answers `reset`. `changes_since(since, wait)`: `0` → the current position at once; otherwise waits up to `wait` (25 s from `FolderSource`) for the first change, 120 ms more for the rest of the burst, then the distinct paths — more than 512 become `reset`. `FolderSource::changes_since` starts the watcher on first use (`spawn_blocking`) and reports `None` if it cannot start. Tests: `tests/watch.rs` (create/edit/delete, a new directory and a file in it, hidden/ignored/temporary files dropped, stale position → reset, idle poll ends).

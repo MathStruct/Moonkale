@@ -40,8 +40,9 @@ where a diagram stays a diagram instead of becoming code.
 
 Tested on Linux (desktop and browser) and on one Android phone:
 
-- **Folders**, local or on another machine over SSH, with an Explorer, quick
-  open, a command palette, and find & replace across files.
+- **Folders**, local or on another machine over SSH, in a Sources panel that
+  follows changes made on disk, with quick open, a command palette, and find &
+  replace across files.
 - **Code editing** with syntax highlighting for the core languages and
   language-server support (diagnostics, hover, go to definition, completion,
   rename). There are two editors: CodeMirror, and a pure-Rust one.
@@ -75,8 +76,6 @@ has those machines.
 - Projects that combine several sources, and links across them.
 - The Julia side, in a separate repository: a Julia package source, a
   ModelingToolkit editor, and the Lenticulum.jl factor-graph editor.
-- Automatic refresh of the file tree when files change on disk, and a
-  refresh button for sources that aren't watched.
 - Shared editing on one server: accounts, presence, merged edits.
 - Comments anchored to files, rows and nodes, with GitHub issues as one
   kind of comment. Also Jupyter notebooks and Unicode input (`\int` → ∫).

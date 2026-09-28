@@ -26,6 +26,7 @@ mod settings_panel;
 mod shell;
 mod terminal_chooser;
 mod titlebar;
+mod touch_drag;
 
 pub use explorer::ExplorerExtension;
 pub use frame::{Frame, ResizeEdge, SessionFactory, ShellConfig, WindowControls};

@@ -38,6 +38,17 @@ struct State {
     auto_fit: bool,
     /// Active touch pointers `(id, x, y)`, for two-finger gestures.
     touches: Vec<(i32, f32, f32)>,
+    /// Views put aside by `stash(name)`: the graph with its positions and
+    /// pins, the layout's state, the camera (Prompt26: Local must not
+    /// disturb Whole).
+    stashed: std::collections::HashMap<String, Stashed>,
+}
+
+struct Stashed {
+    graph: Graph,
+    layout: Layout,
+    camera: Camera,
+    auto_fit: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -165,6 +176,7 @@ pub async fn create(
         last_click_ms: 0.0,
         auto_fit: true,
         touches: Vec::new(),
+        stashed: std::collections::HashMap::new(),
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -185,6 +197,47 @@ impl GraphView {
     /// than restarted, and the camera is left alone. A graph with nothing
     /// in common starts fresh, as before.
     pub fn set_graph(&self, json: &str) -> Result<(), JsValue> {
+        self.load(json, false)
+    }
+
+    /// Replace the graph and lay it out from scratch, ignoring the
+    /// positions of the current one: a neighbourhood (the Local view) is a
+    /// subset of the whole graph, and keeping the whole layout's positions
+    /// scattered its few nodes across the map (Prompt26).
+    pub fn set_graph_fresh(&self, json: &str) -> Result<(), JsValue> {
+        self.load(json, true)
+    }
+
+    /// Put the current view aside under `name` (graph, positions, pins,
+    /// layout state, camera).
+    pub fn stash(&self, name: &str) {
+        let mut s = self.state.borrow_mut();
+        let saved = Stashed {
+            graph: s.graph.clone(),
+            layout: s.layout,
+            camera: s.camera,
+            auto_fit: s.auto_fit,
+        };
+        s.stashed.insert(name.to_string(), saved);
+    }
+
+    /// Bring back the view stashed under `name`, exactly as it was; `false`
+    /// if there is none. A settled layout stays settled.
+    pub fn unstash(&self, name: &str) -> bool {
+        let mut s = self.state.borrow_mut();
+        let Some(saved) = s.stashed.remove(name) else {
+            return false;
+        };
+        s.graph = saved.graph;
+        s.layout = saved.layout;
+        s.camera = saved.camera;
+        s.auto_fit = saved.auto_fit;
+        s.hovered = None;
+        s.dirty = true;
+        true
+    }
+
+    fn load(&self, json: &str, fresh: bool) -> Result<(), JsValue> {
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
@@ -200,7 +253,7 @@ impl GraphView {
             .iter()
             .filter(|n| old.contains_key(&n.id))
             .count();
-        let incremental = !old.is_empty() && shared * 2 >= next.nodes.len().max(1);
+        let incremental = !fresh && !old.is_empty() && shared * 2 >= next.nodes.len().max(1);
         if incremental {
             // Known nodes stay put; new ones start at the mean of their known
             // neighbours (or where the spiral put them) with a nudge so two

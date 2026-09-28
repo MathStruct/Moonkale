@@ -89,7 +89,7 @@ impl Extension for ExplorerExtension {
     fn manifest(&self) -> Manifest {
         Manifest::core(
             "dev.moonkale.explorer",
-            "Explorer",
+            "Sources",
             "Folders, files and databases.",
         )
     }
@@ -97,12 +97,14 @@ impl Extension for ExplorerExtension {
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
         vec![PanelContribution {
             id: "explorer".into(),
-            title: "Explorer".into(),
+            // "Sources", not "Explorer"/"Files" (Prompt26): it holds folders,
+            // databases and, later, repositories. The ids stay `explorer`.
+            title: "Sources".into(),
             home: PanelHome::Side,
             closable: true,
             dirty: false,
             node: None,
-            activity: Some(Activity::new("files", 10, "Files")),
+            activity: Some(Activity::new("files", 10, "Sources")),
         }]
     }
 
@@ -304,6 +306,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                     };
                     let color = crate::icons::source_color(s.descriptor.id.as_str());
                     let read_only = !s.descriptor.capabilities.write;
+                    let watched = ws.watched.read().contains(&s.descriptor.id);
                     rsx! {
                 div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
                     div { class: "mk-explorer-source-name", title: if read_only { "{kind} · read-only" } else { "{kind}" },
@@ -321,6 +324,25 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                         span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
                         span { class: "mk-source-label", "{s.descriptor.display_name}" }
                         if read_only { span { class: "mk-source-lock", title: "read-only", crate::icons::Icon { name: "lock" } } }
+                        // Changes on disk are followed for watched sources
+                        // (Milestone 16); the others get a refresh button.
+                        if !watched {
+                            button { class: "mk-source-refresh", r#type: "button",
+                                title: "Not watched for changes — refresh",
+                                "aria-label": "Refresh {s.descriptor.display_name}",
+                                onclick: {
+                                    let id = s.descriptor.id.clone();
+                                    move |e: MouseEvent| {
+                                        e.stop_propagation();
+                                        let id = id.clone();
+                                        dioxus::core::spawn_forever(async move {
+                                            ws.refresh_source(&id).await;
+                                        });
+                                    }
+                                },
+                                "↻"
+                            }
+                        }
                     }
                     if let Some(edit) = state.edit.read().clone().filter(|e| e.parent_id() == s.descriptor.root && !matches!(e, Edit::Rename { .. })) {
                         InlineEdit { ws, state, edit, depth: 0 }
@@ -519,6 +541,18 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
                 }, "Open in Terminal" }
             }
             if is_root {
+                // Milestone 16: re-read by hand — for every source, watched
+                // or not (a watcher can miss what a network share does).
+                button { class: "mk-ctx-item", role: "menuitem", onclick: {
+                    let id = node.source.clone();
+                    move |_| {
+                        state.menu.set(None);
+                        let id = id.clone();
+                        dioxus::core::spawn_forever(async move {
+                            ws.refresh_source(&id).await;
+                        });
+                    }
+                }, "Refresh" }
                 // Spec 015: a source can be closed again.
                 button { class: "mk-ctx-item", role: "menuitem", onclick: {
                     let id = node.source.clone();

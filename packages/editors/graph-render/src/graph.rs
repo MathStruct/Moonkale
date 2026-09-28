@@ -58,7 +58,7 @@ pub struct Edge {
     pub color: [f32; 4],
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,

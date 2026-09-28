@@ -59,7 +59,28 @@ for f in ["drawable/ic_launcher_background.xml", "drawable-v24/ic_launcher_foreg
 # App label (dx writes "Mobile", the PascalCase crate name).
 sx = f"{res}/values/strings.xml"
 open(sx, "w").write('<resources>\n    <string name="app_name">Moonkale</string>\n</resources>\n')
-print("icons + label written to", res)
+# System bars in the app's own colour (Prompt26/27): dx's template theme is
+# AppCompat *Light*, which leaves a grey strip above the app. A dark theme with
+# the title bar's colour (#0b0d12, packages/ui/assets/styling/titlebar.css) for
+# the status bar, the navigation bar and the window background (no light flash
+# at start). Not handled: Android 15 draws apps targeting API 35 edge to edge
+# and ignores the bar colours; the opt-out attribute needs compileSdk 35 and
+# dx's template compiles against 34 (untested — no Android 15 device here).
+BAR = "#0b0d12"
+def theme(extra=""):
+    return ('<resources>\n'
+            '    <style name="AppTheme" parent="@style/Theme.AppCompat.NoActionBar">\n'
+            f'        <item name="android:statusBarColor">{BAR}</item>\n'
+            f'        <item name="android:navigationBarColor">{BAR}</item>\n'
+            f'        <item name="android:windowBackground">@color/moonkale_bar</item>\n'
+            f'{extra}'
+            '    </style>\n'
+            f'    <color name="moonkale_bar">{BAR}</color>\n'
+            '</resources>\n')
+open(f"{res}/values/styles.xml", "w").write(theme())
+import shutil
+shutil.rmtree(f"{res}/values-v35", ignore_errors=True)
+print("icons + label + theme written to", res)
 PY
 
 # Signing (P-131). With a keystore, build the **release** APK signed by it, so

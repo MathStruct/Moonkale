@@ -68,3 +68,12 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 - `shell.mjs` (spec 009): activity bar, badges, hide/show, Ctrl+B, registry-built menus, source row decoration.
 - `android-cdp.mjs` / `android-pinch.mjs`: not suites — helpers for the phone over `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` (evaluate JS; inject a pinch and a rotation, spec 006).
 - `graph3d.mjs` gained a two-finger step (CDP `Input.dispatchTouchEvent`).
+
+## Milestone 16
+
+- `watch.mjs`: files written, changed and deleted in the fixture behind the app's back appear in Sources (and the search index) unprompted; a new directory is watched; hidden and `.gitignore`d files never show; a database source has ↻ and the context menu offers Refresh.
+- `graph-local.mjs` (**Chromium**, software WebGL like `graph3d.mjs`): Local lays the neighbourhood out fresh; back to Whole restores the camera and node positions exactly.
+- `touch-drag.mjs` (**Chromium**, touch emulation at 420 px, touches via CDP `Input.dispatchTouchEvent`): a long press on a tab drags it to a dock zone and splits the phone tile; a swipe does not drag, a tap still activates.
+- `rich.mjs` gained a step: a file with `<br />` lines opens clean, and the next save writes none.
+
+Gotchas found writing them: the activity-bar entry `#mk-rail-explorer` *toggles* (click it only when `.mk-explorer` is hidden); a narrow side tile squeezes tab titles ("Sour…"); a swipe scrolls the tab strip, so `scrollIntoView` a tab before touching it.

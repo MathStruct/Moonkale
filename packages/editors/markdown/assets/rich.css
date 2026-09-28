@@ -27,3 +27,6 @@
 .mk-props-label { font-weight: 600; }
 .mk-props-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
 .mk-props-yaml { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 10px 8px 28px; border: 0; border-top: 1px dashed var(--wb-line, #2a2e3a); background: #12141a; color: #d7dae0; font: 12px 'JetBrains Mono', Consolas, monospace; resize: vertical; outline: none; }
+
+/* The view could not start (Prompt26): the reason and a Retry button. */
+.mk-rich-failed { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--wb-danger, #e5534b); }

@@ -42,7 +42,7 @@ try {
   await step("closing every side panel collapses the side bar; the main area widens", async () => {
     const before = await page.$eval(".wb-workspace", (w) => w.getBoundingClientRect().width);
     const mainBefore = await page.evaluate(() => { const t = [...document.querySelectorAll(".wb-tile")].find((x) => [...x.querySelectorAll(".wb-tab")].some((b) => /Graph|Settings/.test(b.textContent))); return t ? t.getBoundingClientRect().width : 0; });
-    for (const t of ["Explorer", "Search", "Links", "Changes", "History"]) {
+    for (const t of ["Sources", "Search", "Links", "Changes", "History"]) {
       if ((await tabs()).includes(t)) await closeTab(t);
     }
     await page.waitForFunction(() => !document.querySelector(".mk-explorer"), null, { timeout: 5000 });
@@ -52,8 +52,8 @@ try {
     if (!(mainAfter > mainBefore + 100)) throw new Error("side bar did not collapse");
     await page.screenshot({ path: `${S}/m10-panels-collapsed.png` });
   });
-  await step("'View: Show Explorer' restores the side bar on the left at ~22 %", async () => {
-    await runCommand("show explorer", "view.panel.explorer");
+  await step("'View: Show Sources' restores the side bar on the left at ~22 %", async () => {
+    await runCommand("show sources", "view.panel.explorer");
     await page.waitForSelector(".mk-explorer", { timeout: 5000 });
     await sleep(300);
     const geo = await page.evaluate(() => { const e = document.querySelector(".mk-explorer").closest(".wb-tile").getBoundingClientRect(); const w = document.querySelector(".wb-workspace").getBoundingClientRect(); return { left: e.left - w.left, frac: e.width / w.width }; });
