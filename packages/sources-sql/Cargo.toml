@@ -10,7 +10,7 @@ default = []
 sqlite = ["dep:rusqlite", "dep:tokio"]
 postgres = []
 duckdb = ["dep:duckdb", "dep:tokio", "dep:tracing"]
-turso = []
+turso = ["dep:turso", "dep:tokio"]
 
 [dependencies]
 moonkale-core = { workspace = true }
@@ -20,8 +20,11 @@ rusqlite = { version = "0.40", features = ["bundled"], optional = true }
 duckdb = { version = "1", features = ["bundled"], optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
 tracing = { version = "0.1", optional = true }
+# Turso (Milestone 17): the in-process Rust rewrite of SQLite (beta), SQLite file format.
+turso = { version = "0.7", optional = true }
 
 [dev-dependencies]
 tempfile = "3"
 rusqlite = { version = "0.40", features = ["bundled"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+turso = "0.7"

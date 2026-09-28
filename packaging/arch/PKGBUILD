@@ -32,6 +32,15 @@ conflicts=('moonkale' 'moonkale-bin')
 options=('!debug' '!lto')
 source=("Moonkale::git+${MOONKALE_GIT_URL:-https://github.com/MathStruct/Moonkale.git}")
 sha256sums=('SKIP')
+# LadybugDB as a shared library (Milestone 17): its static library bundles
+# zstd and SimSIMD and cannot be linked next to Turso, HelixDB and RocksDB,
+# which bring their own (packaging/lbug-shared.sh). Installed next to the app.
+_lbug=0.20.4
+source_x86_64=("liblbug-${_lbug}-x86_64.tar.gz::https://github.com/LadybugDB/ladybug/releases/download/v${_lbug}/liblbug-linux-x86_64.tar.gz")
+source_aarch64=("liblbug-${_lbug}-aarch64.tar.gz::https://github.com/LadybugDB/ladybug/releases/download/v${_lbug}/liblbug-linux-aarch64.tar.gz")
+sha256sums_x86_64=('34e3914cfda9d3d88cc46d4c2518411997d3b66c1af31e5363abc4cc985f47d1')
+sha256sums_aarch64=('0f377afb6a04fda67c2b2eef1e57c983c4783f6778a2c2ee538ca1fd41366a00')
+noextract=("liblbug-${_lbug}-x86_64.tar.gz" "liblbug-${_lbug}-aarch64.tar.gz")
 
 pkgver() {
   cd Moonkale
@@ -50,6 +59,11 @@ pkgver() {
 }
 
 prepare() {
+  # The shared LadybugDB, with the names the linker and the loader look for.
+  mkdir -p "$srcdir/lbug"
+  bsdtar -xf "$srcdir/liblbug-${_lbug}-${CARCH}.tar.gz" -C "$srcdir/lbug"
+  ln -sf "liblbug.so.${_lbug}" "$srcdir/lbug/liblbug.so.0"
+  ln -sf "liblbug.so.${_lbug}" "$srcdir/lbug/liblbug.so"
   cd Moonkale
   # The browser client needs the wasm32 target. dx installs a missing target
   # with rustup; with Arch's own rust there is no rustup, so it must be the
@@ -77,10 +91,13 @@ build() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_NET_OFFLINE=true
   export CARGO_TARGET_DIR="$srcdir/Moonkale/target"
+  # LadybugDB linked shared, found at /usr/lib/Moonkale at run time.
+  export LBUG_SHARED=1 LBUG_LIBRARY_DIR="$srcdir/lbug" LBUG_INCLUDE_DIR="$srcdir/lbug"
+  export MOONKALE_LBUG_RPATH=/usr/lib/Moonkale
   # dx (not plain cargo): it collects the hashed `asset!()` files next to the
   # binary. The desktop app, then the server it uploads to remote hosts.
-  (cd packages/desktop && dx build --release --platform desktop --features desktop)
-  (cd packages/web && dx build --release --platform server)
+  (cd packages/desktop && dx build --release --platform desktop --features desktop,ladybug)
+  (cd packages/web && dx build --release --platform server --features ladybug)
   # The server's browser client (P-126), and it must come **last**:
   # `--platform server` rewrites public/ without an index.html, so a client
   # built before it is wiped (a package built in that order shipped
@@ -100,6 +117,8 @@ package() {
   install -Dm755 "$app/moonkale" "$pkgdir/usr/bin/moonkale"
   install -Dm755 "target/dx/web/release/web/server" "$pkgdir/usr/bin/moonkale-server"
   install -d "$pkgdir/usr/lib/Moonkale"
+  install -Dm755 "$srcdir/lbug/liblbug.so.${_lbug}" "$pkgdir/usr/lib/Moonkale/liblbug.so.${_lbug}"
+  ln -s "liblbug.so.${_lbug}" "$pkgdir/usr/lib/Moonkale/liblbug.so.0"
   cp -r "$app/assets" "$pkgdir/usr/lib/Moonkale/assets"
   # The server's browser client, where moonkale-server looks for it (P-126).
   cp -r "target/dx/web/release/web/public" "$pkgdir/usr/lib/Moonkale/public"

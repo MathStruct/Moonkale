@@ -17,7 +17,7 @@
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use moonkale_core::{Direction, NodeId, Query, SourceFamily, SourceId, TextDialect};
+use moonkale_core::{Direction, NodeId, Query, SourceFamily, SourceId};
 use moonkale_llm::tools::{cap, MAX_NODES, MAX_ROWS};
 use moonkale_llm::ToolCall;
 use serde_json::{json, Value};
@@ -121,9 +121,7 @@ pub(crate) async fn run(call: ToolCall) -> Result<String, String> {
             for s in reg.all() {
                 let d = s.descriptor();
                 let dialect = match d.capabilities.text_query {
-                    Some(TextDialect::Sql) => "sql",
-                    Some(TextDialect::Cypher) => "cypher",
-                    Some(TextDialect::TypeQl) => "typeql",
+                    Some(d) => d.name(),
                     None => match d.family {
                         SourceFamily::Index => "search",
                         _ => "-",

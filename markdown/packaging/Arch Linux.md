@@ -52,3 +52,5 @@ git add PKGBUILD .SRCINFO && git commit -m "Initial import" && git push
 - No icon yet (`bundle.icon` in `Dioxus.toml`, `hicolor` install line commented out).
 - `dioxus-cli` in the AUR may lag the workspace's `dioxus` version; if so, `cargo install dioxus-cli --version 0.7.10 --locked` in `prepare()` is *not* allowed by AUR rules — pin the AUR package version in `makedepends` instead (`'dioxus-cli>=0.7.10'`).
 - Reproducibility: dx's asset hashes are content-based, so two builds of the same commit produce the same file names — good for `pacman` diffs.
+- **LadybugDB** (Milestone 17): the package links the *shared* liblbug (downloaded as a pinned source, installed as `/usr/lib/Moonkale/liblbug.so.0`, found through an rpath set by `MOONKALE_LBUG_RPATH`), because the static one clashes with Turso/HelixDB/RocksDB (P-144). It is the only package with LadybugDB; the other packages ship without it.
+

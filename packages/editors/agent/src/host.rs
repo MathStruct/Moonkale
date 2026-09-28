@@ -1,7 +1,7 @@
 //! Tool execution against the workspace, and the approval hand-off to the UI.
 
 use dioxus::prelude::*;
-use moonkale_core::{Direction, NodeId, Query, SourceFamily, TextDialect};
+use moonkale_core::{Direction, NodeId, Query, SourceFamily};
 use moonkale_ext_api::Workspace;
 use moonkale_llm::agent::HostFuture;
 use moonkale_llm::tools::{MAX_NODES, MAX_ROWS};
@@ -45,9 +45,7 @@ impl WorkspaceHost {
                 for s in ws.sources.peek().iter() {
                     let d = &s.descriptor;
                     let dialect = match d.capabilities.text_query {
-                        Some(TextDialect::Sql) => "sql",
-                        Some(TextDialect::Cypher) => "cypher",
-                        Some(TextDialect::TypeQl) => "typeql",
+                        Some(d) => d.name(),
                         None => match d.family {
                             SourceFamily::Index => "search",
                             _ => "-",

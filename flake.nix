@@ -22,6 +22,9 @@
         # time (no network in the sandbox; from source it needs CMake and an
         # hour). Fetch the same archive as a fixed-output derivation and hand
         # it to the build script through LBUG_LIBRARY_DIR / LBUG_INCLUDE_DIR.
+        # Since Milestone 17 the app is built without LadybugDB (its static
+        # library clashes with Turso/HelixDB/RocksDB, see
+        # packaging/lbug-shared.sh); only the checks' LadybugDB tests use this.
         lbugVersion = "0.20.4";
         liblbug = pkgs.stdenv.mkDerivation {
           pname = "liblbug-prebuilt";
@@ -43,9 +46,12 @@
           version = "0.1.0";
           src = self;
           # No cargoHash to keep in sync: vendor from the committed lockfile.
-          cargoLock.lockFile = ./Cargo.lock;
+          # HelixDB (Milestone 17) is a git dependency pinned by rev in the
+          # lockfile; builtins.fetchGit fetches it without per-crate hashes.
+          cargoLock = { lockFile = ./Cargo.lock; allowBuiltinFetchGit = true; };
 
-          nativeBuildInputs = with pkgs; [ pkg-config wrapGAppsHook3 dioxus-cli ];
+          # bindgenHook: RocksDB's bindings are generated with libclang.
+          nativeBuildInputs = with pkgs; [ pkg-config wrapGAppsHook3 dioxus-cli rustPlatform.bindgenHook ];
           buildInputs = runtimeLibs;
 
           # dx must be >= 0.7.10 (the workspace's dioxus version); check with
@@ -54,8 +60,6 @@
             runHook preBuild
             export HOME=$TMPDIR                # dx writes caches under $HOME
             export CARGO_NET_OFFLINE=true
-            export LBUG_LIBRARY_DIR=${liblbug}/lib
-            export LBUG_INCLUDE_DIR=${liblbug}/lib
             (cd packages/desktop && dx build --release --platform desktop --features desktop --cargo-args=--frozen)
             (cd packages/web && dx build --release --platform server --cargo-args=--frozen)
             runHook postBuild
@@ -100,8 +104,8 @@
           pname = "moonkale-tests";
           version = "0.1.0";
           src = self;
-          cargoLock.lockFile = ./Cargo.lock;
-          nativeBuildInputs = with pkgs; [ pkg-config ];
+          cargoLock = { lockFile = ./Cargo.lock; allowBuiltinFetchGit = true; };
+          nativeBuildInputs = with pkgs; [ pkg-config rustPlatform.bindgenHook ];
           buildInputs = runtimeLibs;
           buildPhase = "true";
           LBUG_LIBRARY_DIR = "${liblbug}/lib";

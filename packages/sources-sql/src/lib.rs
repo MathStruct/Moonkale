@@ -43,6 +43,18 @@ fn ext_in(path: &str, list: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
+pub mod turso;
+#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
+pub use turso::TursoSource;
+
+/// A Turso database (Milestone 17). Its files are SQLite files; `*.turso`
+/// picks the Turso engine, `.db`/`.sqlite` stay with SQLite. Path check
+/// only, usable on every target.
+pub fn is_turso_path(path: &str) -> bool {
+    ext_in(path, &["turso"])
+}
+
 /// File extensions that open as a SQLite database.
 pub const SQLITE_EXTENSIONS: &[&str] = &["sqlite", "sqlite3", "db", "db3"];
 

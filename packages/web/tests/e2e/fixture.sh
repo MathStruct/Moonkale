@@ -27,6 +27,8 @@ CREATE TABLE tags(id INTEGER PRIMARY KEY, label TEXT);
 c.commit()
 PY
 (cd "$REPO" && cargo run -q -p moonkale-sources-graph --features ladybug --example seed_people -- "$ROOT/people.lbug" small >/dev/null)
+# Milestone 17: one small Turso, redb, RocksDB and HelixDB store (stores.mjs).
+(cd "$REPO" && cargo run -q -p moonkale-sources-kv --features redb,rocksdb --example seed_stores -- "$ROOT/stores" >/dev/null)
 # A git repository with one commit (Milestone 7: git suite); .moonkale is ignored.
 printf 'target/\n.moonkale/\n' > "$ROOT/.gitignore"
 git -C "$ROOT" init -q -b main

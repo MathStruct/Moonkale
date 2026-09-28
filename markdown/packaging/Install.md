@@ -10,7 +10,7 @@ tags: [packaging, install]
 sudo pacman -U moonkale-<release>-arch-x86_64.pkg.tar.zst
 moonkale
 ```
-Runtime packages pacman pulls in: `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl`. The package is built from source on Arch by the release workflow. To build it yourself: `git clone https://github.com/MathStruct/Moonkale && cd Moonkale/packaging/arch && makepkg -si` (needs `dioxus-cli` ≥ 0.7.10 from the AUR, and `rust-wasm`, `clang` and `llvm` or rustup; about an hour on a fresh machine).
+Runtime packages pacman pulls in: `webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool openssl`. The Arch package is the one that includes **LadybugDB** (as a bundled shared library); the other packages open Turso, redb, RocksDB, HelixDB, SQLite and DuckDB, but not LadybugDB, for now. The package is built from source on Arch by the release workflow. To build it yourself: `git clone https://github.com/MathStruct/Moonkale && cd Moonkale/packaging/arch && makepkg -si` (needs `dioxus-cli` ≥ 0.7.10 from the AUR, and `rust-wasm`, `clang` and `llvm` or rustup; about an hour on a fresh machine).
 
 ## Debian / Ubuntu (apt)
 ```sh

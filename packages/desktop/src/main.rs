@@ -103,7 +103,7 @@ fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
         } else {
             path
         };
-        if let Some(db) = open_database(&path)? {
+        if let Some(db) = open_database(&path).await? {
             if let Some(existing) = registry().get(&db.id()) {
                 return Ok(vec![existing]);
             }
@@ -142,8 +142,26 @@ fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
 }
 
 /// Database files/directories by name; `None` means "treat as a folder".
-fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
+async fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
     let p = std::path::Path::new(path);
+    // Milestone 17: Turso (a SQLite-format file named `*.turso`), redb, a
+    // RocksDB directory, an embedded HelixDB root.
+    if p.is_file() && moonkale_sources_sql::is_turso_path(path) {
+        return Ok(Some(Arc::new(
+            moonkale_sources_sql::TursoSource::open(p).await?,
+        )));
+    }
+    if p.is_file() && moonkale_sources_kv::is_redb_path(path) {
+        return Ok(Some(Arc::new(moonkale_sources_kv::open_redb(p)?)));
+    }
+    if p.is_dir() && moonkale_sources_kv::is_rocksdb_path(path) {
+        return Ok(Some(Arc::new(moonkale_sources_kv::open_rocksdb(p)?)));
+    }
+    if p.is_dir() && moonkale_sources_graph::is_helix_path(path) {
+        return Ok(Some(Arc::new(
+            moonkale_sources_graph::HelixSource::open(p).await?,
+        )));
+    }
     if p.is_file() && moonkale_sources_sql::is_sqlite_path(path) {
         return Ok(Some(Arc::new(moonkale_sources_sql::SqliteSource::open(p)?)));
     }
@@ -158,6 +176,7 @@ fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
             moonkale_sources_sql::DuckDbSource::open_data_folder(dir)?,
         )));
     }
+    #[cfg(feature = "ladybug")]
     if moonkale_sources_graph::is_ladybug_path(path) {
         return Ok(Some(Arc::new(
             moonkale_sources_graph::ladybug::LadybugSource::open(p)?,
@@ -185,6 +204,10 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
             .strip_prefix("folder:")
             .or_else(|| id.strip_prefix("sqlite:"))
             .or_else(|| id.strip_prefix("ladybug:"))
+            .or_else(|| id.strip_prefix("turso:"))
+            .or_else(|| id.strip_prefix("redb:"))
+            .or_else(|| id.strip_prefix("rocksdb:"))
+            .or_else(|| id.strip_prefix("helix:"))
             .unwrap_or(".")
             .to_string();
         let opened = open_local(path, ui::OpenOptions::default()).await?;

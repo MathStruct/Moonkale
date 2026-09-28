@@ -17,16 +17,31 @@ fn default_query(node: &Node, dialect: &str) -> String {
             // native key is the bare name either way.
             format!("MATCH (n:{table}) RETURN n LIMIT 200")
         }
+        // Milestone 17: key/value tables and Helix labels.
+        "kv" => format!("scan {} limit 200", quote_word(table)),
+        "helix" => {
+            let (what, label) = match table.strip_prefix("edge:") {
+                Some(l) => ("edges", l),
+                None => ("nodes", table.strip_prefix("label:").unwrap_or(table)),
+            };
+            format!("{what} {} limit 200", quote_word(label))
+        }
         _ => format!("SELECT * FROM \"{}\" LIMIT 200", table.replace('"', "\"\"")),
     }
 }
 
-fn dialect_name(d: Option<TextDialect>) -> &'static str {
-    match d {
-        Some(TextDialect::Cypher) => "cypher",
-        Some(TextDialect::TypeQl) => "typeql",
-        _ => "sql",
+/// A name as one word of the `kv`/`helix` dialects: quoted when it has
+/// spaces or quotes in it.
+fn quote_word(s: &str) -> String {
+    if !s.is_empty() && !s.contains(|c: char| c.is_whitespace() || c == '"') {
+        s.to_string()
+    } else {
+        format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
     }
+}
+
+fn dialect_name(d: Option<TextDialect>) -> &'static str {
+    d.map(TextDialect::name).unwrap_or("sql")
 }
 
 #[component]

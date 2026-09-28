@@ -1,3 +1,6 @@
+// The embedded HelixDB client's futures are deeply nested (Milestone 17).
+#![recursion_limit = "256"]
+
 //! # moonkale-sources-graph
 //!
 //! Graph databases are the *natural* source: vertices and relations map onto
@@ -22,6 +25,16 @@ pub mod dialect;
 /// driver itself is native-only behind the `ladybug` feature.
 pub const LADYBUG_EXTENSIONS: &[&str] = &["lbug", "kuzu", "kz"];
 
+/// A HelixDB store (Milestone 17): an object-store root directory named
+/// `*.helix`. Path check only, usable on every target.
+pub fn is_helix_path(path: &str) -> bool {
+    path.trim_end_matches('/')
+        .rsplit_once('.')
+        .is_some_and(|(stem, e)| {
+            !stem.is_empty() && !stem.ends_with('/') && e.eq_ignore_ascii_case("helix")
+        })
+}
+
 pub fn is_ladybug_path(path: &str) -> bool {
     path.rsplit('.')
         .next()
@@ -30,8 +43,10 @@ pub fn is_ladybug_path(path: &str) -> bool {
 }
 #[cfg(feature = "falkor")]
 pub mod falkor;
-#[cfg(feature = "helix")]
+#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
 pub mod helix;
+#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
+pub use helix::HelixSource;
 #[cfg(feature = "ladybug")]
 pub mod ladybug;
 pub mod schema;

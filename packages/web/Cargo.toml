@@ -27,3 +27,5 @@ web-sys = { version = "0.3", features = ["Window", "Storage"] }
 default = []
 web = ["dioxus/web"]
 server = ["dioxus/server", "ui/server", "api/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio"]
+# LadybugDB in the server (Milestone 17): see packages/desktop/Cargo.toml.
+ladybug = ["api/ladybug"]

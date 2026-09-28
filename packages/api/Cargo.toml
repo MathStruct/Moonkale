@@ -26,8 +26,9 @@ uuid = { version = "1", features = ["v4", "js"] }
 moonkale-sources = { workspace = true, optional = true }
 moonkale-project-fs = { workspace = true, optional = true }
 moonkale-index = { workspace = true, optional = true }
-moonkale-sources-sql = { workspace = true, optional = true, features = ["sqlite", "duckdb"] }
-moonkale-sources-graph = { workspace = true, optional = true, features = ["ladybug"] }
+moonkale-sources-sql = { workspace = true, optional = true, features = ["sqlite", "duckdb", "turso"] }
+moonkale-sources-graph = { workspace = true, optional = true, features = ["helix"] }
+moonkale-sources-kv = { workspace = true, optional = true, features = ["redb", "rocksdb"] }
 moonkale-terminal-pty = { workspace = true, optional = true }
 moonkale-typst = { workspace = true, optional = true }
 moonkale-lsp-local = { workspace = true, optional = true }
@@ -40,4 +41,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 webpki-roots = "1"
 
 [features]
-server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-terminal-pty", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]
+# LadybugDB (Milestone 17): see packages/desktop/Cargo.toml.
+ladybug = ["moonkale-sources-graph?/ladybug"]

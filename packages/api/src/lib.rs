@@ -95,7 +95,7 @@ pub(crate) mod state {
 
     /// A `.sqlite`/`.db` file or a `.lbug`/`.kuzu` database opens as a
     /// database; anything else as a folder.
-    pub fn open_any(path: &str) -> std::io::Result<Vec<Arc<dyn moonkale_core::Source>>> {
+    pub async fn open_any(path: &str) -> std::io::Result<Vec<Arc<dyn moonkale_core::Source>>> {
         let allowed = std::fs::canonicalize(allowed_root())?;
         let requested: PathBuf = if path.trim().is_empty() {
             allowed.clone()
@@ -121,6 +121,32 @@ pub(crate) mod state {
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
             return Ok(vec![Arc::new(db)]);
         }
+        // Milestone 17: Turso, redb, RocksDB, embedded HelixDB.
+        let name = canonical.to_string_lossy().into_owned();
+        let io = |e: moonkale_core::SourceError| std::io::Error::other(e.to_string());
+        if canonical.is_file() && moonkale_sources_sql::is_turso_path(&name) {
+            let db = moonkale_sources_sql::TursoSource::open(&canonical)
+                .await
+                .map_err(io)?;
+            return Ok(vec![Arc::new(db)]);
+        }
+        if canonical.is_file() && moonkale_sources_kv::is_redb_path(&name) {
+            return Ok(vec![Arc::new(
+                moonkale_sources_kv::open_redb(&canonical).map_err(io)?,
+            )]);
+        }
+        if canonical.is_dir() && moonkale_sources_kv::is_rocksdb_path(&name) {
+            return Ok(vec![Arc::new(
+                moonkale_sources_kv::open_rocksdb(&canonical).map_err(io)?,
+            )]);
+        }
+        if canonical.is_dir() && moonkale_sources_graph::is_helix_path(&name) {
+            let db = moonkale_sources_graph::HelixSource::open(&canonical)
+                .await
+                .map_err(io)?;
+            return Ok(vec![Arc::new(db)]);
+        }
+        #[cfg(feature = "ladybug")]
         if moonkale_sources_graph::is_ladybug_path(&canonical.to_string_lossy()) {
             let db = moonkale_sources_graph::ladybug::LadybugSource::open(&canonical)
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
@@ -166,7 +192,7 @@ pub async fn open_folder(
 ) -> Result<Vec<SourceDescriptor>, ServerFnError> {
     let reg = state::registry();
     let mut out = Vec::new();
-    for source in state::open_any(&path).map_err(server_error)? {
+    for source in state::open_any(&path).await.map_err(server_error)? {
         let is_folder = source.descriptor().family == moonkale_core::SourceFamily::Folder;
         out.push(reg.insert(source.clone()));
         if is_folder {

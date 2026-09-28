@@ -52,6 +52,8 @@ cd packages/desktop && dx serve --platform desktop    # native window (needs a d
 cd packages/mobile  && dx serve --platform android    # or ios; needs the SDKs
 ```
 
+**LadybugDB** (Milestone 17) is off by default: its static library cannot be linked next to Turso, HelixDB and RocksDB (P-144). To have it, build against the shared library, which `packaging/lbug-shared.sh` fetches and wires up (Linux, macOS): `cd packages/desktop && ../../packaging/lbug-shared.sh dx serve --platform desktop --features ladybug` (the same for `packages/web`). The E2E `serve.sh` does this by itself.
+
 `dx serve` hot-reloads `rsx!` and assets; press `r` to force a rebuild, `v` for verbose logs. Where output goes on each platform — including compiled release builds — is in [[Debugging and Logging]].
 
 Headless smoke test of the web build (what CI will do):
