@@ -4,7 +4,7 @@ tags: [crate-notes, milestone-3]
 ---
 Notes for `moonkale-sources-graph` (Milestone 3). Design: [[Data Sources]], [[Database Backends]].
 
-Only **LadybugDB** is implemented (feature `ladybug`, `lbug` 0.20 — the continuation of Kuzu: embedded, Cypher). TypeDB/Helix/Falkor remain stubs.
+Only **LadybugDB** is implemented (feature `ladybug`, `lbug` 0.21 since Milestone 17 — the continuation of Kuzu: embedded, Cypher). TypeDB/Helix/Falkor remain stubs.
 
 - `ladybug.rs` — `LadybugSource::open(path)` opens the database **read-only** (`SystemConfig::read_only`), id `ladybug:<abs path>`. Schema as a graph: `Database` root → node tables (`Table`) → properties (`Column`, "name: TYPE (pk)"); rel tables become `EdgeKind::Custom(<rel name>)` edges between their endpoint tables (`CALL show_connection`). `Children(root)` lists node *and* rel tables (rel ones labelled "(rel)"); `Children(table)` lists properties; `Children(vertex)` is one hop (`MATCH (a)-[r]-(b) WHERE id(a) = internal_id(t, o)`).
 - `Query::Text { dialect: "cypher" }` runs any statement (the read-only open refuses writes), capped at 500 rows. The result is a `Table` of `core::Value`s **and** the `NODE`/`REL`/recursive-rel columns as `Vertex` nodes (`v:<table_id>:<offset>`, label `Label(first string property)`) and `Custom` edges, so the Graph panel can draw the answer.
@@ -18,6 +18,6 @@ Sample database: `cargo run -p moonkale-sources-graph --features ladybug --examp
 
 Tests: `cargo test -p moonkale-sources-graph --features ladybug` (temp database: schema graph, Cypher → table + nodes/edges, one-hop, wrong dialect refused).
 
-## Milestone 17: HelixDB, and LadybugDB as a shared library
+## Milestone 17: HelixDB, and LadybugDB's bundled symbols
 - `helix.rs` (feature `helix`; `helix-db` from git, pinned — the embedded engine is not on crates.io; spec 002): `HelixSource::open(dir)` opens a `*.helix` object-store root read-only (`Client::open_reader`, the root's only database or `main`). Tree: node labels and edge labels as `Table` nodes with counts (over the first 20 000 of each); `Query::All` → vertices (`v:<Label>:<id>`, named by `name`/`title`/`label`) and edges (`EdgeKind::Custom(label)`); the `helix` dialect `nodes [<label>] [limit n]` / `edges [<label>] [limit n]` returns a table (`$id`, `$label`, `$from`, `$to`, properties) *and* the graph. The crate needs `#![recursion_limit = "256"]` for the client's futures. Test `tests/helix.rs`. Known: an open writes a manifest into the store (P-145).
-- **LadybugDB** is no longer enabled by the app crates by default: its static library bundles zstd and SimSIMD and clashes with Turso/HelixDB/RocksDB (P-144). With `--features ladybug` on desktop/web and `packaging/lbug-shared.sh` around the build it links the shared liblbug; the `seed_people` example requires the feature.
+- **LadybugDB** next to the new stores: its static library bundles zstd and SimSIMD with global symbols, which clash with Turso/HelixDB/RocksDB (P-144). `lbug` 0.21 can make them local after downloading the prebuilt archive (`LBUG_LOCALIZE_BUNDLED_SYMBOLS=1`, set for the whole workspace in `.cargo/config.toml`; needs GNU `ld`/`nm`/`objcopy`, Linux/ELF only). It does not do this for `LBUG_LIBRARY_DIR`, so the Nix flake localizes the archive itself in its `liblbug` derivation (same `ld -r` + `objcopy --keep-global-symbols` recipe). desktop and api enable `ladybug` only under `cfg(target_os = "linux")`; macOS and Windows ship without LadybugDB for now. The `seed_people` example requires the feature.

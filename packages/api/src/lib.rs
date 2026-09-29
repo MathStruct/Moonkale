@@ -146,11 +146,10 @@ pub(crate) mod state {
                 .map_err(io)?;
             return Ok(vec![Arc::new(db)]);
         }
-        #[cfg(feature = "ladybug")]
         if moonkale_sources_graph::is_ladybug_path(&canonical.to_string_lossy()) {
-            let db = moonkale_sources_graph::ladybug::LadybugSource::open(&canonical)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
-            return Ok(vec![Arc::new(db)]);
+            if let Some(db) = moonkale_sources_graph::open_ladybug(&canonical) {
+                return Ok(vec![db.map_err(io)?]);
+            }
         }
         // DuckDB (Milestone 9): a database file, or a data file's folder as CSV/Parquet views.
         let as_str = canonical.to_string_lossy().into_owned();

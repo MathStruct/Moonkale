@@ -1,0 +1,7 @@
+[env]
+# LadybugDB (P-144): its prebuilt static liblbug.a bundles zstd and SimSIMD
+# with global symbols, which clash with the zstd-sys and simsimd crates that
+# Turso, HelixDB and RocksDB bring. Since lbug 0.21.0 its build script can
+# partially link the archive and make those bundled symbols local (Linux/ELF
+# only; needs GNU binutils). Every cargo/dx build of the workspace gets it.
+LBUG_LOCALIZE_BUNDLED_SYMBOLS = "1"

@@ -35,6 +35,26 @@ pub fn is_helix_path(path: &str) -> bool {
         })
 }
 
+/// Open a LadybugDB database, if this build has LadybugDB (the `ladybug`
+/// feature: on for Linux builds of the app, P-144); `None` otherwise, so
+/// callers need no feature checks of their own.
+pub fn open_ladybug(
+    path: &std::path::Path,
+) -> Option<Result<std::sync::Arc<dyn moonkale_core::Source>, moonkale_core::SourceError>> {
+    #[cfg(all(feature = "ladybug", not(target_arch = "wasm32")))]
+    {
+        Some(
+            ladybug::LadybugSource::open(path)
+                .map(|s| std::sync::Arc::new(s) as std::sync::Arc<dyn moonkale_core::Source>),
+        )
+    }
+    #[cfg(not(all(feature = "ladybug", not(target_arch = "wasm32"))))]
+    {
+        let _ = path;
+        None
+    }
+}
+
 pub fn is_ladybug_path(path: &str) -> bool {
     path.rsplit('.')
         .next()

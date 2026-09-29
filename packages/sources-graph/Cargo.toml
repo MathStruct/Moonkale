@@ -22,7 +22,7 @@ moonkale-core = { workspace = true }
 # LadybugDB official Rust binding (formerly kuzu). Downloads a prebuilt static
 # liblbug (~40 MB linked in), else builds C++ (needs cmake). Extensions
 # (FTS, vector) need extra link flags; not enabled.
-lbug = { version = "0.20", optional = true }
+lbug = { version = "0.21", optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
 # HelixDB embedded (Milestone 17, spec 002): the engine (`crates/db`) is not on
 # crates.io, so a git dependency pinned to a commit of 2026-09-28. Heavy tree

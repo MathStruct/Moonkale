@@ -22,21 +22,29 @@
         # time (no network in the sandbox; from source it needs CMake and an
         # hour). Fetch the same archive as a fixed-output derivation and hand
         # it to the build script through LBUG_LIBRARY_DIR / LBUG_INCLUDE_DIR.
-        # Since Milestone 17 the app is built without LadybugDB (its static
-        # library clashes with Turso/HelixDB/RocksDB, see
-        # packaging/lbug-shared.sh); only the checks' LadybugDB tests use this.
-        lbugVersion = "0.20.4";
+        # The archive's bundled zstd/SimSIMD symbols clash with Turso, HelixDB
+        # and RocksDB (P-144). lbug >= 0.21 localizes them itself, but only for
+        # an archive it downloaded — not in this external mode — so the
+        # derivation does the same: partial link, every strong unmangled
+        # symbol except the `lbug_*` C API made local, archived back.
+        lbugVersion = "0.21.0";
         liblbug = pkgs.stdenv.mkDerivation {
           pname = "liblbug-prebuilt";
           version = lbugVersion;
           src = pkgs.fetchurl {
             url = "https://github.com/LadybugDB/ladybug/releases/download/v${lbugVersion}/liblbug-static-linux-x86_64-compat.tar.gz";
-            hash = "sha256-eZ8Y8WX6FQdbBJ1x6EKeD/n3aIvl0YbElz0RGmmAUJo=";
+            hash = "sha256-+T4BFBkdYjpwanjsqApUpyyFY8nmMjiIlo/5hNWYYVQ=";
           };
           sourceRoot = ".";
+          nativeBuildInputs = [ pkgs.binutils ];
           installPhase = ''
             mkdir -p $out/lib
-            cp -r . $out/lib/
+            cp lbug.h lbug.hpp $out/lib/
+            ld -r --whole-archive liblbug.a --no-whole-archive -o merged.o
+            nm --defined-only -g --format=posix merged.o \
+              | awk '{ strong = ($2 == "T" || $2 == "D" || $2 == "B" || $2 == "R"); if (!strong || $1 ~ /^_Z/ || $1 ~ /^lbug_/) print $1 }' > keep.txt
+            objcopy --keep-global-symbols=keep.txt merged.o
+            ar rcs $out/lib/liblbug.a merged.o
           '';
         };
       in
@@ -60,6 +68,8 @@
             runHook preBuild
             export HOME=$TMPDIR                # dx writes caches under $HOME
             export CARGO_NET_OFFLINE=true
+            export LBUG_LIBRARY_DIR=${liblbug}/lib
+            export LBUG_INCLUDE_DIR=${liblbug}/lib
             (cd packages/desktop && dx build --release --platform desktop --features desktop --cargo-args=--frozen)
             (cd packages/web && dx build --release --platform server --cargo-args=--frozen)
             runHook postBuild

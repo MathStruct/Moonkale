@@ -176,11 +176,10 @@ async fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceErro
             moonkale_sources_sql::DuckDbSource::open_data_folder(dir)?,
         )));
     }
-    #[cfg(feature = "ladybug")]
     if moonkale_sources_graph::is_ladybug_path(path) {
-        return Ok(Some(Arc::new(
-            moonkale_sources_graph::ladybug::LadybugSource::open(p)?,
-        )));
+        if let Some(db) = moonkale_sources_graph::open_ladybug(p) {
+            return Ok(Some(db?));
+        }
     }
     Ok(None)
 }

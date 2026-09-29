@@ -101,7 +101,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 14 - Rust Code Editor]] (plan) → [[Milestone 14 - Implementation Log]] (what happened) ✅ — the dioxus-code-editor extension, switching editors, the caret's word
 - [[Milestone 15 - Agents, Profiles and Connections]] (plan) → [[Milestone 15 - Implementation Log]] (what happened) ✅ — saved agents, sessions side by side with history, saved SSH connections, Claude Code login
 - [[Milestone 16 - Sources Follow the Disk]] (plan) → [[Milestone 16 - Implementation Log]] (what happened) ✅ — Sources follow changes on disk (↻ for the rest), the Local graph laid out on its own, no `<br />` from the rich editor, tabs dragged by touch
-- [[Milestone 17 - Embedded Stores]] (plan) → [[Milestone 17 - Implementation Log]] (what happened) ✅ — Turso, redb, RocksDB and embedded HelixDB as read-only sources; LadybugDB as a shared library (P-144)
+- [[Milestone 17 - Embedded Stores]] (plan) → [[Milestone 17 - Implementation Log]] (what happened) ✅ — Turso, redb, RocksDB and embedded HelixDB as read-only sources; LadybugDB's bundled symbols made local (P-144)
 
 ## Problems & planning
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done

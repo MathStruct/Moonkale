@@ -52,7 +52,7 @@ cd packages/desktop && dx serve --platform desktop    # native window (needs a d
 cd packages/mobile  && dx serve --platform android    # or ios; needs the SDKs
 ```
 
-**LadybugDB** (Milestone 17) is off by default: its static library cannot be linked next to Turso, HelixDB and RocksDB (P-144). To have it, build against the shared library, which `packaging/lbug-shared.sh` fetches and wires up (Linux, macOS): `cd packages/desktop && ../../packaging/lbug-shared.sh dx serve --platform desktop --features ladybug` (the same for `packages/web`). The E2E `serve.sh` does this by itself.
+**LadybugDB** is in Linux builds only. Its static library bundles zstd and SimSIMD, which clash with Turso, HelixDB and RocksDB (P-144). `.cargo/config.toml` sets `LBUG_LOCALIZE_BUNDLED_SYMBOLS=1`, so `lbug` makes those symbols local after downloading its prebuilt archive; that needs GNU binutils (`ld`, `nm`, `objcopy`), which every Linux toolchain has. Nothing to do by hand: plain `dx serve` / `cargo build` get it. On macOS and Windows the app is built without LadybugDB.
 
 `dx serve` hot-reloads `rsx!` and assets; press `r` to force a rebuild, `v` for verbose logs. Where output goes on each platform — including compiled release builds — is in [[Debugging and Logging]].
 

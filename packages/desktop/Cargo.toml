@@ -20,9 +20,9 @@ moonkale-project-fs = { workspace = true }
 moonkale-sources = { workspace = true }
 moonkale-index = { workspace = true }
 moonkale-sources-sql = { workspace = true, features = ["sqlite", "duckdb", "turso"] }
-# Milestone 17: embedded HelixDB, redb, RocksDB. LadybugDB only with the
-# `ladybug` feature: its static library bundles zstd and SimSIMD and cannot
-# be linked next to them; see packaging/lbug-shared.sh.
+# Milestone 17: embedded HelixDB, redb, RocksDB. LadybugDB on Linux only (the
+# target table below): its static library can be linked next to them only
+# with its bundled symbols localized, an ELF-only step (.cargo/config.toml).
 moonkale-sources-graph = { workspace = true, features = ["helix"] }
 moonkale-sources-kv = { workspace = true, features = ["redb", "rocksdb"] }
 moonkale-terminal = { workspace = true }
@@ -46,11 +46,10 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 default = []
 desktop = ["dioxus/desktop"]
 server = ["dioxus/server", "ui/server"]
-# LadybugDB (Milestone 17): only with the shared liblbug —
-# `packaging/lbug-shared.sh dx serve --features ladybug`.
-ladybug = ["moonkale-sources-graph/ladybug", "api/ladybug"]
+
 
 [target.'cfg(target_os = "linux")'.dependencies]
+moonkale-sources-graph = { workspace = true, features = ["helix", "ladybug"] }
 libc = "0.2"
 
 [dev-dependencies]

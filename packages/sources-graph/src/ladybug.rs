@@ -20,7 +20,10 @@
 //! Build notes: by default `lbug` downloads a prebuilt static `liblbug`;
 //! if unavailable it compiles the C++ library with cmake. `LBUG_SHARED` /
 //! `LBUG_LIBRARY_DIR` / `LBUG_INCLUDE_DIR` link against a system install;
-//! `LBUG_BUILD_FROM_SOURCE` forces a source build.
+//! `LBUG_BUILD_FROM_SOURCE` forces a source build. Since 0.21,
+//! `LBUG_LOCALIZE_BUNDLED_SYMBOLS=1` (set in `.cargo/config.toml`) makes the
+//! prebuilt archive's bundled zstd/SimSIMD local, so it links next to
+//! Turso, HelixDB and RocksDB (P-144; Linux only).
 //!
 //! See vault: `research/Database Backends.md`.
 

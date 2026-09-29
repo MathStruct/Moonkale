@@ -51,8 +51,8 @@ Tested on Linux (desktop and browser) and on one Android phone:
 - **Graph view** in 2D and 3D, GPU-rendered, for a folder's files, links and
   symbols, usable with 100k nodes.
 - **Databases**: SQLite, DuckDB (including folders of CSV/Parquet files),
-  Turso, redb, RocksDB and embedded HelixDB, as tables and as graphs, read-only
-  for now. LadybugDB (Cypher) in the Arch package and source builds.
+  Turso, redb, RocksDB, embedded HelixDB and LadybugDB (Cypher, Linux only),
+  as tables and as graphs, read-only for now.
 - **Terminal**: stack traces in it become clickable graphs.
 - **Git**: changes, diffs, staging, commits and history as a graph.
 - **Search**: keyword search, plus meaning-based search when an embedding
