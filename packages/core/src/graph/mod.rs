@@ -28,7 +28,6 @@ pub mod edge;
 pub mod history;
 pub mod node;
 pub mod property;
-pub mod view;
 
 pub use edge::{Edge, EdgeKind};
 pub use history::{Actor, EntityLog, Event, EventId, EventKind, State as HistoryState};

@@ -4,24 +4,25 @@
 //! declared here. The built-in editors are extensions that happen to be
 //! compiled in; there is no privileged path.
 //!
-//! **Milestone 1 scope** — the *static* half of the design, sized for two
-//! extensions (an explorer and a code editor):
+//! What is here:
+//! - [`manifest::Manifest`] — id, name, description, tier, permissions.
+//! - [`extension::Extension`] — panels, commands, settings, flow libraries.
+//! - [`contrib`] — `PanelContribution` (+ the activity-bar `Activity`),
+//!   [`CommandContribution`] and keybindings.
+//! - [`workspace::Workspace`] — the host handle: sources, documents, history,
+//!   settings, presence, remote … Documents live *here*, not in panels, so a
+//!   dock/undock (which remounts panel content) cannot lose edits. It is far
+//!   larger than a contract should be; Milestone 18 phase 3 splits it into
+//!   services.
+//! - [`settings`], [`flow`], [`wiki`], [`git`], [`presence`], [`remote`],
+//!   [`session`] — types shared between the shell, extensions and the server.
 //!
-//! - [`manifest::Manifest`] — id and name.
-//! - [`contrib::PanelContribution`] — dockable panels; the only contribution
-//!   point so far.
-//! - [`extension::Extension`] — `manifest()`, `panels()`, `render()`.
-//! - [`workspace::Workspace`] — the host handle: open sources, open
-//!   documents, the active document, status. It is the design's `Host`
-//!   reduced to what M1 needs. Documents live *here*, not in panels, so a
-//!   dock/undock (which remounts panel content) cannot lose edits.
-//!
-//! Not started: WASM extensions and the declarative `ui::Tree`, permissions,
-//! commands/keybindings/languages as contributions. Their design notes are
-//! in the vault (`architecture/Extension System.md`).
+//! Wasm extensions use a separate JSON ABI (`moonkale-ext-host::abi`). The
+//! target design (a `moonkale.toml` manifest, a `Host` handle, `ui::Tree`
+//! panels) is in the vault: `extensions/Writing an Extension.md`, Part B.
 //!
 //! This crate depends on `dioxus` because static extensions return
-//! `Element`s. The WASM path will not; it will render through `ui::Tree`.
+//! `Element`s.
 
 mod assets;
 mod command;

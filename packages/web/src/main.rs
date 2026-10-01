@@ -153,7 +153,7 @@ fn main() {
                     std::env::set_var("MOONKALE_TOKEN", t);
                 }
                 "--version" => {
-                    println!("moonkale-server {}", env!("CARGO_PKG_VERSION"));
+                    println!("moonkale-server {}", moonkale_core::VERSION);
                     return;
                 }
                 other => {

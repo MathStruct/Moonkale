@@ -8,7 +8,6 @@ description = "SQL sources: SQLite (Milestone 2), DuckDB + data folders (Milesto
 [features]
 default = []
 sqlite = ["dep:rusqlite", "dep:tokio"]
-postgres = []
 duckdb = ["dep:duckdb", "dep:tokio", "dep:tracing"]
 turso = ["dep:turso", "dep:tokio"]
 

@@ -6,14 +6,12 @@
 //! `Column` nodes, `Contains` edges between them — so a database's *schema*
 //! is a graph the graph view can draw.
 //!
-//! **Milestone 2**: SQLite via `rusqlite` (bundled). Read-only: `Query::Text`
-//! accepts `SELECT`/`WITH`/`PRAGMA`/`EXPLAIN` only; writes come with the
-//! primary-key lifting in `structured`. Compiles only on native targets; the
-//! `api` server enables the feature so web/mobile reach it through
-//! `RemoteSource`.
+//! Built: SQLite (`rusqlite`, bundled), DuckDB (+ folders of CSV/TSV/Parquet)
+//! and Turso — all read-only: `Query::Text` accepts what [`text`] classifies as
+//! a read. Postgres is designed only (vault `architecture/Data Sources.md`).
+//! Compiles only on native targets; the `api` server enables the features so
+//! web and mobile reach these sources through `RemoteSource`.
 
-pub mod schema;
-pub mod structured;
 pub mod text;
 
 #[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]

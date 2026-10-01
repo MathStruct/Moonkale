@@ -17,7 +17,7 @@ Status, as of Milestone 17 (2026-09-29): ✅ done · ◐ partly done (what is mi
 | R-03 | JS interop protocol (`eval` + channel) on all webviews | 3 | medium | ✅ web, WebKitGTK, Android WebView (P-047 rules) |
 | R-04 | Code editor with CodeMirror behind `CodeEditorBackend` | 3 | medium | ✅ splices since spec [[018]] |
 | R-05 | Extension API + static registry; built-ins as extensions | 3 | **high** | ◐ `Extension` trait (panels, commands, settings, flow libraries), tiers, permissions. **Not built**: `moonkale.toml`, activation events, `when` clauses, contribution points beyond panels/commands — and `ui` still hard-codes the catalogue ([[Extension Catalogue]] critique) |
-| R-06 | tree-sitter index + wiki-link extraction | 3 | medium | ◐ native tree-sitter (arborium), wiki-links; Julia/Python extractors exist but never run (issue #16) |
+| R-06 | tree-sitter index + wiki-link extraction | 3 | medium | ◐ native tree-sitter (arborium), wiki-links, Rust/Julia/Python symbols (Julia/Python only since the #16 fix, 2026-10-02); other languages, calls and references open |
 | R-07 | Graph view v1: wgpu 2D, WebGL2/WebGPU, CPU layout, pick/popup | 4 | **high** | ✅ |
 | R-08 | SQLite + DuckDB sources + table editor | 3 | low | ✅ read-only |
 | R-09 | Markdown editor: source mode, links, backlinks, local graph | 2 | low | ✅ |

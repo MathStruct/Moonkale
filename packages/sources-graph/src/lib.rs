@@ -4,21 +4,10 @@
 //! # moonkale-sources-graph
 //!
 //! Graph databases are the *natural* source: vertices and relations map onto
-//! `core::graph` with almost no lifting. The interesting work is:
-//!
-//! - [`dialect`]: three query languages (Cypher for Falkor/Ladybug, TypeQL
-//!   for TypeDB, HelixQL for Helix) behind one `TextQuery { dialect }`;
-//! - [`structured`]: the structured `Query` IR → each language, especially
-//!   neighbourhood expansion with depth/kind filters (the graph view's bread
-//!   and butter);
-//! - [`schema`]: TypeDB's rich type system vs. property-graph label sets,
-//!   both flattened to `Schema`.
-//!
-//! Maturity differs a lot between these drivers (see vault
-//! `research/Database Backends.md`); start with **Ladybug/Kuzu (embedded,
-//! no server) and FalkorDB (Redis protocol, simple)**, then TypeDB, then Helix.
-
-pub mod dialect;
+//! `core::graph` with almost no lifting. Built: LadybugDB (feature `ladybug`,
+//! Cypher) and embedded HelixDB (feature `helix`, the `helix` dialect), both
+//! read-only. TypeDB and FalkorDB are designed only — see the vault's
+//! `architecture/Data Sources.md` ("Driver designs not built yet").
 
 /// Names that open as a LadybugDB database (a directory for databases
 /// created before 0.11, a single file since). Usable on every target; the
@@ -61,15 +50,9 @@ pub fn is_ladybug_path(path: &str) -> bool {
         .map(|e| LADYBUG_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
         .unwrap_or(false)
 }
-#[cfg(feature = "falkor")]
-pub mod falkor;
 #[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
 pub mod helix;
 #[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
 pub use helix::HelixSource;
 #[cfg(feature = "ladybug")]
 pub mod ladybug;
-pub mod schema;
-pub mod structured;
-#[cfg(feature = "typedb")]
-pub mod typedb;

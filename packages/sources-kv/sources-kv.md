@@ -10,4 +10,4 @@ Notes for `moonkale-sources-kv` (Milestone 17). Design: [[Data Sources]]. Log: [
 - `rocksdb_store.rs` (feature `rocksdb`, `rocksdb` 0.25, C++): a *secondary* instance (`open_cf_as_secondary`, its metadata in `$TMPDIR/moonkale-rocksdb-secondary-<hash>`), `try_catch_up_with_primary` before each read — a database another process writes stays openable and its new writes show up. Column families are the tables; `estimate-num-keys` the count; prefix scans seek. Brings `zstd-sys` (P-144).
 - `is_redb_path` (`*.redb`), `is_rocksdb_path` (`*.rocksdb` directories — `.rdb` is a Redis dump) for every target; `open_redb`, `open_rocksdb`.
 - Tests: `tests/stores.rs` (redb: typed tables, counts, scans, get, an unreadable table; RocksDB: families, prefix scan, a writer kept open and a write after opening seen). `examples/seed_stores.rs` seeds one store of each Milestone 17 kind for the E2E fixture.
-- Redis/Dragonfly (`patterns`, `values`, `redis`) remain the earlier design stubs.
+- Redis/Dragonfly: designed only ([[Data Sources]], "Driver designs not built yet"); the stub modules were removed in Milestone 18 phase 1.

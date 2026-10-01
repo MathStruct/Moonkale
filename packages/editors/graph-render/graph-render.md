@@ -4,7 +4,7 @@ tags: [crate-notes, milestone-2]
 ---
 Notes for `moonkale-graph-render` (Milestone 2). Design: [[Graph View]], [[ADR-0011 Desktop graph surface strategy]] (plan A).
 
-**A standalone wasm module**, not part of the app's wasm: built by `build.sh` (`cargo build --profile wasm-release --target wasm32-unknown-unknown` + `wasm-bindgen --target web`) into `../graph/assets/graph_render.js` + `graph_render_bg.wasm` (2.4 MB), loaded by the host panel via dynamic `import()` — the same way in the browser and inside the desktop webview.
+**A standalone wasm module**, not part of the app's wasm: built by `build.sh` (`cargo build --profile graph-wasm --target wasm32-unknown-unknown` + `wasm-bindgen --target web`) into `../graph/assets/graph_render.js` + `graph_render_bg.wasm` (2.4 MB), loaded by the host panel via dynamic `import()` — the same way in the browser and inside the desktop webview.
 
 - `graph.rs` — input JSON (`nodes[{id,label,kind,key}]`, `edges[{a,b,kind}]` by index), colours by kind, deterministic spiral start positions, degree-based radius.
 - `layout.rs` — Fruchterman–Reingold with cooling, gravity, pinned nodes; O(n²); stops at temperature < 0.3 or 600 iterations. Native unit tests.

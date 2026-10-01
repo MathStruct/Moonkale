@@ -19,8 +19,8 @@ Implementation notes for `moonkale-core` (Milestone 1). Design: [[Graph-Native M
 - **`Version` is opaque.** Consumers compare for equality only; sources choose the scheme.
 - **Errors inside `Applied`, not `Err`.** A refused op is data; the transaction call itself only fails on transport/protocol errors.
 
-## Still stubs
-`graph/property.rs`, `graph/view.rs`, `command/`, `source/event.rs` — design comments only.
+## Not here (since Milestone 18 phase 1)
+`graph/view.rs` (`GraphView`) and `command/` (descriptor, `when` clauses) were comment-only files and are removed; their designs are in the vault ([[Graph-Native Model]], [[Contribution Points]]). Commands live in `moonkale-ext-api`. `graph/property.rs` (`Value`) and `source/event.rs` (`Changes`) are real code now. `VERSION` (in `lib.rs`) is the release name from `MOONKALE_RELEASE` at build time, else the crate version.
 
 ## Tests
 `cargo test -p moonkale-core` — 7 tests (id determinism/scoping/separator/display, patch application, char offsets, range errors).

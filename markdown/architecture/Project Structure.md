@@ -18,10 +18,10 @@ packages/
 ├─ ext-api/ (6 119)            moonkale-ext-api       Extension trait, contributions, Workspace (2 603), settings, flow model, wiki  [layer]
 ├─ ext-host/ (575)             moonkale-ext-host      wasm runtime (wasmtime) + the JSON ABI types              [platform]
 │
-├─ sources/ (83)               moonkale-sources       registry only; lift/connect/credentials/remote are comment stubs  [layer]
+├─ sources/ (≈ 60)             moonkale-sources       the source registry                                     [layer]
 ├─ sources-sql/ (1 525)        moonkale-sources-sql   SQLite, DuckDB (+ data folders), Turso; statement classifier   [native]
-├─ sources-graph/ (1 375)      moonkale-sources-graph LadybugDB (Linux), HelixDB embedded; TypeDB/Falkor stubs  [native]
-├─ sources-kv/ (1 111)         moonkale-sources-kv    redb, RocksDB (KvSource, `kv` dialect); Redis stub     [native]
+├─ sources-graph/ (≈ 1 360)   moonkale-sources-graph LadybugDB (Linux), HelixDB embedded                [native]
+├─ sources-kv/ (≈ 1 110)       moonkale-sources-kv    redb, RocksDB (KvSource, `kv` dialect)                 [native]
 ├─ project-fs/ (1 423)         moonkale-project-fs    folders, ignore rules, notify watcher, trash            [platform]
 ├─ index/ (2 254)              moonkale-index         IndexSource: wiki-links, tree-sitter symbols, BM25 + embeddings  [layer]
 ├─ trace/ (537)                moonkale-trace         stack traces → Frame nodes (TraceSource)                [layer]
@@ -42,7 +42,6 @@ packages/
 │  ├─ image/ (359)             image viewer
 │  ├─ graph/ (930)             the graph panel (Dioxus host of graph-render)
 │  ├─ graph-render/ (2 340)    wgpu renderer + Barnes–Hut layout, built to its own wasm module; no moonkale deps
-│  ├─ graph-desktop/ (49)      comment stubs only (native overlay, ADR-0011 plan B)
 │  ├─ flow/ (596)              dioxus-flow canvas
 │  ├─ terminal/ (441)          xterm view                                             [swap point]
 │  ├─ terminal-native/ (634)   vt100 + Dioxus (Rust, opt-in)                           [swap point]
@@ -111,7 +110,7 @@ Measured 2026-10-01; each item is a step of [[Milestone 18 - Library Refactor]].
 - **`llm` depends on `sources-sql`** (for the SQL statement classifier), so the agent cannot be built without the SQL drivers' crate.
 - **`api` depends on the git extension**, and holds the server half of every extension that has one.
 - **Opening a database file** is decided in four places (desktop, api, mobile, Explorer).
-- **21 files and one crate are design stubs** (comments only) compiled into the workspace.
+- ~~21 files and one crate were design stubs~~ — removed in Milestone 18 phase 1 (24 files with three orphans nobody declared, and `editors/graph-desktop`); their designs moved to [[Data Sources]], [[Code Editor]], [[ADR-0011 Desktop graph surface strategy]].
 
 ## Why these boundaries
 

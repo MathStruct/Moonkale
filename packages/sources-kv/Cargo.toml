@@ -7,14 +7,11 @@ description = "Key/value sources: redb and RocksDB (embedded), Redis/Dragonfly (
 
 [features]
 default = []
-redis = []
 redb = ["dep:redb", "dep:tokio"]
 rocksdb = ["dep:rocksdb", "dep:tokio"]
 
 [dependencies]
 moonkale-core = { workspace = true }
-# moonkale-sources = { workspace = true }
-# redis = { version = "1", features = ["tokio-comp"], optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # Milestone 17: embedded key/value stores.

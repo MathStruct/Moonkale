@@ -63,7 +63,7 @@ pub async fn handler(headers: HeaderMap, body: Json<Value>) -> Response {
         "initialize" => Ok(json!({
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": { "tools": { "listChanged": false } },
-            "serverInfo": { "name": "moonkale", "version": env!("CARGO_PKG_VERSION") },
+            "serverInfo": { "name": "moonkale", "version": moonkale_core::VERSION },
             "instructions": "Read-only access to the sources open in this Moonkale server. Call workspace_list_sources first for ids."
         })),
         "ping" => Ok(json!({})),

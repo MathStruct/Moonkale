@@ -17,7 +17,7 @@ Everything that used to be in the README about building lives here.
 
 ```
 Moonkale/
-├─ Cargo.toml            # workspace; 38 crates under packages/
+├─ Cargo.toml            # workspace; 36 crates under packages/
 ├─ .cargo/config.toml    # LBUG_LOCALIZE_BUNDLED_SYMBOLS (P-144)
 ├─ packages/
 │  ├─ web/ desktop/ mobile/   platform entrypoints and platform services

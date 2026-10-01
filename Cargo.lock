@@ -7012,10 +7012,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "moonkale-editor-graph-desktop"
-version = "0.1.0"
-
-[[package]]
 name = "moonkale-editor-image"
 version = "0.1.0"
 dependencies = [

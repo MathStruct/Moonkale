@@ -5,19 +5,11 @@
 //! [`KvSource`] — tables in the Sources tree, the `kv` dialect in the table
 //! editor ([`kv`]). Native only, each behind its feature.
 //!
-//! Planned: Redis and Dragonfly, which speak the same protocol, as one
-//! source with a `flavor` field. KV stores are flat, which is the challenge:
-//! the [`patterns`] module turns `user:42:profile` into a tree of synthetic
-//! nodes (`user` → `42` → `profile`) so the explorer and graph view stay
-//! usable. Value types (string/hash/list/set/zset/stream/JSON) become
-//! `ContentRef`s. Keyspace notifications give real `SourceEvent`s when
-//! enabled on the server; otherwise `SCAN`-based polling.
+//! Planned, designed only: Redis and Dragonfly, with key patterns turned into
+//! a synthetic hierarchy — see the vault's `architecture/Data Sources.md`
+//! ("Driver designs not built yet").
 
 pub mod kv;
-pub mod patterns;
-#[cfg(feature = "redis")]
-pub mod redis;
-pub mod values;
 
 #[cfg(all(
     any(feature = "redb", feature = "rocksdb"),

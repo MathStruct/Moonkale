@@ -14,10 +14,10 @@
 //!                ──apply()──────►
 //! ```
 //!
-//! Security (Milestone 1): `open_folder` accepts a *server* path. Set
-//! `MOONKALE_ROOT` to confine it to one subtree; there is no authentication
-//! yet. Treat `dx serve` as a local dev tool until the security items in the
-//! vault's Platform Matrix are done.
+//! Security: `open_folder` accepts a *server* path, confined to
+//! `MOONKALE_ROOT`; with `MOONKALE_TOKEN` set every request needs the token
+//! ([`auth`]). The trust model and the open findings of the 2026-09-23 audit
+//! are in the vault: `architecture/Security.md`.
 
 use dioxus::prelude::*;
 use moonkale_core::{

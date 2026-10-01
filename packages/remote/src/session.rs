@@ -113,7 +113,7 @@ impl Phase {
 }
 
 /// The version string a remote server must match (`moonkale-server 0.1.0`).
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = moonkale_core::VERSION;
 
 /// Marker lines the remote script prints; parsed from the PTY stream.
 const NEED_UPLOAD: &str = "MOONKALE_NEED_UPLOAD";

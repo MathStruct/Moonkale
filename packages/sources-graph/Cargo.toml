@@ -7,16 +7,11 @@ description = "Graph-database sources: TypeDB, LadybugDB (lbug), HelixDB (embedd
 
 [features]
 default = []
-typedb = []
 ladybug = ["dep:lbug", "dep:tokio"]
 helix = ["dep:helix-db", "dep:tokio", "dep:serde_json"]
-falkor = []
 
 [dependencies]
 moonkale-core = { workspace = true }
-# typedb-driver = { version = "3", optional = true }
-# helix-db = { version = "3", features = ["embedded"], optional = true }  # embedded mode; server mode is plain HTTP POST /v2/query
-# falkordb = { version = "0.10", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # LadybugDB official Rust binding (formerly kuzu). Downloads a prebuilt static

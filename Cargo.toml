@@ -41,7 +41,6 @@ members = [
     "packages/extensions/lux",
     "packages/extensions/git",
     "packages/extensions/wordcount",
-    "packages/editors/graph-desktop",
     "packages/editors/graph-render",
     "packages/typst",
 ]
@@ -88,7 +87,6 @@ moonkale-trace = { path = "packages/trace" }
 moonkale-ext-lux = { path = "packages/extensions/lux" }
 moonkale-ext-git = { path = "packages/extensions/git" }
 moonkale-ext-wordcount = { path = "packages/extensions/wordcount" }
-moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }
 moonkale-graph-render = { path = "packages/editors/graph-render" }
 moonkale-typst = { path = "packages/typst" }
 
@@ -102,8 +100,24 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 debug = false
 
-# Size-optimised profile for standalone wasm modules (the graph renderer).
-# Used by packages/editors/graph-render/build.sh.
+# Size-optimised profile for the graph renderer's standalone wasm module
+# (packages/editors/graph-render/build.sh). Named `graph-wasm`, not
+# `wasm-release`: dx builds the browser client with a profile called
+# `wasm-release`, so a workspace profile of that name silently applied these
+# settings to the whole web client too (P-135, Milestone 18 phase 1).
+[profile.graph-wasm]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# The browser client's release profile. dx builds the web client with a
+# profile named `wasm-release`; until Milestone 18 that was the graph
+# renderer's profile by accident of the name (P-135). Kept size-optimised on
+# purpose: every visitor downloads this module (measured 2026-10-02 in the
+# Milestone 18 log: 54.9 MB with dx's defaults, 46.2 MB with these). `strip` makes dx run rust-objcopy (llvm on Arch, P-134).
 [profile.wasm-release]
 inherits = "release"
 opt-level = "s"

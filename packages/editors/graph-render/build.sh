@@ -6,8 +6,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 BINDGEN="${WASM_BINDGEN:-$HOME/.local/share/.dx/tools/wasm-bindgen-0.2.128/wasm-bindgen}"
-cargo build -p moonkale-graph-render --target wasm32-unknown-unknown --profile wasm-release
+cargo build -p moonkale-graph-render --target wasm32-unknown-unknown --profile graph-wasm
 "$BINDGEN" --target web --no-typescript \
   --out-dir packages/editors/graph/assets --out-name graph_render \
-  target/wasm32-unknown-unknown/wasm-release/moonkale_graph_render.wasm
+  target/wasm32-unknown-unknown/graph-wasm/moonkale_graph_render.wasm
 ls -la packages/editors/graph/assets/graph_render*

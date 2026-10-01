@@ -8,7 +8,7 @@ tags: [status, moc]
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
 ## Numbers
-38 crates · 43 600 lines of Rust · ~1 000 lines of TypeScript in four view bundles · 132 Rust tests · 47 browser suites (Playwright) · CI since 2026-10-01: fmt, layering rules, tests, clippy, wasm check, six browser suites (R-39) · releases `YYMMDD-proto` for Arch, Debian, Nix, tarball, Windows, macOS, Android ([[Install]]).
+36 crates · 43 500 lines of Rust · ~1 000 lines of TypeScript in four view bundles · 133 Rust tests · 47 browser suites (Playwright) · CI since 2026-10-01: fmt, layering rules, tests, clippy, wasm check, six browser suites (R-39) · releases `YYMMDD-proto` for Arch, Debian, Nix, tarball, Windows, macOS, Android ([[Install]]).
 
 ## By area
 
@@ -32,7 +32,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Agent** (sessions, saved agents, policy gate, MCP, server sessions, Claude Code) | ✅ | [[Agent Sessions and Profiles]]; wedges (#13) |
 | **Search** (BM25 + embeddings) | ✅ | in memory, rebuilt on open |
 | **Index**: wiki-links, Rust symbols | ✅ | |
-| **Index**: Julia, Python symbols | ⚠ | extractors exist but never run (#16); spec [[022]] says done |
+| **Index**: Julia, Python symbols | ✅ | fixed 2026-10-02 on `refactor` (issue #16 — the extractors never ran before) |
 | **Index**: calls/references, other languages | 📝 | [[Core Languages]] |
 | **Git** (changes, diff, stage, commit, history graph) | ✅ | the `git` CLI; no push/pull |
 | **History** (entity log, restore, compaction) | ✅ | JSONL per folder; #17, P-086 |

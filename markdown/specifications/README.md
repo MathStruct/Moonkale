@@ -27,7 +27,7 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[019]] | Front matter as a Properties bar in the rich editor, body-only view, saved intact | done |
 | [[020]] | Several folders in one graph: every index drawn, per-folder colours, picker narrows to one; cross-folder links wait for projects | done |
 | [[021]] | Markdown opens in Rich mode by default (`editor.markdown_rich`); loading no longer marks the file dirty | done |
-| [[022]] | Julia and Python symbols in the index/graph (tree-sitter); calls/references still not extracted for any language | done on paper — **not working**: the extractors never run (issue #16, [[Audit 2026-09-23]]) |
+| [[022]] | Julia and Python symbols in the index/graph (tree-sitter); calls/references still not extracted for any language | done — the extractors did not run until 2026-10-02 (issue #16, fixed in [[Milestone 18 - Implementation Log\|Milestone 18]] phase 1) |
 | [[023]] | Why a pull costs a 30-minute build: two debug builds of 1.8 GB, feature changes, a thrashed `target/`; `debug = "line-tables-only"` applied: clean debug build 399 s, binaries 449 + 470 MB instead of 1.8 + 1.7 GB | done |
 | [[024]] | Go to definition / centre a graph view from the symbol under the cursor (menu, double or right click); builds on `cursor_word` and the index's symbols | documented |
 | [[025]] | A five-button mouse is the expected device: thumb buttons = back/forward, middle click = open aside, configurable; guard the webview's own button handling | documented |
