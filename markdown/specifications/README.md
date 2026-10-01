@@ -35,3 +35,4 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[027]] | macOS keybindings: `Ctrl` in a binding means Cmd on a Mac and only Cmd; Ctrl stays the text system's (Emacs keys); `keys::primary` everywhere | done (unverified on a Mac) |
 | [[028]] | Export/import the phone's vault (and open a real folder through the Storage Access Framework): private storage is lost on every uninstall and `run-as` only works on debug builds | open |
 | [[029]] | The Android app's name and launcher icon come from a post-build patch that Gradle's caches can defeat (an APK said "Mobile" with the template icon); verify the artefact, then move it into configuration | partly done |
+| [[030]] | The UI in English, German and Chinese; themes (dark, light, follow system, user/extension themes) | open — after Milestone 18 phase 4 (per-extension strings and settings) |
