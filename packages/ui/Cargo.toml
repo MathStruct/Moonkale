@@ -23,9 +23,6 @@ moonkale-ext-lux = { workspace = true }
 moonkale-ext-git = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
-moonkale-sources-sql = { workspace = true }
-moonkale-sources-graph = { workspace = true }
-moonkale-sources-kv = { workspace = true }
 api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 

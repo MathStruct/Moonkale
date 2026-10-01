@@ -405,11 +405,27 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote), presence: Some(join_presence), wasm_module_url: Some(|id| format!("/api/ext/module/{id}")), remote: None, agent_sessions: Some(api::client::agent_sessions(|| true)), server: None, spawn_program: None },
+                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote), presence: Some(join_presence), wasm_module_url: Some(|id| format!("/api/ext/module/{id}")), remote: None, agent_sessions: Some(api::client::agent_sessions(|| true)), server: None, spawn_program: None, openers: openers() },
                 session,
                 new_window: Some(new_window),
             },
             Shell {}
         }
     }
+}
+
+/// The source openers of this app: every driver crate's (Milestone 18
+/// phase 2). Moves to the `distribution` crate in phase 4.
+fn openers() -> &'static moonkale_core::Openers {
+    static OPENERS: std::sync::OnceLock<moonkale_core::Openers> = std::sync::OnceLock::new();
+    OPENERS.get_or_init(|| {
+        moonkale_core::Openers::new(
+            [
+                moonkale_sources_sql::openers(),
+                moonkale_sources_kv::openers(),
+                moonkale_sources_graph::openers(),
+            ]
+            .concat(),
+        )
+    })
 }

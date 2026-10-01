@@ -51,6 +51,7 @@ fn config() -> WorkspaceConfig {
             active: || None,
         }),
         spawn_program: None,
+        openers: &moonkale_core::source::opener::NO_OPENERS,
     }
 }
 

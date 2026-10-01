@@ -12,6 +12,11 @@ moonkale-index = { workspace = true }
 # A server's client on the phone (Milestone 12): *Connect to Server…*.
 api = { workspace = true }
 moonkale-terminal = { workspace = true }
+# The driver crates' source openers (names only here: no driver features in
+# the client build) — Milestone 18 phase 2.
+moonkale-sources-sql = { workspace = true }
+moonkale-sources-graph = { workspace = true }
+moonkale-sources-kv = { workspace = true }
 tracing = "0.1"
 
 [features]

@@ -191,11 +191,27 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_any, pick_folder: None, attach_source: attach_any, spawn_terminal: Some(spawn_terminal), compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: Some(git_any), presence: None, wasm_module_url: None, remote: None, agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: None },
+                workspace: WorkspaceConfig { open_folder: open_any, pick_folder: None, attach_source: attach_any, spawn_terminal: Some(spawn_terminal), compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: Some(git_any), presence: None, wasm_module_url: None, remote: None, agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: None, openers: openers() },
                 session,
                 new_window: None,
             },
             Shell {}
         }
     }
+}
+
+/// The source openers of this app: every driver crate's (Milestone 18
+/// phase 2). Moves to the `distribution` crate in phase 4.
+fn openers() -> &'static moonkale_core::Openers {
+    static OPENERS: std::sync::OnceLock<moonkale_core::Openers> = std::sync::OnceLock::new();
+    OPENERS.get_or_init(|| {
+        moonkale_core::Openers::new(
+            [
+                moonkale_sources_sql::openers(),
+                moonkale_sources_kv::openers(),
+                moonkale_sources_graph::openers(),
+            ]
+            .concat(),
+        )
+    })
 }

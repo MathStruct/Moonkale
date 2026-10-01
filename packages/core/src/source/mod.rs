@@ -14,12 +14,14 @@
 
 pub mod descriptor;
 pub mod event;
+pub mod opener;
 pub mod query;
 pub mod risk;
 pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
 pub use event::Changes;
+pub use opener::{Openers, Shape, SourceOpener};
 pub use query::{Direction, Query, QueryResult, Table};
 pub use risk::Risk;
 pub use transaction::{Applied, Op, OpResult, Splice, TextPatch, Transaction};

@@ -56,3 +56,48 @@ pub mod helix;
 pub use helix::HelixSource;
 #[cfg(feature = "ladybug")]
 pub mod ladybug;
+
+use moonkale_core::source::opener::{OpenFuture, Shape, SourceOpener};
+
+type Open = Option<fn(std::path::PathBuf) -> OpenFuture>;
+
+#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
+const HELIX: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(HelixSource::open(p).await?)
+            as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "helix", not(target_arch = "wasm32"))))]
+const HELIX: Open = None;
+
+#[cfg(all(feature = "ladybug", not(target_arch = "wasm32")))]
+const LADYBUG: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(ladybug::LadybugSource::open(p)?)
+            as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "ladybug", not(target_arch = "wasm32"))))]
+const LADYBUG: Open = None;
+
+/// The graph source openers (Milestone 18 phase 2). LadybugDB is a file
+/// (0.11 and later) or a directory (older databases).
+pub fn openers() -> Vec<SourceOpener> {
+    vec![
+        SourceOpener {
+            id: "helix",
+            name: "HelixDB store",
+            shape: Shape::Dir,
+            matches: is_helix_path,
+            open: HELIX,
+        },
+        SourceOpener {
+            id: "ladybug",
+            name: "LadybugDB database",
+            shape: Shape::Either,
+            matches: is_ladybug_path,
+            open: LADYBUG,
+        },
+    ]
+}

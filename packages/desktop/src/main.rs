@@ -141,47 +141,12 @@ fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
     })
 }
 
-/// Database files/directories by name; `None` means "treat as a folder".
+/// Database files/directories (the app's source openers); `None` means
+/// "treat as a folder".
 async fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
-    let p = std::path::Path::new(path);
-    // Milestone 17: Turso (a SQLite-format file named `*.turso`), redb, a
-    // RocksDB directory, an embedded HelixDB root.
-    if p.is_file() && moonkale_sources_sql::is_turso_path(path) {
-        return Ok(Some(Arc::new(
-            moonkale_sources_sql::TursoSource::open(p).await?,
-        )));
-    }
-    if p.is_file() && moonkale_sources_kv::is_redb_path(path) {
-        return Ok(Some(Arc::new(moonkale_sources_kv::open_redb(p)?)));
-    }
-    if p.is_dir() && moonkale_sources_kv::is_rocksdb_path(path) {
-        return Ok(Some(Arc::new(moonkale_sources_kv::open_rocksdb(p)?)));
-    }
-    if p.is_dir() && moonkale_sources_graph::is_helix_path(path) {
-        return Ok(Some(Arc::new(
-            moonkale_sources_graph::HelixSource::open(p).await?,
-        )));
-    }
-    if p.is_file() && moonkale_sources_sql::is_sqlite_path(path) {
-        return Ok(Some(Arc::new(moonkale_sources_sql::SqliteSource::open(p)?)));
-    }
-    // DuckDB (Milestone 9): a database file, or a data file whose folder
-    // becomes a database of CSV/TSV/Parquet views.
-    if p.is_file() && moonkale_sources_sql::is_duckdb_path(path) {
-        return Ok(Some(Arc::new(moonkale_sources_sql::DuckDbSource::open(p)?)));
-    }
-    if p.is_file() && moonkale_sources_sql::is_data_path(path) {
-        let dir = p.parent().ok_or(SourceError::NotFound)?;
-        return Ok(Some(Arc::new(
-            moonkale_sources_sql::DuckDbSource::open_data_folder(dir)?,
-        )));
-    }
-    if moonkale_sources_graph::is_ladybug_path(path) {
-        if let Some(db) = moonkale_sources_graph::open_ladybug(p) {
-            return Ok(Some(db?));
-        }
-    }
-    Ok(None)
+    let p = std::path::PathBuf::from(path);
+    let is_dir = p.is_dir();
+    openers().open(p, is_dir).await
 }
 
 /// Another window opened it: take the shared instance from the registry.
@@ -684,7 +649,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: Some(spawn_program) },
+                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: Some(spawn_program), openers: openers() },
                 session,
                 new_window: open_window,
             },
@@ -692,6 +657,22 @@ fn App() -> Element {
             Shell {}
         }
     }
+}
+
+/// The source openers of this app: every driver crate's (Milestone 18
+/// phase 2). Moves to the `distribution` crate in phase 4.
+fn openers() -> &'static moonkale_core::Openers {
+    static OPENERS: std::sync::OnceLock<moonkale_core::Openers> = std::sync::OnceLock::new();
+    OPENERS.get_or_init(|| {
+        moonkale_core::Openers::new(
+            [
+                moonkale_sources_sql::openers(),
+                moonkale_sources_kv::openers(),
+                moonkale_sources_graph::openers(),
+            ]
+            .concat(),
+        )
+    })
 }
 
 #[cfg(test)]

@@ -152,6 +152,10 @@ pub struct WorkspaceConfig {
     /// Run a program with arguments under a PTY (Milestone 15: `claude auth
     /// login` as a terminal tab); `None` where there is no PTY.
     pub spawn_program: Option<SpawnProgram>,
+    /// Which files and directories open as database sources, and how
+    /// (Milestone 18 phase 2): assembled by the app from the driver crates'
+    /// `openers()`, so the shell needs no driver of its own.
+    pub openers: &'static moonkale_core::Openers,
 }
 
 /// `(program, args, cols, rows)` → a terminal backend running it.
@@ -642,6 +646,11 @@ impl Workspace {
     }
 
     /// Can this platform open folders over SSH?
+    /// The source openers of this build ([`WorkspaceConfig::openers`]).
+    pub fn openers(&self) -> &'static moonkale_core::Openers {
+        self.config.openers
+    }
+
     pub fn has_remote(&self) -> bool {
         self.config.remote.is_some()
     }

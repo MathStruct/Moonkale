@@ -55,6 +55,7 @@ fn config() -> WorkspaceConfig {
         agent_sessions: None,
         server: None,
         spawn_program: None,
+        openers: &moonkale_core::source::opener::NO_OPENERS,
     }
 }
 

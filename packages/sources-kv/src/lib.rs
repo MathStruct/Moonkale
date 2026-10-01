@@ -64,6 +64,48 @@ pub fn open_rocksdb(
     Ok(KvSource::new("rocksdb", &path, store))
 }
 
+use moonkale_core::source::opener::{OpenFuture, Shape, SourceOpener};
+
+type Open = Option<fn(std::path::PathBuf) -> OpenFuture>;
+
+#[cfg(all(feature = "redb", not(target_arch = "wasm32")))]
+const REDB: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(open_redb(&p)?) as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "redb", not(target_arch = "wasm32"))))]
+const REDB: Open = None;
+
+#[cfg(all(feature = "rocksdb", not(target_arch = "wasm32")))]
+const ROCKSDB: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(open_rocksdb(&p)?) as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "rocksdb", not(target_arch = "wasm32"))))]
+const ROCKSDB: Open = None;
+
+/// The key/value source openers (Milestone 18 phase 2).
+pub fn openers() -> Vec<SourceOpener> {
+    vec![
+        SourceOpener {
+            id: "redb",
+            name: "redb database",
+            shape: Shape::File,
+            matches: is_redb_path,
+            open: REDB,
+        },
+        SourceOpener {
+            id: "rocksdb",
+            name: "RocksDB database",
+            shape: Shape::Dir,
+            matches: is_rocksdb_path,
+            open: ROCKSDB,
+        },
+    ]
+}
+
 #[cfg(test)]
 mod path_tests {
     #[test]

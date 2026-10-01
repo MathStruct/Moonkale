@@ -64,6 +64,21 @@ pub(crate) mod state {
         REGISTRY.get_or_init(SourceRegistry::new)
     }
 
+    /// The server's source openers (every driver this server is built with).
+    pub fn openers() -> &'static moonkale_core::Openers {
+        static OPENERS: OnceLock<moonkale_core::Openers> = OnceLock::new();
+        OPENERS.get_or_init(|| {
+            moonkale_core::Openers::new(
+                [
+                    moonkale_sources_sql::openers(),
+                    moonkale_sources_kv::openers(),
+                    moonkale_sources_graph::openers(),
+                ]
+                .concat(),
+            )
+        })
+    }
+
     /// Where `open_folder` may look. `MOONKALE_ROOT` if set, else the
     /// process working directory (which under `dx serve` is the workspace).
     pub fn allowed_root() -> PathBuf {
@@ -93,8 +108,8 @@ pub(crate) mod state {
         Ok(canonical.to_string_lossy().into_owned())
     }
 
-    /// A `.sqlite`/`.db` file or a `.lbug`/`.kuzu` database opens as a
-    /// database; anything else as a folder.
+    /// A path one of [`openers`] claims opens as that database; anything
+    /// else as a folder.
     pub async fn open_any(path: &str) -> std::io::Result<Vec<Arc<dyn moonkale_core::Source>>> {
         let allowed = std::fs::canonicalize(allowed_root())?;
         let requested: PathBuf = if path.trim().is_empty() {
@@ -115,56 +130,14 @@ pub(crate) mod state {
                 ),
             ));
         }
-        if canonical.is_file() && moonkale_sources_sql::is_sqlite_path(&canonical.to_string_lossy())
+        // Databases: the first of the server's source openers that claims
+        // the path (Milestone 18 phase 2; the same list the desktop uses).
+        if let Some(db) = openers()
+            .open(canonical.clone(), canonical.is_dir())
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))?
         {
-            let db = moonkale_sources_sql::SqliteSource::open(&canonical)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
-            return Ok(vec![Arc::new(db)]);
-        }
-        // Milestone 17: Turso, redb, RocksDB, embedded HelixDB.
-        let name = canonical.to_string_lossy().into_owned();
-        let io = |e: moonkale_core::SourceError| std::io::Error::other(e.to_string());
-        if canonical.is_file() && moonkale_sources_sql::is_turso_path(&name) {
-            let db = moonkale_sources_sql::TursoSource::open(&canonical)
-                .await
-                .map_err(io)?;
-            return Ok(vec![Arc::new(db)]);
-        }
-        if canonical.is_file() && moonkale_sources_kv::is_redb_path(&name) {
-            return Ok(vec![Arc::new(
-                moonkale_sources_kv::open_redb(&canonical).map_err(io)?,
-            )]);
-        }
-        if canonical.is_dir() && moonkale_sources_kv::is_rocksdb_path(&name) {
-            return Ok(vec![Arc::new(
-                moonkale_sources_kv::open_rocksdb(&canonical).map_err(io)?,
-            )]);
-        }
-        if canonical.is_dir() && moonkale_sources_graph::is_helix_path(&name) {
-            let db = moonkale_sources_graph::HelixSource::open(&canonical)
-                .await
-                .map_err(io)?;
-            return Ok(vec![Arc::new(db)]);
-        }
-        if moonkale_sources_graph::is_ladybug_path(&canonical.to_string_lossy()) {
-            if let Some(db) = moonkale_sources_graph::open_ladybug(&canonical) {
-                return Ok(vec![db.map_err(io)?]);
-            }
-        }
-        // DuckDB (Milestone 9): a database file, or a data file's folder as CSV/Parquet views.
-        let as_str = canonical.to_string_lossy().into_owned();
-        if canonical.is_file() && moonkale_sources_sql::is_duckdb_path(&as_str) {
-            let db = moonkale_sources_sql::DuckDbSource::open(&canonical)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
-            return Ok(vec![Arc::new(db)]);
-        }
-        if canonical.is_file() && moonkale_sources_sql::is_data_path(&as_str) {
-            let dir = canonical
-                .parent()
-                .ok_or_else(|| std::io::Error::other("no parent"))?;
-            let db = moonkale_sources_sql::DuckDbSource::open_data_folder(dir)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
-            return Ok(vec![Arc::new(db)]);
+            return Ok(vec![db]);
         }
         Ok(vec![Arc::new(FolderSource::open(canonical)?)])
     }

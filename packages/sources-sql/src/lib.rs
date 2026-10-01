@@ -60,3 +60,85 @@ pub fn is_sqlite_path(path: &str) -> bool {
         .map(|e| SQLITE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
         .unwrap_or(false)
 }
+
+use moonkale_core::source::opener::{OpenFuture, Shape, SourceOpener};
+use std::path::PathBuf;
+
+type Open = Option<fn(PathBuf) -> OpenFuture>;
+
+#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
+const TURSO: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(TursoSource::open(p).await?)
+            as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "turso", not(target_arch = "wasm32"))))]
+const TURSO: Open = None;
+
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+const SQLITE: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(SqliteSource::open(p)?)
+            as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "sqlite", not(target_arch = "wasm32"))))]
+const SQLITE: Open = None;
+
+#[cfg(all(feature = "duckdb", not(target_arch = "wasm32")))]
+const DUCKDB: Open = Some(|p| {
+    Box::pin(async move {
+        Ok(std::sync::Arc::new(DuckDbSource::open(p)?)
+            as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "duckdb", not(target_arch = "wasm32"))))]
+const DUCKDB: Open = None;
+
+/// A data file opens its *folder* as a DuckDB database of CSV/TSV/Parquet views.
+#[cfg(all(feature = "duckdb", not(target_arch = "wasm32")))]
+const DATA_FOLDER: Open = Some(|p| {
+    Box::pin(async move {
+        let dir = p.parent().ok_or(moonkale_core::SourceError::NotFound)?;
+        Ok(std::sync::Arc::new(DuckDbSource::open_data_folder(dir)?)
+            as std::sync::Arc<dyn moonkale_core::Source>)
+    })
+});
+#[cfg(not(all(feature = "duckdb", not(target_arch = "wasm32"))))]
+const DATA_FOLDER: Open = None;
+
+/// The SQL source openers (Milestone 18 phase 2): matched by name on every
+/// target, openable where the feature is built.
+pub fn openers() -> Vec<SourceOpener> {
+    vec![
+        SourceOpener {
+            id: "turso",
+            name: "Turso database",
+            shape: Shape::File,
+            matches: is_turso_path,
+            open: TURSO,
+        },
+        SourceOpener {
+            id: "sqlite",
+            name: "SQLite database",
+            shape: Shape::File,
+            matches: is_sqlite_path,
+            open: SQLITE,
+        },
+        SourceOpener {
+            id: "duckdb",
+            name: "DuckDB database",
+            shape: Shape::File,
+            matches: is_duckdb_path,
+            open: DUCKDB,
+        },
+        SourceOpener {
+            id: "data-folder",
+            name: "CSV/TSV/Parquet folder (DuckDB)",
+            shape: Shape::File,
+            matches: is_data_path,
+            open: DATA_FOLDER,
+        },
+    ]
+}
