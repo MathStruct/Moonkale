@@ -5,3 +5,9 @@
 # partially link the archive and make those bundled symbols local (Linux/ELF
 # only; needs GNU binutils). Every cargo/dx build of the workspace gets it.
 LBUG_LOCALIZE_BUNDLED_SYMBOLS = "1"
+# P-146: without LBUG_VERSION the build script downloads the prebuilt library
+# of the *latest* LadybugDB release, not the one matching the crate — so a
+# build changes when upstream publishes (and failed with a 404 on 2026-10-01
+# while v0.21.2's assets were being uploaded). Keep this equal to the `lbug`
+# version in packages/sources-graph/Cargo.toml.
+LBUG_VERSION = "0.21.0"

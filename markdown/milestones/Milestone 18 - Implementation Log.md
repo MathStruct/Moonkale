@@ -16,6 +16,7 @@ Plan: [[Milestone 18 - Library Refactor]]. One section per phase; renames get a 
 | 5a | The smoke batch locally (`run-all.sh files rich stores palette shell wiki`, Firefox, a warm `dx serve`) | ✅ all six pass in 45 s | the CI workflow itself is unverified until the branch is pushed |
 | 5 | `serve.sh`: `SERVE_WAIT` | the first-build wait is configurable (default 240 × 5 s); CI sets 600 | a cold debug build of server + client on a 4-core runner can exceed 20 min |
 | 6 | Baseline numbers | below | |
+| 7 | First CI run (36914570665) | lint ✅ (38 s) · e2e ✅ (28 min, cold) · **test ❌** after 54 min: `lbug`'s build script fetched the *latest* LadybugDB release (v0.21.2, published that day) and got a 404; its source fallback is broken too | **P-146**: `LBUG_VERSION = "0.21.0"` pinned in `.cargo/config.toml` |
 
 ### Baseline (before any refactoring)
 Measured on the dev machine (8 cores, 30 GB) unless stated.
