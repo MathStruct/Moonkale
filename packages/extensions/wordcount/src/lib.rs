@@ -1,4 +1,4 @@
-//! Example wasm extension for Moonkale (ABI v1, see `moonkale-ext-host`).
+//! Example wasm extension for Moonkale (ABI v1, types in `moonkale-ext-abi`).
 //!
 //! Commands:
 //! - `wordcount.count { source, node }` → lines / words / characters of a file,
@@ -10,7 +10,7 @@
 //! Build: `cargo build -p moonkale-ext-wordcount --target wasm32-unknown-unknown --release`
 //! (or `build.sh`, which also copies it into `~/.config/moonkale/extensions/`).
 
-use moonkale_ext_host::abi::{
+use moonkale_ext_abi::{
     HostCall, HostReply, RunReply, RunRequest, WasmCommand, WasmManifest, ABI_VERSION,
 };
 use serde_json::{json, Value};

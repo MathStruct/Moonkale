@@ -62,6 +62,8 @@ jobs:
           shared-key: ci-test
       - name: cargo test
         run: cargo test --workspace --locked
+      - name: The wasm runtime with the example extension (feature wasmtime is off by default)
+        run: cargo test -p moonkale-ext-host --features wasmtime --locked
       - name: clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Web client compiles for wasm32 (no native-only crate leaked in)

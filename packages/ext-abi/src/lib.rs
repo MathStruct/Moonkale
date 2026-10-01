@@ -1,6 +1,12 @@
-//! The JSON shapes crossing the guest/host boundary. Shared by the host
-//! and by extensions written in Rust (they can depend on this crate with no
-//! features to get the types).
+//! # moonkale-ext-abi
+//!
+//! The JSON shapes crossing the guest/host boundary of the wasm extension
+//! ABI v1 ([vault: ADR-0013]). Shared by the runtime (`moonkale-ext-host`),
+//! the extension contract (`moonkale-ext-api`) and extensions written in Rust
+//! (`packages/extensions/wordcount`). Split out of `ext-host` in Milestone 18
+//! phase 2 so that none of them needs the runtime to get the types.
+//!
+//! [vault: ADR-0013]: ../../../markdown/decisions/ADR-0013%20JSON%20ABI%20before%20components.md
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

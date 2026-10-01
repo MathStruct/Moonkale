@@ -23,7 +23,9 @@
 //!
 //! Vault: `architecture/Extension System.md`, `extensions/Writing an Extension.md`.
 
-pub mod abi;
+/// The ABI types, re-exported from `moonkale-ext-abi` (their home since
+/// Milestone 18) so `moonkale_ext_host::abi::…` keeps working.
+pub use moonkale_ext_abi as abi;
 #[cfg(all(feature = "wasmtime", not(target_arch = "wasm32")))]
 pub mod runtime;
 

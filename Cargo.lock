@@ -7074,6 +7074,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "moonkale-ext-abi"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "moonkale-ext-api"
 version = "0.1.0"
 dependencies = [
@@ -7084,7 +7092,7 @@ dependencies = [
  "futures-util",
  "js-sys",
  "moonkale-core",
- "moonkale-ext-host",
+ "moonkale-ext-abi",
  "moonkale-llm",
  "moonkale-lsp",
  "moonkale-terminal",
@@ -7114,6 +7122,7 @@ name = "moonkale-ext-host"
 version = "0.1.0"
 dependencies = [
  "moonkale-core",
+ "moonkale-ext-abi",
  "moonkale-project-fs",
  "serde",
  "serde_json",
@@ -7134,7 +7143,7 @@ dependencies = [
 name = "moonkale-ext-wordcount"
 version = "0.1.0"
 dependencies = [
- "moonkale-ext-host",
+ "moonkale-ext-abi",
  "serde",
  "serde_json",
 ]

@@ -3,8 +3,7 @@
 # list can only shrink. Each group names the step of Milestone 18 that removes it.
 # Rules are evaluated on the default feature set (`cargo metadata`).
 
-# Phase 2.1 — ABI types into moonkale-ext-abi; phase 3 — settings per extension
-ext-api-is-a-contract moonkale-ext-api -> moonkale-ext-host
+# Phase 3 — settings per extension (the ext-host edge went in phase 2.1)
 ext-api-is-a-contract moonkale-ext-api -> moonkale-llm
 
 # Phase 2.2 — statement classification moves onto the source

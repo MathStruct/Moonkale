@@ -86,7 +86,7 @@ pub type SecretStore = fn(String, String) -> SettingsFuture<()>;
 /// Third-party wasm extensions (Milestone 6): the platform lists what is
 /// installed and runs commands where the runtime lives (desktop in-process,
 /// web on the server). `granted` are the permissions the user ticked.
-pub type WasmList = fn(Option<String>) -> SettingsFuture<Vec<moonkale_ext_host::WasmManifest>>;
+pub type WasmList = fn(Option<String>) -> SettingsFuture<Vec<moonkale_ext_abi::WasmManifest>>;
 pub type WasmRun = fn(String, String, serde_json::Value, Vec<String>) -> SettingsFuture<String>;
 #[derive(Clone, Copy)]
 pub struct WasmExtensions {
@@ -324,7 +324,7 @@ pub struct Workspace {
     /// Block libraries from the enabled extensions (the shell keeps it current).
     pub flow_libraries: Signal<Vec<crate::flow::FlowLibrary>>,
     /// Installed wasm extensions (manifests), refreshed at start and on folder open.
-    pub wasm_extensions: Signal<Vec<moonkale_ext_host::WasmManifest>>,
+    pub wasm_extensions: Signal<Vec<moonkale_ext_abi::WasmManifest>>,
     /// Persisted scopes and the resolved value (see `settings.rs`).
     pub settings_user: Signal<crate::settings::SettingsFile>,
     pub settings_workspace: Signal<crate::settings::SettingsFile>,
@@ -1052,7 +1052,7 @@ impl Workspace {
         args: serde_json::Value,
         granted: &[String],
     ) -> Result<BrowserRun, String> {
-        use moonkale_ext_host::abi::{HostCall, HostReply};
+        use moonkale_ext_abi::{HostCall, HostReply};
         let mut ev = dioxus::document::eval(WASM_HOST_JS);
         let _ = ev.send(serde_json::json!({ "url": url, "command": command, "args": args }));
         loop {
@@ -1076,7 +1076,7 @@ impl Workspace {
                 }
                 Some("done") => {
                     let reply = msg.get("reply").and_then(|r| r.as_str()).unwrap_or("");
-                    let parsed: moonkale_ext_host::abi::RunReply = serde_json::from_str(reply)
+                    let parsed: moonkale_ext_abi::RunReply = serde_json::from_str(reply)
                         .map_err(|e| format!("reply JSON: {e}: {reply}"))?;
                     return Ok(BrowserRun::Done(parsed.into_result()));
                 }
@@ -1096,10 +1096,10 @@ impl Workspace {
     /// the same permission check as the native runtime.
     async fn answer_host_call(
         &self,
-        call: moonkale_ext_host::abi::HostCall,
+        call: moonkale_ext_abi::HostCall,
         granted: &[String],
-    ) -> moonkale_ext_host::abi::HostReply {
-        use moonkale_ext_host::abi::{HostCall, HostReply};
+    ) -> moonkale_ext_abi::HostReply {
+        use moonkale_ext_abi::{HostCall, HostReply};
         let needed = call.permission();
         if !granted.iter().any(|g| g == needed) {
             return HostReply::err(format!(
