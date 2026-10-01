@@ -46,5 +46,4 @@ Not measured yet: cold open of this repository (needs the desktop app; `bench.mj
 | 5 | Template READMEs, stale crate docs | `api`, `desktop`, `ui` READMEs point at their crate notes; `web` got a real README (it had no crate note); crate docs of `api` (said "no authentication"), `ext-api` ("Milestone 1 scope"), `core`, `sources`, `sources-*` rewritten to what is built; crate notes `core.md`, `sources.md`, `sources-graph.md`, `sources-kv.md` updated | |
 | 6 | **Issue #16**, Julia/Python symbols | `extract::LANGUAGES` + `extract::reads()` — one list for what the walk fetches and what `extract_into` dispatches; new test `julia_and_python_symbols_are_indexed` (fails without the fix: no symbols at all) | the same list also brings `.jl`/`.py` text into search |
 | 7 | Checks | fmt ✅ · layering 29 known, 0 new ✅ · clippy `-D warnings` on 1.98.1 **and** 1.99.0 ✅ · **133 tests pass**, 5 ignored ✅ · wasm32 check ✅ | CI: see below |
-
 | 8 | CI (run 36934297024) | ✅ all green: lint 34 s · e2e 9 min · test + clippy + wasm 12 min (warm cache) | phase 1 done |
