@@ -17,6 +17,7 @@ Plan: [[Milestone 18 - Library Refactor]]. One section per phase; renames get a 
 | 5 | `serve.sh`: `SERVE_WAIT` | the first-build wait is configurable (default 240 × 5 s); CI sets 600 | a cold debug build of server + client on a 4-core runner can exceed 20 min |
 | 6 | Baseline numbers | below | |
 | 7 | First CI run (36914570665) | lint ✅ (38 s) · e2e ✅ (28 min, cold) · **test ❌** after 54 min: `lbug`'s build script fetched the *latest* LadybugDB release (v0.21.2, published that day) and got a 404; its source fallback is broken too | **P-146**: `LBUG_VERSION = "0.21.0"` pinned in `.cargo/config.toml` |
+| 8 | Second run (36924574219) | lint ✅ · e2e ✅ (11 min, warm cache) · tests ✅ **132 passed** · **clippy ❌**: the runner's `stable` was Rust **1.99** (released 2026-09-28), which adds `needless_borrows_for_generic_args` (`ui/src/history.rs:190`); this machine had 1.98.1 | fixed; checked with `cargo +1.99.0 clippy` (installed next to the default toolchain, which is unchanged). CI stays on `stable` on purpose: a new release's lints show up in CI first — fix them then, and run `cargo +<new> clippy` locally to catch them all in one round |
 
 ### Baseline (before any refactoring)
 Measured on the dev machine (8 cores, 30 GB) unless stated.

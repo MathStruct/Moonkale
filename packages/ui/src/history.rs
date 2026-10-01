@@ -187,7 +187,7 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
                     {
                         let is_checkpoint = matches!(e.kind, EventKind::Checkpoint { .. });
                         let node = e.node();
-                        let key = e.key.clone().or_else(|| node.map(&key_of)).unwrap_or_default();
+                        let key = e.key.clone().or_else(|| node.map(key_of)).unwrap_or_default();
                         let has_text = node.is_some_and(|n| log.text_at(n, Some(e.id)).is_some());
                         let (ev_id, actor, at) = (e.id, e.actor.clone(), e.at);
                         let who = actor.split(':').nth(1).unwrap_or(&actor).to_string();
