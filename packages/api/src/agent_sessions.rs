@@ -197,6 +197,20 @@ mod server {
             })
         }
 
+        /// The target source in the server's registry classifies its own
+        /// text queries (`Source::classify`).
+        fn classify(&self, call: &ToolCall) -> Option<moonkale_core::Risk> {
+            if call.name != "source.text_query" {
+                return None;
+            }
+            let source =
+                crate::state::registry().get(&moonkale_core::SourceId::new(call.str("source")?))?;
+            Some(source.classify(
+                call.str("dialect").unwrap_or("sql"),
+                call.str("text").unwrap_or_default(),
+            ))
+        }
+
         fn approve(&self, call: ToolCall, class: Class) -> moonkale_llm::agent::HostFuture<bool> {
             let rec = self.rec.clone();
             let allow = self.allow_writes;

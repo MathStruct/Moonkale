@@ -6,9 +6,6 @@
 # Phase 3 — settings per extension (the ext-host edge went in phase 2.1)
 ext-api-is-a-contract moonkale-ext-api -> moonkale-llm
 
-# Phase 2.2 — statement classification moves onto the source
-only-apps-assemble moonkale-llm -> moonkale-sources-sql
-
 # Phase 4.3 — server halves move into their extensions
 only-apps-assemble api -> moonkale-ext-git
 

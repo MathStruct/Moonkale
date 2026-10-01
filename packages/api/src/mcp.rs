@@ -210,7 +210,8 @@ pub(crate) async fn run(call: ToolCall) -> Result<String, String> {
                 };
                 // External agents are read-only: refuse anything the policy
                 // would not run silently.
-                let (class, _) = moonkale_llm::Policy::default().decide(&tc);
+                let risk = source_of(&call)?.classify(&dialect, &text);
+                let (class, _) = moonkale_llm::Policy::default().decide_with(&tc, Some(risk));
                 if class != moonkale_llm::Class::ReadOnly {
                     return Err(format!("{class:?} statements are not allowed over MCP"));
                 }

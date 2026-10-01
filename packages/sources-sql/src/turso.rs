@@ -5,13 +5,12 @@
 //! - Ids: `turso:<absolute path>`; nodes derived from `""` (database),
 //!   `"table:<name>"`, `"column:<table>.<name>"`.
 //! - `Children(database)` → tables and views; `Children(table)` → columns.
-//! - `Query::Text` runs read statements only (`text::classify`), capped at
+//! - `Query::Text` runs read statements only (`Source::classify`, the shared rules in `moonkale_core::source::risk`), capped at
 //!   [`ROW_CAP`] rows. `Query::All` → the schema graph.
 //! - Opened by extension (`*.turso`): a Turso file *is* a SQLite file, and
 //!   `.db`/`.sqlite` keep opening with SQLite.
 //! - Read-only for now, like SQLite: writes are the next step.
 
-use crate::text::{classify, Statement};
 use moonkale_core::{
     async_trait, Applied, Capabilities, Edge, Node, NodeId, NodeKind, Query, QueryResult, Source,
     SourceDescriptor, SourceError, SourceFamily, SourceId, Table, TextDialect, Transaction, Value,
@@ -271,8 +270,8 @@ impl Source for TursoSource {
                         "dialect {dialect}; this source speaks sql"
                     )));
                 }
-                match classify(&text) {
-                    Statement::Read => {}
+                match self.classify("sql", &text) {
+                    moonkale_core::Risk::Read => {}
                     other => {
                         return Err(SourceError::Unsupported(format!(
                             "{other:?} statements are not allowed on a read-only source"

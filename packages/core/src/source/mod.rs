@@ -15,11 +15,13 @@
 pub mod descriptor;
 pub mod event;
 pub mod query;
+pub mod risk;
 pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
 pub use event::Changes;
 pub use query::{Direction, Query, QueryResult, Table};
+pub use risk::Risk;
 pub use transaction::{Applied, Op, OpResult, Splice, TextPatch, Transaction};
 
 use crate::error::SourceError;
@@ -74,6 +76,14 @@ pub trait Source: MaybeSendSync {
     /// `seq` is the position to continue from.
     async fn changes_since(&self, _since: u64) -> Result<Option<Changes>, SourceError> {
         Ok(None)
+    }
+
+    /// What running `text` in `dialect` would do — the read-only gate and
+    /// the agent's policy both ask this. Default: the shared rules in
+    /// [`risk::classify`]; a source that knows better (functions that read
+    /// files, a dialect of its own) overrides it.
+    fn classify(&self, dialect: &str, text: &str) -> Risk {
+        risk::classify(dialect, text)
     }
 }
 

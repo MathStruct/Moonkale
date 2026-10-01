@@ -447,4 +447,25 @@ impl ToolHost for WorkspaceHost {
             answer
         })
     }
+
+    /// The target source classifies its own text queries.
+    fn classify(&self, call: &ToolCall) -> Option<moonkale_core::Risk> {
+        text_query_risk(call, |c| source_of(self.ws, c).ok().map(|(s, _)| s))
+    }
+}
+
+/// `Source::classify` of the source a `source.text_query` targets; `None`
+/// for other tools or an unknown source (the policy then uses the shared rules).
+pub(crate) fn text_query_risk(
+    call: &ToolCall,
+    source: impl FnOnce(&ToolCall) -> Option<std::sync::Arc<dyn moonkale_core::Source>>,
+) -> Option<moonkale_core::Risk> {
+    if call.name != "source.text_query" {
+        return None;
+    }
+    let s = source(call)?;
+    Some(s.classify(
+        call.str("dialect").unwrap_or("sql"),
+        call.str("text").unwrap_or_default(),
+    ))
 }

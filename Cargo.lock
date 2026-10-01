@@ -7189,7 +7189,6 @@ dependencies = [
  "futures-executor",
  "futures-util",
  "moonkale-core",
- "moonkale-sources-sql",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

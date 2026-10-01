@@ -3,7 +3,8 @@
 //! always ask (and are refused outright when the source is read-only).
 
 use crate::tools::ToolCall;
-use moonkale_sources_sql::text::{classify, Statement};
+use moonkale_core::source::risk;
+use moonkale_core::Risk;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,18 +42,28 @@ impl Default for Policy {
 }
 
 impl Policy {
+    /// The class of a call, with text queries classified by the shared
+    /// rules ([`risk::classify`]). Prefer [`Policy::classify_with`] and the
+    /// source's own answer when the source is at hand.
     pub fn classify(call: &ToolCall) -> Class {
+        Self::classify_with(call, None)
+    }
+
+    /// The class of a call; `text_risk` is what the target source said about
+    /// a `source.text_query` (`Source::classify`), `None` = the shared rules.
+    pub fn classify_with(call: &ToolCall, text_risk: Option<Risk>) -> Class {
         match call.name.as_str() {
             "source.text_query" => {
-                let text = call.str("text").unwrap_or_default();
-                match call.str("dialect").unwrap_or("sql") {
-                    "cypher" => classify_cypher(text),
-                    _ => match classify(text) {
-                        Statement::Read => Class::ReadOnly,
-                        Statement::Write => Class::Mutating,
-                        Statement::Ddl => Class::Destructive,
-                        Statement::Unknown => Class::Mutating,
-                    },
+                let risk = text_risk.unwrap_or_else(|| {
+                    risk::classify(
+                        call.str("dialect").unwrap_or("sql"),
+                        call.str("text").unwrap_or_default(),
+                    )
+                });
+                match risk {
+                    Risk::Read => Class::ReadOnly,
+                    Risk::Write | Risk::Unknown => Class::Mutating,
+                    Risk::Destructive => Class::Destructive,
                 }
             }
             "editor.replace" | "file.create" => Class::Mutating,
@@ -69,10 +80,16 @@ impl Policy {
     }
 
     pub fn decide(&self, call: &ToolCall) -> (Class, Decision) {
+        self.decide_with(call, None)
+    }
+
+    /// [`Policy::decide`] with the target source's classification of a text
+    /// query (see [`Policy::classify_with`]).
+    pub fn decide_with(&self, call: &ToolCall, text_risk: Option<Risk>) -> (Class, Decision) {
         if self.denied_tools.iter().any(|t| t == &call.name) {
-            return (Self::classify(call), Decision::Deny);
+            return (Self::classify_with(call, text_risk), Decision::Deny);
         }
-        let class = Self::classify(call);
+        let class = Self::classify_with(call, text_risk);
         let decision = match class {
             Class::ReadOnly => Decision::Allow,
             Class::Mutating => self.mutating,
@@ -113,29 +130,6 @@ pub fn classify_command(cmd: &str) -> Class {
         Class::Destructive
     } else {
         Class::Mutating
-    }
-}
-
-/// Cypher has no statement classifier in the sources yet: keyword scan.
-pub fn classify_cypher(text: &str) -> Class {
-    let upper = text.to_ascii_uppercase();
-    let has = |k: &str| {
-        upper
-            .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-            .any(|w| w == k)
-    };
-    if has("DROP") || (has("DELETE") && !has("WHERE")) || has("DETACH") || has("ALTER") {
-        Class::Destructive
-    } else if has("CREATE")
-        || has("MERGE")
-        || has("SET")
-        || has("DELETE")
-        || has("REMOVE")
-        || has("COPY")
-    {
-        Class::Mutating
-    } else {
-        Class::ReadOnly
     }
 }
 
@@ -225,5 +219,17 @@ mod tests {
             input: json!({}),
         };
         assert_eq!(p.decide(&open).1, Decision::Deny);
+    }
+
+    #[test]
+    fn the_sources_own_classification_wins() {
+        let p = Policy::default();
+        // A source that knows `SELECT read_csv(...)` reads files may call it a write.
+        let c = call("sql", "SELECT * FROM read_csv('/etc/passwd')");
+        assert_eq!(p.decide(&c).0, Class::ReadOnly);
+        assert_eq!(
+            p.decide_with(&c, Some(Risk::Write)),
+            (Class::Mutating, Decision::Ask)
+        );
     }
 }

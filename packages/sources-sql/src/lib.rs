@@ -1,18 +1,16 @@
 //! # moonkale-sources-sql
 //!
 //! One `Source` implementation per dialect behind a feature flag. All share
-//! [`text`] (statement classification for the read-only gate) and the same
-//! lifting: database → `Database` node, tables → `Table` nodes, columns →
+//! the read-only gate (`Source::classify`) and the same lifting: database → `Database` node, tables → `Table` nodes, columns →
 //! `Column` nodes, `Contains` edges between them — so a database's *schema*
 //! is a graph the graph view can draw.
 //!
 //! Built: SQLite (`rusqlite`, bundled), DuckDB (+ folders of CSV/TSV/Parquet)
-//! and Turso — all read-only: `Query::Text` accepts what [`text`] classifies as
-//! a read. Postgres is designed only (vault `architecture/Data Sources.md`).
+//! and Turso — all read-only: `Query::Text` accepts what `Source::classify`
+//! (`moonkale_core::source::risk`) calls a read. Postgres is designed only
+//! (vault `architecture/Data Sources.md`).
 //! Compiles only on native targets; the `api` server enables the features so
 //! web and mobile reach these sources through `RemoteSource`.
-
-pub mod text;
 
 #[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
 pub mod sqlite;

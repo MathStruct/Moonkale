@@ -8,7 +8,6 @@
 //! `Connection` is `Send` but not `Sync`: behind a `Mutex`, queries on
 //! `spawn_blocking`.
 
-use crate::text::{classify, Statement};
 use duckdb::types::ValueRef;
 use duckdb::{AccessMode, Config, Connection};
 use moonkale_core::{
@@ -396,8 +395,8 @@ impl Source for DuckDbSource {
                         "dialect {dialect}; this source speaks sql"
                     )));
                 }
-                match classify(&text) {
-                    Statement::Read => {}
+                match self.classify("sql", &text) {
+                    moonkale_core::Risk::Read => {}
                     other => {
                         return Err(SourceError::Unsupported(format!(
                             "{other:?} statements are not allowed on a read-only source"

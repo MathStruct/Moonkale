@@ -22,6 +22,11 @@ pub trait ToolHost {
     fn call(&self, call: ToolCall) -> HostFuture<Result<String, String>>;
     /// Ask the user whether a `Mutating`/`Destructive` call may run.
     fn approve(&self, call: ToolCall, class: Class) -> HostFuture<bool>;
+    /// For a `source.text_query`, what the target source says the query
+    /// would do (`Source::classify`). Default `None`: the shared rules.
+    fn classify(&self, _call: &ToolCall) -> Option<moonkale_core::Risk> {
+        None
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -159,7 +164,7 @@ impl Agent {
             }
             let mut results = Vec::new();
             for call in calls {
-                let (class, decision) = self.policy.decide(&call);
+                let (class, decision) = self.policy.decide_with(&call, host.classify(&call));
                 on_event(AgentEvent::ToolCall {
                     id: call.id.clone(),
                     name: call.name.clone(),
