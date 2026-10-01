@@ -9,9 +9,6 @@ pub const PANEL_PREFIX: &str = "editor:";
 
 pub struct CodeEditorExtension {
     lsp: crate::lsp::LspManager,
-    /// Documents another extension claims (markdown → the markdown
-    /// extension, which hosts this panel in its Source mode).
-    skip: Option<fn(&moonkale_core::Node) -> bool>,
 }
 
 impl Default for CodeEditorExtension {
@@ -24,14 +21,7 @@ impl CodeEditorExtension {
     pub fn new() -> Self {
         Self {
             lsp: crate::lsp::LspManager::new(),
-            skip: None,
         }
-    }
-
-    /// Leave documents matching `f` to another extension.
-    pub fn skipping(mut self, f: fn(&moonkale_core::Node) -> bool) -> Self {
-        self.skip = Some(f);
-        self
     }
 
     pub fn panel_id(node: NodeId) -> String {
@@ -56,9 +46,9 @@ impl Extension for CodeEditorExtension {
         ws.documents
             .read()
             .iter()
-            .filter(|(_, doc)| !self.skip.is_some_and(|f| f(&doc.read().node)))
-            // Milestone 14: a document shown by the Rust editor is not ours.
-            .filter(|(id, _)| ws.editor_for(*id) == "codemirror")
+            // Which documents end up here is the shell's decision
+            // (`claims`): markdown and flow files go to their editors, and
+            // the Rust editor takes the ones the user switched to it.
             .map(|(id, doc)| {
                 let d = doc.read();
                 PanelContribution {
@@ -72,6 +62,11 @@ impl Extension for CodeEditorExtension {
                 }
             })
             .collect()
+    }
+
+    /// Any text document, at the lowest priority.
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        matches!(node.content, Some(moonkale_core::ContentRef::Text { .. })).then_some(10)
     }
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {

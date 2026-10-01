@@ -42,6 +42,11 @@ impl Extension for TableExtension {
             .collect()
     }
 
+    /// Its own format, above the code editors (Milestone 18 phase 2).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        (node.kind == NodeKind::Table).then_some(50)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id)
             .and_then(|id| ws.views.read().iter().find(|n| n.id == id).cloned())

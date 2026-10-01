@@ -93,6 +93,11 @@ impl Extension for LinksExtension {
         panels
     }
 
+    /// Its own format, above the code editors (Milestone 18 phase 2).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        (is_markdown(node)).then_some(50)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         if panel_id == PREVIEW_ID {
             return rsx! { TypstPreviewPanel { ws } };

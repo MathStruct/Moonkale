@@ -44,6 +44,11 @@ impl Extension for FlowExtension {
             .collect()
     }
 
+    /// Its own format, above the code editors (Milestone 18 phase 2).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        (is_flow(node)).then_some(50)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match panel_id
             .strip_prefix(EDITOR_PREFIX)

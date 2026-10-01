@@ -33,6 +33,17 @@ pub trait Extension: 'static {
     /// Run one of them. Default: nothing.
     fn run_command(&self, _id: &str, _ws: Workspace) {}
 
+    /// Whether this extension is an editor for `node`, and how strongly
+    /// (Milestone 18 phase 2): `None` = it does not open it. Of the enabled
+    /// extensions that claim a node, the highest number wins its document
+    /// tab; on a tie the user's choice decides
+    /// ([`Workspace::preferred_editor`]). Built-ins use 10 for "any text"
+    /// (the code editors) and 50 for one format (markdown, flow, images,
+    /// tables). Default: `None`.
+    fn claims(&self, _node: &moonkale_core::Node) -> Option<u8> {
+        None
+    }
+
     /// Block libraries for the flow editor (Milestone 6). Default: none.
     fn flow_libraries(&self) -> Vec<crate::flow::FlowLibrary> {
         Vec::new()

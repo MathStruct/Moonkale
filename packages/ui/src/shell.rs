@@ -132,10 +132,9 @@ pub fn Shell() -> Element {
                 let mut target = if is_narrow { phone_layout } else { layout };
                 let mut next = target.peek().clone();
                 let closed = ws.closed_panels.peek().clone();
-                let placements: Vec<PanelPlacement> = exts
-                    .iter()
-                    .filter(|e| ext_settings.is_enabled(&e.manifest()))
-                    .flat_map(|e| e.panels(ws))
+                let placements: Vec<PanelPlacement> = contributions(exts, &ext_settings, ws, false)
+                    .into_iter()
+                    .map(|(_, c)| c)
                     .filter(|c| c.node.is_some() || !closed.contains(&c.id))
                     .map(|c| {
                         let home = home_tile(is_narrow, c.home);
@@ -148,9 +147,9 @@ pub fn Shell() -> Element {
                 // A home tile that had been pruned (every panel in it closed,
                 // spec 011) comes back as a fresh edge split at 0.5: give it
                 // the default proportion of that edge.
-                let home = exts
-                    .iter()
-                    .flat_map(|e| e.panels(ws))
+                let home = contributions(exts, &ext_settings, ws, false)
+                    .into_iter()
+                    .map(|(_, c)| c)
                     .find(|c| c.id == id)
                     .map(|c| home_tile(is_narrow, c.home));
                 if let Some(home) = home {
@@ -184,10 +183,9 @@ pub fn Shell() -> Element {
                 let remembered = ws.hidden_tiles.peek().get(tile).cloned().unwrap_or_default();
                 let ext_settings = ws.settings.peek().extensions.clone();
                 let closed = ws.closed_panels.peek().clone();
-                let visible: Vec<String> = exts
-                    .iter()
-                    .filter(|e| ext_settings.is_enabled(&e.manifest()))
-                    .flat_map(|e| e.panels(ws))
+                let visible: Vec<String> = contributions(exts, &ext_settings, ws, false)
+                    .into_iter()
+                    .map(|(_, c)| c)
                     .filter(|c| c.node.is_none() && !closed.contains(&c.id) && c.home.tile_id() == tile)
                     .map(|c| c.id)
                     .collect();
@@ -302,11 +300,9 @@ pub fn Shell() -> Element {
     // Activity-bar entries (spec 009): every static panel that declares one,
     // closed or not — the bar is how a closed panel comes back.
     let mut activities: Vec<(String, moonkale_ext_api::Activity)> = Vec::new();
-    for (i, ext) in exts.iter().enumerate() {
-        if !ext_settings.is_enabled(&ext.manifest()) {
-            continue;
-        }
-        for c in ext.panels(ws) {
+    for (i, c) in contributions(&exts, &ext_settings, ws, true) {
+        let ext = &exts[i];
+        {
             if let (None, Some(act)) = (&c.node, &c.activity) {
                 activities.push((c.id.clone(), act.clone()));
             }
@@ -736,3 +732,79 @@ function watch(px) {
 }
 for (;;) { await dioxus.recv(); }
 "#;
+
+/// The panels the enabled extensions contribute, as `(extension index,
+/// contribution)`. A document or view panel (`node: Some`) is kept only from
+/// the extension that wins its node (`Extension::claims`, Milestone 18 phase
+/// 2): the highest claim, a tie going to `Workspace::preferred_editor`. Only
+/// claimants compete: a contribution from an extension that does not claim
+/// the node is always kept.
+///
+/// `tracked`: `true` in the shell's render (a change of the user's editor
+/// choice must re-render it), `false` in event handlers and effects, which
+/// must not subscribe to the settings.
+pub(crate) fn contributions(
+    exts: &[Box<dyn Extension>],
+    enabled: &moonkale_ext_api::ExtensionsSettings,
+    ws: Workspace,
+    tracked: bool,
+) -> Vec<(usize, moonkale_ext_api::PanelContribution)> {
+    let active: Vec<usize> = (0..exts.len())
+        .filter(|&i| enabled.is_enabled(&exts[i].manifest()))
+        .collect();
+    // node → (the extensions that claim it, the winner)
+    let mut claims: HashMap<moonkale_core::NodeId, (Vec<usize>, Option<usize>)> = HashMap::new();
+    let mut out = Vec::new();
+    for &i in &active {
+        for c in exts[i].panels(ws) {
+            if let Some(node) = c.node {
+                let (claimants, won) = claims
+                    .entry(node)
+                    .or_insert_with(|| claim_winner(exts, &active, ws, node, tracked));
+                // Only a claimant can lose: an extension showing a node it
+                // does not claim (an SVG opened as text from the image
+                // viewer's *Source*) keeps its panel.
+                if claimants.contains(&i) && won.is_some_and(|w| w != i) {
+                    continue;
+                }
+            }
+            out.push((i, c));
+        }
+    }
+    out
+}
+
+fn claim_winner(
+    exts: &[Box<dyn Extension>],
+    active: &[usize],
+    ws: Workspace,
+    node: moonkale_core::NodeId,
+    tracked: bool,
+) -> (Vec<usize>, Option<usize>) {
+    let Some(n) = ws.open_node_by_id(node) else {
+        return (Vec::new(), None);
+    };
+    let claims: Vec<(usize, u8)> = active
+        .iter()
+        .filter_map(|&i| exts[i].claims(&n).map(|p| (i, p)))
+        .collect();
+    let claimants = claims.iter().map(|c| c.0).collect();
+    let Some(top) = claims.iter().map(|c| c.1).max() else {
+        return (claimants, None);
+    };
+    let tied: Vec<usize> = claims.iter().filter(|c| c.1 == top).map(|c| c.0).collect();
+    let won = if tied.len() == 1 {
+        Some(tied[0])
+    } else {
+        let preferred = if tracked {
+            ws.preferred_editor(node)
+        } else {
+            ws.preferred_editor_untracked(node)
+        };
+        tied.iter()
+            .copied()
+            .find(|&i| exts[i].manifest().id == preferred)
+            .or(tied.first().copied())
+    };
+    (claimants, won)
+}

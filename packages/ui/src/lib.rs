@@ -57,17 +57,11 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
         Box::new(extensions_panel::ExtensionsExtension),
         Box::new(moonkale_editor_graph::GraphExtension),
         Box::new(moonkale_editor_markdown::LinksExtension::new()),
-        Box::new(
-            moonkale_editor_code::CodeEditorExtension::new().skipping(|n| {
-                moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)
-            }),
-        ),
-        // Milestone 14: the Rust code editor, for documents `editor_for` gives it.
-        Box::new(
-            moonkale_editor_code_native::NativeCodeExtension::new().skipping(|n| {
-                moonkale_editor_markdown::is_markdown(n) || moonkale_editor_flow::is_flow(n)
-            }),
-        ),
+        // Which documents each editor shows is decided by `Extension::claims`
+        // (Milestone 18 phase 2), not by this list.
+        Box::new(moonkale_editor_code::CodeEditorExtension::new()),
+        // Milestone 14: the Rust code editor; the user's choice breaks the tie.
+        Box::new(moonkale_editor_code_native::NativeCodeExtension::new()),
         Box::new(moonkale_editor_table::TableExtension),
         Box::new(moonkale_editor_image::ImageExtension),
         Box::new(moonkale_editor_terminal::TerminalExtension::new()),

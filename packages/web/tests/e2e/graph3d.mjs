@@ -20,6 +20,9 @@ const litFraction = () => page.evaluate(() => {
   for (let i = 3; i < d.length; i += 4) { if (d[i] > 40) lit++; }
   return lit / (c.width * c.height);
 });
+// "Lit" means *some* label was painted: since Milestone 17 the fixture holds a `stores/` folder of
+// unlinked files, the fitted picture is wide and often only one label fits (≈ 0.03 % of the overlay).
+const LIT_MIN = 0.0001;
 const info = () => page.$eval(".mk-graph-info", (e) => ({ nodes: e.dataset.nodes, backend: e.dataset.backend, mode: e.dataset.mode }));
 try {
   await step("open folder; the renderer starts on WebGL2 and draws the index graph", async () => {
@@ -35,7 +38,7 @@ try {
     const lit = await litFraction();
     console.log("\n  backend:", i.backend, "nodes:", i.nodes, "mode:", i.mode, "lit:", lit.toFixed(3));
     if (!/gl/i.test(i.backend)) throw new Error("no GL backend");
-    if (lit < 0.0005) throw new Error("no labels drawn");
+    if (lit < LIT_MIN) throw new Error("no labels drawn");
     await page.screenshot({ path: `${S}/m8-graph-2d.png` });
   });
   let before;
@@ -46,7 +49,7 @@ try {
     await sleep(1500);
     const after = await litFraction();
     console.log("\n  lit 2d:", before.toFixed(3), "→ 3d:", after.toFixed(3));
-    if (after < 0.0005) throw new Error("no labels drawn in 3d");
+    if (after < LIT_MIN) throw new Error("no labels drawn in 3d");
     await page.screenshot({ path: `${S}/m8-graph-3d.png` });
     // Hover a node: ask the view where one is on screen, move there, expect the popup.
     const hit = await page.evaluate(() => {

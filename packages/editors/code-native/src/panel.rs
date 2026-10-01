@@ -10,25 +10,12 @@ use moonkale_ext_api::prelude::*;
 pub const PANEL_PREFIX: &str = "editor-native:";
 const CSS: Asset = asset!("/assets/code-native.css");
 
-pub struct NativeCodeExtension {
-    skip: Option<fn(&moonkale_core::Node) -> bool>,
-}
-
-impl Default for NativeCodeExtension {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[derive(Default)]
+pub struct NativeCodeExtension;
 
 impl NativeCodeExtension {
     pub fn new() -> Self {
-        Self { skip: None }
-    }
-
-    /// Leave documents matching `f` to another extension (markdown, flow).
-    pub fn skipping(mut self, f: fn(&moonkale_core::Node) -> bool) -> Self {
-        self.skip = Some(f);
-        self
+        Self
     }
 
     pub fn panel_id(node: NodeId) -> String {
@@ -53,8 +40,8 @@ impl Extension for NativeCodeExtension {
         ws.documents
             .read()
             .iter()
-            .filter(|(_, doc)| !self.skip.is_some_and(|f| f(&doc.read().node)))
-            .filter(|(id, _)| ws.editor_for(*id) == "native")
+            // The shell keeps the ones this editor wins (`claims`; a tie
+            // with CodeMirror goes to the user's choice).
             .map(|(id, doc)| {
                 let d = doc.read();
                 PanelContribution {
@@ -68,6 +55,11 @@ impl Extension for NativeCodeExtension {
                 }
             })
             .collect()
+    }
+
+    /// Any text document, like CodeMirror (the user's choice breaks the tie).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        matches!(node.content, Some(moonkale_core::ContentRef::Text { .. })).then_some(10)
     }
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {

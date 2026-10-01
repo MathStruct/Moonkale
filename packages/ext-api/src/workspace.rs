@@ -1729,6 +1729,49 @@ impl Workspace {
     }
 
     /// Move `node` to the other code editor (the toolbar switch).
+    /// Of several extensions claiming `node` with the same priority (the two
+    /// code editors), the one the user chose ([`Workspace::editor_for`]).
+    pub fn preferred_editor(&self, node: NodeId) -> &'static str {
+        match self.editor_for(node) {
+            "native" => "dev.moonkale.editor-code-native",
+            _ => "dev.moonkale.editor-code",
+        }
+    }
+
+    /// [`Workspace::preferred_editor`] without subscribing the caller to the
+    /// settings: for event handlers and effects. (The shell's command effect
+    /// re-ran its last command whenever the settings changed when it read
+    /// them here — Milestone 18 phase 2.4.)
+    pub fn preferred_editor_untracked(&self, node: NodeId) -> &'static str {
+        let choice = self.editor_choice.peek().get(&node).copied();
+        let which = choice.unwrap_or_else(|| {
+            let s = self.settings.peek();
+            let codemirror = s.extensions.is_enabled_id("dev.moonkale.editor-code", true);
+            let native = s
+                .extensions
+                .is_enabled_id("dev.moonkale.editor-code-native", false);
+            match (codemirror, native) {
+                (true, false) => "codemirror",
+                (false, true) => "native",
+                _ if s.editor.implementation == "native" => "native",
+                _ => "codemirror",
+            }
+        });
+        match which {
+            "native" => "dev.moonkale.editor-code-native",
+            _ => "dev.moonkale.editor-code",
+        }
+    }
+
+    /// The node behind a document or view panel, if it is open. Does not
+    /// subscribe the caller.
+    pub fn open_node_by_id(&self, node: NodeId) -> Option<Node> {
+        if let Some((_, d)) = self.documents.peek().iter().find(|(id, _)| *id == node) {
+            return Some(d.peek().node.clone());
+        }
+        self.views.peek().iter().find(|n| n.id == node).cloned()
+    }
+
     pub fn choose_editor(&mut self, node: NodeId, which: &'static str) {
         self.editor_choice.with_mut(|m| {
             m.insert(node, which);
