@@ -26,7 +26,7 @@ Daniel, 2026-09-28: the embedded stores of [[Milestone 17 - Embedded Stores]] â€
 
 Problems with this, each seen in practice:
 - **Nothing syncs.** A second device starts from zero; the web client's settings are per browser.
-- **App state lands in git.** This repository commits its own `.moonkale/history.jsonl` and `settings.json`; every session that opens it changes them (merge noise in the 2026-09-26 `session-pause` merge), and a cloned repository's settings are trusted more than they should be ([[Audit 2026-09-23]] #8, #20).
+- **App state lands in git.** This repository committed its own `.moonkale/history.jsonl` and `settings.json` until 2026-10-01 (now ignored); every session that opens it changes them (merge noise in the 2026-09-26 `session-pause` merge), and a cloned repository's settings are trusted more than they should be ([[Audit 2026-09-23]] #8, #20).
 - **The entity log is a JSON-lines file** with an O(nÂ²) merge and compaction that hides old renames (P-086, issue #17).
 - **The index is rebuilt on every open.** On this repository that is seconds; on a large folder or with embeddings it is minutes, and embeddings cost money with a hosted model.
 - **Three code paths for one thing** (user settings on desktop, web and Android), each with its own bugs.

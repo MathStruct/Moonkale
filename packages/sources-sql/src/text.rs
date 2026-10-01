@@ -24,7 +24,7 @@ pub fn classify(sql: &str) -> Statement {
         // (1)`. Classify the WITH statement as a read only when no
         // data-modifying keyword appears outside string literals.
         "WITH" => {
-            if contains_write_keyword(&s) {
+            if contains_write_keyword(s) {
                 Statement::Write
             } else {
                 Statement::Read
@@ -40,11 +40,25 @@ pub fn classify(sql: &str) -> Statement {
                 .collect::<String>()
                 .to_ascii_uppercase();
             const READ_PRAGMAS: &[&str] = &[
-                "TABLE_INFO", "TABLE_LIST", "TABLE_XINFO", "INDEX_INFO", "INDEX_LIST",
-                "INDEX_XINFO", "DATABASE_LIST", "COLLATION_LIST", "COMPILE_OPTIONS",
-                "FUNCTION_LIST", "MODULE_LIST", "PRAGMA_LIST", "INTEGRITY_CHECK",
-                "QUICK_CHECK", "ENCODING", "PAGE_COUNT", "PAGE_SIZE",
-                "FOREIGN_KEY_LIST", "APPLICATION_ID",
+                "TABLE_INFO",
+                "TABLE_LIST",
+                "TABLE_XINFO",
+                "INDEX_INFO",
+                "INDEX_LIST",
+                "INDEX_XINFO",
+                "DATABASE_LIST",
+                "COLLATION_LIST",
+                "COMPILE_OPTIONS",
+                "FUNCTION_LIST",
+                "MODULE_LIST",
+                "PRAGMA_LIST",
+                "INTEGRITY_CHECK",
+                "QUICK_CHECK",
+                "ENCODING",
+                "PAGE_COUNT",
+                "PAGE_SIZE",
+                "FOREIGN_KEY_LIST",
+                "APPLICATION_ID",
             ];
             if READ_PRAGMAS.contains(&name.as_str()) && !s.contains('=') {
                 Statement::Read
@@ -54,9 +68,7 @@ pub fn classify(sql: &str) -> Statement {
         }
         "EXPLAIN" | "VALUES" | "SHOW" | "DESCRIBE" => Statement::Read,
         "INSERT" | "UPDATE" | "DELETE" | "REPLACE" | "MERGE" => Statement::Write,
-        "CREATE" | "DROP" | "ALTER" | "TRUNCATE" | "ATTACH" | "DETACH" | "VACUUM" => {
-            Statement::Ddl
-        }
+        "CREATE" | "DROP" | "ALTER" | "TRUNCATE" | "ATTACH" | "DETACH" | "VACUUM" => Statement::Ddl,
         _ => Statement::Unknown,
     }
 }
@@ -64,9 +76,17 @@ pub fn classify(sql: &str) -> Statement {
 fn strip_comments(mut s: &str) -> &str {
     loop {
         if let Some(rest) = s.strip_prefix("--") {
-            s = rest.split_once('\n').map(|(_, r)| r).unwrap_or("").trim_start();
+            s = rest
+                .split_once('\n')
+                .map(|(_, r)| r)
+                .unwrap_or("")
+                .trim_start();
         } else if let Some(rest) = s.strip_prefix("/*") {
-            s = rest.split_once("*/").map(|(_, r)| r).unwrap_or("").trim_start();
+            s = rest
+                .split_once("*/")
+                .map(|(_, r)| r)
+                .unwrap_or("")
+                .trim_start();
         } else {
             break;
         }

@@ -112,7 +112,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 15 - Agents, Profiles and Connections]] (plan) → [[Milestone 15 - Implementation Log]] (what happened) ✅ — saved agents, sessions side by side with history, saved SSH connections, Claude Code login
 - [[Milestone 16 - Sources Follow the Disk]] (plan) → [[Milestone 16 - Implementation Log]] (what happened) ✅ — Sources follow changes on disk (↻ for the rest), the Local graph laid out on its own, no `<br />` from the rich editor, tabs dragged by touch
 - [[Milestone 17 - Embedded Stores]] (plan) → [[Milestone 17 - Implementation Log]] (what happened) ✅ — Turso, redb, RocksDB and embedded HelixDB as read-only sources; LadybugDB's bundled symbols made local (P-144)
-- [[Milestone 18 - Library Refactor]] (plan) — a small core, the `Workspace` as services, the catalogue out of the shell, source openers and server contributions, one store for internal state; **not started**
+- [[Milestone 18 - Library Refactor]] (plan) → [[Milestone 18 - Implementation Log]] — a small core, the `Workspace` as services, the catalogue out of the shell, source openers and server contributions, one store for internal state; **phase 0 (CI, layering rules) done**
 
 ## Planning, problems and records
 - [[Status]] — what is built, area by area (the one status page)

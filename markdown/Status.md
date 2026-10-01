@@ -8,7 +8,7 @@ tags: [status, moc]
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
 ## Numbers
-38 crates · 43 600 lines of Rust · ~1 000 lines of TypeScript in four view bundles · 129 Rust tests · 47 browser suites (Playwright) · **no CI job runs the tests** (R-39) · releases `YYMMDD-proto` for Arch, Debian, Nix, tarball, Windows, macOS, Android ([[Install]]).
+38 crates · 43 600 lines of Rust · ~1 000 lines of TypeScript in four view bundles · 132 Rust tests · 47 browser suites (Playwright) · CI since 2026-10-01: fmt, layering rules, tests, clippy, wasm check, six browser suites (R-39) · releases `YYMMDD-proto` for Arch, Debian, Nix, tarball, Windows, macOS, Android ([[Install]]).
 
 ## By area
 
@@ -69,7 +69,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | iOS | 📝 |
 
 ## Most important open problems
-1. **No CI tests** — R-39; first step of [[Milestone 18 - Library Refactor]].
+1. **CI is new** (R-39, phase 0 of [[Milestone 18 - Library Refactor]]) — only six of the 47 browser suites run there.
 2. **Security findings** — [[Audit 2026-09-23]], [[Security]]. Don't expose a server beyond a trusted network.
 3. **The core is not yet a library** — `Workspace` 2 603 lines, `ui` depends on every extension and driver — R-37, [[Milestone 18 - Library Refactor]].
 4. **Internal state is a dozen files** and nothing syncs — R-36, [[Internal State]], [[ADR-0014 One store for internal state]].

@@ -31,7 +31,9 @@ fn public_dir(
         std::path::PathBuf::from("/usr/lib/Moonkale/public"),
         std::path::PathBuf::from("/usr/local/lib/Moonkale/public"),
     ];
-    candidates.into_iter().find(|c| exists(&c.join("index.html")))
+    candidates
+        .into_iter()
+        .find(|c| exists(&c.join("index.html")))
 }
 
 #[cfg(feature = "server")]
@@ -70,12 +72,20 @@ mod tests {
         // dx's own layout: public next to the binary.
         let exe = Path::new("/opt/moonkale/bin/moonkale-server");
         assert_eq!(
-            public_dir(exe, has(vec![PathBuf::from("/opt/moonkale/bin/public/index.html")])),
+            public_dir(
+                exe,
+                has(vec![PathBuf::from("/opt/moonkale/bin/public/index.html")])
+            ),
             Some(PathBuf::from("/opt/moonkale/bin/public"))
         );
         // A distribution: bin/ and lib/ side by side.
         assert_eq!(
-            public_dir(exe, has(vec![PathBuf::from("/opt/moonkale/bin/../lib/Moonkale/public/index.html")])),
+            public_dir(
+                exe,
+                has(vec![PathBuf::from(
+                    "/opt/moonkale/bin/../lib/Moonkale/public/index.html"
+                )])
+            ),
             Some(PathBuf::from("/opt/moonkale/bin/../lib/Moonkale/public"))
         );
         // The Arch/deb layout, from /usr/bin: the relative candidate is
@@ -92,7 +102,9 @@ mod tests {
         assert_eq!(
             public_dir(
                 Path::new("/usr/bin/moonkale-server"),
-                has(vec![PathBuf::from("/usr/bin/../lib/Moonkale/public/index.html")])
+                has(vec![PathBuf::from(
+                    "/usr/bin/../lib/Moonkale/public/index.html"
+                )])
             ),
             Some(PathBuf::from("/usr/bin/../lib/Moonkale/public"))
         );

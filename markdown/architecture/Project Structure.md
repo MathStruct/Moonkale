@@ -57,6 +57,7 @@ packages/
 
 packaging/                     PKGBUILDs, .desktop entry, Debian, release scripts (see markdown/packaging/)
 flake.nix                      Nix package + dev shell
+tools/check-deps.py            the layering rules below, checked in CI (known violations: tools/deps-allow.txt)
 .cargo/config.toml             LBUG_LOCALIZE_BUNDLED_SYMBOLS (P-144)
 ```
 

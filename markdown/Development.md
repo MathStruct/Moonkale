@@ -31,7 +31,8 @@ Moonkale/
 ├─ markdown/             # this vault (design record; published as the website)
 ├─ packaging/            # PKGBUILDs, Debian, release scripts
 ├─ site/                 # vendored Quartz + TikZ/Typst/Tabs plugins
-└─ .github/workflows/    # release, Pages deploy, labels (no test workflow yet — R-39)
+├─ tools/                # check-deps.py: the layering rules, deps-allow.txt: today's known violations
+└─ .github/workflows/    # ci (fmt, layering, tests, clippy, wasm, e2e smoke), release, Pages deploy, labels
 ```
 
 Every crate with real code is listed with its size and role in [[Project Structure]]; what runs on which platform in [[Platform Matrix]].
@@ -75,6 +76,18 @@ cargo test -p moonkale-index           # one crate; scripts and agents use CARGO
 ```
 
 End-to-end (real browser against the web build): `packages/web/tests/e2e/README.md`.
+
+What CI runs on every push (`.github/workflows/ci.yml`), and how to run the same locally:
+
+```sh
+cargo fmt --all --check
+python3 tools/check-deps.py             # layering rules; fails on a new violation or on a fixed one still listed
+cargo clippy --workspace --all-targets -- -D warnings
+cargo check -p web --target wasm32-unknown-unknown --features web
+packages/web/tests/e2e/run-all.sh files rich stores palette shell wiki   # with serve.sh running
+```
+
+When a refactor removes a layering violation, delete its line from `tools/deps-allow.txt` in the same change (the check insists).
 
 ## Running Milestone 1
 

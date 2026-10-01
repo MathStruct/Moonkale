@@ -50,7 +50,7 @@ Status, as of Milestone 17 (2026-09-29): ✅ done · ◐ partly done (what is mi
 | R-36 | **One store for internal state** (settings, layout, history, sessions, index) instead of a dozen files, ready to sync | 4 | **very high** | ○ candidates in Milestone 17; comparison pending — [[Internal State]], [[ADR-0014 One store for internal state]] |
 | R-37 | **The core as a library**: `ui` without extension or driver dependencies, `Workspace` split into services, a server contribution point, reusable crates (graph renderer, core) | 4 | **high** | ○ planned — [[Milestone 18 - Library Refactor]] |
 | R-38 | **Security findings of the external audit** (issues #1–#5, #7–#10, #18, #20) | 3 | **high** | ○ — [[Audit 2026-09-23]], [[Security]] |
-| R-39 | **CI that runs the tests**: no workflow runs `cargo test`, clippy, fmt or an E2E suite today | 2 | **high** | ○ — [[Testing Strategy]] |
+| R-39 | **CI that runs the tests** (none did until 2026-10-01) | 2 | **high** | ◐ `ci.yml`: fmt, layering rules, tests, clippy, wasm check, six browser suites; macOS/Windows/Android not tested in CI — [[Milestone 18 - Implementation Log]] |
 | R-40 | Projects: several sources saved as a project, selector, sync | 4 | medium | ○ desired behaviour in [[Projects and Sources]] |
 | R-41 | Writes to databases (OLTP) — every database source is read-only | 3 | medium | ○ announced after Milestone 17 |
 

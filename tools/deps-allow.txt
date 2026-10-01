@@ -1,0 +1,46 @@
+# Known layering violations (tools/check-deps.py). The check fails on any
+# violation NOT listed here and on any listed one that has been fixed, so this
+# list can only shrink. Each group names the step of Milestone 18 that removes it.
+# Rules are evaluated on the default feature set (`cargo metadata`).
+
+# Phase 2.1 — ABI types into moonkale-ext-abi; phase 3 — settings per extension
+ext-api-is-a-contract moonkale-ext-api -> moonkale-ext-host
+ext-api-is-a-contract moonkale-ext-api -> moonkale-llm
+
+# Phase 2.2 — statement classification moves onto the source
+only-apps-assemble moonkale-llm -> moonkale-sources-sql
+
+# Phase 4.3 — server halves move into their extensions
+only-apps-assemble api -> moonkale-ext-git
+
+# Markdown's Source mode embeds the CodeMirror panel. Decide in phase 2.4
+# (editor claims) whether embedding another editor is an allowed dependency.
+only-apps-assemble moonkale-editor-markdown -> moonkale-editor-code
+
+# Phase 4.1 — the catalogue moves to moonkale-distribution; phase 2.3 — source openers
+only-apps-assemble ui -> moonkale-editor-agent
+only-apps-assemble ui -> moonkale-editor-code
+only-apps-assemble ui -> moonkale-editor-code-native
+only-apps-assemble ui -> moonkale-editor-flow
+only-apps-assemble ui -> moonkale-editor-graph
+only-apps-assemble ui -> moonkale-editor-image
+only-apps-assemble ui -> moonkale-editor-markdown
+only-apps-assemble ui -> moonkale-editor-table
+only-apps-assemble ui -> moonkale-editor-terminal
+only-apps-assemble ui -> moonkale-editor-terminal-native
+only-apps-assemble ui -> moonkale-ext-git
+only-apps-assemble ui -> moonkale-ext-lux
+only-apps-assemble ui -> moonkale-sources-graph
+only-apps-assemble ui -> moonkale-sources-kv
+only-apps-assemble ui -> moonkale-sources-sql
+
+# Phase 4.1 — follows from the above: the shell's tree without drivers, wasmtime, reqwest
+shell-stays-light ui ~> duckdb
+shell-stays-light ui ~> helix-db
+shell-stays-light ui ~> lbug
+shell-stays-light ui ~> redb
+shell-stays-light ui ~> reqwest
+shell-stays-light ui ~> rocksdb
+shell-stays-light ui ~> rusqlite
+shell-stays-light ui ~> turso
+shell-stays-light ui ~> wasmtime
