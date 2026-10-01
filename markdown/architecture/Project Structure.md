@@ -105,11 +105,11 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 
 ## Where reality differs from the rules below
 Measured 2026-10-01; each item is a step of [[Milestone 18 - Library Refactor]].
-- **`ui` is not "the shell only"**: it depends on every editor and extension crate, on `api`, and on the three driver crates (the Explorer asks `is_sqlite_path` & co.), and `ui::default_extensions()` is the catalogue — so the core cannot be built without them and an outside crate cannot be added without editing `ui`.
-- **`ext-api` is not a small contract**: it depends on `moonkale-llm`, `moonkale-ext-host`, `moonkale-lsp` and `moonkale-terminal`, and `Workspace` (2 603 lines, 39 public signals, 94 public methods) holds the state of almost every feature.
-- **`llm` depends on `sources-sql`** (for the SQL statement classifier), so the agent cannot be built without the SQL drivers' crate.
+- **`ui` is not "the shell only"**: it depends on every editor and extension crate and on `api`, and `ui::default_extensions()` is the catalogue — so the core cannot be built without them and an outside crate cannot be added without editing `ui`. (Its driver dependencies are gone since phase 2: the Explorer asks the source openers.)
+- **`ext-api` is not a small contract**: it depends on `moonkale-llm` (and on `moonkale-lsp`, `moonkale-terminal`; `moonkale-ext-host` was replaced by the types-only `moonkale-ext-abi` in phase 2), and `Workspace` (2 603 lines, 39 public signals, 94 public methods) holds the state of almost every feature.
+- ~~`llm` depends on `sources-sql`~~ — gone in phase 2: sources classify their own queries (`Source::classify`).
 - **`api` depends on the git extension**, and holds the server half of every extension that has one.
-- **Opening a database file** is decided in four places (desktop, api, mobile, Explorer).
+- ~~Opening a database file is decided in four places~~ — one `Openers` list since phase 2.
 - ~~21 files and one crate were design stubs~~ — removed in Milestone 18 phase 1 (24 files with three orphans nobody declared, and `editors/graph-desktop`); their designs moved to [[Data Sources]], [[Code Editor]], [[ADR-0011 Desktop graph surface strategy]].
 
 ## Why these boundaries

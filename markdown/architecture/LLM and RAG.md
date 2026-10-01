@@ -21,7 +21,7 @@ flowchart TB
 - Results are `GraphView`s serialised **ids + labels first, content on request** — keeps context windows small and lets the agent drill down.
 
 ## Policy
-Statement classification comes from the sources (`sources-sql::text` classifies SQL; graph dialects likewise). Defaults: reads allowed; writes ask; destructive (`DROP`, `DELETE` without `WHERE`, schema changes, `rm -rf` in terminal tools) always ask. Row/byte caps per call. Per-source and per-agent overrides in workspace policy.
+Statement classification comes from the sources: since Milestone 18 the agent asks the target source (`Source::classify` through `ToolHost::classify`), whose default is the shared SQL and Cypher rules in `moonkale_core::source::risk`. Defaults: reads allowed; writes ask; destructive (`DROP`, `DELETE` without `WHERE`, schema changes, `rm -rf` in terminal tools) always ask. Row/byte caps per call. Per-source and per-agent overrides in workspace policy.
 
 ## Embeddings
 *As built*: embeddings come from the default agent's provider (OpenAI-compatible `/embeddings`), are kept in memory per chunk and compared by brute-force cosine; nothing is cached across opens ([[Indexing]], [[Internal State]]).

@@ -10,6 +10,9 @@ set -uo pipefail
 E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 PORT="${PORT:-8090}"
 REPO="$(cd "$(dirname "$0")/../../../.." && pwd)"
+# A relative CARGO_TARGET_DIR would be resolved from packages/web below (it put
+# 15 GB of build output under packages/web/target once — P-148): anchor it.
+case "${CARGO_TARGET_DIR:-}" in ""|/*) ;; *) export CARGO_TARGET_DIR="$REPO/$CARGO_TARGET_DIR" ;; esac
 case "${1:-start}" in
   start)
     root="$E/${2:-m2root}"
