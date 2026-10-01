@@ -53,8 +53,7 @@ pub async fn walk(
 pub fn wants_text(node: &Node, limits: &Limits) -> bool {
     match &node.content {
         Some(ContentRef::Text { len, lang }) => {
-            *len <= limits.max_text_bytes
-                && matches!(lang.as_deref(), Some("markdown") | Some("rust"))
+            *len <= limits.max_text_bytes && crate::extract::reads(lang.as_deref())
         }
         _ => false,
     }

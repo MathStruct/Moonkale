@@ -88,6 +88,48 @@ async fn links_resolve_by_stem_path_and_phantom() {
     );
 }
 
+/// Issue #16: the Julia and Python extractors must actually run on an
+/// indexed folder (they did not: the walk fetched only markdown and Rust).
+#[tokio::test]
+async fn julia_and_python_symbols_are_indexed() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("model.jl"),
+        "module Model
+struct Layer end
+function forward(x) x end
+end
+",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("train.py"),
+        "class Trainer:
+    def step(self):
+        pass
+
+def main():
+    pass
+",
+    )
+    .unwrap();
+    let (_, index) = open(&dir).await;
+    let symbols = index
+        .query(Query::All {
+            limit: 100,
+            kinds: Some(vec![NodeKind::Symbol]),
+        })
+        .await
+        .unwrap();
+    let labels: Vec<_> = symbols.nodes.iter().map(|n| n.label.as_str()).collect();
+    for name in ["Model", "Layer", "forward", "Trainer", "step", "main"] {
+        assert!(
+            labels.iter().any(|l| l.contains(name)),
+            "{name} missing from {labels:?}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn backlinks_are_incoming_neighbours() {
     let dir = vault();

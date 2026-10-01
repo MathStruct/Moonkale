@@ -11,6 +11,17 @@ pub mod wikilinks;
 
 use moonkale_core::{Edge, Node};
 
+/// The languages some extractor reads. The walk fetches a file's text only
+/// for these, and `IndexSource::extract_into` dispatches on the same names —
+/// a language added to the dispatch but not here never runs (issue #16: the
+/// Julia and Python extractors existed for weeks without being called).
+pub const LANGUAGES: &[&str] = &["markdown", "rust", "julia", "python"];
+
+/// Whether an extractor reads files of this language.
+pub fn reads(lang: Option<&str>) -> bool {
+    lang.is_some_and(|l| LANGUAGES.contains(&l))
+}
+
 /// What an extractor produced for one file.
 #[derive(Default, Debug)]
 pub struct Derived {
