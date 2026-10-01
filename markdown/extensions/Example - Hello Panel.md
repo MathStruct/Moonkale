@@ -2,6 +2,9 @@
 title: "Example — Hello Panel"
 tags: [extensions, example]
 ---
+> [!warning] Target design
+> This example uses the planned manifest and `Host` API ([[Writing an Extension]] Part B), which are not built. A working example of today's API is Part A of the same page.
+
 A wasm extension contributing one panel and one command; the full walkthrough is in [[Writing an Extension]] §2–3. Key points the example demonstrates:
 
 - **Manifest-first**: the "Hello" panel and "Hello: Greet" command appear in the workbench and palette *before* the wasm is instantiated.

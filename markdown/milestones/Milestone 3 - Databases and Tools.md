@@ -19,7 +19,7 @@ On desktop and web:
 4. **Graph database** — LadybugDB (`lbug`, embedded, Cypher): open a `.lbug`/`.kuzu` database directory as a source; schema graph in the Explorer; Cypher in the table editor's query box; results with nodes/edges also drawable in the Graph panel via a **source picker** (index or any source).
 5. Web parity for all four through the `api` server (terminal/LSP: websockets; Typst: server function; Ladybug: `RemoteSource`).
 
-**Deferred to M4** (documented, not started): Milkdown WYSIWYG (P-11), Postgres/Turso (need servers), FalkorDB/TypeDB/Helix, cross-source edges (P-16), remote-terminal hardening beyond the `MOONKALE_ROOT` jail (P-20 — the security list in [[Platform Matrix]] applies; web terminals stay a dev-server feature).
+**Deferred to M4** (documented, not started): Milkdown WYSIWYG (R-11), Postgres/Turso (need servers), FalkorDB/TypeDB/Helix, cross-source edges (R-16), remote-terminal hardening beyond the `MOONKALE_ROOT` jail (R-20 — the security list in [[Platform Matrix]] applies; web terminals stay a dev-server feature).
 
 ## Architecture decisions for this milestone
 
@@ -61,6 +61,6 @@ flowchart LR
 |---|---|
 | `rust-analyzer` absent | step 4 is built and unit-tested against a fake transport; the E2E is gated on the binary |
 | `lbug` needs a C++ build if the prebuilt download fails | `cmake` requested; the crate stays behind a feature so nothing else blocks |
-| PTY on the server is code execution | dev-server only; cwd jailed to `MOONKALE_ROOT`; documented loudly; P-20 stays open |
+| PTY on the server is code execution | dev-server only; cwd jailed to `MOONKALE_ROOT`; documented loudly; R-20 stays open |
 | xterm output volume over the eval channel | batch output per animation frame; base64 |
 | Typst fonts in wasm | not attempted: web compiles on the server |

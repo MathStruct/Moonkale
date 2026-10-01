@@ -2,6 +2,9 @@
 title: "Host API Reference"
 tags: [extensions, reference]
 ---
+> [!warning] Target design — there is no `Host` handle yet (checked 2026-10-01)
+> A **static** extension receives the `Workspace` (`ext-api/src/workspace.rs`) and may call any of its public methods — no capability checks. A **wasm** module has three host calls, each checked against its granted permission: `list_sources`, `query`, `fetch_text` (`read-sources`). `capability.rs` and `host.rs` in `ext-api` are design comments. The table below is the planned surface.
+
 The `Host` handle is the only door. Every method is capability-checked (see `ext-api/src/capability.rs`) and representable across the WASM boundary.
 
 ## Graph (`permissions.sources`)

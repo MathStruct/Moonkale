@@ -2,6 +2,9 @@
 title: "Example — Data Source"
 tags: [extensions, example]
 ---
+> [!warning] Target design
+> This example uses the planned manifest and `Host` API ([[Writing an Extension]] Part B), which are not built. A working example of today's API is Part A of the same page.
+
 A **static** extension (native driver ⇒ desktop/server) adding a hypothetical "CSV directory" source. Shows the `source` contribution point ([[Contribution Points]]) and the lifting rules ([[Data Sources]]).
 
 ```toml

@@ -32,4 +32,4 @@ flowchart LR
 - Remote sessions for web/mobile run PTYs inside `api` — see the security list in [[Platform Matrix]].
 
 ## Shared open problem
-Remote LSP + remote terminal make `api` a code-execution service. Auth, jail, limits, allow-list, audit — before either ships. [[Problem Ranking]] P-15.
+Remote LSP + remote terminal make `api` a code-execution service. Auth, jail, limits, allow-list, audit — before either ships. [[Problem Ranking]] R-15.

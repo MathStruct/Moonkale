@@ -10,10 +10,17 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 > **[[Getting Started]]** — Moonkale for people who use VS Code and Obsidian: the four ideas, what maps to what, a ten-minute first session. Then [[Install]].
 
 > [!info] Start here (the design record)
-> 1. [[Overview]] — what the system is, in one diagram.
-> 2. [[Project Structure]] — the crate layout and *why* each crate exists.
-> 3. [[Problem Ranking]] and [[Roadmap]] — what is hard, and in which order to build.
-> 4. [[Writing an Extension]] — the guide, because this project is extension-driven.
+> 1. [[Status]] — what is built today, area by area, and what is not.
+> 2. [[Overview]] — what the system is, in one diagram.
+> 3. [[Project Structure]] — the crate layout and *why* each crate exists.
+> 4. [[Roadmap]] and [[Milestone 18 - Library Refactor]] — what comes next.
+> 5. [[Writing an Extension]] — the guide, because this project is extension-driven.
+
+> [!note] How this vault is kept
+> - **Status lives in one place**: [[Status]]. Other pages link to it instead of repeating it.
+> - Design notes say at the top what is *built* and what is *design only*; when the code and a note disagree, the code wins and the note is fixed.
+> - Records are append-only: milestone plans and logs, the [[Problem Log]] (`P-nnn`), [[specifications/README|specifications]] (Daniel's, edited in place when done), and `prompts/` (not published).
+> - Implementation detail of a crate lives next to it in `packages/**/<crate>.md`; the vault links there rather than copying it.
 
 > [!tip] Vault
 > The Obsidian vault root is the **repo root** (`Moonkale/.obsidian`); these notes live in `markdown/`. Installed plugins: Excalidraw, inline-tikz, wypst (Typst), tabs, document-comments. Diagrams here use Mermaid (core); Excalidraw/TikZ are available for richer ones.
@@ -33,11 +40,12 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Remote and Server Modes]] — SSH remote folders (Zed), a Moonkale server (code-server), a shared server; the security of each
 - [[Notebook Editor]] — `.ipynb` viewer/editor with no new deps, kernels behind a feature (plan)
 - [[Annotations]] — comments anchored to files/rows/nodes, GitHub issues as the same thing (plan)
-- [[Code Editor Implementations]] — CodeMirror and the Rust editor side by side; switching; does the editor know the word under the cursor?
 - [[Case Selector]] — backend by size: rich/plain/viewer text, exact/approximate/coarse graph (design)
 - [[Unicode Input]] — `\int` → ∫ everywhere (design)
 - [[Core Languages]] — the languages Moonkale ships core extensions for, and where each stands
 - [[Projects and Sources]] — several sources per saved project, selector, sync (desired behaviour)
+- [[Internal State]] — every file Moonkale writes for itself today, and the one store it should become (design)
+- [[Security]] — the trust model in one page: token, secrets, jail, policy gate, extension permissions, SSH
 - [[Indexing]] — tree-sitter, links, embeddings
 - [[Extension System]]
 - [[JS Interop Boundary]] — CodeMirror / Milkdown / xterm, kept replaceable
@@ -50,7 +58,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Collaboration]] — session bus (multi-window today) → presence/cursors → server hub → shared editing
 
 ## Platform
-- [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why
+- [[Platform Matrix]] · [[Linux Desktop Setup]] — WebKitGTK, NVIDIA, WebGPU: what to change and why · [[Core Languages]] · [[Licensing]]
 
 ## Packaging
 - [[Feedback]] — where a bug, a feature request, a suggestion, a design flaw or a plea for help goes, and what happens to it
@@ -64,7 +72,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Testing Strategy]] · [[How to Write Tests]]
 
 ## Editors ("windows")
-- [[Code Editor]] · [[Markdown and Typst Editor]] · [[Table Editor]] · [[Graph View]] · [[Flow Editor]] · [[Terminal]]
+- [[Code Editor]] · [[Code Editor Implementations]] · [[Markdown and Typst Editor]] · [[Table Editor]] · [[Graph View]] · [[Flow Editor]] · [[Terminal]]
 
 ## Extensions
 - [[Writing an Extension]] · [[Contribution Points]] · [[Manifest Reference]] · [[Host API Reference]] · [[Publishing and Platforms]]
@@ -81,8 +89,10 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[ADR-0008 Rust owns the document, JS is a view]]
 - [[ADR-0009 Patches not snapshots]]
 - [[ADR-0010 dioxus-workbench for layout]]
-- [[ADR-0011 Desktop graph surface strategy]] — proposed: in-webview canvas, native overlay fallback
-- [[ADR-0012 Two histories]] — proposed: git for text, entity log for the graph, checkpoints between them
+- [[ADR-0011 Desktop graph surface strategy]] — plan A (in-webview canvas) in use; the native overlay stays a fallback
+- [[ADR-0012 Two histories]] — accepted: git for text, entity log for the graph, checkpoints between them
+- [[ADR-0013 JSON ABI before components]] — accepted: what the wasm runtime actually is (amends ADR-0004)
+- [[ADR-0014 One store for internal state]] — proposed: all state except secrets in one embedded store, synced later
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
@@ -102,12 +112,15 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[Milestone 15 - Agents, Profiles and Connections]] (plan) → [[Milestone 15 - Implementation Log]] (what happened) ✅ — saved agents, sessions side by side with history, saved SSH connections, Claude Code login
 - [[Milestone 16 - Sources Follow the Disk]] (plan) → [[Milestone 16 - Implementation Log]] (what happened) ✅ — Sources follow changes on disk (↻ for the rest), the Local graph laid out on its own, no `<br />` from the rich editor, tabs dragged by touch
 - [[Milestone 17 - Embedded Stores]] (plan) → [[Milestone 17 - Implementation Log]] (what happened) ✅ — Turso, redb, RocksDB and embedded HelixDB as read-only sources; LadybugDB's bundled symbols made local (P-144)
+- [[Milestone 18 - Library Refactor]] (plan) — a small core, the `Workspace` as services, the catalogue out of the shell, source openers and server contributions, one store for internal state; **not started**
 
-## Problems & planning
+## Planning, problems and records
+- [[Status]] — what is built, area by area (the one status page)
+- [[Roadmap]] — what comes next and in which order; the milestones so far
+- [[Problem Ranking]] — the anticipated hard problems `R-01 … R-41`, with where each stands
+- [[Problem Log]] — problems hit while building, `P-nnn`; use [[Problem Template]]
+- [[Audit 2026-09-23]] — the twenty GitHub issues from the external audit
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done
-- [[Problem Ranking]] — difficulty × risk, ranked
-- [[Roadmap]] — phases and order
-- [[Problem Log]] — running log; use [[Problem Template]]
 
 ## Research
 - [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]]

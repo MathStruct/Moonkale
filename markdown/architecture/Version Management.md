@@ -5,6 +5,9 @@ tags: [architecture, versioning]
 ---
 Moonkale has to answer "what did this look like yesterday, and who changed it?" for two very different kinds of thing: **files in a folder**, which the world already versions with git, and **nodes and edges in the graph**, which git cannot see. This note is the overview; the decision is [[ADR-0012 Two histories]]; prior art is in [[Versioning Prior Art]].
 
+> [!note] As built (2026-10-01)
+> The entity log exists (`core::graph::history`, Milestone 8; compaction and restore, Milestone 9) and is stored as **`.moonkale/history.jsonl` per folder**. Git is the `extensions/git` crate over the **`git` CLI** — not `gix`, not a `vcs-git` crate. Checkpoint events reference commits. Not built: logical clocks, replica ids, a timeline scrubber in the graph, importers that emit events for databases. Open bugs: issue #17, P-086. Where the log should live next: [[Internal State]].
+
 ## The two models, side by side
 
 | | git (files) | entity log (graph) |
@@ -76,7 +79,7 @@ SQL and graph databases have their own transaction/MVCC machinery and rarely exp
 ## What this costs
 - The log grows without bound → snapshots + compaction of tombstones older than a retention window (never compact events that a checkpoint references).
 - Every mutation path must go through the log — no side doors. Sources that write to disk/database *and* append to the log must do so atomically or replay on restart.
-- Per-replica logical clocks and actor ids are needed the moment two devices sync; designed in now, implemented later (P-30/P-33 in [[Problem Ranking]]).
+- Per-replica logical clocks and actor ids are needed the moment two devices sync; designed in now, implemented later (R-30/R-33 in [[Problem Ranking]]).
 
 ## Where it lives (planned)
 | piece | crate | status |

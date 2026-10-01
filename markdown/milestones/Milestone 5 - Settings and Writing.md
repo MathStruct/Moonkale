@@ -5,7 +5,7 @@ tags: [milestone, planning]
 ---
 **Goal**: close the two gaps left open by Milestones 1–4 before the Phase 5 research items — *nothing is remembered between launches* and *the markdown editor is source-only, the agent read-only*. Record: [[Milestone 5 - Implementation Log]].
 
-Order chosen by me (Daniel left it open): settings first because provider choice, policy overrides, extension permissions and remembered layouts all need a store; then Milkdown (P-11, deferred twice); then agent writes + MCP (the gate exists, nothing uses it). GPU layouts / wasmtime extensions / flow editor / mobile follow in Milestone 6+.
+Order chosen by me (Daniel left it open): settings first because provider choice, policy overrides, extension permissions and remembered layouts all need a store; then Milkdown (R-11, deferred twice); then agent writes + MCP (the gate exists, nothing uses it). GPU layouts / wasmtime extensions / flow editor / mobile follow in Milestone 6+.
 
 ## Starting point (after Milestone 4)
 - Nothing persists: default layout on every start, no recent folders, provider only via environment variables (`MOONKALE_LLM`, keys), `Policy::default()` hard-coded, no per-folder preferences.
@@ -17,12 +17,12 @@ Order chosen by me (Daniel left it open): settings first because provider choice
 2. **Stores per platform** — desktop: `$XDG_CONFIG_HOME/moonkale/settings.json` (+ `keyring` for secrets); web: user settings in `localStorage`, workspace settings through the server (file in the folder); mobile: app data dir. All behind one `SettingsStore` trait in `ext-api`.
 3. **What is remembered** — window layout per workspace (restored on open; *Reset Layout* still works), recent folders (File → Open Recent), last opened documents, the provider/model choice, policy overrides (allow writes for this workspace, denied tools), search/embedding on/off, terminal shell, theme placeholder.
 4. **Settings UI** — a *Settings* panel (File → Settings, `Ctrl+,`): form for the fields above with the scope shown per field (user / workspace) and a raw JSON tab; changes apply live (signals) and save on change.
-5. **Milkdown WYSIWYG** (P-11) — `packages/js/milkdown` behind `RichTextBackend`; markdown documents get *Source | Rich* toggle; Rust stays the owner of the text (round-trip: Milkdown emits markdown, `Document` stores it); wiki-links render as links and open on click.
+5. **Milkdown WYSIWYG** (R-11) — `packages/js/milkdown` behind `RichTextBackend`; markdown documents get *Source | Rich* toggle; Rust stays the owner of the text (round-trip: Milkdown emits markdown, `Document` stores it); wiki-links render as links and open on click.
 6. **Agent writes** — tools `editor.replace` (splice a range in an open document, shown as a diff card before *Allow*), `file.create` (through `Op::CreateText`), `terminal.run` (a command in a new terminal session, output back as the result). All `Mutating` → *Ask* by default; a workspace setting can allow them for a session. Audit shows the diff.
 7. **MCP server** on `api` (`/mcp`, streamable HTTP): the same `ToolDef`s and a server-side `ToolHost` over the registry, so Claude Code or another IDE agent can query an open workspace. Dev-server only, token from settings.
 8. Web parity for all of it; E2E with the mock provider; documentation.
 
-**Deferred to Milestone 6**: GPU layouts + 100k nodes (P-22), wasmtime extensions (P-23; permissions UI will be ready), flow editor + Lux.jl (P-24), mobile shell (P-25), Postgres/Turso (P-19), TypeDB/Helix (P-26), CRDT/presence (P-30/P-34).
+**Deferred to Milestone 6**: GPU layouts + 100k nodes (R-22), wasmtime extensions (R-23; permissions UI will be ready), flow editor + Lux.jl (R-24), mobile shell (R-25), Postgres/Turso (R-19), TypeDB/Helix (R-26), CRDT/presence (R-30/R-34).
 
 ## Architecture decisions for this milestone
 

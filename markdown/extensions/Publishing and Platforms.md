@@ -2,6 +2,9 @@
 title: "Publishing and Platforms"
 tags: [extensions, guide]
 ---
+> [!note] Checked 2026-10-01
+> What exists: wasm modules (single `.wasm` files, no folder layout or `moonkale.toml`) are discovered in `~/.config/moonkale/extensions/` and `<folder>/.moonkale/extensions/`, and served to the browser runtime by `/api/ext/module/{id}`. No installer, no registry, no version check, no platform check. A folder's modules can be enabled and granted by that folder's settings, which the audit flags (#4, #8 — [[Audit 2026-09-23]]).
+
 ## Layout of an installed extension
 ```text
 <id>/

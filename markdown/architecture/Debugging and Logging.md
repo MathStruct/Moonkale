@@ -4,6 +4,9 @@ tags: [architecture, debugging]
 ---
 *"In a browser I hit F12. When this is compiled, how do I see what went wrong?"* — Per platform, per build type. Verified against Dioxus 0.7.10 sources on 2026-09-17.
 
+> [!warning] Still open (P-032, checked 2026-10-01)
+> None of the release-build measures below exist yet: no log file, no panic hook or dialog, no JavaScript console forwarding, no Diagnostics panel. An installed desktop build still has to be started from a terminal to see its output.
+
 ## The mental model
 
 There are **two worlds** in a Dioxus app and they log to different places:

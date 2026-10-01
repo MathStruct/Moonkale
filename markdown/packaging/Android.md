@@ -87,7 +87,7 @@ dx 0.7.10 labels the app after the crate (`Mobile`) and ships its own launcher i
 [[Android Extensions and Bundling]] answers what can be added after install (wasm extensions from a URL, once the phone has a runtime and an installer — never native code), how small the APK can get (strip + a clean asset dir ≈ 15 MB, feature-trimmed ≈ 12 MB), and what Google Play and F-Droid require. Before a release build, delete `target/dx/mobile/release/android/app/app/src/main/assets` — dx keeps every previous hashed asset (P-092).
 
 ## What Moonkale needs before Android is *useful*
-- **Folder access**: `open_local` uses `FolderSource::open(".")`, which on Android is the app sandbox. Real folders need the Storage Access Framework (P-25 in [[Problem Ranking]]).
+- **Folder access**: `open_local` uses `FolderSource::open(".")`, which on Android is the app sandbox. Real folders need the Storage Access Framework (R-25 in [[Problem Ranking]]).
 - **Layout**: the workbench is desktop-shaped; the collapsed mobile shell is Phase 5.
 - **Remote mode** ([[ADR-0005 Server functions as the remote backend]]) is the realistic v1 on a phone: point the app at a Moonkale server.
 - An icon (`bundle.icon`), and `permissions` in `Dioxus.toml` once storage is used.

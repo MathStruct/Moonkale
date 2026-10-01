@@ -14,7 +14,7 @@ Notes for `moonkale-graph-render` (Milestone 2). Design: [[Graph View]], [[ADR-0
 - Camera policy: auto-fit after `set_graph`/`relayout` once the layout settles, **never** after the user has panned, zoomed or dragged (P-051). Dragged nodes stay pinned until Relayout.
 - Events: `ready{backend}`, `hover{id,label,nodeKind,key,x,y}`, `click{id}`, `dblclick{id}`, `settled`.
 
-Known: `create()` hangs if the canvas can't get a GL context — the host probes first (P-049). No GPU text, no picking buffer (CPU hit test), O(n²) layout: all listed in [[Problem Ranking]] P-22.
+Known: `create()` hangs if the canvas can't get a GL context — the host probes first (P-049). No GPU text, no picking buffer (CPU hit test), O(n²) layout: all listed in [[Problem Ranking]] R-22.
 
 **P-068 (Milestone 4):** node attributes use explicit offsets (0, 8, 16) because `NodeInst` pads `radius`; `vertex_attr_array!` had put the colour at 12, dropping the red channel of every node since Milestone 2.
 

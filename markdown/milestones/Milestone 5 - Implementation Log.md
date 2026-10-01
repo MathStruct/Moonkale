@@ -66,4 +66,4 @@ Plan: [[Milestone 5 - Settings and Writing]].
 4. Ask the agent to "rename the heading in README.md to Hello" → diff card → Allow → the editor shows the change unsaved.
 
 ## Deferred to Milestone 6
-GPU layouts + 100k nodes (P-22), wasmtime extensions with the permissions UI (P-23), flow editor + Lux.jl (P-24), mobile shell (P-25), Postgres/Turso (P-19), TypeDB/Helix (P-26), OS keychain, a cancel for running tools (P-069), MCP over SSE/sessions if a client needs it.
+GPU layouts + 100k nodes (R-22), wasmtime extensions with the permissions UI (R-23), flow editor + Lux.jl (R-24), mobile shell (R-25), Postgres/Turso (R-19), TypeDB/Helix (R-26), OS keychain, a cancel for running tools (P-069), MCP over SSE/sessions if a client needs it.

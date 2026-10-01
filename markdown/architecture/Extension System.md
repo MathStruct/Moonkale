@@ -4,6 +4,11 @@ tags: [architecture, extensions]
 ---
 Crates: `ext-api` (the contract), `ext-host` (the implementation). The user-facing guide is [[Writing an Extension]].
 
+> [!note] As built (2026-10-01) — read this before the principles
+> - **Static extensions** implement `moonkale_ext_api::Extension`: `manifest()` (a Rust `Manifest { id, name, description, optional, default_enabled, permissions }`), `panels()`, `render()`, `on_panel_closed()`, `commands()`/`run_command()`, `flow_libraries()`, `settings()`. They are listed in `ui::default_extensions()`, enabled per tier in the Extensions panel.
+> - **Wasm extensions** use the JSON ABI v1 ([[ADR-0013 JSON ABI before components]]): commands and agent tools only.
+> - **Not built**: the `moonkale.toml` manifest, the lifecycle below (every static extension is constructed at start; there is no lazy activation), activation events, `when` clauses, the `Host` handle with `kv_get`/`notify`/`ask`, `ui::Tree` panels, WIT, contribution points other than panels, commands, settings and flow libraries. Those parts of this page, [[Contribution Points]], [[Manifest Reference]] and [[Host API Reference]] are the **target design**.
+
 ## Principles
 1. **No privileged path.** Built-in editors are static extensions using only `ext-api`. If they need something the API lacks, the API grows.
 2. **Declarative first.** Manifests describe panels, commands, languages, keybindings, themes and renderers so the shell can build UI *before* activating code. Activation is lazy.

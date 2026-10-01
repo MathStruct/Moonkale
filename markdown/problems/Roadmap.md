@@ -1,56 +1,27 @@
 ---
 title: "Roadmap"
+description: What comes next and in which order — the library refactor, the internal store, then the features waiting for them — and the seventeen milestones so far.
 tags: [problems, planning]
 ---
-Phases group the [[Problem Ranking]] into deliverables a user can touch. Each phase ends with something runnable on **desktop and web** (mobile catches up in Phase 5).
+Where things stand today is [[Status]]; the anticipated hard problems and their state are the [[Problem Ranking]] (`R-nn`). This page is the **order**.
 
-```mermaid
-gantt
-  title Moonkale phases (relative, not dated)
-  dateFormat X
-  axisFormat %s
-  section 0 Skeleton
-  Crate skeleton + vault (done)        :done, p0, 0, 1
-  section 1 Walking skeleton
-  P-01 core model + Source            :done, p1a, 1, 3
-  P-02 folder source + explorer       :done, p1b, after p1a, 1
-  P-03 JS interop protocol            :done, p1c, after p1a, 1
-  P-04 code editor (CodeMirror)       :done, p1d, after p1c, 2
-  P-05 extension API + static reg     :done, p1e, after p1d, 2
-  section 2 Graph appears
-  P-06 index + wiki-links             :done, p2a, after p1e, 2
-  P-07 graph view v1                  :done, p2b, after p2a, 3
-  P-08 SQLite/DuckDB + table          :done, p2c, after p1e, 2
-  P-09 markdown source mode           :done, p2d, after p2a, 1
-  section 3 Databases & tools
-  P-10 remote source (web parity)     :p3a, after p2c, 2
-  P-11 Milkdown WYSIWYG               :p3b, after p2d, 2
-  P-12 Typst                          :p3c, after p2d, 1
-  P-13 terminal                       :p3d, after p1e, 1
-  P-14 LSP                            :p3e, after p1d, 2
-  P-15 Ladybug/Falkor                 :p3f, after p2c, 1
-  P-16 cross-source edges             :p3g, after p3f, 2
-  section 4 Agents
-  P-17 LLM gateway + policy           :p4a, after p3a, 2
-  P-18 embeddings + hybrid search     :p4b, after p4a, 2
-  P-19 Postgres/Turso                 :p4c, after p3a, 1
-  P-20 remote LSP/terminal (secure)   :p4d, after p3d, 2
-  P-21 traces/AST                     :p4e, after p2b, 1
-  section 5 Scale & extend
-  P-22 GPU layouts + desktop surface  :p5a, after p2b, 4
-  P-23 wasmtime extensions            :p5b, after p4a, 3
-  P-24 flow editor + Lux.jl           :p5c, after p3d, 3
-  P-25 mobile                         :p5d, after p3a, 3
-  P-26 TypeDB/Helix                   :p5e, after p3f, 2
-  section 6 Research
-  P-27 3D                             :p6a, after p5a, 1
-  P-28 browser wasm extensions        :p6b, after p5b, 3
-  P-29 native backends                :p6c, after p5a, 5
-```
+## Next
 
-## Phase deliverables
+| # | what | why now | depends on |
+|---|---|---|---|
+| 1 | **[[Milestone 18 - Library Refactor]]** phases 0–4: CI, pruning, layering, the `Workspace` as services, the catalogue out of the shell, server contributions | every later feature is cheaper and safer after it; CI first (R-39) | — |
+| 2 | **State interface (stable for redb) → internal-store comparison** → [[ADR-0014 One store for internal state]] accepted → refactor phase 5 | announced by Daniel after Milestone 17; settings, history, sessions, projects and a persisted index all wait for it (R-36) | 1 (phase 3 makes the services it plugs into) |
+| — | **Local fixes from the audit** (#2, #5, #10, #11, #14, #15, close #6) | small, independent, some are data loss | nothing; any time |
+| 3 | **Writes to database sources** (R-41) | every source is read-only today; announced after Milestone 17 | 1 (openers, classifier on the source) |
+| 4 | **Projects** (R-40, [[Projects and Sources]], spec [[003]]) | cross-source links (R-16), per-source colour and read-only, sync | 2 (projects live in the store) |
+| 5 | **The Lenticulum path** ([[Julia and Lenticulum]]): flow editor with undirected ports and nested subgraphs → MTK library → a live graph source and the factor-graph viewer | the reason Moonkale exists | 1 (graph renderer as a library, `moonkale-julia` repo) |
+| 6 | **Graph coarse tier** ([[Case Selector]]) and the plain-text tier | factor graphs and code graphs past 100k nodes | 1 |
 
-| Phase | You can… | Proves |
+Candidates, documented and not ordered yet: [[Unicode Input]] (spec [[004]]), [[Markdown Diagrams and Math]] (fence renderers), [[Annotations]], [[Notebook Editor]], [[Publishing Sources]] (reader mode), [[Collaboration]] (CRDT editing), accounts and roles for a shared server ([[Remote and Server Modes]]), the Julia depot as a read-only source, specs [[024]]/[[025]] (go to definition from the cursor, five-button mouse), spec [[028]] (phone vault export, Storage Access Framework), the remaining JS → Rust replacements ([[JavaScript Inventory]]), Postgres/Redis/TypeDB/FalkorDB sources.
+
+## Milestones so far
+
+| Milestone | You can… | Plan / log |
 |---|---|---|
 | **1 Walking skeleton** ✅ | open a folder, edit and save files in a dockable workbench, on desktop and web (server-side folder) | the model, the interop boundary, the extension API — **done 2026-09-17**, see [[Milestone 1 - Walking Skeleton]] / [[Milestone 1 - Implementation Log]] |
 | **2 Graph appears** ✅ | see your folder + wiki-links + symbols as a graph; open a SQLite file and browse tables; edit markdown with backlinks | "graph-native" is real; wgpu works in webviews — **done 2026-09-18** (DuckDB deferred), see [[Milestone 2 - Implementation Log]] |
@@ -62,17 +33,16 @@ gantt
 | **8 Research** ✅ | entity log and history panel; presence across machines; 3D graph; wasm extensions in the browser | long-term direction — **done 2026-09-19**, see [[Milestone 8 - Research]] / [[Milestone 8 - Implementation Log]] (Postgres/TypeDB, Android and the JS-free desktop wait for an environment) |
 | **9 Second halves** ✅ | history you can act on (snapshots, restore); presence cursors and a desktop hub client; 3D node dragging; DuckDB and data-file tables; the Android build | **done 2026-09-19** — the release APK runs on a Galaxy S10e (phone shell, Explorer, editor with the soft keyboard, save + history, graph on WebGL2) after five Android-only fixes — [[Milestone 9 - Second Halves]] / [[Milestone 9 - Implementation Log]] |
 | **10 Daily use** ✅ | use Moonkale every day; the small specifications are the backlog — specs 001–019 all done (formulas, wiki-links, highlighting, wrap, close folder, closeable panels, image viewer, activity bar + menus + source icons, Android gestures/name/icon, splices, front matter) | **done 2026-09-21** — [[Milestone 10 - Daily Use]] / [[README|specifications]] |
-| **15 Agents, profiles and connections** ✅ | saved agents chosen per session, sessions side by side with history in the folder, saved SSH connections, Settings without the extension list, Claude Code login | **done 2026-09-22** — [[Milestone 15 - Agents, Profiles and Connections]] / [[Milestone 15 - Implementation Log]] |
-| **14 Rust code editor** ✅ | a second code editor on `dioxus-code-editor` (tree-sitter in Rust/wasm for every core language), per-document switching, the caret's word as a signal, the Rust terminal's rows | **done 2026-09-21** — [[Milestone 14 - Rust Code Editor]] / [[Milestone 14 - Implementation Log]] |
-| **13 Packaging** ✅ | packages friends can install (pacman, apt, nix, tarball), a release workflow with unsigned Windows/macOS bundles, extension settings with the extension | **done 2026-09-21** — [[Milestone 13 - Packaging]] / [[Milestone 13 - Implementation Log]] |
-| **12 Agents & native terminal** ✅ | Claude Code as a provider (subscription, no key); agent sessions on the server that finish without a client; Connect to Server on desktop and phone; the first JS-free editor (a Rust/Dioxus terminal) with a chooser; an Extensions activity | **done 2026-09-21** — [[Milestone 12 - Agents and a Native Terminal]] / [[Milestone 12 - Implementation Log]] |
 | **11 Remote** ✅ | open folders on another machine over SSH from the desktop app (Zed's model); the desktop as a client of any Moonkale server; a standalone `moonkale-server`; TLS, terminal switch and Origin checks for exposed servers | **done 2026-09-21** (the desktop dialog awaits Daniel's look) — [[Milestone 11 - Remote]] / [[Milestone 11 - Implementation Log]] |
-
-## Phase 10 candidates (documented, not planned yet)
-Desired behaviour written down first, each waiting to be scheduled into a milestone: [[Projects and Sources]] (several sources per saved project, selector, sync — [[003]]), [[Unicode Input]] (`\int` → ∫ everywhere — [[004]]), [[Core Languages]] (highlighting for every language is the biggest gap), [[Android Extensions and Bundling]] (wasm extensions on the phone, a smaller APK, F-Droid), an embedded HelixDB source ([[002]], waits for the crate), [[Case Selector]] (plain text tier for huge files, coarse graph tier past 100k nodes), [[JavaScript Inventory]] (terminal → code → rich text replacements), [[Claude Code Extension]] (IDE bridge + agent provider on a subscription — [[005]]). The split of the core from its extensions (catalogue out of `ui`, server contribution point, Lux → `MathStruct/moonkale-julia`) is proposed in [[Extension Catalogue]]. The goal all of it serves — a graphical factor-graph editor for Lenticulum.jl, with the Julia depot as a read-only source and an MTK editor on the way — is [[Julia and Lenticulum]]. [[Markdown Diagrams and Math]] (Typst math, TikZ, Mermaid, tabs through one fence-renderer contribution), [[Annotations]] (comments anchored to nodes, GitHub issues imported as the same), [[Notebook Editor]] (`.ipynb`, kernels behind a feature). [[Remote and Server Modes]] (remote folder over SSH, TLS and the terminal switch are done in Milestone 11; accounts and roles for a shared server, a *Connect to Server…* dialog and signed server releases with checksums remain). [[Publishing Sources]]: a read-only *reader mode* of the web server so published sources stay queryable (a static export was considered and dropped), with a plot panel later.
+| **12 Agents & native terminal** ✅ | Claude Code as a provider (subscription, no key); agent sessions on the server that finish without a client; Connect to Server on desktop and phone; the first JS-free editor (a Rust/Dioxus terminal) with a chooser; an Extensions activity | **done 2026-09-21** — [[Milestone 12 - Agents and a Native Terminal]] / [[Milestone 12 - Implementation Log]] |
+| **13 Packaging** ✅ | packages friends can install (pacman, apt, nix, tarball), a release workflow with unsigned Windows/macOS bundles, extension settings with the extension | **done 2026-09-21** — [[Milestone 13 - Packaging]] / [[Milestone 13 - Implementation Log]] |
+| **14 Rust code editor** ✅ | a second code editor on `dioxus-code-editor` (tree-sitter in Rust/wasm for every core language), per-document switching, the caret's word as a signal, the Rust terminal's rows | **done 2026-09-21** — [[Milestone 14 - Rust Code Editor]] / [[Milestone 14 - Implementation Log]] |
+| **15 Agents, profiles and connections** ✅ | saved agents chosen per session, sessions side by side with history in the folder, saved SSH connections, Settings without the extension list, Claude Code login | **done 2026-09-22** — [[Milestone 15 - Agents, Profiles and Connections]] / [[Milestone 15 - Implementation Log]] |
+| **16 Sources follow the disk** ✅ | the Sources panel follows changes on disk (↻ for unwatched sources), Local graph laid out on its own, no `<br />` from the rich editor, tabs dragged by touch | **done 2026-09-28** — [[Milestone 16 - Sources Follow the Disk]] / [[Milestone 16 - Implementation Log]] |
+| **17 Embedded stores** ✅ | Turso, redb, RocksDB and embedded HelixDB as read-only sources; LadybugDB linked statically with localized symbols (Linux) | **done 2026-09-29** — [[Milestone 17 - Embedded Stores]] / [[Milestone 17 - Implementation Log]] |
 
 ## Principles for sequencing
-1. **Risky things early, but not first.** P-01 is first because it must be; P-05 waits for one real editor; P-22 waits for measurements from P-07.
-2. **Every phase ends runnable on two platforms.** No "we'll do web later" — that's how single-platform assumptions leak in.
-3. **Built-ins go through the extension API from Phase 1.** Retrofitting is how privileged paths appear.
-4. **Log every problem.** [[Problem Log]], one note per `P-nnn` using [[Problem Template]].
+1. **Risky things early, but not first.** The core model came first because it had to; the extension API waited for one real editor; the store waits for its comparison.
+2. **Every milestone ends runnable on at least two platforms.** No "we'll do web later" — that is how single-platform assumptions leak in.
+3. **Built-ins go through the extension API.** Retrofitting is how privileged paths appear — and where they appeared anyway (the catalogue in `ui`, driver calls in the Explorer), [[Milestone 18 - Library Refactor]] removes them.
+4. **Log every problem** in the [[Problem Log]] (`P-nnn`, [[Problem Template]]); update [[Status]] at the end of every milestone.

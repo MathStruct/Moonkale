@@ -4,8 +4,91 @@ tags: [extensions, guide]
 ---
 Moonkale is extension-driven: the built-in editors are extensions. This guide takes you from an empty folder to a panel, a command, a language and a data source. Reference material: [[Manifest Reference]], [[Contribution Points]], [[Host API Reference]], [[Publishing and Platforms]].
 
-> [!note] Status
-> The extension API (`packages/ext-api`) is designed but not implemented. This guide documents the *intended* shape so that the implementation is held to it. Where details are still open, the text says so.
+> [!warning] Two halves — read which one you need
+> **Part A** is how to write an extension **today**, against the code as it is (checked 2026-10-01). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `ui::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
+
+# Part A — writing an extension today
+
+There are two kinds, and they can do different things:
+
+| | static (Rust crate) | wasm module (JSON ABI v1) |
+|---|---|---|
+| can contribute | panels (any Dioxus `Element`), commands + keybindings, its own settings UI, flow-editor block libraries | commands, optionally offered to the agent as tools |
+| sees | the whole `Workspace` (sources, documents, settings, …) | three host calls: `list_sources`, `query`, `fetch_text`, each checked against the granted permissions |
+| ships | compiled into the binary; listed in `ui::default_extensions()` | a `.wasm` file in `~/.config/moonkale/extensions/` or `<folder>/.moonkale/extensions/` |
+| runs on | every platform | desktop and server (wasmtime), browser (Worker); not on Android yet |
+| example | `packages/editors/image` (≈ 60 lines of extension code) | `packages/extensions/wordcount` |
+
+## A static extension
+Depend on `moonkale-ext-api` and `dioxus` (workspace versions), implement the trait, and add one line to `ui::default_extensions()` (and the crate to `ui/Cargo.toml`) — that line moves to a `distribution` crate in [[Milestone 18 - Library Refactor]].
+
+```rust
+use dioxus::prelude::*;
+use moonkale_ext_api::prelude::*;
+
+pub struct Hello;
+
+impl Extension for Hello {
+    fn manifest(&self) -> Manifest {
+        // core(..) = always on; optional(..) = on, can be switched off; opt_in(..) = off until enabled
+        Manifest::opt_in("dev.example.hello", "Hello", "Greets you from a side panel.")
+            .with_permissions(&["read-sources"])
+    }
+
+    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
+        vec![PanelContribution {
+            id: "hello".into(),
+            title: "Hello".into(),
+            home: PanelHome::Side,
+            closable: true,
+            dirty: false,
+            node: None,
+            activity: Some(Activity::new("puzzle", 100, "Hello")),
+        }]
+    }
+
+    fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
+        let n = ws.sources.read().len();
+        rsx! { p { "Hello — {n} source(s) open." } }
+    }
+
+    fn commands(&self, _ws: Workspace) -> Vec<CommandContribution> {
+        vec![CommandContribution::new("hello.greet", "Hello: Greet").key("Ctrl+Alt+H")]
+    }
+
+    fn run_command(&self, id: &str, mut ws: Workspace) {
+        if id == "hello.greet" {
+            ws.set_status("Hello!");
+        }
+    }
+}
+```
+
+What the trait offers (`packages/ext-api/src/extension.rs`): `manifest`, `panels` (called on every shell render — read signals there to contribute one panel per open document), `render`, `on_panel_closed`, `commands`/`run_command`, `flow_libraries` (block libraries for the flow editor, see `extensions/lux`), `settings` (an `Element` shown under the extension's row in the Extensions panel; write with `Workspace::update_settings_in`). Keep state in the `Workspace` or in signals the extension owns, not in the rendered element: a panel is remounted when it is docked elsewhere.
+
+An editor is a static extension that contributes one panel per node it opens (see `editors/image/src/extension.rs`: it filters `ws.views` for the nodes it can show).
+
+## A wasm extension
+A core wasm module built with plain `cargo build --target wasm32-unknown-unknown --release` — no component tooling. It exports `alloc(len) -> ptr`, `manifest() -> packed(ptr,len)` and `run(ptr,len) -> packed`; it may import `moonkale.log(ptr,len)` and `moonkale.call(ptr,len) -> packed`. Every value is JSON:
+
+```jsonc
+// manifest()
+{ "abi": 1, "id": "dev.example.count", "name": "Count", "description": "…",
+  "permissions": ["read-sources"],
+  "commands": [{ "id": "count.lines", "title": "Count: lines", "description": "…",
+                 "input_schema": { "type": "object", "properties": { "source": {"type":"string"}, "node": {"type":"string"} } },
+                 "llm_tool": true }] }
+// run() receives { "command": "count.lines", "args": { … } } and returns { "ok": true, "result": "…" } or { "ok": false, "error": "…" }
+// call() sends { "op": "list_sources" } | { "op": "query", "source": "…", "query": <a core Query as JSON> }
+//             | { "op": "fetch_text", "source": "…", "node": "…" }
+//   and gets back { "ok": true, "result": <JSON> } or { "ok": false, "error": "…" }
+```
+
+The types are in `packages/ext-host/src/abi.rs` (a Rust guest can depend on `moonkale-ext-host` with no features to share them); `packages/extensions/wordcount/src/lib.rs` is a complete example and `build.sh` installs it. The user grants the permissions in the Extensions panel; until then the host refuses the calls.
+
+---
+
+# Part B — the target design (not built)
 
 ## 1. What an extension is
 

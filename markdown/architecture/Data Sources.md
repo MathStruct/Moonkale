@@ -4,6 +4,9 @@ tags: [architecture, sources]
 ---
 Crates: `sources` (abstraction, registry, lifting, remote proxy), `sources-sql`, `sources-graph`, `sources-kv`, `project-fs`. Driver availability is in [[Database Backends]].
 
+> [!note] As built (2026-10-01)
+> Built: folders; SQLite, DuckDB (+ folders of CSV/TSV/Parquet), Turso, redb, RocksDB, HelixDB (embedded), LadybugDB (Linux) — **all opened from a file or directory, all read-only**; the remote proxy. Not built: any networked database (Postgres, Redis, TypeDB, FalkorDB), connection parameters with `SecretRef`, the connection state machine, `SourceEvent` subscriptions (sources report external changes through `changes_since` instead), and the shared lifting rules (`sources::lift` is a stub — each driver lifts its own rows and decides its own ids). `Capabilities` has `read`, `write`, `watch`, `text_query` only. Which file opens as which source is decided in four places today; [[Milestone 18 - Library Refactor]] phase 2 makes it a *source opener* contribution.
+
 ## Query path
 
 ```mermaid
@@ -49,14 +52,15 @@ sequenceDiagram
 
 **As built (Milestone 1):** `RemoteSource` lives in the `api` crate, not `sources`, to avoid a dependency cycle (it calls `api`'s server functions; `api` holds the registry). The server confines `open_folder` to `MOONKALE_ROOT`; there is no auth yet. Errors are nested `Result<Result<T, SourceError>, ServerFnError>` so a remote `Conflict` is a local `Conflict`.
 
-## Order of implementation (from [[Roadmap]])
-1. Folder (native) — everything else needs files.
-2. SQLite + DuckDB — embedded, no server, exercises the SQL lifting; DuckDB also gives "folder of CSV/parquet as tables".
-3. Remote proxy — web parity.
-4. Postgres/Supabase, Turso.
-5. LadybugDB (embedded) and FalkorDB (simple protocol) — first graph backends.
-6. Redis/Dragonfly.
-7. TypeDB, HelixDB — richer, less mature drivers.
+## Order of implementation (from [[Roadmap]]), with where each stands
+1. ✅ Folder (native) — everything else needs files.
+2. ✅ SQLite + DuckDB — embedded, no server; DuckDB also gives "folder of CSV/parquet as tables".
+3. ✅ Remote proxy — web parity.
+4. ◐ Turso ✅ (embedded, Milestone 17) · Postgres/Supabase ○.
+5. ◐ LadybugDB ✅ (embedded; Linux only, P-144) · FalkorDB ○.
+6. ◐ redb, RocksDB ✅ (embedded key/value, Milestone 17, not in the original list) · Redis/Dragonfly ○.
+7. ◐ HelixDB ✅ (embedded, git dependency, Milestone 17) · TypeDB ○.
+8. ○ Writes (OLTP) for every database source — the next step announced after Milestone 17.
 
 ## Projects
 Several sources open at once, grouped into a saved **project** with a selector, per-source colour and read-only, suspended sources, an open report and sync: [[Projects and Sources]] (desired behaviour, 2026-09-19).

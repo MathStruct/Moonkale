@@ -2,6 +2,9 @@
 title: "How to Write Tests"
 tags: [testing, guide]
 ---
+> [!note] Checked 2026-10-01
+> The recipes for plain `#[test]`, integration tests in `tests/`, `VirtualDom` component tests and the Playwright suites match what the repository does. `proptest`, `insta`, `nextest`, `FakeSource` and `TestHost` are **recommendations, not in use** — no crate depends on them yet. Where the real tests are: [[Testing Strategy]].
+
 Concrete recipes for each layer, in the order you'll meet them. Strategy and rationale: [[Testing Strategy]]. All snippets target Dioxus 0.7.10 (APIs checked: `VirtualDom::rebuild_in_place`, `dioxus_ssr::render`).
 
 ## 0. Where tests live and how to run them

@@ -20,7 +20,7 @@ On desktop and web:
 5. **Traces as graphs** — a parser for Rust panics/backtraces, cargo `-->` errors, Python tracebacks and JS stacks; a *Trace → Graph* action in the terminal (and paste box) builds an in-memory `TraceSource` (frames → files, call chain) the Graph panel draws; double-click opens the file at the line.
 6. **Reveal** — `Workspace::reveal(node, line, col)`: opening a file at a position (search hits, trace frames, and the M3 gap: cross-file go-to-definition).
 
-**Deferred** (documented, not started): Milkdown WYSIWYG (P-11 — rich text is its own milestone), Postgres/Turso (P-19, need servers), FalkorDB/TypeDB/Helix (P-26), an MCP server for external agents (decision recorded in the log: after the in-app tool surface has settled), secure remote terminal/LSP (P-20), LSP completion/rename.
+**Deferred** (documented, not started): Milkdown WYSIWYG (R-11 — rich text is its own milestone), Postgres/Turso (R-19, need servers), FalkorDB/TypeDB/Helix (R-26), an MCP server for external agents (decision recorded in the log: after the in-app tool surface has settled), secure remote terminal/LSP (R-20), LSP completion/rename.
 
 ## Architecture decisions for this milestone
 

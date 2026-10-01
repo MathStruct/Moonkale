@@ -4,6 +4,18 @@ tags: [architecture, core]
 ---
 Crate: `packages/core`. The model is the contract between sources, editors, the index, extensions and agents.
 
+> [!note] As built vs. this design (checked 2026-10-01)
+> The diagram below is the **design**. What `core` has today:
+> - `Node { id, source, kind, label, native_key, content: Option<ContentRef>, version }` — **no property map**; `ContentRef` is `Text { len, lang }` or `Blob { len, mime }` (no `Rows`/`Nested`).
+> - `Edge { source, from, to, kind }` — **no id, properties or weight**.
+> - `NodeKind` / `EdgeKind` as listed below, with `Custom(String)` (not `Custom(ExtensionId, String)`).
+> - `Source`: `id`, `descriptor`, `query`, `fetch_text`, `fetch_bytes`, `apply`, `refresh`, `changes_since` (a long poll, Milestone 16) — **no `fetch(NodeId) -> Content`, no `subscribe`**.
+> - `Query`: `Node`, `Children`, `Neighbours { node, depth, direction }`, `All { limit, kinds }`, `Text { dialect, text }`; results are `QueryResult { nodes, edges, table, truncated }`. **`GraphView` is a design stub** (`core/src/graph/view.rs`); editors hold `QueryResult`s.
+> - `Capabilities { read, write, watch, text_query }`; `TextDialect` = SQL, Cypher, TypeQL, `kv`, `helix`.
+> - Ids are derived from `(SourceId, native key)` as designed; the entity log (`graph::history`) exists ([[Version Management]]).
+>
+> Whether properties, edge ids and `GraphView` are added or dropped from the design is phase 6 of [[Milestone 18 - Library Refactor]]; content-addressed ids are a candidate there too.
+
 ## Entities
 
 ```mermaid
@@ -58,7 +70,7 @@ classDiagram
 
 **Writes are transactions of ops with expected versions.** Optimistic concurrency, undo/redo by replay, partial success with `Unsupported` reasons. Text edits are patches ([[ADR-0009 Patches not snapshots]]).
 
-**Cross-source edges** are owned by the source that stores them; the target may be foreign. This enables "wiki page links to a database row" and is the trickiest consistency problem in the project — see [[Problem Ranking]] (P-24).
+**Cross-source edges** are owned by the source that stores them; the target may be foreign. This enables "wiki page links to a database row" and is the trickiest consistency problem in the project — see [[Problem Ranking]] (R-16).
 
 ## What the model is *not*
 - Not a database. Nothing is persisted by `core`; sources and the index persist.

@@ -17,21 +17,24 @@ Everything that used to be in the README about building lives here.
 
 ```
 Moonkale/
-├─ Cargo.toml            # workspace; every crate under packages/ is a member
+├─ Cargo.toml            # workspace; 38 crates under packages/
+├─ .cargo/config.toml    # LBUG_LOCALIZE_BUNDLED_SYMBOLS (P-144)
 ├─ packages/
-│  ├─ web/ desktop/ mobile/   platform entrypoints (routers, platform assets)
-│  ├─ ui/                     the workbench shell (dioxus-workbench)
-│  ├─ api/                    fullstack server functions
-│  ├─ core/ ext-api/ ext-host/ sources*/ project-fs/ index/ llm/ lsp*/ terminal*/
-│  │                          the architecture skeleton (comment-only today)
-│  ├─ editors/{code,markdown,table,graph,graph-desktop,flow,terminal}/
-│  └─ js/{codemirror,milkdown,xterm}/   isolated TypeScript view packages
+│  ├─ web/ desktop/ mobile/   platform entrypoints and platform services
+│  ├─ ui/                     the shell (dioxus-workbench) and, for now, the extension catalogue
+│  ├─ api/                    the server: fullstack functions, auth, MCP, relays
+│  ├─ core/ ext-api/ ext-host/              model, extension contract, wasm runtime
+│  ├─ sources*/ project-fs/ index/ trace/ typst/    sources and derived data
+│  ├─ llm/ lsp*/ terminal*/ remote/         services
+│  ├─ editors/*  extensions/*               the built-in extensions
+│  └─ js/{codemirror,milkdown,xterm,wasm-host}/   isolated TypeScript packages
 ├─ markdown/             # this vault (design record; published as the website)
+├─ packaging/            # PKGBUILDs, Debian, release scripts
 ├─ site/                 # vendored Quartz + TikZ/Typst/Tabs plugins
-└─ .github/workflows/    # Pages deploy
+└─ .github/workflows/    # release, Pages deploy, labels (no test workflow yet — R-39)
 ```
 
-The crate-by-crate rationale is in [[Project Structure]]; what runs on which platform in [[Platform Matrix]].
+Every crate with real code is listed with its size and role in [[Project Structure]]; what runs on which platform in [[Platform Matrix]].
 
 ## Build and check
 
@@ -68,7 +71,7 @@ firefox --headless --profile /tmp/ffp --window-size=1400,900 --screenshot /tmp/s
 
 ```sh
 cargo test --workspace                  # native suite (core, project-fs, …)
-cargo nextest run --workspace           # parallel, per-process (cargo install cargo-nextest)
+cargo test -p moonkale-index           # one crate; scripts and agents use CARGO_TARGET_DIR=target/agent (spec 023)
 ```
 
 End-to-end (real browser against the web build): `packages/web/tests/e2e/README.md`.
@@ -133,6 +136,11 @@ Conventions:
 - Diagrams: Mermaid fences render everywhere. ```` ```tikz ```` and ```` ```typst ```` fences and `$…$` math also render on the site (Typst first, KaTeX fallback — see the MathStruct [authoring guide](https://mathstruct.github.io/guides/authoring) for the rules).
 - Every problem hit during implementation gets a note via [[Problem Template]] and a row in [[Problem Log]].
 - Versioning of the vault itself is plain git; versioning *inside* Moonkale is described in [[Version Management]].
+- **Status is kept in one place, [[Status]]**, updated at the end of every milestone; the landing page, [[Home]] and the [[Roadmap]] link to it rather than repeating it.
+- **Design notes say what is built.** A note that describes more than exists carries an *As built* box at the top; when the code and a note disagree, the code is checked and the note fixed.
+- **Two id spaces**: `R-nn` for the anticipated problems ([[Problem Ranking]]), `P-nnn` for problems hit ([[Problem Log]]). GitHub issues are cited as `#n`.
+- **Crate notes** (`packages/**/<crate>.md`, part of the Obsidian vault but not of the website) hold implementation detail for one crate; the vault links to them and does not repeat them. Update the crate note in the same change as the crate.
+- **Shared pages with a rule**: [[Extension Catalogue]] (update whenever an extension is added, moved or retiered), [[JavaScript Inventory]] (whenever a bundle changes), specifications (Daniel numbers them; the fixer edits the file in place).
 
 ## Packaging
 

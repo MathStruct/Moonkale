@@ -68,10 +68,14 @@ Tested on Linux (desktop and browser) and on one Android phone:
   the phone. (Only test in local network!! Still has some security flaws)
 
 Windows and macOS builds are produced but **untested**: nobody on the project
-has those machines.
+has those machines. Area by area, with what is still missing:
+[Status](https://mathstruct.github.io/Moonkale/Status).
 
 ## Planned
 
+- A refactor into a library with a small core: extensions, sources and
+  server routes added without editing the shell, and one store for
+  Moonkale's own state that can sync between devices.
 - Writes to the embedded databases (the OLTP side), and more data sources:
   Postgres, TypeDB, FalkorDB, Redis (only stubs today).
 - Projects that combine several sources, and links across them.
