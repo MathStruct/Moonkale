@@ -98,7 +98,7 @@ pub fn Frame(
     // Follow changes on disk for every open source (Milestone 16): the
     // workspace starts one loop per source it has not seen yet.
     use_effect(move || {
-        let _ = ws.sources.read();
+        let _ = ws.sources.open.read();
         ws.follow_sources();
     });
 
@@ -168,7 +168,7 @@ pub fn Frame(
         settings_started.set(true);
         // The webview is up: stylesheets inserted during the first render
         // may have been lost (Android, P-087) — ask them to re-assert.
-        ws.assets_epoch.with_mut(|e| *e += 1);
+        ws.docs.assets_epoch.with_mut(|e| *e += 1);
         // Tabs can be dragged by touch too (Prompt26, Android).
         crate::touch_drag::install();
         spawn(async move { ws.load_user_settings().await });
@@ -195,14 +195,14 @@ pub fn Frame(
     // settings load, save the list (and the active one) whenever it changes.
     let mut restored_docs_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
     use_effect(move || {
-        let folder = ws.settings_folder.read().clone();
+        let folder = ws.settings.folder.read().clone();
         let Some(folder) = folder else { return };
         if restored_docs_for.peek().as_ref() == Some(&folder) {
             return;
         }
         restored_docs_for.set(Some(folder.clone()));
         let (keys, active) = {
-            let s = ws.settings.peek();
+            let s = ws.settings.resolved.peek();
             (s.open_documents.clone(), s.active_document.clone())
         };
         if keys.is_empty() {
@@ -220,14 +220,14 @@ pub fn Frame(
                 }
             }
             if let Some(id) = activate {
-                ws.active.set(Some(id));
+                ws.docs.active.set(Some(id));
             }
         });
     });
     use_effect(move || {
-        let docs = ws.documents.read();
-        let active = *ws.active.read();
-        let Some(folder) = ws.settings_folder.peek().clone() else {
+        let docs = ws.docs.open.read();
+        let active = *ws.docs.active.read();
+        let Some(folder) = ws.settings.folder.peek().clone() else {
             return;
         };
         if restored_docs_for.peek().as_ref() != Some(&folder) {
@@ -247,7 +247,7 @@ pub fn Frame(
             })
         });
         drop(docs);
-        let current = ws.settings_workspace.peek();
+        let current = ws.settings.workspace.peek();
         if current.open_documents == keys && current.active_document == active_key {
             return;
         }
@@ -264,21 +264,21 @@ pub fn Frame(
     // Presence (Milestone 8): tell the hub whenever the active document or
     // our name changes.
     use_effect(move || {
-        let _ = ws.active.read();
-        let _ = ws.settings.read().user_name.clone();
+        let _ = ws.docs.active.read();
+        let _ = ws.settings.resolved.read().user_name.clone();
         ws.publish_presence();
     });
 
     // Frame-level commands.
     use_effect(move || {
-        let (_, cmd) = *ws.commands.read();
+        let (_, cmd) = *ws.shell.commands.read();
         match cmd {
             Some(Command::NewWindow) => match config.new_window {
                 Some(open) => open(),
                 None => ws.set_status("New window is not available on this platform"),
             },
             Some(Command::OpenRecent(i)) => {
-                let path = ws.settings.peek().recent_folders.get(i).cloned();
+                let path = ws.settings.resolved.peek().recent_folders.get(i).cloned();
                 if let Some(path) = path {
                     spawn(async move {
                         if let Err(e) = ws.open_folder(path).await {
@@ -297,7 +297,7 @@ pub fn Frame(
             // setting's choice, or a chooser when both are on and it is `ask`.
             Some(Command::NewTerminal) => {
                 let (xterm_on, native_on, pref) = {
-                    let s = ws.settings.peek();
+                    let s = ws.settings.resolved.peek();
                     (
                         s.extensions
                             .is_enabled_id("dev.moonkale.editor-terminal", true),
@@ -322,6 +322,7 @@ pub fn Frame(
             Some(Command::NewFile(name, template)) => {
                 let folder = ws
                     .sources
+                    .open
                     .peek()
                     .iter()
                     .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -365,7 +366,7 @@ pub fn Frame(
         }
     });
 
-    let foreign = ws.foreign_drag.read().clone();
+    let foreign = ws.session.foreign_drag.read().clone();
 
     rsx! {
         div {

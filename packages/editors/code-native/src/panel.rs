@@ -37,7 +37,8 @@ impl Extension for NativeCodeExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.documents
+        ws.docs
+            .open
             .read()
             .iter()
             // The shell keeps the ones this editor wins (`claims`; a tie
@@ -159,7 +160,7 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
     let language = language_of(hint);
     let text = d.text.clone();
     drop(d);
-    let dark = ws.settings.read().theme != "light";
+    let dark = ws.settings.resolved.read().theme != "light";
     let theme = if dark {
         CodeTheme::fixed(Theme::TOKYO_NIGHT)
     } else {
@@ -168,6 +169,7 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
     let word = ws.cursor_word();
     let codemirror_on = ws
         .settings
+        .resolved
         .read()
         .extensions
         .is_enabled_id("dev.moonkale.editor-code", true);

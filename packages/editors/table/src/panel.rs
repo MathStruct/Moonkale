@@ -49,6 +49,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let source_id = node.source.clone();
     let dialect = ws
         .sources
+        .open
         .peek()
         .iter()
         .find(|s| s.descriptor.id == source_id)
@@ -97,7 +98,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         let source_id = source_id.clone();
         move |_| {
             let mut ws = ws;
-            ws.graph_request.set(Some(GraphRequest {
+            ws.docs.graph_request.set(Some(GraphRequest {
                 source: source_id.clone(),
                 dialect: dialect.into(),
                 text: text.peek().clone(),

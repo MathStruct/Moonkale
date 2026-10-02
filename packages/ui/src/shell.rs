@@ -78,12 +78,12 @@ pub fn Shell() -> Element {
     // load; save every settled change into `.moonkale/settings.json`.
     let mut restored_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
     use_effect(move || {
-        let folder = ws.settings_folder.read().clone();
+        let folder = ws.settings.folder.read().clone();
         if folder.is_none() || *restored_for.peek() == folder {
             return;
         }
         restored_for.set(folder);
-        if let Some(encoded) = ws.settings.peek().layout.clone() {
+        if let Some(encoded) = ws.settings.resolved.peek().layout.clone() {
             match PanelLayout::decode(&encoded) {
                 Some(saved) => {
                     tracing::info!("settings: restoring layout");
@@ -94,11 +94,11 @@ pub fn Shell() -> Element {
         }
     });
     let on_layout_change = move |next: PanelLayout| {
-        if ws.settings_folder.peek().is_none() || *narrow.peek() {
+        if ws.settings.folder.peek().is_none() || *narrow.peek() {
             return;
         }
         let encoded = next.encode();
-        if encoded == ws.settings_workspace.peek().layout {
+        if encoded == ws.settings.workspace.peek().layout {
             return;
         }
         spawn(async move {
@@ -110,11 +110,11 @@ pub fn Shell() -> Element {
     let exts_for_commands = exts.clone();
     use_effect(move || {
         let exts = &exts_for_commands;
-        let (_, cmd) = *ws.commands.read();
+        let (_, cmd) = *ws.shell.commands.read();
         match cmd {
             Some(Command::ResetLayout) => {
                 layout.set(default_layout());
-                if ws.settings_folder.peek().is_some() {
+                if ws.settings.folder.peek().is_some() {
                     spawn(async move {
                         ws.update_workspace_settings(|f| f.layout = None).await;
                     });
@@ -124,14 +124,14 @@ pub fn Shell() -> Element {
                 // Our copy of the layout only learns about attached panels
                 // through mutations, so reconcile with the current
                 // contributions first (the workbench does the same on click).
-                ws.closed_panels.with_mut(|c| {
+                ws.shell.closed_panels.with_mut(|c| {
                     c.remove(id);
                 });
-                let ext_settings = ws.settings.peek().extensions.clone();
+                let ext_settings = ws.settings.resolved.peek().extensions.clone();
                 let is_narrow = *narrow.peek();
                 let mut target = if is_narrow { phone_layout } else { layout };
                 let mut next = target.peek().clone();
-                let closed = ws.closed_panels.peek().clone();
+                let closed = ws.shell.closed_panels.peek().clone();
                 let placements: Vec<PanelPlacement> = contributions(exts, &ext_settings, ws, false)
                     .into_iter()
                     .map(|(_, c)| c)
@@ -180,9 +180,9 @@ pub fn Shell() -> Element {
             // remember them; the next toggle shows them again.
             Some(Command::ToggleSide) | Some(Command::ToggleBottom) => {
                 let tile = if matches!(cmd, Some(Command::ToggleSide)) { "side" } else { "bottom" };
-                let remembered = ws.hidden_tiles.peek().get(tile).cloned().unwrap_or_default();
-                let ext_settings = ws.settings.peek().extensions.clone();
-                let closed = ws.closed_panels.peek().clone();
+                let remembered = ws.shell.hidden_tiles.peek().get(tile).cloned().unwrap_or_default();
+                let ext_settings = ws.settings.resolved.peek().extensions.clone();
+                let closed = ws.shell.closed_panels.peek().clone();
                 let visible: Vec<String> = contributions(exts, &ext_settings, ws, false)
                     .into_iter()
                     .map(|(_, c)| c)
@@ -190,12 +190,12 @@ pub fn Shell() -> Element {
                     .map(|c| c.id)
                     .collect();
                 if !visible.is_empty() {
-                    ws.hidden_tiles.with_mut(|h| { h.insert(tile.to_string(), visible.clone()); });
-                    ws.closed_panels.with_mut(|c| c.extend(visible));
+                    ws.shell.hidden_tiles.with_mut(|h| { h.insert(tile.to_string(), visible.clone()); });
+                    ws.shell.closed_panels.with_mut(|c| c.extend(visible));
                 } else if !remembered.is_empty() {
-                    ws.hidden_tiles.with_mut(|h| { h.remove(tile); });
+                    ws.shell.hidden_tiles.with_mut(|h| { h.remove(tile); });
                     let first = remembered[0].clone();
-                    ws.closed_panels.with_mut(|c| { for id in &remembered { c.remove(id); } });
+                    ws.shell.closed_panels.with_mut(|c| { for id in &remembered { c.remove(id); } });
                     ws.show_panel(&first);
                 } else {
                     ws.set_status(format!("Nothing to show in the {tile} area"));
@@ -203,7 +203,7 @@ pub fn Shell() -> Element {
             }
             Some(Command::SaveAll) => {
                 let dirty: Vec<moonkale_core::NodeId> = ws
-                    .documents
+                    .docs.open
                     .peek()
                     .iter()
                     .filter(|(_, d)| d.peek().dirty())
@@ -221,17 +221,17 @@ pub fn Shell() -> Element {
             }
             Some(Command::CloseAllEditors) => {
                 let clean: Vec<moonkale_core::NodeId> = ws
-                    .documents
+                    .docs.open
                     .peek()
                     .iter()
                     .filter(|(_, d)| !d.peek().dirty())
                     .map(|(id, _)| *id)
                     .collect();
-                let kept = ws.documents.peek().len() - clean.len();
+                let kept = ws.docs.open.peek().len() - clean.len();
                 for id in clean {
                     ws.close_node(id);
                 }
-                let views: Vec<moonkale_core::NodeId> = ws.views.peek().iter().map(|n| n.id).collect();
+                let views: Vec<moonkale_core::NodeId> = ws.docs.views.peek().iter().map(|n| n.id).collect();
                 for id in views {
                     ws.close_node(id);
                 }
@@ -241,7 +241,7 @@ pub fn Shell() -> Element {
             }
             Some(Command::CloseFolder) => {
                 let first = ws
-                    .sources
+                    .sources.open
                     .peek()
                     .iter()
                     .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -268,10 +268,10 @@ pub fn Shell() -> Element {
     let mut panels = Vec::new();
     let mut owner: HashMap<String, usize> = HashMap::new();
     let mut active_panel: Option<PanelId> = None;
-    let active_node = *ws.active.read();
+    let active_node = *ws.docs.active.read();
     let is_narrow = *narrow.read();
     // Disabled extensions (Settings → Extensions) contribute nothing.
-    let ext_settings = ws.settings.read().extensions.clone();
+    let ext_settings = ws.settings.resolved.read().extensions.clone();
     // Block libraries for the flow editor, from the enabled extensions.
     {
         let libs: Vec<moonkale_ext_api::flow::FlowLibrary> = exts
@@ -279,14 +279,14 @@ pub fn Shell() -> Element {
             .filter(|e| ext_settings.is_enabled(&e.manifest()))
             .flat_map(|e| e.flow_libraries())
             .collect();
-        if *ws.flow_libraries.peek() != libs {
-            ws.flow_libraries.set(libs);
+        if *ws.contrib.flow_libraries.peek() != libs {
+            ws.contrib.flow_libraries.set(libs);
         }
     }
     // Panel ids present this render, for the phone bar.
     let mut present: Vec<String> = Vec::new();
     // Static panels the user closed (spec 011) contribute nothing.
-    let closed = ws.closed_panels.read().clone();
+    let closed = ws.shell.closed_panels.read().clone();
     // Whether a contribution is a static panel (no document behind it).
     let mut is_static: HashMap<String, bool> = HashMap::new();
     let current_layout = if is_narrow {
@@ -325,7 +325,7 @@ pub fn Shell() -> Element {
             // the document's file (Milestone 7).
             let vcs = c.node.and_then(|n| ws.document(n)).and_then(|d| {
                 let key = d.peek().node.native_key.clone();
-                ws.file_marks.read().get(&key).cloned()
+                ws.contrib.file_marks.read().get(&key).cloned()
             });
             // Others looking at this document (presence, Milestone 8).
             let here: Vec<moonkale_ext_api::presence::Member> =
@@ -364,15 +364,15 @@ pub fn Shell() -> Element {
             // bar / the palette brings it back (spec 011); documents close
             // through their extension.
             if is_static.get(&id_str).copied().unwrap_or(false) {
-                ws.closed_panels.with_mut(|c| {
+                ws.shell.closed_panels.with_mut(|c| {
                     c.insert(id_str);
                 });
             }
         }
     };
 
-    let status = ws.status.read().clone();
-    let _ = ws.presence.read();
+    let status = ws.shell.status.read().clone();
+    let _ = ws.session.presence.read();
     let others = ws.others();
     let others_names = others
         .iter()
@@ -396,24 +396,27 @@ pub fn Shell() -> Element {
             )
         })
         .collect();
-    let lsp = ws.lsp_status.read().clone();
+    let lsp = ws.processes.lsp_status.read().clone();
     // The remote session (Milestone 11): "⇅ host:path · connected".
     let remote = ws
         .remote
+        .ssh
         .read()
         .as_ref()
         .map(|r| (r.label(), r.phase.label()));
-    let server = ws.server_link.read().as_ref().map(|(u, _)| u.clone());
-    let windows = ws.peers.read().len() + 1;
-    let window_id = ws.window.read().to_string();
+    let server = ws.remote.server.read().as_ref().map(|(u, _)| u.clone());
+    let windows = ws.session.peers.read().len() + 1;
+    let window_id = ws.session.window.read().to_string();
     let source_name = ws
         .sources
+        .open
         .read()
         .first()
         .map(|s| s.descriptor.display_name.clone());
     // The first source's accent (spec 009), matching its Explorer stripe.
     let source_color: Option<&'static str> = ws
         .sources
+        .open
         .read()
         .first()
         .map(|s| crate::icons::source_color(s.descriptor.id.as_str()));
@@ -546,7 +549,7 @@ pub fn Shell() -> Element {
                                             // Click on the current entry hides it (spec 009);
                                             // otherwise show (reopening if closed).
                                             if active {
-                                                ws.closed_panels.with_mut(|c| { c.insert(id.clone()); });
+                                                ws.shell.closed_panels.with_mut(|c| { c.insert(id.clone()); });
                                             } else {
                                                 ws.show_panel(&id);
                                             }

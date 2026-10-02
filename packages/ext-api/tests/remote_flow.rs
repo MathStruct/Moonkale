@@ -138,17 +138,19 @@ fn App() -> Element {
     });
     let remote = ws
         .remote
+        .ssh
         .read()
         .as_ref()
         .map(|r| r.phase.label())
         .unwrap_or_default();
     let sources: Vec<String> = ws
         .sources
+        .open
         .read()
         .iter()
         .map(|s| s.descriptor.id.to_string())
         .collect();
-    let (_, cmd) = *ws.commands.read();
+    let (_, cmd) = *ws.shell.commands.read();
     rsx! { div { "{remote} | {sources:?} | {cmd:?}" } }
 }
 
@@ -158,10 +160,10 @@ async fn phases_open_the_folder_and_closing_ends_the_session() {
     dom.rebuild_in_place();
     fn phase(dom: &VirtualDom) -> (Option<RemotePhase>, usize, usize, usize, String) {
         let ws = dom.in_scope(ScopeId::ROOT, ws);
-        let remote = ws.remote.peek().clone();
-        let sources = ws.sources.peek().len();
-        let adopt = ws.adopt_terminals.peek().len();
-        let status = ws.status.peek().clone();
+        let remote = ws.remote.ssh.peek().clone();
+        let sources = ws.sources.open.peek().len();
+        let adopt = ws.processes.adopt_terminals.peek().len();
+        let status = ws.shell.status.peek().clone();
         (
             remote.as_ref().map(|r| r.phase.clone()),
             remote.as_ref().map(|r| r.sources.len()).unwrap_or(0),
@@ -189,10 +191,10 @@ async fn phases_open_the_folder_and_closing_ends_the_session() {
     assert_eq!(p.2, 1, "the remote folder is a source");
     assert_eq!(p.1, 1, "…and remembered as remote");
     let ws = dom.in_scope(ScopeId::ROOT, ws);
-    let id = ws.sources.peek()[0].descriptor.id.clone();
+    let id = ws.sources.open.peek()[0].descriptor.id.clone();
     assert!(ws.is_remote_source(&id));
     assert!(
-        ws.settings_user.peek().recent_folders.is_empty(),
+        ws.settings.user.peek().recent_folders.is_empty(),
         "remote paths are not recent folders"
     );
     // Closing the folder ends the session.
@@ -259,16 +261,16 @@ async fn connect_server_opens_the_root_and_disconnect_closes_it() {
     // The server's root folder ("") was opened and recorded on the link.
     assert!(OPENED.lock().unwrap().iter().any(|p| p.is_empty()));
     let ws = dom.in_scope(ScopeId::ROOT, ws);
-    let link = ws.server_link.peek().clone().expect("linked");
+    let link = ws.remote.server.peek().clone().expect("linked");
     assert_eq!(link.0, "http://box:8443");
     assert_eq!(link.1.len(), 1);
     assert!(
-        ws.settings_user.peek().recent_folders.is_empty(),
+        ws.settings.user.peek().recent_folders.is_empty(),
         "server paths are not recents"
     );
     let mut ws2 = ws;
     dom.in_scope(ScopeId::ROOT, move || ws2.disconnect_server());
     assert_eq!(DISCONNECTS.load(Ordering::SeqCst), 1);
-    assert!(ws.server_link.peek().is_none());
-    assert_eq!(ws.sources.peek().len(), 0);
+    assert!(ws.remote.server.peek().is_none());
+    assert_eq!(ws.sources.open.peek().len(), 0);
 }

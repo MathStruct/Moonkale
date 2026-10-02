@@ -259,7 +259,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 });
             }
             let language = doc.peek().node.language_hint().map(str::to_string);
-            let wrap = ws.settings.peek().editor.wrap;
+            let wrap = ws.settings.resolved.peek().editor.wrap;
             backend.set(Some(backend::mount(
                 element_id.clone(),
                 initial,
@@ -289,7 +289,9 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         let node_id = node;
         let mut applied = use_signal(|| 0u64);
         use_effect(move || {
-            let Some(r) = *ws.reveal.read() else { return };
+            let Some(r) = *ws.docs.reveal.read() else {
+                return;
+            };
             if r.node != node_id || !ready() || *applied.peek() == r.seq {
                 return;
             }
@@ -302,7 +304,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // Word wrap follows the user setting (spec 014).
     {
         use_effect(move || {
-            let wrap = ws.settings.read().editor.wrap;
+            let wrap = ws.settings.resolved.read().editor.wrap;
             if !ready() {
                 return;
             }
@@ -315,7 +317,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     {
         let key = doc.peek().node.native_key.clone();
         use_effect(move || {
-            let _ = ws.presence.read();
+            let _ = ws.session.presence.read();
             let marks: Vec<(u32, String)> = ws
                 .others()
                 .into_iter()
@@ -337,7 +339,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         let mut wiki_epoch = use_signal(|| 0u64);
         use_effect(move || {
             let _ = doc.read().text.len();
-            let _ = ws.graph_epoch.read();
+            let _ = ws.sources.graph_epoch.read();
             if !ready() {
                 return;
             }
@@ -421,8 +423,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
 
     // Application commands aimed at the active editor (menus, keybindings).
     use_effect(move || {
-        let (_, cmd) = *ws.commands.read();
-        if ws.active.peek().as_ref() != Some(&node) {
+        let (_, cmd) = *ws.shell.commands.read();
+        if ws.docs.active.peek().as_ref() != Some(&node) {
             return;
         }
         match cmd {
@@ -513,7 +515,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let dirty = d.dirty();
     let title = d.node.native_key.clone();
     let lang = d.node.language_hint().unwrap_or("plain text");
-    let wrap_on = ws.settings.read().editor.wrap;
+    let wrap_on = ws.settings.resolved.read().editor.wrap;
     let version = d.version;
     drop(d);
 
@@ -545,7 +547,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 button { class: "mk-btn", disabled: !dirty, onclick: save, "Save" }
                 button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
                 // Milestone 14: move this document to the Rust editor.
-                if ws.settings.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
+                if ws.settings.resolved.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
                     button { class: "mk-btn mk-editor-switch", title: "Show this file in the Rust editor (dioxus-code-editor)", onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }, "Rust" }
                 }
             }

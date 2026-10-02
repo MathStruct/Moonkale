@@ -10,7 +10,8 @@ pub fn ServerDialog(open: Signal<bool>) -> Element {
     let mut open = open;
     let ws = use_context::<Workspace>();
     let mut url = use_signal(|| {
-        ws.server_link
+        ws.remote
+            .server
             .peek()
             .as_ref()
             .map(|(u, _)| u.clone())

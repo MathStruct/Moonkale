@@ -61,12 +61,15 @@ impl LspManager {
         let spawn_lsp = ws.spawn_lsp()?;
         let mut this = self;
         this.starting.with_mut(|v| v.push(key.clone()));
-        ws.lsp_status
+        ws.processes
+            .lsp_status
             .set(Some(format!("{language}: starting language server…")));
         let transport = match spawn_lsp(language.to_string(), root.to_string()).await {
             Ok(t) => t,
             Err(e) => {
-                ws.lsp_status.set(Some(format!("{language}: {e}")));
+                ws.processes
+                    .lsp_status
+                    .set(Some(format!("{language}: {e}")));
                 this.starting.with_mut(|v| v.retain(|k| k != &key));
                 return None;
             }
@@ -77,17 +80,21 @@ impl LspManager {
         spawn(async move {
             while let Some(ev) = events.next().await {
                 match ev {
-                    LspEvent::Initialized { server } => {
-                        ws.lsp_status.set(Some(format!("{server}: ready")))
+                    LspEvent::Initialized { server } => ws
+                        .processes
+                        .lsp_status
+                        .set(Some(format!("{server}: ready"))),
+                    LspEvent::Status(s) => {
+                        ws.processes.lsp_status.set(Some(format!("{lang}: {s}")))
                     }
-                    LspEvent::Status(s) => ws.lsp_status.set(Some(format!("{lang}: {s}"))),
                     LspEvent::Diagnostics { uri, diagnostics } => {
                         this.diagnostics.with_mut(|m| {
                             m.insert(uri, diagnostics);
                         });
                     }
                     LspEvent::Closed => {
-                        ws.lsp_status
+                        ws.processes
+                            .lsp_status
                             .set(Some(format!("{lang}: language server exited")));
                         break;
                     }
@@ -103,7 +110,8 @@ impl LspManager {
                 Some(session)
             }
             Err(e) => {
-                ws.lsp_status
+                ws.processes
+                    .lsp_status
                     .set(Some(format!("{language}: initialize failed: {e}")));
                 this.starting.with_mut(|v| v.retain(|k| k != &key));
                 None
@@ -131,6 +139,7 @@ pub async fn apply_workspace_edit(
         };
         let folder = ws
             .sources
+            .open
             .peek()
             .iter()
             .find(|s| s.descriptor.id.as_str() == format!("folder:{root}"))
@@ -178,6 +187,7 @@ pub async fn apply_workspace_edit(
         // Re-index and let the server know the file changed on disk.
         let others: Vec<_> = ws
             .sources
+            .open
             .peek()
             .iter()
             .filter(|s| s.descriptor.id.as_str() != format!("folder:{root}"))
@@ -188,7 +198,7 @@ pub async fn apply_workspace_edit(
         }
     }
     if changed > 0 {
-        ws.graph_epoch.with_mut(|e| *e += 1);
+        ws.sources.graph_epoch.with_mut(|e| *e += 1);
     }
     Ok(changed)
 }

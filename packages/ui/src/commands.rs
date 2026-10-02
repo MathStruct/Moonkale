@@ -180,7 +180,7 @@ impl Registry {
     /// Built-ins first, then every enabled extension's contributions (first
     /// id wins on a clash), with `settings.keybindings` applied last.
     pub fn build(exts: &[Box<dyn Extension>], ws: Workspace) -> Self {
-        let settings = ws.settings.read();
+        let settings = ws.settings.resolved.read();
         let mut entries: Vec<Entry> = Vec::new();
         let mut push = |c: CommandContribution, run: Run| {
             if entries.iter().any(|e| e.id == c.id) {

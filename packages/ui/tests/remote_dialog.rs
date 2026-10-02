@@ -156,7 +156,7 @@ async fn saving_and_picking_a_connection() {
     fire(&dom, "click", clicks[2], "");
     settle(&mut dom, &mut m).await;
     let ws = dom.in_scope(ScopeId::ROOT, || WS.with(|w| w.get()).unwrap());
-    let saved = ws.settings.peek().remote_saved.clone();
+    let saved = ws.settings.resolved.peek().remote_saved.clone();
     assert_eq!(saved.len(), 1);
     assert_eq!(
         (
@@ -167,7 +167,7 @@ async fn saving_and_picking_a_connection() {
         ("box", "-p 443 daniel@box", "/srv/code")
     );
     assert!(
-        ws.settings_user.peek().remote.saved.len() == 1,
+        ws.settings.user.peek().remote.saved.len() == 1,
         "the user file holds it"
     );
     // The select appeared; a Forget button too (5 clicks now).

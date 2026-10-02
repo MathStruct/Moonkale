@@ -191,7 +191,7 @@ fn App() -> Element {
         ws.follow_sources();
         SETUP.with(|s| *s.borrow_mut() = Some((ws, disk, refreshed, tx)));
     });
-    rsx! { div { "{ws.fs_epoch}" } }
+    rsx! { div { "{ws.sources.fs_epoch}" } }
 }
 
 async fn settle(dom: &mut VirtualDom) {
@@ -214,7 +214,7 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
     let db = SourceId::new("sqlite:/data.db");
     let index = SourceId::new("index:folder:/notes");
 
-    let watched = ws.watched.peek().clone();
+    let watched = ws.sources.watched.peek().clone();
     assert!(watched.contains(&folder), "the folder answered: watched");
     assert!(!watched.contains(&db), "the database is not watched");
     assert!(
@@ -223,8 +223,8 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
     );
 
     // Two paths change on disk: one edited, one deleted.
-    let epoch = *ws.fs_epoch.peek();
-    let graph_epoch = *ws.graph_epoch.peek();
+    let epoch = *ws.sources.fs_epoch.peek();
+    let graph_epoch = *ws.sources.graph_epoch.peek();
     disk.files.lock().unwrap().retain(|f| f != "gone.md");
     tx.send(Changes {
         seq: 2,
@@ -242,8 +242,11 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
         ],
         "the index re-reads both, the deleted one by its derived id"
     );
-    assert!(*ws.fs_epoch.peek() > epoch, "the Explorer reloads");
-    assert!(*ws.graph_epoch.peek() > graph_epoch, "the graph reloads");
+    assert!(*ws.sources.fs_epoch.peek() > epoch, "the Explorer reloads");
+    assert!(
+        *ws.sources.graph_epoch.peek() > graph_epoch,
+        "the graph reloads"
+    );
 
     // A burst: refresh from the root.
     refreshed.lock().unwrap().clear();
@@ -260,17 +263,18 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
     );
 
     // The database has no watcher: its ↻ button re-reads it and reloads.
-    let epoch = *ws.fs_epoch.peek();
+    let epoch = *ws.sources.fs_epoch.peek();
     dom.in_scope(ScopeId::ROOT, || {
         let db = db.clone();
         spawn(async move { ws.refresh_source(&db).await });
     });
     settle(&mut dom).await;
-    assert!(*ws.fs_epoch.peek() > epoch);
+    assert!(*ws.sources.fs_epoch.peek() > epoch);
 
     // Closing the folder ends its loop: it leaves `watched`.
     let mut ws2 = ws;
     ws2.sources
+        .open
         .with_mut(|v| v.retain(|s| s.descriptor.id != folder));
     tx.send(Changes {
         seq: 901,
@@ -279,5 +283,5 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
     })
     .unwrap();
     settle(&mut dom).await;
-    assert!(!ws.watched.peek().contains(&folder));
+    assert!(!ws.sources.watched.peek().contains(&folder));
 }

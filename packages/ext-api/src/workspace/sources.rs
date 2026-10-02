@@ -13,6 +13,7 @@ impl Workspace {
     pub async fn close_source(mut self, id: &SourceId) -> Result<(), SourceError> {
         let Some(handle) = self
             .sources
+            .open
             .peek()
             .iter()
             .find(|s| &s.descriptor.id == id)
@@ -23,6 +24,7 @@ impl Workspace {
         // Everything derived from this source closes too.
         let derived: Vec<SourceId> = self
             .sources
+            .open
             .peek()
             .iter()
             .filter(|s| {
@@ -36,7 +38,8 @@ impl Workspace {
             .collect();
         let closing: Vec<SourceId> = std::iter::once(id.clone()).chain(derived).collect();
         let docs: Vec<(NodeId, bool)> = self
-            .documents
+            .docs
+            .open
             .peek()
             .iter()
             .filter(|(_, d)| closing.contains(&d.peek().node.source))
@@ -53,19 +56,21 @@ impl Workspace {
         for (n, _) in docs {
             self.close_node(n);
         }
-        if self.settings_folder.peek().as_ref() == Some(id) {
+        if self.settings.folder.peek().as_ref() == Some(id) {
             self.persist_history().await;
-            self.history.set(moonkale_core::EntityLog::new());
-            self.settings_workspace
+            self.history.log.set(moonkale_core::EntityLog::new());
+            self.settings
+                .workspace
                 .set(crate::settings::SettingsFile::new());
-            self.settings_folder.set(None);
-            self.presence_link.set(None);
-            self.presence.set(Vec::new());
+            self.settings.folder.set(None);
+            self.session.presence_link.set(None);
+            self.session.presence.set(Vec::new());
             self.resolve_settings();
         }
         self.sources
+            .open
             .with_mut(|v| v.retain(|s| !closing.contains(&s.descriptor.id)));
-        self.graph_epoch.with_mut(|e| *e += 1);
+        self.sources.graph_epoch.with_mut(|e| *e += 1);
         if self.is_remote_source(id) {
             self.close_remote();
         } else {
@@ -88,6 +93,7 @@ impl Workspace {
         }
         let source = (self.config.folders.attach)(descriptor.clone()).await?;
         self.sources
+            .open
             .with_mut(|v| v.push(SourceHandle { descriptor, source }));
         Ok(())
     }
@@ -199,6 +205,7 @@ impl Workspace {
     /// The first open folder's path (what `git` and terminals run in).
     pub fn folder_root(&self) -> Option<String> {
         self.sources
+            .open
             .peek()
             .iter()
             .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -226,6 +233,7 @@ impl Workspace {
 
     pub fn source(&self, id: &SourceId) -> Option<Arc<dyn Source>> {
         self.sources
+            .open
             .read()
             .iter()
             .find(|s| &s.descriptor.id == id)
@@ -236,7 +244,7 @@ impl Workspace {
     /// window. Not announced to the session bus: it has no path to reopen.
     pub fn add_source(&mut self, source: Arc<dyn Source>) -> SourceDescriptor {
         let descriptor = source.descriptor();
-        self.sources.with_mut(|v| {
+        self.sources.open.with_mut(|v| {
             v.retain(|s| s.descriptor.id != descriptor.id);
             v.push(SourceHandle {
                 descriptor: descriptor.clone(),
@@ -249,7 +257,7 @@ impl Workspace {
     /// Open a folder through the platform's factory and add it to `sources`.
     pub async fn open_folder(mut self, path: String) -> Result<SourceDescriptor, SourceError> {
         let options = {
-            let s = self.settings.peek();
+            let s = self.settings.resolved.peek();
             OpenOptions {
                 embed: (s.search.embeddings && s.llm.embed_model.is_some()
                     || s.search.embeddings && s.llm.provider == "mock")
@@ -264,7 +272,7 @@ impl Workspace {
         for source in sources {
             let descriptor = source.descriptor();
             opened.push(descriptor.id.clone());
-            self.sources.with_mut(|v| {
+            self.sources.open.with_mut(|v| {
                 v.retain(|s| s.descriptor.id != descriptor.id);
                 v.push(SourceHandle {
                     descriptor: descriptor.clone(),
@@ -272,7 +280,7 @@ impl Workspace {
                 });
             });
             self.send(SessionMessage::SourceOpened {
-                from: self.window.peek().clone(),
+                from: self.session.window.peek().clone(),
                 descriptor: descriptor.clone(),
             });
             first.get_or_insert(descriptor);
@@ -282,21 +290,22 @@ impl Workspace {
         tracing::info!("open_folder: first {} ({:?})", first.id, first.family);
         let remote = self
             .remote
+            .ssh
             .peek()
             .as_ref()
             .is_some_and(|r| r.phase == crate::remote::RemotePhase::Ready);
         if remote {
             // Opened through the SSH session: remember it there, not in the
             // recent folders (the path is not on this machine).
-            self.remote.with_mut(|r| {
+            self.remote.ssh.with_mut(|r| {
                 if let Some(r) = r {
                     r.sources.extend(opened.iter().cloned());
                 }
             });
         }
-        let via_server = self.server_link.peek().is_some();
+        let via_server = self.remote.server.peek().is_some();
         if via_server {
-            self.server_link.with_mut(|l| {
+            self.remote.server.with_mut(|l| {
                 if let Some((_, ids)) = l {
                     ids.extend(opened.iter().cloned());
                 }
@@ -324,6 +333,7 @@ impl Workspace {
     /// "folder · index: 12 files · 30 links" — for the status bar.
     pub fn sources_summary(&self) -> String {
         self.sources
+            .open
             .peek()
             .iter()
             .map(|s| s.descriptor.display_name.clone())
@@ -334,6 +344,7 @@ impl Workspace {
     /// The index source, if one is open (derived data: links, symbols).
     pub fn index(&self) -> Option<SourceHandle> {
         self.sources
+            .open
             .peek()
             .iter()
             .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
@@ -350,6 +361,7 @@ impl Workspace {
     pub(super) async fn after_fs_change(&mut self, source_id: &SourceId, nodes: &[NodeId]) {
         let others: Vec<Arc<dyn Source>> = self
             .sources
+            .open
             .peek()
             .iter()
             .filter(|s| &s.descriptor.id != source_id)
@@ -360,8 +372,8 @@ impl Workspace {
                 let _ = other.refresh(*n).await;
             }
         }
-        self.graph_epoch.with_mut(|e| *e += 1);
-        self.fs_epoch.with_mut(|e| *e += 1);
+        self.sources.graph_epoch.with_mut(|e| *e += 1);
+        self.sources.fs_epoch.with_mut(|e| *e += 1);
     }
 
     /// Follow every open source that is not followed yet (Milestone 16): one
@@ -370,11 +382,12 @@ impl Workspace {
     pub fn follow_sources(self) {
         let ids: Vec<SourceId> = self
             .sources
+            .open
             .peek()
             .iter()
             .map(|s| s.descriptor.id.clone())
             .collect();
-        let mut followed = self.followed;
+        let mut followed = self.sources.followed;
         for id in ids {
             if followed.peek().contains(&id) {
                 continue;
@@ -399,8 +412,8 @@ impl Workspace {
                 Ok(None) => break,
                 Ok(Some(changes)) => {
                     failures = 0;
-                    if !self.watched.peek().contains(&id) {
-                        self.watched.with_mut(|w| {
+                    if !self.sources.watched.peek().contains(&id) {
+                        self.sources.watched.with_mut(|w| {
                             w.insert(id.clone());
                         });
                     }
@@ -425,8 +438,8 @@ impl Workspace {
                     if failures == 1 {
                         tracing::info!("follow {id}: {e}");
                     }
-                    if self.watched.peek().contains(&id) {
-                        self.watched.with_mut(|w| {
+                    if self.sources.watched.peek().contains(&id) {
+                        self.sources.watched.with_mut(|w| {
                             w.remove(&id);
                         });
                     }
@@ -435,10 +448,10 @@ impl Workspace {
                 }
             }
         }
-        self.watched.with_mut(|w| {
+        self.sources.watched.with_mut(|w| {
             w.remove(&id);
         });
-        self.followed.with_mut(|f| {
+        self.sources.followed.with_mut(|f| {
             f.remove(&id);
         });
     }
@@ -480,5 +493,35 @@ impl Workspace {
         let root = source.descriptor().root;
         self.after_fs_change(id, &[root]).await;
         self.set_status(format!("Refreshed {}", source.descriptor().display_name));
+    }
+}
+
+/// Open sources and whether they are followed. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct SourcesState {
+    pub open: Signal<Vec<SourceHandle>>,
+    /// Sources whose changes on disk are followed (Milestone 16): their
+    /// `changes_since` answered. Every other source gets a refresh button.
+    pub watched: Signal<std::collections::HashSet<SourceId>>,
+    /// Sources with a follow loop running (answered or not yet).
+    pub(crate) followed: Signal<std::collections::HashSet<SourceId>>,
+    /// Bumped after a file operation (create/rename/delete/move) so the
+    /// Explorer reloads the directories it shows (Milestone 7) — and, since
+    /// Milestone 16, after changes made on disk behind Moonkale's back.
+    pub fs_epoch: Signal<u64>,
+    /// Bumped whenever derived data may have changed (after a save was
+    /// refreshed into the index); graph/backlink panels re-query on it.
+    pub graph_epoch: Signal<u64>,
+}
+
+impl SourcesState {
+    pub(super) fn new() -> Self {
+        Self {
+            open: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            watched: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
+            followed: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
+            fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+        }
     }
 }

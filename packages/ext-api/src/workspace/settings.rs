@@ -17,12 +17,12 @@ impl Workspace {
     /// Recompute the resolved settings from the two scopes + environment.
     pub(super) fn resolve_settings(&mut self) {
         let resolved = crate::settings::Settings::resolve(
-            &self.settings_user.peek(),
-            &self.settings_workspace.peek(),
+            &self.settings.user.peek(),
+            &self.settings.workspace.peek(),
             &crate::settings::Settings::env_overrides(),
         );
-        if *self.settings.peek() != resolved {
-            self.settings.set(resolved);
+        if *self.settings.resolved.peek() != resolved {
+            self.settings.resolved.set(resolved);
         }
     }
 
@@ -33,7 +33,7 @@ impl Workspace {
         };
         match (store.load)().await {
             Ok(file) => {
-                self.settings_user.set(file);
+                self.settings.user.set(file);
                 self.resolve_settings();
             }
             Err(e) => self.set_status(format!("Settings not loaded: {e}")),
@@ -48,10 +48,16 @@ impl Workspace {
         }
         // … else come back to where you were.
         if self.config.folders.reopen_last
-            && self.sources.peek().is_empty()
-            && self.settings_user.peek().reopen_last != Some(false)
+            && self.sources.open.peek().is_empty()
+            && self.settings.user.peek().reopen_last != Some(false)
         {
-            let last = self.settings.peek().recent_folders.first().cloned();
+            let last = self
+                .settings
+                .resolved
+                .peek()
+                .recent_folders
+                .first()
+                .cloned();
             if let Some(path) = last {
                 tracing::info!("settings: reopening last folder {path}");
                 if let Err(e) = self.open_folder(path).await {
@@ -80,9 +86,9 @@ impl Workspace {
         mut self,
         f: impl FnOnce(&mut crate::settings::SettingsFile),
     ) {
-        let mut file = self.settings_user.peek().clone();
+        let mut file = self.settings.user.peek().clone();
         f(&mut file);
-        self.settings_user.set(file.clone());
+        self.settings.user.set(file.clone());
         self.resolve_settings();
         if let Some(store) = self.config.persistence.settings {
             if let Err(e) = (store.save)(file).await {
@@ -118,8 +124,8 @@ impl Workspace {
             file.open_documents.len(),
             file.active_document
         );
-        self.settings_folder.set(Some(folder.clone()));
-        self.settings_workspace.set(file);
+        self.settings.folder.set(Some(folder.clone()));
+        self.settings.workspace.set(file);
         self.resolve_settings();
         self.load_history(folder).await;
         self.join_presence(folder.as_str());
@@ -130,11 +136,11 @@ impl Workspace {
         mut self,
         f: impl FnOnce(&mut crate::settings::SettingsFile),
     ) {
-        let mut file = self.settings_workspace.peek().clone();
+        let mut file = self.settings.workspace.peek().clone();
         f(&mut file);
-        self.settings_workspace.set(file.clone());
+        self.settings.workspace.set(file.clone());
         self.resolve_settings();
-        let Some(folder) = self.settings_folder.peek().clone() else {
+        let Some(folder) = self.settings.folder.peek().clone() else {
             return;
         };
         let Some(src) = self.source(&folder) else {
@@ -175,6 +181,35 @@ impl Workspace {
                 self.set_status(format!("Workspace settings not saved: {e}"));
             }
             Err(e) => self.set_status(format!("Workspace settings not saved: {e}")),
+        }
+    }
+}
+
+/// The settings files of both scopes and what they resolve to. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct SettingsState {
+    pub resolved: Signal<crate::settings::Settings>,
+    /// Persisted scopes and the resolved value (see `settings.rs`).
+    pub user: Signal<crate::settings::SettingsFile>,
+    pub workspace: Signal<crate::settings::SettingsFile>,
+    /// The folder whose `.moonkale/settings.json` is loaded, if any.
+    pub folder: Signal<Option<SourceId>>,
+}
+
+impl SettingsState {
+    pub(super) fn new() -> Self {
+        Self {
+            resolved: Signal::new_in_scope(
+                crate::settings::Settings::resolve(
+                    &crate::settings::SettingsFile::new(),
+                    &crate::settings::SettingsFile::new(),
+                    &crate::settings::Settings::env_overrides(),
+                ),
+                ScopeId::ROOT,
+            ),
+            user: Signal::new_in_scope(crate::settings::SettingsFile::new(), ScopeId::ROOT),
+            workspace: Signal::new_in_scope(crate::settings::SettingsFile::new(), ScopeId::ROOT),
+            folder: Signal::new_in_scope(None, ScopeId::ROOT),
         }
     }
 }

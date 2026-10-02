@@ -167,7 +167,7 @@ async fn submit_closes_the_dialog_and_still_connects() {
     );
     let ws = dom.in_scope(ScopeId::ROOT, || WS.with(|w| w.get()).unwrap());
     assert_eq!(
-        ws.server_link.peek().as_ref().map(|(u, _)| u.clone()),
+        ws.remote.server.peek().as_ref().map(|(u, _)| u.clone()),
         Some("http://192.168.178.62:8443".into())
     );
 }

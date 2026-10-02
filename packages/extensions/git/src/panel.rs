@@ -75,7 +75,7 @@ async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
 pub async fn refresh(mut ws: Workspace, mut state: GitState) {
     if ws.folder_root().is_none() {
         state.status.set(None);
-        ws.file_marks.set(HashMap::new());
+        ws.contrib.file_marks.set(HashMap::new());
         return;
     }
     match run(ws, GitRequest::Status).await {
@@ -90,8 +90,8 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
                 .iter()
                 .filter_map(|e| mark(e.index, e.worktree).map(|m| (e.path.clone(), m)))
                 .collect();
-            if *ws.file_marks.peek() != map {
-                ws.file_marks.set(map);
+            if *ws.contrib.file_marks.peek() != map {
+                ws.contrib.file_marks.set(map);
             }
             state.status.set(Some(Ok(Status {
                 branch,
@@ -103,7 +103,7 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
         }
         Ok(GitResponse::Unavailable(msg)) => {
             state.status.set(Some(Err(msg)));
-            ws.file_marks.set(HashMap::new());
+            ws.contrib.file_marks.set(HashMap::new());
             return;
         }
         Ok(_) => {}
@@ -182,9 +182,9 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     use_effect(move || {
         let key = (
             *state.epoch.read(),
-            *ws.fs_epoch.read(),
-            *ws.graph_epoch.read(),
-            ws.sources.read().len(),
+            *ws.sources.fs_epoch.read(),
+            *ws.sources.graph_epoch.read(),
+            ws.sources.open.read().len(),
         );
         if *seen.peek() == key {
             return;

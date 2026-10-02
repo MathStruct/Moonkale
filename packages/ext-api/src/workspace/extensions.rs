@@ -11,6 +11,7 @@ impl Workspace {
         };
         let folder = self
             .sources
+            .open
             .peek()
             .iter()
             .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -23,8 +24,8 @@ impl Workspace {
             });
         match (w.list)(folder).await {
             Ok(list) => {
-                if *self.wasm_extensions.peek() != list {
-                    self.wasm_extensions.set(list);
+                if *self.contrib.wasm_extensions.peek() != list {
+                    self.contrib.wasm_extensions.set(list);
                 }
             }
             Err(e) => self.set_status(format!("Extensions not scanned: {e}")),
@@ -45,6 +46,7 @@ impl Workspace {
             .ok_or("wasm extensions are not available on this platform")?;
         let granted = self
             .settings
+            .resolved
             .peek()
             .extensions
             .permissions
@@ -135,6 +137,7 @@ impl Workspace {
             HostCall::ListSources => {
                 let list: Vec<SourceDescriptor> = self
                     .sources
+                    .open
                     .peek()
                     .iter()
                     .map(|s| s.descriptor.clone())
@@ -192,3 +195,26 @@ try {
     dioxus.send({ kind: "error", error: String(e && e.message || e) });
 }
 "#;
+
+/// What extensions contributed at runtime: flow libraries, wasm modules, file marks. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct ContribState {
+    /// Block libraries from the enabled extensions (the shell keeps it current).
+    pub flow_libraries: Signal<Vec<crate::flow::FlowLibrary>>,
+    /// Installed wasm extensions (manifests), refreshed at start and on folder open.
+    pub wasm_extensions: Signal<Vec<moonkale_ext_abi::WasmManifest>>,
+    /// Marks extensions put on files, by native key ([`crate::FileMark`]):
+    /// git's status letters today. The shell draws them on Explorer rows and
+    /// tabs.
+    pub file_marks: Signal<std::collections::HashMap<String, crate::FileMark>>,
+}
+
+impl ContribState {
+    pub(super) fn new() -> Self {
+        Self {
+            flow_libraries: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            wasm_extensions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            file_marks: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+        }
+    }
+}

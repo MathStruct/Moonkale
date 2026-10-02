@@ -60,7 +60,7 @@ impl Extension for GitExtension {
             activity: Some(
                 Activity::new("git", 40, "Git")
                     .phone_secondary()
-                    .badge(ws.file_marks.read().len() as u32),
+                    .badge(ws.contrib.file_marks.read().len() as u32),
             ),
         }];
         if ws.git().is_none() {

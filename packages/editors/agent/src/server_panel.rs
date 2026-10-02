@@ -31,6 +31,7 @@ struct ServerChat {
 
 fn folder_of(ws: Workspace) -> Option<String> {
     ws.sources
+        .open
         .peek()
         .iter()
         .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -51,7 +52,10 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         running: Signal::new_in_scope(false, ScopeId::ROOT),
         pending: Signal::new_in_scope(None, ScopeId::ROOT),
         provider: Signal::new_in_scope("server".into(), ScopeId::ROOT),
-        profile: Signal::new_in_scope(ws.settings.peek().agent.default.clone(), ScopeId::ROOT),
+        profile: Signal::new_in_scope(
+            ws.settings.resolved.peek().agent.default.clone(),
+            ScopeId::ROOT,
+        ),
         sessions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
         poll_gen: Signal::new_in_scope(0, ScopeId::ROOT),
         restart: Signal::new_in_scope(0, ScopeId::ROOT),
@@ -73,6 +77,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
     // The folder's sessions, when the folder changes.
     let folder = use_memo(move || {
         ws.sources
+            .open
             .read()
             .iter()
             .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -164,7 +169,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         };
         input.set(String::new());
         let settings = {
-            let s = ws.settings.peek();
+            let s = ws.settings.resolved.peek();
             TurnSettings {
                 llm: s.agent(&profile.peek()).llm.clone(),
                 allow_writes: s.policy.allow_writes,
@@ -206,6 +211,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
     let current = session();
     let agents: Vec<String> = ws
         .settings
+        .resolved
         .read()
         .agents
         .iter()

@@ -12,6 +12,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
     let hosts = use_memo(move || ws.remote_hosts());
     let mut host = use_signal(|| {
         ws.remote
+            .ssh
             .peek()
             .as_ref()
             .map(|r| r.host.clone())
@@ -19,6 +20,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
     });
     let mut path = use_signal(|| {
         ws.remote
+            .ssh
             .peek()
             .as_ref()
             .map(|r| r.path.clone())
@@ -26,7 +28,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
     });
     // Saved connections (Milestone 15): pick one to fill the fields, save
     // the fields under a name, forget one.
-    let saved = use_memo(move || ws.settings.read().remote_saved.clone());
+    let saved = use_memo(move || ws.settings.resolved.read().remote_saved.clone());
     let mut picked = use_signal(String::new);
     let mut save_name = use_signal(String::new);
     let mut connect = move || {

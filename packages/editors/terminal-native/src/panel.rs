@@ -145,9 +145,9 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let mut sessions = sessions;
     // View → New Terminal, routed to this implementation (Milestone 12).
     use_effect(move || {
-        let (_, cmd) = *ws.commands.read();
+        let (_, cmd) = *ws.shell.commands.read();
         if cmd == Some(Command::NewTerminalIn("native")) {
-            let cwd = ws.terminal_cwd.peek().clone();
+            let cwd = ws.processes.terminal_cwd.peek().clone();
             spawn(start_session(ws, sessions, cwd));
         }
     });
@@ -179,7 +179,7 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                     }
                 }
                 button { class: "mk-tn-new", disabled: !available, title: "New terminal (Rust renderer)",
-                    onclick: move |_| { ws.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); }, "+" }
+                    onclick: move |_| { ws.processes.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); }, "+" }
             }
             if list.is_empty() {
                 p { class: "mk-muted mk-tn-empty", if available { "No terminal yet — press + or use View → New Terminal." } else { "Terminals are not available on this platform." } }

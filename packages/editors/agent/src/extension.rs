@@ -52,7 +52,7 @@ impl Extension for AgentExtension {
     // run. The saved agents (language models, keys) are Settings → Agents.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
         let (on_server, allow_writes, denied) = {
-            let s = ws.settings.read();
+            let s = ws.settings.resolved.read();
             (
                 s.agent.on_server,
                 s.policy.allow_writes,

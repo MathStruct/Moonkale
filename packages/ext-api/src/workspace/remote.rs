@@ -10,7 +10,7 @@ impl Workspace {
     pub fn agent_sessions(&self) -> Option<AgentSessions> {
         // Opt-in (`agent.on_server`), except on a platform without a local
         // provider (the phone), which always uses them when connected.
-        if !self.settings.read().agent.on_server && self.config.runtimes.llm.is_some() {
+        if !self.settings.resolved.read().agent.on_server && self.config.runtimes.llm.is_some() {
             return None;
         }
         self.config
@@ -34,7 +34,7 @@ impl Workspace {
 
     /// Saved SSH connections (Milestone 15; the user file).
     pub fn remote_saved(&self) -> Vec<crate::settings::SavedConnection> {
-        self.settings.peek().remote_saved.clone()
+        self.settings.resolved.peek().remote_saved.clone()
     }
 
     /// Save (or replace by name) a connection in the user file.
@@ -61,6 +61,7 @@ impl Workspace {
     /// Was `id` opened through the remote session?
     pub fn is_remote_source(&self, id: &SourceId) -> bool {
         self.remote
+            .ssh
             .peek()
             .as_ref()
             .is_some_and(|r| r.sources.contains(id))
@@ -74,7 +75,7 @@ impl Workspace {
             self.set_status("Remote folders are not available on this platform");
             return;
         };
-        if self.remote.peek().is_some() {
+        if self.remote.ssh.peek().is_some() {
             self.close_remote();
         }
         let host = host.trim().to_string();
@@ -94,7 +95,7 @@ impl Workspace {
                 return;
             }
         };
-        self.remote.set(Some(crate::remote::RemoteState {
+        self.remote.ssh.set(Some(crate::remote::RemoteState {
             host: host.clone(),
             path: path.clone(),
             phase: crate::remote::RemotePhase::Connecting,
@@ -113,10 +114,10 @@ impl Workspace {
             use crate::remote::RemotePhase as P;
             use futures_util::StreamExt;
             while let Some(p) = rx.next().await {
-                if self.remote.peek().is_none() {
+                if self.remote.ssh.peek().is_none() {
                     break; // closed meanwhile
                 }
-                self.remote.with_mut(|r| {
+                self.remote.ssh.with_mut(|r| {
                     if let Some(r) = r {
                         r.phase = p.clone();
                     }
@@ -149,13 +150,14 @@ impl Workspace {
     /// End the session: the sources it opened go, `ssh` and the remote
     /// server with it, and the desktop is local again.
     pub fn close_remote(&mut self) {
-        let Some(state) = self.remote.take() else {
+        let Some(state) = self.remote.ssh.take() else {
             return;
         };
         state.session.close();
         let closing = state.sources.clone();
         let docs: Vec<NodeId> = self
-            .documents
+            .docs
+            .open
             .peek()
             .iter()
             .filter(|(_, d)| closing.contains(&d.peek().node.source))
@@ -166,19 +168,22 @@ impl Workspace {
         }
         if !closing.is_empty() {
             self.sources
+                .open
                 .with_mut(|v| v.retain(|s| !closing.contains(&s.descriptor.id)));
             if self
-                .settings_folder
+                .settings
+                .folder
                 .peek()
                 .as_ref()
                 .is_some_and(|f| closing.contains(f))
             {
-                self.settings_folder.set(None);
-                self.settings_workspace
+                self.settings.folder.set(None);
+                self.settings
+                    .workspace
                     .set(crate::settings::SettingsFile::new());
                 self.resolve_settings();
             }
-            self.graph_epoch.with_mut(|e| *e += 1);
+            self.sources.graph_epoch.with_mut(|e| *e += 1);
         }
         self.set_status(format!("Remote: disconnected from {}", state.label()));
     }
@@ -200,14 +205,14 @@ impl Workspace {
             self.set_status("Server: a URL is needed");
             return;
         }
-        if self.server_link.peek().is_some() {
+        if self.remote.server.peek().is_some() {
             self.disconnect_server();
         }
         if let Err(e) = (sc.connect)(url.clone(), token.filter(|t| !t.trim().is_empty())) {
             self.set_status(format!("Server: {e}"));
             return;
         }
-        self.server_link.set(Some((url.clone(), Vec::new())));
+        self.remote.server.set(Some((url.clone(), Vec::new())));
         self.set_status(format!("Connected to {url}; opening its folder…"));
         if let Err(e) = self.open_folder(String::new()).await {
             self.set_status(format!(
@@ -218,14 +223,15 @@ impl Workspace {
 
     /// Drop the connection and the sources it opened.
     pub fn disconnect_server(&mut self) {
-        let Some((url, ids)) = self.server_link.take() else {
+        let Some((url, ids)) = self.remote.server.take() else {
             return;
         };
         if let Some(sc) = self.config.network.server {
             (sc.disconnect)();
         }
         let docs: Vec<NodeId> = self
-            .documents
+            .docs
+            .open
             .peek()
             .iter()
             .filter(|(_, d)| ids.contains(&d.peek().node.source))
@@ -236,20 +242,42 @@ impl Workspace {
         }
         if !ids.is_empty() {
             self.sources
+                .open
                 .with_mut(|v| v.retain(|s| !ids.contains(&s.descriptor.id)));
             if self
-                .settings_folder
+                .settings
+                .folder
                 .peek()
                 .as_ref()
                 .is_some_and(|f| ids.contains(f))
             {
-                self.settings_folder.set(None);
-                self.settings_workspace
+                self.settings.folder.set(None);
+                self.settings
+                    .workspace
                     .set(crate::settings::SettingsFile::new());
                 self.resolve_settings();
             }
-            self.graph_epoch.with_mut(|e| *e += 1);
+            self.sources.graph_epoch.with_mut(|e| *e += 1);
         }
         self.set_status(format!("Disconnected from {url}"));
+    }
+}
+
+/// Links to other machines: an SSH remote folder, a server this app is a client of. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct RemoteLinks {
+    /// The window's remote session, if any (Milestone 11).
+    pub ssh: Signal<Option<crate::remote::RemoteState>>,
+    /// The server this app is a client of (Milestone 12): label and the
+    /// sources opened through it.
+    pub server: Signal<Option<(String, Vec<SourceId>)>>,
+}
+
+impl RemoteLinks {
+    pub(super) fn new() -> Self {
+        Self {
+            ssh: Signal::new_in_scope(None, ScopeId::ROOT),
+            server: Signal::new_in_scope(None, ScopeId::ROOT),
+        }
     }
 }

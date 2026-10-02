@@ -43,7 +43,8 @@ impl Extension for CodeEditorExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.documents
+        ws.docs
+            .open
             .read()
             .iter()
             // Which documents end up here is the shell's decision
@@ -94,7 +95,7 @@ impl Extension for CodeEditorExtension {
 
     // Milestone 13: the editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let wrap = ws.settings.read().editor.wrap;
+        let wrap = ws.settings.resolved.read().editor.wrap;
         // Which editor opens a file is Settings → Which extension (Milestone 15).
         Some(rsx! {
             label { class: "mk-settings-check",
@@ -109,7 +110,7 @@ impl Extension for CodeEditorExtension {
 /// Flip `editor.wrap` in the user settings (spec 014); every open editor
 /// follows through its settings effect.
 pub fn toggle_wrap(ws: Workspace) {
-    let next = !ws.settings.peek().editor.wrap;
+    let next = !ws.settings.resolved.peek().editor.wrap;
     dioxus::core::spawn_forever(async move {
         ws.update_user_settings(|f| f.editor.wrap = Some(next))
             .await;

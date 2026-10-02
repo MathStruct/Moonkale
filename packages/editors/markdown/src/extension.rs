@@ -60,7 +60,8 @@ impl Extension for LinksExtension {
         }];
         // A preview tab exists while any .typ document is open and the platform can compile.
         let any_typ = ws
-            .documents
+            .docs
+            .open
             .read()
             .iter()
             .any(|(_, d)| d.read().node.native_key.ends_with(".typ"));
@@ -76,7 +77,7 @@ impl Extension for LinksExtension {
             });
         }
         // Markdown documents: one editor tab each (Source | Rich).
-        for (id, doc) in ws.documents.read().iter() {
+        for (id, doc) in ws.docs.open.read().iter() {
             let d = doc.read();
             if is_markdown(&d.node) {
                 panels.push(PanelContribution {
@@ -123,7 +124,7 @@ impl Extension for LinksExtension {
     // Milestone 13: the markdown editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
         let (rich, size, font, code_font) = {
-            let s = ws.settings.read();
+            let s = ws.settings.resolved.read();
             (
                 s.editor.markdown_rich,
                 s.editor.rich_font_size,
@@ -167,7 +168,7 @@ fn MarkdownPanel(
         .read()
         .get(&node)
         .copied()
-        .unwrap_or_else(|| ws.settings.read().editor.markdown_rich);
+        .unwrap_or_else(|| ws.settings.resolved.read().editor.markdown_rich);
     rsx! {
         div { class: "mk-md",
             div { class: "mk-md-modes",

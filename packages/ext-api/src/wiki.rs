@@ -166,7 +166,8 @@ impl Workspace {
         if query.is_empty() {
             // Open documents first, most recently activated at the top.
             let open: Vec<String> = self
-                .documents
+                .docs
+                .open
                 .peek()
                 .iter()
                 .rev()
@@ -309,6 +310,7 @@ impl Workspace {
         id: &moonkale_core::SourceId,
     ) -> Option<crate::workspace::SourceHandle> {
         self.sources
+            .open
             .peek()
             .iter()
             .find(|s| &s.descriptor.id == id)

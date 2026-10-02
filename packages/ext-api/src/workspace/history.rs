@@ -18,12 +18,12 @@ impl Workspace {
             None => moonkale_core::EntityLog::new(),
         };
         tracing::info!("history: {} events for {folder}", log.len());
-        self.history.set(log);
+        self.history.log.set(log);
     }
 
     /// The actor string for the user's own edits.
     pub fn user_actor(&self) -> String {
-        format!("user:{}", self.settings.peek().user_name)
+        format!("user:{}", self.settings.resolved.peek().user_name)
     }
 
     /// Append an event to the log and persist it (best effort, never blocks
@@ -53,12 +53,12 @@ impl Workspace {
             event = event.with_key(k);
         }
         if let Some(node) = event.node() {
-            if let Some(cause) = self.pending_cause.with_mut(|m| m.remove(&node)) {
+            if let Some(cause) = self.history.pending_cause.with_mut(|m| m.remove(&node)) {
                 event.cause = Some(cause);
             }
         }
         let id = event.id;
-        self.history.with_mut(|l| {
+        self.history.log.with_mut(|l| {
             l.append(event);
         });
         let ws = *self;
@@ -71,7 +71,7 @@ impl Workspace {
     pub fn compact_history(&mut self, keep: usize) -> usize {
         let actor = self.user_actor();
         let at = now_ms();
-        let folded = self.history.with_mut(|l| l.compact(keep, at, actor));
+        let folded = self.history.log.with_mut(|l| l.compact(keep, at, actor));
         if folded > 0 {
             let ws = *self;
             spawn(async move { ws.persist_history().await });
@@ -89,12 +89,14 @@ impl Workspace {
     ) -> Result<(), SourceError> {
         let text = self
             .history
+            .log
             .peek()
             .text_at(node, Some(event))
             .ok_or_else(|| SourceError::Unsupported("no text recorded for that event".into()))?;
         if self.document(node).is_none() {
             let folder: Arc<dyn Source> = self
                 .sources
+                .open
                 .peek()
                 .iter()
                 .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -111,22 +113,22 @@ impl Workspace {
         }
         let mut doc = self.document(node).ok_or(SourceError::NotFound)?;
         doc.with_mut(|d| d.text = text);
-        self.pending_cause.with_mut(|m| {
+        self.history.pending_cause.with_mut(|m| {
             m.insert(node, event);
         });
-        self.active.set(Some(node));
+        self.docs.active.set(Some(node));
         self.set_status("Restored as an unsaved edit — save to keep it");
         Ok(())
     }
 
     pub(super) async fn persist_history(self) {
-        let Some(folder) = self.settings_folder.peek().clone() else {
+        let Some(folder) = self.settings.folder.peek().clone() else {
             return;
         };
         let Some(src) = self.source(&folder) else {
             return;
         };
-        let text = self.history.peek().to_jsonl();
+        let text = self.history.log.peek().to_jsonl();
         let result = match self.node_at_path(&folder, HISTORY_FILE).await {
             Some(node) => {
                 let chars = src
@@ -149,6 +151,30 @@ impl Workspace {
         };
         if let Err(e) = result {
             tracing::warn!("history: could not write {HISTORY_FILE}: {e}");
+        }
+    }
+}
+
+/// The entity log and what the next events are attributed to. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct HistoryState {
+    /// The workspace's entity log (Milestone 8): every write appends; kept
+    /// in `.moonkale/history.jsonl` of the open folder.
+    pub log: Signal<moonkale_core::EntityLog>,
+    /// Who the next edit of a document is attributed to when it is not the
+    /// user (the agent host sets it after `editor.replace`).
+    pub pending_actor: Signal<std::collections::HashMap<NodeId, String>>,
+    /// The event a pending edit restores (Milestone 9): the next save's
+    /// `Content` event gets it as `cause`.
+    pub pending_cause: Signal<std::collections::HashMap<NodeId, moonkale_core::EventId>>,
+}
+
+impl HistoryState {
+    pub(super) fn new() -> Self {
+        Self {
+            log: Signal::new_in_scope(moonkale_core::EntityLog::new(), ScopeId::ROOT),
+            pending_actor: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            pending_cause: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
         }
     }
 }

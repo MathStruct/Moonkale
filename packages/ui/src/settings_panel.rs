@@ -85,11 +85,11 @@ fn SettingsPanel(ws: Workspace) -> Element {
     let mut secret_status = use_signal(String::new);
 
     let registry = use_context::<crate::commands::CommandRegistry>();
-    let settings = ws.settings.read().clone();
-    let user = ws.settings_user.read().clone();
-    let workspace = ws.settings_workspace.read().clone();
+    let settings = ws.settings.resolved.read().clone();
+    let user = ws.settings.user.read().clone();
+    let workspace = ws.settings.workspace.read().clone();
     let env = moonkale_ext_api::settings::Settings::env_overrides();
-    let has_workspace = ws.settings_folder.read().is_some();
+    let has_workspace = ws.settings.folder.read().is_some();
     let llm_scope = moonkale_ext_api::settings::Settings::scope_of_llm(&user, &workspace, &env);
     let store_available = ws.has_settings_store();
 

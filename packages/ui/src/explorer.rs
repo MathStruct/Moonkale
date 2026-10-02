@@ -168,6 +168,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     // Only sources with a browsable tree; the index shows up in the graph, not here.
     let sources: Vec<_> = ws
         .sources
+        .open
         .read()
         .iter()
         .filter(|s| s.descriptor.family != moonkale_core::SourceFamily::Index)
@@ -180,6 +181,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     use_effect(move || {
         let pending: Vec<_> = ws
             .sources
+            .open
             .read()
             .iter()
             .filter(|s| !state.children.peek().contains_key(&s.descriptor.root))
@@ -203,7 +205,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     // shown (Milestone 7).
     let mut seen_epoch = use_signal(|| 0u64);
     use_effect(move || {
-        let epoch = *ws.fs_epoch.read();
+        let epoch = *ws.sources.fs_epoch.read();
         if epoch == *seen_epoch.peek() {
             return;
         }
@@ -218,6 +220,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
         }
         let sources: Vec<_> = ws
             .sources
+            .open
             .peek()
             .iter()
             .map(|s| (s.descriptor.id.clone(), s.descriptor.root))
@@ -306,7 +309,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                     };
                     let color = crate::icons::source_color(s.descriptor.id.as_str());
                     let read_only = !s.descriptor.capabilities.write;
-                    let watched = ws.watched.read().contains(&s.descriptor.id);
+                    let watched = ws.sources.watched.read().contains(&s.descriptor.id);
                     rsx! {
                 div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
                     div { class: "mk-explorer-source-name", title: if read_only { "{kind} · read-only" } else { "{kind}" },
@@ -367,8 +370,8 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
     let expanded = state.expanded.read().clone();
     // File marks (git's status today, Milestone 7 → generic in 18): the
     // mark's class on the row, a subtle mark on directories with marks below.
-    let marks = ws.file_marks.read().clone();
-    let _ = ws.presence.read();
+    let marks = ws.contrib.file_marks.read().clone();
+    let _ = ws.session.presence.read();
     let others = ws.others();
     rsx! {
         ul { class: "mk-tree", style: "--depth: {depth}",
@@ -479,7 +482,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                             span { class: "mk-tree-action", title: "New terminal here",
                                                 onclick: move |e| {
                                                     e.stop_propagation();
-                                                    ws2.terminal_cwd.set(ws2.folder_path(&n2));
+                                                    ws2.processes.terminal_cwd.set(ws2.folder_path(&n2));
                                                     ws2.dispatch(Command::NewTerminal);
                                                 },
                                                 ">_"
@@ -533,7 +536,7 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
             if can_terminal {
                 button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| {
                     state.menu.set(None);
-                    ws.terminal_cwd.set(ws.folder_path(&n5));
+                    ws.processes.terminal_cwd.set(ws.folder_path(&n5));
                     ws.dispatch(Command::NewTerminal);
                 }, "Open in Terminal" }
             }

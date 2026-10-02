@@ -25,7 +25,8 @@ impl Extension for FlowExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.documents
+        ws.docs
+            .open
             .read()
             .iter()
             .filter(|(_, d)| is_flow(&d.read().node))

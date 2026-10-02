@@ -122,10 +122,10 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let mut sessions = sessions;
     // View → New Terminal / "New terminal here".
     use_effect(move || {
-        let (_, cmd) = *ws.commands.read();
+        let (_, cmd) = *ws.shell.commands.read();
         // The frame resolves `NewTerminal` to an implementation (Milestone 12).
         if cmd == Some(Command::NewTerminalIn("xterm")) {
-            let cwd = ws.terminal_cwd.peek().clone();
+            let cwd = ws.processes.terminal_cwd.peek().clone();
             spawn(start_session(ws, sessions, cwd));
         }
     });
@@ -134,6 +134,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     use_effect(move || {
         let mut ws = ws;
         let pending: Vec<Session> = ws
+            .processes
             .adopt_terminals
             .read()
             .iter()
@@ -142,7 +143,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
         if pending.is_empty() {
             return;
         }
-        ws.adopt_terminals.with_mut(|v| v.clear());
+        ws.processes.adopt_terminals.with_mut(|v| v.clear());
         for session in pending {
             let id = session.id;
             sessions
@@ -183,7 +184,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                     }
                 }
                 button { class: "mk-term-tab mk-term-new", title: "New terminal", disabled: !available,
-                    onclick: move |_| { ws.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); },
+                    onclick: move |_| { ws.processes.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); },
                     "+"
                 }
                 if active.is_some() {

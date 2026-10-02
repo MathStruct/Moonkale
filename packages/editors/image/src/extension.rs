@@ -26,7 +26,8 @@ impl Extension for ImageExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.views
+        ws.docs
+            .views
             .read()
             .iter()
             .filter(|n| crate::is_image(n))
@@ -49,7 +50,7 @@ impl Extension for ImageExtension {
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id)
-            .and_then(|id| ws.views.read().iter().find(|n| n.id == id).cloned())
+            .and_then(|id| ws.docs.views.read().iter().find(|n| n.id == id).cloned())
         {
             Some(node) => rsx! { ImagePanel { ws, node } },
             None => rsx! { "unknown image panel {panel_id}" },

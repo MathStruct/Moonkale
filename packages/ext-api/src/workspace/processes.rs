@@ -32,7 +32,8 @@ impl Workspace {
 
     /// Hand a running terminal to the terminal panel (it becomes a tab).
     pub fn adopt_terminal(&mut self, session: moonkale_terminal::Session) {
-        self.adopt_terminals
+        self.processes
+            .adopt_terminals
             .with_mut(|v| v.push(Rc::new(RefCell::new(Some(session)))));
         self.dispatch(Command::ShowPanel("terminal"));
     }
@@ -57,5 +58,27 @@ impl Workspace {
     /// The platform's git runner, if any.
     pub fn git(&self) -> Option<GitRun> {
         self.config.processes.git
+    }
+}
+
+/// State shared with the terminal and LSP extensions. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct ProcessesState {
+    /// Language-server status for the status bar ("rust-analyzer: indexing…").
+    pub lsp_status: Signal<Option<String>>,
+    /// Directory for the next `NewTerminal` (set by "New terminal here").
+    pub terminal_cwd: Signal<Option<String>>,
+    /// Terminal sessions started elsewhere (the `ssh` of a remote session)
+    /// that the terminal panel adopts as tabs (Milestone 11).
+    pub adopt_terminals: Signal<Vec<Rc<RefCell<Option<moonkale_terminal::Session>>>>>,
+}
+
+impl ProcessesState {
+    pub(super) fn new() -> Self {
+        Self {
+            lsp_status: Signal::new_in_scope(None, ScopeId::ROOT),
+            terminal_cwd: Signal::new_in_scope(None, ScopeId::ROOT),
+            adopt_terminals: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+        }
     }
 }

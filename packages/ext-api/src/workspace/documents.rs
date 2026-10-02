@@ -8,8 +8,14 @@ impl Workspace {
     pub async fn reveal(mut self, node: Node, line: u32, col: u32) -> Result<(), SourceError> {
         let id = node.id;
         self.open_node(node).await?;
-        let seq = self.reveal.peek().as_ref().map(|r| r.seq + 1).unwrap_or(1);
-        self.reveal.set(Some(Reveal {
+        let seq = self
+            .docs
+            .reveal
+            .peek()
+            .as_ref()
+            .map(|r| r.seq + 1)
+            .unwrap_or(1);
+        self.docs.reveal.set(Some(Reveal {
             node: id,
             line,
             col,
@@ -24,6 +30,7 @@ impl Workspace {
         let rel = rel.trim_start_matches("./").to_string();
         let folders: Vec<_> = self
             .sources
+            .open
             .peek()
             .iter()
             .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -65,8 +72,8 @@ impl Workspace {
     /// The editor reports the cursor of `node`; published when it is the
     /// active document.
     pub fn set_cursor_line(&mut self, node: NodeId, line: u32) {
-        if *self.active.peek() == Some(node) && *self.cursor_line.peek() != Some(line) {
-            self.cursor_line.set(Some(line));
+        if *self.docs.active.peek() == Some(node) && *self.docs.cursor_line.peek() != Some(line) {
+            self.docs.cursor_line.set(Some(line));
             self.publish_presence();
         }
     }
@@ -74,18 +81,18 @@ impl Workspace {
     /// The editor reports the caret of `node` (line, column; 0-based).
     /// Keeps `cursor_line` (presence) in step (Milestone 14).
     pub fn set_cursor(&mut self, node: NodeId, line: u32, col: u32) {
-        if *self.active.peek() != Some(node) {
+        if *self.docs.active.peek() != Some(node) {
             return;
         }
-        if *self.cursor.peek() != Some((line, col)) {
-            self.cursor.set(Some((line, col)));
+        if *self.docs.cursor.peek() != Some((line, col)) {
+            self.docs.cursor.set(Some((line, col)));
         }
         self.set_cursor_line(node, line);
     }
 
     /// The identifier under the active document's caret, if any.
     pub fn cursor_word(&self) -> Option<String> {
-        let (line, col) = (*self.cursor.read())?;
+        let (line, col) = (*self.docs.cursor.read())?;
         let (_, doc) = self.active_document()?;
         let text = doc.read().text.clone();
         word_at(&text, line, col)
@@ -94,10 +101,10 @@ impl Workspace {
     /// Which code editor shows `node` (Milestone 14): the per-document
     /// choice, else `editor.implementation`, else the one enabled.
     pub fn editor_for(&self, node: NodeId) -> &'static str {
-        if let Some(c) = self.editor_choice.read().get(&node) {
+        if let Some(c) = self.docs.editor_choice.read().get(&node) {
             return c;
         }
-        let s = self.settings.read();
+        let s = self.settings.resolved.read();
         let codemirror = s.extensions.is_enabled_id("dev.moonkale.editor-code", true);
         let native = s
             .extensions
@@ -130,9 +137,9 @@ impl Workspace {
     /// re-ran its last command whenever the settings changed when it read
     /// them here — Milestone 18 phase 2.4.)
     pub fn preferred_editor_untracked(&self, node: NodeId) -> &'static str {
-        let choice = self.editor_choice.peek().get(&node).copied();
+        let choice = self.docs.editor_choice.peek().get(&node).copied();
         let which = choice.unwrap_or_else(|| {
-            let s = self.settings.peek();
+            let s = self.settings.resolved.peek();
             let codemirror = s.extensions.is_enabled_id("dev.moonkale.editor-code", true);
             let native = s
                 .extensions
@@ -153,26 +160,32 @@ impl Workspace {
     /// The node behind a document or view panel, if it is open. Does not
     /// subscribe the caller.
     pub fn open_node_by_id(&self, node: NodeId) -> Option<Node> {
-        if let Some((_, d)) = self.documents.peek().iter().find(|(id, _)| *id == node) {
+        if let Some((_, d)) = self.docs.open.peek().iter().find(|(id, _)| *id == node) {
             return Some(d.peek().node.clone());
         }
-        self.views.peek().iter().find(|n| n.id == node).cloned()
+        self.docs
+            .views
+            .peek()
+            .iter()
+            .find(|n| n.id == node)
+            .cloned()
     }
 
     pub fn choose_editor(&mut self, node: NodeId, which: &'static str) {
-        self.editor_choice.with_mut(|m| {
+        self.docs.editor_choice.with_mut(|m| {
             m.insert(node, which);
         });
     }
 
     /// The active document, if any.
     pub fn active_document(&self) -> Option<(NodeId, Signal<Document>)> {
-        let id = (*self.active.read())?;
+        let id = (*self.docs.active.read())?;
         self.document(id).map(|d| (id, d))
     }
 
     pub fn document(&self, node: NodeId) -> Option<Signal<Document>> {
-        self.documents
+        self.docs
+            .open
             .read()
             .iter()
             .find(|(id, _)| *id == node)
@@ -187,10 +200,10 @@ impl Workspace {
         if matches!(node.kind, NodeKind::Table)
             || matches!(node.content, Some(moonkale_core::ContentRef::Blob { .. }))
         {
-            if !self.views.peek().iter().any(|n| n.id == node.id) {
-                self.views.with_mut(|v| v.push(node.clone()));
+            if !self.docs.views.peek().iter().any(|n| n.id == node.id) {
+                self.docs.views.with_mut(|v| v.push(node.clone()));
             }
-            self.active.set(Some(node.id));
+            self.docs.active.set(Some(node.id));
             self.set_status(format!("Opened {}", node.label));
             return Ok(());
         }
@@ -199,9 +212,9 @@ impl Workspace {
             let (text, version) = source.fetch_text(node.id).await?;
             let doc =
                 Signal::new_in_scope(Document::new(node.clone(), text, version), ScopeId::ROOT);
-            self.documents.with_mut(|v| v.push((node.id, doc)));
+            self.docs.open.with_mut(|v| v.push((node.id, doc)));
         }
-        self.active.set(Some(node.id));
+        self.docs.active.set(Some(node.id));
         self.set_status(format!("Opened {}", node.native_key));
         Ok(())
     }
@@ -213,19 +226,19 @@ impl Workspace {
             let (text, version) = source.fetch_text(node.id).await?;
             let doc =
                 Signal::new_in_scope(Document::new(node.clone(), text, version), ScopeId::ROOT);
-            self.documents.with_mut(|v| v.push((node.id, doc)));
+            self.docs.open.with_mut(|v| v.push((node.id, doc)));
         }
-        self.views.with_mut(|v| v.retain(|n| n.id != node.id));
-        self.active.set(Some(node.id));
+        self.docs.views.with_mut(|v| v.retain(|n| n.id != node.id));
+        self.docs.active.set(Some(node.id));
         Ok(())
     }
 
     pub fn close_node(mut self, node: NodeId) {
-        self.documents.with_mut(|v| v.retain(|(id, _)| *id != node));
-        self.views.with_mut(|v| v.retain(|n| n.id != node));
-        if self.active.read().as_ref() == Some(&node) {
-            let next = self.documents.read().last().map(|(id, _)| *id);
-            self.active.set(next);
+        self.docs.open.with_mut(|v| v.retain(|(id, _)| *id != node));
+        self.docs.views.with_mut(|v| v.retain(|n| n.id != node));
+        if self.docs.active.read().as_ref() == Some(&node) {
+            let next = self.docs.open.read().last().map(|(id, _)| *id);
+            self.docs.active.set(next);
         }
     }
 
@@ -255,12 +268,14 @@ impl Workspace {
                 self.set_status(format!("Saved {key}"));
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).
-                let actor = match self.pending_actor.with_mut(|m| m.remove(&node)) {
-                    Some(a) => format!("{a} (saved by {})", self.settings.peek().user_name),
+                let actor = match self.history.pending_actor.with_mut(|m| m.remove(&node)) {
+                    Some(a) => {
+                        format!("{a} (saved by {})", self.settings.resolved.peek().user_name)
+                    }
                     None => self.user_actor(),
                 };
                 // Files that predate the log get their pre-edit text as the base.
-                let base = if self.history.peek().text_at(node, None).is_none() {
+                let base = if self.history.log.peek().text_at(node, None).is_none() {
                     Some(before)
                 } else {
                     None
@@ -278,6 +293,7 @@ impl Workspace {
                 // Let derived sources (the index) re-read the file.
                 let others: Vec<Arc<dyn Source>> = self
                     .sources
+                    .open
                     .peek()
                     .iter()
                     .filter(|s| s.descriptor.id != source_id)
@@ -288,7 +304,7 @@ impl Workspace {
                         tracing::warn!("refresh after save failed: {e}");
                     }
                 }
-                self.graph_epoch.with_mut(|e| *e += 1);
+                self.sources.graph_epoch.with_mut(|e| *e += 1);
                 Ok(())
             }
             None => {
@@ -329,6 +345,7 @@ impl Workspace {
             .ok_or(SourceError::NotFound)?;
         let others: Vec<Arc<dyn Source>> = self
             .sources
+            .open
             .peek()
             .iter()
             .filter(|s| &s.descriptor.id != source_id)
@@ -337,7 +354,7 @@ impl Workspace {
         for other in others {
             let _ = other.refresh(node_id).await;
         }
-        self.graph_epoch.with_mut(|e| *e += 1);
+        self.sources.graph_epoch.with_mut(|e| *e += 1);
         self.set_status(format!("Created {}", node.native_key));
         if !node.native_key.starts_with(".moonkale/") {
             self.record(moonkale_core::EventKind::Add {
@@ -407,7 +424,8 @@ impl Workspace {
         let from = node.native_key.clone();
         let prefix = format!("{from}/");
         let affected: Vec<(NodeId, Signal<Document>)> = self
-            .documents
+            .docs
+            .open
             .peek()
             .iter()
             .filter(|(_, d)| {
@@ -416,7 +434,7 @@ impl Workspace {
             })
             .cloned()
             .collect();
-        let was_active = *self.active.peek();
+        let was_active = *self.docs.active.peek();
         for (old_id, mut doc) in affected {
             let new_key = {
                 let k = doc.peek().node.native_key.clone();
@@ -438,14 +456,14 @@ impl Workspace {
             doc.with_mut(|d| {
                 d.node = fresh;
             });
-            self.documents.with_mut(|v| {
+            self.docs.open.with_mut(|v| {
                 for (id, _) in v.iter_mut() {
                     if *id == old_id {
                         *id = fresh_id;
                     }
                 }
             });
-            self.views.with_mut(|v| {
+            self.docs.views.with_mut(|v| {
                 for n in v.iter_mut() {
                     if n.id == old_id {
                         n.id = fresh_id;
@@ -454,7 +472,7 @@ impl Workspace {
                 }
             });
             if was_active == Some(old_id) {
-                self.active.set(Some(fresh_id));
+                self.docs.active.set(Some(fresh_id));
             }
         }
         self.after_fs_change(&source_id, &[node.id, new_id]).await;
@@ -480,7 +498,8 @@ impl Workspace {
             .await?;
         let prefix = format!("{}/", node.native_key);
         let closing: Vec<NodeId> = self
-            .documents
+            .docs
+            .open
             .peek()
             .iter()
             .filter(|(id, d)| *id == node.id || d.peek().node.native_key.starts_with(&prefix))
@@ -579,5 +598,47 @@ impl Workspace {
         doc.set(Document::new(n, text, version));
         self.set_status("Reloaded from disk");
         Ok(())
+    }
+}
+
+/// Open documents and views, the active one, the cursor. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
+#[derive(Clone, Copy)]
+pub struct DocsState {
+    /// Open documents in opening order (this is the tab order).
+    pub open: Signal<Vec<(NodeId, Signal<Document>)>>,
+    /// Open non-text nodes (tables, later graphs/rows): shown by the editor
+    /// extension that claims their kind.
+    pub views: Signal<Vec<Node>>,
+    pub active: Signal<Option<NodeId>>,
+    /// Which code editor shows a document, when chosen by hand
+    /// (Milestone 14): `"codemirror"` | `"native"`.
+    pub editor_choice: Signal<std::collections::HashMap<NodeId, &'static str>>,
+    /// The caret of the active document: (line, column), 0-based, from
+    /// whichever editor shows it (Milestone 14).
+    pub cursor: Signal<Option<(u32, u32)>>,
+    /// Cursor line of the active document, for presence (Milestone 9).
+    pub cursor_line: Signal<Option<u32>>,
+    /// Bumped by the frame once the webview is up so `Stylesheet`s re-assert
+    /// themselves (Milestone 9, P-087).
+    pub assets_epoch: Signal<u64>,
+    /// Pending cursor placement for an editor (see [`Reveal`]).
+    pub reveal: Signal<Option<Reveal>>,
+    /// Last "Show in Graph" request (see [`GraphRequest`]).
+    pub graph_request: Signal<Option<GraphRequest>>,
+}
+
+impl DocsState {
+    pub(super) fn new() -> Self {
+        Self {
+            open: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            views: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            active: Signal::new_in_scope(None, ScopeId::ROOT),
+            editor_choice: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            cursor: Signal::new_in_scope(None, ScopeId::ROOT),
+            cursor_line: Signal::new_in_scope(None, ScopeId::ROOT),
+            assets_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            reveal: Signal::new_in_scope(None, ScopeId::ROOT),
+            graph_request: Signal::new_in_scope(None, ScopeId::ROOT),
+        }
     }
 }

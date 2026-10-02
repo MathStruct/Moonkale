@@ -108,7 +108,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let Some(mut doc) = ws.document(node) else {
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
-    let libs = ws.flow_libraries.read().clone();
+    let libs = ws.contrib.flow_libraries.read().clone();
     let initial = Flow::parse(&doc.peek().text).unwrap_or_default();
     let (n0, e0) = to_canvas(&initial, &libs);
     let mut nodes: Signal<Vec<Node<BlockData>>> = use_signal(|| n0);

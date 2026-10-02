@@ -312,6 +312,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
         });
         let folder = ws
             .sources
+            .open
             .read()
             .first()
             .map(|s| s.descriptor.display_name.clone());
@@ -353,10 +354,10 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                     let reg = registry.read();
                     menus(
                         controls,
-                        &ws.settings.read().recent_folders,
-                        ws.settings.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
-                        ws.has_remote().then(|| ws.remote.read().is_some()),
-                        ws.has_server_client().then(|| ws.server_link.read().is_some()),
+                        &ws.settings.resolved.read().recent_folders,
+                        ws.settings.resolved.read().extensions.enabled.iter().any(|e| e == "dev.moonkale.editor-flow"),
+                        ws.has_remote().then(|| ws.remote.ssh.read().is_some()),
+                        ws.has_server_client().then(|| ws.remote.server.read().is_some()),
                         &reg,
                     )
                 } {

@@ -72,7 +72,7 @@ fn ExtensionsPanel(ws: Workspace) -> Element {
 #[component]
 pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
     let catalog: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
-    let settings = ws.settings.read().clone();
+    let settings = ws.settings.resolved.read().clone();
     let ext_target = match target {
         Target::User => moonkale_ext_api::SettingsTarget::User,
         Target::Workspace => moonkale_ext_api::SettingsTarget::Workspace,
@@ -142,7 +142,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
         }
 
         {
-            let wasm = ws.wasm_extensions.read().clone();
+            let wasm = ws.contrib.wasm_extensions.read().clone();
             rsx! {
                 if !wasm.is_empty() {
                     h4 { class: "mk-settings-sub", "Installed (wasm)" }

@@ -125,8 +125,8 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
     let mut ws = ws;
     let mut state = state;
     let mut only_active = use_signal(|| false);
-    let log = ws.history.read().clone();
-    let active = *ws.active.read();
+    let log = ws.history.log.read().clone();
+    let active = *ws.docs.active.read();
     let now = moonkale_ext_api::workspace::now_ms();
     let folded = log.fold(None);
     let key_of = |node: NodeId| -> String {
@@ -235,7 +235,7 @@ fn TextAtPanel(ws: Workspace, state: HistoryState, event: String) -> Element {
     let Some((ev, node, key)) = view else {
         return rsx! { div { class: "mk-history-view", p { class: "mk-muted", "Closed." } } };
     };
-    let log = ws.history.read();
+    let log = ws.history.log.read();
     let text = log.text_at(node, Some(ev));
     let current = ws.document(node).map(|d| d.peek().text.clone());
     let same = current.as_ref().is_some_and(|c| Some(c) == text.as_ref());

@@ -219,7 +219,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     {
         use_effect(move || {
             let epoch = wiki_epoch();
-            let _ = ws.graph_epoch.read();
+            let _ = ws.sources.graph_epoch.read();
             if epoch == 0 {
                 return;
             }
@@ -323,7 +323,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     }
 
     let typography = {
-        let s = ws.settings.read();
+        let s = ws.settings.resolved.read();
         let mut css = format!("--mk-rich-size: {}px;", s.editor.rich_font_size);
         if !s.editor.rich_font.trim().is_empty() {
             css.push_str(&format!(" --mk-rich-font: {};", s.editor.rich_font.trim()));

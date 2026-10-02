@@ -338,6 +338,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     use_effect(move || {
         let graph_ids: Vec<SourceId> = ws
             .sources
+            .open
             .read()
             .iter()
             .filter(|s| {
@@ -360,7 +361,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
 
     // A new "Show in Graph" request switches the picker to that query.
     use_effect(move || {
-        let req = ws.graph_request.read().clone();
+        let req = ws.docs.graph_request.read().clone();
         if req.is_some() && req != *seen_request.peek() {
             seen_request.set(req.clone());
             picked.set(req.map(|r| r.source));
@@ -374,6 +375,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         // repositories, two vaults to merge); the picker narrows to one.
         let indices: Vec<_> = ws
             .sources
+            .open
             .read()
             .iter()
             .filter(|s| s.descriptor.family == SourceFamily::Index)
@@ -381,12 +383,12 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             .collect();
         let m = mode();
         let f = filters();
-        let active = *ws.active.read();
-        let _epoch = *ws.graph_epoch.read();
+        let active = *ws.docs.active.read();
+        let _epoch = *ws.sources.graph_epoch.read();
         let picked_id = picked();
         let dbm = db_mode();
         let request = if dbm == DbMode::Query {
-            ws.graph_request.read().clone()
+            ws.docs.graph_request.read().clone()
         } else {
             None
         };
@@ -404,6 +406,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         if let (Some(pid), None) = (picked_id.clone(), &picked_index) {
             let Some(handle) = ws
                 .sources
+                .open
                 .read()
                 .iter()
                 .find(|s| s.descriptor.id == pid)
@@ -627,6 +630,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let (n_nodes, n_edges, truncated) = counts();
     let has_index = ws
         .sources
+        .open
         .read()
         .iter()
         .any(|s| s.descriptor.family == SourceFamily::Index);
@@ -634,12 +638,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // graphs), and each folder's own index when more than one is open.
     let index_count = ws
         .sources
+        .open
         .read()
         .iter()
         .filter(|s| s.descriptor.family == SourceFamily::Index)
         .count();
     let databases: Vec<(SourceId, String)> = ws
         .sources
+        .open
         .read()
         .iter()
         .filter(|s| {
@@ -661,6 +667,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let picked_is_index = picked()
         .and_then(|p| {
             ws.sources
+                .open
                 .read()
                 .iter()
                 .find(|s| s.descriptor.id == p)
@@ -670,6 +677,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let picked_is_trace = picked()
         .and_then(|p| {
             ws.sources
+                .open
                 .read()
                 .iter()
                 .find(|s| s.descriptor.id == p)
@@ -679,7 +687,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut paste_open = use_signal(|| false);
     let mut three_d = use_signal(|| false);
     let mut paste_text = use_signal(String::new);
-    let has_request = ws.graph_request.read().is_some();
+    let has_request = ws.docs.graph_request.read().is_some();
     let picked_str = picked().map(|p| p.to_string()).unwrap_or_default();
     let is_index = picked().is_none() || picked_is_index;
     let has_any = has_index || !databases.is_empty();
@@ -811,6 +819,7 @@ async fn open_node(mut ws: Workspace, node: Node) {
     // Trace nodes point into the folder: `path` or `path:line[:col]`.
     let from_trace = ws
         .sources
+        .open
         .peek()
         .iter()
         .any(|s| s.descriptor.id == node.source && is_trace(&s.descriptor.family));

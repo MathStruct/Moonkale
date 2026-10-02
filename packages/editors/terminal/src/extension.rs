@@ -55,6 +55,7 @@ impl Extension for TerminalExtension {
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
         let shell = ws
             .settings
+            .resolved
             .read()
             .terminal
             .shell

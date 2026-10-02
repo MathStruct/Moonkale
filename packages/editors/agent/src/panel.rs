@@ -133,6 +133,7 @@ impl Chats {
 
 fn folder_of(ws: Workspace) -> Option<moonkale_ext_api::SourceHandle> {
     ws.sources
+        .open
         .peek()
         .iter()
         .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -157,7 +158,7 @@ fn system_prompt(ws: Workspace) -> String {
          things in files, graph.query to browse structure, graph.fetch to read, and \
          source.text_query for SQL/Cypher. Be concise; cite file paths.\n",
     );
-    let sources = ws.sources.peek();
+    let sources = ws.sources.open.peek();
     if !sources.is_empty() {
         s.push_str("\nOpen sources:\n");
         for h in sources.iter() {
@@ -167,7 +168,7 @@ fn system_prompt(ws: Workspace) -> String {
             ));
         }
     }
-    if let Some(active) = *ws.active.peek() {
+    if let Some(active) = *ws.docs.active.peek() {
         if let Some(doc) = ws.document(active) {
             let d = doc.peek();
             s.push_str(&format!(
@@ -219,7 +220,7 @@ fn connect(ws: Workspace, s: Session) {
         return;
     }
     let (llm, known) = {
-        let settings = ws.settings.peek();
+        let settings = ws.settings.resolved.peek();
         let name = profile.peek().clone();
         let known = settings.agents.iter().any(|a| a.name == name);
         (settings.agent(&name).llm.clone(), known)
@@ -287,7 +288,7 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
             g.tools = moonkale_llm::builtin_tools();
             g.tools.extend(crate::host::wasm_tools(ws));
             let (ps, ext) = {
-                let s = ws.settings.peek();
+                let s = ws.settings.resolved.peek();
                 (s.policy.clone(), s.extensions.clone())
             };
             // Permissions removed in the Extensions panel deny the tools.
@@ -496,6 +497,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     // The folder's saved sessions, when the folder changes.
     let folder = use_memo(move || {
         ws.sources
+            .open
             .read()
             .iter()
             .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -520,11 +522,11 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     // One session at least; reconnect the current one when the settings
     // its profile resolves to change (a model edited in Settings).
     use_effect(move || {
-        let _ = ws.settings.read().agents.len();
-        let _ = ws.settings.read().llm.clone();
-        let _ = ws.settings.read().agents.clone();
+        let _ = ws.settings.resolved.read().agents.len();
+        let _ = ws.settings.resolved.read().llm.clone();
+        let _ = ws.settings.resolved.read().agents.clone();
         if sessions.peek().is_empty() {
-            let profile = ws.settings.peek().agent.default.clone();
+            let profile = ws.settings.resolved.peek().agent.default.clone();
             new_session(ws, chats, profile);
             return;
         }
@@ -650,6 +652,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     let running = live.iter().filter(|(_, _, b)| *b).count();
     let agents: Vec<String> = ws
         .settings
+        .resolved
         .read()
         .agents
         .iter()
@@ -703,7 +706,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                         }
                     }
                 }
-                button { class: "mk-btn mk-agent-new", title: "A new session (the current one keeps running)", onclick: move |_| { let profile = ws.settings.peek().agent.default.clone(); new_session(ws, chats, profile); }, "New" }
+                button { class: "mk-btn mk-agent-new", title: "A new session (the current one keeps running)", onclick: move |_| { let profile = ws.settings.resolved.peek().agent.default.clone(); new_session(ws, chats, profile); }, "New" }
                 select { class: "mk-agent-profile", title: "Which saved agent this session runs (Settings → Agents)",
                     value: "{profile_now}",
                     disabled: busy(),
