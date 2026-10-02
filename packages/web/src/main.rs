@@ -520,6 +520,8 @@ fn workspace_config() -> WorkspaceConfig {
             state: state_access(),
             // Every folder is on the server; so is its entity log (phase 5.10).
             host: Some(api::client::host_state()),
+            // `localStorage["moonkale.settings"]` already is this browser's store.
+            user_settings_in_state: false,
             ..Default::default()
         },
         network: ui::Network {

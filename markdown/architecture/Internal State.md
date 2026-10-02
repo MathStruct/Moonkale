@@ -18,9 +18,9 @@ Daniel, 2026-09-28: the embedded stores of [[Milestone 17 - Embedded Stores]] �
 | per folder | deleted files | `<folder>/.moonkale/trash/` | files | `project-fs` |
 | per folder | KaTeX macros | `<folder>/.moonkale/katex.json` | JSON | the user |
 | per folder | wasm extensions | `<folder>/.moonkale/extensions/*.wasm` | modules | the user |
-| per user, desktop | user settings, recent folders, saved agents, saved SSH connections | `<config dir>/moonkale/settings.json` | JSON | `desktop/src/main.rs` |
-| per user, web | user settings | the browser's `localStorage` | JSON | `web/src/main.rs` |
-| per user, Android | user settings | `<files dir>/settings.json` | JSON | `mobile/src/main.rs` |
+| per user, desktop | user settings, recent folders, saved agents, saved SSH connections — **in the state store since 2026-10-02** | `<config dir>/moonkale/state.sqlite`, table `settings`, key `"user"` (`settings.json` imported once, then left alone) | `UserSettingsRecord` (the `SettingsFile` JSON) | `Workspace::update_user_settings` |
+| per user, web | user settings — **stays as it is**: the item already is this browser's store, and it is the browser suites' handle | the browser's `localStorage["moonkale.settings"]` | JSON | `web/src/main.rs` |
+| per user, Android | user settings — **in the state store since 2026-10-02** | `<files dir>/state.sqlite` (`settings.json` imported once) | `UserSettingsRecord` | `Workspace::update_user_settings` |
 | per user | wasm extensions | `<config dir>/moonkale/extensions/` | modules | the user |
 | per user | **secrets** | `<config dir>/moonkale/secrets.json` (mode 600) + environment | JSON | Settings → secret | 
 | derived | the index: graph, BM25, embeddings | memory only, rebuilt on every open | — | `moonkale-index` |
@@ -61,7 +61,7 @@ A likely shape, to be confirmed by the comparison: **one relational/key-value st
 - Sync: how a merge of two devices' logs is expressed (rows by event id; a key range scan).
 
 ## Migration
-Read the old files once, write the store, leave the files in place for one release, then stop reading them. Done that way for layouts (phase 5.7), agent sessions (phase 5.15) and the entity log (phase 5.10: `.moonkale/history.jsonl` is imported when the store has no rows for the folder, then never written). `.moonkale/history.jsonl` and `.moonkale/settings.json` in this repository get removed from git and ignored when the store lands.
+Read the old files once, write the store, leave the files in place for one release, then stop reading them. Done that way for layouts (phase 5.7), agent sessions (phase 5.15), user settings on desktop and phone (phase 5.18) and the entity log (phase 5.10: `.moonkale/history.jsonl` is imported when the store has no rows for the folder, then never written). `.moonkale/history.jsonl` and `.moonkale/settings.json` in this repository get removed from git and ignored when the store lands.
 
 **Interface built (2026-10-02):** `packages/state` (`moonkale-state`) — `StateStore` with `get`, `scan(prefix)`, atomic `write(Batch)`; versioned records; the tables above as `moonkale_state::tables`; a conformance suite that `MemoryStore` and the redb reference backend pass. Nothing uses it yet. **The comparison is done:** [[State Store Comparison]] — SQLite recommended, redb runner-up; decision pending ([[ADR-0014 One store for internal state]]).
 

@@ -160,6 +160,11 @@ pub struct Persistence {
     /// through server functions. `None`: the old behaviour (the log rewritten
     /// into `.moonkale/history.jsonl`).
     pub host: Option<StateAccess>,
+    /// Keep the user's settings in `state` (phase 5.18; table `settings`,
+    /// key `"user"`), importing what `settings` loads once and writing only
+    /// the store after that. Desktop and phone: yes. Web: no — the browser's
+    /// `localStorage` item already is that browser's store.
+    pub user_settings_in_state: bool,
 }
 
 /// Async access to a [`moonkale_state::StateStore`], so a platform can put it

@@ -828,6 +828,22 @@ pub struct LayoutRecord {
     pub active_document: Option<String>,
 }
 
+/// The user scope as stored (phase 5.18): table `settings`, key `"user"`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct UserSettingsRecord(pub SettingsFile);
+
+impl moonkale_state::Record for UserSettingsRecord {
+    const TABLE: &'static str = moonkale_state::tables::SETTINGS;
+    const VERSION: u32 = 1;
+}
+
+impl UserSettingsRecord {
+    pub fn key() -> moonkale_state::Key {
+        moonkale_state::Key::new().str("user")
+    }
+}
+
 impl moonkale_state::Record for LayoutRecord {
     const TABLE: &'static str = moonkale_state::tables::LAYOUT;
     const VERSION: u32 = 1;

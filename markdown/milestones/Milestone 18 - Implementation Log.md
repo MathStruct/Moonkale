@@ -120,5 +120,15 @@ What phase 3 did **not** do, against the plan's wording: settings are not yet na
 | — | E2E | `state.mjs`: the suites' reader of the server's store (key parts decoded); `agents.mjs` and `agent-server.mjs` check the rows and that no session files are written; the reset clears `agent_sessions` too | first run: `agent-server` caught the finished assistant text still going to the old log |
 | — | Checks | fmt ✅ · layering **16 known**, 0 new ✅ · clippy `-D warnings` ✅ (and `api --features server`) · **152 tests pass** (151 + the server-feature one), 5 ignored ✅ · browser suites **42 of 42**: 38 in the batch; `server` (port already in use), `touch-drag` (Chromium crash), `stores` (last suite) and `agent-server` passed alone — `agent-server` once its listing check accepted earlier runs' sessions, which the server keeps in memory across suites | |
 
-Next in phase 5: user settings into the store, then possibly a persisted index.
+## Phase 5, part 5 — User settings in the store (2026-10-02)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 5.18 | **User settings** (desktop, phone) | `UserSettingsRecord` (the whole `SettingsFile`) in table `settings`, key `"user"`, of this machine's store (`Persistence::state`); the first load imports the platform's `settings.json`, after which only the store is written and read — the file stays where it is, **no longer read** (edits to it by hand have no effect) | `Persistence::user_settings_in_state`; `ext-api/tests/state_user_settings.rs`: import, save, restart against a changed file |
+| 5.19 | Web unchanged | `localStorage["moonkale.settings"]` already is that browser's store; 14 suites set or read it. Moving it to `moonkale.state/…` would buy nothing | the flag is off on the web |
+| — | Settings → JSON view | "User file" → "User settings" | |
+| — | Desktop, for real | the release app on a **copy** of the config (`MOONKALE_CONFIG_DIR`): the first start logged *the user settings moved into the state store*, reopened the last folder, restored its layout and two documents, imported its 2 history events; the second start — with `reopen_last: false` written into the old file — read the store and reopened anyway, imported nothing; the real folder's `.moonkale/` was not touched | |
+| — | Checks | fmt ✅ · layering **16 known**, 0 new ✅ · clippy ✅ · wasm32 ✅ · **152 tests**, 5 ignored ✅ (the new one replaces none: 151 + 1 in `cargo test --workspace`) · browser suites `settings`, `agents`, `palette` ✅ (the web path is unchanged) | |
+
+Next: phase 5 is done for the state that exists today; a persisted index (graph, BM25, embeddings) is its own comparison (HelixDB is a candidate there). Then phase 4.
 

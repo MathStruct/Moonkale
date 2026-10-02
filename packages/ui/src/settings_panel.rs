@@ -228,7 +228,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
                 }
             } else {
                 div { class: "mk-settings-json",
-                    h3 { "User file" span { class: "mk-settings-scope", "this machine" } }
+                    h3 { "User settings" span { class: "mk-settings-scope", "this machine" } }
                     pre { "{user.to_json()}" }
                     h3 { "Workspace file" span { class: "mk-settings-scope", ".moonkale/settings.json" } }
                     pre { if has_workspace { "{workspace.to_json()}" } else { "(no folder open)" } }

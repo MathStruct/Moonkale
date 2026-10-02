@@ -117,7 +117,7 @@ impl Workspace {
     }
 
     pub fn has_settings_store(&self) -> bool {
-        self.config.persistence.settings.is_some()
+        self.config.persistence.settings.is_some() || self.user_settings_state().is_some()
     }
 
     pub fn secret_store(&self) -> Option<SecretStore> {
@@ -138,12 +138,57 @@ impl Workspace {
         }
     }
 
-    /// Load the user scope through the platform store (at startup).
+    /// The state store, when it holds the user scope.
+    fn user_settings_state(&self) -> Option<StateAccess> {
+        let p = &self.config.persistence;
+        p.state.filter(|_| p.user_settings_in_state)
+    }
+
+    /// The user scope: from the state store (importing what the platform's
+    /// settings store has, once), else from the platform's store. `None`:
+    /// neither exists.
+    async fn read_user_settings(&self) -> Option<Result<crate::settings::SettingsFile, String>> {
+        use crate::settings::UserSettingsRecord;
+        let legacy = self.config.persistence.settings;
+        if let Some(state) = self.user_settings_state() {
+            let key = UserSettingsRecord::key().into_bytes();
+            match (state.get)(moonkale_state::tables::SETTINGS.into(), key).await {
+                Ok(Some(bytes)) => {
+                    return Some(
+                        moonkale_state::decode::<UserSettingsRecord>(&bytes)
+                            .map(|r| r.0)
+                            .map_err(|e| e.to_string()),
+                    )
+                }
+                Ok(None) => {
+                    let file = match legacy {
+                        Some(s) => (s.load)().await,
+                        None => Ok(crate::settings::SettingsFile::new()),
+                    };
+                    if let Ok(f) = &file {
+                        self.state_put(&UserSettingsRecord::key(), &UserSettingsRecord(f.clone()))
+                            .await;
+                        tracing::info!("settings: the user settings moved into the state store");
+                    }
+                    return Some(file);
+                }
+                Err(e) => {
+                    tracing::warn!("settings: the state store failed ({e}); the platform's file")
+                }
+            }
+        }
+        match legacy {
+            Some(s) => Some((s.load)().await),
+            None => None,
+        }
+    }
+
+    /// Load the user scope (at startup).
     pub async fn load_user_settings(mut self) {
-        let Some(store) = self.config.persistence.settings else {
+        let Some(loaded) = self.read_user_settings().await else {
             return;
         };
-        match (store.load)().await {
+        match loaded {
             Ok(file) => {
                 self.settings.user.set(file);
                 self.resolve_settings();
@@ -202,10 +247,21 @@ impl Workspace {
         f(&mut file);
         self.settings.user.set(file.clone());
         self.resolve_settings();
-        if let Some(store) = self.config.persistence.settings {
-            if let Err(e) = (store.save)(file).await {
-                self.set_status(format!("Settings not saved: {e}"));
-            }
+        let saved = if let Some(state) = self.user_settings_state() {
+            let record = crate::settings::UserSettingsRecord(file);
+            let batch = moonkale_state::put_in(
+                moonkale_state::Batch::new(),
+                &crate::settings::UserSettingsRecord::key(),
+                &record,
+            );
+            (state.write)(batch).await
+        } else if let Some(store) = self.config.persistence.settings {
+            (store.save)(file).await
+        } else {
+            Ok(())
+        };
+        if let Err(e) = saved {
+            self.set_status(format!("Settings not saved: {e}"));
         }
     }
 

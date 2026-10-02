@@ -255,6 +255,9 @@ fn workspace_config() -> WorkspaceConfig {
             // The folder's host keeps its entity log: this store for local
             // folders, the server's while connected (phase 5.10).
             host: state.map(|_| api::client::host_state_routed()),
+            // The user's settings too (phase 5.18): `settings.json` is
+            // imported once, then only the store is written.
+            user_settings_in_state: true,
             ..Default::default()
         },
         network: ui::Network {
