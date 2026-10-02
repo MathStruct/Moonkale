@@ -33,11 +33,10 @@ pub mod claude_code;
 pub mod config;
 pub mod mock;
 pub mod policy;
-pub mod provider;
-pub mod sessions;
+pub use moonkale_llm_types::{provider, sessions};
 pub mod sse;
 pub mod tools;
-pub mod types;
+pub use moonkale_llm_types::types;
 
 #[cfg(all(feature = "http", not(target_arch = "wasm32")))]
 pub mod anthropic;

@@ -23,6 +23,7 @@ members = [
     "packages/index",
     # Services
     "packages/llm",
+    "packages/llm-types",
     "packages/lsp",
     "packages/lsp-local",
     "packages/terminal",
@@ -72,6 +73,7 @@ moonkale-sources-kv = { path = "packages/sources-kv" }
 moonkale-project-fs = { path = "packages/project-fs" }
 moonkale-index = { path = "packages/index" }
 moonkale-llm = { path = "packages/llm" }
+moonkale-llm-types = { path = "packages/llm-types" }
 moonkale-lsp = { path = "packages/lsp" }
 moonkale-lsp-local = { path = "packages/lsp-local" }
 moonkale-terminal = { path = "packages/terminal" }

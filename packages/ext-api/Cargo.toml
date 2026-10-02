@@ -9,7 +9,7 @@ description = "The stable API surface an extension programs against: manifest, c
 moonkale-core = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
-moonkale-llm = { workspace = true }
+moonkale-llm-types = { workspace = true }
 moonkale-ext-abi = { workspace = true }
 dioxus = { workspace = true }
 serde = { version = "1", features = ["derive"] }

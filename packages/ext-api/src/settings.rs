@@ -364,7 +364,7 @@ pub struct Settings {
     pub active_document: Option<String>,
 }
 
-pub use moonkale_llm::LlmSettings;
+pub use moonkale_llm_types::LlmSettings;
 
 /// A saved agent, resolved (Milestone 15).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

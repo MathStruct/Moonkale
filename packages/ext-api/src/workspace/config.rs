@@ -27,7 +27,7 @@ pub type OpenFolderFuture =
 /// embedding provider settings for the index (`None` = BM25-only search).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OpenOptions {
-    pub embed: Option<moonkale_llm::LlmSettings>,
+    pub embed: Option<moonkale_llm_types::LlmSettings>,
 }
 pub type OpenFolder = fn(String, OpenOptions) -> OpenFolderFuture;
 /// The future an [`AttachSource`] returns: one source, by descriptor.
@@ -52,10 +52,10 @@ pub type CompileTypst = fn(String, String, String) -> CompileTypstFuture;
 /// server relay on web). Async because the web build asks the server which
 /// model it runs.
 pub type LlmProviderFuture =
-    Pin<Box<dyn Future<Output = Result<Arc<dyn moonkale_llm::Provider>, String>>>>;
+    Pin<Box<dyn Future<Output = Result<Arc<dyn moonkale_llm_types::Provider>, String>>>>;
 /// Built from the resolved LLM settings (provider kind, model, endpoint,
 /// secret name); the platform resolves the secret itself.
-pub type LlmProvider = fn(moonkale_llm::LlmSettings) -> LlmProviderFuture;
+pub type LlmProvider = fn(moonkale_llm_types::LlmSettings) -> LlmProviderFuture;
 
 /// User-scope settings persistence (per machine). Workspace-scope settings
 /// go through the folder source (`.moonkale/settings.json`), so they need
@@ -196,16 +196,16 @@ pub struct ServerClient {
 pub struct AgentSessions {
     /// Are the sources a server's right now?
     pub available: fn() -> bool,
-    pub list: fn(String) -> SettingsFuture<Vec<moonkale_llm::sessions::SessionSummary>>,
+    pub list: fn(String) -> SettingsFuture<Vec<moonkale_llm_types::sessions::SessionSummary>>,
     /// `(session or None, folder, text, settings)` → session id.
     pub send: fn(
         Option<String>,
         String,
         String,
-        moonkale_llm::sessions::TurnSettings,
+        moonkale_llm_types::sessions::TurnSettings,
     ) -> SettingsFuture<String>,
     /// `(session, since)`.
-    pub events: fn(String, usize) -> SettingsFuture<moonkale_llm::sessions::SessionState>,
+    pub events: fn(String, usize) -> SettingsFuture<moonkale_llm_types::sessions::SessionState>,
     /// `(session, call id, allow)`.
     pub approve: fn(String, String, bool) -> SettingsFuture<()>,
 }

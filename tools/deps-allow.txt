@@ -3,9 +3,6 @@
 # list can only shrink. Each group names the step of Milestone 18 that removes it.
 # Rules are evaluated on the default feature set (`cargo metadata`).
 
-# Phase 3 — settings per extension (the ext-host edge went in phase 2.1)
-ext-api-is-a-contract moonkale-ext-api -> moonkale-llm
-
 # Phase 4.3 — server halves move into their extensions
 only-apps-assemble api -> moonkale-ext-git
 

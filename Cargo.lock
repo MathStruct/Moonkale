@@ -7096,7 +7096,7 @@ dependencies = [
  "js-sys",
  "moonkale-core",
  "moonkale-ext-abi",
- "moonkale-llm",
+ "moonkale-llm-types",
  "moonkale-lsp",
  "moonkale-terminal",
  "serde",
@@ -7192,12 +7192,22 @@ dependencies = [
  "futures-executor",
  "futures-util",
  "moonkale-core",
+ "moonkale-llm-types",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "moonkale-llm-types"
+version = "0.1.0"
+dependencies = [
+ "futures-channel",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

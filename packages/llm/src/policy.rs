@@ -7,19 +7,7 @@ use moonkale_core::source::risk;
 use moonkale_core::Risk;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Class {
-    ReadOnly,
-    Mutating,
-    Destructive,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Decision {
-    Allow,
-    Ask,
-    Deny,
-}
+pub use moonkale_llm_types::{Class, Decision};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Policy {

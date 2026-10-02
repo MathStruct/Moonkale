@@ -1,0 +1,11 @@
+[package]
+name = "moonkale-llm-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The data of Moonkale's agents — messages, the Provider trait, LLM settings, session records, policy classes — without any provider, HTTP or process code. Shared by the extension contract (moonkale-ext-api) and the agent engine (moonkale-llm), which re-exports it."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-channel = "0.3"

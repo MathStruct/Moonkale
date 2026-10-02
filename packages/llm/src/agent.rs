@@ -29,12 +29,7 @@ pub trait ToolHost {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum ToolOutcome {
-    Ran { ok: bool },
-    Denied,
-    Declined,
-}
+pub use moonkale_llm_types::ToolOutcome;
 
 /// Progress, in order, for the panel.
 #[derive(Clone, Debug, PartialEq)]

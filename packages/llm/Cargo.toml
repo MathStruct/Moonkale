@@ -15,6 +15,7 @@ claude-code = ["dep:tokio", "tokio/process", "tokio/io-util", "tokio/time", "dep
 
 [dependencies]
 moonkale-core = { workspace = true }
+moonkale-llm-types = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 futures-channel = "0.3"

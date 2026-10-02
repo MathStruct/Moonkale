@@ -21,7 +21,7 @@ APPS = {"web", "desktop", "mobile", "moonkale-distribution"}
 DRIVERS = {"moonkale-sources-sql", "moonkale-sources-graph", "moonkale-sources-kv"}
 # Heavy or native-only third-party crates the shell must not pull in.
 HEAVY = {"duckdb", "lbug", "rocksdb", "turso", "helix-db", "wasmtime", "reqwest", "rusqlite", "redb"}
-EXT_API_MAY = {"moonkale-core", "moonkale-lsp", "moonkale-terminal", "moonkale-ext-abi"}
+EXT_API_MAY = {"moonkale-core", "moonkale-lsp", "moonkale-terminal", "moonkale-ext-abi", "moonkale-llm-types"}
 
 
 def metadata():
