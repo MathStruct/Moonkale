@@ -38,8 +38,8 @@ Milestone 18 phase 5 ([[Milestone 18 - Library Refactor]]); decision record [[AD
 |---|---|---|---|---|
 | redb | **18 / 35 / 46 s** | 1 214 / 1 168 / 1 057 per s | ok | builds (25 s) |
 | SQLite | 68 / 49 / 56 s | 6 360 / 7 160 / 9 743 per s | ok | builds (50 s) |
-| Turso | 212 / 262 / 412 s | 2 523 / 5 178 / 2 162 per s | ok | *failed at API 21 (`pwritev`); rerun at API 24 pending* |
-| RocksDB | 406 / 340 / **860 s** | 5 929 / 11 204 / 4 358 per s | ok | *failed at API 21 (`io_posix.cc`); rerun at API 24 pending* |
+| Turso | 212 / 262 / 412 s | 2 523 / 5 178 / 2 162 per s | ok | builds at API 24 (failed at API 21: `pwritev`) |
+| RocksDB | 406 / 340 / **860 s** | 5 929 / 11 204 / 4 358 per s | ok | builds at API 24 (failed at API 21: `io_posix.cc`) |
 | HelixDB | 503 / 408 / 741 s | (workload too slow at 20k) | — | builds (508 s) |
 
 ## Cost in the binary

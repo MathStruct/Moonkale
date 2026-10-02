@@ -45,6 +45,8 @@ fn mode() -> moonkale_state::Durability {
 }
 
 fn backends() -> Vec<(&'static str, Open)> {
+    // Empty (and never pushed to) when no backend feature is enabled.
+    #[allow(unused_mut)]
     let mut v: Vec<(&'static str, Open)> = Vec::new();
     #[cfg(feature = "redb")]
     v.push(("redb", |p| {

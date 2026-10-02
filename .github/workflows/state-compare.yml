@@ -50,7 +50,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/compare"
-          "$EXE" "$RUNNER_TEMP/compare" "${{ inputs.events || '20000' }}" | tee out.md
+          events="${{ inputs.events || '20000' }}"
+          # HelixDB slows down superlinearly as key/value (research/State Store
+          # Comparison.md): 20 000 events ran for hours; 1 000 shows the shape.
+          [ "${{ matrix.backend }}" = helix ] && events=1000
+          "$EXE" "$RUNNER_TEMP/compare" "$events" | tee out.md
           {
             echo "### ${{ matrix.os }} · ${{ matrix.backend }}"
             echo "clean release build: ${BUILD_S} s · example binary: $((SIZE/1024)) KiB"
