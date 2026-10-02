@@ -4,20 +4,12 @@
 // log survives a reload.
 import { firefox } from "playwright";
 import fs from "node:fs";
-import { DatabaseSync } from "node:sqlite";
+import { rows } from "./state.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
-// The server's store (serve.sh: MOONKALE_CONFIG_DIR=$E/cfg), read as a second process.
-const STATE = `${process.env.MOONKALE_CONFIG_DIR ?? ROOT + "/../cfg"}/state.sqlite`;
-function events() {
-  if (!fs.existsSync(STATE)) return [];
-  const db = new DatabaseSync(STATE, { readOnly: true });
-  try {
-    return db.prepare("SELECT v FROM kv WHERE t = 'events' ORDER BY k").all()
-      .map((r) => JSON.parse(Buffer.from(r.v).toString("utf8")).data);
-  } finally { db.close(); }
-}
+// The server's store, read as a second process.
+const events = () => rows("events").map((r) => r.data);
 const browser = await firefox.launch();
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 900 } });
 const page = await ctx.newPage();

@@ -21,8 +21,9 @@ reset() {
   git -C "$E/m2root" reset -q --hard "$(git -C "$E/m2root" rev-list --max-parents=0 HEAD)" 2>/dev/null; git -C "$E/m2root" clean -fdq 2>/dev/null
   rm -rf "$E/m2root/.moonkale" "$E/m2root"/*.flow.json "$E/m2root/model.jl" "$E/m2root"/untitled* \
     "$E/m2root"/todo.md "$E/m2root"/TODO.md "$E/m2root/notes/drafts" "$E/m2root/notes/TODO.md" "$E/m2root"/note.md "$E/m2root"/notes.md "$E/m2root"/Math.md "$E/m2root"/Missing.md "$E/m2root"/Nowhere.md "$E/m2root"/Alpha2.md "$E/m2root/pics" "$E/m2root"/big.txt "$E/m2root"/Front.md "$E/m2root"/Norm.md "$E/m2root"/Gaps.md "$E/m2root"/Outside.md "$E/m2root/later" "$E/m2root/.secret" "$E/m2root/.moonkale/agent-sessions"   # files.mjs, history.mjs, rich.mjs, wiki.mjs
-  # The entity log lives in the server's store (phase 5.10); SQLite lets this second process clear it.
-  [ -f "$E/cfg/state.sqlite" ] && sqlite3 "$E/cfg/state.sqlite" "DELETE FROM kv WHERE t = 'events'" 2>/dev/null
+  # The entity log and agent sessions live in the server's store (phase 5.10, 5.15); SQLite lets this
+  # second process clear them.
+  [ -f "$E/cfg/state.sqlite" ] && sqlite3 "$E/cfg/state.sqlite" "DELETE FROM kv WHERE t IN ('events', 'agent_sessions')" 2>/dev/null
   # The suites drive the Source editor; markdown opens in Rich mode by default (spec 021).
   mkdir -p "$E/m2root/.moonkale" && printf '{"editor":{"markdown_rich":false}}\n' > "$E/m2root/.moonkale/settings.json"
   printf '# Home\nSee [[Alpha]] and [[notes/Beta]] and [[Missing]].\n' > "$E/m2root/Home.md"

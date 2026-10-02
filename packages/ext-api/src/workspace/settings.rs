@@ -37,6 +37,65 @@ impl Workspace {
         }
     }
 
+    /// Whether there is a store on the open folder's host
+    /// (`Persistence::host`); without one, folder state stays in files.
+    pub fn has_host_state(&self) -> bool {
+        self.config.persistence.host.is_some()
+    }
+
+    /// A record from the folder host's store (`None`: absent, no store, or
+    /// unreadable — logged).
+    pub async fn host_get<R: moonkale_state::Record>(
+        &self,
+        key: &moonkale_state::Key,
+    ) -> Option<R> {
+        let h = self.config.persistence.host?;
+        match (h.get)(R::TABLE.to_string(), key.as_bytes().to_vec()).await {
+            Ok(Some(bytes)) => moonkale_state::decode(&bytes)
+                .map_err(|e| tracing::warn!("host state: {} ignored: {e}", R::TABLE))
+                .ok(),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!("host state: reading {}: {e}", R::TABLE);
+                None
+            }
+        }
+    }
+
+    /// The records under `prefix` in the folder host's store, in key order;
+    /// unreadable ones are skipped. `Err`: no store, or it failed.
+    pub async fn host_scan<R: moonkale_state::Record>(
+        &self,
+        prefix: &moonkale_state::Key,
+    ) -> Result<Vec<(Vec<u8>, R)>, String> {
+        let h = self
+            .config
+            .persistence
+            .host
+            .ok_or_else(|| "no host store".to_string())?;
+        let rows = (h.scan)(R::TABLE.to_string(), prefix.as_bytes().to_vec()).await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|(k, v)| match moonkale_state::decode(&v) {
+                Ok(r) => Some((k, r)),
+                Err(e) => {
+                    tracing::warn!("host state: {} ignored: {e}", R::TABLE);
+                    None
+                }
+            })
+            .collect())
+    }
+
+    /// Apply a batch to the folder host's store. `Err`: no store, or it failed.
+    pub async fn host_write(&self, batch: moonkale_state::Batch) -> Result<(), String> {
+        let h = self
+            .config
+            .persistence
+            .host
+            .ok_or_else(|| "no host store".to_string())?;
+        (h.write)(batch).await
+    }
+
     /// Whether the folder's settings file on disk still has a layout part
     /// (a file from before the state store), which the next save removes.
     async fn folder_file_has_layout(&self, folder: &SourceId) -> bool {

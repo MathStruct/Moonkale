@@ -110,5 +110,15 @@ What phase 3 did **not** do, against the plan's wording: settings are not yet na
 | — | E2E | `history.mjs` reads the server's store as a second process (`node:sqlite`) and checks that `history.jsonl` is not written; `run-all.sh`'s reset deletes the `events` rows with `sqlite3` — the multi-process access that was one reason for SQLite | |
 | — | Checks | fmt ✅ · layering **16 known**, 0 new ✅ · clippy `-D warnings` ✅ · **150 tests pass**, 5 ignored ✅ · wasm32, server, desktop, mobile builds ✅ · browser suites **42 of 42** on a fresh server (in the batch `touch-drag` crashed Chromium and `stores`, the last suite, timed out — both pass alone, as after phase 3) | |
 
-Next in phase 5: agent sessions and user settings into the store, then possibly a persisted index.
+## Phase 5, part 4 — Agent sessions in the store (2026-10-02)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 5.15 | **Local sessions** (the Agent panel's) | `SavedSession` is a record of table `agent_sessions`, key `str(folder id) · str("local") · str(id)`, one row per session, in the folder host's store; `saved_sessions` imports `.moonkale/agent-sessions/local/*.json` once into an empty store; `restore` reads the row | `Workspace::{has_host_state, host_get, host_scan, host_write}` for extensions; `editors/agent/tests/sessions_store.rs` |
+| 5.16 | **Server sessions** | a head row (`title`, `started`) under `folder · "server" · id`, a row per transcript item under `· u64(n)` — appended as the turn runs; the finished assistant text and a tool's outcome **replace** their row (the old log file only appended, so tool outcomes were lost after a restart). `.moonkale/agent-sessions/*.jsonl` imported once; `agent_send` loads the folder first so a first new session cannot block the import | unit test under feature `server` (not in CI's `cargo test`; the browser suite `agent-server` covers it there) |
+| 5.17 | Host access | `host_state` admits `agent_sessions`, only under `"local"`: a client cannot write the server's sessions | |
+| — | E2E | `state.mjs`: the suites' reader of the server's store (key parts decoded); `agents.mjs` and `agent-server.mjs` check the rows and that no session files are written; the reset clears `agent_sessions` too | first run: `agent-server` caught the finished assistant text still going to the old log |
+| — | Checks | fmt ✅ · layering **16 known**, 0 new ✅ · clippy `-D warnings` ✅ (and `api --features server`) · **152 tests pass** (151 + the server-feature one), 5 ignored ✅ · browser suites **42 of 42**: 38 in the batch; `server` (port already in use), `touch-drag` (Chromium crash), `stores` (last suite) and `agent-server` passed alone — `agent-server` once its listing check accepted earlier runs' sessions, which the server keeps in memory across suites | |
+
+Next in phase 5: user settings into the store, then possibly a persisted index.
 

@@ -12,8 +12,13 @@
 use base64::Engine;
 use dioxus::prelude::*;
 
-/// The tables a client may read and write on the host.
-pub const HOST_TABLES: &[&str] = &[moonkale_state::tables::EVENTS];
+/// The tables a client may read and write on the host: the entity log, and
+/// a client's own (`"local"`) agent sessions — the server's sessions, under
+/// `"server"`, only the server writes (`agent_sessions`).
+pub const HOST_TABLES: &[&str] = &[
+    moonkale_state::tables::EVENTS,
+    moonkale_state::tables::AGENT_SESSIONS,
+];
 
 pub fn b64(bytes: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(bytes)
@@ -53,7 +58,7 @@ pub fn from_wire(ops: Vec<WireOp>) -> Result<moonkale_state::Batch, String> {
 }
 
 #[cfg(feature = "server")]
-mod server {
+pub(crate) mod server {
     use std::sync::{Arc, OnceLock};
 
     pub fn store() -> Result<&'static Arc<dyn moonkale_state::StateStore>, String> {
@@ -80,9 +85,15 @@ mod server {
         if !super::HOST_TABLES.contains(&table) {
             return Err(format!("table {table:?} is not the host's"));
         }
-        let folder = moonkale_state::Key::reader(key)
+        let mut parts = moonkale_state::Key::reader(key);
+        let folder = parts
             .str()
             .ok_or_else(|| "a key must start with a folder id".to_string())?;
+        if table == moonkale_state::tables::AGENT_SESSIONS
+            && parts.str().as_deref() != Some("local")
+        {
+            return Err("only a client's own (local) agent sessions".into());
+        }
         if crate::state::registry()
             .get(&moonkale_core::SourceId::new(folder.clone()))
             .is_none()

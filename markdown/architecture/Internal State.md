@@ -12,8 +12,8 @@ Daniel, 2026-09-28: the embedded stores of [[Milestone 17 - Embedded Stores]] �
 | per folder | workspace settings, extension grants | `<folder>/.moonkale/settings.json` | JSON (`SettingsFile`) | `Workspace::update_workspace_settings` |
 | per folder, per machine | layout, open documents, active document — **in the state store since 2026-10-02** | `<config dir>/state.sqlite` (desktop, phone), `localStorage` (web) | `LayoutRecord`, table `layout` | `Workspace::update_workspace_settings` |
 | per folder, on its host | entity log (every change: who, when, what) — **in the state store since 2026-10-02** | the `state.sqlite` of the machine that hosts the folder: the desktop's or phone's own for local folders, the server's for the web and for remote folders (`Persistence::host`) | `EventRecord`, table `events`, one row per event, key `folder · event id`; compaction swaps rows for a snapshot event | `Workspace::record*`, `core::graph::history` |
-| per folder | agent sessions (local) | `<folder>/.moonkale/agent-sessions/local/<id>.json` | JSON | `editors/agent` |
-| per folder | agent sessions (server) | `<folder>/.moonkale/agent-sessions/<id>.jsonl` | JSON lines | `api/agent_sessions.rs` |
+| per folder, on its host | agent sessions (local) — **in the state store since 2026-10-02** | the folder host's `state.sqlite` (`Persistence::host`) | `SavedSession`, table `agent_sessions`, key `folder · "local" · id`, one row per session; `.moonkale/agent-sessions/local/` imported once | `editors/agent` |
+| per folder, on the server | agent sessions (server) — **in the state store since 2026-10-02** | the server's `state.sqlite` | table `agent_sessions`, key `folder · "server" · id`: a head row, then one row per transcript item (`· n`); `.moonkale/agent-sessions/*.jsonl` imported once | `api/agent_sessions.rs` |
 | per folder | saved chats | `<folder>/.moonkale/chats/*.md` | markdown pages | `editors/agent` |
 | per folder | deleted files | `<folder>/.moonkale/trash/` | files | `project-fs` |
 | per folder | KaTeX macros | `<folder>/.moonkale/katex.json` | JSON | the user |
@@ -61,7 +61,7 @@ A likely shape, to be confirmed by the comparison: **one relational/key-value st
 - Sync: how a merge of two devices' logs is expressed (rows by event id; a key range scan).
 
 ## Migration
-Read the old files once, write the store, leave the files in place for one release, then stop reading them. Done that way for layouts (phase 5.7) and the entity log (phase 5.10: `.moonkale/history.jsonl` is imported when the store has no rows for the folder, then never written). `.moonkale/history.jsonl` and `.moonkale/settings.json` in this repository get removed from git and ignored when the store lands.
+Read the old files once, write the store, leave the files in place for one release, then stop reading them. Done that way for layouts (phase 5.7), agent sessions (phase 5.15) and the entity log (phase 5.10: `.moonkale/history.jsonl` is imported when the store has no rows for the folder, then never written). `.moonkale/history.jsonl` and `.moonkale/settings.json` in this repository get removed from git and ignored when the store lands.
 
 **Interface built (2026-10-02):** `packages/state` (`moonkale-state`) — `StateStore` with `get`, `scan(prefix)`, atomic `write(Batch)`; versioned records; the tables above as `moonkale_state::tables`; a conformance suite that `MemoryStore` and the redb reference backend pass. Nothing uses it yet. **The comparison is done:** [[State Store Comparison]] — SQLite recommended, redb runner-up; decision pending ([[ADR-0014 One store for internal state]]).
 

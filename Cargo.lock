@@ -189,6 +189,7 @@ dependencies = [
  "moonkale-typst",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -6956,14 +6957,18 @@ name = "moonkale-editor-agent"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "dioxus-core",
  "futures-channel",
  "futures-util",
  "gloo-timers 0.3.0",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-llm",
+ "moonkale-project-fs",
+ "moonkale-state",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "uuid",
 ]

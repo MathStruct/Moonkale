@@ -51,3 +51,6 @@ moonkale-sources-graph = { workspace = true, optional = true, features = ["helix
 
 [features]
 server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-typst", "dep:moonkale-lsp-local", "dep:moonkale-state-stores", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]
+
+[dev-dependencies]
+tempfile = "3"

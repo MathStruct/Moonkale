@@ -3,6 +3,7 @@
 // restored after a reload. Mock provider throughout.
 import { firefox } from "playwright";
 import fs from "node:fs";
+import { rows } from "./state.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
@@ -81,18 +82,20 @@ try {
     if (!options.some((t) => t.startsWith("●"))) throw new Error("A should be marked running");
     await page.screenshot({ path: `${S}/m15-two-sessions.png` });
   });
-  await step("back to A: its approval is still pending; Allow → the command ran; A's file appears under .moonkale/agent-sessions/local", async () => {
+  await step("back to A: its approval is still pending; Allow → the command ran; both sessions are stored in the folder host's store (no files)", async () => {
     await page.selectOption(".mk-agent-sessions", first);
     await page.waitForSelector(".mk-agent-approval", { timeout: 5000 });
     await page.click(".mk-agent-approval button:has-text('Allow')");
     await idle();
     const text = await page.$$eval(".mk-agent-assistant", (e) => e.map((x) => x.textContent).join("\n"));
     if (!/from_A/.test(text)) throw new Error("no output from A: " + text.slice(0, 200));
-    let files = [];
-    for (let i = 0; i < 30; i++) { try { files = fs.readdirSync(`${ROOT}/.moonkale/agent-sessions/local`); if (files.length >= 2) break; } catch {} await new Promise((r) => setTimeout(r, 300)); }
-    console.log("\n  saved:", files.join(", "));
-    if (!files.includes(`${first}.json`) || !files.includes(`${second}.json`)) throw new Error("session files missing");
-    const saved = JSON.parse(fs.readFileSync(`${ROOT}/.moonkale/agent-sessions/local/${first}.json`, "utf8"));
+    const local = () => rows("agent_sessions").filter((r) => r.parts[1] === "local");
+    let ids = [];
+    for (let i = 0; i < 30; i++) { ids = local().map((r) => r.parts[2]); if (ids.length >= 2) break; await new Promise((r) => setTimeout(r, 300)); }
+    console.log("\n  stored:", ids.join(", "));
+    if (!ids.includes(first) || !ids.includes(second)) throw new Error("sessions not stored");
+    if (fs.existsSync(`${ROOT}/.moonkale/agent-sessions/local`)) throw new Error("session files still written");
+    const saved = local().find((r) => r.parts[2] === first).data;
     if (saved.profile !== "Second" || !saved.messages?.length) throw new Error("bad snapshot " + JSON.stringify(saved).slice(0, 200));
   });
   await step("reload: the saved sessions are listed under 'saved in this folder'; picking one restores its transcript and profile", async () => {

@@ -1,8 +1,10 @@
 //! Agent sessions that live on the server (Milestone 12, Prompt20): a turn
 //! runs to completion whether or not a page, a desktop or a phone is
 //! watching, and any client that connects later reads the transcript as
-//! it stands. One record per session, in memory and appended to
-//! `<folder>/.moonkale/agent-sessions/<id>.jsonl`.
+//! it stands. One record per session, in memory and in the server's state
+//! store (Milestone 18 phase 5.15: table `agent_sessions`, a head row per
+//! session and a row per transcript item, appended); without a store, and
+//! before it, `<folder>/.moonkale/agent-sessions/<id>.jsonl` (imported once).
 //!
 //! The turn runs `moonkale_llm::Agent::send` on a thread of its own (the
 //! host futures are not `Send`) with a **server tool host**: the read-only
@@ -48,6 +50,127 @@ mod server {
             .unwrap_or(0)
     }
 
+    /// What a session's head row holds; its items are rows of their own.
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Head {
+        title: String,
+        started: u64,
+    }
+
+    impl moonkale_state::Record for Head {
+        const TABLE: &'static str = moonkale_state::tables::AGENT_SESSIONS;
+        const VERSION: u32 = 1;
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(transparent)]
+    struct Item(SessionItem);
+
+    impl moonkale_state::Record for Item {
+        const TABLE: &'static str = moonkale_state::tables::AGENT_SESSIONS;
+        const VERSION: u32 = 1;
+    }
+
+    /// `str(folder id) · str("server")`; a session adds `· str(id)`, an
+    /// item `· u64(n)` after that.
+    fn sessions_key(folder: &str) -> moonkale_state::Key {
+        moonkale_state::Key::new()
+            .str(&format!("folder:{folder}"))
+            .str("server")
+    }
+
+    type Loaded = (String, Head, Vec<SessionItem>);
+
+    /// The folder's sessions in the store; the files imported when it has
+    /// none. `Err`: no store (or it failed).
+    fn stored_sessions(folder: &str) -> Result<Vec<Loaded>, String> {
+        let st = crate::host_state::server::store()?;
+        let table = moonkale_state::tables::AGENT_SESSIONS;
+        let rows = st
+            .scan(table, sessions_key(folder).as_bytes())
+            .map_err(|e| e.to_string())?;
+        if rows.is_empty() {
+            let files = read_files(folder);
+            if !files.is_empty() {
+                let mut batch = moonkale_state::Batch::new();
+                for (id, head, items) in &files {
+                    let key = sessions_key(folder).str(id);
+                    batch = moonkale_state::put_in(batch, &key, head);
+                    for (n, item) in items.iter().enumerate() {
+                        batch = moonkale_state::put_in(
+                            batch,
+                            &key.clone().u64(n as u64),
+                            &Item(item.clone()),
+                        );
+                    }
+                }
+                st.write(batch).map_err(|e| e.to_string())?;
+                eprintln!(
+                    "moonkale: imported {} agent sessions of {folder} into the store",
+                    files.len()
+                );
+            }
+            return Ok(files);
+        }
+        let mut out: Vec<Loaded> = Vec::new();
+        for (key, value) in rows {
+            let mut parts = moonkale_state::Key::reader(&key);
+            let (_, _, Some(id)) = (parts.str(), parts.str(), parts.str()) else {
+                continue;
+            };
+            if parts.is_empty() {
+                if let Ok(head) = moonkale_state::decode::<Head>(&value) {
+                    out.push((id, head, Vec::new()));
+                }
+            } else if let Ok(Item(item)) = moonkale_state::decode::<Item>(&value) {
+                // Items sort after their head (the key is longer).
+                if let Some(last) = out.last_mut().filter(|(i, _, _)| *i == id) {
+                    last.2.push(item);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn store_head(folder: &str, id: &str, head: &Head) {
+        if let Ok(st) = crate::host_state::server::store() {
+            let key = sessions_key(folder).str(id);
+            if let Err(e) = st.write(moonkale_state::put_in(
+                moonkale_state::Batch::new(),
+                &key,
+                head,
+            )) {
+                eprintln!("moonkale: agent session {id} not stored: {e}");
+            }
+        }
+    }
+
+    /// Store the `n`th item of a session (or append it to the file without
+    /// a store).
+    fn store_item(folder: &str, id: &str, n: usize, item: &SessionItem) {
+        match crate::host_state::server::store() {
+            Ok(st) => {
+                let key = sessions_key(folder).str(id).u64(n as u64);
+                if let Err(e) = st.write(moonkale_state::put_in(
+                    moonkale_state::Batch::new(),
+                    &key,
+                    &Item(item.clone()),
+                )) {
+                    eprintln!("moonkale: agent session {id}: an item not stored: {e}");
+                }
+            }
+            Err(_) => append_log(folder, id, item),
+        }
+    }
+
+    /// Replace the `n`th item's row (nothing without a store: the file only
+    /// ever appends).
+    fn update_item(folder: &str, id: &str, n: usize, item: &SessionItem) {
+        if crate::host_state::server::store().is_ok() {
+            store_item(folder, id, n, item);
+        }
+    }
+
     fn log_path(folder: &str, id: &str) -> std::path::PathBuf {
         std::path::Path::new(folder)
             .join(".moonkale/agent-sessions")
@@ -69,15 +192,18 @@ mod server {
         }
     }
 
-    /// Sessions of a folder from disk (after a restart) into the store.
-    pub fn load_folder(folder: &str) {
+    /// The session files of a folder (`.moonkale/agent-sessions/*.jsonl`).
+    fn read_files(folder: &str) -> Vec<Loaded> {
         let dir = std::path::Path::new(folder).join(".moonkale/agent-sessions");
         let Ok(entries) = std::fs::read_dir(&dir) else {
-            return;
+            return Vec::new();
         };
-        let mut store = store().lock().unwrap();
+        let mut out = Vec::new();
         for e in entries.flatten() {
             let path = e.path();
+            if path.extension().and_then(|x| x.to_str()) != Some("jsonl") {
+                continue;
+            }
             let Some(id) = path
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -85,9 +211,6 @@ mod server {
             else {
                 continue;
             };
-            if store.contains_key(&id) {
-                continue;
-            }
             let Ok(text) = std::fs::read_to_string(&path) else {
                 continue;
             };
@@ -109,6 +232,25 @@ mod server {
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
+            out.push((id, Head { title, started }, items));
+        }
+        out
+    }
+
+    /// Sessions of a folder from the store (after a restart; from the files
+    /// without one) into memory.
+    pub fn load_folder(folder: &str) {
+        let sessions = stored_sessions(folder).unwrap_or_else(|e| {
+            if !e.is_empty() {
+                eprintln!("moonkale: agent sessions from files ({e})");
+            }
+            read_files(folder)
+        });
+        let mut store = store().lock().unwrap();
+        for (id, head, items) in sessions {
+            if store.contains_key(&id) {
+                continue;
+            }
             let messages = rebuild_messages(&items);
             store.insert(
                 id.clone(),
@@ -116,8 +258,8 @@ mod server {
                     summary: SessionSummary {
                         id,
                         folder: folder.to_string(),
-                        title,
-                        started,
+                        title: head.title,
+                        started: head.started,
                         running: false,
                         items: items.len(),
                     },
@@ -164,6 +306,14 @@ mod server {
             messages: Vec::new(),
             pending: None,
         }));
+        store_head(
+            folder,
+            &id,
+            &Head {
+                title: first.chars().take(60).collect(),
+                started: now(),
+            },
+        );
         store().lock().unwrap().insert(id.clone(), rec.clone());
         (id, rec)
     }
@@ -173,8 +323,9 @@ mod server {
         let (folder, id) = (r.summary.folder.clone(), r.summary.id.clone());
         r.items.push(item.clone());
         r.summary.items = r.items.len();
+        let n = r.items.len() - 1;
         drop(r);
-        append_log(&folder, &id, &item);
+        store_item(&folder, &id, n, &item);
     }
 
     /// The server's tool host: read-only tools over the registry; writes
@@ -336,18 +487,28 @@ mod server {
                 summary,
             } => {
                 let mut r = rec2.lock().unwrap();
-                if let Some(SessionItem::Tool {
-                    outcome: o,
-                    summary: s,
-                    ..
-                }) = r
+                let at = r
                     .items
-                    .iter_mut()
-                    .rev()
-                    .find(|i| matches!(i, SessionItem::Tool { id: tid, .. } if *tid == id))
-                {
-                    *o = Some(outcome);
-                    *s = summary;
+                    .iter()
+                    .rposition(|i| matches!(i, SessionItem::Tool { id: tid, .. } if *tid == id));
+                if let Some(n) = at {
+                    if let SessionItem::Tool {
+                        outcome: o,
+                        summary: s,
+                        ..
+                    } = &mut r.items[n]
+                    {
+                        *o = Some(outcome);
+                        *s = summary;
+                    }
+                    // The row gets the outcome too (the old log file never did).
+                    let (folder, sid, item) = (
+                        r.summary.folder.clone(),
+                        r.summary.id.clone(),
+                        r.items[n].clone(),
+                    );
+                    drop(r);
+                    update_item(&folder, &sid, n, &item);
                 }
             }
             AgentEvent::TurnDone { .. } => {
@@ -356,8 +517,9 @@ mod server {
                 if let Some(SessionItem::Assistant { text }) = r.items.last() {
                     let item = SessionItem::Assistant { text: text.clone() };
                     let (folder, id) = (r.summary.folder.clone(), r.summary.id.clone());
+                    let n = r.items.len() - 1;
                     drop(r);
-                    append_log(&folder, &id, &item);
+                    store_item(&folder, &id, n, &item);
                 }
             }
             AgentEvent::Finished => {}
@@ -382,6 +544,54 @@ mod server {
              Tools: workspace.list_sources, graph.query, graph.fetch, index.search, source.text_query (read-only). \
              Answer concisely; cite file paths."
         )
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn sessions_are_imported_once_then_read_and_appended_as_rows() {
+            let cfg = tempfile::tempdir().unwrap();
+            std::env::set_var("MOONKALE_CONFIG_DIR", cfg.path());
+            let dir = tempfile::tempdir().unwrap();
+            let folder = dir.path().to_str().unwrap().to_string();
+            let logs = dir.path().join(".moonkale/agent-sessions");
+            std::fs::create_dir_all(&logs).unwrap();
+            let line = |i: &SessionItem| serde_json::to_string(i).unwrap();
+            let items = [
+                SessionItem::User { text: "hi".into() },
+                SessionItem::Assistant {
+                    text: "hello".into(),
+                },
+            ];
+            std::fs::write(
+                logs.join("s1.jsonl"),
+                items.iter().map(line).collect::<Vec<_>>().join("\n"),
+            )
+            .unwrap();
+
+            let first = stored_sessions(&folder).unwrap();
+            assert_eq!(first.len(), 1);
+            assert_eq!(first[0].2.len(), 2);
+
+            // From the rows now: the file is not needed any more.
+            std::fs::remove_dir_all(&logs).unwrap();
+            store_item(
+                &folder,
+                "s1",
+                2,
+                &SessionItem::User {
+                    text: "again".into(),
+                },
+            );
+            let again = stored_sessions(&folder).unwrap();
+            assert_eq!(again.len(), 1);
+            assert_eq!(again[0].0, "s1");
+            assert_eq!(again[0].1.title, "hi");
+            assert_eq!(again[0].2.len(), 3);
+            assert!(!logs.exists(), "no file written with a store");
+        }
     }
 }
 
@@ -413,6 +623,9 @@ pub async fn agent_send(
 ) -> Result<String, ServerFnError> {
     let folder =
         crate::state::jail_dir(Some(&folder)).map_err(|e| ServerFnError::new(e.to_string()))?;
+    // Before a first new session: the folder's old files are imported only
+    // into an empty store.
+    server::load_folder(&folder);
     let (id, rec) = match session.filter(|s| !s.is_empty()) {
         Some(id) => {
             let rec = server::store()
