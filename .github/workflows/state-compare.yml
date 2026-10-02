@@ -1,0 +1,92 @@
+name: State store comparison
+
+# Milestone 18 phase 5 (ADR-0014): build each candidate backend of
+# moonkale-state alone, from clean, on every platform Moonkale ships to, and
+# run the comparison workload there. Started by hand; results land in each
+# job's summary.
+
+on:
+  # workflow_dispatch only works once this file is on the default branch, so
+  # on the refactor branch it also runs when the state crate changes.
+  push:
+    paths: ["packages/state/**", ".github/workflows/state-compare.yml"]
+  workflow_dispatch:
+    inputs:
+      events:
+        description: "log events per backend"
+        default: "20000"
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  desktop:
+    name: ${{ matrix.os }} · ${{ matrix.backend }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-latest]
+        backend: [redb, sqlite, turso, rocksdb, helix]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: clang for RocksDB's bindgen (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev
+      - name: Build (clean, release, this backend only)
+        shell: bash
+        run: |
+          start=$(date +%s)
+          cargo build --release --locked -p moonkale-state --example compare --features ${{ matrix.backend }}
+          end=$(date +%s)
+          exe=target/release/examples/compare; [ -f "$exe.exe" ] && exe="$exe.exe"
+          size=$(wc -c < "$exe")
+          echo "BUILD_S=$((end-start))" >> "$GITHUB_ENV"
+          echo "SIZE=$size" >> "$GITHUB_ENV"
+          echo "EXE=$exe" >> "$GITHUB_ENV"
+      - name: Run the workload
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/compare"
+          "$EXE" "$RUNNER_TEMP/compare" "${{ inputs.events || '20000' }}" | tee out.md
+          {
+            echo "### ${{ matrix.os }} · ${{ matrix.backend }}"
+            echo "clean release build: ${BUILD_S} s · example binary: $((SIZE/1024)) KiB"
+            echo
+            cat out.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  android:
+    name: android (aarch64) · ${{ matrix.backend }}
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [redb, sqlite, turso, rocksdb, helix]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall -y cargo-ndk
+      - name: Cross-build (clean, release, this backend only)
+        shell: bash
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          start=$(date +%s)
+          if cargo ndk -t arm64-v8a build --release --locked -p moonkale-state --example compare --features ${{ matrix.backend }} 2>&1 | tail -40; then
+            status=built
+          else
+            status=FAILED
+          fi
+          end=$(date +%s)
+          exe=target/aarch64-linux-android/release/examples/compare
+          size=$( [ -f "$exe" ] && wc -c < "$exe" || echo 0 )
+          {
+            echo "### android aarch64 · ${{ matrix.backend }}"
+            echo "cross-build: **${status}** in $((end-start)) s · example binary: $((size/1024)) KiB"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = built ]

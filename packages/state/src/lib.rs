@@ -21,19 +21,36 @@
 //! SQLite transaction, a RocksDB `WriteBatch`), it needs no transaction
 //! lifetimes, and it is object safe, so the app can hold `Arc<dyn StateStore>`.
 
+#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
+mod helix_store;
 mod key;
 mod memory;
 mod record;
 #[cfg(all(feature = "redb", not(target_arch = "wasm32")))]
 mod redb_store;
+#[cfg(all(feature = "rocksdb", not(target_arch = "wasm32")))]
+mod rocks_store;
+mod sql;
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+mod sqlite_store;
 pub mod tables;
 pub mod testing;
+#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
+mod turso_store;
 
+#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
+pub use helix_store::HelixStore;
 pub use key::Key;
 pub use memory::MemoryStore;
 pub use record::{decode, encode, put_in, Record, Typed};
 #[cfg(all(feature = "redb", not(target_arch = "wasm32")))]
 pub use redb_store::RedbStore;
+#[cfg(all(feature = "rocksdb", not(target_arch = "wasm32")))]
+pub use rocks_store::RocksStore;
+#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
+pub use sqlite_store::SqliteStore;
+#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
+pub use turso_store::TursoStore;
 
 /// What can go wrong.
 #[derive(Debug, thiserror::Error)]
@@ -51,6 +68,19 @@ pub enum StateError {
         found: u32,
         supported: u32,
     },
+}
+
+/// How hard a backend works to keep a committed batch (Milestone 18 phase 5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Durability {
+    /// Every commit is on disk when `write` returns (an fsync per commit):
+    /// survives a power loss.
+    #[default]
+    Durable,
+    /// Every commit survives the process being killed, but the last ones may
+    /// be lost on a power loss (no fsync per commit). Backends without such a
+    /// mode treat this as [`Durability::Durable`].
+    Relaxed,
 }
 
 /// `(key, value)` pairs in key order, as [`StateStore::scan`] returns them.

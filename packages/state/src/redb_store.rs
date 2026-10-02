@@ -19,7 +19,10 @@ fn def(name: &str) -> TableDefinition<'_, &'static [u8], &'static [u8]> {
 }
 
 impl RedbStore {
-    /// Open the database file at `path`, creating it if needed.
+    /// Open the database file at `path`, creating it if needed. redb has no
+    /// relaxed mode that survives a killed process (`Durability::None`
+    /// commits are lost unless a durable one follows), so every commit is
+    /// durable.
     pub fn open(path: &Path) -> Result<Self, StateError> {
         Ok(Self {
             db: Database::create(path).map_err(err)?,

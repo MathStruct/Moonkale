@@ -8,6 +8,11 @@ description = "The store for Moonkale's own state (Milestone 18 phase 3, ADR-001
 [features]
 default = []
 redb = ["dep:redb"]
+# The other candidates of the comparison (Milestone 18 phase 5).
+sqlite = ["dep:rusqlite"]
+turso = ["dep:turso", "dep:tokio"]
+rocksdb = ["dep:rocksdb"]
+helix = ["dep:helix-db", "dep:tokio", "dep:base64"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -16,6 +21,12 @@ thiserror = "2"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 redb = { version = "4", optional = true }
+rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+turso = { version = "0.7", optional = true }
+rocksdb = { version = "0.25", optional = true }
+helix-db = { git = "https://github.com/HelixDB/helix-db", rev = "f0d1b554f4", features = ["embedded"], optional = true }
+tokio = { version = "1", features = ["rt", "rt-multi-thread"], optional = true }
+base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

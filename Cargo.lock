@@ -7313,11 +7313,17 @@ dependencies = [
 name = "moonkale-state"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "helix-db",
  "redb",
+ "rocksdb",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",
+ "tokio",
+ "turso",
 ]
 
 [[package]]

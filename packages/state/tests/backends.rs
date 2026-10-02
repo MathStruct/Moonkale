@@ -23,6 +23,54 @@ fn redb() {
     });
 }
 
+/// A file-backed backend through both suites: `open(path)` per store.
+#[allow(dead_code)]
+fn file_backend(open: fn(&std::path::Path) -> Arc<dyn StateStore>, ext: &str) {
+    let dir = tempfile::tempdir().unwrap();
+    let n = std::sync::atomic::AtomicUsize::new(0);
+    conformance(|| {
+        let i = n.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        open(&dir.path().join(format!("s{i}.{ext}")))
+    });
+    moonkale_state::testing::persistence(open);
+}
+
+#[cfg(feature = "sqlite")]
+#[test]
+fn sqlite() {
+    file_backend(
+        |p| Arc::new(moonkale_state::SqliteStore::open(p).unwrap()),
+        "sqlite",
+    );
+}
+
+#[cfg(feature = "turso")]
+#[test]
+fn turso() {
+    file_backend(
+        |p| Arc::new(moonkale_state::TursoStore::open(p).unwrap()),
+        "turso",
+    );
+}
+
+#[cfg(feature = "rocksdb")]
+#[test]
+fn rocksdb() {
+    file_backend(
+        |p| Arc::new(moonkale_state::RocksStore::open(p).unwrap()),
+        "rocksdb",
+    );
+}
+
+#[cfg(feature = "helix")]
+#[test]
+fn helix() {
+    file_backend(
+        |p| Arc::new(moonkale_state::HelixStore::open(p).unwrap()),
+        "helix",
+    );
+}
+
 /// The suite is not vacuous: a store that forgets deletes fails it.
 #[test]
 #[should_panic]
