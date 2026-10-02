@@ -6,8 +6,9 @@
 # Phase 4.3 — server halves move into their extensions
 only-apps-assemble api -> moonkale-ext-git
 
-# Markdown's Source mode embeds the CodeMirror panel. Decide in phase 2.4
-# (editor claims) whether embedding another editor is an allowed dependency.
+# Markdown's Source mode embeds the CodeMirror panel (a component, not the
+# extension). Phase 2.4 kept it: removing it means a shared code-view crate,
+# which phase 4 can split out when the catalogue moves.
 only-apps-assemble moonkale-editor-markdown -> moonkale-editor-code
 
 # Phase 4.1 — the catalogue moves to moonkale-distribution (the driver edges went in phase 2.3)
