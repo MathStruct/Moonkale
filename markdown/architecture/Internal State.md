@@ -9,7 +9,8 @@ Daniel, 2026-09-28: the embedded stores of [[Milestone 17 - Embedded Stores]] â€
 
 | scope | what | where | format | written by |
 |---|---|---|---|---|
-| per folder | workspace settings, layout, open documents, extension grants | `<folder>/.moonkale/settings.json` | JSON (`SettingsFile`) | `Workspace::update_workspace_settings` |
+| per folder | workspace settings, extension grants | `<folder>/.moonkale/settings.json` | JSON (`SettingsFile`) | `Workspace::update_workspace_settings` |
+| per folder, per machine | layout, open documents, active document â€” **in the state store since 2026-10-02** | `<config dir>/state.sqlite` (desktop, phone), `localStorage` (web) | `LayoutRecord`, table `layout` | `Workspace::update_workspace_settings` |
 | per folder | entity log (every change: who, when, what) | `<folder>/.moonkale/history.jsonl` | JSON lines, compacted into snapshots | `Workspace::record*`, `core::graph::history` |
 | per folder | agent sessions (local) | `<folder>/.moonkale/agent-sessions/local/<id>.json` | JSON | `editors/agent` |
 | per folder | agent sessions (server) | `<folder>/.moonkale/agent-sessions/<id>.jsonl` | JSON lines | `api/agent_sessions.rs` |

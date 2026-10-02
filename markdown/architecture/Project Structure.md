@@ -18,7 +18,8 @@ packages/
 ├─ ext-api/ (≈ 6 300)          moonkale-ext-api       Extension trait, contributions, Workspace (workspace/: one module per area), settings, flow model, wiki  [layer]
 ├─ ext-host/ (575)             moonkale-ext-host      wasm runtime (wasmtime)                                  [platform]
 ├─ ext-abi/                    moonkale-ext-abi       the wasm ABI's JSON types (Milestone 18)                  [layer]
-├─ state/                      moonkale-state         the store for Moonkale's own state: interface, redb (M18) [layer]
+├─ state/                      moonkale-state         the store for Moonkale's own state: the interface (M18)   [layer]
+├─ state-stores/               moonkale-state-stores  its engines: SQLite (the app's), redb, Turso, RocksDB, Helix [native]
 │
 ├─ sources/ (≈ 60)             moonkale-sources       the source registry                                     [layer]
 ├─ sources-sql/ (1 525)        moonkale-sources-sql   SQLite, DuckDB (+ data folders), Turso; statement classifier   [native]
@@ -98,6 +99,8 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 | `packages/sources-graph` | [sources-graph.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-graph/sources-graph.md) |
 | `packages/sources-kv` | [sources-kv.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-kv/sources-kv.md) |
 | `packages/sources-sql` | [sources-sql.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-sql/sources-sql.md) |
+| `packages/state` | [state.md](https://github.com/MathStruct/Moonkale/blob/master/packages/state/state.md) |
+| `packages/state-stores` | [state-stores.md](https://github.com/MathStruct/Moonkale/blob/master/packages/state-stores/state-stores.md) |
 | `packages/sources` | [sources.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/sources.md) |
 | `packages/terminal-pty` | [terminal-pty.md](https://github.com/MathStruct/Moonkale/blob/master/packages/terminal-pty/terminal-pty.md) |
 | `packages/terminal` | [terminal.md](https://github.com/MathStruct/Moonkale/blob/master/packages/terminal/terminal.md) |
