@@ -59,4 +59,5 @@ Not measured yet: cold open of this repository (needs the desktop app; `bench.mj
 | 2.5 | Extractor registry | done in phase 1 (#16) as one list; see the plan | |
 | — | Checks | fmt ✅ · layering **17 known**, 0 new ✅ · clippy `-D warnings` ✅ · **137 tests pass**, 5 ignored ✅ · wasm32 check ✅ · server feature check ✅ · browser suites: **41 of 42** in the full batch, `stores` times out in the batch (HelixDB open late in a 40-suite run, P-081 family) and passes alone | `graph3d.mjs` had been failing since Milestone 17 for a fixture reason, not the renderer: threshold relaxed (commit message) |
 | — | **P-148** | 33 949 build files had slipped into the 2.4 commit through a relative `CARGO_TARGET_DIR`; caught before pushing, the commits were redone (2.4 and its P-147 fix are now one commit), `packages/**/target/` is ignored and `serve.sh` anchors the path | nothing of it reached GitHub |
+| — | CI (run 36943104469) | ✅ all green: lint 27 s · e2e 7 min · test + clippy + wasm + wasmtime 8 min | phase 2 done |
 
