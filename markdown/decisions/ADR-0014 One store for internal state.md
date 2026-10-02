@@ -6,6 +6,8 @@ date: 2026-10-01
 ---
 **Status:** proposed — the direction is Daniel's (2026-09-28); *which* store waits for the comparison described in [[Internal State]]. **Order (Daniel, 2026-10-01): the interface first, stable for redb as the reference implementation, then the comparison behind that interface** ([[Milestone 18 - Library Refactor]], phases 3 and 5).
 
+**Progress:** the interface exists since 2026-10-02 (`moonkale-state`, [[Milestone 18 - Implementation Log]] phase 3a) with redb as the reference backend; the comparison is next.
+
 ## Context
 Moonkale writes its own state to about a dozen places: JSON and JSON-lines files under each folder's `.moonkale/`, a user `settings.json` (desktop), `localStorage` (web), a third file on Android, and keeps the index only in memory. Nothing syncs between devices; app state is committed into repositories; the entity log's file format has known performance and correctness limits (P-086, issue #17). The full inventory is in [[Internal State]].
 

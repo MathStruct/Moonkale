@@ -95,9 +95,9 @@ The `Workspace` stays the handle extensions receive, but as a facade over servic
 - a small trait over **typed tables of keys → values** with ordered range scans and multi-table write transactions — `StateStore { read(tx) / write(tx) }`, `Table<K, V>` with `get`, `put`, `delete`, `range(prefix)` — which is exactly redb's model, so **redb is the reference implementation** and the shape is checked against it first;
 - the record types on top of it, versioned with serde: settings per scope and extension namespace, layout, open documents, saved agents and connections, agent sessions, entity-log events (keyed by folder id + event id, so a range scan replays a folder and two devices' logs merge by key), projects, and index caches (keyed by content hash + model version);
 - a conformance test suite every backend must pass (crash-safety, ordering, concurrent readers, migration from the old files);
-- the existing file formats as a second implementation (`FileStore`), so phase 3 lands without changing what is on disk.
+- the existing file formats as a second implementation (`FileStore`), so phase 3 lands without changing what is on disk. (*As built: not needed — nothing uses the store before phase 5, so today's files simply stay where they are; `MemoryStore` is the second implementation the suite runs against.*)
 
-The interface is frozen when redb and `FileStore` both pass the suite; only then does the comparison run (phase 5).
+The interface is frozen when redb and `FileStore` both pass the suite; only then does the comparison run (phase 5). *As built (2026-10-02): `moonkale-state` — `StateStore { get, scan(prefix), write(Batch) }` instead of read/write transaction objects (every candidate has an atomic batch, and the trait stays object safe with no lifetimes); `Key` (order-preserving), `Record` + `Typed` (versioned JSON), `tables` (the layout), `testing::{conformance, persistence}`; `MemoryStore` and `RedbStore` pass; a deliberately broken store fails. A kill-mid-write test belongs to the comparison harness (phase 5).*
 
 Done when `workspace.rs` is a facade under ~500 lines, each service has unit tests without a Dioxus runtime where possible, and no extension reads a signal of another extension.
 

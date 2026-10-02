@@ -15,8 +15,10 @@ packages/
 ├─ api/ (2 811)                server: fullstack functions, auth, MCP, presence hub, relays for git/LSP/terminal/wasm/LLM; RemoteSource
 │
 ├─ core/ (1 593)               moonkale-core          ids, Node/Edge, Source, Query, Transaction, EntityLog     [layer]
-├─ ext-api/ (6 119)            moonkale-ext-api       Extension trait, contributions, Workspace (2 603), settings, flow model, wiki  [layer]
-├─ ext-host/ (575)             moonkale-ext-host      wasm runtime (wasmtime) + the JSON ABI types              [platform]
+├─ ext-api/ (≈ 6 300)          moonkale-ext-api       Extension trait, contributions, Workspace (workspace/: one module per area), settings, flow model, wiki  [layer]
+├─ ext-host/ (575)             moonkale-ext-host      wasm runtime (wasmtime)                                  [platform]
+├─ ext-abi/                    moonkale-ext-abi       the wasm ABI's JSON types (Milestone 18)                  [layer]
+├─ state/                      moonkale-state         the store for Moonkale's own state: interface, redb (M18) [layer]
 │
 ├─ sources/ (≈ 60)             moonkale-sources       the source registry                                     [layer]
 ├─ sources-sql/ (1 525)        moonkale-sources-sql   SQLite, DuckDB (+ data folders), Turso; statement classifier   [native]
@@ -28,6 +30,7 @@ packages/
 ├─ typst/ (187)                moonkale-typst         Typst → SVG                                              [layer]
 │
 ├─ llm/ (3 040)                moonkale-llm           providers (Claude Code, Anthropic, OpenAI-compatible, Ollama, mock), agent loop, tools, policy, secrets
+├─ llm-types/                  moonkale-llm-types     agent data: messages, Provider trait, sessions, policy classes (M18)
 ├─ lsp/ (862)                  moonkale-lsp           protocol client, any transport                          [layer]
 ├─ lsp-local/ (255)            moonkale-lsp-local     spawn + discover servers                                [desktop/server]
 ├─ terminal/ (168)             moonkale-terminal      session model, links                                    [layer]
@@ -106,7 +109,7 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 ## Where reality differs from the rules below
 Measured 2026-10-01; each item is a step of [[Milestone 18 - Library Refactor]].
 - **`ui` is not "the shell only"**: it depends on every editor and extension crate and on `api`, and `ui::default_extensions()` is the catalogue — so the core cannot be built without them and an outside crate cannot be added without editing `ui`. (Its driver dependencies are gone since phase 2: the Explorer asks the source openers.)
-- **`ext-api` is not a small contract**: it depends on `moonkale-llm` (and on `moonkale-lsp`, `moonkale-terminal`; `moonkale-ext-host` was replaced by the types-only `moonkale-ext-abi` in phase 2), and `Workspace` (2 603 lines, 39 public signals, 94 public methods) holds the state of almost every feature.
+- **`ext-api` is not yet a small contract**: since phase 3 it depends only on `core`, `ext-abi`, `llm-types`, `lsp` and `terminal`, and `Workspace` (2 603 lines, 39 public signals, 94 public methods) holds the state of almost every feature.
 - ~~`llm` depends on `sources-sql`~~ — gone in phase 2: sources classify their own queries (`Source::classify`).
 - **`api` depends on the git extension**, and holds the server half of every extension that has one.
 - ~~Opening a database file is decided in four places~~ — one `Openers` list since phase 2.
