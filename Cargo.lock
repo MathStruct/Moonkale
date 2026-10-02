@@ -7300,6 +7300,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "moonkale-state"
+version = "0.1.0"
+dependencies = [
+ "redb",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "moonkale-terminal"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,36 @@
+//! The tables of Moonkale's state and how their keys are laid out — the
+//! schema the comparison (phase 5) measures and the migration fills. The
+//! record *types* stay with their owners (`ext-api` settings, `core` events,
+//! the agent's sessions); each implements [`crate::Record`] for its table
+//! when it moves here.
+//!
+//! | table | key | value | today in |
+//! |---|---|---|---|
+//! | [`SETTINGS`] | `str(scope)` — `"user"`, `"folder"` + `str(folder id)`, later `"project"` + `str(id)` | the settings file of that scope | `settings.json` (user, per platform), `.moonkale/settings.json` |
+//! | [`LAYOUT`] | `str(folder or project id)` | layout, open and active documents | `.moonkale/settings.json` |
+//! | [`AGENT_SESSIONS`] | `str(folder id) · str(session id)` | a saved session | `.moonkale/agent-sessions/` |
+//! | [`EVENTS`] | `str(folder id) · u64(seq)` | one entity-log event | `.moonkale/history.jsonl` |
+//! | [`SNAPSHOTS`] | `str(folder id) · u64(seq)` | a compaction snapshot up to `seq` | `.moonkale/history.jsonl` |
+//! | [`PROJECTS`] | `str(project id)` | a project ([[Projects and Sources]]) | — (not built) |
+//! | [`INDEX`] | `str(source id) · str(content hash) · str(model)` | derived data (symbols, chunks, embeddings) | memory only |
+//!
+//! Secrets are never stored here.
+
+pub const SETTINGS: &str = "settings";
+pub const LAYOUT: &str = "layout";
+pub const AGENT_SESSIONS: &str = "agent_sessions";
+pub const EVENTS: &str = "events";
+pub const SNAPSHOTS: &str = "snapshots";
+pub const PROJECTS: &str = "projects";
+pub const INDEX: &str = "index";
+
+/// Every table, for tools that list or export the store.
+pub const ALL: &[&str] = &[
+    SETTINGS,
+    LAYOUT,
+    AGENT_SESSIONS,
+    EVENTS,
+    SNAPSHOTS,
+    PROJECTS,
+    INDEX,
+];

@@ -13,6 +13,7 @@ members = [
     "packages/ext-api",
     "packages/ext-host",
     "packages/ext-abi",
+    "packages/state",
     # Data access
     "packages/sources",
     "packages/sources-sql",
@@ -63,6 +64,7 @@ moonkale-core = { path = "packages/core" }
 moonkale-ext-api = { path = "packages/ext-api" }
 moonkale-ext-host = { path = "packages/ext-host" }
 moonkale-ext-abi = { path = "packages/ext-abi" }
+moonkale-state = { path = "packages/state" }
 moonkale-sources = { path = "packages/sources" }
 moonkale-sources-sql = { path = "packages/sources-sql" }
 moonkale-sources-graph = { path = "packages/sources-graph" }
