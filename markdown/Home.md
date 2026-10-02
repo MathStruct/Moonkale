@@ -92,7 +92,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[ADR-0011 Desktop graph surface strategy]] — plan A (in-webview canvas) in use; the native overlay stays a fallback
 - [[ADR-0012 Two histories]] — accepted: git for text, entity log for the graph, checkpoints between them
 - [[ADR-0013 JSON ABI before components]] — accepted: what the wasm runtime actually is (amends ADR-0004)
-- [[ADR-0014 One store for internal state]] — proposed: all state except secrets in one embedded store, synced later
+- [[ADR-0014 One store for internal state]] — accepted: SQLite for all state except secrets, synced later
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
