@@ -1,7 +1,7 @@
 //! The store comparison of Milestone 18 phase 5 (ADR-0014): every backend
 //! behind `StateStore`, the same workload, one table of numbers.
 //!
-//!     cargo run --release -p moonkale-state --example compare \
+//!     cargo run --release -p moonkale-state-stores --example compare \
 //!         --features redb,sqlite,turso,rocksdb,helix -- [DIR] [EVENTS]
 //!
 //! `COMPARE_ONLY=redb,sqlite` limits the run to those backends;
@@ -48,23 +48,23 @@ fn backends() -> Vec<(&'static str, Open)> {
     let mut v: Vec<(&'static str, Open)> = Vec::new();
     #[cfg(feature = "redb")]
     v.push(("redb", |p| {
-        Arc::new(moonkale_state::RedbStore::open(p).unwrap())
+        Arc::new(moonkale_state_stores::RedbStore::open(p).unwrap())
     }));
     #[cfg(feature = "sqlite")]
     v.push(("sqlite", |p| {
-        Arc::new(moonkale_state::SqliteStore::open_with(p, mode()).unwrap())
+        Arc::new(moonkale_state_stores::SqliteStore::open_with(p, mode()).unwrap())
     }));
     #[cfg(feature = "turso")]
     v.push(("turso", |p| {
-        Arc::new(moonkale_state::TursoStore::open_with(p, mode()).unwrap())
+        Arc::new(moonkale_state_stores::TursoStore::open_with(p, mode()).unwrap())
     }));
     #[cfg(feature = "rocksdb")]
     v.push(("rocksdb", |p| {
-        Arc::new(moonkale_state::RocksStore::open_with(p, mode()).unwrap())
+        Arc::new(moonkale_state_stores::RocksStore::open_with(p, mode()).unwrap())
     }));
     #[cfg(feature = "helix")]
     v.push(("helix", |p| {
-        Arc::new(moonkale_state::HelixStore::open(p).unwrap())
+        Arc::new(moonkale_state_stores::HelixStore::open(p).unwrap())
     }));
     v
 }

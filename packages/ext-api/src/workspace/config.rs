@@ -143,12 +143,47 @@ pub struct Processes {
     pub git: Option<GitRun>,
 }
 
-/// Where settings and secrets are kept. Phase 5 adds the state store
-/// (`moonkale-state`) here.
+/// Where settings, secrets and this app's own state are kept.
 #[derive(Clone, Copy, Default)]
 pub struct Persistence {
     pub settings: Option<SettingsStore>,
     pub secrets: Option<SecretStore>,
+    /// The store for this machine's own state (ADR-0014): layouts and open
+    /// documents per folder today. Desktop and phone: `state.sqlite` in the
+    /// config directory ([`local_state`]); web: the browser's storage.
+    /// `None`: the old behaviour (everything in the folder's settings file).
+    pub state: Option<StateAccess>,
+}
+
+/// Async access to a [`moonkale_state::StateStore`], so a platform can put it
+/// in-process, in the browser or behind a server.
+/// `StateAccess::get`: `(table, key)` → the value, if any.
+pub type StateGet = fn(String, Vec<u8>) -> SettingsFuture<Option<Vec<u8>>>;
+
+#[derive(Clone, Copy)]
+pub struct StateAccess {
+    pub get: StateGet,
+    pub scan: fn(String, Vec<u8>) -> SettingsFuture<moonkale_state::Entries>,
+    pub write: fn(moonkale_state::Batch) -> SettingsFuture<()>,
+}
+
+static LOCAL_STATE: std::sync::OnceLock<Arc<dyn moonkale_state::StateStore>> =
+    std::sync::OnceLock::new();
+
+/// A [`StateAccess`] over a store in this process (desktop, phone). The first
+/// store given wins; later calls reuse it.
+pub fn local_state(backend: Arc<dyn moonkale_state::StateStore>) -> StateAccess {
+    let _ = LOCAL_STATE.set(backend);
+    fn store() -> Result<&'static Arc<dyn moonkale_state::StateStore>, String> {
+        LOCAL_STATE
+            .get()
+            .ok_or_else(|| "no state store".to_string())
+    }
+    StateAccess {
+        get: |t, k| Box::pin(async move { store()?.get(&t, &k).map_err(|e| e.to_string()) }),
+        scan: |t, p| Box::pin(async move { store()?.scan(&t, &p).map_err(|e| e.to_string()) }),
+        write: |b| Box::pin(async move { store()?.write(b).map_err(|e| e.to_string()) }),
+    }
 }
 
 /// Other machines and other windows.

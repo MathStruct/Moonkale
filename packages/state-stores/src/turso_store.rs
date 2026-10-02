@@ -5,7 +5,7 @@
 //! sits behind a mutex.
 
 use crate::sql::{prefix_end, SCHEMA_ROWID};
-use crate::{Batch, Durability, Entries, Op, StateError, StateStore};
+use moonkale_state::{Batch, Durability, Entries, Op, StateError, StateStore};
 use std::path::Path;
 use std::sync::Mutex;
 

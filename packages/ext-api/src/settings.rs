@@ -815,3 +815,67 @@ mod tests {
         );
     }
 }
+
+/// This machine's view of a folder: the layout and the documents that were
+/// open (ADR-0014). Kept in the state store, keyed by the folder's source id
+/// — not in the folder's `.moonkale/settings.json`, which changed on every
+/// layout change and travelled with the folder into git.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LayoutRecord {
+    pub layout: Option<String>,
+    pub open_documents: Vec<String>,
+    pub active_document: Option<String>,
+}
+
+impl moonkale_state::Record for LayoutRecord {
+    const TABLE: &'static str = moonkale_state::tables::LAYOUT;
+    const VERSION: u32 = 1;
+}
+
+impl LayoutRecord {
+    /// The layout part of a settings file.
+    pub fn of(file: &SettingsFile) -> Self {
+        Self {
+            layout: file.layout.clone(),
+            open_documents: file.open_documents.clone(),
+            active_document: file.active_document.clone(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.layout.is_none() && self.open_documents.is_empty() && self.active_document.is_none()
+    }
+
+    /// Put this record's fields into `file`.
+    pub fn apply_to(&self, file: &mut SettingsFile) {
+        file.layout = self.layout.clone();
+        file.open_documents = self.open_documents.clone();
+        file.active_document = self.active_document.clone();
+    }
+
+    /// `file` without its layout part (what stays in the folder).
+    pub fn strip(file: &SettingsFile) -> SettingsFile {
+        let mut f = file.clone();
+        Self::default().apply_to(&mut f);
+        f
+    }
+}
+
+#[cfg(test)]
+mod layout_record_tests {
+    use super::*;
+
+    #[test]
+    fn split_and_join_round_trip() {
+        let mut f = SettingsFile::new();
+        f.layout = Some("L".into());
+        f.open_documents = vec!["a.md".into()];
+        f.active_document = Some("a.md".into());
+        let rec = LayoutRecord::of(&f);
+        let mut shared = LayoutRecord::strip(&f);
+        assert!(LayoutRecord::of(&shared).is_empty());
+        rec.apply_to(&mut shared);
+        assert_eq!(shared, f);
+    }
+}

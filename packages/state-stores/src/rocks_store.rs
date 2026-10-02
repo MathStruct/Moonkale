@@ -2,7 +2,7 @@
 //! table is a key prefix (`Key::new().str(table)`), so a table scan is a
 //! prefix scan. A batch is one `WriteBatch` (atomic).
 
-use crate::{Batch, Durability, Entries, Key, Op, StateError, StateStore};
+use moonkale_state::{Batch, Durability, Entries, Key, Op, StateError, StateStore};
 use rocksdb::{Direction, IteratorMode, Options, WriteBatch, WriteOptions, DB};
 use std::path::Path;
 

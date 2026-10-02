@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# Op/Batch types for the browser's state store (localStorage, ADR-0014).
+moonkale-state = { workspace = true }
 dioxus = { workspace = true, features = ["fullstack"] }
 ui = { workspace = true }
 api = { workspace = true }

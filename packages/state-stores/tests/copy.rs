@@ -46,8 +46,9 @@ fn memory_to_memory() {
 #[test]
 fn sqlite_to_redb_and_back() {
     let dir = tempfile::tempdir().unwrap();
-    let sqlite = moonkale_state::SqliteStore::open(&dir.path().join("state.sqlite")).unwrap();
-    let redb = moonkale_state::RedbStore::open(&dir.path().join("state.redb")).unwrap();
+    let sqlite =
+        moonkale_state_stores::SqliteStore::open(&dir.path().join("state.sqlite")).unwrap();
+    let redb = moonkale_state_stores::RedbStore::open(&dir.path().join("state.redb")).unwrap();
     fill(&sqlite);
     copy(&sqlite, &redb, tables::ALL).unwrap();
     same(&sqlite, &redb);

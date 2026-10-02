@@ -675,6 +675,22 @@ fn openers() -> &'static moonkale_core::Openers {
     })
 }
 
+/// This machine's state store (ADR-0014): `<config dir>/state.sqlite`.
+fn state_access() -> Option<ui::StateAccess> {
+    let dir = moonkale_llm::secrets::config_dir()?;
+    let _ = std::fs::create_dir_all(&dir);
+    match moonkale_state_stores::SqliteStore::open_with(
+        &dir.join("state.sqlite"),
+        moonkale_state::Durability::Relaxed,
+    ) {
+        Ok(store) => Some(ui::local_state(std::sync::Arc::new(store))),
+        Err(e) => {
+            tracing::warn!("state: no store ({e}); layouts stay in the folder");
+            None
+        }
+    }
+}
+
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
 fn workspace_config() -> WorkspaceConfig {
@@ -698,6 +714,7 @@ fn workspace_config() -> WorkspaceConfig {
                 save: save_settings,
             }),
             secrets: Some(store_secret),
+            state: state_access(),
         },
         network: ui::Network {
             presence: Some(presence::join),

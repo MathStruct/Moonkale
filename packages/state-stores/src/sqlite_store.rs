@@ -3,7 +3,7 @@
 //! (rusqlite connections are `Send`, not `Sync`).
 
 use crate::sql::{prefix_end, SCHEMA};
-use crate::{Batch, Durability, Entries, Op, StateError, StateStore};
+use moonkale_state::{Batch, Durability, Entries, Op, StateError, StateStore};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::Mutex;

@@ -2743,6 +2743,8 @@ dependencies = [
  "moonkale-sources-graph",
  "moonkale-sources-kv",
  "moonkale-sources-sql",
+ "moonkale-state",
+ "moonkale-state-stores",
  "moonkale-terminal",
  "moonkale-terminal-pty",
  "moonkale-typst",
@@ -6929,6 +6931,8 @@ dependencies = [
  "moonkale-sources-graph",
  "moonkale-sources-kv",
  "moonkale-sources-sql",
+ "moonkale-state",
+ "moonkale-state-stores",
  "moonkale-terminal",
  "tracing",
  "ui",
@@ -7098,9 +7102,12 @@ dependencies = [
  "moonkale-ext-abi",
  "moonkale-llm-types",
  "moonkale-lsp",
+ "moonkale-project-fs",
+ "moonkale-state",
  "moonkale-terminal",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "uuid",
  "wasm-bindgen",
@@ -7313,15 +7320,24 @@ dependencies = [
 name = "moonkale-state"
 version = "0.1.0"
 dependencies = [
- "base64 0.22.1",
- "helix-db",
- "redb",
- "rocksdb",
- "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "moonkale-state-stores"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "helix-db",
+ "moonkale-state",
+ "redb",
+ "rocksdb",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
  "tokio",
  "turso",
 ]
@@ -13101,6 +13117,7 @@ dependencies = [
  "moonkale-sources-graph",
  "moonkale-sources-kv",
  "moonkale-sources-sql",
+ "moonkale-state",
  "rustls",
  "serde_json",
  "tokio",

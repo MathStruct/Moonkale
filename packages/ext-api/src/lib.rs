@@ -49,12 +49,13 @@ pub use extension::SettingsTarget;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};
+pub use workspace::local_state;
 pub use workspace::{
     AgentSessions, AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture,
     EditorAction, FolderAccess, ForeignDrag, GraphRequest, LlmProvider, LlmProviderFuture, Network,
     OpenFolder, OpenFolderFuture, OpenOptions, Persistence, PickFolder, PickFolderFuture,
     Processes, Reveal, Runtimes, SecretStore, ServerClient, SettingsFuture, SettingsStore,
-    SourceHandle, WasmExtensions, WasmList, WasmRun, Workspace, WorkspaceConfig,
+    SourceHandle, StateAccess, WasmExtensions, WasmList, WasmRun, Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.

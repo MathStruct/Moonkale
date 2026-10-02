@@ -430,6 +430,71 @@ fn openers() -> &'static moonkale_core::Openers {
     })
 }
 
+/// The browser keeps this client's state (ADR-0014) in localStorage, one item
+/// per entry: `moonkale.state/<table>/<key as hex>` → the value as hex.
+fn state_access() -> Option<ui::StateAccess> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        fn hex(b: &[u8]) -> String {
+            b.iter().map(|x| format!("{x:02x}")).collect()
+        }
+        fn unhex(s: &str) -> Vec<u8> {
+            (0..s.len() / 2)
+                .filter_map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).ok())
+                .collect()
+        }
+        fn item(table: &str, key: &[u8]) -> String {
+            format!("moonkale.state/{table}/{}", hex(key))
+        }
+        Some(ui::StateAccess {
+            get: |t, k| {
+                Box::pin(async move {
+                    let s = local_storage().ok_or("localStorage unavailable")?;
+                    Ok(s.get_item(&item(&t, &k)).ok().flatten().map(|v| unhex(&v)))
+                })
+            },
+            scan: |t, p| {
+                Box::pin(async move {
+                    let s = local_storage().ok_or("localStorage unavailable")?;
+                    let head = format!("moonkale.state/{t}/");
+                    let want = format!("{head}{}", hex(&p));
+                    let n = s.length().unwrap_or(0);
+                    let mut out: Vec<(Vec<u8>, Vec<u8>)> = (0..n)
+                        .filter_map(|i| s.key(i).ok().flatten())
+                        .filter(|k| k.starts_with(&want))
+                        .filter_map(|k| {
+                            let v = s.get_item(&k).ok().flatten()?;
+                            Some((unhex(&k[head.len()..]), unhex(&v)))
+                        })
+                        .collect();
+                    out.sort();
+                    Ok(out)
+                })
+            },
+            write: |b| {
+                Box::pin(async move {
+                    let s = local_storage().ok_or("localStorage unavailable")?;
+                    for op in b.ops {
+                        match op {
+                            moonkale_state::Op::Put { table, key, value } => s
+                                .set_item(&item(&table, &key), &hex(&value))
+                                .map_err(|_| "localStorage write failed".to_string())?,
+                            moonkale_state::Op::Delete { table, key } => {
+                                let _ = s.remove_item(&item(&table, &key));
+                            }
+                        }
+                    }
+                    Ok(())
+                })
+            },
+        })
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        None
+    }
+}
+
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
 fn workspace_config() -> WorkspaceConfig {
@@ -452,6 +517,7 @@ fn workspace_config() -> WorkspaceConfig {
                 load: load_settings,
                 save: save_settings,
             }),
+            state: state_access(),
             ..Default::default()
         },
         network: ui::Network {

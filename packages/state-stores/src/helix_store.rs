@@ -7,10 +7,10 @@
 //! the query language has no prefix range. Async API, bridged with a
 //! private Tokio runtime like [`crate::TursoStore`].
 
-use crate::{Batch, Entries, Op, StateError, StateStore};
 use base64::Engine;
 use helix_db::dsl::prelude::*;
 use helix_db::{Client, HelixDbSource, QueryRequest};
+use moonkale_state::{Batch, Entries, Op, StateError, StateStore};
 use serde_json::Value as Json;
 use std::path::Path;
 
@@ -189,10 +189,25 @@ impl StateStore for HelixStore {
             }
         }
         let w = w.returning(Vec::<String>::new());
-        let _: Json = self
-            .rt
-            .block_on(async { self.client.query(QueryRequest::write(w)).send().await })
-            .map_err(err)?;
-        Ok(())
+        // Helix's transactions are optimistic: a write that overlaps a
+        // concurrent read can fail with "transaction conflict" (found by the
+        // conformance suite's reader-during-writer check). Retry, bounded.
+        let mut attempt = 0;
+        loop {
+            let r: Result<Json, _> = self.rt.block_on(async {
+                self.client
+                    .query(QueryRequest::write(w.clone()))
+                    .send()
+                    .await
+            });
+            match r {
+                Ok(_) => return Ok(()),
+                Err(e) if attempt < 50 && e.to_string().contains("conflict") => {
+                    attempt += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(2 * attempt));
+                }
+                Err(e) => return Err(err(e)),
+            }
+        }
     }
 }

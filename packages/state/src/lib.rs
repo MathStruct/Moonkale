@@ -6,9 +6,10 @@
 //! here. Design: vault `architecture/Internal State.md`,
 //! `decisions/ADR-0014 One store for internal state.md`.
 //!
-//! Milestone 18 phase 3 defines the **interface**; which backend becomes the
-//! default is decided by the comparison in phase 5, behind this same trait.
-//! redb is the reference implementation the interface was shaped against.
+//! This crate is the **interface** (Milestone 18 phase 3), small enough for
+//! the extension contract to depend on. The engines are in
+//! `moonkale-state-stores`; SQLite is the app's (ADR-0014, the comparison in
+//! `markdown/research/State Store Comparison.md`).
 //!
 //! ```text
 //!   Typed (records)  ──►  StateStore (bytes)  ──►  MemoryStore | RedbStore | … (Turso, RocksDB, Helix, SQLite in phase 5)
@@ -22,37 +23,16 @@
 //! lifetimes, and it is object safe, so the app can hold `Arc<dyn StateStore>`.
 
 mod copy;
-#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
-mod helix_store;
 mod key;
 mod memory;
 mod record;
-#[cfg(all(feature = "redb", not(target_arch = "wasm32")))]
-mod redb_store;
-#[cfg(all(feature = "rocksdb", not(target_arch = "wasm32")))]
-mod rocks_store;
-mod sql;
-#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
-mod sqlite_store;
 pub mod tables;
 pub mod testing;
-#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
-mod turso_store;
 
 pub use copy::copy;
-#[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
-pub use helix_store::HelixStore;
 pub use key::Key;
 pub use memory::MemoryStore;
 pub use record::{decode, encode, put_in, Record, Typed};
-#[cfg(all(feature = "redb", not(target_arch = "wasm32")))]
-pub use redb_store::RedbStore;
-#[cfg(all(feature = "rocksdb", not(target_arch = "wasm32")))]
-pub use rocks_store::RocksStore;
-#[cfg(all(feature = "sqlite", not(target_arch = "wasm32")))]
-pub use sqlite_store::SqliteStore;
-#[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
-pub use turso_store::TursoStore;
 
 /// What can go wrong.
 #[derive(Debug, thiserror::Error)]

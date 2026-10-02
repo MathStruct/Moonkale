@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# The store for this app's own state (ADR-0014): SQLite.
+moonkale-state = { workspace = true }
+moonkale-state-stores = { workspace = true, features = ["sqlite"] }
 dioxus = { workspace = true, features = ["fullstack"] }
 ui = { workspace = true }
 moonkale-core = { workspace = true }

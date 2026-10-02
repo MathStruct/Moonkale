@@ -216,6 +216,19 @@ fn openers() -> &'static moonkale_core::Openers {
     })
 }
 
+/// This phone's state store (ADR-0014): `state.sqlite` next to settings.json.
+fn state_access() -> Option<ui::StateAccess> {
+    let path = settings_path().with_file_name("state.sqlite");
+    match moonkale_state_stores::SqliteStore::open_with(&path, moonkale_state::Durability::Relaxed)
+    {
+        Ok(store) => Some(ui::local_state(std::sync::Arc::new(store))),
+        Err(e) => {
+            tracing::warn!("state: no store ({e}); layouts stay in the folder");
+            None
+        }
+    }
+}
+
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
 fn workspace_config() -> WorkspaceConfig {
@@ -237,6 +250,7 @@ fn workspace_config() -> WorkspaceConfig {
                 load: load_settings,
                 save: save_settings,
             }),
+            state: state_access(),
             ..Default::default()
         },
         network: ui::Network {

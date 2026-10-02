@@ -10,6 +10,9 @@ name = "moonkale"
 path = "src/main.rs"
 
 [dependencies]
+# The store for this app's own state (ADR-0014): SQLite.
+moonkale-state = { workspace = true }
+moonkale-state-stores = { workspace = true, features = ["sqlite"] }
 tokio = { version = "1", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tracing = "0.1"

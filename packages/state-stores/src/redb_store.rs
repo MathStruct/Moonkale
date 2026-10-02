@@ -2,7 +2,7 @@
 //! ACID, one writer at a time with readers on a snapshot (MVCC). A [`Batch`]
 //! is one redb write transaction; each table is a `&[u8] → &[u8]` table.
 
-use crate::{Batch, Entries, Op, StateError, StateStore};
+use moonkale_state::{Batch, Entries, Op, StateError, StateStore};
 use redb::{Database, ReadableDatabase, TableDefinition, TableError};
 use std::path::Path;
 

@@ -15,11 +15,12 @@ fn redb() {
     let n = std::sync::atomic::AtomicUsize::new(0);
     conformance(|| {
         let i = n.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        Arc::new(moonkale_state::RedbStore::open(&dir.path().join(format!("s{i}.redb"))).unwrap())
-            as Arc<dyn StateStore>
+        Arc::new(
+            moonkale_state_stores::RedbStore::open(&dir.path().join(format!("s{i}.redb"))).unwrap(),
+        ) as Arc<dyn StateStore>
     });
     moonkale_state::testing::persistence(|p| {
-        Arc::new(moonkale_state::RedbStore::open(p).unwrap()) as Arc<dyn StateStore>
+        Arc::new(moonkale_state_stores::RedbStore::open(p).unwrap()) as Arc<dyn StateStore>
     });
 }
 
@@ -39,7 +40,7 @@ fn file_backend(open: fn(&std::path::Path) -> Arc<dyn StateStore>, ext: &str) {
 #[test]
 fn sqlite() {
     file_backend(
-        |p| Arc::new(moonkale_state::SqliteStore::open(p).unwrap()),
+        |p| Arc::new(moonkale_state_stores::SqliteStore::open(p).unwrap()),
         "sqlite",
     );
 }
@@ -48,7 +49,7 @@ fn sqlite() {
 #[test]
 fn turso() {
     file_backend(
-        |p| Arc::new(moonkale_state::TursoStore::open(p).unwrap()),
+        |p| Arc::new(moonkale_state_stores::TursoStore::open(p).unwrap()),
         "turso",
     );
 }
@@ -57,7 +58,7 @@ fn turso() {
 #[test]
 fn rocksdb() {
     file_backend(
-        |p| Arc::new(moonkale_state::RocksStore::open(p).unwrap()),
+        |p| Arc::new(moonkale_state_stores::RocksStore::open(p).unwrap()),
         "rocksdb",
     );
 }
@@ -66,7 +67,7 @@ fn rocksdb() {
 #[test]
 fn helix() {
     file_backend(
-        |p| Arc::new(moonkale_state::HelixStore::open(p).unwrap()),
+        |p| Arc::new(moonkale_state_stores::HelixStore::open(p).unwrap()),
         "helix",
     );
 }

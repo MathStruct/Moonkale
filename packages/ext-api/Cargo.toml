@@ -10,6 +10,7 @@ moonkale-core = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-llm-types = { workspace = true }
+moonkale-state = { workspace = true }
 moonkale-ext-abi = { workspace = true }
 dioxus = { workspace = true }
 serde = { version = "1", features = ["derive"] }
@@ -26,3 +27,5 @@ wasm-bindgen = "0.2"
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros", "time", "sync"] }
 dioxus-core = "0.7.10"
+moonkale-project-fs = { workspace = true }
+tempfile = "3"

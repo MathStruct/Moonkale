@@ -65,7 +65,7 @@ jobs:
       - name: The wasm runtime with the example extension (feature wasmtime is off by default)
         run: cargo test -p moonkale-ext-host --features wasmtime --locked
       - name: The state store's reference (redb) and recommended (SQLite) backends through the conformance suite
-        run: cargo test -p moonkale-state --features redb,sqlite --locked
+        run: cargo test -p moonkale-state -p moonkale-state-stores --features moonkale-state-stores/redb,moonkale-state-stores/sqlite --locked
       - name: clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Web client compiles for wasm32 (no native-only crate leaked in)
