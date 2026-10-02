@@ -182,6 +182,8 @@ dependencies = [
  "moonkale-sources-graph",
  "moonkale-sources-kv",
  "moonkale-sources-sql",
+ "moonkale-state",
+ "moonkale-state-stores",
  "moonkale-terminal",
  "moonkale-terminal-pty",
  "moonkale-typst",

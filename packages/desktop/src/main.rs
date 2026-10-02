@@ -694,6 +694,7 @@ fn state_access() -> Option<ui::StateAccess> {
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
 fn workspace_config() -> WorkspaceConfig {
+    let state = state_access();
     WorkspaceConfig {
         folders: ui::FolderAccess {
             open: open_folder,
@@ -714,7 +715,10 @@ fn workspace_config() -> WorkspaceConfig {
                 save: save_settings,
             }),
             secrets: Some(store_secret),
-            state: state_access(),
+            state,
+            // The folder's host keeps its entity log: this store for local
+            // folders, the server's while connected (phase 5.10).
+            host: state.map(|_| api::client::host_state_routed()),
         },
         network: ui::Network {
             presence: Some(presence::join),

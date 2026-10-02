@@ -5,7 +5,7 @@
 //! - a string: its UTF-8 bytes, a `0x00` inside written as `0x00 0xFF`, then
 //!   the terminator `0x00 0x01` — so `"a"` < `"a\0"` < `"ab"`, and no string
 //!   is a prefix of another's encoding;
-//! - a `u64`: 8 bytes big-endian.
+//! - a `u64`: 8 bytes big-endian; a `u128`: 16 bytes big-endian.
 
 /// A key under construction ([`Key::new`]) or being read back
 /// ([`Key::reader`]).
@@ -32,6 +32,13 @@ impl Key {
 
     /// Append a number part (sorts numerically).
     pub fn u64(mut self, n: u64) -> Self {
+        self.0.extend_from_slice(&n.to_be_bytes());
+        self
+    }
+
+    /// Append a 128-bit number part (sorts numerically), e.g. an entity-log
+    /// event id (milliseconds in the high half).
+    pub fn u128(mut self, n: u128) -> Self {
         self.0.extend_from_slice(&n.to_be_bytes());
         self
     }
@@ -93,6 +100,12 @@ impl KeyReader<'_> {
         Some(u64::from_be_bytes(*head))
     }
 
+    pub fn u128(&mut self) -> Option<u128> {
+        let (head, rest) = self.rest.split_first_chunk::<16>()?;
+        self.rest = rest;
+        Some(u128::from_be_bytes(*head))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.rest.is_empty()
     }
@@ -131,6 +144,24 @@ mod tests {
                 ("ab".into(), None),
             ]
         );
+    }
+
+    #[test]
+    fn u128_parts_sort_and_read_back() {
+        let ids = [3u128 << 64 | 9, 3 << 64, 1 << 64 | u64::MAX as u128];
+        let mut keys: Vec<Key> = ids.iter().map(|&i| Key::new().str("f").u128(i)).collect();
+        keys.sort();
+        let read: Vec<u128> = keys
+            .iter()
+            .map(|k| {
+                let mut r = Key::reader(k.as_bytes());
+                assert_eq!(r.str().as_deref(), Some("f"));
+                let id = r.u128().unwrap();
+                assert!(r.is_empty());
+                id
+            })
+            .collect();
+        assert_eq!(read, [1 << 64 | u64::MAX as u128, 3 << 64, 3 << 64 | 9]);
     }
 
     #[test]

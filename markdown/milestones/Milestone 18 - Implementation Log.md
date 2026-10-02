@@ -98,5 +98,17 @@ What phase 3 did **not** do, against the plan's wording: settings are not yet na
 | 5.9 | HelixDB write conflicts | with the index, a write overlapping a concurrent read failed with "transaction conflict"; the backend retries (bounded) | found by the conformance suite |
 | — | Checks | layering **16 known**, 0 new · clippy ✅ · **146 tests**, 5 ignored · **42 of 42** browser suites | GitHub unreachable from this machine since mid-day (no route to host): commits are local until it is back |
 
-Next in phase 5: the entity log (`events`, one row per event, appended) on the machine that hosts the folder — through server functions for the web client and remote folders — then agent sessions and user settings.
+## Phase 5, part 3 — The entity log in the store (2026-10-02)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 5.10 | **`Persistence::host`** | a second `StateAccess`: the store of the machine that **hosts the open folder**. Desktop and phone: `api::client::host_state_routed()` — the connected server's while there is one, else this process's own `state.sqlite` (the same switch `open_folder` makes); web: `api::client::host_state()`, always the server's | layouts stay per machine (`Persistence::state`), the log goes with the folder: two machines editing one server folder share one log |
+| 5.11 | Server functions `api::host_state` | `host_state_get` / `_scan` / `_write` over the server's `<config dir>/state.sqlite`; only table `events`, only under the id of a folder the server has open; keys and values base64 | `moonkale_state::Batch` got serde; `api` depends on `moonkale-state-stores` (sqlite) under `server` only |
+| 5.12 | **One row per event** | `EventRecord` in table `events`, key `str(folder id) · u128(event id)` (`Key::u128`, new): rows scan in log order, the same event twice is one row. `record_event` stores its event alone instead of rewriting the whole file; `compact_history` deletes the folded rows and puts the snapshot in one batch; `load_history` scans the folder's rows | `ext-api/tests/state_history.rs`: import, append, compaction, restart, per-folder prefixes |
+| 5.13 | **Import** | no rows for the folder → `.moonkale/history.jsonl` is read and stored in one batch; the file stays where it is and is no longer written. Without a host store everything works as before (the file) | |
+| 5.14 | P-149 | `decode` went through `serde_json::Value`, which turned the `u128` event ids into floats; the current version is now decoded straight into its type | found by the first run of the test |
+| — | E2E | `history.mjs` reads the server's store as a second process (`node:sqlite`) and checks that `history.jsonl` is not written; `run-all.sh`'s reset deletes the `events` rows with `sqlite3` — the multi-process access that was one reason for SQLite | |
+| — | Checks | fmt ✅ · layering **16 known**, 0 new ✅ · clippy `-D warnings` ✅ · **150 tests pass**, 5 ignored ✅ · wasm32, server, desktop, mobile builds ✅ · browser suites **42 of 42** on a fresh server (in the batch `touch-drag` crashed Chromium and `stores`, the last suite, timed out — both pass alone, as after phase 3) | |
+
+Next in phase 5: agent sessions and user settings into the store, then possibly a persisted index.
 

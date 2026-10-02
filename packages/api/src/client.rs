@@ -148,6 +148,61 @@ pub fn agent_available() -> bool {
     active().is_some()
 }
 
+// ---- The host's state store (phase 5.10) ----
+
+/// The server's state store, for the state that lives with its folders (the
+/// entity log): the web client's `Persistence::host`.
+pub fn host_state() -> moonkale_ext_api::StateAccess {
+    use crate::host_state as h;
+    moonkale_ext_api::StateAccess {
+        get: |table, key| {
+            Box::pin(async move {
+                match h::host_state_get(table, h::b64(&key)).await {
+                    Ok(Some(v)) => h::unb64(&v).map(Some),
+                    Ok(None) => Ok(None),
+                    Err(e) => Err(e.to_string()),
+                }
+            })
+        },
+        scan: |table, prefix| {
+            Box::pin(async move {
+                let rows = h::host_state_scan(table, h::b64(&prefix))
+                    .await
+                    .map_err(|e| e.to_string())?;
+                rows.into_iter()
+                    .map(|(k, v)| Ok((h::unb64(&k)?, h::unb64(&v)?)))
+                    .collect()
+            })
+        },
+        write: |batch| {
+            Box::pin(async move {
+                h::host_state_write(h::to_wire(batch))
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+        },
+    }
+}
+
+/// The desktop's and the phone's `Persistence::host`: the connected
+/// server's store while there is one ([`active`]), else this process's own
+/// ([`moonkale_ext_api::installed_local_state`]) — the folders follow the
+/// same switch (`open_folder`).
+pub fn host_state_routed() -> moonkale_ext_api::StateAccess {
+    fn pick() -> moonkale_ext_api::StateAccess {
+        if active().is_some() {
+            host_state()
+        } else {
+            moonkale_ext_api::installed_local_state()
+        }
+    }
+    moonkale_ext_api::StateAccess {
+        get: |t, k| (pick().get)(t, k),
+        scan: |t, p| (pick().scan)(t, p),
+        write: |b| (pick().write)(b),
+    }
+}
+
 pub fn agent_list(folder: String) -> SettingsFuture<Vec<moonkale_llm::sessions::SessionSummary>> {
     Box::pin(async move {
         crate::agent_sessions::agent_list(folder)

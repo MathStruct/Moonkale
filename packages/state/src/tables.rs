@@ -9,8 +9,8 @@
 //! | [`SETTINGS`] | `str(scope)` — `"user"`, `"folder"` + `str(folder id)`, later `"project"` + `str(id)` | the settings file of that scope | `settings.json` (user, per platform), `.moonkale/settings.json` |
 //! | [`LAYOUT`] | `str(folder or project id)` | layout, open and active documents | `.moonkale/settings.json` |
 //! | [`AGENT_SESSIONS`] | `str(folder id) · str(session id)` | a saved session | `.moonkale/agent-sessions/` |
-//! | [`EVENTS`] | `str(folder id) · u64(seq)` | one entity-log event | `.moonkale/history.jsonl` |
-//! | [`SNAPSHOTS`] | `str(folder id) · u64(seq)` | a compaction snapshot up to `seq` | `.moonkale/history.jsonl` |
+//! | [`EVENTS`] | `str(folder id) · u128(event id)` | one entity-log event, compaction snapshots included (they are events) — in the store of the machine that hosts the folder | here since phase 5.10 (was `.moonkale/history.jsonl`, imported once) |
+//! | [`SNAPSHOTS`] | — | reserved: snapshots turned out to be events ([`EVENTS`]) | — |
 //! | [`PROJECTS`] | `str(project id)` | a project ([[Projects and Sources]]) | — (not built) |
 //! | [`INDEX`] | `str(source id) · str(content hash) · str(model)` | derived data (symbols, chunks, embeddings) | memory only |
 //!

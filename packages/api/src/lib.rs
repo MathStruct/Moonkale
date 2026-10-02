@@ -40,6 +40,7 @@ pub use wasm::module_bytes;
 pub use wasm::{list_wasm_extensions, run_wasm_command};
 pub mod agent_sessions;
 pub mod client;
+pub mod host_state;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod relay;
 mod remote;

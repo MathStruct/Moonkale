@@ -35,7 +35,7 @@ mod sources;
 pub use config::*;
 pub use documents::DocsState;
 pub use extensions::ContribState;
-pub use history::HistoryState;
+pub use history::{event_key, EventRecord, HistoryState};
 pub use processes::ProcessesState;
 pub use remote::RemoteLinks;
 pub use session::SessionState;

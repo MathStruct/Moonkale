@@ -153,6 +153,13 @@ pub struct Persistence {
     /// config directory ([`local_state`]); web: the browser's storage.
     /// `None`: the old behaviour (everything in the folder's settings file).
     pub state: Option<StateAccess>,
+    /// The store on the machine that **hosts the open folder** (phase 5.10):
+    /// the folder's entity log, one row per event. A local folder: this
+    /// machine's store (the same one as `state`); a folder on a server or an
+    /// SSH host, and every folder of the web build: the server's store,
+    /// through server functions. `None`: the old behaviour (the log rewritten
+    /// into `.moonkale/history.jsonl`).
+    pub host: Option<StateAccess>,
 }
 
 /// Async access to a [`moonkale_state::StateStore`], so a platform can put it
@@ -174,6 +181,13 @@ static LOCAL_STATE: std::sync::OnceLock<Arc<dyn moonkale_state::StateStore>> =
 /// store given wins; later calls reuse it.
 pub fn local_state(backend: Arc<dyn moonkale_state::StateStore>) -> StateAccess {
     let _ = LOCAL_STATE.set(backend);
+    installed_local_state()
+}
+
+/// The [`StateAccess`] of the store [`local_state`] installed (every call
+/// fails with "no state store" before that) — for wiring that routes between
+/// this process's store and a server's.
+pub fn installed_local_state() -> StateAccess {
     fn store() -> Result<&'static Arc<dyn moonkale_state::StateStore>, String> {
         LOCAL_STATE
             .get()

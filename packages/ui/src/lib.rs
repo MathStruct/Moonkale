@@ -31,9 +31,9 @@ mod touch_drag;
 pub use explorer::ExplorerExtension;
 pub use frame::{Frame, ResizeEdge, SessionFactory, ShellConfig, WindowControls};
 pub use moonkale_ext_api::git::{GitRequest, GitResponse};
-pub use moonkale_ext_api::local_state;
 pub use moonkale_ext_api::presence::{Member as PresenceMember, PresenceLink, PresenceMessage};
 pub use moonkale_ext_api::remote;
+pub use moonkale_ext_api::{installed_local_state, local_state};
 pub use moonkale_ext_api::{
     AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, FolderAccess,
     LlmProvider, LlmProviderFuture, Network, OpenFolder, OpenFolderFuture, OpenOptions,

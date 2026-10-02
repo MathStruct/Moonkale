@@ -518,6 +518,8 @@ fn workspace_config() -> WorkspaceConfig {
                 save: save_settings,
             }),
             state: state_access(),
+            // Every folder is on the server; so is its entity log (phase 5.10).
+            host: Some(api::client::host_state()),
             ..Default::default()
         },
         network: ui::Network {

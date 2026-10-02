@@ -69,12 +69,12 @@ pub enum Durability {
 pub type Entries = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// A set of changes applied all together or not at all.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Batch {
     pub ops: Vec<Op>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Op {
     Put {
         table: String,

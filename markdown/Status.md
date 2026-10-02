@@ -35,7 +35,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Index**: Julia, Python symbols | ✅ | fixed 2026-10-02 on `refactor` (issue #16 — the extractors never ran before) |
 | **Index**: calls/references, other languages | 📝 | [[Core Languages]] |
 | **Git** (changes, diff, stage, commit, history graph) | ✅ | the `git` CLI; no push/pull |
-| **History** (entity log, restore, compaction) | ✅ | JSONL per folder; #17, P-086 |
+| **History** (entity log, restore, compaction) | ✅ | one row per event in the folder host's state store (Milestone 18 phase 5.10; was JSONL); #17, P-086 |
 | **Presence** (who's here, cursor lines, desktop hub client) | ✅ | |
 | **Shared editing** (CRDT) | 📝 | [[Collaboration]] |
 | **Annotations** | 📝 | [[Annotations]] |

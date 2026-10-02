@@ -6,7 +6,7 @@ tags: [architecture, versioning]
 Moonkale has to answer "what did this look like yesterday, and who changed it?" for two very different kinds of thing: **files in a folder**, which the world already versions with git, and **nodes and edges in the graph**, which git cannot see. This note is the overview; the decision is [[ADR-0012 Two histories]]; prior art is in [[Versioning Prior Art]].
 
 > [!note] As built (2026-10-01)
-> The entity log exists (`core::graph::history`, Milestone 8; compaction and restore, Milestone 9) and is stored as **`.moonkale/history.jsonl` per folder**. Git is the `extensions/git` crate over the **`git` CLI** — not `gix`, not a `vcs-git` crate. Checkpoint events reference commits. Not built: logical clocks, replica ids, a timeline scrubber in the graph, importers that emit events for databases. Open bugs: issue #17, P-086. Where the log should live next: [[Internal State]].
+> The entity log exists (`core::graph::history`, Milestone 8; compaction and restore, Milestone 9) and is stored **one row per event in the state store of the folder's host** (Milestone 18 phase 5.10, [[Internal State]]; until then `.moonkale/history.jsonl` per folder, which is imported once). Git is the `extensions/git` crate over the **`git` CLI** — not `gix`, not a `vcs-git` crate. Checkpoint events reference commits. Not built: logical clocks, replica ids, a timeline scrubber in the graph, importers that emit events for databases. Open bugs: issue #17, P-086. Where the log should live next: [[Internal State]].
 
 ## The two models, side by side
 

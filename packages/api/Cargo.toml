@@ -12,6 +12,7 @@ moonkale-llm = { workspace = true }
 moonkale-ext-host = { workspace = true }
 moonkale-ext-git = { workspace = true }
 moonkale-ext-api = { workspace = true }
+moonkale-state = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
 futures-channel = "0.3"
@@ -32,6 +33,8 @@ moonkale-sources-kv = { workspace = true, optional = true, features = ["redb", "
 moonkale-terminal-pty = { workspace = true, optional = true }
 moonkale-typst = { workspace = true, optional = true }
 moonkale-lsp-local = { workspace = true, optional = true }
+# The host's state store (phase 5.10): the server's `state.sqlite`.
+moonkale-state-stores = { workspace = true, optional = true, features = ["sqlite"] }
 # tokio is needed on every native target: the server, and the desktop's client
 # relay (Milestone 11) — a loopback listener the server functions always point
 # at, piped to the active remote (TLS for https).
@@ -47,4 +50,4 @@ webpki-roots = "1"
 moonkale-sources-graph = { workspace = true, optional = true, features = ["helix", "ladybug"] }
 
 [features]
-server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-typst", "dep:moonkale-lsp-local", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]
+server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-typst", "dep:moonkale-lsp-local", "dep:moonkale-state-stores", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime", "moonkale-ext-git/cli"]

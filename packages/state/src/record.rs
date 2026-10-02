@@ -38,25 +38,33 @@ pub fn encode<R: Record>(record: &R) -> Vec<u8> {
 }
 
 /// Decode a stored record, migrating older versions.
+///
+/// A record of this build's version is read straight into its type, not
+/// through `serde_json::Value` — which would turn a `u128` (an event id)
+/// into a float.
 pub fn decode<R: Record>(bytes: &[u8]) -> Result<R, StateError> {
-    let env: Envelope<serde_json::Value> =
-        serde_json::from_slice(bytes).map_err(|e| StateError::Decode {
-            table: R::TABLE,
-            message: e.to_string(),
-        })?;
-    if env.v > R::VERSION {
+    #[derive(Deserialize)]
+    struct Version {
+        v: u32,
+    }
+    let bad = |e: serde_json::Error| StateError::Decode {
+        table: R::TABLE,
+        message: e.to_string(),
+    };
+    let v = serde_json::from_slice::<Version>(bytes).map_err(bad)?.v;
+    if v > R::VERSION {
         return Err(StateError::TooNew {
             table: R::TABLE,
-            found: env.v,
+            found: v,
             supported: R::VERSION,
         });
     }
-    if env.v == R::VERSION {
-        serde_json::from_value(env.data).map_err(|e| StateError::Decode {
-            table: R::TABLE,
-            message: e.to_string(),
-        })
+    if v == R::VERSION {
+        serde_json::from_slice::<Envelope<R>>(bytes)
+            .map(|env| env.data)
+            .map_err(bad)
     } else {
+        let env: Envelope<serde_json::Value> = serde_json::from_slice(bytes).map_err(bad)?;
         R::migrate(env.v, env.data).map_err(|message| StateError::Decode {
             table: R::TABLE,
             message,
@@ -100,4 +108,23 @@ impl<'a> Typed<'a> {
 /// Add a record to a batch (several records, several tables, one commit).
 pub fn put_in<R: Record>(batch: Batch, key: &Key, record: &R) -> Batch {
     batch.put(R::TABLE, key.as_bytes(), encode(record))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct Id(u128);
+
+    impl Record for Id {
+        const TABLE: &'static str = "ids";
+        const VERSION: u32 = 1;
+    }
+
+    #[test]
+    fn a_u128_survives_the_envelope() {
+        let id = Id(1_759_400_000_000u128 << 64 | 0xdead_beef_dead_beef);
+        assert_eq!(decode::<Id>(&encode(&id)).unwrap(), id);
+    }
 }

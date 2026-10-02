@@ -38,7 +38,7 @@ Security considerations, specific to this mode:
 - **The remote binary is the trust boundary**: it has the SSH user's rights on that host. Uploading it means running code there — the same trust as `pip install` on that machine; verify the checksum, keep the version pinned to the desktop's, keep it under the user's own home.
 - **Local exposure**: the forwarded port on the laptop is loopback-only *and* token-gated; other users on a shared laptop cannot use the session.
 - **Blast radius**: if the laptop is compromised, the attacker has what the SSH user has on the remote — identical to plain SSH; Moonkale does not widen it. If the remote is compromised, the laptop's secrets (LLM keys, `secrets.json`) are not on it; only the session token, which dies with the session.
-- **Logging**: the remote server's audit log records the session's requests; Moonkale's history (`.moonkale/history.jsonl`) lives with the folder, on the remote.
+- **Logging**: the remote server's audit log records the session's requests; Moonkale's history (the entity log) lives with the folder, on the remote: in the remote server's `state.sqlite` (`Persistence::host`, Milestone 18 phase 5.10; before that `.moonkale/history.jsonl`).
 
 ### 2. A Moonkale server on the network (code-server's model)
 The server runs permanently on a host and is reached over the network from a browser (today) or the desktop app (soon). Same process as mode 1, but exposed rather than tunnelled — which is where every consideration comes from:

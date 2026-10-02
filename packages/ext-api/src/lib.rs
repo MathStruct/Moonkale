@@ -49,7 +49,7 @@ pub use extension::SettingsTarget;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};
-pub use workspace::local_state;
+pub use workspace::{installed_local_state, local_state};
 pub use workspace::{
     AgentSessions, AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture,
     EditorAction, FolderAccess, ForeignDrag, GraphRequest, LlmProvider, LlmProviderFuture, Network,
