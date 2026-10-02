@@ -62,6 +62,6 @@ A likely shape, to be confirmed by the comparison: **one relational/key-value st
 ## Migration
 Read the old files once, write the store, leave the files in place for one release, then stop reading them. `.moonkale/history.jsonl` and `.moonkale/settings.json` in this repository get removed from git and ignored when the store lands.
 
-**Interface built (2026-10-02):** `packages/state` (`moonkale-state`) — `StateStore` with `get`, `scan(prefix)`, atomic `write(Batch)`; versioned records; the tables above as `moonkale_state::tables`; a conformance suite that `MemoryStore` and the redb reference backend pass. Nothing uses it yet; the comparison (phase 5) implements the other candidates behind it.
+**Interface built (2026-10-02):** `packages/state` (`moonkale-state`) — `StateStore` with `get`, `scan(prefix)`, atomic `write(Batch)`; versioned records; the tables above as `moonkale_state::tables`; a conformance suite that `MemoryStore` and the redb reference backend pass. Nothing uses it yet. **The comparison is done:** [[State Store Comparison]] — SQLite recommended, redb runner-up; decision pending ([[ADR-0014 One store for internal state]]).
 
 Related: [[Version Management]] (the log's model), [[ADR-0012 Two histories]], [[Milestone 18 - Library Refactor]] (phase 5), [[Database Backends]].

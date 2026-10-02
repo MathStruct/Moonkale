@@ -77,3 +77,13 @@ Not measured yet: cold open of this repository (needs the desktop app; `bench.mj
 
 What phase 3 did **not** do, against the plan's wording: settings are not yet namespaced per extension (the LLM settings stay in `Settings`; the agent's types moved out of the engine instead), and services are areas of state with their methods on the `Workspace` facade rather than separate handles. Per-extension settings come with phase 4's contributions (and spec [[030]]'s strings).
 
+## Phase 5, part 1 — The store comparison (2026-10-02)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 5.1 | Backends behind `StateStore` | `SqliteStore`, `TursoStore`, `RocksStore`, `HelixStore` (features `sqlite`, `turso`, `rocksdb`, `helix`) next to `RedbStore`; **all five pass the conformance suite**. A `Durability` mode (`Durable` / `Relaxed`) where the engine has one | Turso 0.7: `WITHOUT ROWID` is behind an experimental flag (a rowid table instead). Helix: a label per table, hex keys, base64 values, an equality index on the key; async engines bridged with their own runtime |
+| 5.2 | Harness `examples/compare.rs` | create, 1-event and 1000-event appends, replay, settings p50/p99, random gets, reopen, size, **kill -9 mid-write**, second process; `COMPARE_ONLY`, `COMPARE_MODE` | every engine kept every batch whole after kill -9, on every platform |
+| 5.3 | Cross-platform `state-compare.yml` | each backend built alone, clean, release, on Linux/macOS/Windows + the workload; Android cross-build | Android at API 21 failed for Turso (`pwritev`) and RocksDB; rerun at API 24 (the app's `min_sdk`) pending |
+| 5.4 | Results and recommendation | [[State Store Comparison]]: **SQLite** recommended, redb runner-up; RocksDB fastest but 6–14 min of C++ per clean build and locks; Turso beta and 22 MB; HelixDB superlinear as key/value (10k events did not finish in 25 min), 64 MB | decision is Daniel's (ADR-0014 stays *proposed*) |
+| — | Mistakes along the way | (1) a first full run died at the 30-min background limit with its output buffered behind `tail` — all rows lost; per-backend runs to files since. (2) A `pkill -f` matched my own shell (exit 144) — exact process names only. (3) An edit to the harness silently did not apply (rustfmt had reflowed the lines), so a "relaxed" run measured durable mode; caught by the numbers, edits are now asserted | |
+

@@ -123,7 +123,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[specifications/README|Specifications]] — small numbered requests and bugs (`markdown/specifications/NNN.md`), edited in place when done
 
 ## Research
-- [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]]
+- [[State Store Comparison]] — five engines for Moonkale's own state, measured (2026-10-02) · [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]]
 
 ## Contributing
 - [[Development]] — build, run, test, and how this vault becomes the website

@@ -110,7 +110,9 @@ fn crash_child(name: &str, path: &Path) {
     let open = backends().into_iter().find(|b| b.0 == name).unwrap().1;
     let s = open(path);
     println!("ready");
-    for i in 0u64.. {
+    // Runs until the parent kills it.
+    let mut i = 0u64;
+    loop {
         let v = i.to_be_bytes().to_vec();
         s.write(
             Batch::new()
@@ -118,6 +120,7 @@ fn crash_child(name: &str, path: &Path) {
                 .put("pair", Key::new().str("b").u64(i), v),
         )
         .unwrap();
+        i += 1;
     }
 }
 

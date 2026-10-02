@@ -72,7 +72,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 1. **CI is new** (R-39, phase 0 of [[Milestone 18 - Library Refactor]]) — only six of the 47 browser suites run there.
 2. **Security findings** — [[Audit 2026-09-23]], [[Security]]. Don't expose a server beyond a trusted network.
 3. **The core is not yet a library** — `Workspace` 2 603 lines, `ui` depends on every extension and driver — R-37, [[Milestone 18 - Library Refactor]].
-4. **Internal state is a dozen files** and nothing syncs — R-36, [[Internal State]], [[ADR-0014 One store for internal state]].
+4. **Internal state is a dozen files** and nothing syncs — R-36, [[Internal State]]. The store interface exists and the comparison is done ([[State Store Comparison]]: SQLite recommended); waiting for the decision in [[ADR-0014 One store for internal state]].
 5. Release-build observability (P-032): no log file or panic dialog in installed desktop builds ([[Debugging and Logging]]).
 
 ## Next
