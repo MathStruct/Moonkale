@@ -52,15 +52,15 @@ fn backends() -> Vec<(&'static str, Open)> {
     }));
     #[cfg(feature = "sqlite")]
     v.push(("sqlite", |p| {
-        Arc::new(moonkale_state::SqliteStore::open(p).unwrap())
+        Arc::new(moonkale_state::SqliteStore::open_with(p, mode()).unwrap())
     }));
     #[cfg(feature = "turso")]
     v.push(("turso", |p| {
-        Arc::new(moonkale_state::TursoStore::open(p).unwrap())
+        Arc::new(moonkale_state::TursoStore::open_with(p, mode()).unwrap())
     }));
     #[cfg(feature = "rocksdb")]
     v.push(("rocksdb", |p| {
-        Arc::new(moonkale_state::RocksStore::open(p).unwrap())
+        Arc::new(moonkale_state::RocksStore::open_with(p, mode()).unwrap())
     }));
     #[cfg(feature = "helix")]
     v.push(("helix", |p| {
