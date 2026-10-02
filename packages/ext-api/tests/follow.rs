@@ -143,25 +143,17 @@ fn attach(_: SourceDescriptor) -> moonkale_ext_api::AttachFuture {
 
 fn config() -> WorkspaceConfig {
     WorkspaceConfig {
-        open_folder,
-        pick_folder: None,
-        attach_source: attach,
-        spawn_terminal: None,
-        compile_typst: None,
-        spawn_lsp: None,
-        llm: None,
-        settings_store: None,
-        secret_store: None,
-        reopen_last_folder: false,
-        wasm: None,
-        git: None,
-        presence: None,
-        wasm_module_url: None,
-        remote: None,
-        agent_sessions: None,
-        server: None,
-        spawn_program: None,
-        openers: &moonkale_core::source::opener::NO_OPENERS,
+        folders: moonkale_ext_api::FolderAccess {
+            open: open_folder,
+            pick: None,
+            attach,
+            reopen_last: false,
+            openers: &moonkale_core::source::opener::NO_OPENERS,
+        },
+        processes: Default::default(),
+        persistence: Default::default(),
+        network: Default::default(),
+        runtimes: Default::default(),
     }
 }
 

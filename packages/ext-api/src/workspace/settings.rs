@@ -5,11 +5,11 @@ use super::*;
 
 impl Workspace {
     pub fn has_settings_store(&self) -> bool {
-        self.config.settings_store.is_some()
+        self.config.persistence.settings.is_some()
     }
 
     pub fn secret_store(&self) -> Option<SecretStore> {
-        self.config.secret_store
+        self.config.persistence.secrets
     }
 
     // ---- settings -------------------------------------------------------
@@ -28,7 +28,7 @@ impl Workspace {
 
     /// Load the user scope through the platform store (at startup).
     pub async fn load_user_settings(mut self) {
-        let Some(store) = self.config.settings_store else {
+        let Some(store) = self.config.persistence.settings else {
             return;
         };
         match (store.load)().await {
@@ -41,13 +41,13 @@ impl Workspace {
         self.refresh_wasm_extensions().await;
         // Desktop: a remote folder asked for on the command line wins
         // (Milestone 11) …
-        if let Some((host, path)) = self.config.remote.and_then(|r| (r.at_start)()) {
+        if let Some((host, path)) = self.config.network.remote.and_then(|r| (r.at_start)()) {
             tracing::info!("remote: opening {host}:{path} at start");
             self.open_remote(host, path);
             return;
         }
         // … else come back to where you were.
-        if self.config.reopen_last_folder
+        if self.config.folders.reopen_last
             && self.sources.peek().is_empty()
             && self.settings_user.peek().reopen_last != Some(false)
         {
@@ -84,7 +84,7 @@ impl Workspace {
         f(&mut file);
         self.settings_user.set(file.clone());
         self.resolve_settings();
-        if let Some(store) = self.config.settings_store {
+        if let Some(store) = self.config.persistence.settings {
             if let Err(e) = (store.save)(file).await {
                 self.set_status(format!("Settings not saved: {e}"));
             }

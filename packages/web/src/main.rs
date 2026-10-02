@@ -405,7 +405,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote), presence: Some(join_presence), wasm_module_url: Some(|id| format!("/api/ext/module/{id}")), remote: None, agent_sessions: Some(api::client::agent_sessions(|| true)), server: None, spawn_program: None, openers: openers() },
+                workspace: workspace_config(),
                 session,
                 new_window: Some(new_window),
             },
@@ -428,4 +428,45 @@ fn openers() -> &'static moonkale_core::Openers {
             .concat(),
         )
     })
+}
+
+/// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
+/// what each part needs from the platform).
+fn workspace_config() -> WorkspaceConfig {
+    WorkspaceConfig {
+        folders: ui::FolderAccess {
+            open: open_remote,
+            pick: None,
+            attach: attach_remote,
+            reopen_last: false,
+            openers: openers(),
+        },
+        processes: ui::Processes {
+            terminal: Some(spawn_terminal),
+            lsp: Some(spawn_lsp),
+            git: Some(git_remote),
+            ..Default::default()
+        },
+        persistence: ui::Persistence {
+            settings: Some(ui::SettingsStore {
+                load: load_settings,
+                save: save_settings,
+            }),
+            ..Default::default()
+        },
+        network: ui::Network {
+            presence: Some(join_presence),
+            agent_sessions: Some(api::client::agent_sessions(|| true)),
+            ..Default::default()
+        },
+        runtimes: ui::Runtimes {
+            typst: Some(compile_typst),
+            llm: Some(llm_provider),
+            wasm: Some(ui::WasmExtensions {
+                list: wasm_list,
+                run: wasm_run,
+            }),
+            wasm_module_url: Some(|id| format!("/api/ext/module/{id}")),
+        },
+    }
 }

@@ -6,7 +6,9 @@ use super::*;
 impl Workspace {
     /// Re-scan installed wasm extensions (user dir + the folder's).
     pub async fn refresh_wasm_extensions(mut self) {
-        let Some(w) = self.config.wasm else { return };
+        let Some(w) = self.config.runtimes.wasm else {
+            return;
+        };
         let folder = self
             .sources
             .peek()
@@ -38,6 +40,7 @@ impl Workspace {
     ) -> Result<String, String> {
         let w = self
             .config
+            .runtimes
             .wasm
             .ok_or("wasm extensions are not available on this platform")?;
         let granted = self
@@ -51,7 +54,7 @@ impl Workspace {
         // Milestone 8: in a cross-origin-isolated browser the module runs
         // here, its host calls answered by this workspace's sources; the
         // server path stays as the fallback.
-        if let Some(url) = self.config.wasm_module_url {
+        if let Some(url) = self.config.runtimes.wasm_module_url {
             match self
                 .run_wasm_in_browser(&url(ext_id.to_string()), command, args.clone(), &granted)
                 .await

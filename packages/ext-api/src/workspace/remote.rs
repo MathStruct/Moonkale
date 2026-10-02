@@ -10,19 +10,26 @@ impl Workspace {
     pub fn agent_sessions(&self) -> Option<AgentSessions> {
         // Opt-in (`agent.on_server`), except on a platform without a local
         // provider (the phone), which always uses them when connected.
-        if !self.settings.read().agent.on_server && self.config.llm.is_some() {
+        if !self.settings.read().agent.on_server && self.config.runtimes.llm.is_some() {
             return None;
         }
-        self.config.agent_sessions.filter(|a| (a.available)())
+        self.config
+            .network
+            .agent_sessions
+            .filter(|a| (a.available)())
     }
 
     pub fn has_remote(&self) -> bool {
-        self.config.remote.is_some()
+        self.config.network.remote.is_some()
     }
 
     /// Host aliases from `~/.ssh/config` (desktop), for the dialog.
     pub fn remote_hosts(&self) -> Vec<String> {
-        self.config.remote.map(|r| (r.hosts)()).unwrap_or_default()
+        self.config
+            .network
+            .remote
+            .map(|r| (r.hosts)())
+            .unwrap_or_default()
     }
 
     /// Saved SSH connections (Milestone 15; the user file).
@@ -63,7 +70,7 @@ impl Workspace {
     /// `ssh` process becomes a terminal tab (its prompts are answered
     /// there); phases arrive on a channel and drive the status bar.
     pub fn open_remote(mut self, host: String, path: String) {
-        let Some(remote) = self.config.remote else {
+        let Some(remote) = self.config.network.remote else {
             self.set_status("Remote folders are not available on this platform");
             return;
         };
@@ -179,12 +186,12 @@ impl Workspace {
     // ---- A server's client (Milestone 12) ----
 
     pub fn has_server_client(&self) -> bool {
-        self.config.server.is_some()
+        self.config.network.server.is_some()
     }
 
     /// Become `url`'s client and open its root folder.
     pub async fn connect_server(mut self, url: String, token: Option<String>) {
-        let Some(sc) = self.config.server else {
+        let Some(sc) = self.config.network.server else {
             self.set_status("Connecting to a server is not available on this platform");
             return;
         };
@@ -214,7 +221,7 @@ impl Workspace {
         let Some((url, ids)) = self.server_link.take() else {
             return;
         };
-        if let Some(sc) = self.config.server {
+        if let Some(sc) = self.config.network.server {
             (sc.disconnect)();
         }
         let docs: Vec<NodeId> = self

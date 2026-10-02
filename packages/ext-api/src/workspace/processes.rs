@@ -6,13 +6,13 @@ use super::*;
 impl Workspace {
     /// Can this platform run a program in a terminal tab?
     pub fn can_run_program(&self) -> bool {
-        self.config.spawn_program.is_some()
+        self.config.processes.program.is_some()
     }
 
     /// Start `program args…` under a PTY and hand it to the terminal panel
     /// as a tab titled `title` (Milestone 15: `claude auth login`).
     pub async fn run_in_terminal(mut self, title: &str, program: &str, args: Vec<String>) {
-        let Some(spawn) = self.config.spawn_program else {
+        let Some(spawn) = self.config.processes.program else {
             self.set_status("Running a program in a terminal is not available on this platform");
             return;
         };
@@ -38,24 +38,24 @@ impl Workspace {
     }
 
     pub fn spawn_lsp(&self) -> Option<moonkale_lsp::SpawnLsp> {
-        self.config.spawn_lsp
+        self.config.processes.lsp
     }
 
     pub fn llm(&self) -> Option<LlmProvider> {
-        self.config.llm
+        self.config.runtimes.llm
     }
 
     pub fn compile_typst(&self) -> Option<CompileTypst> {
-        self.config.compile_typst
+        self.config.runtimes.typst
     }
 
     /// The platform's terminal spawner, if any.
     pub fn spawn_terminal(&self) -> Option<moonkale_terminal::SpawnTerminal> {
-        self.config.spawn_terminal
+        self.config.processes.terminal
     }
 
     /// The platform's git runner, if any.
     pub fn git(&self) -> Option<GitRun> {
-        self.config.git
+        self.config.processes.git
     }
 }

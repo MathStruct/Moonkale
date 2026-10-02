@@ -191,7 +191,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_any, pick_folder: None, attach_source: attach_any, spawn_terminal: Some(spawn_terminal), compile_typst: None, spawn_lsp: None, llm: None, settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: true, wasm: None, git: Some(git_any), presence: None, wasm_module_url: None, remote: None, agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: None, openers: openers() },
+                workspace: workspace_config(),
                 session,
                 new_window: None,
             },
@@ -214,4 +214,36 @@ fn openers() -> &'static moonkale_core::Openers {
             .concat(),
         )
     })
+}
+
+/// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
+/// what each part needs from the platform).
+fn workspace_config() -> WorkspaceConfig {
+    WorkspaceConfig {
+        folders: ui::FolderAccess {
+            open: open_any,
+            pick: None,
+            attach: attach_any,
+            reopen_last: true,
+            openers: openers(),
+        },
+        processes: ui::Processes {
+            terminal: Some(spawn_terminal),
+            git: Some(git_any),
+            ..Default::default()
+        },
+        persistence: ui::Persistence {
+            settings: Some(ui::SettingsStore {
+                load: load_settings,
+                save: save_settings,
+            }),
+            ..Default::default()
+        },
+        network: ui::Network {
+            agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)),
+            server: Some(server_client()),
+            ..Default::default()
+        },
+        runtimes: Default::default(),
+    }
 }

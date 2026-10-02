@@ -184,7 +184,7 @@ impl Workspace {
     /// Join the folder's presence room (called when a folder opens); a
     /// no-op without a hub. Re-joining replaces the link.
     pub fn join_presence(&mut self, room: &str) {
-        let Some(join) = self.config.presence else {
+        let Some(join) = self.config.network.presence else {
             return;
         };
         let mut members = self.presence;

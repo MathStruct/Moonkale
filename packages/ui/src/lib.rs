@@ -34,10 +34,11 @@ pub use moonkale_ext_api::git::{GitRequest, GitResponse};
 pub use moonkale_ext_api::presence::{Member as PresenceMember, PresenceLink, PresenceMessage};
 pub use moonkale_ext_api::remote;
 pub use moonkale_ext_api::{
-    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, LlmProvider,
-    LlmProviderFuture, OpenFolder, OpenFolderFuture, OpenOptions, PickFolder, PickFolderFuture,
-    Reveal, SecretStore, ServerClient, SessionBus, SessionMessage, SettingsFile, SettingsFuture,
-    SettingsStore, WasmExtensions, WindowId, WorkspaceConfig,
+    AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture, FolderAccess,
+    LlmProvider, LlmProviderFuture, Network, OpenFolder, OpenFolderFuture, OpenOptions,
+    Persistence, PickFolder, PickFolderFuture, Processes, Reveal, Runtimes, SecretStore,
+    ServerClient, SessionBus, SessionMessage, SettingsFile, SettingsFuture, SettingsStore,
+    WasmExtensions, WindowId, WorkspaceConfig,
 };
 pub use moonkale_lsp::{LspTransport, LspTransportFuture, SpawnLsp};
 pub use moonkale_terminal::{SpawnTerminal, SpawnTerminalFuture, TerminalBackend};

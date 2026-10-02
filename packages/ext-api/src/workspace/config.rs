@@ -98,46 +98,84 @@ pub struct Reveal {
     pub seq: u64,
 }
 
-/// What the platform hands the workspace at startup.
+/// What the platform hands the workspace at startup, grouped by what each
+/// part needs from the platform (Milestone 18 phase 3c). Every group except
+/// [`FolderAccess`] is all optional and `Default`: a platform fills in what
+/// it has (the web client and the phone have no processes of their own).
 #[derive(Clone, Copy)]
 pub struct WorkspaceConfig {
-    pub open_folder: OpenFolder,
-    pub pick_folder: Option<PickFolder>,
-    pub attach_source: AttachSource,
-    /// How to start a terminal on this platform (`None`: no terminals).
-    pub spawn_terminal: Option<moonkale_terminal::SpawnTerminal>,
-    /// Typst compiler (`None`: no preview).
-    pub compile_typst: Option<CompileTypst>,
-    /// Language-server launcher (`None`: no LSP features).
-    pub spawn_lsp: Option<moonkale_lsp::SpawnLsp>,
-    pub llm: Option<LlmProvider>,
-    pub settings_store: Option<SettingsStore>,
-    pub secret_store: Option<SecretStore>,
+    pub folders: FolderAccess,
+    pub processes: Processes,
+    pub persistence: Persistence,
+    pub network: Network,
+    pub runtimes: Runtimes,
+}
+
+/// Opening sources.
+#[derive(Clone, Copy)]
+pub struct FolderAccess {
+    /// Open a folder (or a database file) by path.
+    pub open: OpenFolder,
+    /// Attach a source another window opened, by descriptor.
+    pub attach: AttachSource,
+    /// The platform's folder picker (`None`: type a path).
+    pub pick: Option<PickFolder>,
     /// Reopen the most recent folder when the app starts (desktop).
-    pub reopen_last_folder: bool,
-    pub wasm: Option<WasmExtensions>,
-    /// Git for the open folder (`None`: no git on this platform).
-    pub git: Option<GitRun>,
-    /// Presence hub (Milestone 8); `None`: this window is alone.
-    pub presence: Option<crate::presence::JoinPresence>,
-    /// Where the browser runtime fetches a wasm extension's bytes (by id);
-    /// `Some` enables running modules in the page (Milestone 8, web).
-    pub wasm_module_url: Option<fn(String) -> String>,
-    /// Remote folders over SSH (Milestone 11; desktop only).
-    pub remote: Option<crate::remote::RemoteHosts>,
-    /// Agent sessions that live on the server (Milestone 12): the web
-    /// client always, the desktop while it is a server's client.
-    pub agent_sessions: Option<AgentSessions>,
-    /// *Connect to Server…* (Milestone 12): make this app a client of a
-    /// Moonkale server by URL + token (desktop and mobile).
-    pub server: Option<ServerClient>,
-    /// Run a program with arguments under a PTY (Milestone 15: `claude auth
-    /// login` as a terminal tab); `None` where there is no PTY.
-    pub spawn_program: Option<SpawnProgram>,
+    pub reopen_last: bool,
     /// Which files and directories open as database sources, and how
     /// (Milestone 18 phase 2): assembled by the app from the driver crates'
     /// `openers()`, so the shell needs no driver of its own.
     pub openers: &'static moonkale_core::Openers,
+}
+
+/// Running programs on this machine (`None` everywhere on the web client and
+/// the phone, which reach a server's processes through [`Network`]).
+#[derive(Clone, Copy, Default)]
+pub struct Processes {
+    /// Start a terminal (`None`: no terminals).
+    pub terminal: Option<moonkale_terminal::SpawnTerminal>,
+    /// Run a program with arguments under a PTY (Milestone 15: `claude auth
+    /// login` as a terminal tab).
+    pub program: Option<SpawnProgram>,
+    /// Start a language server (`None`: no LSP features).
+    pub lsp: Option<moonkale_lsp::SpawnLsp>,
+    /// Git for the open folder.
+    pub git: Option<GitRun>,
+}
+
+/// Where settings and secrets are kept. Phase 5 adds the state store
+/// (`moonkale-state`) here.
+#[derive(Clone, Copy, Default)]
+pub struct Persistence {
+    pub settings: Option<SettingsStore>,
+    pub secrets: Option<SecretStore>,
+}
+
+/// Other machines and other windows.
+#[derive(Clone, Copy, Default)]
+pub struct Network {
+    /// *Connect to Server…* (Milestone 12): make this app a client of a
+    /// Moonkale server by URL + token (desktop and mobile).
+    pub server: Option<ServerClient>,
+    /// Remote folders over SSH (Milestone 11; desktop only).
+    pub remote: Option<crate::remote::RemoteHosts>,
+    /// Presence hub (Milestone 8); `None`: this window is alone.
+    pub presence: Option<crate::presence::JoinPresence>,
+    /// Agent sessions that live on the server (Milestone 12): the web
+    /// client always, the desktop while it is a server's client.
+    pub agent_sessions: Option<AgentSessions>,
+}
+
+/// In-process engines.
+#[derive(Clone, Copy, Default)]
+pub struct Runtimes {
+    pub llm: Option<LlmProvider>,
+    pub wasm: Option<WasmExtensions>,
+    /// Where the browser runtime fetches a wasm extension's bytes (by id);
+    /// `Some` enables running modules in the page (Milestone 8, web).
+    pub wasm_module_url: Option<fn(String) -> String>,
+    /// Typst compiler (`None`: no preview).
+    pub typst: Option<CompileTypst>,
 }
 
 /// `(program, args, cols, rows)` → a terminal backend running it.

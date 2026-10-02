@@ -649,7 +649,7 @@ fn App() -> Element {
         Frame {
             config: ShellConfig {
                 extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: Some(spawn_program), openers: openers() },
+                workspace: workspace_config(),
                 session,
                 new_window: open_window,
             },
@@ -673,6 +673,52 @@ fn openers() -> &'static moonkale_core::Openers {
             .concat(),
         )
     })
+}
+
+/// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
+/// what each part needs from the platform).
+fn workspace_config() -> WorkspaceConfig {
+    WorkspaceConfig {
+        folders: ui::FolderAccess {
+            open: open_folder,
+            pick: Some(pick_folder),
+            attach: attach_source,
+            reopen_last: true,
+            openers: openers(),
+        },
+        processes: ui::Processes {
+            terminal: Some(spawn_terminal),
+            lsp: Some(spawn_lsp),
+            git: Some(git_local),
+            program: Some(spawn_program),
+        },
+        persistence: ui::Persistence {
+            settings: Some(ui::SettingsStore {
+                load: load_settings,
+                save: save_settings,
+            }),
+            secrets: Some(store_secret),
+        },
+        network: ui::Network {
+            presence: Some(presence::join),
+            remote: Some(ui::remote::RemoteHosts {
+                open: open_remote,
+                hosts: ssh_hosts,
+                at_start: ssh_at_start,
+            }),
+            agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)),
+            server: Some(server_client()),
+        },
+        runtimes: ui::Runtimes {
+            typst: Some(compile_typst),
+            llm: Some(llm_provider),
+            wasm: Some(ui::WasmExtensions {
+                list: wasm_ext::list_any,
+                run: wasm_ext::run_any,
+            }),
+            ..Default::default()
+        },
+    }
 }
 
 #[cfg(test)]

@@ -79,14 +79,14 @@ impl Workspace {
     /// Can this platform open folders over SSH?
     /// The source openers of this build ([`WorkspaceConfig::openers`]).
     pub fn openers(&self) -> &'static moonkale_core::Openers {
-        self.config.openers
+        self.config.folders.openers
     }
 
     pub async fn attach_source(mut self, descriptor: SourceDescriptor) -> Result<(), SourceError> {
         if self.source(&descriptor.id).is_some() {
             return Ok(());
         }
-        let source = (self.config.attach_source)(descriptor.clone()).await?;
+        let source = (self.config.folders.attach)(descriptor.clone()).await?;
         self.sources
             .with_mut(|v| v.push(SourceHandle { descriptor, source }));
         Ok(())
@@ -193,7 +193,7 @@ impl Workspace {
 
     /// Whether this platform has a native folder dialog.
     pub fn has_folder_dialog(&self) -> bool {
-        self.config.pick_folder.is_some()
+        self.config.folders.pick.is_some()
     }
 
     /// The first open folder's path (what `git` and terminals run in).
@@ -214,7 +214,7 @@ impl Workspace {
     /// Show the native folder dialog (if any) and open the chosen folder.
     /// `Ok(None)` means cancelled or no dialog on this platform.
     pub async fn open_folder_dialog(mut self) -> Result<Option<SourceDescriptor>, SourceError> {
-        let Some(pick) = self.config.pick_folder else {
+        let Some(pick) = self.config.folders.pick else {
             self.set_status("No folder dialog on this platform — type a path in Sources");
             return Ok(None);
         };
@@ -257,7 +257,7 @@ impl Workspace {
             }
         };
         tracing::info!("open_folder: {path}");
-        let sources = (self.config.open_folder)(path, options).await?;
+        let sources = (self.config.folders.open)(path, options).await?;
         tracing::info!("open_folder: {} sources", sources.len());
         let mut first: Option<SourceDescriptor> = None;
         let mut opened: Vec<SourceId> = Vec::new();
