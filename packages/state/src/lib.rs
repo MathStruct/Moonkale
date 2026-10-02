@@ -21,6 +21,7 @@
 //! SQLite transaction, a RocksDB `WriteBatch`), it needs no transaction
 //! lifetimes, and it is object safe, so the app can hold `Arc<dyn StateStore>`.
 
+mod copy;
 #[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
 mod helix_store;
 mod key;
@@ -38,6 +39,7 @@ pub mod testing;
 #[cfg(all(feature = "turso", not(target_arch = "wasm32")))]
 mod turso_store;
 
+pub use copy::copy;
 #[cfg(all(feature = "helix", not(target_arch = "wasm32")))]
 pub use helix_store::HelixStore;
 pub use key::Key;
