@@ -87,3 +87,16 @@ What phase 3 did **not** do, against the plan's wording: settings are not yet na
 | 5.4 | Results and recommendation | [[State Store Comparison]]: **SQLite** recommended, redb runner-up; RocksDB fastest but 6–14 min of C++ per clean build and locks; Turso beta and 22 MB; HelixDB superlinear as key/value (10k events did not finish in 25 min), 64 MB | decision is Daniel's (ADR-0014 stays *proposed*) |
 | — | Mistakes along the way | (1) a first full run died at the 30-min background limit with its output buffered behind `tail` — all rows lost; per-backend runs to files since. (2) A `pkill -f` matched my own shell (exit 144) — exact process names only. (3) An edit to the harness silently did not apply (rustfmt had reflowed the lines), so a "relaxed" run measured durable mode; caught by the numbers, edits are now asserted | |
 
+## Phase 5, part 2 — The store in use (2026-10-02)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 5.5 | **ADR-0014 accepted: SQLite** (Daniel: *"Do SQL for now."*) | `moonkale_state::copy(from, to, tables)` makes a later switch a copy (tested SQLite → redb → memory) | |
+| 5.6 | `Persistence::state` | `StateAccess { get, scan, write }` (async); desktop and phone: `local_state(SqliteStore)` at `<config dir>/state.sqlite`, relaxed; web: `localStorage` items `moonkale.state/<table>/<hex key>` | the web client's store is per browser, which keeps the browser suites isolated |
+| 5.7 | **Layouts in the store** | `LayoutRecord` (layout, open documents, active document) per folder in table `layout`; an old folder file hands its layout over on the first load and loses it on the next save; layout changes no longer write the folder's `.moonkale/settings.json` | `ext-api/tests/state_layout.rs`; `settings.mjs`, `phone.mjs` read the browser's store; after a full batch the fixture's folder file holds only `{"editor":{"markdown_rich":false}}` |
+| 5.8 | **`moonkale-state-stores`** (new crate) | the engines, the harness and the backend tests moved out of `moonkale-state` (git mv) | the layering check caught `rusqlite` in the shell's tree through feature unification once `ext-api` depended on the state crate |
+| 5.9 | HelixDB write conflicts | with the index, a write overlapping a concurrent read failed with "transaction conflict"; the backend retries (bounded) | found by the conformance suite |
+| — | Checks | layering **16 known**, 0 new · clippy ✅ · **146 tests**, 5 ignored · **42 of 42** browser suites | GitHub unreachable from this machine since mid-day (no route to host): commits are local until it is back |
+
+Next in phase 5: the entity log (`events`, one row per event, appended) on the machine that hosts the folder — through server functions for the web client and remote folders — then agent sessions and user settings.
+
