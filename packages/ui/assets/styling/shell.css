@@ -82,9 +82,10 @@
 .mk-palette-empty { padding: 10px 12px; color: var(--wb-ink-faint, #7f8595); }
 .mk-settings-form label.mk-settings-key { grid-template-columns: 1fr 180px; }
 .mk-settings-form label.mk-settings-key > span { display: flex; align-items: center; gap: 6px; }
-.mk-tab-vcs { font-size: 10px; font-weight: 700; color: #c9a75f; margin-left: 4px; }
-.mk-tab-vcs[data-status="A"], .mk-tab-vcs[data-status="?"] { color: #6cb28c; }
-.mk-tab-vcs[data-status="D"] { color: #e07a75; }
+.mk-tab-mark { font-size: 10px; font-weight: 700; color: #c9a75f; margin-left: 4px; }
+.mk-tab-mark.mk-vcs-added { color: #6cb28c; }
+.mk-tab-mark.mk-vcs-deleted, .mk-tab-mark.mk-vcs-conflict { color: #e07a75; }
+.mk-tab-mark.mk-vcs-renamed { color: #6ea8fe; }
 
 /* History panel (Milestone 8) */
 .mk-history { height: 100%; overflow: auto; font-size: 12px; }

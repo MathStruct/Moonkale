@@ -36,7 +36,7 @@ pub mod workspace;
 
 pub use assets::{Stylesheet, StylesheetUrl};
 pub use command::{fuzzy_score, CommandContribution, Keybinding};
-pub use contrib::{Activity, PanelContribution, PanelHome};
+pub use contrib::{Activity, FileMark, PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub mod flow;

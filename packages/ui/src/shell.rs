@@ -323,22 +323,10 @@ pub fn Shell() -> Element {
                     .with_home_zone(home_zone(&current_layout, home));
             // Tab accessories: the unsaved dot, and the git status letter of
             // the document's file (Milestone 7).
-            let vcs = c
-                .node
-                .and_then(|n| ws.document(n))
-                .and_then(|d| {
-                    let key = d.peek().node.native_key.clone();
-                    ws.vcs_status.read().get(&key).map(|(i, w)| {
-                        if *i == '?' {
-                            '?'
-                        } else if *w != '.' {
-                            *w
-                        } else {
-                            *i
-                        }
-                    })
-                })
-                .filter(|c| *c != '.');
+            let vcs = c.node.and_then(|n| ws.document(n)).and_then(|d| {
+                let key = d.peek().node.native_key.clone();
+                ws.file_marks.read().get(&key).cloned()
+            });
             // Others looking at this document (presence, Milestone 8).
             let here: Vec<moonkale_ext_api::presence::Member> =
                 match c.node.and_then(|n| ws.document(n)) {
@@ -355,7 +343,7 @@ pub fn Shell() -> Element {
                 let dirty = c.dirty;
                 panel = panel.with_tab_accessory(rsx! {
                     if dirty { span { class: "mk-tab-dirty", "aria-label": "Unsaved changes" } }
-                    if let Some(l) = vcs { span { class: "mk-tab-vcs", "data-status": "{l}", "{l}" } }
+                    if let Some(m) = vcs { span { class: "mk-tab-mark {m.class}", "data-status": "{m.letter}", title: "{m.title}", "{m.letter}" } }
                     for m in here.iter() {
                         span { class: "mk-tab-presence", title: "{m.name} has this open", "{m.initials()}" }
                     }

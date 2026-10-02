@@ -2,7 +2,7 @@
 //!
 //! Git as a first-class part of the workspace (Milestone 7): a *Changes*
 //! panel (status, stage/unstage/discard, commit, branch, log), diff views,
-//! status decorations for the Explorer (`Workspace::vcs_status`), and the
+//! status marks for the Explorer and tabs (`Workspace::file_marks`), and the
 //! history as a graph source the Graph panel can draw.
 //!
 //! The `git` binary runs where the folder lives — in-process on desktop and
@@ -60,7 +60,7 @@ impl Extension for GitExtension {
             activity: Some(
                 Activity::new("git", 40, "Git")
                     .phone_secondary()
-                    .badge(ws.vcs_status.read().len() as u32),
+                    .badge(ws.file_marks.read().len() as u32),
             ),
         }];
         if ws.git().is_none() {

@@ -124,9 +124,10 @@ pub struct Workspace {
     /// The event a pending edit restores (Milestone 9): the next save's
     /// `Content` event gets it as `cause`.
     pub pending_cause: Signal<std::collections::HashMap<NodeId, moonkale_core::EventId>>,
-    /// Version-control status per relative path: `(index, worktree)` letters
-    /// from `git status`, published by the git extension for decorations.
-    pub vcs_status: Signal<std::collections::HashMap<String, (char, char)>>,
+    /// Marks extensions put on files, by native key ([`crate::FileMark`]):
+    /// git's status letters today. The shell draws them on Explorer rows and
+    /// tabs.
+    pub file_marks: Signal<std::collections::HashMap<String, crate::FileMark>>,
     bus: Signal<Option<Rc<dyn SessionBus>>>,
     config: WorkspaceConfig,
 }
@@ -158,7 +159,7 @@ impl Workspace {
             fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             watched: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
             followed: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
-            vcs_status: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            file_marks: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             history: Signal::new_in_scope(moonkale_core::EntityLog::new(), ScopeId::ROOT),
             presence: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             presence_link: Signal::new_in_scope(None, ScopeId::ROOT),

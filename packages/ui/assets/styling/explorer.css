@@ -54,7 +54,7 @@
 .mk-vcs-deleted .mk-tree-label { color: #e07a75; text-decoration: line-through; }
 .mk-vcs-renamed .mk-tree-label { color: #6ea8fe; }
 .mk-vcs-conflict .mk-tree-label { color: #e07a75; }
-.mk-vcs-dir > .mk-tree-label::after { content: " •"; color: #c9a75f; }
+.mk-mark-dir > .mk-tree-label::after { content: " •"; color: #c9a75f; }
 /* Source rows (spec 009): kind icon, accent stripe, read-only lock. */
 .mk-explorer-source { border-left: 3px solid var(--mk-source-color, transparent); }
 .mk-explorer-source-name { display: flex; align-items: center; gap: 6px; }

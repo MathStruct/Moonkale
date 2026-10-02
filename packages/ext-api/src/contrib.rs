@@ -79,3 +79,15 @@ impl Activity {
         self
     }
 }
+
+/// A mark an extension puts on a file (Milestone 18 phase 3c): a letter on
+/// the Explorer row and on the document's tab, a CSS class for its colour and
+/// a tooltip. The shell draws marks without knowing who set them; git's
+/// status letters are the first. Keyed by the file's native key in
+/// [`crate::Workspace::file_marks`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FileMark {
+    pub letter: char,
+    pub class: &'static str,
+    pub title: &'static str,
+}

@@ -40,7 +40,7 @@ try {
     await page.keyboard.press("Control+S");
     await page.waitForFunction(() => !document.querySelector(".mk-tab-dirty"), null, { timeout: 5000 });
     await page.waitForSelector(".mk-tree-row[title='README.md'].mk-vcs-modified", { timeout: 15000 });
-    await page.waitForSelector(".wb-tab:has-text('README.md') .mk-tab-vcs[data-status='M']", { timeout: 5000 });
+    await page.waitForSelector(".wb-tab:has-text('README.md') .mk-tab-mark[data-status='M']", { timeout: 5000 });
     await page.click(".wb-tab:has-text('Changes')");
     await page.waitForSelector(".mk-git-entry[data-status='M']", { timeout: 10000 });
     console.log("\n  entries:", (await entries()).join(" | "));

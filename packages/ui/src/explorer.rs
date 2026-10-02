@@ -365,23 +365,20 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
         .cloned()
         .unwrap_or_default();
     let expanded = state.expanded.read().clone();
-    // Version-control decorations (Milestone 7): a letter class per changed
-    // file, a subtle mark on directories with changes below them.
-    let vcs = ws.vcs_status.read().clone();
+    // File marks (git's status today, Milestone 7 → generic in 18): the
+    // mark's class on the row, a subtle mark on directories with marks below.
+    let marks = ws.file_marks.read().clone();
     let _ = ws.presence.read();
     let others = ws.others();
     rsx! {
         ul { class: "mk-tree", style: "--depth: {depth}",
             for node in children {
                 {
-                    let vcs_class = match vcs.get(&node.native_key) {
-                        Some((i, w)) => {
-                            let c = if *i == '?' { '?' } else if *w != '.' { *w } else { *i };
-                            match c { 'M' => "mk-vcs-modified", 'A' | '?' => "mk-vcs-added", 'D' => "mk-vcs-deleted", 'R' | 'C' => "mk-vcs-renamed", 'U' => "mk-vcs-conflict", _ => "" }
-                        }
+                    let vcs_class = match marks.get(&node.native_key) {
+                        Some(m) => m.class,
                         None if node.kind == NodeKind::Directory => {
                             let prefix = format!("{}/", node.native_key);
-                            if vcs.keys().any(|k| k.starts_with(&prefix)) { "mk-vcs-dir" } else { "" }
+                            if marks.keys().any(|k| k.starts_with(&prefix)) { "mk-mark-dir" } else { "" }
                         }
                         None => "",
                     };
