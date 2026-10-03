@@ -60,8 +60,11 @@ impl Extension for AgentExtension {
             )
         };
         Some(rsx! {
+            // A folder may not auto-approve writes (Milestone 18 phase 4.5):
+            // in the workspace target the switch is shown, not offered.
             label { class: "mk-settings-check",
-                input { r#type: "checkbox", checked: allow_writes,
+                title: if target == SettingsTarget::Workspace { "Only your user settings can allow this — a folder's settings may not (it would let a cloned repository approve the agent's writes)" } else { "" },
+                input { r#type: "checkbox", checked: allow_writes, disabled: target == SettingsTarget::Workspace,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.policy.allow_writes = Some(v)); } }
                 "Allow mutating tools without asking (destructive ones always ask)"
             }

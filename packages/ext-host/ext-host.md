@@ -18,3 +18,6 @@ Next (documented, not started): WIT/component model, a browser runtime (R-28), f
 
 ## Milestone 8: the browser runtime
 The same ABI runs in the page: `packages/js/wasm-host` (built into `ui/assets/wasm_host.js`) creates a Worker per run, instantiates the module with `moonkale.log`/`moonkale.call` imports, and serves the *synchronous* `call` by posting the request to the main thread and blocking on `Atomics.wait` over an 8 MB `SharedArrayBuffer` mailbox until the reply is written back. The main thread's answer is Rust (`Workspace::answer_host_call`: the same three calls and permission check as `handle_call` here, over the client's remote sources). Requirements: a cross-origin-isolated page (the server sends COOP/COEP) and `/api/ext/module/{id}` for the bytes. When the page is not isolated, the client falls back to the server runtime. This closes R-28 for the JSON ABI; a WIT/component runtime would sit on the same Worker.
+
+## Milestone 18 phase 4.5
+- `Runtime::load` refuses a second file with an id that is already loaded from another file (audit #4: a folder's module cannot squat a user-installed module's id and grants); reloading the same file is fine. Test `an_id_belongs_to_the_file_that_loaded_it_first`.

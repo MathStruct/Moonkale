@@ -420,15 +420,13 @@ mod server {
     }
 
     async fn run_turn(rec: Arc<Mutex<Record>>, text: String, settings: TurnSettings) {
-        let Some(provider) = crate::llm::provider_for(&settings.llm) else {
-            push(
-                &rec,
-                SessionItem::Error {
-                    text: "no provider for these settings on the server".into(),
-                },
-            );
-            rec.lock().unwrap().summary.running = false;
-            return;
+        let provider = match crate::llm::provider_checked(&settings.llm) {
+            Ok(p) => p,
+            Err(e) => {
+                push(&rec, SessionItem::Error { text: e });
+                rec.lock().unwrap().summary.running = false;
+                return;
+            }
         };
         let (folder, messages) = {
             let r = rec.lock().unwrap();

@@ -55,22 +55,40 @@ try {
     await page.waitForFunction(() => /test-model/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
     await page.screenshot({ path: `${S}/m5-settings.png` });
   });
-  await step("workspace-scope 'allow writes' (on the Agent extension's row, Milestone 15) → the agent runs a write without asking", async () => {
+  await step("Milestone 18 phase 4.5: a folder's 'allow writes' is saved but ignored — the agent still asks, and Settings says so", async () => {
+    // The switch is not offered for the folder scope …
     await page.click("#mk-rail-extensions");
     await page.waitForSelector(".mk-extensions", { timeout: 10000 });
     await page.selectOption(".mk-extensions .mk-settings-target select", "workspace");
     const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
-    await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").click();
-    let f; for (let i = 0; i < 30; i++) { try { f = wsFile(); if (f.policy?.allow_writes) break; } catch {} await new Promise((r) => setTimeout(r, 300)); }
-    if (!f.policy?.allow_writes) throw new Error("allow_writes not saved");
-    const src = await page.$eval(".mk-agent", () => "");
-    void src;
+    if (!(await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").isDisabled())) throw new Error("the folder scope offers allow_writes");
+    // … and a folder file that sets it anyway (a cloned repository) is ignored.
+    const f = wsFile(); f.policy = { ...(f.policy || {}), allow_writes: true };
+    fs.writeFileSync(`${ROOT}/.moonkale/settings.json`, JSON.stringify(f));
+    await page.click("#mk-rail-explorer");
+    await openFolder();
     const id = "folder:" + ROOT;
     await page.fill(".mk-agent-input", `/tool source.text_query {"source":"${id}","dialect":"sql","text":"DELETE FROM t"}`);
     await page.click(".mk-agent-compose button");
-    await page.waitForFunction(() => [...document.querySelectorAll(".mk-agent-tool .mk-agent-badge")].some((b) => b.textContent === "Allow") && [...document.querySelectorAll(".mk-agent-tool")].some((t) => /failed|ok/.test(t.textContent)), null, { timeout: 20000 });
-    const approval = await page.$(".mk-agent-approval");
-    if (approval) throw new Error("approval box shown despite allow_writes");
+    await page.waitForSelector(".mk-agent-approval", { timeout: 20000 });
+    await page.click(".mk-agent-approval button:has-text('Deny')");
+    await page.waitForFunction(() => !document.querySelector(".mk-agent-approval"), null, { timeout: 10000 });
+    await page.keyboard.press("Control+,");
+    await page.waitForFunction(() => /policy\.allow_writes/.test(document.querySelector(".mk-settings-ignored")?.textContent || ""), null, { timeout: 10000 });
+  });
+  await step("the same switch in the user scope → the agent runs a write without asking", async () => {
+    await page.click("#mk-rail-extensions");
+    await page.waitForSelector(".mk-extensions", { timeout: 10000 });
+    await page.selectOption(".mk-extensions .mk-settings-target select", "user");
+    const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
+    await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").click();
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem("moonkale.settings")).policy?.allow_writes === true; } catch { return false; } }, null, { timeout: 10000 });
+    const before = await page.$$eval(".mk-agent-tool", (t) => t.length);
+    const id = "folder:" + ROOT;
+    await page.fill(".mk-agent-input", `/tool source.text_query {"source":"${id}","dialect":"sql","text":"DELETE FROM t"}`);
+    await page.click(".mk-agent-compose button");
+    await page.waitForFunction((n) => { const t = [...document.querySelectorAll(".mk-agent-tool")]; return t.length > n && /failed|ok/.test(t[t.length - 1].textContent) && [...t[t.length - 1].querySelectorAll(".mk-agent-badge")].some((b) => b.textContent === "Allow"); }, before, { timeout: 20000 });
+    if (await page.$(".mk-agent-approval")) throw new Error("approval box shown despite the user's allow_writes");
   });
   await step("reload + reopen: README.md is open again, Links tab active, recent folder listed", async () => {
     await page.reload({ waitUntil: "networkidle" });

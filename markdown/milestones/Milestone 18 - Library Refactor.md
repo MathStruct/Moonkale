@@ -102,6 +102,7 @@ The interface is frozen when redb and `FileStore` both pass the suite; only then
 Done when `workspace.rs` is a facade under ~500 lines, each service has unit tests without a Dioxus runtime where possible, and no extension reads a signal of another extension.
 
 ### Phase 4 — Catalogue out of the shell; server contributions (M)
+**Done 2026-10-03** ([[Milestone 18 - Implementation Log]]); step 3 decided differently — platform services keep their server halves in the host, see the log's 4.3d.
 1. **`moonkale-distribution`**: `default_extensions()` moves out of `ui` into a crate with one Cargo feature per extension (`git`, `agent`, `flow`, `lux`, `table`, `stores`, …); `--no-default-features` builds Explorer, Search, Settings, Code, Markdown, Graph. `ui` (renamed `moonkale-shell`) depends on `ext-api` and the host only.
 2. **History panel** → `packages/extensions/history`; git types (`ext-api/git.rs`) → the git crate.
 3. **Server contributions**: an extension crate with a `server` feature brings its server functions and websocket routes; `api` becomes the server *host*: auth, the jail, the audit log and a route registry. Git, LSP, terminal, Typst, wasm, presence, MCP and the LLM relay move into their crates' server halves. (Spike first: Dioxus 0.7 server functions register at link time through `inventory`, so functions defined in an extension crate should register when that crate is linked into the server — verify with one before moving all.)

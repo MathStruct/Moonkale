@@ -85,8 +85,14 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
             }
         });
     };
+    // Grants are the user's alone (Milestone 18 phase 4.5, audit #8): a
+    // folder's settings may not grant, so a change here always goes to the
+    // user scope, whichever file the switch above names.
+    let grant = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
+        spawn(async move { ws.update_user_settings(|file| f(file)).await });
+    };
     rsx! {
-        p { class: "mk-muted", "Optional features load only when switched on. Permissions are what an extension may do; untick to restrict it." }
+        p { class: "mk-muted", "Optional features load only when switched on. Permissions are what an extension may do; untick to restrict it. Permissions are always yours (user settings): a folder cannot grant them." }
         for ext in catalog.iter() {
             {
                 let m = ext.manifest();
@@ -122,7 +128,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                                     onchange: move |e| {
                                                         let v = e.checked();
                                                         let all = all.clone();
-                                                        apply(Box::new(move |f| {
+                                                        grant(Box::new(move |f| {
                                                             let cur = f.extensions.permissions.get(id).cloned().unwrap_or_else(|| all.iter().map(|s| s.to_string()).collect());
                                                             let mut next: Vec<String> = cur.into_iter().filter(|c| c != p).collect();
                                                             if v { next.push(p.to_string()); }
@@ -176,7 +182,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                                             onchange: move |e| {
                                                                 let v = e.checked();
                                                                 let (id, p) = (id2.clone(), p2.clone());
-                                                                apply(Box::new(move |f| {
+                                                                grant(Box::new(move |f| {
                                                                     let cur = f.extensions.permissions.get(&id).cloned().unwrap_or_default();
                                                                     let mut next: Vec<String> = cur.into_iter().filter(|c| *c != p).collect();
                                                                     if v { next.push(p); }

@@ -126,6 +126,12 @@ fn SettingsPanel(ws: Workspace) -> Element {
             if !store_available {
                 p { class: "mk-settings-note", "User settings are not persisted on this platform; workspace settings still are." }
             }
+            if !settings.ignored_from_folder.is_empty() {
+                p { class: "mk-settings-note mk-settings-ignored",
+                    title: "A folder's .moonkale/settings.json is data, not authority: it may not set a language model or agent, auto-approve writes, turn on embeddings, grant permissions, name a shell or SSH hosts (Milestone 18 phase 4.5)",
+                    "This folder's settings tried to set {settings.ignored_from_folder.join(\", \")} — ignored: only your user settings decide those."
+                }
+            }
             if tab() == "form" {
                 div { class: "mk-settings-form",
                     h3 { "Agents" span { class: "mk-settings-scope", "{scope_label(llm_scope)}" } }

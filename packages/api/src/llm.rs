@@ -64,6 +64,54 @@ fn yes() -> bool {
 pub(crate) fn provider_for(
     settings: &moonkale_llm::LlmSettings,
 ) -> Option<std::sync::Arc<dyn Provider>> {
+    provider_checked(settings)
+        .map_err(|e| eprintln!("moonkale: llm provider refused: {e}"))
+        .ok()
+}
+
+/// The server decides (Milestone 18 phase 4.5, audit #1): what a client's
+/// provider settings may make the server do. The client chooses the kind,
+/// model and secret *name*; the server alone decides where a secret goes and
+/// which program runs.
+/// - `claude-code`: the client's binary path is ignored — the server runs
+///   `MOONKALE_CLAUDE_BIN`, else `claude` on its own `PATH`.
+/// - A provider that sends the resolved secret to `base_url` (OpenAI-
+///   compatible) may only use its built-in endpoint or one the server's
+///   operator listed in `MOONKALE_LLM_ENDPOINTS` (comma-separated URL
+///   prefixes).
+#[cfg(feature = "server")]
+pub fn server_side(
+    settings: &moonkale_llm::LlmSettings,
+) -> Result<moonkale_llm::LlmSettings, String> {
+    let mut s = settings.clone();
+    if s.provider == "claude-code" {
+        s.base_url.clear();
+    }
+    let sends_key = s.provider == "openai" && moonkale_llm::secrets::available(&s.secret);
+    let url = s.base_url.trim();
+    if sends_key && !url.is_empty() && url.trim_end_matches('/') != "https://api.openai.com/v1" {
+        let allowed = std::env::var("MOONKALE_LLM_ENDPOINTS").unwrap_or_default();
+        let listed = allowed
+            .split(',')
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .any(|p| url.starts_with(p));
+        if !listed {
+            return Err(format!(
+                "this server sends the secret {:?} only to the provider's own endpoint or one listed in MOONKALE_LLM_ENDPOINTS; {url} is not",
+                s.secret
+            ));
+        }
+    }
+    Ok(s)
+}
+
+/// [`provider_for`] with the refusal of [`server_side`] as the error.
+#[cfg(feature = "server")]
+pub(crate) fn provider_checked(
+    settings: &moonkale_llm::LlmSettings,
+) -> Result<std::sync::Arc<dyn Provider>, String> {
+    let settings = &server_side(settings)?;
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex, OnceLock};
     static CACHE: OnceLock<Mutex<HashMap<moonkale_llm::LlmSettings, Arc<dyn Provider>>>> =
@@ -71,7 +119,7 @@ pub(crate) fn provider_for(
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let mut map = cache.lock().unwrap();
     if let Some(p) = map.get(settings) {
-        return Some(p.clone());
+        return Ok(p.clone());
     }
     let key = moonkale_llm::secrets::resolve(&settings.secret);
     let cfg = moonkale_llm::Config::from_settings(settings, key);
@@ -81,7 +129,7 @@ pub(crate) fn provider_for(
     );
     let p: Arc<dyn Provider> = Arc::from(moonkale_llm::config::build(&cfg));
     map.insert(settings.clone(), p.clone());
-    Some(p)
+    Ok(p)
 }
 
 #[cfg(feature = "server")]
@@ -101,7 +149,11 @@ pub(crate) fn provider() -> &'static dyn Provider {
 pub async fn llm_info(
     settings: Option<moonkale_llm::LlmSettings>,
 ) -> Result<ProviderInfo, ServerFnError> {
-    let owned = settings.as_ref().and_then(provider_for);
+    let owned = settings
+        .as_ref()
+        .map(provider_checked)
+        .transpose()
+        .map_err(ServerFnError::new)?;
     let p: &dyn Provider = match &owned {
         Some(p) => p.as_ref(),
         None => provider(),
@@ -129,9 +181,7 @@ pub async fn llm_info(
 pub async fn llm_status(
     settings: moonkale_llm::LlmSettings,
 ) -> Result<Option<moonkale_llm::ProviderStatus>, ServerFnError> {
-    let Some(p) = provider_for(&settings) else {
-        return Ok(None);
-    };
+    let p = provider_checked(&settings).map_err(ServerFnError::new)?;
     Ok(p.status().await)
 }
 
@@ -179,7 +229,17 @@ pub async fn llm_socket(
                         return;
                     }
                 };
-                let owned = settings.as_ref().and_then(provider_for);
+                let owned = match settings.as_ref().map(provider_checked).transpose() {
+                    Ok(o) => o,
+                    Err(message) => {
+                        let _ = socket
+                            .send(Frame(
+                                serde_json::to_string(&ServerMsg::Error { message }).unwrap(),
+                            ))
+                            .await;
+                        return;
+                    }
+                };
                 let p: &dyn Provider = match &owned {
                     Some(p) => p.as_ref(),
                     None => provider(),
@@ -200,7 +260,17 @@ pub async fn llm_socket(
                 }
             }
             ClientMsg::Embed { texts, settings } => {
-                let owned = settings.as_ref().and_then(provider_for);
+                let owned = match settings.as_ref().map(provider_checked).transpose() {
+                    Ok(o) => o,
+                    Err(message) => {
+                        let _ = socket
+                            .send(Frame(
+                                serde_json::to_string(&ServerMsg::Error { message }).unwrap(),
+                            ))
+                            .await;
+                        return;
+                    }
+                };
                 let p: &dyn Provider = match &owned {
                     Some(p) => p.as_ref(),
                     None => provider(),
@@ -332,5 +402,50 @@ impl Provider for RemoteProvider {
     }
     fn supports_embed(&self) -> bool {
         self.info.supports_embed
+    }
+}
+
+#[cfg(all(test, feature = "server"))]
+mod server_decides {
+    use super::server_side;
+    use moonkale_llm::LlmSettings;
+
+    fn openai(base_url: &str, secret: &str) -> LlmSettings {
+        LlmSettings {
+            provider: "openai".into(),
+            model: String::new(),
+            base_url: base_url.into(),
+            embed_model: None,
+            secret: secret.into(),
+            options: Default::default(),
+        }
+    }
+
+    /// Audit #1 (phase 4.5): a secret goes only where the server allows,
+    /// and the client never chooses the program that runs.
+    #[test]
+    fn the_server_decides_where_a_secret_goes_and_what_runs() {
+        std::env::set_var("MOONKALE_SECRET_E2E_KEY", "sk-test");
+        std::env::remove_var("MOONKALE_LLM_ENDPOINTS");
+        // The built-in endpoint, or none: fine.
+        assert!(server_side(&openai("", "e2e_key")).is_ok());
+        assert!(server_side(&openai("https://api.openai.com/v1/", "e2e_key")).is_ok());
+        // Somewhere else with the secret: refused …
+        let err = server_side(&openai("https://attacker.example/v1", "e2e_key")).unwrap_err();
+        assert!(err.contains("MOONKALE_LLM_ENDPOINTS"), "{err}");
+        // … unless the operator listed it.
+        std::env::set_var(
+            "MOONKALE_LLM_ENDPOINTS",
+            "http://127.0.0.1:8000/, https://llm.lan/",
+        );
+        assert!(server_side(&openai("https://llm.lan/v1", "e2e_key")).is_ok());
+        assert!(server_side(&openai("https://attacker.example/v1", "e2e_key")).is_err());
+        std::env::remove_var("MOONKALE_LLM_ENDPOINTS");
+        // No secret behind the name: nothing to leak, any endpoint (a local server).
+        assert!(server_side(&openai("http://192.168.1.9:8000/v1", "no_such_secret")).is_ok());
+        // Claude Code: the client's binary path is dropped.
+        let mut cc = openai("/tmp/evil", "");
+        cc.provider = "claude-code".into();
+        assert_eq!(server_side(&cc).unwrap().base_url, "");
     }
 }

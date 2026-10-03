@@ -6,7 +6,7 @@ tags: [architecture, security]
 The pieces are described where they were built ([[Remote and Server Modes]], [[LLM and RAG]], [[Extension System]], [[Agent Sessions and Profiles]]); this page puts them side by side. The open findings of the external audit are in [[Audit 2026-09-23]].
 
 > [!warning] State on 2026-10-01
-> Moonkale is a prototype. Eleven of the twenty audit issues are security findings, and all of them are open. Run a server only on loopback, behind SSH, or on a private network (WireGuard, Tailscale) until they are fixed.
+> Moonkale is a prototype. Eleven of the twenty audit issues are security findings; the structural part of #1, #4 and #8 is fixed on the `refactor` branch (Milestone 18 phase 4.5: the server and the user decide, not a client or a folder), the rest are open. Run a server only on loopback, behind SSH, or on a private network (WireGuard, Tailscale) until they are fixed.
 
 ## Boundaries
 
@@ -17,10 +17,13 @@ The pieces are described where they were built ([[Remote and Server Modes]], [[L
 | **Paths** | everything below `MOONKALE_ROOT` (server) or the opened folder (desktop) | canonicalisation in `api::open_any`, relative keys in `project-fs` | symlinks and Windows paths escape it (#5) |
 | **Secrets** | names in settings, values never | resolved from `MOONKALE_SECRET_<NAME>`, the provider's usual variable, or `<config>/moonkale/secrets.json` (mode 600); web clients never see a value | `llm/src/secrets.rs`; an OS keychain (`keyring`) is planned, not built |
 | **The agent** | a model that may propose any tool call | the policy gate: reads allowed, writes ask, destructive always ask; SQL statements classified; every call in the audit log | `llm/src/policy.rs`, `core/src/source/risk.rs` (`Source::classify`, overridable per source since Milestone 18); Cypher is a keyword scan, and LadybugDB runs any statement on its read-only database (#9) |
-| **Extensions (wasm)** | a module with the permissions the user granted | JSON ABI v1: every host call checked against the grant | `ext-host`; grants are taken from the client on the server path, and modules have no fuel or memory limits (#4) |
-| **Extensions (static)** | compiled in; trusted like the rest of the binary | the tier (`core`/`optional`/`opt_in`) only decides what is on | `ui::default_extensions()` |
-| **A folder's own settings** | `.moonkale/settings.json` of a folder you open | merged over the user settings | a cloned repository can set an agent command or enable and grant a wasm module (#8) |
+| **Extensions (wasm)** | a module with the permissions the user granted | JSON ABI v1: every host call checked against the grant; grants come from the user scope only (a folder cannot grant, Milestone 18 phase 4.5); an id belongs to the file that loaded it first, so a folder's module cannot squat a user-installed module's id and grants | `ext-host`; modules still have no fuel or memory limits (rest of #4) |
+| **Extensions (static)** | compiled in; trusted like the rest of the binary | the tier (`core`/`optional`/`opt_in`) only decides what is on; the distribution's Cargo features decide what is in the binary | `moonkale_distribution::default_extensions()` |
+| **A folder's own settings** | `.moonkale/settings.json` of a folder you open — **data, not authority** (Milestone 18 phase 4.5) | `SettingsFile::without_authority` before the merge: no language model or agent, no auto-approved writes, no embeddings switched on, no grants, no shell, no SSH hosts; it may switch things off and deny tools (added to the user's denials). Settings shows what was ignored | `ext-api/src/settings.rs`; test `a_folder_has_no_authority` |
 | **SSH remote folders** | the system `ssh` and the user's keys; Moonkale never sees a password | the server binary uploaded per version, a per-session token typed over stdin with echo off, loopback-only port | `remote/src/session.rs`; temp names and the control socket (#18); the remote server is not checksummed yet |
+
+## The LLM relay (server)
+Since Milestone 18 phase 4.5 the server decides what a client's provider settings may make it do (`api::llm::server_side`, audit #1): the client picks the kind, the model and the secret's *name*; a secret goes only to the provider's built-in endpoint or one the operator listed in `MOONKALE_LLM_ENDPOINTS` (comma-separated URL prefixes), and `claude-code` runs `MOONKALE_CLAUDE_BIN` or `claude` on the server's `PATH`, never a path from the client. A refusal reaches the client as an error, not a silent fallback.
 
 ## Rules that follow from the audit
 1. **The server decides.** Anything that turns into a process, a network request with a secret, or a permission is resolved from the server's own settings, never from a value the client sends (#1, #4, #8). This is the main design input to phase 4 of [[Milestone 18 - Library Refactor]].
