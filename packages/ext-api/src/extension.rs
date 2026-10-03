@@ -55,6 +55,14 @@ pub trait Extension: 'static {
     fn settings(&self, _ws: Workspace, _target: crate::SettingsTarget) -> Option<Element> {
         None
     }
+
+    /// The extension's strings per language (Milestone 18 phase 4.4, for
+    /// spec 030): Fluent sources keyed by language tag, English required.
+    /// Look up with [`crate::i18n::lookup`]. Default: none (the extension's
+    /// text is still Rust literals).
+    fn locales(&self) -> crate::i18n::Locales {
+        &[]
+    }
 }
 
 /// Which settings file a change goes to (the Extensions panel's switch).

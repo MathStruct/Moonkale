@@ -92,3 +92,4 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 ## Milestone 18 phase 4
 - The catalogue left the shell (4.1): `builtin_extensions()` returns the shell's own four (Explorer, Search, Settings, Extensions); `moonkale-distribution` (`packages/distribution`) adds the rest behind one Cargo feature each and is what the apps pass as `extensions`. `ui` no longer depends on any editor, on `api`, or on the drivers; its `server` feature is gone (the apps turn on `api/server` themselves).
 - `history.rs` moved to `packages/extensions/history` (`moonkale-ext-history`, 4.2) with its CSS (`assets/history.css`, was in `shell.css`).
+- Phase 4.4: `assets/styling/theme.css` holds the palette (the only place colours are defined; `tools/check-colors.py` ratchets the rest); `.mk-shell` carries `data-theme` from `Settings.theme`.

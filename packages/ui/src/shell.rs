@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 const SHELL_CSS: Asset = asset!("/assets/styling/shell.css");
+/// The theme tokens (phase 4.4): the one place colours are defined.
+const THEME_CSS: Asset = asset!("/assets/styling/theme.css");
 
 fn default_layout() -> PanelLayout {
     PanelLayout::new(LayoutNode::split(
@@ -520,10 +522,13 @@ pub fn Shell() -> Element {
             .collect()
     };
     let others_count = others.len() as u32;
+    // Only "dark" has tokens so far (theme.css); spec 030 adds the others.
+    let theme = ws.settings.resolved.read().theme.clone();
 
     rsx! {
+        moonkale_ext_api::Stylesheet { href: THEME_CSS }
         moonkale_ext_api::Stylesheet { href: SHELL_CSS }
-        div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, onmounted: start_narrow_watch,
+        div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, "data-theme": "{theme}", onmounted: start_narrow_watch,
             Workbench {
                 rail: rsx! {
                     if !is_narrow {

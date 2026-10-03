@@ -29,6 +29,7 @@ mod command;
 pub mod contrib;
 pub mod document;
 pub mod extension;
+pub mod i18n;
 pub mod keys;
 pub mod manifest;
 pub mod session;

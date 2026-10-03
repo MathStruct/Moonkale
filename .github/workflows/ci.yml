@@ -1,7 +1,7 @@
 name: CI
 
 # Milestone 18, phase 0: the safety net for the library refactor.
-#   lint  — rustfmt, the layering rules (tools/check-deps.py)
+#   lint  — rustfmt, the layering rules (tools/check-deps.py), the colour ratchet (tools/check-colors.py)
 #   test  — cargo test, clippy -D warnings, the web client for wasm32
 #   e2e   — a smoke batch of the browser suites against `dx serve`
 # Tags are built by release.yml, not here.
@@ -38,6 +38,8 @@ jobs:
         run: cargo fmt --all --check
       - name: Layering rules (tools/deps-allow.txt lists today's known violations)
         run: python3 tools/check-deps.py
+      - name: No new hard-coded colours outside the theme (spec 030 prep)
+        run: python3 tools/check-colors.py
 
   test:
     name: test + clippy + wasm check
