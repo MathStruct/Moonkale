@@ -18,7 +18,7 @@ Notes for `moonkale-editor-code` (Milestone 1). Design: [[Code Editor]], [[JS In
 - **No language packages in the bundle** (284 kB: state, view, commands, one-dark). Highlighting will be pushed from Rust as decorations.
 
 ## Cross-window drag
-No handle in the panel any more: the workbench **tab** is the drag (P-045). `ui::Frame` maps a dragged tab id to the document by the node uuid embedded in it.
+No handle in the panel any more: the workbench **tab** is the drag (P-045). `moonkale_shell::Frame` maps a dragged tab id to the document by the node uuid embedded in it.
 
 ## Milestone 3: language server
 - `lsp.rs` — `LspManager` (ROOT signals: sessions per `(language, root)`, a starting set, and `diagnostics: HashMap<uri, Vec<Diagnostic>>`). `ensure(ws, language, root)` spawns the transport through `ws.spawn_lsp()` (desktop: stdio; web: websocket relay), pumps `LspEvent`s into `ws.lsp_status` (status bar) and the diagnostics map, and runs `initialize`. One session per language per folder, shared by every editor.

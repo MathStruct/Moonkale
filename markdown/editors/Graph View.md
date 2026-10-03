@@ -23,7 +23,7 @@ flowchart LR
 | Requirement (from brief) | Mechanism |
 |---|---|
 | GPU-native, fluid at scale | `wgpu`, instanced draws, GPU force layout (compute), LOD for labels/edges |
-| Popup with node/edge content | pick buffer → `fetch(NodeId)` → popup (declarative `ui::Tree` template from a `RendererContribution`, or custom Dioxus for static extensions) |
+| Popup with node/edge content | pick buffer → `fetch(NodeId)` → popup (declarative `moonkale_shell::Tree` template from a `RendererContribution`, or custom Dioxus for static extensions) |
 | Arrow colours / directions | per-edge colour + arrowhead flags in the instance buffer; colour by kind, source, property, or extension style |
 | Subgraphs | `subgraph` module: expand/collapse neighbourhoods (issues `Query::Neighbours`), filters, isolate selection, saved views stored as nodes |
 | 3D | same buffers; perspective camera; z from layout or a property (time, layer); depth-sorted edges, fog |

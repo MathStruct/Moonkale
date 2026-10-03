@@ -4,7 +4,7 @@ tags: [crate-notes, milestone-7]
 ---
 Notes for `moonkale-ext-git` (Milestone 7). Design: [[Version Management]], [[ADR-0012 Two histories]] (git stays authoritative for text).
 
-- **Where git runs**: `WorkspaceConfig::git: Option<GitRun>` — `fn(root, GitRequest) -> Future<GitResponse>`. Desktop passes `cli::run` directly; web passes a server function (`api::git_run`, jailed to `MOONKALE_ROOT`). The panel never knows which.
+- **Where git runs**: `WorkspaceConfig::git: Option<GitRun>` — `fn(root, GitRequest) -> Future<GitResponse>`. Desktop passes `cli::run` directly; web passes a server function (`moonkale_server::git_run`, jailed to `MOONKALE_ROOT`). The panel never knows which.
 - `cli.rs` (feature `cli`, not on wasm32): `git -C <root> …` with `GIT_TERMINAL_PROMPT=0`; `Status` = `status --porcelain=v2 --branch -z --untracked-files=all`; `Diff{path, staged}` (`--cached` for staged; untracked files via `diff --no-index /dev/null <path>`, whose exit code 1 is the normal case); `Stage` = `add -A --`, `Unstage` = `restore --staged --`, `Discard` = `restore --worktree` or `clean -f` for untracked; `Commit`; `Log{limit}` = `log --format=<RS/US separated> --name-only`; `Branches`, `Checkout`. Paths are checked (`..`, absolute) before they reach git. Not-a-repository → `GitResponse::Unavailable`.
 - Types and parsers live in `ext-api::git` (`StatusEntry`, `Commit`, `parse_status`, `parse_log`) so the server function shares them.
 - `panel.rs`: `GitState` (root-scope signals: status, log, open diffs, busy, epoch); `refresh` publishes `Workspace::contrib.file_marks` (path → a `FileMark` from `(index, worktree)` letters) for the Explorer and tabs; the panel refreshes on its own epoch, `fs_epoch`, `graph_epoch` (saves) and source changes. `ChangesPanel`: branch/ahead/behind, commit box (`Ctrl+Enter`), Staged / Changes groups with per-row `+` `−` `✕`, log. `DiffPanel` (`git-diff:<s|w>:<path>` panels in the main tile, closable): coloured unified diff, *Open file*.
@@ -16,4 +16,4 @@ Not yet: push/pull/fetch, branch creation, per-hunk staging, merge-view diffs, b
 ## Milestone 18 phase 4
 - `types.rs` — the request/response types and the parsers, moved here from `ext-api/src/git.rs` (4.2b): `ext-api` knows no git.
 - `GitRunner` — the platform's git as a **service** (`WorkspaceConfig::services`, `ws.service::<GitRunner>()`); the desktop provides the local `cli` runner (or `remote` while connected to a server), the web and the phone `remote`.
-- `server.rs` — the server half (feature `server`, 4.3): `git_run` (`POST /api/git`) runs the CLI inside the jail (`moonkale_server_host::jail_dir`); `remote` is the client-side `GitRunner` over it. Was `api::git_run`.
+- `server.rs` — the server half (feature `server`, 4.3): `git_run` (`POST /api/git`) runs the CLI inside the jail (`moonkale_server_host::jail_dir`); `remote` is the client-side `GitRunner` over it. Was `moonkale_server::git_run`.

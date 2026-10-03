@@ -12,8 +12,8 @@ Concrete recipes for each layer, in the order you'll meet them. Strategy and rat
 ```text
 packages/core/src/graph/node.rs      # #[cfg(test)] mod tests { … }   ← unit tests next to the code
 packages/core/tests/transactions.rs  # integration tests: use the crate as a consumer would
-packages/ui/tests/workbench.rs       # component tests (render to string)
-packages/api/tests/server_fns.rs     # server-function tests
+packages/shell/tests/workbench.rs       # component tests (render to string)
+packages/server/tests/server_fns.rs     # server-function tests
 packages/web/tests/e2e/…             # scripts driving a real browser
 ```
 
@@ -74,14 +74,14 @@ First run writes `snapshots/…snap.new`; `cargo insta review` accepts it; later
 Dioxus components are functions; you can build a `VirtualDom`, run one render, and serialise it with `dioxus-ssr`. This tests structure, conditional rendering and props — not clicks.
 
 ```toml
-# packages/ui/Cargo.toml
+# packages/shell/Cargo.toml
 [dev-dependencies]
 dioxus-ssr = "0.7"
 insta = { version = "1", features = ["yaml"] }
 ```
 
 ```rust
-// packages/ui/tests/workbench.rs
+// packages/shell/tests/workbench.rs
 use dioxus::prelude::*;
 use ui::EditorWorkbench;
 
@@ -119,13 +119,13 @@ Snapshot the HTML for shells and layouts (`insta::assert_snapshot!(html)`) — a
 Server functions are ordinary `async fn`s on the server side. With the `server` feature on, call them directly:
 
 ```toml
-# packages/api/Cargo.toml
+# packages/server/Cargo.toml
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
 ```rust
-// packages/api/tests/server_fns.rs
+// packages/server/tests/server_fns.rs
 #[tokio::test]
 async fn echo_round_trips() {
     let out = api::echo("hi".to_string()).await.unwrap();
@@ -149,7 +149,7 @@ Keep these few; they're slower and mostly guard auth/CORS/error mapping.
 ## 4. Integration tests for sources (real engines, temp files)
 
 ```rust
-// packages/sources-sql/tests/sqlite.rs
+// packages/sources/sql/tests/sqlite.rs
 #[tokio::test]
 async fn foreign_keys_become_edges() {
     let dir = tempfile::tempdir().unwrap();

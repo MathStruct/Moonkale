@@ -43,6 +43,6 @@ The `claude-code` provider reports its readiness (`Provider::status`): `claude -
 - `ext-api/settings.rs`: `AgentProfileFile`, `RemoteFile`/`SavedConnection`, `AgentProfile`, `DEFAULT_AGENT`, `Settings::agent(name)`, the merge (`overlay_llm`).
 - `ext-api/workspace.rs`: `remote_saved/save_remote/forget_remote`, `spawn_program`/`run_in_terminal`, `write_text_at`/`list_at`.
 - `editors/agent/src/panel.rs`: `Chats` (root context), `Session`, `new_session/connect/run_turn/persist/load_saved/restore`; `server_panel.rs`: the profile select feeding `TurnSettings.llm`.
-- `llm/src/provider.rs`: `ProviderStatus`; `claude_code.rs`: `cli_status`; `api/src/llm.rs`: `llm_status`.
-- `ui/src/settings_panel.rs`: `AgentProfileCard`, `ClaudeStatus`; `ui/src/remote_dialog.rs`: the saved-connection rows.
-- Tests: `ext-api` unit tests (merge, default, connections), `project-fs` (`ls`), `llm` (`cli_status` on the mock CLI), `ui/tests/remote_dialog.rs` (harness), E2E `agents.mjs`.
+- `llm/src/provider.rs`: `ProviderStatus`; `claude_code.rs`: `cli_status`; `server/src/llm.rs`: `llm_status`.
+- `shell/src/settings_panel.rs`: `AgentProfileCard`, `ClaudeStatus`; `shell/src/remote_dialog.rs`: the saved-connection rows.
+- Tests: `ext-api` unit tests (merge, default, connections), `project-fs` (`ls`), `llm` (`cli_status` on the mock CLI), `shell/tests/remote_dialog.rs` (harness), E2E `agents.mjs`.

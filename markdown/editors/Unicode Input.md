@@ -20,7 +20,7 @@ Three layers, merged, later ones override or add names:
 
 | layer | file | contents |
 |---|---|---|
-| **built-in** | `packages/ui/assets/unicode/{latex,emoji,lean}.toml` | Julia's `latex_symbols.jl` (≈ 1 500 names, MIT, generated from the W3C `unicode.xml` mapping) and `emoji_symbols.jl` (≈ 1 250), and Lean's `abbreviations.json` (≈ 1 850, Apache-2.0, with `$CURSOR` templates). Converted at build time by a script in `packages/ui/scripts/`, with the licences kept next to the files. Overlaps (both have `\alpha`) are one entry with two provenance tags. |
+| **built-in** | `packages/shell/assets/unicode/{latex,emoji,lean}.toml` | Julia's `latex_symbols.jl` (≈ 1 500 names, MIT, generated from the W3C `unicode.xml` mapping) and `emoji_symbols.jl` (≈ 1 250), and Lean's `abbreviations.json` (≈ 1 850, Apache-2.0, with `$CURSOR` templates). Converted at build time by a script in `packages/shell/scripts/`, with the licences kept next to the files. Overlaps (both have `\alpha`) are one entry with two provenance tags. |
 | **user** | `~/.config/moonkale/unicode.toml` (`MOONKALE_CONFIG_DIR` on the server; `files/` on the phone) | additions and overrides; edited in *Settings → Input* with a small table editor (name, symbol, description) or by hand |
 | **workspace** | `<folder>/.moonkale/unicode.toml` | project-specific names (a paper's notation, a codebase's operators), committed with the folder |
 | **extensions** | `unicode` contribution in the manifest ([[Contribution Points]]): a TOML file in the package, optionally scoped to languages (`languages = ["lean"]`) | a Lean extension brings Lean's table; a chemistry extension brings its own |
@@ -65,7 +65,7 @@ Removing a built-in name: `names = ["-alpha"]` on the same `char` (a leading `-`
 ## Plan (a milestone step, not a spec-sized change)
 1. `ext-api::unicode` table + merge rules + tests (names → char, reverse, overrides, `-name`, templates) and the conversion script for the three source tables (licences kept).
 2. Code editor: the `\` completion source and eager replacement in `packages/js/codemirror`, the Rust side in `editors/code`; E2E: type `\alpha` Tab in a `.jl` file → `α`; `\:ladybug:` → 🐞; `\int` in the dropdown shows both names.
-3. `ui::UnicodeInput` wrapper on palette, search, chat, flow fields, table cells; E2E on the palette.
+3. `moonkale_shell::UnicodeInput` wrapper on palette, search, chat, flow fields, table cells; E2E on the palette.
 4. Milkdown source; hover reverse lookup; *Insert symbol…* command; Settings → Input table.
 5. Extension contribution `unicode` + the Lean/Julia core language extensions ([[Core Languages]]) carrying their scoped tables.
 

@@ -3,7 +3,7 @@ title: "Testing Strategy"
 tags: [testing]
 ---
 > [!note] As practised (checked 2026-10-01)
-> - **129 Rust tests**: unit tests next to the code, integration tests in `tests/` against real SQLite/DuckDB/Turso/redb/RocksDB/HelixDB/LadybugDB files in temp dirs, server-function tests, and **component tests with a `VirtualDom` harness** (`ui/tests/remote_dialog.rs`, `ui/tests/server_dialog.rs`).
+> - **129 Rust tests**: unit tests next to the code, integration tests in `tests/` against real SQLite/DuckDB/Turso/redb/RocksDB/HelixDB/LadybugDB files in temp dirs, server-function tests, and **component tests with a `VirtualDom` harness** (`shell/tests/remote_dialog.rs`, `shell/tests/server_dialog.rs`).
 > - **47 browser suites** (Playwright, `packages/web/tests/e2e/*.mjs`, `run-all.sh`) against `dx serve` of the web build, Chromium and Firefox; two Android suites over the WebView's DevTools socket. Setup and rules: `packages/web/tests/e2e/README.md`.
 > - **Not used** (despite the tables below): `proptest`, `insta`, `cargo nextest`, `testcontainers`, `wasm-bindgen-test`, `vitest`, a `TestHost`/`FakeSource` test utility. The bundles have one unit test (`packages/js/milkdown`, `npm test`).
 > - **CI** (since 2026-10-01, `.github/workflows/ci.yml`, [[Milestone 18 - Implementation Log]]): rustfmt, the layering rules (`tools/check-deps.py`), `cargo test --workspace`, `clippy -D warnings`, a wasm32 check of the web client, and six browser suites (`files rich stores palette shell wiki`) against `dx serve`. The other 41 suites run locally with `run-all.sh`.

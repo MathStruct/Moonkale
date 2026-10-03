@@ -32,7 +32,7 @@ Statement classification comes from the sources: since Milestone 18 the agent as
 Conversations are stored as `Page`-like nodes with `Links` to everything cited. They become part of the knowledge graph — linkable from a wiki page, searchable, and visible in the graph view.
 
 ## External agents
-`api` exposes the tool surface to external agents (Claude Code, IDE agents). **Decided in Milestone 5: MCP** — `api/src/mcp.rs` serves the tool surface at `/mcp` with its own bearer (`MOONKALE_MCP_TOKEN`).
+`api` exposes the tool surface to external agents (Claude Code, IDE agents). **Decided in Milestone 5: MCP** — `server/src/mcp.rs` serves the tool surface at `/mcp` with its own bearer (`MOONKALE_MCP_TOKEN`).
 
 **Claude Code specifically** — both directions (Moonkale as its IDE; Claude Code as a Moonkale agent provider on a subscription, no API key): [[Claude Code Extension]] (plan).
 

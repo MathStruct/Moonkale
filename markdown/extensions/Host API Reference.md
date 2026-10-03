@@ -22,7 +22,7 @@ The `Host` handle is the only door. Every method is capability-checked (`Capabil
 ## UI
 `show_panel(id)`, `open_editor(NodeId, preferred: Option<EditorId>)`, `set_status(text)`, `notify(level, text)`, `ask(Prompt) -> Answer` (confirm / input / pick), `set_context_key(key, value)`.
 
-For wasm panels, `PanelOutput` is a `ui::Tree`:
+For wasm panels, `PanelOutput` is a `moonkale_shell::Tree`:
 `column, row, text, heading, button(label, Action), input(bind), list(items), table(rows), embed(view_id), spacer`. `Action::command(id, args)` or `Action::open(NodeId)`. Diffs are computed by the host.
 
 ## Storage

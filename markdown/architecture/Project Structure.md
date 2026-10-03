@@ -4,81 +4,82 @@ tags: [architecture, rationale]
 ---
 This is the "parallel markdown file" for the Rust skeleton in `packages/`. Every crate exists for one of three reasons: it is a **layer boundary**, a **platform boundary**, or a **swap point**. If a crate is none of those, it should be a module instead.
 
-## Layout (as built, 2026-10-01)
-Lines are Rust lines per crate (`wc -l`); kinds as above. The planned changes to this layout are in [[Milestone 18 - Library Refactor]].
+## Layout (as built, 2026-10-03, after the renames of Milestone 18 phase 6.5)
+Lines are Rust lines per crate; kinds as above. Every move is in the rename table of [[Milestone 18 - Implementation Log]] (phase 6.5).
 
 ```text
 packages/
-├─ web/ (403)  desktop/ (948)  mobile/ (201)   entrypoints: platform services + the WorkspaceConfig closures
-├─ ui/ (4 981)                 the shell: workbench, rail, menus, palette, Explorer, Search, Settings, Extensions, History panels
-│                              and default_extensions() — the catalogue (see "Where reality differs")
-├─ api/ (2 811)                server: fullstack functions, auth, MCP, presence hub, relays for git/LSP/terminal/wasm/LLM; RemoteSource
+├─ web/ (536)  desktop/ (1 018)  mobile/ (281)   apps: platform services + the WorkspaceConfig closures
+├─ distribution/ (49)          moonkale-distribution  which extensions an app ships: one Cargo feature each           [assembly]
+├─ shell/ (4 755)              moonkale-shell         the workbench: rail, menus, palette, Explorer, Search, Settings, Extensions; theme.css
+├─ server/ (3 248)             moonkale-server        the server host: sources, auth, MCP, presence hub, relays (terminal/LSP/wasm/LLM), agent sessions, the folder host's store; the client side (RemoteSource, client::*)
+├─ server-host/ (39)           moonkale-server-host   what every server half shares: the jail                       [layer]
 │
-├─ core/ (1 593)               moonkale-core          ids, Node/Edge, Source, Query, Transaction, EntityLog     [layer]
-├─ ext-api/ (≈ 6 300)          moonkale-ext-api       Extension trait, contributions, Workspace (workspace/: one module per area), settings, flow model, wiki  [layer]
-├─ ext-host/ (575)             moonkale-ext-host      wasm runtime (wasmtime)                                  [platform]
-├─ ext-abi/                    moonkale-ext-abi       the wasm ABI's JSON types (Milestone 18)                  [layer]
-├─ state/                      moonkale-state         the store for Moonkale's own state: the interface (M18)   [layer]
-├─ state-stores/               moonkale-state-stores  its engines: SQLite (the app's), redb, Turso, RocksDB, Helix [native]
+├─ core/ (2 055)               moonkale-core          ids, Node/Edge (+ properties), Source, Query, Transaction, EntityLog   [library]
+├─ ext-api/ (7 709)            moonkale-ext-api       the contract: Extension, contributions, Workspace, settings, i18n; CHANGELOG.md   [library]
+├─ graph-render/ (2 643)       moonkale-graph-render  layout + camera + wgpu renderer; `scene` (graph in, events out); no Moonkale deps   [library]
+├─ ext-abi/ (108)              moonkale-ext-abi       the wasm ABI's JSON types                                       [layer]
+├─ ext-host/ (514)             moonkale-ext-host      wasm runtime (wasmtime)                                        [platform]
+├─ state/ (758)                moonkale-state         the store for Moonkale's own state: the interface               [layer]
+├─ state-stores/ (1 152)       moonkale-state-stores  its engines: SQLite (the app's), redb, Turso, RocksDB, Helix     [native]
+├─ code-view/ (1 403)          moonkale-code-view     the CodeMirror component + LSP manager (used by Code and Markdown) [component]
 │
-├─ sources/ (≈ 60)             moonkale-sources       the source registry                                     [layer]
-├─ sources-sql/ (1 525)        moonkale-sources-sql   SQLite, DuckDB (+ data folders), Turso; statement classifier   [native]
-├─ sources-graph/ (≈ 1 360)   moonkale-sources-graph LadybugDB (Linux), HelixDB embedded                [native]
-├─ sources-kv/ (≈ 1 110)       moonkale-sources-kv    redb, RocksDB (KvSource, `kv` dialect)                 [native]
-├─ project-fs/ (1 423)         moonkale-project-fs    folders, ignore rules, notify watcher, trash            [platform]
-├─ index/ (2 254)              moonkale-index         IndexSource: wiki-links, tree-sitter symbols, BM25 + embeddings  [layer]
-├─ trace/ (537)                moonkale-trace         stack traces → Frame nodes (TraceSource)                [layer]
-├─ typst/ (187)                moonkale-typst         Typst → SVG                                              [layer]
-│
-├─ llm/ (3 040)                moonkale-llm           providers (Claude Code, Anthropic, OpenAI-compatible, Ollama, mock), agent loop, tools, policy, secrets
-├─ llm-types/                  moonkale-llm-types     agent data: messages, Provider trait, sessions, policy classes (M18)
-├─ lsp/ (862)                  moonkale-lsp           protocol client, any transport                          [layer]
-├─ lsp-local/ (255)            moonkale-lsp-local     spawn + discover servers                                [desktop/server]
-├─ terminal/ (168)             moonkale-terminal      session model, links                                    [layer]
-├─ terminal-pty/ (198)         moonkale-terminal-pty  local PTY                                               [desktop/server]
-├─ remote/ (965)               moonkale-remote        folder over ssh → own server                            [desktop]
+├─ sources/
+│  ├─ registry/ (69)           moonkale-sources       the source registry                                            [layer]
+│  ├─ sql/ (1 484)             moonkale-sources-sql   SQLite, DuckDB (+ data folders), Turso                         [native]
+│  ├─ graph/ (1 397)           moonkale-sources-graph LadybugDB (Linux), HelixDB embedded                            [native]
+│  ├─ kv/ (1 143)              moonkale-sources-kv    redb, RocksDB                                                  [native]
+│  └─ project-fs/ (1 424)      moonkale-project-fs    folders, ignore rules, watcher, trash                          [platform]
+├─ services/
+│  ├─ llm/ (2 751)             moonkale-llm           providers, agent loop, tools, policy, secrets
+│  ├─ llm-types/ (320)         moonkale-llm-types     agent data: messages, Provider trait, sessions
+│  ├─ lsp/ (862)               moonkale-lsp           protocol client, any transport                                 [layer]
+│  ├─ lsp-local/ (255)         moonkale-lsp-local     spawn + discover servers                                       [desktop/server]
+│  ├─ terminal/ (168)          moonkale-terminal      session model, links                                           [layer]
+│  ├─ terminal-pty/ (198)      moonkale-terminal-pty  local PTY                                                      [desktop/server]
+│  ├─ remote/ (971)            moonkale-remote        folder over ssh → own server                                   [desktop]
+│  ├─ typst/ (187)             moonkale-typst         Typst → SVG
+│  ├─ index/ (2 321)           moonkale-index         IndexSource: wiki-links, symbols, BM25 + embeddings
+│  └─ trace/ (539)             moonkale-trace         stack traces → Frame nodes
 │
 ├─ editors/
-│  ├─ code/ (1 505)            CodeMirror backend, LSP features                        [swap point]
-│  ├─ code-native/ (313)       dioxus-code-editor (Rust, opt-in)                       [swap point]
-│  ├─ markdown/ (987)          Milkdown rich view, Links panel, Typst preview          [swap point]
-│  ├─ table/ (242)             query + grid
-│  ├─ image/ (359)             image viewer
-│  ├─ graph/ (930)             the graph panel (Dioxus host of graph-render)
-│  ├─ graph-render/ (2 340)    wgpu renderer + Barnes–Hut layout, built to its own wasm module; no moonkale deps
-│  ├─ flow/ (596)              dioxus-flow canvas
-│  ├─ terminal/ (441)          xterm view                                             [swap point]
-│  ├─ terminal-native/ (634)   vt100 + Dioxus (Rust, opt-in)                           [swap point]
-│  └─ agent/ (1 765)           the Agent panel, local and server sessions
+│  ├─ code/ (115)              the Code extension (over code-view)                    [swap point]
+│  ├─ code-native/ (302)       dioxus-code-editor (Rust, opt-in)                      [swap point]
+│  ├─ markdown/ (1 028)        Milkdown rich view, Links panel, Typst preview; server half: Typst
+│  ├─ table/ (245)  image/ (362)  graph/ (933)  flow/ (601)
+│  ├─ terminal/ (439)          xterm view                                             [swap point]
+│  ├─ terminal-native/ (630)   vt100 + Dioxus (Rust, opt-in)                          [swap point]
+│  └─ agent/ (2 020)           the Agent panel, local and server sessions
 ├─ extensions/
-│  ├─ git/ (1 051)             Changes/diff/commit/history graph over the git CLI
-│  ├─ lux/ (583)               Lux.jl block library for the flow editor (opt-in; to move to moonkale-julia)
+│  ├─ git/ (1 390)             Changes/diff/commit/history graph; server half: git_run
+│  ├─ history/ (264)           the History panel
+│  ├─ lux/ (583)               Lux.jl block library (→ MathStruct/moonkale-julia, phase 6.4)
 │  └─ wordcount/ (164)         example wasm module (JSON ABI v1)
 │
 └─ js/                         TypeScript, one dependency per folder: codemirror/ milkdown/ xterm/ wasm-host/
-                               each: src/, PROTOCOL.md, built bundle committed into the Rust crate's assets/
 
 packaging/                     PKGBUILDs, .desktop entry, Debian, release scripts (see markdown/packaging/)
 flake.nix                      Nix package + dev shell
-tools/check-deps.py            the layering rules below, checked in CI (known violations: tools/deps-allow.txt)
+tools/check-deps.py            the layering rules below, checked in CI (no known violations since phase 4.3)
+tools/check-colors.py          hard-coded colours outside theme.css may only shrink (phase 4.4)
 .cargo/config.toml             LBUG_LOCALIZE_BUNDLED_SYMBOLS (P-144)
 ```
+
+The apps stay `packages/{web,desktop,mobile}` — not `apps/` as the plan proposed: their paths are in the packaging scripts, the release workflow, the Nix flake, the PKGBUILD, the Android build and the E2E harness, and a release-only breakage would show only at the next tag (phase 6.5, decided then).
 
 ## Crate notes
 Implementation detail lives **next to the code**, one `<crate>.md` beside each `Cargo.toml` (decided 2026-10-01). They are part of the Obsidian vault (the vault root is the repository root), so in Obsidian they open as notes; the website does not publish `packages/`, so the links below go to GitHub. Each crate note starts with a link back to its design note here; update it in the same change as the crate. The JS packages' message protocols are in `packages/js/*/PROTOCOL.md`.
 
 | crate | note |
 |---|---|
-| `packages/api` | [api.md](https://github.com/MathStruct/Moonkale/blob/master/packages/api/api.md) |
-| `packages/code-view` | [editor-code.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code/editor-code.md) (phase 4.1 section) |
+| `packages/code-view` | in [editor-code.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code/editor-code.md) (phase 4.1) |
 | `packages/core` | [core.md](https://github.com/MathStruct/Moonkale/blob/master/packages/core/core.md) |
-| `packages/distribution` | [distribution.md](https://github.com/MathStruct/Moonkale/blob/master/packages/distribution/distribution.md) |
 | `packages/desktop` | [desktop.md](https://github.com/MathStruct/Moonkale/blob/master/packages/desktop/desktop.md) |
+| `packages/distribution` | [distribution.md](https://github.com/MathStruct/Moonkale/blob/master/packages/distribution/distribution.md) |
 | `packages/editors/agent` | [editor-agent.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/agent/editor-agent.md) |
 | `packages/editors/code-native` | [editor-code-native.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code-native/editor-code-native.md) |
 | `packages/editors/code` | [editor-code.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code/editor-code.md) |
 | `packages/editors/flow` | [flow.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/flow/flow.md) |
-| `packages/editors/graph-render` | [graph-render.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/graph-render/graph-render.md) |
 | `packages/editors/graph` | [graph.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/graph/graph.md) |
 | `packages/editors/image` | [image.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/image/image.md) |
 | `packages/editors/markdown` | [markdown.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/markdown/markdown.md) |
@@ -91,25 +92,29 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 | `packages/extensions/history` | [history.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/history/history.md) |
 | `packages/extensions/lux` | [lux.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/lux/lux.md) |
 | `packages/extensions/wordcount` | [wordcount.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/wordcount/wordcount.md) |
-| `packages/index` | [index.md](https://github.com/MathStruct/Moonkale/blob/master/packages/index/index.md) |
+| `packages/graph-render` | [graph-render.md](https://github.com/MathStruct/Moonkale/blob/master/packages/graph-render/graph-render.md) |
 | `packages/js` | [README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/js/README.md) |
-| `packages/llm` | [llm.md](https://github.com/MathStruct/Moonkale/blob/master/packages/llm/llm.md) |
-| `packages/lsp-local` | [lsp-local.md](https://github.com/MathStruct/Moonkale/blob/master/packages/lsp-local/lsp-local.md) |
-| `packages/lsp` | [lsp.md](https://github.com/MathStruct/Moonkale/blob/master/packages/lsp/lsp.md) |
 | `packages/mobile` | [README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/mobile/README.md) |
-| `packages/project-fs` | [project-fs.md](https://github.com/MathStruct/Moonkale/blob/master/packages/project-fs/project-fs.md) |
-| `packages/remote` | [remote.md](https://github.com/MathStruct/Moonkale/blob/master/packages/remote/remote.md) |
-| `packages/sources-graph` | [sources-graph.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-graph/sources-graph.md) |
-| `packages/sources-kv` | [sources-kv.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-kv/sources-kv.md) |
-| `packages/sources-sql` | [sources-sql.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources-sql/sources-sql.md) |
-| `packages/state` | [state.md](https://github.com/MathStruct/Moonkale/blob/master/packages/state/state.md) |
+| `packages/server-host` | [server-host.md](https://github.com/MathStruct/Moonkale/blob/master/packages/server-host/server-host.md) |
+| `packages/server` | [server.md](https://github.com/MathStruct/Moonkale/blob/master/packages/server/server.md) |
+| `packages/services/index` | [index.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/index/index.md) |
+| `packages/services/llm` | [llm.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/llm/llm.md) |
+| `packages/services/lsp-local` | [lsp-local.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/lsp-local/lsp-local.md) |
+| `packages/services/lsp` | [lsp.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/lsp/lsp.md) |
+| `packages/services/remote` | [remote.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/remote/remote.md) |
+| `packages/services/terminal-pty` | [terminal-pty.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/terminal-pty/terminal-pty.md) |
+| `packages/services/terminal` | [terminal.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/terminal/terminal.md) |
+| `packages/services/trace` | [trace.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/trace/trace.md) |
+| `packages/services/typst` | [typst.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/typst/typst.md) |
+| `packages/shell` | [shell.md](https://github.com/MathStruct/Moonkale/blob/master/packages/shell/shell.md) |
+| `packages/sources/graph` | [sources-graph.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/graph/sources-graph.md) |
+| `packages/sources/kv` | [sources-kv.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/kv/sources-kv.md) |
+| `packages/sources/project-fs` | [project-fs.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/project-fs/project-fs.md) |
+| `packages/sources/registry` | [sources.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/registry/sources.md) |
+| `packages/sources/sql` | [sources-sql.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/sql/sources-sql.md) |
 | `packages/state-stores` | [state-stores.md](https://github.com/MathStruct/Moonkale/blob/master/packages/state-stores/state-stores.md) |
-| `packages/sources` | [sources.md](https://github.com/MathStruct/Moonkale/blob/master/packages/sources/sources.md) |
-| `packages/terminal-pty` | [terminal-pty.md](https://github.com/MathStruct/Moonkale/blob/master/packages/terminal-pty/terminal-pty.md) |
-| `packages/terminal` | [terminal.md](https://github.com/MathStruct/Moonkale/blob/master/packages/terminal/terminal.md) |
-| `packages/trace` | [trace.md](https://github.com/MathStruct/Moonkale/blob/master/packages/trace/trace.md) |
-| `packages/typst` | [typst.md](https://github.com/MathStruct/Moonkale/blob/master/packages/typst/typst.md) |
-| `packages/ui` | [ui.md](https://github.com/MathStruct/Moonkale/blob/master/packages/ui/ui.md) |
+| `packages/state` | [state.md](https://github.com/MathStruct/Moonkale/blob/master/packages/state/state.md) |
+| `packages/web` | [README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/web/README.md) |
 | `packages/web/tests/e2e` | [README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/web/tests/e2e/README.md) |
 
 ## Where reality differs from the rules below
@@ -156,11 +161,11 @@ The same native crates (`sources-*`, `lsp-local`, `terminal-pty`, `index`) run i
 Workspace crates are `moonkale-*` to avoid collisions (`core` is a reserved crate name; `index`, `terminal`, `lsp` are taken on crates.io). Directories drop the prefix for brevity. The pre-existing template crates (`ui`, `api`, `web`, `desktop`, `mobile`) keep their names.
 
 ## What is *not* a crate (yet)
-- **Collaboration / CRDT**: [[ADR-0009 Patches not snapshots]] keeps the door open; no crate until it's needed. Presence lives in `api::presence` + `ext-api::presence`.
+- **Collaboration / CRDT**: [[ADR-0009 Patches not snapshots]] keeps the door open; no crate until it's needed. Presence lives in `moonkale_server::presence` + `ext-api::presence`.
 - **Settings / config**: typed `Settings` in `ext-api::settings` with user and workspace scopes; stored per platform (built in Milestone 5). One store for all internal state is proposed: [[Internal State]].
-- **Auth** for the server: `api::auth` (token, rate limit, bind guard).
+- **Auth** for the server: `moonkale_server::auth` (token, rate limit, bind guard).
 - **Search UI**: a panel in `ui` over `index`.
 - **Git**: not a `vcs-git` crate as first planned, but the `extensions/git` extension over the `git` CLI.
 
 ## Reading order for a new contributor
-`core/src/lib.rs` → `core/src/graph/node.rs` → `core/src/source/mod.rs` (the `Source` trait) → `ext-api/src/extension.rs` (the `Extension` trait) → `ext-api/src/workspace.rs` (the host handle; long) → `ui/src/lib.rs` (`default_extensions`) → one editor's `extension.rs` and `panel.rs` → `editors/code/src/backend/mod.rs` (the JS swap point). Each crate's `<crate>.md` next to its `Cargo.toml` has the implementation notes.
+`core/src/lib.rs` → `core/src/graph/node.rs` → `core/src/source/mod.rs` (the `Source` trait) → `ext-api/src/extension.rs` (the `Extension` trait) → `ext-api/src/workspace.rs` (the host handle; long) → `shell/src/lib.rs` (`default_extensions`) → one editor's `extension.rs` and `panel.rs` → `editors/code/src/backend/mod.rs` (the JS swap point). Each crate's `<crate>.md` next to its `Cargo.toml` has the implementation notes.

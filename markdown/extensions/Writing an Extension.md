@@ -5,7 +5,7 @@ tags: [extensions, guide]
 Moonkale is extension-driven: the built-in editors are extensions. This guide takes you from an empty folder to a panel, a command, a language and a data source. Reference material: [[Manifest Reference]], [[Contribution Points]], [[Host API Reference]], [[Publishing and Platforms]].
 
 > [!warning] Two halves — read which one you need
-> **Part A** is how to write an extension **today**, against `moonkale-ext-api` as tagged `lib-v1` (Milestone 18 phase 6.3, 2026-10-03; what changed per tag: `packages/ext-api/CHANGELOG.md`). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `ui::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
+> **Part A** is how to write an extension **today**, against `moonkale-ext-api` as tagged `lib-v1` (Milestone 18 phase 6.3, 2026-10-03; what changed per tag: `packages/ext-api/CHANGELOG.md`). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `moonkale_shell::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
 
 # Part A — writing an extension today
 
@@ -112,7 +112,7 @@ Two kinds:
 | kind | runs as | can render | platforms | when to choose |
 |---|---|---|---|---|
 | `static` | Rust crate linked into the binary | full Dioxus `Element` | all | first-party editors, anything needing wgpu or raw Dioxus |
-| `wasm` | WASM component loaded at runtime | declarative `ui::Tree` | desktop, server, web (Worker) | everything distributable |
+| `wasm` | WASM component loaded at runtime | declarative `moonkale_shell::Tree` | desktop, server, web (Worker) | everything distributable |
 
 Both implement the same `Extension` trait against the same `Host`.
 
