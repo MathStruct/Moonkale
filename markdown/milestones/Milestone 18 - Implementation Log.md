@@ -155,3 +155,8 @@ Next: phase 5 is done for the state that exists today; a persisted index (graph,
 | — | Checks (phase 4) | fmt ✅ · layering **0** ✅ · colours 356 (ceiling) ✅ · clippy ✅ (also `web`/`api --features server`) · wasm32 ✅ · minimum distribution ✅ · **155 tests**, 5 ignored ✅ (+ server-feature and wasmtime tests) · browser suites **42 of 42** (41 in the batch; `settings` rewritten for 4.5 and passing) | |
 | — | Layering | **0** known violations: `api` no longer depends on the git extension. `tools/deps-allow.txt` is empty | |
 
+## Phase 6 — Library surface (2026-10-03)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 6.1 | **`moonkale-graph-render` standalone** | `scene::Scene` — graph in, events out, no browser: layout, fit, hit-testing, hover/click as `scene::Event`, which serializes to the wasm module's own JSON; `examples/headless.rs` lays out a factor graph; `README.md` for outside users (git tag) | depends on no Moonkale crate (it never did); doc test + 2 unit tests |

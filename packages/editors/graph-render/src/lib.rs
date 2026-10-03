@@ -8,7 +8,10 @@
 //! is missing) and reports hover/click events back.
 //!
 //! Layout and hit-testing are plain Rust (`graph`, `layout`, `camera`) and
-//! are unit-tested natively; only `web` touches the browser.
+//! are unit-tested natively; only `web` touches the browser. [`scene`] is
+//! the Rust API around them — graph in, events out — for hosts other than
+//! the page (Milestone 18 phase 6.1; see `README.md` and
+//! `examples/headless.rs`). The crate depends on no Moonkale crate.
 //!
 //! Build: `packages/editors/graph-render/build.sh` → `../graph/assets/`.
 
@@ -16,6 +19,7 @@ pub mod camera;
 pub mod graph;
 pub mod layout;
 pub mod quadtree;
+pub mod scene;
 
 #[cfg(target_arch = "wasm32")]
 pub mod render;
