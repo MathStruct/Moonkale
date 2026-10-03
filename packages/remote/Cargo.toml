@@ -8,7 +8,7 @@ description = "Desktop only: opens a folder on another machine the way Zed does 
 [dependencies]
 moonkale-terminal = { workspace = true }
 moonkale-terminal-pty = { workspace = true }
-api = { workspace = true }
+moonkale-server = { workspace = true }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 futures-executor = "0.3"

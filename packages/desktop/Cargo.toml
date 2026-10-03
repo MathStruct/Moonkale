@@ -36,7 +36,7 @@ moonkale-typst = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-lsp-local = { workspace = true }
 moonkale-llm = { workspace = true, features = ["http", "claude-code"] }
-api = { workspace = true }
+moonkale-server = { workspace = true }
 moonkale-remote = { workspace = true }
 moonkale-ext-host = { workspace = true, features = ["wasmtime"] }
 moonkale-ext-git = { workspace = true, features = ["cli"] }
@@ -50,7 +50,7 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 [features]
 default = []
 desktop = ["dioxus/desktop"]
-server = ["dioxus/server", "api/server", "moonkale-distribution/server"]
+server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]

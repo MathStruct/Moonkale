@@ -8,7 +8,7 @@ members = [
     # Shell + server
     "packages/shell",
     "packages/distribution",
-    "packages/api",
+    "packages/server",
     "packages/server-host",
     # Foundation
     "packages/core",
@@ -67,7 +67,7 @@ dioxus-workbench = { version = "0.1.0" }
 moonkale-shell = { path = "packages/shell" }
 moonkale-distribution = { path = "packages/distribution" }
 moonkale-ext-history = { path = "packages/extensions/history" }
-api = { path = "packages/api" }
+moonkale-server = { path = "packages/server" }
 moonkale-server-host = { path = "packages/server-host" }
 moonkale-core = { path = "packages/core" }
 moonkale-ext-api = { path = "packages/ext-api" }

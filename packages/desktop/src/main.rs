@@ -25,7 +25,7 @@ fn main() {
     // Milestone 11: server functions always go to a loopback relay of our
     // own (dioxus's server URL can be set only once, before launch — P-098);
     // the relay pipes to the remote that is active, if any.
-    match api::relay::install() {
+    match moonkale_server::relay::install() {
         Ok(url) => dioxus::fullstack::set_server_url(url.leak()),
         Err(e) => eprintln!("moonkale: client relay not started ({e}); remote folders are off"),
     }
@@ -33,7 +33,7 @@ fn main() {
     // desktop a client of that Moonkale server from the start.
     if let Ok(url) = std::env::var("MOONKALE_REMOTE") {
         let token = std::env::var("MOONKALE_TOKEN").ok();
-        api::client::connect(&url, token.as_deref(), &url);
+        moonkale_server::client::connect(&url, token.as_deref(), &url);
         eprintln!("moonkale: remote mode — sources, terminal, LSP and git on {url}");
     }
     #[cfg(all(feature = "desktop", target_os = "linux"))]
@@ -86,12 +86,12 @@ fn registry() -> &'static SourceRegistry {
 /// and register both process-wide. A `.sqlite`/`.db` file or a
 /// `.lbug`/`.kuzu` database opens as that database instead.
 /// Milestone 11: when the desktop is connected to a Moonkale server
-/// (`api::client::active()`), sources, terminal, LSP, git, Typst and wasm
+/// (`moonkale_server::client::active()`), sources, terminal, LSP, git, Typst and wasm
 /// extensions go to that server; otherwise everything is local. The LLM
 /// provider is always local (keys stay on this machine).
 fn open_folder(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
-    if api::client::active().is_some() {
-        return api::client::open_folder(path, options);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::open_folder(path, options);
     }
     open_local(path, options)
 }
@@ -151,8 +151,8 @@ async fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceErro
 
 /// Another window opened it: take the shared instance from the registry.
 fn attach_source(descriptor: SourceDescriptor) -> AttachFuture {
-    if api::client::active().is_some() {
-        return api::client::attach_source(descriptor);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::attach_source(descriptor);
     }
     attach_local(descriptor)
 }
@@ -255,11 +255,11 @@ fn ssh_hosts_in(text: &str) -> Vec<String> {
 fn server_client() -> moonkale_shell::ServerClient {
     moonkale_shell::ServerClient {
         connect: |url, token| {
-            api::client::connect(&url, token.as_deref(), &url);
+            moonkale_server::client::connect(&url, token.as_deref(), &url);
             Ok(())
         },
-        disconnect: api::client::disconnect,
-        active: || api::client::active().map(|r| r.label),
+        disconnect: moonkale_server::client::disconnect,
+        active: || moonkale_server::client::active().map(|r| r.label),
     }
 }
 
@@ -297,8 +297,8 @@ fn spawn_terminal(
     cols: u16,
     rows: u16,
 ) -> moonkale_terminal::SpawnTerminalFuture {
-    if api::client::active().is_some() {
-        return api::client::spawn_terminal(cwd, cols, rows);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::spawn_terminal(cwd, cols, rows);
     }
     Box::pin(async move {
         moonkale_terminal_pty::PtyBackend::spawn(cwd.as_deref(), None, cols, rows)
@@ -325,7 +325,7 @@ fn compile_typst(
     main_rel: String,
     text: String,
 ) -> moonkale_shell::CompileTypstFuture {
-    if api::client::active().is_some() {
+    if moonkale_server::client::active().is_some() {
         return moonkale_editor_markdown::remote_typst(root, main_rel, text);
     }
     Box::pin(async move {
@@ -342,8 +342,8 @@ fn compile_typst(
 
 /// Language servers run locally over stdio — or on the server.
 fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
-    if api::client::active().is_some() {
-        return api::client::spawn_lsp(language, root);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::spawn_lsp(language, root);
     }
     Box::pin(async move {
         let spec = moonkale_lsp_local::discover::find(&language).ok_or_else(|| {
@@ -438,7 +438,7 @@ fn git_local(
     root: String,
     req: moonkale_ext_git::GitRequest,
 ) -> moonkale_shell::SettingsFuture<moonkale_ext_git::GitResponse> {
-    if api::client::active().is_some() {
+    if moonkale_server::client::active().is_some() {
         return moonkale_ext_git::remote(root, req);
     }
     Box::pin(async move { moonkale_ext_git::cli::run(std::path::Path::new(&root), req).await })
@@ -469,8 +469,8 @@ mod wasm_ext {
 
     /// Server-side modules when connected (Milestone 11), local ones otherwise.
     pub fn list_any(folder: Option<String>) -> moonkale_shell::SettingsFuture<Vec<WasmManifest>> {
-        if api::client::active().is_some() {
-            return api::client::wasm_list(folder);
+        if moonkale_server::client::active().is_some() {
+            return moonkale_server::client::wasm_list(folder);
         }
         list(folder)
     }
@@ -481,8 +481,8 @@ mod wasm_ext {
         args: serde_json::Value,
         granted: Vec<String>,
     ) -> moonkale_shell::SettingsFuture<String> {
-        if api::client::active().is_some() {
-            return api::client::wasm_run(ext, command, args, granted);
+        if moonkale_server::client::active().is_some() {
+            return moonkale_server::client::wasm_run(ext, command, args, granted);
         }
         run(ext, command, args, granted)
     }
@@ -730,7 +730,7 @@ fn workspace_config() -> WorkspaceConfig {
             state,
             // The folder's host keeps its entity log: this store for local
             // folders, the server's while connected (phase 5.10).
-            host: state.map(|_| api::client::host_state_routed()),
+            host: state.map(|_| moonkale_server::client::host_state_routed()),
             // The user's settings too (phase 5.18): `settings.json` is
             // imported once, then only the store is written.
             user_settings_in_state: true,
@@ -742,7 +742,9 @@ fn workspace_config() -> WorkspaceConfig {
                 hosts: ssh_hosts,
                 at_start: ssh_at_start,
             }),
-            agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)),
+            agent_sessions: Some(moonkale_server::client::agent_sessions(
+                moonkale_server::client::agent_available,
+            )),
             server: Some(server_client()),
         },
         runtimes: moonkale_shell::Runtimes {

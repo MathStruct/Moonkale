@@ -13,7 +13,7 @@
 //! 2. When the script says the binary is missing, a second `ssh -S <socket>`
 //!    (multiplexed: no second prompt) streams it from this machine into
 //!    `~/.local/share/moonkale/server/<version>/` on the host.
-//! 3. When the server answers on the forwarded port, `api::client::connect`
+//! 3. When the server answers on the forwarded port, `moonkale_server::client::connect`
 //!    makes it this desktop's server; closing the session kills the master,
 //!    which ends the forward and the remote server.
 //!

@@ -7,7 +7,7 @@
 //! Transport is a trait ([`transport::LspTransport`]) carrying JSON-RPC
 //! message *strings*; framing belongs to the transport. Implementations:
 //! `moonkale-lsp-local::StdioTransport` (desktop/server) and
-//! `api::RemoteLsp` (websocket, web). The session is single-threaded
+//! `moonkale_server::RemoteLsp` (websocket, web). The session is single-threaded
 //! (`Rc<RefCell<_>>`), so it runs unchanged inside the browser.
 //!
 //! Milestone 3: full-document sync, diagnostics, hover, definition.

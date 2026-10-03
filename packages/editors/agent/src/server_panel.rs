@@ -1,5 +1,5 @@
 //! The Agent panel when the sources live on a server (Milestone 12): the
-//! turn runs there (`api::agent_sessions`) and keeps running with no
+//! turn runs there (`moonkale_server::agent_sessions`) and keeps running with no
 //! client attached; this panel sends, polls the transcript, answers
 //! approvals, and lists the folder's sessions so a later client — the
 //! phone — picks up where things stand.

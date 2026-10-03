@@ -11,7 +11,7 @@ moonkale-shell = { workspace = true }
 moonkale-distribution = { workspace = true }
 moonkale-editor-markdown = { workspace = true }
 moonkale-ext-git = { workspace = true }
-api = { workspace = true }
+moonkale-server = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-llm = { workspace = true }
 moonkale-ext-host = { workspace = true }
@@ -36,4 +36,4 @@ web-sys = { version = "0.3", features = ["Window", "Storage"] }
 [features]
 default = []
 web = ["dioxus/web"]
-server = ["dioxus/server", "api/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio", "moonkale-distribution/server"]
+server = ["dioxus/server", "moonkale-server/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio", "moonkale-distribution/server"]

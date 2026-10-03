@@ -159,44 +159,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "api"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "dioxus",
- "futures-channel",
- "futures-util",
- "getrandom 0.3.4",
- "http",
- "moonkale-core",
- "moonkale-ext-api",
- "moonkale-ext-host",
- "moonkale-index",
- "moonkale-llm",
- "moonkale-lsp",
- "moonkale-lsp-local",
- "moonkale-project-fs",
- "moonkale-server-host",
- "moonkale-sources",
- "moonkale-sources-graph",
- "moonkale-sources-kv",
- "moonkale-sources-sql",
- "moonkale-state",
- "moonkale-state-stores",
- "moonkale-terminal",
- "moonkale-terminal-pty",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-rustls",
- "tracing",
- "uuid",
- "webpki-roots",
-]
-
-[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2727,7 +2689,6 @@ dependencies = [
 name = "desktop"
 version = "0.1.0"
 dependencies = [
- "api",
  "dioxus",
  "futures-channel",
  "futures-util",
@@ -2743,6 +2704,7 @@ dependencies = [
  "moonkale-lsp-local",
  "moonkale-project-fs",
  "moonkale-remote",
+ "moonkale-server",
  "moonkale-shell",
  "moonkale-sources",
  "moonkale-sources-graph",
@@ -6927,13 +6889,13 @@ dependencies = [
 name = "mobile"
 version = "0.1.0"
 dependencies = [
- "api",
  "dioxus",
  "moonkale-core",
  "moonkale-distribution",
  "moonkale-ext-git",
  "moonkale-index",
  "moonkale-project-fs",
+ "moonkale-server",
  "moonkale-shell",
  "moonkale-sources-graph",
  "moonkale-sources-kv",
@@ -7315,7 +7277,6 @@ dependencies = [
 name = "moonkale-remote"
 version = "0.1.0"
 dependencies = [
- "api",
  "base64 0.22.1",
  "dioxus",
  "futures-channel",
@@ -7323,11 +7284,50 @@ dependencies = [
  "futures-util",
  "getrandom 0.3.4",
  "moonkale-core",
+ "moonkale-server",
  "moonkale-terminal",
  "moonkale-terminal-pty",
  "reqwest 0.12.28",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "moonkale-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "dioxus",
+ "futures-channel",
+ "futures-util",
+ "getrandom 0.3.4",
+ "http",
+ "moonkale-core",
+ "moonkale-ext-api",
+ "moonkale-ext-host",
+ "moonkale-index",
+ "moonkale-llm",
+ "moonkale-lsp",
+ "moonkale-lsp-local",
+ "moonkale-project-fs",
+ "moonkale-server-host",
+ "moonkale-sources",
+ "moonkale-sources-graph",
+ "moonkale-sources-kv",
+ "moonkale-sources-sql",
+ "moonkale-state",
+ "moonkale-state-stores",
+ "moonkale-terminal",
+ "moonkale-terminal-pty",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+ "uuid",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -13158,7 +13158,6 @@ dependencies = [
 name = "web"
 version = "0.1.0"
 dependencies = [
- "api",
  "axum",
  "axum-server",
  "dioxus",
@@ -13168,6 +13167,7 @@ dependencies = [
  "moonkale-ext-git",
  "moonkale-ext-host",
  "moonkale-llm",
+ "moonkale-server",
  "moonkale-shell",
  "moonkale-sources-graph",
  "moonkale-sources-kv",

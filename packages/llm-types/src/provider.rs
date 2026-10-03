@@ -1,6 +1,6 @@
 //! `trait Provider`: streamed completions with tool use, and embeddings.
 //! Implementations: [`crate::anthropic`], [`crate::openai`] (also Ollama's
-//! `/v1`), [`crate::mock`], and `api::RemoteProvider` on the web client.
+//! `/v1`), [`crate::mock`], and `moonkale_server::RemoteProvider` on the web client.
 
 use crate::types::{Event, Request};
 use futures_channel::mpsc::UnboundedReceiver;

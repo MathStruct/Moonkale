@@ -197,7 +197,7 @@ impl SshSession {
             master: Arc::new(Mutex::new(Some(pty.clone()))),
             control: control.clone(),
         };
-        let token = api::client::session_token();
+        let token = moonkale_server::client::session_token();
         let writer = tee.writer();
         let pty_alive = pty.clone();
         let set = {
@@ -281,7 +281,11 @@ impl SshSession {
                             let url = format!("http://127.0.0.1:{local_port}");
                             match wait_for_server(&url, &token, &pty_alive).await {
                                 Ok(()) => {
-                                    api::client::connect(&url, Some(&token), &target.label());
+                                    moonkale_server::client::connect(
+                                        &url,
+                                        Some(&token),
+                                        &target.label(),
+                                    );
                                     set(Phase::Ready { url });
                                     return;
                                 }
@@ -327,7 +331,7 @@ impl SshSession {
             pty.kill();
         }
         let _ = std::fs::remove_file(&self.control);
-        api::client::disconnect();
+        moonkale_server::client::disconnect();
         *self.phase.lock().unwrap() = Phase::Closed;
     }
 

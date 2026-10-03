@@ -1,5 +1,5 @@
 //! Agent sessions that live on a server (Milestone 12): the wire types
-//! between the Agent panel and `api::agent_sessions`. Pure data, so the
+//! between the Agent panel and `moonkale_server::agent_sessions`. Pure data, so the
 //! panel (wasm), the client wrappers and the server share one definition.
 
 use crate::{Class, Decision, LlmSettings, ToolOutcome};

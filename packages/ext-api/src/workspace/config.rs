@@ -266,7 +266,7 @@ pub struct Runtimes {
 /// `(program, args, cols, rows)` → a terminal backend running it.
 pub type SpawnProgram = fn(String, Vec<String>, u16, u16) -> moonkale_terminal::SpawnTerminalFuture;
 
-/// How a native app becomes a server's client (`api::client`).
+/// How a native app becomes a server's client (`moonkale_server::client`).
 #[derive(Clone, Copy)]
 pub struct ServerClient {
     /// `(url, token)`; the sources then come from that server.
@@ -277,7 +277,7 @@ pub struct ServerClient {
     pub active: fn() -> Option<String>,
 }
 
-/// How a client reaches the server's agent sessions (`api::agent_sessions`).
+/// How a client reaches the server's agent sessions (`moonkale_server::agent_sessions`).
 #[derive(Clone, Copy)]
 pub struct AgentSessions {
     /// Are the sources a server's right now?

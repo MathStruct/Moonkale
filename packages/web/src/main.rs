@@ -170,17 +170,17 @@ fn main() {
         // the binary in `bin/` and its data in `lib/`. Point it at the first
         // layout that exists; `DIOXUS_PUBLIC_PATH` still wins.
         set_public_path();
-        api::auth::guard_bind();
+        moonkale_server::auth::guard_bind();
         fn build_router() -> axum::Router {
             let router = dioxus::server::router(App)
-                .route("/mcp", axum::routing::post(api::mcp::handler))
+                .route("/mcp", axum::routing::post(moonkale_server::mcp::handler))
                 .route(
                     "/api/ext/module/{id}",
-                    axum::routing::get(api::module_bytes),
+                    axum::routing::get(moonkale_server::module_bytes),
                 );
-            api::auth::protect(router)
+            moonkale_server::auth::protect(router)
         }
-        if let Some((cert, key)) = api::auth::tls_files() {
+        if let Some((cert, key)) = moonkale_server::auth::tls_files() {
             serve_tls(cert, key, build_router);
         }
         dioxus::server::serve(|| async { Ok(build_router()) });
@@ -218,7 +218,7 @@ fn serve_tls(cert: String, key: String, build: fn() -> axum::Router) -> ! {
 
 fn open_remote(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
-        api::RemoteSource::open_folder(&path, options.embed)
+        moonkale_server::RemoteSource::open_folder(&path, options.embed)
             .await
             .map(|v| {
                 v.into_iter()
@@ -231,7 +231,7 @@ fn open_remote(path: String, options: moonkale_shell::OpenOptions) -> OpenFolder
 /// Another tab already opened this source on the server: just wrap its descriptor.
 fn attach_remote(descriptor: SourceDescriptor) -> AttachFuture {
     Box::pin(async move {
-        Ok(Arc::new(api::RemoteSource::from_descriptor(descriptor)) as Arc<dyn Source>)
+        Ok(Arc::new(moonkale_server::RemoteSource::from_descriptor(descriptor)) as Arc<dyn Source>)
     })
 }
 
@@ -271,14 +271,14 @@ fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
     Rc::new(BroadcastBus { eval })
 }
 
-/// Web terminals run on the server (dev-server feature; see api::terminal).
+/// Web terminals run on the server (dev-server feature; see moonkale_server::terminal).
 fn spawn_terminal(
     cwd: Option<String>,
     cols: u16,
     rows: u16,
 ) -> moonkale_shell::SpawnTerminalFuture {
     Box::pin(async move {
-        api::RemoteTerminal::connect(cwd, cols, rows)
+        moonkale_server::RemoteTerminal::connect(cwd, cols, rows)
             .await
             .map(|t| Box::new(t) as Box<dyn moonkale_shell::TerminalBackend>)
     })
@@ -287,7 +287,7 @@ fn spawn_terminal(
 /// Language servers run on the server; the client sees a websocket.
 fn spawn_lsp(language: String, root: String) -> moonkale_shell::LspTransportFuture {
     Box::pin(async move {
-        api::RemoteLsp::connect(language, root)
+        moonkale_server::RemoteLsp::connect(language, root)
             .await
             .map(|t| Box::new(t) as Box<dyn moonkale_shell::LspTransport>)
     })
@@ -297,7 +297,7 @@ fn spawn_lsp(language: String, root: String) -> moonkale_shell::LspTransportFutu
 #[cfg(target_arch = "wasm32")]
 fn llm_provider(settings: moonkale_llm::LlmSettings) -> moonkale_shell::LlmProviderFuture {
     Box::pin(async move {
-        api::RemoteProvider::connect(settings)
+        moonkale_server::RemoteProvider::connect(settings)
             .await
             .map(|p| std::sync::Arc::new(p) as std::sync::Arc<dyn moonkale_llm::Provider>)
     })
@@ -355,7 +355,7 @@ fn join_presence(
     member: moonkale_shell::PresenceMember,
     on_members: Callback<Vec<moonkale_shell::PresenceMember>>,
 ) -> Rc<dyn moonkale_shell::PresenceLink> {
-    Rc::new(api::presence::RemotePresence::join(
+    Rc::new(moonkale_server::presence::RemotePresence::join(
         room, member, on_members,
     ))
 }
@@ -363,7 +363,7 @@ fn wasm_list(
     folder: Option<String>,
 ) -> moonkale_shell::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
     Box::pin(async move {
-        api::list_wasm_extensions(folder)
+        moonkale_server::list_wasm_extensions(folder)
             .await
             .map_err(|e| e.to_string())
     })
@@ -375,7 +375,7 @@ fn wasm_run(
     granted: Vec<String>,
 ) -> moonkale_shell::SettingsFuture<String> {
     Box::pin(async move {
-        api::run_wasm_command(ext, command, args, granted)
+        moonkale_server::run_wasm_command(ext, command, args, granted)
             .await
             .map_err(|e| e.to_string())?
     })
@@ -512,14 +512,14 @@ fn workspace_config() -> WorkspaceConfig {
             }),
             state: state_access(),
             // Every folder is on the server; so is its entity log (phase 5.10).
-            host: Some(api::client::host_state()),
+            host: Some(moonkale_server::client::host_state()),
             // `localStorage["moonkale.settings"]` already is this browser's store.
             user_settings_in_state: false,
             ..Default::default()
         },
         network: moonkale_shell::Network {
             presence: Some(join_presence),
-            agent_sessions: Some(api::client::agent_sessions(|| true)),
+            agent_sessions: Some(moonkale_server::client::agent_sessions(|| true)),
             ..Default::default()
         },
         runtimes: moonkale_shell::Runtimes {

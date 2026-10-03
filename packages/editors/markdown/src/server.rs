@@ -1,4 +1,4 @@
-//! Markdown's server half (Milestone 18 phase 4.3; was `api::compile_typst`):
+//! Markdown's server half (Milestone 18 phase 4.3; was `moonkale_server::compile_typst`):
 //! the Typst preview compiles on the server for the web client and for a
 //! desktop connected to one. Feature `server` brings the compiler; without
 //! it this is the client stub plus [`remote_typst`].

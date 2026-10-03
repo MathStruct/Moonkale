@@ -17,7 +17,7 @@ fn main() {
     // Milestone 12: server functions go to a loopback relay of our own
     // (dioxus's server URL is set once, P-098); it pipes to the server the
     // user connects to with *File → Connect to Server…*.
-    match api::relay::install() {
+    match moonkale_server::relay::install() {
         Ok(url) => dioxus::fullstack::set_server_url(url.leak()),
         Err(e) => {
             tracing::warn!("mobile: client relay not started ({e}); Connect to Server is off")
@@ -28,15 +28,15 @@ fn main() {
 
 /// Sources: the phone's own folder, or the connected server's.
 fn open_any(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
-    if api::client::active().is_some() {
-        return api::client::open_folder(path, options);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::open_folder(path, options);
     }
     open_local(path, options)
 }
 
 fn attach_any(descriptor: SourceDescriptor) -> AttachFuture {
-    if api::client::active().is_some() {
-        return api::client::attach_source(descriptor);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::attach_source(descriptor);
     }
     attach_local(descriptor)
 }
@@ -47,8 +47,8 @@ fn spawn_terminal(
     cols: u16,
     rows: u16,
 ) -> moonkale_terminal::SpawnTerminalFuture {
-    if api::client::active().is_some() {
-        return api::client::spawn_terminal(cwd, cols, rows);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::spawn_terminal(cwd, cols, rows);
     }
     Box::pin(async {
         Err(
@@ -62,7 +62,7 @@ fn git_any(
     root: String,
     req: moonkale_ext_git::GitRequest,
 ) -> moonkale_shell::SettingsFuture<moonkale_ext_git::GitResponse> {
-    if api::client::active().is_some() {
+    if moonkale_server::client::active().is_some() {
         return moonkale_ext_git::remote(root, req);
     }
     Box::pin(async { Err("git needs a server on the phone".to_string()) })
@@ -71,11 +71,11 @@ fn git_any(
 fn server_client() -> moonkale_shell::ServerClient {
     moonkale_shell::ServerClient {
         connect: |url, token| {
-            api::client::connect(&url, token.as_deref(), &url);
+            moonkale_server::client::connect(&url, token.as_deref(), &url);
             Ok(())
         },
-        disconnect: api::client::disconnect,
-        active: || api::client::active().map(|r| r.label),
+        disconnect: moonkale_server::client::disconnect,
+        active: || moonkale_server::client::active().map(|r| r.label),
     }
 }
 
@@ -262,14 +262,16 @@ fn workspace_config() -> WorkspaceConfig {
             state,
             // The folder's host keeps its entity log: this store for local
             // folders, the server's while connected (phase 5.10).
-            host: state.map(|_| api::client::host_state_routed()),
+            host: state.map(|_| moonkale_server::client::host_state_routed()),
             // The user's settings too (phase 5.18): `settings.json` is
             // imported once, then only the store is written.
             user_settings_in_state: true,
             ..Default::default()
         },
         network: moonkale_shell::Network {
-            agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)),
+            agent_sessions: Some(moonkale_server::client::agent_sessions(
+                moonkale_server::client::agent_available,
+            )),
             server: Some(server_client()),
             ..Default::default()
         },

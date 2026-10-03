@@ -59,7 +59,7 @@ fn real_sshd_session_reaches_ready() {
         return;
     };
     let bin = server_binary().expect("server binary");
-    dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
+    dioxus::fullstack::set_server_url(moonkale_server::relay::install().unwrap().leak());
     let target = SshTarget::parse(&spec, &path).unwrap();
     let (session, tee) = SshSession::open(target, Some(bin), |_| ()).expect("open");
     echo_tee(tee);
@@ -91,7 +91,7 @@ fn echo_tee(mut tee: moonkale_remote::TeeBackend) {
 }
 
 async fn read_hello(root: &str) -> String {
-    let sources = api::client::open_folder(root.to_string(), Default::default())
+    let sources = moonkale_server::client::open_folder(root.to_string(), Default::default())
         .await
         .expect("open_folder over the session");
     let folder = sources
@@ -147,7 +147,7 @@ fn fake_ssh_session_reaches_ready() {
     );
 
     // The desktop installs this before launch; server functions go through it.
-    dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
+    dioxus::fullstack::set_server_url(moonkale_server::relay::install().unwrap().leak());
     let (tx, rx) = mpsc::channel();
     let target =
         SshTarget::parse("SSH_AUTH_SOCK=0 -p 443 fake-host", &root.to_string_lossy()).unwrap();
@@ -195,16 +195,18 @@ fn fake_ssh_session_reaches_ready() {
         .join("moonkale-server")
         .is_file());
     assert_eq!(url, format!("http://127.0.0.1:{}", session.local_port));
-    let remote = api::client::active().expect("client connected");
+    let remote = moonkale_server::client::active().expect("client connected");
     assert_eq!(remote.url, url);
 
     // The desktop now talks to that server: open the folder and read the file.
     let rt = tokio::runtime::Runtime::new().unwrap();
     let text = rt.block_on(async {
-        let sources =
-            api::client::open_folder(root.to_string_lossy().into_owned(), Default::default())
-                .await
-                .expect("open_folder over the session");
+        let sources = moonkale_server::client::open_folder(
+            root.to_string_lossy().into_owned(),
+            Default::default(),
+        )
+        .await
+        .expect("open_folder over the session");
         let folder = sources
             .iter()
             .find(|s| s.descriptor().family == SourceFamily::Folder)
@@ -225,6 +227,6 @@ fn fake_ssh_session_reaches_ready() {
 
     session.close();
     assert_eq!(session.phase(), Phase::Closed);
-    assert!(api::client::active().is_none());
+    assert!(moonkale_server::client::active().is_none());
     let _ = std::fs::remove_dir_all(&scratch);
 }

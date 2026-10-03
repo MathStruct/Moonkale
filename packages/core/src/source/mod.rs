@@ -4,7 +4,7 @@
 //! (optionally) accept changes: a folder, a SQL database, a graph database, a
 //! remote Moonkale server. `core` defines only the **trait and the
 //! query/result types**; implementations live in `moonkale-project-fs`,
-//! `moonkale-sources-*` (native only) and `api::RemoteSource` (the proxy the
+//! `moonkale-sources-*` (native only) and `moonkale_server::RemoteSource` (the proxy the
 //! web build uses).
 //!
 //! Object safety: the trait is `async` via `async-trait` so it can be held as

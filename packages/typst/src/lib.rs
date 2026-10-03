@@ -6,7 +6,7 @@
 //! the machine is required. Packages (`@preview/…`) are not fetched yet.
 //!
 //! Runs natively only: desktop compiles in-process, the server compiles for
-//! web clients (`api::compile_typst`).
+//! web clients (`moonkale_server::compile_typst`).
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;

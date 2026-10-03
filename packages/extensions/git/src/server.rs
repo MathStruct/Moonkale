@@ -1,4 +1,4 @@
-//! Git's server half (Milestone 18 phase 4.3; was `api::git_run`): the web
+//! Git's server half (Milestone 18 phase 4.3; was `moonkale_server::git_run`): the web
 //! client — and a desktop connected to a server — sends a request for the
 //! folder it has open; the server runs the `git` CLI inside the jail.
 //!
