@@ -1,6 +1,8 @@
 use crate::panel::{Sessions, TerminalPanel};
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::t;
 
 pub const PANEL_ID: &str = "terminal";
 
@@ -23,6 +25,10 @@ impl TerminalExtension {
 }
 
 impl Extension for TerminalExtension {
+    fn locales(&self) -> moonkale_ext_api::i18n::Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::optional(
             "dev.moonkale.editor-terminal",
@@ -32,12 +38,12 @@ impl Extension for TerminalExtension {
         .with_permissions(&["run-commands"])
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
         vec![
-            PanelContribution::new(PANEL_ID, "Terminal", PanelHome::Bottom)
+            PanelContribution::new(PANEL_ID, t!(ws, L, "terminal-title"), PanelHome::Bottom)
                 .closable(true)
                 .activity(
-                    Activity::new("terminal", 70, "Terminal")
+                    Activity::new("terminal", 70, t!(ws, L, "terminal-title"))
                         .badge(self.sessions.list.read().len() as u32),
                 ),
         ]

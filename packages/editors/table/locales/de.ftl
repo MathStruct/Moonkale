@@ -1,0 +1,10 @@
+extension-name = Tabellen
+extension-description = SQL-/Cypher-Abfragefeld und Ergebnistabelle für Datenbankquellen.
+table-running = Läuft …
+table-run = Ausführen (Strg+Enter)
+table-graph-title = Die Knoten und Kanten dieser Abfrage im Graph-Panel zeichnen
+table-graph = Im Graph zeigen
+table-loading = Wird geladen …
+table-counts = { $rows } Zeilen · { $columns } Spalten
+table-graph-counts =  · { $nodes } Knoten · { $edges } Kanten
+table-truncated =  · am Zeilenlimit der Quelle abgeschnitten

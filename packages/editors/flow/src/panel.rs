@@ -7,12 +7,13 @@
 //! editor). The document is re-read into the canvas only when its text is
 //! replaced from outside (reload).
 
+use crate::L;
 use dioxus::prelude::*;
 use dioxus_flow::prelude::*;
 use dioxus_flow::Id;
 use moonkale_core::NodeId as CoreNodeId;
 use moonkale_ext_api::flow::{find_kind, validate, Block, Flow, FlowLibrary, ParamKind, Wire};
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 use std::collections::BTreeMap;
 
 const CSS: Asset = asset!("/assets/flow.css");
@@ -417,7 +418,13 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         Ok(n) => {
                             let _ = ws.reload(n.id).await;
                             let _ = ws.open_node(n).await;
-                            ws.set_status(format!("Generated {rel} — run: {}", out.run_hint));
+                            ws.set_status(t!(
+                                ws,
+                                L,
+                                "flow-generated",
+                                file = rel.clone(),
+                                run = out.run_hint.clone()
+                            ));
                         }
                         Err(e) => error.set(Some(format!("codegen: {e}"))),
                     }
@@ -440,24 +447,24 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             },
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{doc.read().node.native_key}" }
-                if dirty { span { class: "mk-editor-dirty", title: "Unsaved changes", "●" } }
+                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "flow-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-flow-status", "data-blocks": "{flow_now.blocks.len()}", "data-wires": "{flow_now.wires.len()}", "data-issues": "{issues.len()}",
-                    "{flow_now.blocks.len()} blocks · {flow_now.wires.len()} wires"
-                    if !issues.is_empty() { span { class: "mk-flow-issues", title: "{issues.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", " · {issues.len()} issue(s)" } }
+                    {t!(ws, L, "flow-counts", blocks = flow_now.blocks.len(), wires = flow_now.wires.len())}
+                    if !issues.is_empty() { span { class: "mk-flow-issues", title: "{issues.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues.len())} } }
                 }
                 for lib in generators {
-                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: "Write the {lib.language} file next to this flow", "Generate {lib.language}" }
+                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: t!(ws, L, "flow-generate-title", language = lib.language), {t!(ws, L, "flow-generate", language = lib.language)} }
                 }
-                button { class: "mk-btn", onclick: move |_| handle.auto_layout(&LayoutOptions { direction: LayoutDirection::LeftToRight, node_gap: 40.0, rank_gap: 90.0, update_handle_sides: false }), "Layout" }
-                button { class: "mk-btn", onclick: move |_| handle.fit_view(200), "Fit" }
-                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), "Save" }
+                button { class: "mk-btn", onclick: move |_| handle.auto_layout(&LayoutOptions { direction: LayoutDirection::LeftToRight, node_gap: 40.0, rank_gap: 90.0, update_handle_sides: false }), {t!(ws, L, "flow-layout")} }
+                button { class: "mk-btn", onclick: move |_| handle.fit_view(200), {t!(ws, L, "flow-fit")} }
+                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), {t!(ws, L, "flow-save")} }
             }
             if let Some(e) = error() { div { class: "mk-editor-error", "{e}" } }
             div { class: "mk-flow-body",
                 div { class: "mk-flow-palette",
                     if libs.is_empty() {
-                        p { class: "mk-muted", "No block libraries are enabled. Turn one on in Settings → Extensions (e.g. Lux.jl)." }
+                        p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
                     } else {
                         if libs.len() > 1 {
                             select { class: "mk-input", onchange: move |e| selected_lib.set(e.value().parse().unwrap_or(0)),

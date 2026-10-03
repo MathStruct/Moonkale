@@ -10,10 +10,11 @@
 
 use crate::host::{PendingApproval, WorkspaceHost};
 use crate::transcript;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{SourceFamily, SourceId};
 use moonkale_ext_api::settings::LlmSettings;
-use moonkale_ext_api::{Extension, Workspace};
+use moonkale_ext_api::{t, Extension, Workspace};
 use moonkale_llm::{Agent, AgentEvent, Class, Decision, Message, Provider, ToolOutcome};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -204,7 +205,7 @@ fn new_session(ws: Workspace, mut chats: Chats, profile: String) -> Session {
         profile: Signal::new_in_scope(profile, ScopeId::ROOT),
         items: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
         agent: Signal::new_in_scope(None, ScopeId::ROOT),
-        provider_label: Signal::new_in_scope("connecting…".into(), ScopeId::ROOT),
+        provider_label: Signal::new_in_scope(t!(ws, L, "agent-connecting"), ScopeId::ROOT),
         busy: Signal::new_in_scope(false, ScopeId::ROOT),
         pending: Signal::new_in_scope(None, ScopeId::ROOT),
         cited: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
@@ -245,18 +246,23 @@ fn connect(ws: Workspace, s: Session) {
     }
     connected_for.set(Some(llm.clone()));
     let Some(make) = ws.llm() else {
-        provider_label.set("no LLM provider on this platform".into());
+        provider_label.set(t!(ws, L, "agent-no-provider"));
         return;
     };
-    provider_label.set(format!("connecting {}…", llm.provider));
+    provider_label.set(t!(
+        ws,
+        L,
+        "agent-connecting-to",
+        provider = llm.provider.clone()
+    ));
     dioxus::core::spawn_forever(async move {
         match make(llm).await {
             Ok(p) => {
                 let p: Arc<dyn Provider> = p;
                 let note = if known {
-                    ""
+                    String::new()
                 } else {
-                    " (profile missing → Default)"
+                    t!(ws, L, "agent-profile-missing")
                 };
                 provider_label.set(format!("{} · {}{note}", p.name(), p.model()));
                 let existing = agent.peek().clone();
@@ -265,7 +271,7 @@ fn connect(ws: Workspace, s: Session) {
                     None => agent.set(Some(Rc::new(RefCell::new(Agent::new(p, String::new()))))),
                 }
             }
-            Err(e) => provider_label.set(format!("provider error: {e}")),
+            Err(e) => provider_label.set(t!(ws, L, "agent-provider-error", error = e.to_string())),
         }
     });
 }
@@ -435,7 +441,7 @@ async fn persist(ws: Workspace, s: Session) {
     };
     if let Err(e) = result {
         let mut ws = ws;
-        ws.set_status(format!("Agent session not saved: {e}"));
+        ws.set_status(t!(ws, L, "agent-not-saved", error = e.to_string()));
     }
 }
 
@@ -524,12 +530,12 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
             let rel = format!("{SESSIONS_DIR}/{id}.json");
             let Some(text) = ws.read_text_at(&folder, &rel).await else {
                 let mut ws = ws;
-                ws.set_status("That session is gone");
+                ws.set_status(t!(ws, L, "agent-session-gone"));
                 return;
             };
             let Ok(f) = serde_json::from_str::<SavedSession>(&text) else {
                 let mut ws = ws;
-                ws.set_status("That session's file could not be read");
+                ws.set_status(t!(ws, L, "agent-session-unreadable"));
                 return;
             };
             f
@@ -542,7 +548,7 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
         profile: Signal::new_in_scope(f.profile, ScopeId::ROOT),
         items: Signal::new_in_scope(f.items, ScopeId::ROOT),
         agent: Signal::new_in_scope(None, ScopeId::ROOT),
-        provider_label: Signal::new_in_scope("connecting…".into(), ScopeId::ROOT),
+        provider_label: Signal::new_in_scope(t!(ws, L, "agent-connecting"), ScopeId::ROOT),
         busy: Signal::new_in_scope(false, ScopeId::ROOT),
         pending: Signal::new_in_scope(None, ScopeId::ROOT),
         cited: Signal::new_in_scope(f.cited, ScopeId::ROOT),
@@ -663,7 +669,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         spawn(async move {
             let Some(folder) = folder_of(ws) else {
                 let mut ws = ws;
-                ws.set_status("Open a folder to save the transcript into");
+                ws.set_status(t!(ws, L, "agent-save-needs-folder"));
                 return;
             };
             let (text, title) = {
@@ -706,7 +712,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                 }
                 Err(e) => {
                     let mut ws = ws;
-                    ws.set_status(format!("Could not save transcript: {e}"));
+                    ws.set_status(t!(ws, L, "agent-save-failed", error = e.to_string()));
                 }
             }
         });
@@ -778,22 +784,22 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-agent", "data-session": "{session_id}",
             div { class: "mk-agent-toolbar",
-                select { class: "mk-agent-sessions", title: "Sessions: live ones, then the folder's saved ones",
+                select { class: "mk-agent-sessions", title: t!(ws, L, "agent-sessions-title"),
                     value: "{session_id}",
                     onchange: move |e| pick_session(e.value()),
                     for (id, title, b) in live.iter() {
-                        option { key: "{id}", value: "{id}", selected: *id == session_id, if *b { "● " } "{title}" }
+                        option { key: "{id}", value: "{id}", selected: *id == session_id, if *b { "● " } {if title == "new session" { t!(ws, L, "agent-new-session") } else { title.clone() }} }
                     }
                     if !stored.is_empty() {
-                        optgroup { label: "saved in this folder",
+                        optgroup { label: t!(ws, L, "agent-saved-in-folder"),
                             for s in stored.iter() {
                                 option { key: "saved:{s.id}", value: "saved:{s.id}", "{s.title} · {s.profile}" }
                             }
                         }
                     }
                 }
-                button { class: "mk-btn mk-agent-new", title: "A new session (the current one keeps running)", onclick: move |_| { let profile = ws.settings.resolved.peek().agent.default.clone(); new_session(ws, chats, profile); }, "New" }
-                select { class: "mk-agent-profile", title: "Which saved agent this session runs (Settings → Agents)",
+                button { class: "mk-btn mk-agent-new", title: t!(ws, L, "agent-new-title"), onclick: move |_| { let profile = ws.settings.resolved.peek().agent.default.clone(); new_session(ws, chats, profile); }, {t!(ws, L, "agent-new")} }
+                select { class: "mk-agent-profile", title: t!(ws, L, "agent-profile-title"),
                     value: "{profile_now}",
                     disabled: busy(),
                     onchange: {
@@ -804,26 +810,26 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                         option { key: "{name}", value: "{name}", selected: *name == profile_now, "{name}" }
                     }
                     if !agents.contains(&profile_now) {
-                        option { value: "{profile_now}", selected: true, "{profile_now} (missing)" }
+                        option { value: "{profile_now}", selected: true, {t!(ws, L, "agent-missing", name = profile_now.clone())} }
                     }
                 }
-                span { class: "mk-agent-provider", title: "Provider · model", "{provider_label}" }
-                if running > 1 { span { class: "mk-agent-running-count", title: "Sessions with a turn in flight", "{running} running" } }
+                span { class: "mk-agent-provider", title: t!(ws, L, "agent-provider-model"), "{provider_label}" }
+                if running > 1 { span { class: "mk-agent-running-count", title: t!(ws, L, "agent-running-title"), {t!(ws, L, "agent-running", n = running)} } }
                 span { class: "mk-agent-spacer" }
-                button { class: if show_activity() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| show_activity.toggle(), title: "Every tool call with its policy decision", "Activity" }
-                button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: save, title: "Save this conversation as a markdown page in the folder (.moonkale/chats/)", "Save" }
-                button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: clear, "Clear" }
-                button { class: "mk-btn mk-agent-close", disabled: busy() || live.len() <= 1, onclick: close_session, title: "Close this session (it stays saved in the folder)", "×" }
+                button { class: if show_activity() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| show_activity.toggle(), title: t!(ws, L, "agent-activity-title"), {t!(ws, L, "agent-activity")} }
+                button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: save, title: t!(ws, L, "agent-save-title"), {t!(ws, L, "agent-save")} }
+                button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: clear, {t!(ws, L, "agent-clear")} }
+                button { class: "mk-btn mk-agent-close", disabled: busy() || live.len() <= 1, onclick: close_session, title: t!(ws, L, "agent-close-title"), "×" }
             }
             if show_activity() {
                 div { class: "mk-agent-activity",
-                    if audit_entries.is_empty() { p { class: "mk-muted", "No tool calls yet." } }
+                    if audit_entries.is_empty() { p { class: "mk-muted", {t!(ws, L, "agent-no-calls")} } }
                     for e in audit_entries {
                         div { key: "{e.seq}", class: "mk-agent-audit",
                             span { class: "mk-agent-audit-tool", "{e.tool}" }
                             span { class: "mk-agent-badge", "{e.class:?}" }
                             span { class: "mk-agent-badge", "{e.decision:?}" }
-                            span { class: if e.ok { "mk-agent-ok" } else { "mk-agent-err" }, if e.ok { "ok" } else { "failed" } }
+                            span { class: if e.ok { "mk-agent-ok" } else { "mk-agent-err" }, if e.ok { "ok" } else { {t!(ws, L, "agent-failed")} } }
                             span { class: "mk-muted", " {e.millis} ms" }
                             div { class: "mk-agent-audit-summary", "{e.summary}" }
                         }
@@ -833,7 +839,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
             div { class: "mk-agent-log",
                 if items().is_empty() {
                     p { class: "mk-muted mk-agent-hint",
-                        "Ask about the open folder or databases. The agent can list sources, browse the graph, read files, run read-only queries and search. Writes ask for your approval. Sessions run side by side: New starts another while this one works; finished turns are saved in the folder."
+                        {t!(ws, L, "agent-hint")}
                     }
                 }
                 for (i, item) in items().into_iter().enumerate() {
@@ -849,11 +855,11 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                                         span { class: "mk-agent-badge", "{class:?}" }
                                         span { class: "mk-agent-badge", "{decision:?}" }
                                         match outcome {
-                                            None => rsx! { span { class: "mk-muted", "running…" } },
+                                            None => rsx! { span { class: "mk-muted", {t!(ws, L, "agent-tool-running")} } },
                                             Some(ToolOutcome::Ran { ok: true }) => rsx! { span { class: "mk-agent-ok", "ok" } },
-                                            Some(ToolOutcome::Ran { ok: false }) => rsx! { span { class: "mk-agent-err", "failed" } },
-                                            Some(ToolOutcome::Denied) => rsx! { span { class: "mk-agent-err", "denied by policy" } },
-                                            Some(ToolOutcome::Declined) => rsx! { span { class: "mk-agent-err", "declined" } },
+                                            Some(ToolOutcome::Ran { ok: false }) => rsx! { span { class: "mk-agent-err", {t!(ws, L, "agent-failed")} } },
+                                            Some(ToolOutcome::Denied) => rsx! { span { class: "mk-agent-err", {t!(ws, L, "agent-denied")} } },
+                                            Some(ToolOutcome::Declined) => rsx! { span { class: "mk-agent-err", {t!(ws, L, "agent-declined")} } },
                                         }
                                     }
                                     code { class: "mk-agent-tool-input", "{input}" }
@@ -866,11 +872,9 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                 if let Some(p) = pending_now {
                     div { class: "mk-agent-approval",
                         div { class: "mk-agent-approval-title",
-                            "The agent wants to run "
+                            {t!(ws, L, "agent-wants")}
                             code { "{p.call.name}" }
-                            " ("
-                            "{p.class:?}"
-                            ")"
+                            " ({p.class:?})"
                         }
                         if p.call.name == "editor.replace" {
                             div { class: "mk-agent-diff",
@@ -883,8 +887,8 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                             code { class: "mk-agent-tool-input", "{p.call.input}" }
                         }
                         div { class: "mk-agent-approval-actions",
-                            button { class: "mk-btn mk-btn-on", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(true); } } }, "Allow" }
-                            button { class: "mk-btn", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(false); } } }, "Deny" }
+                            button { class: "mk-btn mk-btn-on", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(true); } } }, {t!(ws, L, "agent-allow")} }
+                            button { class: "mk-btn", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(false); } } }, {t!(ws, L, "agent-deny")} }
                         }
                     }
                 }
@@ -894,18 +898,20 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                     id: INPUT_ID,
                     class: "mk-agent-input",
                     rows: 2,
-                    placeholder: if busy() { "This session is working — New starts another one meanwhile" } else if agent().is_some() { "Ask the agent… (Enter to send, Shift+Enter for a new line)" } else { "Connecting to the provider…" },
+                    placeholder: if busy() { t!(ws, L, "agent-busy") } else if agent().is_some() { t!(ws, L, "agent-ask") } else { t!(ws, L, "agent-connecting-provider") },
                     disabled: agent().is_none(),
                     value: "{input}",
                     oninput: move |e| input.set(e.value()),
                     onkeydown: move |e: KeyboardEvent| {
-                        if e.key() == Key::Enter && !e.modifiers().shift() {
+                        // Enter while an input method composes (Chinese, Japanese)
+                        // picks a candidate; it does not send (#19).
+                        if e.key() == Key::Enter && !e.modifiers().shift() && !e.is_composing() {
                             e.prevent_default();
                             send.call(());
                         }
                     },
                 }
-                button { class: "mk-btn", disabled: busy() || agent().is_none(), onclick: move |_| send.call(()), if busy() { "…" } else { "Send" } }
+                button { class: "mk-btn", disabled: busy() || agent().is_none(), onclick: move |_| send.call(()), if busy() { "…" } else { {t!(ws, L, "agent-send")} } }
             }
         }
     }

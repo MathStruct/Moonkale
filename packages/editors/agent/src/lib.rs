@@ -13,6 +13,13 @@ pub mod host;
 mod panel;
 mod transcript;
 
+/// This crate's strings (spec 030): English, German, Chinese.
+pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
+    ("en", include_str!("../locales/en.ftl")),
+    ("de", include_str!("../locales/de.ftl")),
+    ("zh-CN", include_str!("../locales/zh-CN.ftl")),
+];
+
 pub use extension::{AgentExtension, PANEL_ID};
 pub use panel::{saved_sessions, sessions_key, Item, SavedSession, SESSIONS_DIR};
 

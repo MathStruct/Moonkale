@@ -2,11 +2,12 @@
 //! scrollable stage with the image at the chosen scale. Zoom keeps the
 //! pointer's image point under the pointer on wheel; dragging pans.
 
+use crate::L;
 use crate::{mime_of, MAX_BYTES};
 use base64::Engine;
 use dioxus::prelude::*;
 use moonkale_core::Node;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 
 const CSS: Asset = asset!("/assets/image.css");
 const STEPS: &[f64] = &[0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
@@ -38,10 +39,12 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                     _ => false,
                 };
                 if too_big {
-                    state.set(Loaded::Failed(format!(
-                        "{} is larger than {} MB — open it outside Moonkale",
-                        node.label,
-                        MAX_BYTES / 1024 / 1024
+                    state.set(Loaded::Failed(t!(
+                        ws,
+                        L,
+                        "image-too-big",
+                        name = node.label.clone(),
+                        mb = MAX_BYTES / 1024 / 1024
                     )));
                     return;
                 }
@@ -68,7 +71,7 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
         _ => String::new(),
     };
     let zoom_label = match zoom() {
-        None => "Fit".to_string(),
+        None => t!(ws, L, "image-fit"),
         Some(z) => format!("{}%", (z * 100.0).round()),
     };
     let stage_id_for_move = stage_id.clone();
@@ -110,19 +113,19 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                 span { class: "mk-editor-path", "{title}" }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", "{dims} · {size}" }
-                button { class: "mk-btn", title: "Zoom out (−)", onclick: move |_| step(-1), "−" }
+                button { class: "mk-btn", title: t!(ws, L, "image-zoom-out"), onclick: move |_| step(-1), "−" }
                 span { class: "mk-image-zoom", "{zoom_label}" }
-                button { class: "mk-btn", title: "Zoom in (+)", onclick: move |_| step(1), "+" }
-                button { class: if zoom().is_none() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| zoom.set(None), "Fit" }
+                button { class: "mk-btn", title: t!(ws, L, "image-zoom-in"), onclick: move |_| step(1), "+" }
+                button { class: if zoom().is_none() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| zoom.set(None), {t!(ws, L, "image-fit")} }
                 button { class: if zoom() == Some(1.0) { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| zoom.set(Some(1.0)), "100%" }
                 if node.native_key.to_ascii_lowercase().ends_with(".svg") {
-                    button { class: "mk-btn", title: "Edit the SVG source as text", onclick: {
+                    button { class: "mk-btn", title: t!(ws, L, "image-svg-title"), onclick: {
                         let n = node.clone();
                         move |_| {
                             let n = n.clone();
                             spawn(async move { let _ = ws.open_as_text(n).await; });
                         }
-                    }, "Source" }
+                    }, {t!(ws, L, "image-source")} }
                 }
             }
             div {

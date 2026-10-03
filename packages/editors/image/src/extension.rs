@@ -1,4 +1,5 @@
 use crate::panel::ImagePanel;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::NodeId;
 use moonkale_ext_api::prelude::*;
@@ -17,6 +18,10 @@ impl ImageExtension {
 }
 
 impl Extension for ImageExtension {
+    fn locales(&self) -> moonkale_ext_api::i18n::Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::optional(
             "dev.moonkale.editor-image",

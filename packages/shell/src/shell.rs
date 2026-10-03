@@ -787,7 +787,14 @@ pub(crate) fn contributions(
     let mut claims: HashMap<moonkale_core::NodeId, (Vec<usize>, Option<usize>)> = HashMap::new();
     let mut out = Vec::new();
     for &i in &active {
-        for c in exts[i].panels(ws) {
+        // P-151: an untracked caller must not subscribe to the language
+        // through the panels' translated titles.
+        let panels = if tracked {
+            exts[i].panels(ws)
+        } else {
+            moonkale_ext_api::workspace::untracked(|| exts[i].panels(ws))
+        };
+        for c in panels {
             if let Some(node) = c.node {
                 let (claimants, won) = claims
                     .entry(node)

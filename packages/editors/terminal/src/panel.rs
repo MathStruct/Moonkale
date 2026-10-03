@@ -1,10 +1,11 @@
 //! The panel: a tab strip of sessions and one xterm mount per session.
 
+use crate::L;
 use base64::Engine;
 use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
 use futures_util::StreamExt;
-use moonkale_ext_api::{Command, Workspace};
+use moonkale_ext_api::{t, Command, Workspace};
 use moonkale_terminal::{links, Session, SessionId};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -95,7 +96,7 @@ for (;;) {
 
 async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<String>) {
     let Some(spawn_fn) = ws.spawn_terminal() else {
-        ws.set_status("Terminals are not available on this platform");
+        ws.set_status(t!(ws, L, "terminal-unavailable"));
         return;
     };
     match spawn_fn(cwd.clone(), 80, 24).await {
@@ -113,7 +114,7 @@ async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<St
                 .with_mut(|l| l.push(Rc::new(RefCell::new(session))));
             sessions.active.set(Some(id));
         }
-        Err(e) => ws.set_status(format!("Could not start a terminal: {e}")),
+        Err(e) => ws.set_status(t!(ws, L, "terminal-failed", error = e.to_string())),
     }
 }
 
@@ -171,7 +172,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                                 title: cwd.unwrap_or_default(),
                                 onclick: move |_| sessions.active.set(Some(id)),
                                 "{title}"
-                                span { class: "mk-term-close", title: "Close", onclick: move |e| {
+                                span { class: "mk-term-close", title: t!(ws, L, "terminal-close"), onclick: move |e| {
                                     e.stop_propagation();
                                     sessions.list.with_mut(|l| l.retain(|s| s.borrow().id != id));
                                     if sessions.active.peek().as_ref() == Some(&id) {
@@ -183,14 +184,14 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         }
                     }
                 }
-                button { class: "mk-term-tab mk-term-new", title: "New terminal", disabled: !available,
+                button { class: "mk-term-tab mk-term-new", title: t!(ws, L, "terminal-new"), disabled: !available,
                     onclick: move |_| { ws.processes.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); },
                     "+"
                 }
                 if active.is_some() {
-                    button { class: "mk-term-tab mk-term-trace", title: "Parse the stack traces / compiler errors in this terminal and draw them in the Graph panel",
+                    button { class: "mk-term-tab mk-term-trace", title: t!(ws, L, "terminal-trace-title"),
                         onclick: move |_| { let mut t = sessions.trace_tick; t += 1; },
-                        "Trace → Graph"
+                        {t!(ws, L, "terminal-trace")}
                     }
                 }
             }
@@ -274,9 +275,7 @@ fn SessionView(props: SessionViewProps) -> Element {
                             let mut ws = ws;
                             let traces = moonkale_trace::parse(&text);
                             if traces.is_empty() {
-                                ws.set_status(
-                                    "No stack trace or compiler error found in this terminal",
-                                );
+                                ws.set_status(t!(ws, L, "terminal-no-trace"));
                             } else {
                                 // The newest trace is the interesting one.
                                 let n = traces.len();
@@ -286,9 +285,7 @@ fn SessionView(props: SessionViewProps) -> Element {
                                         moonkale_trace::TraceSource::new(&t, unique),
                                     ));
                                 }
-                                ws.set_status(format!(
-                                    "Drew {n} trace(s); see the Graph panel's source picker"
-                                ));
+                                ws.set_status(t!(ws, L, "terminal-drew", n = n));
                             }
                         }
                         Err(dioxus::document::EvalError::Serialization(_)) => continue,

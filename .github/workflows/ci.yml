@@ -40,6 +40,8 @@ jobs:
         run: python3 tools/check-deps.py
       - name: No new hard-coded colours outside the theme (spec 030 prep)
         run: python3 tools/check-colors.py
+      - name: UI strings in English, German and Chinese, every id used and defined (spec 030)
+        run: python3 tools/check-strings.py
 
   test:
     name: test + clippy + wasm check

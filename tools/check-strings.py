@@ -51,6 +51,8 @@ def main():
                         used.add(m.group(1) or m.group(2) or m.group(3))
         for k in sorted(used - ids["en"]):
             problems.append(f"{crate}: `{k}` is used but not in en.ftl")
+        # Looked up by the shell's Extensions panel, by convention.
+        used |= {"extension-name", "extension-description"} & ids["en"]
         for k in sorted(ids["en"] - used):
             problems.append(f"{crate}: `{k}` is in en.ftl but never used")
         stats.append((crate, len(ids["en"])))

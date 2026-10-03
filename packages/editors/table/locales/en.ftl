@@ -1,0 +1,10 @@
+extension-name = Tables
+extension-description = SQL / Cypher query box and result grid for database sources.
+table-running = Running…
+table-run = Run (Ctrl+Enter)
+table-graph-title = Draw the nodes and edges this query returns in the Graph panel
+table-graph = Show in Graph
+table-loading = Loading…
+table-counts = { $rows } rows · { $columns } columns
+table-graph-counts =  · { $nodes } nodes · { $edges } edges
+table-truncated =  · truncated at the source's row cap

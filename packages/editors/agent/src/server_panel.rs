@@ -4,9 +4,10 @@
 //! approvals, and lists the folder's sessions so a later client — the
 //! phone — picks up where things stand.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::SourceFamily;
-use moonkale_ext_api::{AgentSessions, Workspace};
+use moonkale_ext_api::{t, AgentSessions, Workspace};
 use moonkale_llm::sessions::{PendingApproval, SessionItem, SessionSummary, TurnSettings};
 use moonkale_llm::ToolOutcome;
 
@@ -148,7 +149,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                         }
                     }
                     Err(e) => {
-                        ws.set_status(format!("Agent session: {e}"));
+                        ws.set_status(t!(ws, L, "agent-session-error", error = e.to_string()));
                         running.set(false);
                         return;
                     }
@@ -164,7 +165,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
             return;
         }
         let Some(f) = folder_of(ws) else {
-            ws.set_status("Open a folder first");
+            ws.set_status(t!(ws, L, "agent-open-folder"));
             return;
         };
         input.set(String::new());
@@ -202,7 +203,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         };
         spawn(async move {
             if let Err(e) = (api.approve)(id, p.call_id, allow).await {
-                ws.set_status(format!("Approval: {e}"));
+                ws.set_status(t!(ws, L, "agent-approval-error", error = e.to_string()));
             }
         });
     };
@@ -222,18 +223,18 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-agent mk-agent-server",
             div { class: "mk-agent-toolbar",
-                span { class: "mk-agent-provider", title: "Runs on the server; keeps running when this window closes", "{provider} · on the server" }
+                span { class: "mk-agent-provider", title: t!(ws, L, "agent-server-title"), {t!(ws, L, "agent-on-the-server", provider = provider())} }
                 span { class: "mk-agent-spacer" }
-                select { class: "mk-agent-sessions", title: "This folder's sessions on the server",
+                select { class: "mk-agent-sessions", title: t!(ws, L, "agent-server-sessions"),
                     value: "{current.clone().unwrap_or_default()}",
                     onchange: move |e| { let v = e.value(); if v.is_empty() { session.set(None); items.set(Vec::new()); pending.set(None); running.set(false); } else { session.set(Some(v)); } },
-                    option { value: "", selected: current.is_none(), "new session" }
+                    option { value: "", selected: current.is_none(), {t!(ws, L, "agent-new-session")} }
                     for s in list.iter() {
                         option { key: "{s.id}", value: "{s.id}", selected: current.as_deref() == Some(s.id.as_str()), if s.running { "● " } "{s.title}" }
                     }
                 }
-                button { class: "mk-btn", disabled: running(), onclick: move |_| { session.set(None); items.set(Vec::new()); pending.set(None); }, "New" }
-                select { class: "mk-agent-profile", title: "Which saved agent the next turn runs (Settings → Agents)",
+                button { class: "mk-btn", disabled: running(), onclick: move |_| { session.set(None); items.set(Vec::new()); pending.set(None); }, {t!(ws, L, "agent-new")} }
+                select { class: "mk-agent-profile", title: t!(ws, L, "agent-profile-next"),
                     value: "{profile_now}",
                     onchange: move |e| profile.set(e.value()),
                     for name in agents.iter() {
@@ -244,7 +245,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
             div { class: "mk-agent-log",
                 if items().is_empty() {
                     p { class: "mk-muted mk-agent-hint",
-                        "Ask about the open folder. The turn runs on the server and finishes even if you close this window; come back (or connect from another device) to see where it stands."
+                        {t!(ws, L, "agent-server-hint")}
                     }
                 }
                 for (i, item) in items().into_iter().enumerate() {
@@ -277,14 +278,14 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                 if let Some(p) = pending() {
                     div { class: "mk-agent-approval",
                         div { class: "mk-agent-approval-title",
-                            "The agent wants to run "
+                            {t!(ws, L, "agent-wants")}
                             code { "{p.name}" }
-                            " ({p.class:?}) — waiting for anyone connected to answer"
+                            {t!(ws, L, "agent-waiting", class = format!("{:?}", p.class))}
                         }
                         code { class: "mk-agent-tool-input", "{p.input}" }
                         div { class: "mk-agent-approval-actions",
-                            button { class: "mk-btn mk-btn-on", onclick: move |_| answer(true), "Allow" }
-                            button { class: "mk-btn", onclick: move |_| answer(false), "Deny" }
+                            button { class: "mk-btn mk-btn-on", onclick: move |_| answer(true), {t!(ws, L, "agent-allow")} }
+                            button { class: "mk-btn", onclick: move |_| answer(false), {t!(ws, L, "agent-deny")} }
                         }
                     }
                 }
@@ -297,17 +298,18 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                     id: crate::panel::INPUT_ID,
                     class: "mk-agent-input",
                     rows: 2,
-                    placeholder: "Ask the agent… (runs on the server; Enter to send)",
+                    placeholder: t!(ws, L, "agent-ask-server"),
                     value: "{input}",
                     oninput: move |e| input.set(e.value()),
                     onkeydown: move |e: KeyboardEvent| {
-                        if e.key() == Key::Enter && !e.modifiers().shift() {
+                        // Not while an input method composes (#19).
+                        if e.key() == Key::Enter && !e.modifiers().shift() && !e.is_composing() {
                             e.prevent_default();
                             send(());
                         }
                     },
                 }
-                button { class: "mk-btn", disabled: running(), onclick: move |_| send(()), if running() { "…" } else { "Send" } }
+                button { class: "mk-btn", disabled: running(), onclick: move |_| send(()), if running() { "…" } else { {t!(ws, L, "agent-send")} } }
             }
         }
     }

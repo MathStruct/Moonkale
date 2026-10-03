@@ -5,9 +5,10 @@
 //! the platform's `compile_typst` — in-process on desktop, a server function
 //! on web — so this panel never links `typst`.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::NodeId;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 
 const CSS: Asset = asset!("/assets/typst.css");
 
@@ -87,7 +88,7 @@ pub fn TypstPreviewPanel(ws: Workspace) -> Element {
                     }
                 },
                 State::Pages(pages) => rsx! {
-                    div { class: "mk-typst-meta", "{pages.len()} page(s)" if busy() { " · compiling…" } }
+                    div { class: "mk-typst-meta", {t!(ws, L, "typst-pages", n = pages.len())} if busy() { {t!(ws, L, "typst-compiling")} } }
                     for (i, svg) in pages.iter().enumerate() {
                         div { key: "{i}", class: "mk-typst-page", dangerous_inner_html: "{svg}" }
                     }

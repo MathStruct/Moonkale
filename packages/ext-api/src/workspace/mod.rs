@@ -42,6 +42,20 @@ pub use session::SessionState;
 pub use settings::SettingsState;
 pub use sources::SourcesState;
 
+thread_local! {
+    static UNTRACKED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Run `f` without subscribing to the language (spec 030): inside it,
+/// [`Workspace::lang`] peeks. For code that calls `Extension::panels` from an
+/// effect which must not re-run when settings change (P-147, P-151).
+pub fn untracked<R>(f: impl FnOnce() -> R) -> R {
+    UNTRACKED.with(|d| d.set(d.get() + 1));
+    let out = f();
+    UNTRACKED.with(|d| d.set(d.get() - 1));
+    out
+}
+
 /// The workspace: every open source, document and setting, and the platform's services. `Copy` (signals inside); handed to every extension call. Its state is grouped by area; the methods are on this facade.
 #[derive(Clone, Copy)]
 pub struct Workspace {
@@ -121,6 +135,14 @@ impl Workspace {
     /// The UI language's tag (spec 030), read reactively: a component that
     /// calls this re-renders when the language changes. Used by [`crate::t!`].
     pub fn lang(&self) -> String {
+        if UNTRACKED.with(|d| d.get() > 0) {
+            let chosen = self.settings.resolved.peek().language.clone();
+            return if chosen.is_empty() {
+                self.settings.system_language.peek().clone()
+            } else {
+                chosen
+            };
+        }
         let chosen = self.settings.resolved.read().language.clone();
         if chosen.is_empty() {
             self.settings.system_language.read().clone()

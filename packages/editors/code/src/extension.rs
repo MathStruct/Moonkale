@@ -1,9 +1,11 @@
 //! `CodeEditorExtension` — one closable panel per open document.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_code_view::CodeEditorPanel;
 use moonkale_core::NodeId;
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::{i18n::Locales, t};
 
 pub const PANEL_PREFIX: &str = "editor:";
 
@@ -34,6 +36,10 @@ impl CodeEditorExtension {
 }
 
 impl Extension for CodeEditorExtension {
+    fn locales(&self) -> Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::core(
             "dev.moonkale.editor-code",
@@ -78,8 +84,11 @@ impl Extension for CodeEditorExtension {
         }
     }
 
-    fn commands(&self, _ws: Workspace) -> Vec<CommandContribution> {
-        vec![CommandContribution::new("editor.toggleWrap", "View: Toggle Word Wrap").key("Alt+Z")]
+    fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
+        vec![
+            CommandContribution::new("editor.toggleWrap", t!(ws, L, "cmd-toggle-wrap"))
+                .key("Alt+Z"),
+        ]
     }
 
     fn run_command(&self, id: &str, ws: Workspace) {
@@ -96,7 +105,7 @@ impl Extension for CodeEditorExtension {
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: wrap,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.wrap = Some(v)); } }
-                "Wrap long lines (Alt+Z toggles)"
+                {t!(ws, L, "code-wrap-setting")}
             }
         })
     }

@@ -1,10 +1,11 @@
 //! The Graph panel: toolbar, two stacked canvases (wgpu + label overlay),
 //! popup, and the eval channel to the renderer module.
 
+use crate::L;
 use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
 use moonkale_core::{Direction, Node, NodeKind, Query, SourceFamily, SourceId};
-use moonkale_ext_api::{GraphRequest, Workspace};
+use moonkale_ext_api::{t, GraphRequest, Workspace};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -654,9 +655,18 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         })
         .map(|s| {
             let name = if s.descriptor.family == SourceFamily::Index {
-                format!(
-                    "folder: {}",
-                    s.descriptor.id.as_str().rsplit('/').next().unwrap_or("?")
+                t!(
+                    ws,
+                    L,
+                    "graph-folder",
+                    name = s
+                        .descriptor
+                        .id
+                        .as_str()
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or("?")
+                        .to_string()
                 )
             } else {
                 s.descriptor.display_name.clone()
@@ -697,32 +707,32 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         div { class: "mk-graph",
             div { class: "mk-graph-toolbar",
                 if !databases.is_empty() {
-                    select { class: "mk-graph-source", title: "Which source to draw",
+                    select { class: "mk-graph-source", title: t!(ws, L, "graph-source-title"),
                         value: "{picked_str}",
                         onchange: move |e| {
                             let v = e.value();
                             picked.set(if v.is_empty() { None } else { Some(SourceId::new(v)) });
                             if db_mode() == DbMode::Query { db_mode.set(DbMode::Data); }
                         },
-                        option { value: "", selected: picked().is_none(), if index_count > 1 { "all folders" } else { "index" } }
+                        option { value: "", selected: picked().is_none(), if index_count > 1 { {t!(ws, L, "graph-all-folders")} } else { {t!(ws, L, "graph-index")} } }
                         for (sid, name) in databases.iter() {
                             option { key: "{sid}", value: "{sid}", selected: picked().as_ref() == Some(sid), "{name}" }
                         }
                     }
                 }
                 if picked_is_trace {
-                    span { class: "mk-graph-modes", span { class: "mk-muted", "files → frames → call chain" } }
+                    span { class: "mk-graph-modes", span { class: "mk-muted", {t!(ws, L, "graph-trace-modes")} } }
                 } else if is_index {
                     span { class: "mk-graph-modes",
-                        button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), "Whole" }
-                        button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: "Two hops around the active document", "Local" }
+                        button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), {t!(ws, L, "graph-whole")} }
+                        button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: t!(ws, L, "graph-local-title"), {t!(ws, L, "graph-local")} }
                     }
                 } else {
                     span { class: "mk-graph-modes",
-                        button { class: if db_mode() == DbMode::Data { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Data), title: "The stored nodes and relations (up to 3000)", "Data" }
-                        button { class: if db_mode() == DbMode::Schema { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Schema), title: "Tables and properties; relation tables as edges", "Schema" }
+                        button { class: if db_mode() == DbMode::Data { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Data), title: t!(ws, L, "graph-data-title"), {t!(ws, L, "graph-data")} }
+                        button { class: if db_mode() == DbMode::Schema { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Schema), title: t!(ws, L, "graph-schema-title"), {t!(ws, L, "graph-schema")} }
                         if has_request {
-                            button { class: if db_mode() == DbMode::Query { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Query), title: "The last query sent from a table editor", "Query" }
+                            button { class: if db_mode() == DbMode::Query { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Query), title: t!(ws, L, "graph-query-title"), {t!(ws, L, "graph-query")} }
                         }
                     }
                     if db_mode() != DbMode::Schema {
@@ -741,21 +751,21 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     }
                 }
                 if is_index {
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } "files" }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } "symbols" }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } "folders" }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } "unresolved" }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } {t!(ws, L, "graph-files")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } {t!(ws, L, "graph-symbols")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } {t!(ws, L, "graph-folders")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } {t!(ws, L, "graph-unresolved")} }
                 }
                 span { class: "mk-graph-spacer" }
                 span { class: "mk-graph-info", "data-nodes": "{n_nodes}", "data-mode": if three_d() { "3d" } else { "2d" }, "data-backend": backend().unwrap_or_default(), "data-module": if loaded() { "loaded" } else { "" },
-                    "{n_nodes} nodes · {n_edges} edges"
-                    if truncated { " · truncated" }
+                    {t!(ws, L, "graph-counts", nodes = n_nodes, edges = n_edges)}
+                    if truncated { {t!(ws, L, "graph-truncated")} }
                     if let Some(b) = backend() { " · {b}" }
                 }
-                button { class: if paste_open() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| paste_open.toggle(), title: "Paste a stack trace or compiler output and draw it", "Trace…" }
-                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, "Fit" }
-                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Relayout); } }, "Relayout" }
-                button { class: if three_d() { "mk-btn mk-btn-on" } else { "mk-btn" }, title: "3D: one plane per node kind; drag to pan, right-drag or Shift-drag to orbit, wheel to dolly",
+                button { class: if paste_open() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| paste_open.toggle(), title: t!(ws, L, "graph-trace-title"), {t!(ws, L, "graph-trace")} }
+                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, {t!(ws, L, "graph-fit")} }
+                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Relayout); } }, {t!(ws, L, "graph-relayout")} }
+                button { class: if three_d() { "mk-btn mk-btn-on" } else { "mk-btn" }, title: t!(ws, L, "graph-3d-title"),
                     onclick: move |_| {
                         let next = !three_d();
                         three_d.set(next);
@@ -766,14 +776,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             }
             if paste_open() {
                 div { class: "mk-graph-paste",
-                    textarea { class: "mk-graph-paste-text", rows: 6, placeholder: "Paste a Rust panic/backtrace, cargo errors, a Python traceback or a JS stack…",
+                    textarea { class: "mk-graph-paste-text", rows: 6, placeholder: t!(ws, L, "graph-paste-placeholder"),
                         value: "{paste_text}", oninput: move |e| paste_text.set(e.value()) }
                     div { class: "mk-graph-paste-actions",
                         button { class: "mk-btn mk-btn-on", onclick: move |_| {
                             let mut ws = ws;
                             let traces = moonkale_trace::parse(&paste_text.peek());
                             if traces.is_empty() {
-                                ws.set_status("No trace found in the pasted text");
+                                ws.set_status(t!(ws, L, "graph-no-trace"));
                             } else {
                                 for t in &traces {
                                     let unique = ws.next_unique();
@@ -781,8 +791,8 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                 }
                                 paste_open.set(false);
                             }
-                        }, "Draw" }
-                        button { class: "mk-btn", onclick: move |_| paste_open.set(false), "Cancel" }
+                        }, {t!(ws, L, "graph-draw")} }
+                        button { class: "mk-btn", onclick: move |_| paste_open.set(false), {t!(ws, L, "cancel")} }
                     }
                 }
             }
@@ -790,10 +800,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 canvas { id: "{id}-gl", class: "mk-graph-canvas" }
                 canvas { id: "{id}-ov", class: "mk-graph-canvas mk-graph-overlay" }
                 if !has_any {
-                    div { class: "mk-graph-empty", "Open a folder or a database to see its graph." }
+                    div { class: "mk-graph-empty", {t!(ws, L, "graph-empty")} }
                 }
                 if let (true, Some(err)) = (has_any, error()) {
-                    div { class: "mk-graph-empty mk-graph-error", "Renderer failed to start: {err}" }
+                    div { class: "mk-graph-empty mk-graph-error", {t!(ws, L, "graph-failed", error = err.to_string())} }
                 }
                 if let Some(FromJs::Hover { id: Some(_), label, node_kind, key, x, y }) = hover() {
                     {
@@ -825,7 +835,13 @@ async fn open_node(mut ws: Workspace, node: Node) {
         .any(|s| s.descriptor.id == node.source && is_trace(&s.descriptor.family));
     if from_trace {
         if let Some(hash) = node.native_key.strip_prefix("commit:") {
-            ws.set_status(format!("Commit {hash}: {}", node.label));
+            ws.set_status(t!(
+                ws,
+                L,
+                "graph-commit",
+                hash = hash.to_string(),
+                label = node.label.clone()
+            ));
             return;
         }
         let (path, line, col) = split_location(&node.native_key);
@@ -835,7 +851,7 @@ async fn open_node(mut ws: Workspace, node: Node) {
                     .reveal(n, line.saturating_sub(1), col.saturating_sub(1))
                     .await;
             }
-            Err(_) => ws.set_status(format!("{path} is not in an open folder")),
+            Err(_) => ws.set_status(t!(ws, L, "graph-not-in-folder", path = path.to_string())),
         }
         return;
     }
@@ -868,7 +884,12 @@ async fn open_node(mut ws: Workspace, node: Node) {
                 ws.set_status(e.to_string());
             }
         }
-        _ => ws.set_status(format!("{} has nothing to open", node.label)),
+        _ => ws.set_status(t!(
+            ws,
+            L,
+            "graph-nothing-to-open",
+            label = node.label.clone()
+        )),
     }
 }
 

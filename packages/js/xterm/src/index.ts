@@ -10,6 +10,40 @@ type Handlers = { onData: (data: string) => void; onResize: (cols: number, rows:
 type Entry = { term: Terminal; fit: FitAddon; ro: ResizeObserver }
 
 const terms = new WeakMap<HTMLElement, Entry>()
+const live = new Set<HTMLElement>()
+
+// Spec 030: the colours come from the theme's tokens (CSS custom properties
+// the shell defines on <html>), read when a terminal mounts and again
+// whenever the theme changes — `data-theme` on <html>, or the system's
+// light/dark preference while the theme follows it.
+const ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
+function themeFrom(el: HTMLElement): Record<string, string> {
+  const css = getComputedStyle(el)
+  const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback
+  const theme: Record<string, string> = {
+    background: v("--mk-term-bg", "#0b0d12"),
+    foreground: v("--mk-term-fg", "#e6e8ee"),
+    cursor: v("--mk-term-cursor", "#6ea8fe"),
+    selectionBackground: v("--mk-term-selection", "rgba(110,168,254,0.3)"),
+  }
+  ANSI.forEach((name, i) => {
+    const normal = v(`--mk-ansi-${i}`, "")
+    const bright = v(`--mk-ansi-${i + 8}`, "")
+    if (normal) theme[name] = normal
+    if (bright) theme["bright" + name[0].toUpperCase() + name.slice(1)] = bright
+  })
+  return theme
+}
+function retheme(): void {
+  for (const el of live) {
+    const e = terms.get(el)
+    if (e) e.term.options.theme = themeFrom(el)
+  }
+}
+new MutationObserver(retheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] })
+window.matchMedia?.("(prefers-color-scheme: light)").addEventListener?.("change", retheme)
+// The theme's stylesheet may arrive after the first terminal: re-read once it has.
+window.addEventListener("moonkale-theme", retheme)
 
 function b64decode(s: string): Uint8Array {
   const bin = atob(s)
@@ -32,7 +66,7 @@ function mount(el: HTMLElement, handlers: Handlers): { cols: number; rows: numbe
     cursorBlink: true,
     fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
     fontSize: 13,
-    theme: { background: "#0b0d12", foreground: "#e6e8ee", cursor: "#6ea8fe", selectionBackground: "rgba(110,168,254,0.3)" },
+    theme: themeFrom(el),
     scrollback: 5000,
     allowProposedApi: true,
   })
@@ -45,6 +79,7 @@ function mount(el: HTMLElement, handlers: Handlers): { cols: number; rows: numbe
   const ro = new ResizeObserver(() => { try { fit.fit() } catch { /* hidden */ } })
   ro.observe(el)
   terms.set(el, { term, fit, ro })
+  live.add(el)
   return { cols: term.cols, rows: term.rows }
 }
 
@@ -87,6 +122,7 @@ function allText(el: HTMLElement): string {
 function destroy(el: HTMLElement): void {
   const e = terms.get(el)
   if (e) { e.ro.disconnect(); e.term.dispose(); terms.delete(el) }
+  live.delete(el)
 }
 
 declare global { interface Window { moonkale?: Record<string, unknown> } }
