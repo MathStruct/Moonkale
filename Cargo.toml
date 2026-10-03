@@ -18,11 +18,11 @@ members = [
     "packages/state",
     "packages/state-stores",
     # Data access
-    "packages/sources",
-    "packages/sources-sql",
-    "packages/sources-graph",
-    "packages/sources-kv",
-    "packages/project-fs",
+    "packages/sources/registry",
+    "packages/sources/sql",
+    "packages/sources/graph",
+    "packages/sources/kv",
+    "packages/sources/project-fs",
     "packages/services/index",
     # Services
     "packages/services/llm",
@@ -75,11 +75,11 @@ moonkale-ext-host = { path = "packages/ext-host" }
 moonkale-ext-abi = { path = "packages/ext-abi" }
 moonkale-state = { path = "packages/state" }
 moonkale-state-stores = { path = "packages/state-stores" }
-moonkale-sources = { path = "packages/sources" }
-moonkale-sources-sql = { path = "packages/sources-sql" }
-moonkale-sources-graph = { path = "packages/sources-graph" }
-moonkale-sources-kv = { path = "packages/sources-kv" }
-moonkale-project-fs = { path = "packages/project-fs" }
+moonkale-sources = { path = "packages/sources/registry" }
+moonkale-sources-sql = { path = "packages/sources/sql" }
+moonkale-sources-graph = { path = "packages/sources/graph" }
+moonkale-sources-kv = { path = "packages/sources/kv" }
+moonkale-project-fs = { path = "packages/sources/project-fs" }
 moonkale-index = { path = "packages/services/index" }
 moonkale-llm = { path = "packages/services/llm" }
 moonkale-llm-types = { path = "packages/services/llm-types" }
