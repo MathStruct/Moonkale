@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     /// A record from the state store, if there is a store and the record.
@@ -187,6 +188,12 @@ impl Workspace {
 
     /// Load the user scope (at startup).
     pub async fn load_user_settings(mut self) {
+        // Runs on the client after the first render: now the system's
+        // language may show (spec 030).
+        let system = crate::i18n::system_language();
+        if *self.settings.system_language.peek() != system {
+            self.settings.system_language.set(system);
+        }
         let Some(loaded) = self.read_user_settings().await else {
             return;
         };
@@ -195,7 +202,7 @@ impl Workspace {
                 self.settings.user.set(file);
                 self.resolve_settings();
             }
-            Err(e) => self.set_status(format!("Settings not loaded: {e}")),
+            Err(e) => self.set_status(t!(self, L, "settings-not-loaded", error = e)),
         }
         self.refresh_wasm_extensions().await;
         // Desktop: a remote folder asked for on the command line wins
@@ -220,7 +227,7 @@ impl Workspace {
             if let Some(path) = last {
                 tracing::info!("settings: reopening last folder {path}");
                 if let Err(e) = self.open_folder(path).await {
-                    self.set_status(format!("Could not reopen the last folder: {e}"));
+                    self.set_status(t!(self, L, "reopen-failed", error = e.to_string()));
                 }
             }
         }
@@ -263,7 +270,7 @@ impl Workspace {
             Ok(())
         };
         if let Err(e) = saved {
-            self.set_status(format!("Settings not saved: {e}"));
+            self.set_status(t!(self, L, "settings-not-saved", error = e));
         }
     }
 
@@ -277,7 +284,12 @@ impl Workspace {
                 Some(src) => match src.fetch_text(node.id).await {
                     Ok((text, _)) => {
                         crate::settings::SettingsFile::parse(&text).unwrap_or_else(|e| {
-                            self.set_status(format!("Workspace settings ignored: {e}"));
+                            self.set_status(t!(
+                                self,
+                                L,
+                                "workspace-settings-ignored",
+                                error = e.to_string()
+                            ));
                             crate::settings::SettingsFile::new()
                         })
                     }
@@ -382,9 +394,19 @@ impl Workspace {
             Ok(applied) if applied.first_error().is_none() => {}
             Ok(applied) => {
                 let e = applied.first_error().cloned().unwrap();
-                self.set_status(format!("Workspace settings not saved: {e}"));
+                self.set_status(t!(
+                    self,
+                    L,
+                    "workspace-settings-not-saved",
+                    error = e.to_string()
+                ));
             }
-            Err(e) => self.set_status(format!("Workspace settings not saved: {e}")),
+            Err(e) => self.set_status(t!(
+                self,
+                L,
+                "workspace-settings-not-saved",
+                error = e.to_string()
+            )),
         }
     }
 }
@@ -400,6 +422,11 @@ pub struct SettingsState {
     pub workspace: Signal<crate::settings::SettingsFile>,
     /// The folder whose `.moonkale/settings.json` is loaded, if any.
     pub folder: Signal<Option<SourceId>>,
+    /// The system's language (spec 030). English until the app has started
+    /// on the client ([`Workspace::load_user_settings`] sets it): the web
+    /// build renders on the server first and hydration keeps that markup, so
+    /// the first render must not depend on whose system it is.
+    pub system_language: Signal<String>,
 }
 
 impl SettingsState {
@@ -416,6 +443,7 @@ impl SettingsState {
             user: Signal::new_in_scope(crate::settings::SettingsFile::new(), ScopeId::ROOT),
             workspace: Signal::new_in_scope(crate::settings::SettingsFile::new(), ScopeId::ROOT),
             folder: Signal::new_in_scope(None, ScopeId::ROOT),
+            system_language: Signal::new_in_scope(crate::i18n::FALLBACK.to_string(), ScopeId::ROOT),
         }
     }
 }

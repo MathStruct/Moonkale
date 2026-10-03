@@ -2,8 +2,9 @@
 //! `terminal.implementation` is `ask`: pick one for this terminal, and
 //! optionally remember it.
 
+use crate::L;
 use dioxus::prelude::*;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 
 #[component]
 pub fn TerminalChooser(open: Signal<bool>) -> Element {
@@ -30,18 +31,18 @@ pub fn TerminalChooser(open: Signal<bool>) -> Element {
                 class: "mk-palette mk-remote-dialog mk-terminal-chooser",
                 onclick: move |e| e.stop_propagation(),
                 onkeydown: move |e| { if e.key() == Key::Escape { open.set(false); } },
-                div { class: "mk-remote-title", "Open the terminal with…" }
-                p { class: "mk-remote-hint", "Two terminal panels are enabled. Settings → Terminal → Implementation makes this permanent." }
+                div { class: "mk-remote-title", {t!(ws, L, "chooser-title")} }
+                p { class: "mk-remote-hint", {t!(ws, L, "chooser-hint")} }
                 div { class: "mk-terminal-choices",
-                    button { r#type: "button", class: "mk-button mk-button-primary", autofocus: true, onclick: move |_| pick("xterm"), "xterm.js" span { class: "mk-muted", " — the JavaScript terminal (default)" } }
-                    button { r#type: "button", class: "mk-button", onclick: move |_| pick("native"), "Rust" span { class: "mk-muted", " — the Dioxus-rendered terminal (no JavaScript)" } }
+                    button { r#type: "button", class: "mk-button mk-button-primary", autofocus: true, onclick: move |_| pick("xterm"), "xterm.js" span { class: "mk-muted", {t!(ws, L, "chooser-xterm")} } }
+                    button { r#type: "button", class: "mk-button", onclick: move |_| pick("native"), "Rust" span { class: "mk-muted", {t!(ws, L, "chooser-native")} } }
                 }
                 label { class: "mk-settings-check",
                     input { r#type: "checkbox", checked: remember(), onchange: move |e| remember.set(e.checked()) }
-                    "Remember my choice"
+                    {t!(ws, L, "chooser-remember")}
                 }
                 div { class: "mk-remote-actions",
-                    button { r#type: "button", class: "mk-button", onclick: move |_| open.set(false), "Cancel" }
+                    button { r#type: "button", class: "mk-button", onclick: move |_| open.set(false), {t!(ws, L, "cancel")} }
                 }
             }
         }

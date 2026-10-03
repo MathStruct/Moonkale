@@ -24,6 +24,7 @@ mod server_dialog;
 mod settings_panel;
 mod shell;
 mod terminal_chooser;
+pub mod theme;
 mod titlebar;
 mod touch_drag;
 
@@ -47,6 +48,22 @@ pub use shell::Shell;
 pub use titlebar::TitleBar;
 
 use moonkale_ext_api::Extension;
+
+/// This crate's strings (spec 030): English, German, Chinese.
+pub static L: moonkale_ext_api::i18n::Locales = &[
+    ("en", include_str!("../locales/en.ftl")),
+    ("de", include_str!("../locales/de.ftl")),
+    ("zh-CN", include_str!("../locales/zh-CN.ftl")),
+];
+
+/// `tl!(lang, <id>)`: a shell string in `lang` (where no `Workspace` is at
+/// hand; components use `moonkale_ext_api::t!`).
+#[macro_export]
+macro_rules! tl {
+    ($lang:expr, $key:literal) => {
+        moonkale_ext_api::i18n::tr($crate::L, $lang, $key, None)
+    };
+}
 
 /// The shell's own extensions (Explorer, Search, Settings, Extensions), in
 /// contribution order. Everything else comes from a distribution

@@ -2,8 +2,9 @@
 //! token; the app becomes that server's client (sources, terminal, LSP,
 //! git and agent sessions there; the editor and the LLM keys here).
 
+use crate::L;
 use dioxus::prelude::*;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 
 #[component]
 pub fn ServerDialog(open: Signal<bool>) -> Element {
@@ -36,12 +37,10 @@ pub fn ServerDialog(open: Signal<bool>) -> Element {
                 onclick: move |e| e.stop_propagation(),
                 onsubmit: move |e| { e.prevent_default(); connect(); },
                 onkeydown: move |e| { if e.key() == Key::Escape { open.set(false); } },
-                div { class: "mk-remote-title", "Connect to Server" }
-                p { class: "mk-remote-hint",
-                    "Use a running Moonkale server (" code { "moonkale-server" } " or " code { "dx serve" } " with " code { "MOONKALE_TOKEN" } ") from this app: its folder, index, git, language servers, terminals and agent sessions run there; the editor and your API keys stay here. Over the network the server should use HTTPS or a tunnel — see Remote and Server Modes."
-                }
+                div { class: "mk-remote-title", {t!(ws, L, "server-title")} }
+                p { class: "mk-remote-hint", {t!(ws, L, "server-hint")} }
                 label { class: "mk-remote-field",
-                    span { "Server URL" }
+                    span { {t!(ws, L, "server-url")} }
                     input {
                         class: "mk-palette-input mk-server-url",
                         r#type: "url",
@@ -52,18 +51,18 @@ pub fn ServerDialog(open: Signal<bool>) -> Element {
                     }
                 }
                 label { class: "mk-remote-field",
-                    span { "Access token (MOONKALE_TOKEN)" }
+                    span { {t!(ws, L, "server-token")} }
                     input {
                         class: "mk-palette-input mk-server-token",
                         r#type: "password",
-                        placeholder: "empty for a dev server without a token",
+                        placeholder: t!(ws, L, "server-token-placeholder"),
                         value: "{token}",
                         oninput: move |e| token.set(e.value()),
                     }
                 }
                 div { class: "mk-remote-actions",
-                    button { r#type: "button", class: "mk-button", onclick: move |_| open.set(false), "Cancel" }
-                    button { r#type: "submit", class: "mk-button mk-button-primary", "Connect" }
+                    button { r#type: "button", class: "mk-button", onclick: move |_| open.set(false), {t!(ws, L, "cancel")} }
+                    button { r#type: "submit", class: "mk-button mk-button-primary", {t!(ws, L, "connect")} }
                 }
             }
         }

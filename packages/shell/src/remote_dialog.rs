@@ -2,8 +2,9 @@
 //! starts the SSH session. Hosts come from `~/.ssh/config`; the `ssh`
 //! process appears as a terminal tab and asks there for whatever it needs.
 
+use crate::L;
 use dioxus::prelude::*;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 
 #[component]
 pub fn RemoteDialog(open: Signal<bool>) -> Element {
@@ -52,7 +53,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
         );
         if n.is_empty() {
             let mut ws = ws;
-            ws.set_status("Give the connection a name to save it");
+            ws.set_status(t!(ws, L, "remote-name-needed"));
             return;
         }
         picked.set(n.clone());
@@ -81,45 +82,18 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                 onclick: move |e| e.stop_propagation(),
                 onsubmit: move |e| { e.prevent_default(); connect(); },
                 onkeydown: move |e| { if e.key() == Key::Escape { open.set(false); } },
-                div { class: "mk-remote-title", "Open Remote Folder" }
-                p { class: "mk-remote-hint",
-                    "Opens a folder on another machine through your system "
-                    code { "ssh" }
-                    ". Authentication is ssh's own — keys, agent, passwords and host-key checks work exactly as in a terminal; whatever ssh asks appears in the Terminal panel, and Moonkale never sees a secret."
-                }
-                p { class: "mk-remote-hint",
-                    b { "Host" }
-                    ": what you would type after "
-                    code { "ssh" }
-                    " — a name or "
-                    code { "user@host" }
-                    ", an alias from "
-                    code { "~/.ssh/config" }
-                    " (offered below), with any ssh options in front ("
-                    code { "-p 2222" }
-                    ", "
-                    code { "-i ~/.ssh/key" }
-                    ", "
-                    code { "-J jumphost" }
-                    ", "
-                    code { "-o …" }
-                    "); "
-                    code { "VAR=value" }
-                    " words at the start are set in ssh's environment."
-                }
-                p { class: "mk-remote-hint",
-                    "The first time per host and version, Moonkale's own server (about 150 MB) is copied to the host into "
-                    code { "~/.local/share/moonkale/server/" }
-                    " and started there for this session only: the folder, its index, git, language servers and terminals then run on that machine; the editor and your API keys stay here. Closing the folder ends the session and the server."
-                }
+                div { class: "mk-remote-title", {t!(ws, L, "remote-title")} }
+                p { class: "mk-remote-hint", {t!(ws, L, "remote-hint-ssh")} }
+                p { class: "mk-remote-hint", {t!(ws, L, "remote-hint-host")} }
+                p { class: "mk-remote-hint", {t!(ws, L, "remote-hint-server")} }
                 if !saved.read().is_empty() {
                     label { class: "mk-remote-field",
-                        span { "Saved connection" }
+                        span { {t!(ws, L, "remote-saved")} }
                         select {
                             class: "mk-palette-input mk-remote-saved",
                             value: "{picked}",
                             onchange: move |e| pick(e.value()),
-                            option { value: "", selected: picked().is_empty(), "— type a host below, or pick one —" }
+                            option { value: "", selected: picked().is_empty(), {t!(ws, L, "remote-pick")} }
                             for c in saved.read().iter() {
                                 option { key: "{c.name}", value: "{c.name}", selected: picked() == c.name, "{c.name} — {c.host}:{c.path}" }
                             }
@@ -127,7 +101,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                     }
                 }
                 label { class: "mk-remote-field",
-                    span { "Host (as typed after ssh)" }
+                    span { {t!(ws, L, "remote-host")} }
                     input {
                         class: "mk-palette-input mk-remote-host",
                         r#type: "text",
@@ -144,7 +118,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                     }
                 }
                 label { class: "mk-remote-field",
-                    span { "Folder on that machine" }
+                    span { {t!(ws, L, "remote-folder")} }
                     input {
                         class: "mk-palette-input mk-remote-path",
                         r#type: "text",
@@ -157,18 +131,18 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
                     input {
                         class: "mk-palette-input mk-remote-save-name",
                         r#type: "text",
-                        placeholder: "name to save this connection as",
+                        placeholder: t!(ws, L, "remote-save-name"),
                         value: "{save_name}",
                         oninput: move |e| save_name.set(e.value()),
                     }
-                    button { r#type: "button", class: "mk-button mk-remote-save-btn", onclick: save, title: "Remember host and folder under this name (user settings)", "Save" }
+                    button { r#type: "button", class: "mk-button mk-remote-save-btn", onclick: save, title: t!(ws, L, "remote-save-title"), {t!(ws, L, "menu-save")} }
                     if !picked().is_empty() {
-                        button { r#type: "button", class: "mk-button mk-remote-forget-btn", onclick: forget, "Forget" }
+                        button { r#type: "button", class: "mk-button mk-remote-forget-btn", onclick: forget, {t!(ws, L, "remote-forget")} }
                     }
                 }
                 div { class: "mk-remote-actions",
-                    button { r#type: "button", class: "mk-button", onclick: move |_| open.set(false), "Cancel" }
-                    button { r#type: "submit", class: "mk-button mk-button-primary", "Connect" }
+                    button { r#type: "button", class: "mk-button", onclick: move |_| open.set(false), {t!(ws, L, "cancel")} }
+                    button { r#type: "submit", class: "mk-button mk-button-primary", {t!(ws, L, "connect")} }
                 }
             }
         }

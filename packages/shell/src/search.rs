@@ -1,10 +1,11 @@
 //! Search panel (Milestone 4): hybrid search over the index — a query box,
 //! hits with path · line · snippet, click opens the file at the line.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{Node, Query, Value};
 use moonkale_ext_api::prelude::*;
-use moonkale_ext_api::Command;
+use moonkale_ext_api::{t, Command};
 
 pub const PANEL_ID: &str = "search";
 const INPUT_ID: &str = "mk-search-input";
@@ -20,10 +21,12 @@ impl Extension for SearchExtension {
         )
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution::new(PANEL_ID, "Search", PanelHome::Side)
-            .closable(true)
-            .activity(Activity::new("search", 20, "Search"))]
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
+        vec![
+            PanelContribution::new(PANEL_ID, t!(ws, L, "search-title"), PanelHome::Side)
+                .closable(true)
+                .activity(Activity::new("search", 20, t!(ws, L, "search-title"))),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
@@ -58,7 +61,7 @@ fn SearchPanel(ws: Workspace) -> Element {
             return;
         }
         let Some(index) = ws.index() else {
-            hits.set(Some(Err("Open a folder first.".into())));
+            hits.set(Some(Err(t!(ws, L, "search-no-folder"))));
             return;
         };
         spawn(async move {
@@ -150,7 +153,13 @@ fn SearchPanel(ws: Workspace) -> Element {
                 }
             }
             if failed == 0 {
-                ws.set_status(format!("Replaced {total} occurrence(s) of {needle:?}"));
+                ws.set_status(t!(
+                    ws,
+                    L,
+                    "search-replaced",
+                    n = total,
+                    needle = format!("{needle:?}")
+                ));
             }
             preview.set(None);
             replacing.set(false);
@@ -170,7 +179,7 @@ fn SearchPanel(ws: Workspace) -> Element {
                 input {
                     id: INPUT_ID,
                     class: "mk-input",
-                    placeholder: "Search files… (Enter)",
+                    placeholder: t!(ws, L, "search-placeholder"),
                     value: "{query}",
                     oninput: move |e| query.set(e.value()),
                     onkeydown: move |e: KeyboardEvent| {
@@ -180,40 +189,40 @@ fn SearchPanel(ws: Workspace) -> Element {
                         }
                     },
                 }
-                button { class: "mk-btn", disabled: running(), onclick: move |_| run(), "Go" }
+                button { class: "mk-btn", disabled: running(), onclick: move |_| run(), {t!(ws, L, "search-go")} }
             }
             if matches!(hits(), Some(Ok(ref l)) if !l.is_empty()) {
                 div { class: "mk-search-box mk-search-replace",
                     input {
                         class: "mk-input",
-                        placeholder: "Replace with…",
+                        placeholder: t!(ws, L, "search-replace-with"),
                         value: "{replacement}",
                         oninput: move |e| { replacement.set(e.value()); preview.set(None); },
                         onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Enter { e.prevent_default(); do_preview(); } },
                     }
-                    button { class: "mk-btn", disabled: replacing(), onclick: move |_| do_preview(), "Preview" }
+                    button { class: "mk-btn", disabled: replacing(), onclick: move |_| do_preview(), {t!(ws, L, "search-preview")} }
                 }
                 if let Some(files) = preview_now {
                     div { class: "mk-search-preview", "data-files": "{files.len()}", "data-total": "{preview_total}",
                         if files.is_empty() {
-                            p { class: "mk-muted", "No literal occurrences of the query in the found files." }
+                            p { class: "mk-muted", {t!(ws, L, "search-preview-none")} }
                         } else {
-                            p { "Replace " b { "{preview_total}" } " occurrence(s) of " code { "{query}" } " with " code { "{replacement}" } " in:" }
+                            p { {t!(ws, L, "search-preview-head", n = preview_total, query = query(), replacement = replacement())} }
                             ul {
                                 for (n, c) in files.iter() {
-                                    li { key: "{n.id}", "{n.native_key} " span { class: "mk-muted", "({c})" } if ws.document(n.id).is_some() { span { class: "mk-muted", " — open, stays unsaved" } } }
+                                    li { key: "{n.id}", "{n.native_key} " span { class: "mk-muted", "({c})" } if ws.document(n.id).is_some() { span { class: "mk-muted", {t!(ws, L, "search-open-unsaved")} } } }
                                 }
                             }
-                            button { class: "mk-btn mk-btn-on", disabled: replacing(), onclick: do_replace, "Replace all" }
+                            button { class: "mk-btn mk-btn-on", disabled: replacing(), onclick: do_replace, {t!(ws, L, "search-replace-all")} }
                         }
                     }
                 }
             }
             div { class: "mk-search-results",
                 match hits() {
-                    None => rsx! { p { class: "mk-muted", "Keyword + semantic search over the open folder." } },
+                    None => rsx! { p { class: "mk-muted", {t!(ws, L, "search-hint")} } },
                     Some(Err(e)) => rsx! { p { class: "mk-explorer-error", "{e}" } },
-                    Some(Ok(list)) if list.is_empty() => rsx! { p { class: "mk-muted", "No matches." } },
+                    Some(Ok(list)) if list.is_empty() => rsx! { p { class: "mk-muted", {t!(ws, L, "search-no-matches")} } },
                     Some(Ok(list)) => rsx! {
                         for (i, h) in list.into_iter().enumerate() {
                             div { key: "{i}", class: "mk-search-hit", title: "{h.path}:{h.line}",

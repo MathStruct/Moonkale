@@ -7,6 +7,7 @@
 
 use crate::fuzzy_score;
 use crate::workspace::Workspace;
+use crate::{t, L};
 use dioxus::prelude::*;
 use moonkale_core::{Direction, EdgeKind, Node, NodeId, NodeKind, Query, SourceError};
 
@@ -205,7 +206,7 @@ impl Workspace {
             return Ok(node);
         }
         if !create {
-            self.set_status(format!("[[{target}]] does not resolve to a page"));
+            self.set_status(t!(self, L, "wiki-unresolved", target = target.to_string()));
             return Err(SourceError::NotFound);
         }
         let rel = if target.contains('/') {
@@ -234,7 +235,7 @@ impl Workspace {
             .create_text(&source_id, parent, &name, &format!("# {title}\n\n"))
             .await?;
         self.open_node(node.clone()).await?;
-        self.set_status(format!("Created {rel}"));
+        self.set_status(t!(self, L, "created", name = rel.clone()));
         Ok(node)
     }
 
@@ -304,8 +305,13 @@ impl Workspace {
             }
         }
         if files > 0 {
-            self.set_status(format!(
-                "Renamed {old_stem} → {new_stem}: links updated in {files} file(s)"
+            self.set_status(t!(
+                self,
+                L,
+                "wiki-renamed",
+                from = old_stem.to_string(),
+                to = new_stem.to_string(),
+                n = files
             ));
         }
         files

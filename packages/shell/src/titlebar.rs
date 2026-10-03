@@ -3,6 +3,7 @@
 //! areas are a drag region; double-click toggles maximize.
 
 use crate::frame::WindowControls;
+use crate::tl;
 use dioxus::prelude::*;
 use moonkale_ext_api::{Command, Workspace};
 
@@ -13,18 +14,18 @@ const LOGO: Asset = asset!("/assets/icon32.png");
 enum Item {
     /// A registry command: the shortcut shown is the effective keybinding.
     Cmd {
-        label: &'static str,
+        label: String,
         id: &'static str,
     },
     /// A direct command outside the registry (parameterised ones).
     Direct {
-        label: &'static str,
+        label: String,
         cmd: Command,
     },
     Sep,
     /// Platform-only entries are given as callbacks so `ui` stays generic.
     Native {
-        label: &'static str,
+        label: String,
         kind: Native,
     },
     /// A recent folder (label is the path).
@@ -42,6 +43,14 @@ enum Native {
     Exit,
 }
 
+/// A command title's category and label: `"Git: Commit"`, `"Git：提交"`.
+fn split_title(title: &str) -> Option<(&str, &str)> {
+    title
+        .split_once(": ")
+        .or_else(|| title.split_once('：'))
+        .map(|(c, l)| (c.trim(), l.trim()))
+}
+
 fn menus(
     controls: Option<WindowControls>,
     recent: &[String],
@@ -49,19 +58,20 @@ fn menus(
     remote: Option<bool>,
     server: Option<bool>,
     registry: &crate::commands::Registry,
+    lang: &str,
 ) -> Vec<(String, Vec<Item>)> {
     let desktop = controls.is_some();
     let mut file = vec![
         Item::Cmd {
-            label: "New File…",
+            label: tl!(lang, "menu-new-file"),
             id: "file.new",
         },
         Item::Cmd {
-            label: "Open Folder…",
+            label: tl!(lang, "menu-open-folder"),
             id: "workspace.openFolder",
         },
         Item::Cmd {
-            label: "Close Folder",
+            label: tl!(lang, "menu-close-folder"),
             id: "workspace.closeFolder",
         },
     ];
@@ -69,12 +79,12 @@ fn menus(
     if let Some(connected) = remote {
         file.push(Item::Sep);
         file.push(Item::Cmd {
-            label: "Open Remote Folder…",
+            label: tl!(lang, "menu-open-remote"),
             id: "remote.open",
         });
         if connected {
             file.push(Item::Cmd {
-                label: "Disconnect Remote",
+                label: tl!(lang, "menu-disconnect-remote"),
                 id: "remote.close",
             });
         }
@@ -85,19 +95,19 @@ fn menus(
             file.push(Item::Sep);
         }
         file.push(Item::Cmd {
-            label: "Connect to Server…",
+            label: tl!(lang, "menu-connect-server"),
             id: "server.connect",
         });
         if connected {
             file.push(Item::Cmd {
-                label: "Disconnect Server",
+                label: tl!(lang, "menu-disconnect-server"),
                 id: "server.disconnect",
             });
         }
     }
     if flow_enabled {
         file.push(Item::Direct {
-            label: "New Flow…",
+            label: tl!(lang, "menu-new-flow"),
             cmd: Command::NewFile(
                 "untitled.flow.json",
                 "{\n  \"version\": 1,\n  \"blocks\": [],\n  \"wires\": []\n}\n",
@@ -110,41 +120,41 @@ fn menus(
     file.extend([
         Item::Sep,
         Item::Cmd {
-            label: "Settings…",
+            label: tl!(lang, "menu-settings"),
             id: "view.settings",
         },
         Item::Sep,
         Item::Cmd {
-            label: "Save",
+            label: tl!(lang, "menu-save"),
             id: "file.save",
         },
         Item::Cmd {
-            label: "Save All",
+            label: tl!(lang, "menu-save-all"),
             id: "file.saveAll",
         },
         Item::Cmd {
-            label: "Close All Editors",
+            label: tl!(lang, "menu-close-all"),
             id: "editor.closeAll",
         },
         Item::Cmd {
-            label: "Close Editor",
+            label: tl!(lang, "menu-close-editor"),
             id: "editor.close",
         },
     ]);
     if desktop {
         file.push(Item::Sep);
         file.push(Item::Native {
-            label: "Exit",
+            label: tl!(lang, "menu-exit"),
             kind: Native::Exit,
         });
     }
     let mut view = vec![
         Item::Cmd {
-            label: "Command Palette…",
+            label: tl!(lang, "menu-palette"),
             id: "view.palette",
         },
         Item::Cmd {
-            label: "Go to File…",
+            label: tl!(lang, "menu-go-to-file"),
             id: "view.quickOpen",
         },
         Item::Sep,
@@ -158,115 +168,125 @@ fn menus(
     shows.sort_by(|a, b| a.title.cmp(&b.title));
     for e in shows {
         view.push(Item::Dyn {
-            label: e.title.trim_start_matches("View: ").to_string(),
+            label: split_title(&e.title)
+                .map_or(e.title.as_str(), |(_, l)| l)
+                .to_string(),
             id: e.id.clone(),
         });
     }
     view.extend([
         Item::Sep,
         Item::Cmd {
-            label: "Toggle Side Bar",
+            label: tl!(lang, "menu-toggle-side"),
             id: "view.toggleSide",
         },
         Item::Cmd {
-            label: "Toggle Bottom Panel",
+            label: tl!(lang, "menu-toggle-bottom"),
             id: "view.toggleBottom",
         },
         Item::Cmd {
-            label: "Toggle Word Wrap",
+            label: tl!(lang, "menu-toggle-wrap"),
             id: "editor.toggleWrap",
         },
         Item::Cmd {
-            label: "Fold All",
+            label: tl!(lang, "menu-fold-all"),
             id: "editor.foldAll",
         },
         Item::Cmd {
-            label: "Unfold All",
+            label: tl!(lang, "menu-unfold-all"),
             id: "editor.unfoldAll",
         },
         Item::Sep,
         Item::Cmd {
-            label: "New Window",
+            label: tl!(lang, "menu-new-window"),
             id: "view.newWindow",
         },
         Item::Cmd {
-            label: "New Terminal",
+            label: tl!(lang, "menu-new-terminal"),
             id: "view.newTerminal",
         },
         Item::Sep,
         Item::Cmd {
-            label: "Reset Layout",
+            label: tl!(lang, "menu-reset-layout"),
             id: "view.resetLayout",
         },
     ]);
     if controls.and_then(|c| c.devtools).is_some() {
         view.push(Item::Sep);
         view.push(Item::Native {
-            label: "Toggle Developer Tools",
+            label: tl!(lang, "menu-devtools"),
             kind: Native::DevTools,
         });
     }
     let edit = vec![
         Item::Cmd {
-            label: "Undo",
+            label: tl!(lang, "menu-undo"),
             id: "edit.undo",
         },
         Item::Cmd {
-            label: "Redo",
+            label: tl!(lang, "menu-redo"),
             id: "edit.redo",
         },
         Item::Sep,
         Item::Cmd {
-            label: "Find",
+            label: tl!(lang, "menu-find"),
             id: "editor.find",
         },
         Item::Cmd {
-            label: "Replace",
+            label: tl!(lang, "menu-replace"),
             id: "editor.replace",
         },
         Item::Cmd {
-            label: "Find in Workspace…",
+            label: tl!(lang, "menu-find-workspace"),
             id: "search.workspace",
         },
         Item::Sep,
         Item::Cmd {
-            label: "Rename Symbol",
+            label: tl!(lang, "menu-rename"),
             id: "editor.rename",
         },
         Item::Cmd {
-            label: "Code Actions",
+            label: tl!(lang, "menu-code-actions"),
             id: "editor.codeActions",
         },
         Item::Cmd {
-            label: "Go to Definition",
+            label: tl!(lang, "menu-definition"),
             id: "editor.definition",
         },
         Item::Cmd {
-            label: "Find References",
+            label: tl!(lang, "menu-references"),
             id: "editor.references",
         },
         Item::Cmd {
-            label: "Toggle Comment",
+            label: tl!(lang, "menu-toggle-comment"),
             id: "editor.toggleComment",
         },
     ];
     let mut out: Vec<(String, Vec<Item>)> = vec![
-        ("File".into(), file),
-        ("Edit".into(), edit),
-        ("View".into(), view),
+        (tl!(lang, "menu-file"), file),
+        (tl!(lang, "menu-edit"), edit),
+        (tl!(lang, "menu-view"), view),
     ];
-    // Extension menus (spec 009): commands whose title category ("Git: …",
-    // "Agent: …") is not one of the built-in menus form their own menu.
-    let builtin = ["File", "Edit", "View", "Help", "Search", "Go to File…"];
+    // Extension menus (spec 009): an extension's commands form a menu named
+    // by their title's category ("Git: …", "Agent: …"; "：" in Chinese).
+    // Built-in commands are in the menus above, whatever their titles say;
+    // an extension command in a built-in category ("View: Toggle Word Wrap")
+    // is listed there by hand, not as a second "View" menu.
+    let builtin: Vec<String> = ["File", "Edit", "View", "Help", "Search"]
+        .into_iter()
+        .map(String::from)
+        .chain(out.iter().map(|(name, _)| name.clone()))
+        .chain([tl!(lang, "menu-help"), tl!(lang, "search-title")])
+        .collect();
     let mut groups: Vec<(String, Vec<Item>)> = Vec::new();
     for e in registry.entries.iter() {
-        if e.id.starts_with("view.panel.") {
+        if !matches!(e.run, crate::commands::Run::Extension(_)) {
             continue;
         }
-        let Some((cat, label)) = e.title.split_once(": ") else {
+        let Some((cat, label)) = split_title(&e.title) else {
             continue;
         };
-        if builtin.contains(&cat) {
+        if builtin.iter().any(|b| b == cat) {
             continue;
         }
         let item = Item::Dyn {
@@ -280,18 +300,18 @@ fn menus(
     }
     out.extend(groups);
     out.push((
-        "Help".into(),
+        tl!(lang, "menu-help"),
         vec![
             Item::Cmd {
-                label: "About Moonkale",
+                label: tl!(lang, "menu-about"),
                 id: "help.about",
             },
             Item::Cmd {
-                label: "Keyboard Shortcuts",
+                label: tl!(lang, "menu-shortcuts"),
                 id: "view.settings",
             },
             Item::Direct {
-                label: "Documentation",
+                label: tl!(lang, "menu-docs"),
                 cmd: Command::Docs,
             },
         ],
@@ -359,6 +379,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                         ws.has_remote().then(|| ws.remote.ssh.read().is_some()),
                         ws.has_server_client().then(|| ws.remote.server.read().is_some()),
                         &reg,
+                        &ws.lang(),
                     )
                 } {
                     div { class: "mk-menu", key: "{name}",

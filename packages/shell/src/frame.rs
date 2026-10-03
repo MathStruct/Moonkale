@@ -4,7 +4,9 @@
 //! window.
 
 use crate::titlebar::TitleBar;
+use crate::L;
 use dioxus::prelude::*;
+use moonkale_ext_api::t;
 use moonkale_ext_api::{
     Command, Extension, SessionBus, SessionMessage, Workspace, WorkspaceConfig,
 };
@@ -275,14 +277,14 @@ pub fn Frame(
         match cmd {
             Some(Command::NewWindow) => match config.new_window {
                 Some(open) => open(),
-                None => ws.set_status("New window is not available on this platform"),
+                None => ws.set_status(t!(ws, L, "status-no-new-window")),
             },
             Some(Command::OpenRecent(i)) => {
                 let path = ws.settings.resolved.peek().recent_folders.get(i).cloned();
                 if let Some(path) = path {
                     spawn(async move {
                         if let Err(e) = ws.open_folder(path).await {
-                            ws.set_status(format!("Open failed: {e}"));
+                            ws.set_status(t!(ws, L, "palette-open-failed", error = e.to_string()));
                         }
                     });
                 }
@@ -310,9 +312,7 @@ pub fn Frame(
                     (true, true, "xterm") | (true, false, _) => open_terminal_in(ws, "xterm"),
                     (true, true, "native") | (false, true, _) => open_terminal_in(ws, "native"),
                     (true, true, _) => terminal_chooser.set(true),
-                    (false, false, _) => {
-                        ws.set_status("No terminal extension is enabled (Extensions panel)")
-                    }
+                    (false, false, _) => ws.set_status(t!(ws, L, "status-no-terminal")),
                 }
             }
             Some(Command::DisconnectServer) => ws.disconnect_server(),
@@ -328,7 +328,7 @@ pub fn Frame(
                     .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
                     .cloned();
                 let Some(folder) = folder else {
-                    ws.set_status("Open a folder first");
+                    ws.set_status(t!(ws, L, "search-no-folder"));
                     return;
                 };
                 spawn(async move {
@@ -358,7 +358,13 @@ pub fn Frame(
                         Ok(node) => {
                             let _ = ws.open_node(node).await;
                         }
-                        Err(e) => ws.set_status(format!("Could not create {candidate}: {e}")),
+                        Err(e) => ws.set_status(t!(
+                            ws,
+                            L,
+                            "status-could-not-create",
+                            name = candidate.clone(),
+                            error = e.to_string()
+                        )),
                     }
                 });
             }
@@ -414,7 +420,7 @@ pub fn Frame(
                             e.prevent_default();
                             spawn(async move {
                                 if let Err(err) = ws.accept_drop().await {
-                                    ws.set_status(format!("Could not move document here: {err}"));
+                                    ws.set_status(t!(ws, L, "status-could-not-move", error = err.to_string()));
                                 }
                             });
                         },
@@ -423,22 +429,22 @@ pub fn Frame(
                                 let _ = ws.accept_drop().await;
                             });
                         },
-                        div { class: "mk-drop-target-label", "Drop (or click) to move " b { "{drag.node.native_key}" } " into this window" }
+                        div { class: "mk-drop-target-label", {t!(ws, L, "drop-target", name = drag.node.native_key.clone())} }
                     }
                 } else {
                     div { class: "mk-drop-banner", role: "status",
-                        span { b { "{drag.node.native_key}" } " was dragged from another window." }
+                        span { {t!(ws, L, "drop-banner", name = drag.node.native_key.clone())} }
                         button { class: "mk-btn mk-btn-accent", r#type: "button",
                             onclick: move |_| {
                                 spawn(async move {
                                     if let Err(err) = ws.accept_drop().await {
-                                        ws.set_status(format!("Could not move document here: {err}"));
+                                        ws.set_status(t!(ws, L, "status-could-not-move", error = err.to_string()));
                                     }
                                 });
                             },
-                            "Move it here"
+                            {t!(ws, L, "drop-move-here")}
                         }
-                        button { class: "mk-btn", r#type: "button", title: "Dismiss", onclick: move |_| ws.dismiss_drop(), "✕" }
+                        button { class: "mk-btn", r#type: "button", title: t!(ws, L, "dismiss"), onclick: move |_| ws.dismiss_drop(), "✕" }
                     }
                 }
             }

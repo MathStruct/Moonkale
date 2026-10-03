@@ -118,6 +118,17 @@ impl Workspace {
         self.shell.commands.set((seq, Some(cmd)));
     }
 
+    /// The UI language's tag (spec 030), read reactively: a component that
+    /// calls this re-renders when the language changes. Used by [`crate::t!`].
+    pub fn lang(&self) -> String {
+        let chosen = self.settings.resolved.read().language.clone();
+        if chosen.is_empty() {
+            self.settings.system_language.read().clone()
+        } else {
+            chosen
+        }
+    }
+
     /// Show `msg` in the status bar.
     pub fn set_status(&mut self, msg: impl Into<String>) {
         self.shell.status.set(msg.into());

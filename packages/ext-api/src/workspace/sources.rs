@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     /// Open a source another window already has (no-op if we have it).
@@ -47,9 +48,12 @@ impl Workspace {
             .collect();
         let dirty = docs.iter().filter(|(_, d)| *d).count();
         if dirty > 0 {
-            self.set_status(format!(
-                "{}: save or reload {dirty} unsaved document(s) before closing it",
-                handle.descriptor.display_name
+            self.set_status(t!(
+                self,
+                L,
+                "close-dirty",
+                name = handle.descriptor.display_name.clone(),
+                n = dirty
             ));
             return Err(SourceError::Invalid(format!("{dirty} unsaved document(s)")));
         }
@@ -77,7 +81,12 @@ impl Workspace {
             self.update_user_settings(|f| f.reopen_last = Some(false))
                 .await;
         }
-        self.set_status(format!("Closed {}", handle.descriptor.display_name));
+        self.set_status(t!(
+            self,
+            L,
+            "closed",
+            name = handle.descriptor.display_name.clone()
+        ));
         Ok(())
     }
 
@@ -223,7 +232,7 @@ impl Workspace {
     /// `Ok(None)` means cancelled or no dialog on this platform.
     pub async fn open_folder_dialog(mut self) -> Result<Option<SourceDescriptor>, SourceError> {
         let Some(pick) = self.config.folders.pick else {
-            self.set_status("No folder dialog on this platform — type a path in Sources");
+            self.set_status(t!(self, L, "no-folder-dialog"));
             return Ok(None);
         };
         match pick().await {
@@ -288,7 +297,7 @@ impl Workspace {
             first.get_or_insert(descriptor);
         }
         let first = first.ok_or_else(|| SourceError::Invalid("nothing opened".into()))?;
-        self.set_status(format!("Opened {}", self.sources_summary()));
+        self.set_status(t!(self, L, "opened", name = self.sources_summary()));
         tracing::info!("open_folder: first {} ({:?})", first.id, first.family);
         let remote = self
             .remote
@@ -495,7 +504,12 @@ impl Workspace {
         };
         let root = source.descriptor().root;
         self.after_fs_change(id, &[root]).await;
-        self.set_status(format!("Refreshed {}", source.descriptor().display_name));
+        self.set_status(t!(
+            self,
+            L,
+            "refreshed",
+            name = source.descriptor().display_name
+        ));
     }
 }
 

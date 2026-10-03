@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     /// Can this platform run a program in a terminal tab?
@@ -13,7 +14,7 @@ impl Workspace {
     /// as a tab titled `title` (Milestone 15: `claude auth login`).
     pub async fn run_in_terminal(mut self, title: &str, program: &str, args: Vec<String>) {
         let Some(spawn) = self.config.processes.program else {
-            self.set_status("Running a program in a terminal is not available on this platform");
+            self.set_status(t!(self, L, "program-unavailable"));
             return;
         };
         match spawn(program.to_string(), args, 100, 30).await {
@@ -26,7 +27,13 @@ impl Workspace {
                 };
                 self.adopt_terminal(session);
             }
-            Err(e) => self.set_status(format!("Could not start {program}: {e}")),
+            Err(e) => self.set_status(t!(
+                self,
+                L,
+                "program-failed",
+                program = program.to_string(),
+                error = e
+            )),
         }
     }
 
