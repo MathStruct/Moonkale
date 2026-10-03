@@ -306,3 +306,23 @@ status-windows =
        *[other] { $n } Fenster
     }
 more = Mehr
+status-ready = Bereit
+
+## Workbench chrome (dioxus-workbench)
+
+wb-tab-group = Panelgruppe
+wb-tab-group-labelled = Panelgruppe: { "{" }panel{ "}" }
+wb-tab-hint = Ziehen zum Andocken. Alt+Umschalt+Pfeile teilt; Alt+Umschalt+Bild-Tasten verschiebt.
+wb-close-tab = { "{" }title{ "}" } schließen
+wb-empty-group = Leere Gruppe
+wb-empty-title = Leere Panelgruppe
+wb-empty-hint = Ziehe einen Panel-Tab hierher oder schließe diese Gruppe.
+wb-empty-keys = Alt+Umschalt+Pfeile teilt · Alt+Umschalt+Bild-Tasten verschiebt · Pfeile wechseln Tabs
+wb-split-right = Panelgruppe nach rechts teilen
+wb-split-right-hint = Rechts teilen (Alt+Umschalt+Rechts)
+wb-split-down = Panelgruppe nach unten teilen
+wb-split-down-hint = Unten teilen (Alt+Umschalt+Runter)
+wb-close-empty = Leere Panelgruppe schließen
+wb-close-empty-hint = Leere Gruppe schließen
+wb-splitter = Größe der Panelgruppen ändern
+wb-splitter-hint = Ziehen ändert die Größe. Pfeiltasten ändern sie; mit Umschalt weiter; Doppelklick setzt zurück.

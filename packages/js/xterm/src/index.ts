@@ -64,7 +64,7 @@ function mount(el: HTMLElement, handlers: Handlers): { cols: number; rows: numbe
   destroy(el)
   const term = new Terminal({
     cursorBlink: true,
-    fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+    fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Noto Sans Mono CJK SC', monospace",
     fontSize: 13,
     theme: themeFrom(el),
     scrollback: 5000,

@@ -7406,6 +7406,7 @@ dependencies = [
  "moonkale-lsp",
  "moonkale-terminal",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]

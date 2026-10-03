@@ -161,7 +161,9 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
     let language = language_of(hint);
     let text = d.text.clone();
     drop(d);
-    let dark = ws.settings.resolved.read().theme != "light";
+    // Spec 030: the shell knows whether the theme (a file, or the system's
+    // preference) is light.
+    let dark = !*ws.shell.theme_light.read();
     let theme = if dark {
         CodeTheme::fixed(Theme::TOKYO_NIGHT)
     } else {

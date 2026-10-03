@@ -271,16 +271,22 @@ pub struct ShellState {
     pub hidden_tiles: Signal<std::collections::BTreeMap<String, Vec<String>>>,
     /// Counter for ids of in-process sources (traces).
     pub unique: Signal<u64>,
+    /// Whether the current theme is light (spec 030): set by the shell, which
+    /// knows the theme files and the system's preference; editors that pick
+    /// their own palette (the Rust code editor) read it.
+    pub theme_light: Signal<bool>,
 }
 
 impl ShellState {
     pub(super) fn new() -> Self {
         Self {
-            status: Signal::new_in_scope("Ready".into(), ScopeId::ROOT),
+            // Empty = "Ready" in the user's language (the status bar says it).
+            status: Signal::new_in_scope(String::new(), ScopeId::ROOT),
             commands: Signal::new_in_scope((0, None), ScopeId::ROOT),
             closed_panels: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
             hidden_tiles: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
             unique: Signal::new_in_scope(0, ScopeId::ROOT),
+            theme_light: Signal::new_in_scope(false, ScopeId::ROOT),
         }
     }
 }

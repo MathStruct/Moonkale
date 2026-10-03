@@ -1,1 +1,1 @@
-356   # hard-coded colours outside theme.css (tools/check-colors.py); may only shrink
+0   # hard-coded colours outside packages/shell/src/theme.rs (tools/check-colors.py); spec 030

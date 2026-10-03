@@ -9,3 +9,4 @@ terminal-trace-title = 解析此终端中的调用栈 / 编译器错误，并在
 terminal-trace = 调用栈 → 图
 terminal-no-trace = 此终端中没有找到调用栈或编译器错误
 terminal-drew = 已绘制 { $n } 个调用栈；请在图面板的来源选择器中查看
+terminal-empty = 还没有终端——点击 + 或使用 视图 → 新建终端。

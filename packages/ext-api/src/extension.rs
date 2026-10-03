@@ -65,6 +65,13 @@ pub trait Extension: 'static {
     fn locales(&self) -> crate::i18n::Locales {
         &[]
     }
+
+    /// Themes this extension brings (spec 030): JSON in the theme-file format
+    /// (`{"name", "base": "dark" | "light", "tokens": {…}}`, see the shell's
+    /// `theme` module). Default: none.
+    fn themes(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 /// Which settings file a change goes to (the Extensions panel's switch).

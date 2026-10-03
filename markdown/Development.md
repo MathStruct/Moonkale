@@ -12,6 +12,7 @@ Everything that used to be in the README about building lives here.
 - For the web target: `rustup target add wasm32-unknown-unknown`.
 - Linux desktop: WebKitGTK, GTK and **xdotool** (`libxdo`, linked by Dioxus's menu crate) — see [[Linux Desktop Setup]] (also covers NVIDIA/Wayland quirks).
 - For the website: Node ≥ 22 (`site/.node-version`).
+- A CJK font to see the Chinese UI (`noto-fonts-cjk` on Arch); without one Chinese shows as boxes — [[Languages and Themes]].
 
 ## Workspace layout
 

@@ -226,10 +226,24 @@ const ro = new ResizeObserver(() => {
 ro.observe(host);
 window.moonkale = window.moonkale || {};
 (window.moonkale.graphViews = window.moonkale.graphViews || {})[ID] = view;
+// Spec 030: the background and label colours follow the theme's tokens.
+const retheme = () => {
+    const css = getComputedStyle(host);
+    const v = (n) => css.getPropertyValue(n).trim();
+    try { view.set_theme(v("--mk-graph-bg"), v("--mk-graph-label"), v("--mk-graph-label-hover")); } catch (_) {}
+};
+retheme();
+const themeObserver = new MutationObserver(retheme);
+themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+const scheme = window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
+scheme && scheme.addEventListener && scheme.addEventListener("change", retheme);
+window.addEventListener("moonkale-theme", retheme);
 // Tear the GL context down before the page goes away (window close, reload):
 // the NVIDIA EGL driver crashes WebKit's web process when it exits with a
 // live WebGL context (P-061). Only helps on graceful unloads.
 const unload = () => {
+    themeObserver.disconnect();
+    window.removeEventListener("moonkale-theme", retheme);
     try { view.destroy(); } catch (_) {}
     try { const gl = canvas.getContext("webgl2") || canvas.getContext("webgl"); gl && gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
 };
@@ -242,7 +256,7 @@ for (;;) {
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "relayout") view.relayout();
     else if (msg.kind === "setMode") view.set_mode(msg.mode);
-    else if (msg.kind === "destroy") { ro.disconnect(); view.destroy(); delete window.moonkale.graphViews[ID]; break; }
+    else if (msg.kind === "destroy") { ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme); scheme && scheme.removeEventListener && scheme.removeEventListener("change", retheme); view.destroy(); delete window.moonkale.graphViews[ID]; break; }
 }
 "#;
 

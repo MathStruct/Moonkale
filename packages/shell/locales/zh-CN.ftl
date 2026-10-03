@@ -290,3 +290,23 @@ status-others = { $names }——也在此文件夹中
 status-window-title = 当前窗口：{ $id }。本会话的其他窗口响应后才会被计入。
 status-windows = { $n } 个窗口
 more = 更多
+status-ready = 就绪
+
+## Workbench chrome (dioxus-workbench)
+
+wb-tab-group = 面板组
+wb-tab-group-labelled = 面板组：{ "{" }panel{ "}" }
+wb-tab-hint = 拖动以停靠。Alt+Shift+方向键拆分；Alt+Shift+翻页键移动。
+wb-close-tab = 关闭 { "{" }title{ "}" }
+wb-empty-group = 空组
+wb-empty-title = 空面板组
+wb-empty-hint = 将面板标签拖到这里，或关闭此组。
+wb-empty-keys = Alt+Shift+方向键拆分 · Alt+Shift+翻页键移动 · 方向键切换标签
+wb-split-right = 向右拆分面板组
+wb-split-right-hint = 向右拆分（Alt+Shift+Right）
+wb-split-down = 向下拆分面板组
+wb-split-down-hint = 向下拆分（Alt+Shift+Down）
+wb-close-empty = 关闭空面板组
+wb-close-empty-hint = 关闭空组
+wb-splitter = 调整面板组大小
+wb-splitter-hint = 拖动以调整大小。方向键调整；按住 Shift 移动更多；双击重置。

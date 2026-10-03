@@ -199,7 +199,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                 if !available {
                     p { class: "mk-term-empty", "Terminals are not available on this platform." }
                 } else if list.is_empty() {
-                    p { class: "mk-term-empty", "No terminal yet — press + or use View → New Terminal." }
+                    p { class: "mk-term-empty", {t!(ws, L, "terminal-empty")} }
                 }
                 for s in list.iter() {
                     {

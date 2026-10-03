@@ -42,6 +42,9 @@ struct State {
     /// pins, the layout's state, the camera (Prompt26: Local must not
     /// disturb Whole).
     stashed: std::collections::HashMap<String, Stashed>,
+    /// Label colours (spec 030: `--mk-graph-label`, `--mk-graph-label-hover`).
+    label: String,
+    label_hover: String,
 }
 
 struct Stashed {
@@ -177,6 +180,8 @@ pub async fn create(
         auto_fit: true,
         touches: Vec::new(),
         stashed: std::collections::HashMap::new(),
+        label: "rgba(230,232,238,0.85)".into(),
+        label_hover: "#ffffff".into(),
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -340,6 +345,23 @@ impl GraphView {
         s.graph = g;
         s.dirty = true;
         Ok(())
+    }
+
+    /// Follow the theme (spec 030): the background as `#rrggbb`, and the
+    /// label colours as any CSS colour. A background that is not `#rrggbb`
+    /// keeps the current one.
+    pub fn set_theme(&self, background: &str, label: &str, label_hover: &str) {
+        let mut s = self.state.borrow_mut();
+        if let Some([r, g, b, _]) = crate::graph::parse_hex(background.trim(), 1.0) {
+            s.renderer.clear = [r as f64, g as f64, b as f64];
+        }
+        if !label.trim().is_empty() {
+            s.label = label.trim().to_string();
+        }
+        if !label_hover.trim().is_empty() {
+            s.label_hover = label_hover.trim().to_string();
+        }
+        s.dirty = true;
     }
 
     pub fn fit(&self) {
@@ -588,11 +610,7 @@ fn draw_labels(s: &State) {
             continue;
         }
         placed.push((x0, y0, x1, y1));
-        ctx.set_fill_style_str(if hovered {
-            "#ffffff"
-        } else {
-            "rgba(230,232,238,0.85)"
-        });
+        ctx.set_fill_style_str(if hovered { &s.label_hover } else { &s.label });
         let _ = ctx.fill_text(&n.label, x0 as f64, y as f64);
         drawn += 1;
     }

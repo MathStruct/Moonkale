@@ -1,5 +1,5 @@
 /* The shell fills its parent; the parent (#home) is sized by the platform's main.css. */
-.mk-shell { width: 100%; height: 100%; min-height: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13px; }
+.mk-shell { width: 100%; height: 100%; min-height: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 13px; }
 .mk-shell .wb-shell { height: 100%; }
 
 /* Colours: theme.css (Milestone 18 phase 4.4) — the only place tokens are defined. */
@@ -20,24 +20,24 @@
 
 /* Settings panel (Milestone 5) */
 .mk-settings { height: 100%; overflow: auto; font-size: 13px; }
-.mk-settings-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid #2a2e37; position: sticky; top: 0; background: inherit; }
+.mk-settings-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--mk-line); position: sticky; top: 0; background: inherit; }
 .mk-settings-spacer { flex: 1; }
 .mk-settings-tabs { display: inline-flex; gap: 4px; }
 .mk-settings-form, .mk-settings-json { padding: 8px 14px 20px; max-width: 760px; }
 .mk-settings-form h3, .mk-settings-json h3 { font-size: 13px; margin: 16px 0 6px; display: flex; align-items: center; gap: 8px; }
-.mk-settings-scope { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: #2a2e37; color: #9aa0aa; font-weight: normal; }
-.mk-settings-form label { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 8px; margin: 4px 0; color: #c0c4cc; }
+.mk-settings-scope { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: var(--mk-line); color: var(--mk-muted); font-weight: normal; }
+.mk-settings-form label { display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 8px; margin: 4px 0; color: var(--mk-ink-2); }
 .mk-settings-form label.mk-settings-check { grid-template-columns: auto 1fr; }
 .mk-settings-form .mk-input { width: 100%; box-sizing: border-box; }
 .mk-settings-secret { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; margin: 6px 0; }
-.mk-settings-note { padding: 6px 14px; color: #f2a03d; }
-.mk-settings-json pre { background: #1b1e25; border: 1px solid #2a2e37; border-radius: 4px; padding: 8px; font-size: 12px; overflow: auto; }
-.mk-settings-ext { padding: 6px 0; border-bottom: 1px dashed #2a2e37; }
+.mk-settings-note { padding: 6px 14px; color: var(--mk-warn); }
+.mk-settings-json pre { background: var(--mk-raised); border: 1px solid var(--mk-line); border-radius: 4px; padding: 8px; font-size: 12px; overflow: auto; }
+.mk-settings-ext { padding: 6px 0; border-bottom: 1px dashed var(--mk-line); }
 .mk-settings-ext-name { font-weight: 600; }
-.mk-settings-ext-desc { color: #9aa0aa; font-size: 12px; margin-left: 24px; }
+.mk-settings-ext-desc { color: var(--mk-muted); font-size: 12px; margin-left: 24px; }
 .mk-settings-ext-perms { display: flex; gap: 12px; margin-left: 24px; margin-top: 3px; font-size: 12px; }
 .mk-settings-perm { display: inline-flex !important; gap: 4px; align-items: center; grid-template-columns: none !important; }
-.mk-settings-sub { font-size: 12px; color: #9aa0aa; margin: 10px 0 4px; }
+.mk-settings-sub { font-size: 12px; color: var(--mk-muted); margin: 10px 0 4px; }
 
 /* Phone-sized shell (Milestone 6): one tile above a bottom bar, no rail,
    touch-sized targets. Switched by the shell from a media query, so the
@@ -60,64 +60,64 @@
 .mk-narrow .wb-status-bar { font-size: 11px; }
 
 /* Command palette / quick open (Milestone 7) */
-.mk-palette-backdrop { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / 0.25); display: flex; justify-content: center; align-items: flex-start; padding-top: 10vh; }
-.mk-palette { width: min(640px, 92vw); max-height: 70vh; display: flex; flex-direction: column; background: var(--wb-surface, #161922); border: 1px solid var(--wb-line, #2a2e3a); border-radius: 8px; box-shadow: var(--wb-shadow, 0 6px 18px rgb(0 0 0 / 0.5)); color: var(--wb-ink, #e6e8ee); font-size: 13px; }
-.mk-palette-input { font: inherit; font-size: 14px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--wb-line, #2a2e3a); border-radius: 8px 8px 0 0; background: var(--wb-sunken, #0b0d12); color: inherit; outline: none; }
+.mk-palette-backdrop { position: fixed; inset: 0; z-index: 60; background: var(--mk-backdrop); display: flex; justify-content: center; align-items: flex-start; padding-top: 10vh; }
+.mk-palette { width: min(640px, 92vw); max-height: 70vh; display: flex; flex-direction: column; background: var(--wb-surface); border: 1px solid var(--wb-line); border-radius: 8px; box-shadow: var(--wb-shadow); color: var(--wb-ink); font-size: 13px; }
+.mk-palette-input { font: inherit; font-size: 14px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--wb-line); border-radius: 8px 8px 0 0; background: var(--wb-sunken); color: inherit; outline: none; }
 .mk-palette-list { list-style: none; margin: 0; padding: 4px 0; overflow: auto; }
 .mk-palette-item { display: flex; gap: 12px; align-items: baseline; padding: 6px 12px; cursor: pointer; }
-.mk-palette-item:hover { background: var(--wb-hover, rgb(255 255 255 / 0.06)); }
-.mk-palette-item.mk-selected { background: var(--wb-selected, rgb(110 168 254 / 0.16)); }
+.mk-palette-item:hover { background: var(--wb-hover); }
+.mk-palette-item.mk-selected { background: var(--wb-selected); }
 .mk-palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-palette-detail { color: var(--wb-ink-faint, #7f8595); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
-.mk-palette-empty { padding: 10px 12px; color: var(--wb-ink-faint, #7f8595); }
+.mk-palette-detail { color: var(--wb-ink-faint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+.mk-palette-empty { padding: 10px 12px; color: var(--wb-ink-faint); }
 .mk-settings-form label.mk-settings-key { grid-template-columns: 1fr 180px; }
 .mk-settings-form label.mk-settings-key > span { display: flex; align-items: center; gap: 6px; }
-.mk-tab-mark { font-size: 10px; font-weight: 700; color: #c9a75f; margin-left: 4px; }
-.mk-tab-mark.mk-vcs-added { color: #6cb28c; }
-.mk-tab-mark.mk-vcs-deleted, .mk-tab-mark.mk-vcs-conflict { color: #e07a75; }
-.mk-tab-mark.mk-vcs-renamed { color: #6ea8fe; }
+.mk-tab-mark { font-size: 10px; font-weight: 700; color: var(--mk-caution); margin-left: 4px; }
+.mk-tab-mark.mk-vcs-added { color: var(--mk-good); }
+.mk-tab-mark.mk-vcs-deleted, .mk-tab-mark.mk-vcs-conflict { color: var(--mk-danger); }
+.mk-tab-mark.mk-vcs-renamed { color: var(--mk-accent); }
 
 /* Presence (Milestone 8) */
 .mk-presence { display: inline-flex; align-items: center; gap: 3px; }
 .mk-presence-badge, .mk-tab-presence, .mk-tree-presence {
   display: inline-block; min-width: 18px; padding: 0 3px; border-radius: 9px; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
-  background: #6ea8fe; color: #0b0d12;
+  background: var(--mk-accent); color: var(--mk-accent-ink);
 }
 .mk-tab-presence { margin-left: 4px; }
 .mk-tree-presence { margin-left: 6px; }
 /* Activity bar and phone bar (spec 009). */
 .mk-rail-icon { position: relative; display: inline-flex; }
 .mk-rail-icon .mk-icon { width: 22px; height: 22px; }
-.mk-badge { position: absolute; top: -6px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--wb-accent); color: #0b0d12; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+.mk-badge { position: absolute; top: -6px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--wb-accent); color: var(--mk-accent-ink); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
 .mk-phone-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
 .mk-phone-btn .mk-icon { width: 20px; height: 20px; }
-.mk-phone-more { position: absolute; left: 0; right: 0; bottom: 52px; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; background: var(--wb-surface); border-top: 1px solid var(--wb-line); box-shadow: 0 -6px 20px rgba(0,0,0,0.4); }
+.mk-phone-more { position: absolute; left: 0; right: 0; bottom: 52px; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px; background: var(--wb-surface); border-top: 1px solid var(--wb-line); box-shadow: var(--mk-shadow); }
 .mk-phone-more .mk-phone-btn { min-height: 56px; }
 .mk-phone { position: relative; }
 .mk-source-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 /* Open Remote Folder… (Milestone 11) */
 .mk-remote-dialog { padding: 14px 16px; gap: 10px; }
 .mk-remote-title { font-weight: 600; font-size: 14px; }
-.mk-remote-hint { margin: 0; color: var(--wb-ink-faint, #7f8595); font-size: 12px; line-height: 1.45; }
-.mk-remote-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--wb-ink-faint, #7f8595); }
-.mk-remote-field .mk-palette-input { border: 1px solid var(--wb-line, #2a2e3a); border-radius: 6px; padding: 7px 10px; color: var(--wb-ink, #e6e8ee); }
+.mk-remote-hint { margin: 0; color: var(--wb-ink-faint); font-size: 12px; line-height: 1.45; }
+.mk-remote-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--wb-ink-faint); }
+.mk-remote-field .mk-palette-input { border: 1px solid var(--wb-line); border-radius: 6px; padding: 7px 10px; color: var(--wb-ink); }
 .mk-remote-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-.mk-remote-actions .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
-.mk-remote-actions .mk-button-primary { background: var(--wb-accent, #6ea8fe); color: #0b0d12; border-color: transparent; }
-.mk-status-remote { color: var(--wb-accent, #6ea8fe); }
+.mk-remote-actions .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line); background: var(--wb-sunken); color: inherit; cursor: pointer; }
+.mk-remote-actions .mk-button-primary { background: var(--wb-accent); color: var(--mk-accent-ink); border-color: transparent; }
+.mk-status-remote { color: var(--wb-accent); }
 /* Which terminal? (Milestone 12) */
 .mk-terminal-choices { display: flex; flex-direction: column; gap: 8px; }
-.mk-terminal-choices .mk-button { text-align: left; font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
-.mk-terminal-choices .mk-button-primary { background: var(--wb-accent, #6ea8fe); color: #0b0d12; border-color: transparent; }
-.mk-terminal-choices .mk-button-primary .mk-muted { color: #0b0d12; opacity: 0.75; }
+.mk-terminal-choices .mk-button { text-align: left; font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--wb-line); background: var(--wb-sunken); color: inherit; cursor: pointer; }
+.mk-terminal-choices .mk-button-primary { background: var(--wb-accent); color: var(--mk-accent-ink); border-color: transparent; }
+.mk-terminal-choices .mk-button-primary .mk-muted { color: var(--mk-accent-ink); opacity: 0.75; }
 /* Extension settings under the extension row (Milestone 13) */
-.mk-settings-ext-settings { margin: 6px 0 4px 26px; padding: 8px 10px; border-left: 2px solid var(--wb-line, #2a2e3a); display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
-.mk-settings-ext-settings .mk-settings-field { display: flex; flex-direction: column; gap: 3px; color: var(--wb-ink-faint, #7f8595); }
+.mk-settings-ext-settings { margin: 6px 0 4px 26px; padding: 8px 10px; border-left: 2px solid var(--wb-line); display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.mk-settings-ext-settings .mk-settings-field { display: flex; flex-direction: column; gap: 3px; color: var(--wb-ink-faint); }
 .mk-settings-ext-settings .mk-input { max-width: 420px; }
 
 /* Milestone 15: saved agents in Settings */
-.mk-settings-agent { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 6px; }
-.mk-settings-agent-default { border-color: var(--wb-accent, #4c8dff); }
+.mk-settings-agent { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--wb-line); border-radius: 6px; }
+.mk-settings-agent-default { border-color: var(--wb-accent); }
 .mk-settings-agent-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .mk-settings-agent-head .mk-settings-agent-name { font-weight: 600; }
 .mk-settings-agent-head input.mk-settings-agent-name { max-width: 200px; }
@@ -125,12 +125,12 @@
 .mk-settings-actions { margin: 6px 0 10px; }
 .mk-settings-claude { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 4px 148px; font-size: 12px; }
 .mk-settings-claude p { flex-basis: 100%; margin: 2px 0 0; }
-.mk-settings-ok { color: var(--wb-ok, #7bd88f); }
-.mk-settings-bad { color: var(--wb-warn, #e5a53b); }
+.mk-settings-ok { color: var(--wb-ok); }
+.mk-settings-bad { color: var(--wb-warn); }
 .mk-remote-save { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
-.mk-remote-save .mk-palette-input { flex: 1; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 6px; padding: 6px 10px; color: var(--wb-ink, #e6e8ee); }
-.mk-remote-save .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: inherit; cursor: pointer; }
-.mk-remote-field select.mk-palette-input { background: var(--wb-sunken, #0b0d12); }
+.mk-remote-save .mk-palette-input { flex: 1; border: 1px solid var(--wb-line); border-radius: 6px; padding: 6px 10px; color: var(--wb-ink); }
+.mk-remote-save .mk-button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--wb-line); background: var(--wb-sunken); color: inherit; cursor: pointer; }
+.mk-remote-field select.mk-palette-input { background: var(--wb-sunken); }
 
 /* Tabs dragged by touch (Prompt26): a long press must neither select the
    title nor open the WebView's callout; nothing is selectable while a tab

@@ -1,9 +1,9 @@
 html, body { height: 100%; margin: 0; overflow: hidden; }
 
 body {
-    background-color: #0f1116;
-    color: #ffffff;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--mk-canvas);
+    color: var(--mk-ink);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     display: flex;
     flex-direction: column;
 }

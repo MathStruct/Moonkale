@@ -77,3 +77,17 @@ pub fn builtin_extensions() -> Vec<Box<dyn Extension>> {
         Box::new(extensions_panel::ExtensionsExtension),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn workbench_templates_keep_their_braces() {
+        for lang in ["en", "de", "zh-CN"] {
+            let t = moonkale_ext_api::i18n::tr(super::L, lang, "wb-close-tab", None);
+            assert!(t.contains("{title}"), "{lang}: {t}");
+            let p = moonkale_ext_api::i18n::tr(super::L, lang, "wb-tab-group-labelled", None);
+            assert!(p.contains("{panel}"), "{lang}: {p}");
+        }
+        assert!(moonkale_ext_api::i18n::check(super::L).is_empty());
+    }
+}

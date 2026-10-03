@@ -1,14 +1,14 @@
 /* The Rust terminal panel (Milestone 12). */
-.mk-tn { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--wb-sunken, #0b0d12); color: var(--wb-ink, #e6e8ee); }
-.mk-tn-tabs { display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-bottom: 1px solid var(--wb-line, #2a2e3a); font-size: 12px; flex: 0 0 auto; }
-.mk-tn-tab { padding: 3px 8px; border-radius: 4px; cursor: pointer; color: var(--wb-ink-faint, #7f8595); display: inline-flex; align-items: center; gap: 6px; }
-.mk-tn-tab-active { background: var(--wb-surface, #161922); color: var(--wb-ink, #e6e8ee); }
+.mk-tn { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--wb-sunken); color: var(--wb-ink); }
+.mk-tn-tabs { display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-bottom: 1px solid var(--wb-line); font-size: 12px; flex: 0 0 auto; }
+.mk-tn-tab { padding: 3px 8px; border-radius: 4px; cursor: pointer; color: var(--wb-ink-faint); display: inline-flex; align-items: center; gap: 6px; }
+.mk-tn-tab-active { background: var(--wb-surface); color: var(--wb-ink); }
 .mk-tn-close, .mk-tn-new { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0 4px; }
 .mk-tn-empty { padding: 12px; }
 /* Bottom-anchored: if the grid is ever taller than the panel, the prompt (last row) stays visible (P-112). */
-.mk-tn-screen { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4px; outline: none; position: relative; display: flex; flex-direction: column; justify-content: flex-end; font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.3; }
+.mk-tn-screen { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4px; outline: none; position: relative; display: flex; flex-direction: column; justify-content: flex-end; font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace; font-size: 13px; line-height: 1.3; }
 .mk-tn-screen.mk-tn-hidden { display: none; }
-.mk-tn-screen.mk-tn-focused { box-shadow: inset 0 0 0 1px var(--wb-accent, #6ea8fe); }
+.mk-tn-screen.mk-tn-focused { box-shadow: inset 0 0 0 1px var(--wb-accent); }
 .mk-tn-probe { position: absolute; visibility: hidden; white-space: pre; top: 0; left: 0; }
 .mk-tn-grid { white-space: pre; }
 .mk-tn-row { height: var(--mk-tn-ch, 17px); overflow: hidden; }
@@ -17,15 +17,15 @@
 .mk-tn-dim { opacity: 0.6; }
 .mk-tn-i { font-style: italic; }
 .mk-tn-u { text-decoration: underline; }
-.mk-tn-inv { background: var(--wb-ink, #e6e8ee); color: var(--wb-sunken, #0b0d12); }
-.mk-tn-cursor { background: var(--wb-accent, #6ea8fe); color: #0b0d12; }
-.mk-tn-screen:not(.mk-tn-focused) .mk-tn-cursor { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px var(--wb-accent, #6ea8fe); }
+.mk-tn-inv { background: var(--wb-ink); color: var(--wb-sunken); }
+.mk-tn-cursor { background: var(--wb-accent); color: var(--mk-accent-ink); }
+.mk-tn-screen:not(.mk-tn-focused) .mk-tn-cursor { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px var(--wb-accent); }
 /* The 16 ANSI colours (a common dark palette). */
-.mk-tn-fg0 { color: #3b3f4a; } .mk-tn-fg1 { color: #e06c75; } .mk-tn-fg2 { color: #98c379; } .mk-tn-fg3 { color: #e5c07b; }
-.mk-tn-fg4 { color: #61afef; } .mk-tn-fg5 { color: #c678dd; } .mk-tn-fg6 { color: #56b6c2; } .mk-tn-fg7 { color: #d7dae0; }
-.mk-tn-fg8 { color: #7f8595; } .mk-tn-fg9 { color: #f28b95; } .mk-tn-fg10 { color: #b5e08f; } .mk-tn-fg11 { color: #f2d493; }
-.mk-tn-fg12 { color: #82c3ff; } .mk-tn-fg13 { color: #dd97ee; } .mk-tn-fg14 { color: #7dd4de; } .mk-tn-fg15 { color: #ffffff; }
-.mk-tn-bg0 { background: #3b3f4a; } .mk-tn-bg1 { background: #e06c75; } .mk-tn-bg2 { background: #98c379; } .mk-tn-bg3 { background: #e5c07b; }
-.mk-tn-bg4 { background: #61afef; } .mk-tn-bg5 { background: #c678dd; } .mk-tn-bg6 { background: #56b6c2; } .mk-tn-bg7 { background: #d7dae0; }
-.mk-tn-bg8 { background: #7f8595; } .mk-tn-bg9 { background: #f28b95; } .mk-tn-bg10 { background: #b5e08f; } .mk-tn-bg11 { background: #f2d493; }
-.mk-tn-bg12 { background: #82c3ff; } .mk-tn-bg13 { background: #dd97ee; } .mk-tn-bg14 { background: #7dd4de; } .mk-tn-bg15 { background: #ffffff; }
+.mk-tn-fg0 { color: var(--mk-ansi-0); } .mk-tn-fg1 { color: var(--mk-ansi-1); } .mk-tn-fg2 { color: var(--mk-ansi-2); } .mk-tn-fg3 { color: var(--mk-ansi-3); }
+.mk-tn-fg4 { color: var(--mk-ansi-4); } .mk-tn-fg5 { color: var(--mk-ansi-5); } .mk-tn-fg6 { color: var(--mk-ansi-6); } .mk-tn-fg7 { color: var(--mk-ansi-7); }
+.mk-tn-fg8 { color: var(--mk-ansi-8); } .mk-tn-fg9 { color: var(--mk-ansi-9); } .mk-tn-fg10 { color: var(--mk-ansi-10); } .mk-tn-fg11 { color: var(--mk-ansi-11); }
+.mk-tn-fg12 { color: var(--mk-ansi-12); } .mk-tn-fg13 { color: var(--mk-ansi-13); } .mk-tn-fg14 { color: var(--mk-ansi-14); } .mk-tn-fg15 { color: var(--mk-ansi-15); }
+.mk-tn-bg0 { background: var(--mk-ansi-0); } .mk-tn-bg1 { background: var(--mk-ansi-1); } .mk-tn-bg2 { background: var(--mk-ansi-2); } .mk-tn-bg3 { background: var(--mk-ansi-3); }
+.mk-tn-bg4 { background: var(--mk-ansi-4); } .mk-tn-bg5 { background: var(--mk-ansi-5); } .mk-tn-bg6 { background: var(--mk-ansi-6); } .mk-tn-bg7 { background: var(--mk-ansi-7); }
+.mk-tn-bg8 { background: var(--mk-ansi-8); } .mk-tn-bg9 { background: var(--mk-ansi-9); } .mk-tn-bg10 { background: var(--mk-ansi-10); } .mk-tn-bg11 { background: var(--mk-ansi-11); }
+.mk-tn-bg12 { background: var(--mk-ansi-12); } .mk-tn-bg13 { background: var(--mk-ansi-13); } .mk-tn-bg14 { background: var(--mk-ansi-14); } .mk-tn-bg15 { background: var(--mk-ansi-15); }

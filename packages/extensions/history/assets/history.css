@@ -1,17 +1,17 @@
 /* History panel (Milestone 8; its own extension since Milestone 18 phase 4.2) */
 .mk-history { height: 100%; overflow: auto; font-size: 12px; }
 .mk-history p { margin: 8px; }
-.mk-history-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--wb-line, #2a2e3a); }
+.mk-history-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--wb-line); }
 .mk-history-spacer { flex: 1; }
 .mk-history-check { display: inline-flex; align-items: center; gap: 4px; }
 .mk-history-list { list-style: none; margin: 0; padding: 4px 0; }
-.mk-history-event { padding: 4px 8px; border-bottom: 1px dashed var(--wb-line, #2a2e3a); }
-.mk-history-checkpoint { background: rgb(110 168 254 / 0.08); }
+.mk-history-event { padding: 4px 8px; border-bottom: 1px dashed var(--wb-line); }
+.mk-history-checkpoint { background: var(--mk-history-checkpoint); }
 .mk-history-line { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; overflow: hidden; }
-.mk-history-when { color: var(--wb-ink-faint, #7f8595); min-width: 48px; }
-.mk-history-actor { color: var(--wb-accent, #6ea8fe); }
+.mk-history-when { color: var(--wb-ink-faint); min-width: 48px; }
+.mk-history-actor { color: var(--wb-accent); }
 .mk-history-summary { overflow: hidden; text-overflow: ellipsis; }
 .mk-history-key { display: flex; justify-content: space-between; gap: 6px; margin-left: 56px; overflow: hidden; }
 .mk-history-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.mk-history-view-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--wb-line, #2a2e3a); font-size: 12px; }
-.mk-history-text { flex: 1; margin: 0; padding: 8px 12px; overflow: auto; font: 12px/1.5 ui-monospace, monospace; white-space: pre; }
+.mk-history-view-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--wb-line); font-size: 12px; }
+.mk-history-text { flex: 1; margin: 0; padding: 8px 12px; overflow: auto; font: 12px/1.5 ui-monospace, 'Noto Sans Mono CJK SC', monospace; white-space: pre; }

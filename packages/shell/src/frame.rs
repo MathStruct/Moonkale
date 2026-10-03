@@ -87,6 +87,33 @@ pub fn Frame(
     let mut remote_dialog = use_signal(|| false);
     let mut server_dialog = use_signal(|| false);
     let mut terminal_chooser = use_signal(|| false);
+    // Spec 030: the themes beyond Dark and Light, the system's preference,
+    // and the stylesheet made from them.
+    let mut themes = use_context_provider(|| crate::theme::Themes(Signal::new(Vec::new()))).0;
+    let mut system_light = use_signal(|| false);
+    // The built-in themes are fixed markup; extra themes go into a second
+    // <style> through eval (P-152: a <style>'s text cannot be patched).
+    let builtin_css = use_hook(crate::theme::builtin_css);
+    use_effect(move || {
+        let css = crate::theme::extra_css(&themes.read());
+        let js = format!(
+            "let s = document.getElementById('mk-theme-extra'); if (!s) {{ s = document.createElement('style'); s.id = 'mk-theme-extra'; document.head.appendChild(s); }} s.textContent = {}; window.dispatchEvent(new Event('moonkale-theme'));",
+            serde_json::to_string(&css).unwrap_or_default()
+        );
+        let _ = document::eval(&js);
+    });
+    use_effect(move || {
+        let name = ws.settings.resolved.read().theme.clone();
+        let light = crate::theme::is_light(&name, system_light(), &themes.read());
+        if *ws.shell.theme_light.peek() != light {
+            ws.shell.theme_light.set(light);
+        }
+        let js = format!(
+            "document.documentElement.dataset.theme = {}; window.dispatchEvent(new Event('moonkale-theme'));",
+            serde_json::to_string(&name).unwrap_or_default()
+        );
+        let _ = document::eval(&js);
+    });
     {
         let exts = exts.clone();
         use_effect(move || {
@@ -174,6 +201,35 @@ pub fn Frame(
         // Tabs can be dragged by touch too (Prompt26, Android).
         crate::touch_drag::install();
         spawn(async move { ws.load_user_settings().await });
+        // Spec 030: the system's light/dark preference, followed live …
+        spawn(async move {
+            let mut ev = document::eval(
+                "const mq = window.matchMedia('(prefers-color-scheme: light)'); dioxus.send(mq.matches); mq.addEventListener('change', (e) => dioxus.send(e.matches)); await new Promise(() => {});",
+            );
+            while let Ok(light) = ev.recv::<bool>().await {
+                system_light.set(light);
+            }
+        });
+        // … and the themes of the config directory and of the extensions.
+        let exts = exts.clone();
+        spawn(async move {
+            let mut texts: Vec<String> = exts.iter().flat_map(|e| e.themes()).collect();
+            if let Some(files) = ws.service::<crate::theme::ThemeFiles>() {
+                match (files.0)().await {
+                    Ok(more) => texts.extend(more),
+                    Err(e) => tracing::warn!("themes: {e}"),
+                }
+            }
+            let mut list: Vec<crate::theme::ThemeFile> = Vec::new();
+            for text in texts {
+                match crate::theme::ThemeFile::parse(&text) {
+                    Ok(t) if !list.iter().any(|x| x.name == t.name) => list.push(t),
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!("themes: a theme file ignored: {e}"),
+                }
+            }
+            themes.set(list);
+        });
     };
 
     // Shortcuts when nothing inside the frame has focus (P-065): a
@@ -393,6 +449,10 @@ pub fn Frame(
                     e.stop_propagation();
                 }
             },
+            // The theme (spec 030): every --mk-* token, for every theme.
+            // As inner HTML, not a text child: the server would put a hydration
+            // marker into the stylesheet's text (P-152).
+            style { id: "mk-theme", dangerous_inner_html: "{builtin_css}" }
             // The browser wasm runtime (Milestone 8); harmless where unused.
             document::Script { src: WASM_HOST_JS, defer: true }
             TitleBar { controls }

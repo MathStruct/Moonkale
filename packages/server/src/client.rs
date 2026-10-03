@@ -241,12 +241,18 @@ pub fn session_token() -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// The active remote is process-global: tests that connect take this lock
+/// so they do not see each other's remote.
+#[cfg(test)]
+pub(crate) static REMOTE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn connect_and_disconnect_track_the_remote() {
+        let _g = REMOTE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         assert!(active().is_none());
         // Installed once per process (a OnceLock in dioxus-fullstack).
         #[cfg(not(target_arch = "wasm32"))]

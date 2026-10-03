@@ -1,59 +1,59 @@
 .mk-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mk-editor-toolbar {
   display: flex; align-items: center; gap: 8px; padding: 4px 8px;
-  font-size: 12px; border-bottom: 1px solid var(--wb-line, #2a2e3a);
-  background: var(--wb-surface, #161922); color: var(--wb-ink-soft, #a3a9b8);
+  font-size: 12px; border-bottom: 1px solid var(--wb-line);
+  background: var(--wb-surface); color: var(--wb-ink-soft);
 }
-.mk-editor-path { font-family: 'JetBrains Mono', Consolas, monospace; color: var(--wb-ink, #e6e8ee); }
-.mk-editor-dirty { color: var(--wb-caution, #c9a75f); }
+.mk-editor-path { font-family: 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC', monospace; color: var(--wb-ink); }
+.mk-editor-dirty { color: var(--wb-caution); }
 .mk-editor-spacer { flex: 1; }
 .mk-editor-meta { opacity: 0.7; }
 .mk-btn {
   font: inherit; padding: 2px 10px; border-radius: 4px; cursor: pointer;
-  border: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-sunken, #0b0d12); color: var(--wb-ink, #e6e8ee);
+  border: 1px solid var(--wb-line); background: var(--wb-sunken); color: var(--wb-ink);
 }
 .mk-btn:disabled { opacity: 0.4; cursor: default; }
-.mk-btn:not(:disabled):hover { background: var(--wb-hover, rgba(255,255,255,0.06)); }
-.mk-editor-error { padding: 6px 8px; font-size: 12px; color: var(--wb-danger, #e07a75); background: var(--wb-danger-soft, rgba(224,122,117,0.14)); }
+.mk-btn:not(:disabled):hover { background: var(--wb-hover); }
+.mk-editor-error { padding: 6px 8px; font-size: 12px; color: var(--wb-danger); background: var(--wb-danger-soft); }
 .mk-editor-host { flex: 1; min-height: 0; overflow: hidden; position: relative; }
 .mk-editor-host .cm-editor { height: 100%; }
-.mk-editor-host .cm-scroller { overflow: auto; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; font-size: 13px; }
+.mk-editor-host .cm-scroller { overflow: auto; font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Noto Sans Mono CJK SC', monospace; font-size: 13px; }
 .mk-editor-loading { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0.6; font-size: 12px; }
 .mk-editor-missing { padding: 12px; opacity: 0.7; }
 
 /* LSP hover tooltip (plain text; markdown rendering is deferred). */
 .cm-tooltip.cm-tooltip-hover {
-    background: #1e222a;
-    border: 1px solid #3a3f4b;
+    background: var(--mk-input-bg);
+    border: 1px solid var(--mk-line-strong);
     border-radius: 4px;
     max-width: 60ch;
 }
 .mk-hover {
     padding: 6px 8px;
-    font: 12px/1.4 ui-monospace, monospace;
+    font: 12px/1.4 ui-monospace, 'Noto Sans Mono CJK SC', monospace;
     white-space: pre-wrap;
-    color: #d7dae0;
+    color: var(--mk-ink);
 }
-.cm-lint-marker-error { color: #e06c75; }
+.cm-lint-marker-error { color: var(--mk-danger); }
 
 /* Milestone 7: rename prompt, code actions, references */
-.mk-editor-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 10px; border-bottom: 1px solid #2a2e37; font-size: 12px; }
+.mk-editor-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 10px; border-bottom: 1px solid var(--mk-line); font-size: 12px; }
 .mk-editor-rename .mk-input { flex: 0 1 260px; }
 .mk-editor-refs { flex-direction: column; align-items: stretch; max-height: 40%; overflow: auto; }
 .mk-editor-refs > span { display: inline; }
 .mk-editor-refs ul { list-style: none; margin: 0; padding: 0; }
-.mk-editor-ref { padding: 2px 4px; cursor: pointer; border-radius: 3px; font-family: ui-monospace, monospace; }
-.mk-editor-ref:hover { background: #262a33; }
+.mk-editor-ref { padding: 2px 4px; cursor: pointer; border-radius: 3px; font-family: ui-monospace, 'Noto Sans Mono CJK SC', monospace; }
+.mk-editor-ref:hover { background: var(--mk-line); }
 
 /* Presence gutter (Milestone 9) */
 .cm-presence-gutter { width: 22px; }
-.cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: #6ea8fe; color: #0b0d12; }
+.cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: var(--mk-accent); color: var(--mk-accent-ink); }
 
 /* Presence gutter (Milestone 9) */
 .cm-presence-gutter { width: 22px; }
-.cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: #6ea8fe; color: #0b0d12; }
+.cm-presence-mark { display: inline-block; min-width: 18px; padding: 0 2px; border-radius: 8px; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; background: var(--mk-accent); color: var(--mk-accent-ink); }
 /* [[wiki-links]] in markdown sources (spec 012): Ctrl/Cmd+click follows. */
-.cm-wikilink { color: #4fb3e8; text-decoration: underline; text-decoration-color: rgba(79, 179, 232, 0.45); text-underline-offset: 2px; }
-.cm-wikilink-unresolved { color: #9aa0aa; text-decoration-style: dashed; }
-.mk-editor-failed { padding: 16px; color: var(--wb-ink, #e6e8ee); }
-.mk-editor-failed pre { white-space: pre-wrap; font-size: 12px; color: #ff7b7b; background: #1b1e25; padding: 8px; border-radius: 6px; }
+.cm-wikilink { color: var(--mk-link); text-decoration: underline; text-decoration-color: var(--mk-link-underline); text-underline-offset: 2px; }
+.cm-wikilink-unresolved { color: var(--mk-muted); text-decoration-style: dashed; }
+.mk-editor-failed { padding: 16px; color: var(--wb-ink); }
+.mk-editor-failed pre { white-space: pre-wrap; font-size: 12px; color: var(--mk-danger); background: var(--mk-raised); padding: 8px; border-radius: 6px; }

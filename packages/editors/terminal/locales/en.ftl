@@ -13,3 +13,4 @@ terminal-drew =
         [one] { $n } trace
        *[other] { $n } traces
     }; see the Graph panel's source picker
+terminal-empty = No terminal yet — press + or use View → New Terminal.

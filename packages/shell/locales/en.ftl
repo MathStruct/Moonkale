@@ -310,3 +310,23 @@ status-windows =
        *[other] { $n } windows
     }
 more = More
+status-ready = Ready
+
+## Workbench chrome (dioxus-workbench)
+
+wb-tab-group = Panel group
+wb-tab-group-labelled = Panel group: { "{" }panel{ "}" }
+wb-tab-hint = Drag to dock. Alt+Shift+Arrows split; Alt+Shift+Page keys move.
+wb-close-tab = Close { "{" }title{ "}" }
+wb-empty-group = Empty group
+wb-empty-title = Empty panel group
+wb-empty-hint = Drag a panel tab here, or close this group.
+wb-empty-keys = Alt+Shift+Arrows split · Alt+Shift+Page keys move · Arrows switch tabs
+wb-split-right = Split panel group right
+wb-split-right-hint = Split right (Alt+Shift+Right)
+wb-split-down = Split panel group down
+wb-split-down-hint = Split down (Alt+Shift+Down)
+wb-close-empty = Close empty panel group
+wb-close-empty-hint = Close empty group
+wb-splitter = Resize panel groups
+wb-splitter-hint = Drag to resize. Arrow keys resize; Shift moves farther; double-click resets.

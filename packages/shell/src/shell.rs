@@ -10,8 +10,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 const SHELL_CSS: Asset = asset!("/assets/styling/shell.css");
-/// The theme tokens (phase 4.4): the one place colours are defined.
-const THEME_CSS: Asset = asset!("/assets/styling/theme.css");
 
 fn default_layout() -> PanelLayout {
     PanelLayout::new(LayoutNode::split(
@@ -561,7 +559,6 @@ pub fn Shell() -> Element {
     let theme = ws.settings.resolved.read().theme.clone();
 
     rsx! {
-        moonkale_ext_api::Stylesheet { href: THEME_CSS }
         moonkale_ext_api::Stylesheet { href: SHELL_CSS }
         div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, "data-theme": "{theme}", onmounted: start_narrow_watch,
             Workbench {
@@ -630,7 +627,7 @@ pub fn Shell() -> Element {
                                 {source_name.clone().unwrap_or_else(|| t!(ws, L, "status-no-folder-open"))}
                             }
                         },
-                        message: rsx! { StatusMessage { "{status}" } },
+                        message: rsx! { StatusMessage { if status.is_empty() { {t!(ws, L, "status-ready")} } else { "{status}" } } },
                         right: rsx! {
                             if let Some(url) = server {
                                 StatusItem { title: t!(ws, L, "status-server-client"),
@@ -672,6 +669,7 @@ pub fn Shell() -> Element {
                     div { class: "mk-phone",
                         PanelWorkspace {
                             panels,
+                            strings: workbench_strings(ws),
                             layout: phone_layout,
                             reset_layout: narrow_layout(),
                             active_panel,
@@ -716,6 +714,7 @@ pub fn Shell() -> Element {
                 } else {
                     PanelWorkspace {
                         panels,
+                        strings: workbench_strings(ws),
                         layout,
                         reset_layout: default_layout(),
                         active_panel,
@@ -845,4 +844,27 @@ fn claim_winner(
             .or(tied.first().copied())
     };
     (claimants, won)
+}
+
+/// The workbench chrome's own words (tab tooltips, empty groups, splitters)
+/// in the user's language (spec 030).
+fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
+    dioxus_workbench::WorkbenchStrings {
+        tab_group_label: t!(ws, L, "wb-tab-group"),
+        tab_group_labelled: t!(ws, L, "wb-tab-group-labelled"),
+        tab_hint: t!(ws, L, "wb-tab-hint"),
+        close_tab: t!(ws, L, "wb-close-tab"),
+        empty_group_label: t!(ws, L, "wb-empty-group"),
+        empty_tile_title: t!(ws, L, "wb-empty-title"),
+        empty_tile_hint: t!(ws, L, "wb-empty-hint"),
+        empty_tile_keys: t!(ws, L, "wb-empty-keys"),
+        split_right_label: t!(ws, L, "wb-split-right"),
+        split_right_hint: t!(ws, L, "wb-split-right-hint"),
+        split_down_label: t!(ws, L, "wb-split-down"),
+        split_down_hint: t!(ws, L, "wb-split-down-hint"),
+        close_empty_label: t!(ws, L, "wb-close-empty"),
+        close_empty_hint: t!(ws, L, "wb-close-empty-hint"),
+        splitter_label: t!(ws, L, "wb-splitter"),
+        splitter_hint: t!(ws, L, "wb-splitter-hint"),
+    }
 }

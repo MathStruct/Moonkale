@@ -12,6 +12,15 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a new `Extension` method with a default) go into the next tag without a version bump of their own.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased (spec 030) — additions, nothing breaks
+
+**moonkale-ext-api**
+- `i18n`: `tr`, `lookup`, `check`, `system_language`, `LANGUAGES`, the `t!(ws, L, "id", var = x)` macro, and `FluentArgs`/`FluentValue` re-exported.
+- `Settings.language` (empty = the system's) and `Workspace::lang()`; `SettingsState.system_language`.
+- `workspace::untracked(f)`: inside it `lang()` peeks instead of subscribing — for code run from untracked effects (P-151).
+- `Extension::themes()` (theme files as JSON; default none) and `ShellState.theme_light`.
+- The status bar message starts empty; the shell shows its own translated *Ready*.
+
 ## lib-v1 — 2026-10-03 (Milestone 18)
 
 The first tagged state. Compared to the untagged code of Milestone 17:

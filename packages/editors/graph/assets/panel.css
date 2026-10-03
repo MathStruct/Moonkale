@@ -1,38 +1,38 @@
 .mk-graph { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mk-graph-toolbar {
   display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: 12px;
-  border-bottom: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-surface, #161922); color: var(--wb-ink-soft, #a3a9b8);
+  border-bottom: 1px solid var(--wb-line); background: var(--wb-surface); color: var(--wb-ink-soft);
 }
 .mk-graph-modes { display: inline-flex; gap: 2px; }
 .mk-graph-check { display: inline-flex; align-items: center; gap: 4px; }
 .mk-graph-spacer { flex: 1; }
 .mk-graph-info { opacity: 0.8; }
-.mk-btn-on { background: var(--wb-selected, rgba(110,168,254,0.16)); border-color: var(--wb-accent, #6ea8fe); }
-.mk-graph-host { position: relative; flex: 1; min-height: 0; background: #0c0e13; overflow: hidden; }
+.mk-btn-on { background: var(--wb-selected); border-color: var(--wb-accent); }
+.mk-graph-host { position: relative; flex: 1; min-height: 0; background: var(--mk-graph-bg); overflow: hidden; }
 .mk-graph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .mk-graph-overlay { cursor: grab; touch-action: none; }
-.mk-graph-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--wb-ink-faint, #7f8595); font-size: 13px; pointer-events: none; }
-.mk-graph-error { color: var(--wb-danger, #e07a75); padding: 16px; text-align: center; }
+.mk-graph-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--wb-ink-faint); font-size: 13px; pointer-events: none; }
+.mk-graph-error { color: var(--wb-danger); padding: 16px; text-align: center; }
 .mk-graph-popup {
   position: absolute; z-index: 5; pointer-events: none; max-width: 320px;
-  padding: 6px 10px; border-radius: 6px; background: #161922; border: 1px solid #2a2e3a; box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-size: 12px;
+  padding: 6px 10px; border-radius: 6px; background: var(--mk-surface); border: 1px solid var(--mk-line); box-shadow: var(--mk-shadow); font-size: 12px;
 }
-.mk-graph-popup-title { color: #e6e8ee; font-weight: 600; }
-.mk-graph-popup-meta { color: #a3a9b8; font-family: 'JetBrains Mono', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mk-graph-popup-hint { color: #7f8595; font-size: 11px; margin-top: 2px; }
+.mk-graph-popup-title { color: var(--mk-ink); font-weight: 600; }
+.mk-graph-popup-meta { color: var(--mk-ink-soft); font-family: 'JetBrains Mono', 'Noto Sans Mono CJK SC', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-graph-popup-hint { color: var(--mk-ink-faint); font-size: 11px; margin-top: 2px; }
 
 .mk-graph-source {
-    background: #1e222a;
+    background: var(--mk-input-bg);
     color: inherit;
-    border: 1px solid #3a3f4b;
+    border: 1px solid var(--mk-line-strong);
     border-radius: 4px;
     font: inherit;
     padding: 1px 4px;
     max-width: 14ch;
 }
-.mk-graph-legend { display: inline-flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--wb-fg-muted, #9aa0aa); }
+.mk-graph-legend { display: inline-flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--wb-fg-muted); }
 .mk-graph-legend-item { display: inline-flex; align-items: center; gap: 4px; }
 .mk-graph-swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.mk-graph-paste { padding: 6px 8px; border-bottom: 1px solid #2a2e37; display: flex; flex-direction: column; gap: 6px; }
-.mk-graph-paste-text { font: 12px ui-monospace, monospace; background: #1e222a; color: inherit; border: 1px solid #3a3f4b; border-radius: 4px; padding: 6px; resize: vertical; }
+.mk-graph-paste { padding: 6px 8px; border-bottom: 1px solid var(--mk-line); display: flex; flex-direction: column; gap: 6px; }
+.mk-graph-paste-text { font: 12px ui-monospace, 'Noto Sans Mono CJK SC', monospace; background: var(--mk-input-bg); color: inherit; border: 1px solid var(--mk-line-strong); border-radius: 4px; padding: 6px; resize: vertical; }
 .mk-graph-paste-actions { display: flex; gap: 6px; }
