@@ -160,3 +160,4 @@ Next: phase 5 is done for the state that exists today; a persisted index (graph,
 | # | step | outcome | notes |
 |---|---|---|---|
 | 6.1 | **`moonkale-graph-render` standalone** | `scene::Scene` — graph in, events out, no browser: layout, fit, hit-testing, hover/click as `scene::Event`, which serializes to the wasm module's own JSON; `examples/headless.rs` lays out a factor graph; `README.md` for outside users (git tag) | depends on no Moonkale crate (it never did); doc test + 2 unit tests |
+| 6.2 | **The core model** ([[ADR-0015 The core model]]) | properties on nodes and edges (built); `GraphView` dropped; content-addressed ids as `NodeId::from_content` (built); `changes_since` over `subscribe`. 38 `Node`/`Edge` literals got `props: Default::default()` by a loop over the compiler's E0063 errors (native, server, wasm, all driver features) | the entity log's and the wire's shapes are unchanged when `props` is empty (skipped in serialization); 159 tests |

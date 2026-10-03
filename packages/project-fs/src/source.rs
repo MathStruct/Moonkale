@@ -110,6 +110,7 @@ impl FolderSource {
             })
         };
         let mut node = Node {
+            props: Default::default(),
             id: self.node_id(rel),
             source: self.id.clone(),
             kind: if is_dir {

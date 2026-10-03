@@ -24,11 +24,16 @@ pub struct Edge {
     pub from: NodeId,
     pub to: NodeId,
     pub kind: EdgeKind,
+    /// Typed properties (Milestone 18 phase 6.2): a weight, a column of a
+    /// foreign key, the evidence on an equivalence edge (Sophia).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub props: crate::graph::Properties,
 }
 
 impl Edge {
     pub fn contains(source: &SourceId, parent: NodeId, child: NodeId) -> Self {
         Self {
+            props: Default::default(),
             source: source.clone(),
             from: parent,
             to: child,

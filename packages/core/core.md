@@ -33,3 +33,8 @@ Implementation notes for `moonkale-core` (Milestone 1). Design: [[Graph-Native M
 
 ## Milestone 9
 `EventKind::Snapshot { live, texts, folded }` and `EntityLog::compact(keep, at, actor)`: everything older than the last `keep` events folds into one snapshot placed at the boundary id (+1); checkpoints in the folded range are kept; `text_at` starts from the latest snapshot at or before `until` and replays the patches after it. Test `compaction_keeps_answers_and_checkpoints`.
+
+## Milestone 18 phase 6.2 ([[ADR-0015 The core model]])
+- `graph::Properties` (`BTreeMap<String, Value>`) as `Node::props` and `Edge::props`, empty and unserialized by default; `Value` compares floats by bits and is `Eq`.
+- `NodeId::from_content(digest)` — content-addressed ids in their own UUID v5 namespace.
+- `GraphView` and `subscribe` dropped from the design; `changes_since` is the change protocol.

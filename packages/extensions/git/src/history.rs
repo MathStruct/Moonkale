@@ -20,6 +20,7 @@ impl GitHistorySource {
         let id = SourceId::new(format!("git:{folder}#{unique}"));
         let root = NodeId::derive(&id, "");
         let mut nodes = vec![Node {
+            props: Default::default(),
             id: root,
             source: id.clone(),
             kind: NodeKind::Directory,
@@ -34,6 +35,7 @@ impl GitHistorySource {
         for c in commits {
             let cid = commit_id(&c.hash);
             nodes.push(Node {
+                props: Default::default(),
                 id: cid,
                 source: id.clone(),
                 kind: NodeKind::Custom("commit".into()),
@@ -50,6 +52,7 @@ impl GitHistorySource {
             for p in &c.parents {
                 if commits.iter().any(|x| &x.hash == p) {
                     edges.push(Edge {
+                        props: Default::default(),
                         source: id.clone(),
                         from: cid,
                         to: commit_id(p),
@@ -62,6 +65,7 @@ impl GitHistorySource {
                     files.push(f.clone());
                 }
                 edges.push(Edge {
+                    props: Default::default(),
                     source: id.clone(),
                     from: cid,
                     to: NodeId::derive(&id, f),
@@ -71,6 +75,7 @@ impl GitHistorySource {
         }
         for f in files {
             nodes.push(Node {
+                props: Default::default(),
                 id: NodeId::derive(&id, &f),
                 source: id.clone(),
                 kind: NodeKind::File,

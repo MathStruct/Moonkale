@@ -24,9 +24,10 @@
 //!
 //! What is here: ids, `graph::{node, edge, property, history}` (the entity
 //! log), `source::{query, transaction, descriptor, event}` and the `Source`
-//! trait. Commands live in `moonkale-ext-api`; `GraphView` and `when`
-//! clauses are designs in the vault (`architecture/Graph-Native Model.md`,
-//! `extensions/Contribution Points.md`). See `core.md` next to this crate.
+//! trait. Commands live in `moonkale-ext-api`. The model's open questions
+//! (properties, `GraphView`, content ids, `subscribe`) are settled in the
+//! vault's `decisions/ADR-0015 The core model.md`. See `core.md` next to
+//! this crate.
 
 pub mod error;
 pub mod graph;

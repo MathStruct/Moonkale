@@ -93,6 +93,7 @@ pub fn extract(graph: &IndexGraph, index: &SourceId, file: &Node, text: &str) ->
                 let id = derived_id(index, &key);
                 if !d.nodes.iter().any(|n| n.id == id) {
                     d.nodes.push(Node {
+                        props: Default::default(),
                         id,
                         source: index.clone(),
                         kind: NodeKind::Page,
@@ -107,6 +108,7 @@ pub fn extract(graph: &IndexGraph, index: &SourceId, file: &Node, text: &str) ->
         };
         if to != file.id {
             d.edges.push(Edge {
+                props: Default::default(),
                 source: index.clone(),
                 from: file.id,
                 to,

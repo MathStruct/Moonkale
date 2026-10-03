@@ -82,6 +82,7 @@ fn walk(
         let key = format!("{}#{}:{}@{}", file.native_key, short, name, line);
         let id = derived_id(index, &key);
         d.nodes.push(Node {
+            props: Default::default(),
             id,
             source: index.clone(),
             kind: NodeKind::Symbol,
@@ -91,6 +92,7 @@ fn walk(
             version: file.version,
         });
         d.edges.push(Edge {
+            props: Default::default(),
             source: index.clone(),
             from: file.id,
             to: id,
@@ -98,6 +100,7 @@ fn walk(
         });
         if let Some(p) = parent {
             d.edges.push(Edge {
+                props: Default::default(),
                 source: index.clone(),
                 from: p,
                 to: id,
@@ -120,6 +123,7 @@ mod tests {
     fn extracts_items_and_nesting() {
         let index = SourceId::new("index:test");
         let file = Node {
+            props: Default::default(),
             id: NodeId::derive(&SourceId::new("folder:test"), "src/lib.rs"),
             source: SourceId::new("folder:test"),
             kind: NodeKind::File,

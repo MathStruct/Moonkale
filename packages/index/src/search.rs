@@ -292,6 +292,7 @@ mod tests {
     fn node(path: &str) -> Node {
         let sid = SourceId::new("folder:/x");
         Node {
+            props: Default::default(),
             id: NodeId::derive(&sid, path),
             source: sid,
             kind: NodeKind::File,

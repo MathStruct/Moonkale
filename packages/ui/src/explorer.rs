@@ -319,7 +319,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                             let name = s.descriptor.display_name.clone();
                             move |e| {
                                 e.prevent_default();
-                                let root = Node { id: root_id, source: sid.clone(), kind: NodeKind::Directory, label: name.clone(), native_key: String::new(), content: None, version: Default::default() };
+                                let root = Node { id: root_id, source: sid.clone(), kind: NodeKind::Directory, label: name.clone(), native_key: String::new(), content: None, version: Default::default(), props: Default::default() };
                                 let c = e.client_coordinates();
                                 state.menu.set(Some(Menu { node: root, is_dir: true, x: c.x, y: c.y }));
                             }

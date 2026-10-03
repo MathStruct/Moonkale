@@ -112,6 +112,7 @@ impl LadybugSource {
 
     fn make(&self, key: &str, kind: NodeKind, label: String) -> Node {
         Node {
+            props: Default::default(),
             id: self.node_id(key),
             source: self.id.clone(),
             kind,
@@ -242,6 +243,7 @@ impl LadybugSource {
         for t in tables.iter().filter(|t| t.kind == "REL") {
             for (from, to) in self.rel_endpoints(t.name.clone()).await? {
                 res.edges.push(Edge {
+                    props: Default::default(),
                     source: self.id.clone(),
                     from: self.node_id(&format!("table:{from}")),
                     to: self.node_id(&format!("table:{to}")),
@@ -332,6 +334,7 @@ impl LadybugSource {
             let from = self.node_id(fk);
             let to = self.node_id(tk);
             res.edges.push(Edge {
+                props: Default::default(),
                 source: self.id.clone(),
                 from,
                 to,

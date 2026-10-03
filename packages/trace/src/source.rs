@@ -24,6 +24,7 @@ impl TraceSource {
     pub fn new(trace: &Trace, unique: u64) -> Self {
         let id = SourceId::new(format!("trace:{unique}"));
         let make = |key: &str, kind: NodeKind, label: String| Node {
+            props: Default::default(),
             id: NodeId::derive(&id, key),
             source: id.clone(),
             kind,
@@ -63,6 +64,7 @@ impl TraceSource {
             if let Some(p) = prev {
                 if p != frame_id {
                     edges.push(Edge {
+                        props: Default::default(),
                         source: id.clone(),
                         from: p,
                         to: frame_id,

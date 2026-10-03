@@ -47,6 +47,7 @@ impl Source for Disk {
                     return Err(SourceError::NotFound);
                 }
                 Ok(QueryResult::single(Node {
+                    props: Default::default(),
                     id: NodeId::derive(&self.d.id, &text),
                     source: self.d.id.clone(),
                     kind: NodeKind::File,

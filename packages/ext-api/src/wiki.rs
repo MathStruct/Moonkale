@@ -380,6 +380,7 @@ mod tests {
     fn page(key: &str) -> Node {
         let src = SourceId("index:test".into());
         Node {
+            props: Default::default(),
             id: NodeId::derive(&src, key),
             source: src,
             kind: NodeKind::File,

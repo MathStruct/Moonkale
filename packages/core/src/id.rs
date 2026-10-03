@@ -50,6 +50,12 @@ const NODE_NAMESPACE: Uuid = Uuid::from_bytes([
     0x2d, 0x6e, 0x6f, 0x64, 0x65, 0x2d, 0x30, 0x31, // "-node-01"
 ]);
 
+/// Namespace for content-addressed ids ([`NodeId::from_content`]).
+const CONTENT_NAMESPACE: Uuid = Uuid::from_bytes([
+    0x6d, 0x6f, 0x6f, 0x6e, 0x6b, 0x61, 0x6c, 0x65, // "moonkale"
+    0x2d, 0x68, 0x61, 0x73, 0x68, 0x2d, 0x30, 0x31, // "-hash-01"
+]);
+
 impl NodeId {
     /// Deterministic id for an entity a source owns, keyed by its native
     /// identity (a relative path, a primary key, a vertex id).
@@ -59,6 +65,16 @@ impl NodeId {
         name.push(0);
         name.extend_from_slice(native_key.as_bytes());
         Self(Uuid::new_v5(&NODE_NAMESPACE, &name))
+    }
+
+    /// A content-addressed id (Milestone 18 phase 6.2, for Sophia): the same
+    /// structure is the same node, in every source and on every machine.
+    /// The caller hashes the *normalised* structure with the hash of its
+    /// choice (BLAKE3, SHA-256) and passes the digest; the id is UUID v5 of
+    /// it in its own namespace, so it can never equal a [`derive`d](Self::derive)
+    /// id. Keep the full digest as a property when it has to be checked.
+    pub fn from_content(digest: &[u8]) -> Self {
+        Self(Uuid::new_v5(&CONTENT_NAMESPACE, digest))
     }
 
     /// A fresh id for something created in the app that no source owns yet.
@@ -96,6 +112,22 @@ mod tests {
         assert_ne!(
             NodeId::derive(&src, "src/main.rs"),
             NodeId::derive(&src, "src/lib.rs")
+        );
+    }
+
+    #[test]
+    fn content_ids_ignore_the_source_and_never_meet_derived_ones() {
+        let digest = [7u8; 32];
+        assert_eq!(NodeId::from_content(&digest), NodeId::from_content(&digest));
+        assert_ne!(
+            NodeId::from_content(&digest),
+            NodeId::from_content(&[8u8; 32])
+        );
+        // The same bytes as a native key give a different id.
+        let as_key = String::from_utf8_lossy(&digest).into_owned();
+        assert_ne!(
+            NodeId::from_content(&digest),
+            NodeId::derive(&SourceId::new(""), &as_key)
         );
     }
 

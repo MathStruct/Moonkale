@@ -4,17 +4,8 @@ tags: [architecture, core]
 ---
 Crate: `packages/core`. The model is the contract between sources, editors, the index, extensions and agents.
 
-> [!note] As built vs. this design (checked 2026-10-01)
-> The diagram below is the **design**. What `core` has today:
-> - `Node { id, source, kind, label, native_key, content: Option<ContentRef>, version }` — **no property map**; `ContentRef` is `Text { len, lang }` or `Blob { len, mime }` (no `Rows`/`Nested`).
-> - `Edge { source, from, to, kind }` — **no id, properties or weight**.
-> - `NodeKind` / `EdgeKind` as listed below, with `Custom(String)` (not `Custom(ExtensionId, String)`).
-> - `Source`: `id`, `descriptor`, `query`, `fetch_text`, `fetch_bytes`, `apply`, `refresh`, `changes_since` (a long poll, Milestone 16) — **no `fetch(NodeId) -> Content`, no `subscribe`**.
-> - `Query`: `Node`, `Children`, `Neighbours { node, depth, direction }`, `All { limit, kinds }`, `Text { dialect, text }`; results are `QueryResult { nodes, edges, table, truncated }`. **`GraphView` is a design stub** (`core/src/graph/view.rs`); editors hold `QueryResult`s.
-> - `Capabilities { read, write, watch, text_query }`; `TextDialect` = SQL, Cypher, TypeQL, `kv`, `helix`.
-> - Ids are derived from `(SourceId, native key)` as designed; the entity log (`graph::history`) exists ([[Version Management]]).
->
-> Whether properties, edge ids and `GraphView` are added or dropped from the design is phase 6 of [[Milestone 18 - Library Refactor]]; content-addressed ids are a candidate there too.
+> [!note] As built (Milestone 18 phase 6.2, 2026-10-03)
+> The design and the code agree since [[ADR-0015 The core model]]: nodes and edges carry `props` (`Properties`, sorted typed values); `GraphView` and `subscribe` left the design (editors hold `QueryResult`s; sources report changes through the `changes_since` long poll); ids are derived from `(SourceId, native key)`, or content-addressed with `NodeId::from_content(digest)`. Not built: `fetch(NodeId) -> Content` (it is `fetch_text` / `fetch_bytes`), `ContentRef::{Rows, Nested}`, `Custom(ExtensionId, String)` kinds (they are `Custom(String)`). The entity log (`graph::history`) is in [[Version Management]].
 
 ## Entities
 
@@ -25,35 +16,28 @@ classDiagram
     SourceId source
     NodeKind kind
     String label
-    PropertyMap props
+    String native_key
     ContentRef? content
     Version version
+    Properties props
   }
   class Edge {
-    EdgeId id
     SourceId source
     NodeId from
     NodeId to
     EdgeKind kind
-    PropertyMap props
-    f32? weight
+    Properties props
   }
   class Source {
     <<trait>>
     descriptor()
     query(Query) QueryResult
-    fetch(NodeId) Content
+    fetch_text(NodeId) / fetch_bytes(NodeId)
     apply(Transaction) Applied
-    subscribe() Stream~SourceEvent~
-  }
-  class GraphView {
-    Query query
-    nodes, edges
-    Version watermark
+    changes_since(seq) Changes
   }
   Node "1" --> "*" Edge : from/to
   Source --> Node : owns
-  GraphView --> Node : materialises
 ```
 
 ### Design choices
@@ -64,7 +48,9 @@ classDiagram
 
 **Deterministic ids for sourced entities.** A file's `NodeId` is derived from `(SourceId, relative path)`; a row's from `(SourceId, table, primary key)`. Re-opening yields the same ids with no lookup table, so saved layouts, links and agent citations survive restarts.
 
-**Views, not vectors.** Editors hold a `GraphView` = query + materialised subgraph + version watermark. Refresh is "re-run the query"; incremental update is "apply events above the watermark". The graph editor, the table editor and an LLM tool call all return `GraphView`s — "display a subgraph" is just "run a narrower query".
+**Queries, not views.** Editors hold the `QueryResult` of a query and re-run it when the source reports a change (`changes_since`). The graph editor, the table editor and an LLM tool call all run queries — "display a subgraph" is just "run a narrower query". (A `GraphView` with a version watermark was the design until [[ADR-0015 The core model]] dropped it.)
+
+**Identity: derived, or content-addressed.** By default an id is derived from `(SourceId, native key)`. A source whose entities *are* their structure (Sophia's declarations and proofs) uses `NodeId::from_content(digest)`: the same structure is the same node everywhere, and names become edges to it.
 
 **Two query levels.** A structured `Query` IR every source must support (listing, neighbourhoods, paging, search) so every editor works with every source; and `TextQuery { dialect, text }` for raw SQL/Cypher/TypeQL. Results from text queries are *lifted* into nodes/edges using rules the source provides ([[Data Sources]]).
 

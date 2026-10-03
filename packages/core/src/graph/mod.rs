@@ -32,4 +32,4 @@ pub mod property;
 pub use edge::{Edge, EdgeKind};
 pub use history::{Actor, EntityLog, Event, EventId, EventKind, State as HistoryState};
 pub use node::{ContentRef, Node, NodeKind, Version};
-pub use property::Value;
+pub use property::{Properties, Value};

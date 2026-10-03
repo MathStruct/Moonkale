@@ -203,6 +203,7 @@ impl HelixSource {
 
     fn make(&self, key: &str, kind: NodeKind, label: String) -> Node {
         Node {
+            props: Default::default(),
             id: self.node_id(key),
             source: self.id.clone(),
             kind,
@@ -311,6 +312,7 @@ impl HelixSource {
             let from = end(str_of(e, "$from"), &mut res);
             let to = end(str_of(e, "$to"), &mut res);
             res.edges.push(Edge {
+                props: Default::default(),
                 from,
                 to,
                 kind: EdgeKind::Custom(str_of(e, "$label")),

@@ -73,6 +73,7 @@ impl<S: KvStore> KvSource<S> {
 
     fn node(&self, key: &str, kind: NodeKind, label: String) -> Node {
         Node {
+            props: Default::default(),
             id: self.node_id(key),
             source: self.id.clone(),
             kind,

@@ -165,6 +165,7 @@ impl DuckDbSource {
 
     fn make(&self, key: &str, kind: NodeKind, label: String) -> Node {
         Node {
+            props: Default::default(),
             id: self.node_id(key),
             source: self.id.clone(),
             kind,
