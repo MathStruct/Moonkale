@@ -71,9 +71,9 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 ## Most important open problems
 1. **CI is new** (R-39, phase 0 of [[Milestone 18 - Library Refactor]]) — only six of the 47 browser suites run there.
 2. **Security findings** — [[Audit 2026-09-23]], [[Security]]. #1, #4, #8 fixed in their structural part on `refactor` (Milestone 18 phase 4.5); the others are open. Don't expose a server beyond a trusted network.
-3. **The core is becoming a library** — on `refactor` the shell depends on no extension or driver and the layering check has no exceptions left (phases 2–4); `Workspace` is still one facade over nine areas, and the library surface (versioned `ext-api`, `graph-render` standalone, renames) is phase 6 — R-37, [[Milestone 18 - Library Refactor]].
+3. **The core is a library** on `refactor`: `moonkale-core`, `moonkale-ext-api` (documented, `CHANGELOG.md`) and `moonkale-graph-render` (a Rust API, no Moonkale deps) tagged `lib-v1`; the shell depends on no extension; no layering exceptions. `Workspace` is still one large facade — R-37, [[Milestone 18 - Library Refactor]].
 4. **Internal state**: SQLite chosen ([[ADR-0014 One store for internal state]]); layouts, user settings, the entity log and agent sessions are in the store on `refactor` (phase 5); nothing syncs yet — R-36, [[Internal State]].
 5. Release-build observability (P-032): no log file or panic dialog in installed desktop builds ([[Debugging and Logging]]).
 
 ## Next
-[[Milestone 18 - Library Refactor]] on the `refactor` branch: phases 0–5 done ([[Milestone 18 - Implementation Log]]); phase 6 (library surface) next, then spec [[030]] (languages and themes). The order beyond that is in the [[Roadmap]].
+[[Milestone 18 - Library Refactor]] is done on the `refactor` branch ([[Milestone 18 - Implementation Log]]): the library crates are tagged `lib-v1`, Lux.jl lives in `MathStruct/moonkale-julia` (feature `julia`). Next: merge `refactor`, then spec [[030]] (languages and themes). The order beyond that is in the [[Roadmap]].

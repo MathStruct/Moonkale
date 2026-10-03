@@ -53,8 +53,8 @@ packages/
 ├─ extensions/
 │  ├─ git/ (1 390)             Changes/diff/commit/history graph; server half: git_run
 │  ├─ history/ (264)           the History panel
-│  ├─ lux/ (583)               Lux.jl block library (→ MathStruct/moonkale-julia, phase 6.4)
 │  └─ wordcount/ (164)         example wasm module (JSON ABI v1)
+│                              (Lux.jl: MathStruct/moonkale-julia, feature `julia` — phase 6.4)
 │
 └─ js/                         TypeScript, one dependency per folder: codemirror/ milkdown/ xterm/ wasm-host/
 
@@ -90,7 +90,6 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 | `packages/ext-host` | [ext-host.md](https://github.com/MathStruct/Moonkale/blob/master/packages/ext-host/ext-host.md) |
 | `packages/extensions/git` | [git.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/git/git.md) |
 | `packages/extensions/history` | [history.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/history/history.md) |
-| `packages/extensions/lux` | [lux.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/lux/lux.md) |
 | `packages/extensions/wordcount` | [wordcount.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/wordcount/wordcount.md) |
 | `packages/graph-render` | [graph-render.md](https://github.com/MathStruct/Moonkale/blob/master/packages/graph-render/graph-render.md) |
 | `packages/js` | [README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/js/README.md) |

@@ -39,7 +39,8 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     v.push(Box::new(moonkale_editor_agent::AgentExtension));
     #[cfg(feature = "flow")]
     v.push(Box::new(moonkale_editor_flow::FlowExtension));
-    #[cfg(feature = "lux")]
+    // From MathStruct/moonkale-julia (Milestone 18 phase 6.4), off by default.
+    #[cfg(feature = "julia")]
     v.push(Box::new(moonkale_ext_lux::LuxExtension));
     #[cfg(feature = "git")]
     v.push(Box::new(moonkale_ext_git::GitExtension::new()));

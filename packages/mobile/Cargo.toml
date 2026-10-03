@@ -28,3 +28,5 @@ tracing = "0.1"
 default = []
 mobile = ["dioxus/mobile"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
+# Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
+julia = ["moonkale-distribution/julia"]

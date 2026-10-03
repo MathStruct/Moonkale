@@ -37,3 +37,5 @@ web-sys = { version = "0.3", features = ["Window", "Storage"] }
 default = []
 web = ["dioxus/web"]
 server = ["dioxus/server", "moonkale-server/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio", "moonkale-distribution/server"]
+# Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
+julia = ["moonkale-distribution/julia"]

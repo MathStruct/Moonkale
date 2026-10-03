@@ -45,7 +45,6 @@ members = [
     "packages/editors/terminal-native",
     "packages/editors/agent",
     "packages/services/trace",
-    "packages/extensions/lux",
     "packages/extensions/git",
     "packages/extensions/history",
     "packages/extensions/wordcount",
@@ -100,7 +99,9 @@ moonkale-editor-terminal = { path = "packages/editors/terminal" }
 moonkale-editor-terminal-native = { path = "packages/editors/terminal-native" }
 moonkale-editor-agent = { path = "packages/editors/agent" }
 moonkale-trace = { path = "packages/services/trace" }
-moonkale-ext-lux = { path = "packages/extensions/lux" }
+# Lux.jl lives in its own repository since Milestone 18 phase 6.4 (Daniel's
+# tool, off by default for everyone else: the distribution's `julia` feature).
+moonkale-ext-lux = { git = "https://github.com/MathStruct/moonkale-julia", tag = "v0.1.0" }
 moonkale-ext-git = { path = "packages/extensions/git" }
 moonkale-ext-wordcount = { path = "packages/extensions/wordcount" }
 moonkale-graph-render = { path = "packages/graph-render" }
@@ -141,3 +142,9 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# moonkale-julia depends on moonkale-ext-api by git tag; inside this workspace
+# that must be *this* moonkale-ext-api, or the extension's `Extension` would be
+# another crate's trait (Milestone 18 phase 6.4).
+[patch."https://github.com/MathStruct/Moonkale"]
+moonkale-ext-api = { path = "packages/ext-api" }
