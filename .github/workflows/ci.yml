@@ -53,7 +53,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          # rust-analyzer: packages/lsp-local/tests/rust_analyzer.rs talks to a real one.
+          # rust-analyzer: packages/services/lsp-local/tests/rust_analyzer.rs talks to a real one.
           components: clippy, rust-analyzer
       - name: System libraries (WebKitGTK 4.1, libxdo; clang for RocksDB's bindgen and wasm C code)
         run: |

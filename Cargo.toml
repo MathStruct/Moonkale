@@ -23,15 +23,15 @@ members = [
     "packages/sources-graph",
     "packages/sources-kv",
     "packages/project-fs",
-    "packages/index",
+    "packages/services/index",
     # Services
-    "packages/llm",
-    "packages/llm-types",
-    "packages/lsp",
-    "packages/lsp-local",
-    "packages/terminal",
-    "packages/terminal-pty",
-    "packages/remote",
+    "packages/services/llm",
+    "packages/services/llm-types",
+    "packages/services/lsp",
+    "packages/services/lsp-local",
+    "packages/services/terminal",
+    "packages/services/terminal-pty",
+    "packages/services/remote",
     # Editors ("windows")
     "packages/code-view",
     "packages/editors/code",
@@ -44,13 +44,13 @@ members = [
     "packages/editors/terminal",
     "packages/editors/terminal-native",
     "packages/editors/agent",
-    "packages/trace",
+    "packages/services/trace",
     "packages/extensions/lux",
     "packages/extensions/git",
     "packages/extensions/history",
     "packages/extensions/wordcount",
     "packages/graph-render",
-    "packages/typst",
+    "packages/services/typst",
 ]
 
 [workspace.package]
@@ -80,14 +80,14 @@ moonkale-sources-sql = { path = "packages/sources-sql" }
 moonkale-sources-graph = { path = "packages/sources-graph" }
 moonkale-sources-kv = { path = "packages/sources-kv" }
 moonkale-project-fs = { path = "packages/project-fs" }
-moonkale-index = { path = "packages/index" }
-moonkale-llm = { path = "packages/llm" }
-moonkale-llm-types = { path = "packages/llm-types" }
-moonkale-lsp = { path = "packages/lsp" }
-moonkale-lsp-local = { path = "packages/lsp-local" }
-moonkale-terminal = { path = "packages/terminal" }
-moonkale-terminal-pty = { path = "packages/terminal-pty" }
-moonkale-remote = { path = "packages/remote" }
+moonkale-index = { path = "packages/services/index" }
+moonkale-llm = { path = "packages/services/llm" }
+moonkale-llm-types = { path = "packages/services/llm-types" }
+moonkale-lsp = { path = "packages/services/lsp" }
+moonkale-lsp-local = { path = "packages/services/lsp-local" }
+moonkale-terminal = { path = "packages/services/terminal" }
+moonkale-terminal-pty = { path = "packages/services/terminal-pty" }
+moonkale-remote = { path = "packages/services/remote" }
 moonkale-code-view = { path = "packages/code-view" }
 moonkale-editor-code = { path = "packages/editors/code" }
 moonkale-editor-code-native = { path = "packages/editors/code-native" }
@@ -99,12 +99,12 @@ moonkale-editor-flow = { path = "packages/editors/flow" }
 moonkale-editor-terminal = { path = "packages/editors/terminal" }
 moonkale-editor-terminal-native = { path = "packages/editors/terminal-native" }
 moonkale-editor-agent = { path = "packages/editors/agent" }
-moonkale-trace = { path = "packages/trace" }
+moonkale-trace = { path = "packages/services/trace" }
 moonkale-ext-lux = { path = "packages/extensions/lux" }
 moonkale-ext-git = { path = "packages/extensions/git" }
 moonkale-ext-wordcount = { path = "packages/extensions/wordcount" }
 moonkale-graph-render = { path = "packages/graph-render" }
-moonkale-typst = { path = "packages/typst" }
+moonkale-typst = { path = "packages/services/typst" }
 
 # Debug builds: line tables only (backtraces keep file:line), no debug info
 # for dependencies — the desktop and server debug binaries were 1.8 GB each

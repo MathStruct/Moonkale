@@ -19,7 +19,7 @@ case "${1:-start}" in
     "$0" stop
     cd "$REPO/packages/web"
     # MOONKALE_CLAUDE_BIN: the mock `claude` for claude-code.mjs (Milestone 12).
-    MOONKALE_CONFIG_DIR="$E/cfg" MOONKALE_LLM="${MOONKALE_LLM:-mock}" MOONKALE_ROOT="$root" MOONKALE_CLAUDE_BIN="$REPO/packages/llm/tests/mock-claude.sh" \
+    MOONKALE_CONFIG_DIR="$E/cfg" MOONKALE_LLM="${MOONKALE_LLM:-mock}" MOONKALE_ROOT="$root" MOONKALE_CLAUDE_BIN="$REPO/packages/services/llm/tests/mock-claude.sh" \
       nohup dx serve --port "$PORT" > "$E/dx-$PORT.log" 2>&1 &
     echo $! > "$E/dx-$PORT.pid"
     # dx prints its banner before the build is done: wait until the server answers.
