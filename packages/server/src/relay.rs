@@ -113,6 +113,9 @@ mod tests {
 
     #[test]
     fn relays_to_the_active_remote_and_refuses_without_one() {
+        let _g = crate::client::REMOTE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         // A tiny upstream that answers one line.
         let up = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let up_addr = up.local_addr().unwrap();

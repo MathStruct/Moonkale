@@ -1,32 +1,32 @@
 .mk-rich { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mk-rich-host { flex: 1; min-height: 0; overflow: auto; }
 .mk-rich-host .milkdown { height: 100%; }
-.mk-rich-host .milkdown .ProseMirror { padding: 12px 24px; min-height: 100%; outline: none; font-size: var(--mk-rich-size, 16px); font-family: var(--mk-rich-font, var(--crepe-font-default, system-ui, sans-serif)); }
-.mk-rich-host .milkdown .ProseMirror pre, .mk-rich-host .milkdown .ProseMirror code { font-family: var(--mk-rich-code-font, ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace); }
-.mk-rich-loading { padding: 12px; color: #9aa0aa; }
-.mk-rich .crepe { --crepe-color-background: #14161b; --crepe-color-on-background: #d7dae0; --crepe-color-surface: #1b1e25; --crepe-color-outline: #3a3f4b; --crepe-color-primary: #4fb3e8; --crepe-font-default: system-ui, sans-serif; }
+.mk-rich-host .milkdown .ProseMirror { padding: 12px 24px; min-height: 100%; outline: none; font-size: var(--mk-rich-size, 16px); font-family: var(--mk-rich-font, var(--crepe-font-default, system-ui, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif)); }
+.mk-rich-host .milkdown .ProseMirror pre, .mk-rich-host .milkdown .ProseMirror code { font-family: var(--mk-rich-code-font, ui-monospace, "JetBrains Mono", Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace); }
+.mk-rich-loading { padding: 12px; color: var(--mk-muted); }
+.mk-rich .crepe { --crepe-color-background: var(--mk-raised); --crepe-color-on-background: var(--mk-ink); --crepe-color-surface: var(--mk-raised); --crepe-color-surface-low: var(--mk-raised-2); --crepe-color-on-surface: var(--mk-ink); --crepe-color-on-surface-variant: var(--mk-ink-soft); --crepe-color-outline: var(--mk-line-strong); --crepe-color-primary: var(--mk-link); --crepe-color-secondary: var(--mk-raised-2); --crepe-color-on-secondary: var(--mk-ink); --crepe-color-inverse: var(--mk-ink); --crepe-color-on-inverse: var(--mk-canvas); --crepe-color-inline-code: var(--mk-syn-name); --crepe-color-inline-area: var(--mk-raised-2); --crepe-color-hover: var(--mk-hover); --crepe-color-selected: var(--mk-selected); --crepe-color-diff-added: var(--mk-good); --crepe-color-diff-added-bg: var(--mk-diff-add-bg); --crepe-color-diff-added-text: var(--mk-diff-add-ink); --crepe-color-diff-removed: var(--mk-danger); --crepe-color-diff-removed-bg: var(--mk-diff-del-bg); --crepe-color-diff-removed-text: var(--mk-diff-del-ink); --crepe-shadow-1: var(--mk-shadow); --crepe-shadow-2: var(--mk-shadow); --crepe-font-default: system-ui, sans-serif; }
 /* [[wiki-links]] (spec 012): decorated text spans, brackets hidden unless the caret is inside. */
-.mk-rich-host .mk-wikilink { color: #4fb3e8; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(79, 179, 232, 0.5); text-underline-offset: 2px; }
-.mk-rich-host .mk-wikilink:hover { text-decoration-color: #4fb3e8; }
-.mk-rich-host .mk-wikilink-unresolved { color: #9aa0aa; text-decoration-style: dashed; }
+.mk-rich-host .mk-wikilink { color: var(--mk-link); cursor: pointer; text-decoration: underline; text-decoration-color: var(--mk-link-underline); text-underline-offset: 2px; }
+.mk-rich-host .mk-wikilink:hover { text-decoration-color: var(--mk-link); }
+.mk-rich-host .mk-wikilink-unresolved { color: var(--mk-muted); text-decoration-style: dashed; }
 .mk-rich-host .mk-wiki-bracket { display: none; }
 .mk-rich-host .ProseMirror-focused .mk-wikilink { cursor: text; }
 .mk-rich-host .ProseMirror-focused .mk-wikilink:hover { cursor: pointer; }
 .mk-rich-host { position: relative; }
-.mk-wiki-popup { position: absolute; z-index: 20; min-width: 260px; max-width: 480px; max-height: 260px; overflow: auto; background: #1b1e25; border: 1px solid #3a3f4b; border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.45); font: 13px system-ui, sans-serif; }
+.mk-wiki-popup { position: absolute; z-index: 20; min-width: 260px; max-width: 480px; max-height: 260px; overflow: auto; background: var(--mk-raised); border: 1px solid var(--mk-line-strong); border-radius: 6px; box-shadow: var(--mk-shadow); font: 13px system-ui, 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
 .mk-wiki-item { display: flex; gap: 10px; align-items: baseline; padding: 5px 10px; cursor: pointer; }
-.mk-wiki-item.mk-active, .mk-wiki-item:hover { background: #262b36; }
-.mk-wiki-item .mk-wiki-target { color: #d7dae0; }
-.mk-wiki-item .mk-wiki-key { color: #7d8390; font-size: 11px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mk-wiki-empty { color: #9aa0aa; font-style: italic; }
+.mk-wiki-item.mk-active, .mk-wiki-item:hover { background: var(--mk-raised-2); }
+.mk-wiki-item .mk-wiki-target { color: var(--mk-ink); }
+.mk-wiki-item .mk-wiki-key { color: var(--mk-ink-faint); font-size: 11px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-wiki-empty { color: var(--mk-muted); font-style: italic; }
 /* Front matter as Properties (spec 019). */
-.mk-props { border-bottom: 1px solid var(--wb-line, #2a2e3a); background: var(--wb-surface, #161922); font-size: 12px; }
-.mk-props-head { display: flex; gap: 8px; align-items: center; width: 100%; padding: 4px 10px; border: 0; background: none; color: var(--wb-ink-soft, #a3a9b8); font: inherit; cursor: pointer; text-align: left; }
-.mk-props-head:hover { color: var(--wb-ink, #e6e8ee); }
+.mk-props { border-bottom: 1px solid var(--wb-line); background: var(--wb-surface); font-size: 12px; }
+.mk-props-head { display: flex; gap: 8px; align-items: center; width: 100%; padding: 4px 10px; border: 0; background: none; color: var(--wb-ink-soft); font: inherit; cursor: pointer; text-align: left; }
+.mk-props-head:hover { color: var(--wb-ink); }
 .mk-props-caret { width: 10px; opacity: 0.7; }
 .mk-props-label { font-weight: 600; }
 .mk-props-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8; }
-.mk-props-yaml { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 10px 8px 28px; border: 0; border-top: 1px dashed var(--wb-line, #2a2e3a); background: #12141a; color: #d7dae0; font: 12px 'JetBrains Mono', Consolas, monospace; resize: vertical; outline: none; }
+.mk-props-yaml { display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 10px 8px 28px; border: 0; border-top: 1px dashed var(--wb-line); background: var(--mk-viewport); color: var(--mk-ink); font: 12px 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC', monospace; resize: vertical; outline: none; }
 
 /* The view could not start (Prompt26): the reason and a Retry button. */
-.mk-rich-failed { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--wb-danger, #e5534b); }
+.mk-rich-failed { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--wb-danger); }

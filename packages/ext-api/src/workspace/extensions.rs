@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     /// Re-scan installed wasm extensions (user dir + the folder's).
@@ -28,7 +29,7 @@ impl Workspace {
                     self.contrib.wasm_extensions.set(list);
                 }
             }
-            Err(e) => self.set_status(format!("Extensions not scanned: {e}")),
+            Err(e) => self.set_status(t!(self, L, "extensions-not-scanned", error = e)),
         }
     }
 

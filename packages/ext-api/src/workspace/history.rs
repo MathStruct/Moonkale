@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 use moonkale_core::EntityLog;
 use moonkale_state::Record;
 
@@ -215,7 +216,7 @@ impl Workspace {
             m.insert(node, event);
         });
         self.docs.active.set(Some(node));
-        self.set_status("Restored as an unsaved edit — save to keep it");
+        self.set_status(t!(self, L, "restored"));
         Ok(())
     }
 

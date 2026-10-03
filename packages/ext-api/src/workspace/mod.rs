@@ -42,6 +42,20 @@ pub use session::SessionState;
 pub use settings::SettingsState;
 pub use sources::SourcesState;
 
+thread_local! {
+    static UNTRACKED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Run `f` without subscribing to the language (spec 030): inside it,
+/// [`Workspace::lang`] peeks. For code that calls `Extension::panels` from an
+/// effect which must not re-run when settings change (P-147, P-151).
+pub fn untracked<R>(f: impl FnOnce() -> R) -> R {
+    UNTRACKED.with(|d| d.set(d.get() + 1));
+    let out = f();
+    UNTRACKED.with(|d| d.set(d.get() - 1));
+    out
+}
+
 /// The workspace: every open source, document and setting, and the platform's services. `Copy` (signals inside); handed to every extension call. Its state is grouped by area; the methods are on this facade.
 #[derive(Clone, Copy)]
 pub struct Workspace {
@@ -116,6 +130,25 @@ impl Workspace {
     pub fn dispatch(&mut self, cmd: Command) {
         let seq = self.shell.commands.peek().0 + 1;
         self.shell.commands.set((seq, Some(cmd)));
+    }
+
+    /// The UI language's tag (spec 030), read reactively: a component that
+    /// calls this re-renders when the language changes. Used by [`crate::t!`].
+    pub fn lang(&self) -> String {
+        if UNTRACKED.with(|d| d.get() > 0) {
+            let chosen = self.settings.resolved.peek().language.clone();
+            return if chosen.is_empty() {
+                self.settings.system_language.peek().clone()
+            } else {
+                chosen
+            };
+        }
+        let chosen = self.settings.resolved.read().language.clone();
+        if chosen.is_empty() {
+            self.settings.system_language.read().clone()
+        } else {
+            chosen
+        }
     }
 
     /// Show `msg` in the status bar.
@@ -238,16 +271,22 @@ pub struct ShellState {
     pub hidden_tiles: Signal<std::collections::BTreeMap<String, Vec<String>>>,
     /// Counter for ids of in-process sources (traces).
     pub unique: Signal<u64>,
+    /// Whether the current theme is light (spec 030): set by the shell, which
+    /// knows the theme files and the system's preference; editors that pick
+    /// their own palette (the Rust code editor) read it.
+    pub theme_light: Signal<bool>,
 }
 
 impl ShellState {
     pub(super) fn new() -> Self {
         Self {
-            status: Signal::new_in_scope("Ready".into(), ScopeId::ROOT),
+            // Empty = "Ready" in the user's language (the status bar says it).
+            status: Signal::new_in_scope(String::new(), ScopeId::ROOT),
             commands: Signal::new_in_scope((0, None), ScopeId::ROOT),
             closed_panels: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
             hidden_tiles: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
             unique: Signal::new_in_scope(0, ScopeId::ROOT),
+            theme_light: Signal::new_in_scope(false, ScopeId::ROOT),
         }
     }
 }

@@ -16,8 +16,8 @@
 .mk-explorer-open-secondary { border-bottom: 1px solid var(--wb-line); padding-top: 0; }
 .mk-explorer-open-secondary .mk-input { font-size: 12px; }
 .mk-btn-wide { flex: 1; padding: 6px 10px; }
-.mk-tree-db .mk-tree-label { color: #cc80bf; }
-.mk-tree-action { margin-left: auto; padding: 0 4px; font-family: monospace; font-size: 11px; opacity: 0; cursor: pointer; }
+.mk-tree-db .mk-tree-label { color: var(--mk-db); }
+.mk-tree-action { margin-left: auto; padding: 0 4px; font-family: 'Noto Sans Mono CJK SC', monospace; font-size: 11px; opacity: 0; cursor: pointer; }
 .mk-tree-row:hover .mk-tree-action { opacity: 0.6; }
 .mk-tree-action:hover { opacity: 1 !important; color: var(--wb-accent); }
 
@@ -28,10 +28,10 @@
 .mk-search-results { flex: 1; overflow: auto; padding: 0 8px 8px; }
 .mk-search-results > p { padding: 4px 0; }
 .mk-search-hit { padding: 5px 6px; border-radius: 4px; cursor: pointer; }
-.mk-search-hit:hover { background: #262a33; }
-.mk-search-hit-path { font-size: 12px; color: #d7dae0; }
-.mk-search-hit-line { color: #9aa0aa; }
-.mk-search-hit-snippet { font: 11px/1.4 ui-monospace, monospace; color: #9aa0aa; white-space: pre-wrap; word-break: break-all; }
+.mk-search-hit:hover { background: var(--mk-line); }
+.mk-search-hit-path { font-size: 12px; color: var(--mk-ink); }
+.mk-search-hit-line { color: var(--mk-muted); }
+.mk-search-hit-snippet { font: 11px/1.4 ui-monospace, 'Noto Sans Mono CJK SC', monospace; color: var(--mk-muted); white-space: pre-wrap; word-break: break-all; }
 
 /* File operations (Milestone 7) */
 .mk-ctx { position: fixed; z-index: 70; min-width: 160px; padding: 4px 0; background: var(--wb-surface); border: 1px solid var(--wb-line); border-radius: 6px; box-shadow: var(--wb-shadow); }
@@ -49,12 +49,12 @@
 .mk-search-preview p { margin: 2px 0; }
 
 /* Git decorations (Milestone 7) */
-.mk-vcs-modified .mk-tree-label { color: #c9a75f; }
-.mk-vcs-added .mk-tree-label { color: #6cb28c; }
-.mk-vcs-deleted .mk-tree-label { color: #e07a75; text-decoration: line-through; }
-.mk-vcs-renamed .mk-tree-label { color: #6ea8fe; }
-.mk-vcs-conflict .mk-tree-label { color: #e07a75; }
-.mk-mark-dir > .mk-tree-label::after { content: " •"; color: #c9a75f; }
+.mk-vcs-modified .mk-tree-label { color: var(--mk-caution); }
+.mk-vcs-added .mk-tree-label { color: var(--mk-good); }
+.mk-vcs-deleted .mk-tree-label { color: var(--mk-danger); text-decoration: line-through; }
+.mk-vcs-renamed .mk-tree-label { color: var(--mk-accent); }
+.mk-vcs-conflict .mk-tree-label { color: var(--mk-danger); }
+.mk-mark-dir > .mk-tree-label::after { content: " •"; color: var(--mk-caution); }
 /* Source rows (spec 009): kind icon, accent stripe, read-only lock. */
 .mk-explorer-source { border-left: 3px solid var(--mk-source-color, transparent); }
 .mk-explorer-source-name { display: flex; align-items: center; gap: 6px; }
@@ -63,4 +63,4 @@
 .mk-source-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Milestone 16: a source that is not watched for changes gets a refresh button. */
 .mk-source-refresh { margin-left: auto; border: 0; background: none; color: var(--wb-ink-soft); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 4px; border-radius: 3px; }
-.mk-source-refresh:hover { color: var(--wb-ink); background: var(--wb-hover, rgba(255,255,255,0.06)); }
+.mk-source-refresh:hover { color: var(--wb-ink); background: var(--wb-hover); }

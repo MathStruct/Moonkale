@@ -19,6 +19,12 @@ futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 uuid = { version = "1", features = ["v4", "js"] }
 futures-timer = { version = "3.0.4", features = ["wasm-bindgen"] }
+# Spec 030: strings per language (Fluent: plurals and variables for German,
+# Chinese), and the system's language as the default.
+fluent-bundle = "0.16"
+fluent-syntax = "0.12"
+unic-langid = "0.9"
+sys-locale = { version = "0.3", features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"

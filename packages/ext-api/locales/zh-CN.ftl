@@ -1,0 +1,44 @@
+
+## Workspace status messages
+
+restored = 已恢复为未保存的修改——保存后才会保留
+remote-unavailable = 此平台不支持远程文件夹
+remote-need-host = 远程：需要主机和路径
+remote-error = 远程：{ $error }
+remote-connecting = 远程：正在连接 { $host }…
+remote-prompt = ssh { $host }：{ $line }——请在终端中回答
+remote-uploading = 远程：{ $host } 尚无 Moonkale 服务器——正在上传（每个版本一次）…
+remote-starting = 远程：正在 { $host } 上启动服务器…
+remote-connected = 远程：已连接 { $host }，正在打开 { $path }…
+remote-open-failed = 远程：已连接 { $host }，但无法打开 { $path }：{ $error }
+remote-disconnected = 远程：已断开与 { $host } 的连接
+server-unavailable = 此平台不支持连接服务器
+server-need-url = 服务器：需要地址
+server-error = 服务器：{ $error }
+server-connected = 已连接 { $url }，正在打开其文件夹…
+server-open-failed = 服务器 { $url }：已连接，但无法打开其文件夹：{ $error }
+server-disconnected = 已断开与 { $url } 的连接
+close-dirty = { $name }：关闭前请保存或重新加载 { $n } 个未保存的文档
+closed = 已关闭 { $name }
+no-folder-dialog = 此平台没有文件夹对话框——请在“来源”中输入路径
+opened = 已打开 { $name }
+refreshed = 已刷新 { $name }
+extensions-not-scanned = 未能扫描扩展：{ $error }
+settings-not-loaded = 未能加载设置：{ $error }
+reopen-failed = 无法重新打开上次的文件夹：{ $error }
+settings-not-saved = 未能保存设置：{ $error }
+workspace-settings-ignored = 已忽略工作区设置：{ $error }
+workspace-settings-not-saved = 未能保存工作区设置：{ $error }
+not-found-in-folders = { $path }：在打开的文件夹中找不到
+saved = 已保存 { $name }
+save-failed = 保存失败：{ $error }
+created = 已创建 { $name }
+renamed = 已将 { $from } 重命名为 { $to }
+deleted = 已删除 { $name }（保留在 .moonkale/trash 中）
+reloaded = 已从磁盘重新加载
+program-unavailable = 此平台不支持在终端中运行程序
+program-failed = 无法启动 { $program }：{ $error }
+wiki-unresolved = [[{ $target }]] 没有对应的页面
+wiki-renamed = 已将 { $from } 重命名为 { $to }：已更新 { $n } 个文件中的链接
+moved-to-window = 已移到窗口 { $window }
+dragging = 正在拖动 { $name }——将其拖放到另一个 Moonkale 窗口即可移过去

@@ -23,7 +23,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
 import { openSearchPanel } from "@codemirror/search"
 import { foldAll, unfoldAll } from "@codemirror/language"
-import { oneDark } from "@codemirror/theme-one-dark"
+import { themeFromTokens } from "./theme"
 import { setDiagnostics, lintGutter, type Diagnostic } from "@codemirror/lint"
 import { hoverTooltip } from "@codemirror/view"
 
@@ -283,7 +283,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         lintGutter(),
         hover,
         gotoDef,
-        oneDark,
+        themeFromTokens,
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
             const changes: Splice[] = []

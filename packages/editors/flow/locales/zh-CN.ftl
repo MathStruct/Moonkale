@@ -1,0 +1,12 @@
+extension-name = 流程图编辑器
+extension-description = 通过拖放放置模块，并用带类型的端口连接（*.flow.json）。模块库由其他扩展提供。
+flow-generated = 已生成 { $file }——运行：{ $run }
+flow-unsaved = 未保存的更改
+flow-counts = { $blocks } 个模块 · { $wires } 条连线
+flow-issues =  · { $n } 个问题
+flow-generate-title = 在此流程图旁写入 { $language } 文件
+flow-generate = 生成 { $language }
+flow-layout = 布局
+flow-fit = 适应窗口
+flow-save = 保存
+flow-no-libraries = 未启用任何模块库。请在 设置 → 扩展 中开启一个（例如 Lux.jl）。

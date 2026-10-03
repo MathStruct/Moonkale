@@ -22,6 +22,14 @@ pub use types::{GitRequest, GitResponse};
 
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::{i18n::Locales, t};
+
+/// This crate's strings (spec 030): English, German, Chinese.
+pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
+    ("en", include_str!("../locales/en.ftl")),
+    ("de", include_str!("../locales/de.ftl")),
+    ("zh-CN", include_str!("../locales/zh-CN.ftl")),
+];
 
 pub const PANEL_ID: &str = "git";
 const DIFF_PREFIX: &str = "git-diff:";
@@ -62,13 +70,16 @@ impl Extension for GitExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        let mut out = vec![PanelContribution::new(PANEL_ID, "Changes", PanelHome::Side)
-            .closable(true)
-            .activity(
-                Activity::new("git", 40, "Git")
-                    .phone_secondary()
-                    .badge(ws.contrib.file_marks.read().len() as u32),
-            )];
+        let mut out =
+            vec![
+                PanelContribution::new(PANEL_ID, t!(ws, L, "git-changes"), PanelHome::Side)
+                    .closable(true)
+                    .activity(
+                        Activity::new("git", 40, t!(ws, L, "git-activity"))
+                            .phone_secondary()
+                            .badge(ws.contrib.file_marks.read().len() as u32),
+                    ),
+            ];
         if ws.service::<GitRunner>().is_none() {
             return out;
         }
@@ -79,7 +90,11 @@ impl Extension for GitExtension {
                     format!(
                         "{}{}",
                         d.path.rsplit('/').next().unwrap_or(&d.path),
-                        if d.staged { " (staged)" } else { "" }
+                        if d.staged {
+                            t!(ws, L, "git-staged-suffix")
+                        } else {
+                            String::new()
+                        }
                     ),
                     PanelHome::Main,
                 )
@@ -106,12 +121,16 @@ impl Extension for GitExtension {
         }
     }
 
-    fn commands(&self, _ws: Workspace) -> Vec<CommandContribution> {
+    fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
         vec![
-            CommandContribution::new("git.refresh", "Git: Refresh Status"),
-            CommandContribution::new("git.commit", "Git: Commit…").key("Ctrl+Shift+G"),
-            CommandContribution::new("git.history", "Git: Show History as Graph"),
+            CommandContribution::new("git.refresh", t!(ws, L, "cmd-git-refresh")),
+            CommandContribution::new("git.commit", t!(ws, L, "cmd-git-commit")).key("Ctrl+Shift+G"),
+            CommandContribution::new("git.history", t!(ws, L, "cmd-git-history")),
         ]
+    }
+
+    fn locales(&self) -> Locales {
+        L
     }
 
     fn run_command(&self, id: &str, mut ws: Workspace) {

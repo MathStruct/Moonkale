@@ -62,9 +62,14 @@ pub struct SettingsFile {
     /// string unbinds. Later scopes override per id.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub keybindings: BTreeMap<String, String>,
-    /// The theme's name (spec 030; only `dark` so far).
+    /// The theme (spec 030): `dark`, `light`, `system` (follow the OS), or
+    /// the name of a theme file / an extension's theme.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
+    /// The UI language (spec 030): a tag such as `en`, `de`, `zh-CN`; unset =
+    /// the system's language.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
     /// The name edits and presence are attributed to (Milestone 8).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_name: Option<String>,
@@ -383,6 +388,7 @@ impl SettingsFile {
             self.keybindings.insert(id.clone(), key.clone());
         }
         self.theme = other.theme.clone().or(self.theme.take());
+        self.language = other.language.clone().or(self.language.take());
         self.user_name = other.user_name.clone().or(self.user_name.take());
         if !other.recent_folders.is_empty() {
             self.recent_folders = other.recent_folders.clone();
@@ -443,8 +449,11 @@ pub struct Settings {
     pub extensions: ExtensionsSettings,
     /// Command id → keybinding.
     pub keybindings: BTreeMap<String, String>,
-    /// The theme's name.
+    /// The theme's name (`dark`, `light`, `system`, or a theme file's).
     pub theme: String,
+    /// The UI language the user chose (a tag); empty = the system's
+    /// ([`crate::Workspace::lang`] resolves it).
+    pub language: String,
     /// Who edits are attributed to.
     pub user_name: String,
     /// Recently opened folders, newest first.
@@ -603,6 +612,7 @@ impl Default for Settings {
             user_name: default_user_name(),
             extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
+            language: String::new(),
             recent_folders: Vec::new(),
             layout: None,
             open_documents: Vec::new(),
@@ -737,6 +747,7 @@ impl Settings {
                 permissions: merged.extensions.permissions,
             },
             theme: merged.theme.unwrap_or(d.theme),
+            language: merged.language.unwrap_or_default().trim().to_string(),
             recent_folders: user.recent_folders.clone(),
             layout: workspace.layout.clone(),
             open_documents: workspace.open_documents.clone(),

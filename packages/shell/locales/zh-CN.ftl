@@ -1,0 +1,312 @@
+
+## Commands (the palette and keybindings)
+
+cmd-workspace-openFolder = 文件：打开文件夹…
+cmd-workspace-closeFolder = 文件：关闭文件夹
+cmd-remote-open = 文件：打开远程文件夹…（SSH）
+cmd-remote-close = 文件：断开远程连接
+cmd-server-connect = 文件：连接到服务器…
+cmd-server-disconnect = 文件：断开服务器
+cmd-file-new = 文件：新建文件…
+cmd-file-save = 文件：保存
+cmd-file-saveAll = 文件：全部保存
+cmd-editor-closeAll = 文件：关闭所有编辑器
+cmd-view-toggleSide = 视图：切换侧边栏
+cmd-view-toggleBottom = 视图：切换底部面板
+cmd-editor-find = 编辑：查找
+cmd-editor-replace = 编辑：替换
+cmd-editor-rename = 编辑：重命名符号
+cmd-editor-codeActions = 编辑：代码操作
+cmd-editor-definition = 编辑：转到定义
+cmd-editor-references = 编辑：查找引用
+cmd-editor-toggleComment = 编辑：切换注释
+cmd-editor-foldAll = 视图：全部折叠
+cmd-editor-unfoldAll = 视图：全部展开
+cmd-editor-close = 文件：关闭编辑器
+cmd-view-settings = 文件：设置…
+cmd-edit-undo = 编辑：撤销
+cmd-edit-redo = 编辑：重做
+cmd-view-palette = 视图：命令面板…
+cmd-view-quickOpen = 转到文件…
+cmd-search-workspace = 搜索：在工作区中查找…
+cmd-view-newWindow = 视图：新建窗口
+cmd-view-newTerminal = 视图：新建终端
+cmd-view-resetLayout = 视图：重置布局
+cmd-view-panel-explorer = 视图：显示来源
+cmd-view-panel-search = 视图：显示搜索
+cmd-view-panel-graph = 视图：显示图
+cmd-view-panel-terminal = 视图：显示终端
+cmd-view-panel-agent = 视图：显示智能体
+cmd-help-about = 帮助：关于 Moonkale
+cmd-view-show-panel = 视图：显示{ $panel }
+
+## Menus
+
+menu-new-file = 新建文件…
+menu-open-folder = 打开文件夹…
+menu-close-folder = 关闭文件夹
+menu-open-remote = 打开远程文件夹…
+menu-disconnect-remote = 断开远程连接
+menu-connect-server = 连接到服务器…
+menu-disconnect-server = 断开服务器
+menu-new-flow = 新建流程图…
+menu-settings = 设置…
+menu-save = 保存
+menu-save-all = 全部保存
+menu-close-all = 关闭所有编辑器
+menu-close-editor = 关闭编辑器
+menu-exit = 退出
+menu-palette = 命令面板…
+menu-go-to-file = 转到文件…
+menu-toggle-side = 切换侧边栏
+menu-toggle-bottom = 切换底部面板
+menu-toggle-wrap = 切换自动换行
+menu-fold-all = 全部折叠
+menu-unfold-all = 全部展开
+menu-new-window = 新建窗口
+menu-new-terminal = 新建终端
+menu-reset-layout = 重置布局
+menu-devtools = 切换开发者工具
+menu-undo = 撤销
+menu-redo = 重做
+menu-find = 查找
+menu-replace = 替换
+menu-find-workspace = 在工作区中查找…
+menu-rename = 重命名符号
+menu-code-actions = 代码操作
+menu-definition = 转到定义
+menu-references = 查找引用
+menu-toggle-comment = 切换注释
+menu-about = 关于 Moonkale
+menu-shortcuts = 键盘快捷键
+menu-docs = 文档
+menu-file = 文件
+menu-edit = 编辑
+menu-view = 视图
+menu-help = 帮助
+
+## Explorer
+
+explorer-title = 来源
+explorer-delete-confirm = 删除 { $name }？（保留在 .moonkale/trash 中）
+explorer-delete = 删除
+cancel = 取消
+explorer-path-placeholder = 文件夹路径（留空 = 默认根目录）
+explorer-opening = 正在打开…
+explorer-open = 打开
+explorer-empty = 打开一个文件夹以浏览其中的文件。
+explorer-read-only = 只读
+explorer-not-watched = 未监视更改——刷新
+explorer-refresh-source = 刷新 { $name }
+explorer-db-failed = 无法打开数据库：{ $error }
+explorer-binary = { $name } 是二进制文件
+explorer-presence = { $name } 正在查看
+explorer-terminal-here = 在此处打开新终端
+explorer-new-folder = 新建文件夹…
+explorer-rename = 重命名…
+explorer-delete-dots = 删除…
+explorer-open-terminal = 在终端中打开
+explorer-refresh = 刷新
+explorer-file-name = 文件名
+explorer-folder-name = 文件夹名
+explorer-new-name = 新名称
+
+## Search, palette, terminal chooser
+
+search-title = 搜索
+search-no-folder = 请先打开一个文件夹。
+search-replaced = 已替换 { $needle } 的 { $n } 处匹配
+search-placeholder = 搜索文件…（回车）
+search-go = 搜索
+search-replace-with = 替换为…
+search-preview = 预览
+search-preview-none = 找到的文件中没有与查询完全一致的内容。
+search-preview-head = 将 “{ $query }” 的 { $n } 处匹配替换为 “{ $replacement }”，位于：
+search-open-unsaved = ——已打开，保持未保存
+search-replace-all = 全部替换
+search-hint = 在打开的文件夹中进行关键词 + 语义搜索。
+search-no-matches = 没有匹配项。
+palette-open-failed = 打开失败：{ $error }
+palette-commands = 输入命令…
+palette-files = 转到文件（可附加 :行号）…
+chooser-title = 使用以下方式打开终端…
+chooser-hint = 已启用两个终端面板。可在 设置 → 终端 → 实现 中永久设定。
+chooser-xterm = ——JavaScript 终端（默认）
+chooser-native = ——由 Dioxus 渲染的终端（无 JavaScript）
+chooser-remember = 记住我的选择
+
+## Settings
+
+settings-title = 设置
+provider-mock = 模拟（离线）
+provider-claude-code = Claude Code（订阅，无需 API 密钥）
+provider-openai = 兼容 OpenAI（OpenAI、Mistral 等）
+provider-ollama = Ollama（本地）
+settings-form = 表单
+settings-changes-go-to = 更改保存到：
+settings-user-title = 本机（所有文件夹）
+settings-user = 用户
+settings-workspace-title = 此文件夹（.moonkale/settings.json）
+settings-workspace = 工作区
+settings-not-persisted = 此平台不保存用户设置；工作区设置仍会保存。
+settings-ignored-title = 文件夹的 .moonkale/settings.json 只是数据，没有权限：它不能设置语言模型或智能体、自动批准写入、开启嵌入、授予权限，也不能指定 shell 或 SSH 主机。
+settings-ignored = 此文件夹的设置试图设置 { $fields }——已忽略：这些只能由你的用户设置决定。
+settings-agents = 智能体
+settings-agents-hint = 已保存的智能体：每个包含一个名称和一个语言模型。其中一个默认运行；智能体面板中的每个会话都可以选择其他智能体。密钥从不保存在设置中——它们来自 MOONKALE_SECRET_<NAME>、ANTHROPIC_API_KEY / OPENAI_API_KEY，或密钥文件（桌面版）/ 服务器的密钥文件（网页版）。
+settings-add-agent = 添加智能体
+settings-secret-name = 密钥名称（例如 openai）
+settings-api-key = API 密钥
+settings-secret-stored = 已保存密钥 { $name }
+settings-secret-not-stored = 未保存：{ $error }
+settings-store-secret = 保存密钥
+settings-embedding-model = 嵌入模型
+settings-embedding-none = 无（仅关键词搜索）
+settings-embedding-title = 由默认智能体的提供方提供
+settings-use-embeddings = 配置了嵌入模型时使用嵌入（适用于之后打开的文件夹）
+settings-which-extension = 使用哪个扩展
+settings-code-editor = 代码编辑器
+settings-editor-codemirror = CodeMirror（JavaScript；语言服务器、维基链接、自动换行）
+settings-editor-native = Rust（dioxus-code-editor；所有核心语言均使用 tree-sitter，暂不支持 LSP）
+settings-terminal = 终端
+settings-terminal-ask = 两者都启用时每次询问
+settings-terminal-xterm = xterm.js（JavaScript）
+settings-terminal-native = Rust（vt100 网格，Dioxus 渲染行）
+settings-which-hint = 只有已开启的扩展才会生效；若所选扩展已关闭，则改用另一个。可在扩展面板（拼图图标）中开关扩展，各扩展自己的设置也在那里。
+settings-you = 你
+settings-name = 名称
+settings-name-placeholder = 显示在历史记录和在线状态中
+settings-appearance = 外观
+settings-language = 语言
+settings-language-system = 系统（{ $lang }）
+settings-theme = 主题
+settings-theme-dark = 深色
+settings-theme-light = 浅色
+settings-theme-system = 跟随系统
+settings-keybindings = 快捷键
+settings-keybindings-hint = 快捷键中的 Ctrl 在 macOS 上表示 Cmd（且仅表示 Cmd——Ctrl 留给 Emacs 风格的光标键）。留空 = 不绑定；每个范围只保存在该范围中更改的快捷键。
+settings-custom = 自定义
+settings-unbound = 未绑定
+settings-not-a-keybinding = 不是有效的快捷键：{ $value }（例如 Ctrl+Shift+P、F12、Alt+ArrowUp）
+settings-remembered = 已记住
+settings-remembered-line = 最近的文件夹：{ $recent } · 已保存的连接：{ $connections } · 已保存布局：{ $layout } · 打开的文档：{ $open }
+settings-json-user = 用户设置
+settings-this-machine = 本机
+settings-json-workspace = 工作区文件
+settings-no-folder = （未打开文件夹）
+settings-json-env = 环境变量覆盖
+settings-rename-agent = 重命名此智能体
+settings-runs-by-default = 默认运行
+settings-forget-agent = 删除此智能体
+settings-remove = 移除
+settings-provider = 提供方
+settings-model = 模型
+settings-model-claude = 订阅的默认模型（或例如 claude-sonnet-5）
+settings-model-default = 提供方默认
+settings-command = 命令
+settings-command-placeholder = claude（在 PATH 中）
+settings-permissions = 权限
+settings-mode-plan = plan——仅读取和提出建议
+settings-mode-default = default——Claude Code 自己的规则（.claude/settings.json）
+settings-mode-accept = acceptEdits——可编辑文件夹中的文件
+settings-mode-bypass = bypassPermissions——全部允许（请谨慎）
+settings-allowed-tools = 允许的工具
+settings-allowed-tools-placeholder = 例如 Read,Grep,Bash(git:*)
+settings-endpoint = 端点
+settings-secret = 密钥名称
+settings-secret-placeholder = 默认为提供方名称
+claude-login-status = Claude Code：请在浏览器中登录，然后将代码粘贴到终端标签页中；完成后点击“重新检查”
+claude-checking = 正在检查 claude 命令行工具…
+claude-no-status = 此平台不支持状态查询
+claude-login-title = 在终端标签页中运行 `claude auth login`
+claude-login-again = 重新登录
+claude-login = 登录
+claude-check-again = 重新检查
+claude-hint = 在打开的文件夹中以无界面方式运行 claude 命令行工具，使用你的订阅登录；无需密钥，Moonkale 不保存任何内容。其工具调用会以 ▸ 行显示在对话记录中。在网页版中，该工具在服务器上运行并登录。
+
+## Extensions panel
+
+extensions-title = 扩展
+extensions-changes-go-to = 更改保存到
+extensions-user-settings = 用户设置
+extensions-this-folder = 此文件夹
+extensions-catalogue-before = 每个扩展是什么、属于哪个级别、在哪里运行：参见
+extensions-catalogue = 扩展目录
+extensions-catalogue-after = 。
+extensions-hint = 可选功能只有在开启后才会加载。权限决定扩展可以做什么；取消勾选即可限制。权限始终归你所有（用户设置）：文件夹无法授予权限。
+extensions-core = 核心
+extensions-opt-in = 需手动开启
+extensions-wasm = 已安装（wasm）
+extensions-wasm-hint = 来自 ~/.config/moonkale/extensions 和 <文件夹>/.moonkale/extensions 的第三方模块。启用前保持关闭；勾选前不授予任何权限。
+extensions-wasm-desc = { $description } · 命令：{ $commands }
+
+## Remote and server dialogs
+
+connect = 连接
+remote-name-needed = 请为连接命名后再保存
+remote-title = 打开远程文件夹
+remote-hint-ssh = 通过系统的 ssh 打开另一台机器上的文件夹。认证完全由 ssh 负责——密钥、代理、密码和主机密钥检查与在终端中完全相同；ssh 的任何询问都会显示在终端面板中，Moonkale 永远不会看到任何机密。
+remote-hint-host = 主机：即在 ssh 后面输入的内容——名称或 user@host、~/.ssh/config 中的别名（见下方），前面可以加任意 ssh 选项（-p 2222、-i ~/.ssh/key、-J jumphost、-o …）；开头的 VAR=value 会设置到 ssh 的环境中。
+remote-hint-server = 每个主机和版本首次连接时，Moonkale 自带的服务器（约 150 MB）会被复制到主机的 ~/.local/share/moonkale/server/，并仅为本次会话启动：文件夹、索引、git、语言服务器和终端都在那台机器上运行；编辑器和你的 API 密钥留在本机。关闭文件夹即结束会话并停止服务器。
+remote-saved = 已保存的连接
+remote-pick = ——在下方输入主机，或选择一个——
+remote-host = 主机（即 ssh 后输入的内容）
+remote-folder = 那台机器上的文件夹
+remote-save-name = 保存此连接所用的名称
+remote-save-title = 以此名称记住主机和文件夹（用户设置）
+remote-forget = 删除
+server-title = 连接到服务器
+server-hint = 在本应用中使用正在运行的 Moonkale 服务器（moonkale-server 或带 MOONKALE_TOKEN 的 dx serve）：文件夹、索引、git、语言服务器、终端和智能体会话都在服务器上运行；编辑器和你的 API 密钥留在本机。通过网络连接时，服务器应使用 HTTPS 或隧道——参见“Remote and Server Modes”。
+server-url = 服务器地址
+server-token = 访问令牌（MOONKALE_TOKEN）
+server-token-placeholder = 无令牌的开发服务器请留空
+
+## Frame, shell, status bar
+
+status-no-new-window = 此平台不支持新建窗口
+status-no-terminal = 未启用任何终端扩展（扩展面板）
+status-could-not-create = 无法创建 { $name }：{ $error }
+status-could-not-move = 无法将文档移到此处：{ $error }
+drop-target = 拖放（或点击）以将 { $name } 移到此窗口
+drop-banner = { $name } 是从另一个窗口拖过来的。
+drop-move-here = 移到这里
+dismiss = 关闭
+status-open-folder-failed = 打开文件夹失败：{ $error }
+status-nothing-in-tile = { $tile } 区域中没有可显示的内容
+status-saved = 已保存 { $n } 个文档
+status-kept-open = { $n } 个未保存的文档保持打开
+status-no-folder = 没有打开的文件夹
+status-about = Moonkale { $version }——基于图的代码与知识编辑器 · mathstruct.github.io/Moonkale
+editor = 编辑器
+rail-title = { $label }——再次点击以隐藏
+people = 成员
+people-nobody = 这里没有其他人
+people-here = 在此：{ $names }
+people-nobody-folder = 没有其他人在查看此文件夹
+status-no-folder-open = 未打开文件夹
+status-server-client = 此应用是 Moonkale 服务器的客户端
+status-remote = 通过 SSH 访问的远程文件夹——{ $phase }
+status-lsp = 语言服务器
+status-others = { $names }——也在此文件夹中
+status-window-title = 当前窗口：{ $id }。本会话的其他窗口响应后才会被计入。
+status-windows = { $n } 个窗口
+more = 更多
+status-ready = 就绪
+
+## Workbench chrome (dioxus-workbench)
+
+wb-tab-group = 面板组
+wb-tab-group-labelled = 面板组：{ "{" }panel{ "}" }
+wb-tab-hint = 拖动以停靠。Alt+Shift+方向键拆分；Alt+Shift+翻页键移动。
+wb-close-tab = 关闭 { "{" }title{ "}" }
+wb-empty-group = 空组
+wb-empty-title = 空面板组
+wb-empty-hint = 将面板标签拖到这里，或关闭此组。
+wb-empty-keys = Alt+Shift+方向键拆分 · Alt+Shift+翻页键移动 · 方向键切换标签
+wb-split-right = 向右拆分面板组
+wb-split-right-hint = 向右拆分（Alt+Shift+Right）
+wb-split-down = 向下拆分面板组
+wb-split-down-hint = 向下拆分（Alt+Shift+Down）
+wb-close-empty = 关闭空面板组
+wb-close-empty-hint = 关闭空组
+wb-splitter = 调整面板组大小
+wb-splitter-hint = 拖动以调整大小。方向键调整；按住 Shift 移动更多；双击重置。

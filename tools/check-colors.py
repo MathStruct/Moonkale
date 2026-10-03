@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Hard-coded colours outside the theme (Milestone 18 phase 4.4, for spec 030).
+"""Hard-coded colours outside the theme (Milestone 18 phase 4.4; zero since spec 030).
 
-Counts hex colours (`#abc`, `#aabbcc`, `#aabbccdd`) in the tracked
-stylesheets, except the theme file(s) and vendored CSS. The count may only
+Counts colour literals (`#abc`, `#aabbcc`, `rgb(…)`, `rgba(…)`, `hsl(…)`) in
+the tracked stylesheets, except vendored CSS. Every colour is a token
+(`var(--mk-…)`) defined in packages/shell/src/theme.rs. The count may only
 shrink: it fails when it is above the number in tools/colors-max.txt, and
 asks for the number to be lowered when it is below.
 
@@ -13,9 +14,12 @@ import os, re, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX = os.path.join(ROOT, "tools", "colors-max.txt")
-HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
-THEME = {"packages/shell/assets/styling/theme.css"}
-VENDORED = ("site/", ".obsidian/", "packages/editors/markdown/assets/katex/")
+HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(")
+# Spec 030: the colours are in packages/shell/src/theme.rs; no stylesheet is exempt.
+THEME = set()
+# Vendored or built from node_modules (their colours are overridden through tokens).
+VENDORED = ("site/", ".obsidian/", "packages/editors/markdown/assets/katex/",
+            "packages/editors/terminal/assets/xterm.css", "packages/editors/markdown/assets/milkdown.css")
 
 
 def counts():

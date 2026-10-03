@@ -1,4 +1,5 @@
 use crate::panel::FlowPanel;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 
@@ -15,6 +16,10 @@ pub fn is_flow(node: &Node) -> bool {
 pub struct FlowExtension;
 
 impl Extension for FlowExtension {
+    fn locales(&self) -> moonkale_ext_api::i18n::Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::opt_in(
             "dev.moonkale.editor-flow",

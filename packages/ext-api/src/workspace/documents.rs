@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     /// Open `node` (if not already) and ask its editor to place the cursor.
@@ -65,7 +66,7 @@ impl Workspace {
                 }
             }
         }
-        self.set_status(format!("{rel}: not found in the open folders"));
+        self.set_status(t!(self, L, "not-found-in-folders", path = rel.to_string()));
         Err(SourceError::NotFound)
     }
 
@@ -206,7 +207,7 @@ impl Workspace {
                 self.docs.views.with_mut(|v| v.push(node.clone()));
             }
             self.docs.active.set(Some(node.id));
-            self.set_status(format!("Opened {}", node.label));
+            self.set_status(t!(self, L, "opened", name = node.label.clone()));
             return Ok(());
         }
         if self.document(node.id).is_none() {
@@ -217,7 +218,7 @@ impl Workspace {
             self.docs.open.with_mut(|v| v.push((node.id, doc)));
         }
         self.docs.active.set(Some(node.id));
-        self.set_status(format!("Opened {}", node.native_key));
+        self.set_status(t!(self, L, "opened", name = node.native_key.clone()));
         Ok(())
     }
 
@@ -268,7 +269,7 @@ impl Workspace {
             Some(v) => {
                 let chars_after = doc.peek().text.chars().count();
                 doc.with_mut(|d| d.mark_saved(v));
-                self.set_status(format!("Saved {key}"));
+                self.set_status(t!(self, L, "saved", name = key.clone()));
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).
                 let actor = match self.history.pending_actor.with_mut(|m| m.remove(&node)) {
@@ -315,7 +316,7 @@ impl Workspace {
                     .first_error()
                     .cloned()
                     .unwrap_or(SourceError::Unsupported("write refused".into()));
-                self.set_status(format!("Save failed: {err}"));
+                self.set_status(t!(self, L, "save-failed", error = err.to_string()));
                 Err(err)
             }
         }
@@ -358,7 +359,7 @@ impl Workspace {
             let _ = other.refresh(node_id).await;
         }
         self.sources.graph_epoch.with_mut(|e| *e += 1);
-        self.set_status(format!("Created {}", node.native_key));
+        self.set_status(t!(self, L, "created", name = node.native_key.clone()));
         if !node.native_key.starts_with(".moonkale/") {
             self.record(moonkale_core::EventKind::Add {
                 node: node.clone(),
@@ -395,7 +396,7 @@ impl Workspace {
             .apply_one(&source, Transaction::create_dir(parent, name))
             .await?;
         self.after_fs_change(source_id, &[id]).await;
-        self.set_status(format!("Created {name}/"));
+        self.set_status(t!(self, L, "created", name = format!("{name}/")));
         if let Ok(r) = source.query(Query::Node(id)).await {
             if let Some(n) = r.nodes.into_iter().next() {
                 self.record(moonkale_core::EventKind::Add {
@@ -479,7 +480,13 @@ impl Workspace {
             }
         }
         self.after_fs_change(&source_id, &[node.id, new_id]).await;
-        self.set_status(format!("Renamed {from} → {to}"));
+        self.set_status(t!(
+            self,
+            L,
+            "renamed",
+            from = from.to_string(),
+            to = to.to_string()
+        ));
         self.record(moonkale_core::EventKind::Rename {
             from: node.id,
             to: new_id,
@@ -512,10 +519,7 @@ impl Workspace {
             self.close_node(id);
         }
         self.after_fs_change(&source_id, &[node.id]).await;
-        self.set_status(format!(
-            "Deleted {} (kept in .moonkale/trash)",
-            node.native_key
-        ));
+        self.set_status(t!(self, L, "deleted", name = node.native_key.clone()));
         self.record_event(
             self.user_actor(),
             moonkale_core::EventKind::Remove { node: node.id },
@@ -599,7 +603,7 @@ impl Workspace {
         let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
         let (text, version) = source.fetch_text(node).await?;
         doc.set(Document::new(n, text, version));
-        self.set_status("Reloaded from disk");
+        self.set_status(t!(self, L, "reloaded"));
         Ok(())
     }
 }

@@ -43,6 +43,7 @@ pub mod host_state;
 pub mod relay;
 mod remote;
 mod terminal;
+pub mod themes;
 pub use llm::ProviderInfo;
 #[cfg(target_arch = "wasm32")]
 pub use llm::RemoteProvider;

@@ -1,4 +1,5 @@
 use crate::panel::TablePanel;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{NodeId, NodeKind};
 use moonkale_ext_api::prelude::*;
@@ -17,6 +18,10 @@ impl TableExtension {
 }
 
 impl Extension for TableExtension {
+    fn locales(&self) -> moonkale_ext_api::i18n::Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::optional(
             "dev.moonkale.editor-table",

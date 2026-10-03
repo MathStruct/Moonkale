@@ -1,6 +1,7 @@
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{Node, Query, QueryResult, SourceError, TextDialect};
-use moonkale_ext_api::{Command, GraphRequest, Workspace};
+use moonkale_ext_api::{t, Command, GraphRequest, Workspace};
 
 const CSS: Asset = asset!("/assets/table.css");
 
@@ -130,23 +131,23 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                     },
                 }
                 button { class: "mk-btn", disabled: running(), onclick: { let run = run.clone(); move |_| run() },
-                    if running() { "Running…" } else { "Run (Ctrl+Enter)" }
+                    if running() { {t!(ws, L, "table-running")} } else { {t!(ws, L, "table-run")} }
                 }
                 if matches!(result(), Some(Ok(ref r)) if !r.nodes.is_empty()) {
-                    button { class: "mk-btn mk-table-graph", onclick: show_in_graph, title: "Draw the nodes and edges this query returns in the Graph panel", "Show in Graph" }
+                    button { class: "mk-btn mk-table-graph", onclick: show_in_graph, title: t!(ws, L, "table-graph-title"), {t!(ws, L, "table-graph")} }
                 }
             }
             div { class: "mk-table-grid-host",
                 match result() {
-                    None => rsx! { p { class: "mk-table-msg", "Loading…" } },
+                    None => rsx! { p { class: "mk-table-msg", {t!(ws, L, "table-loading")} } },
                     Some(Err(e)) => rsx! { p { class: "mk-table-msg mk-table-error", "{e}" } },
                     Some(Ok(r)) => {
                         let t = r.table.as_ref().unwrap();
                         rsx! {
                         div { class: "mk-table-meta",
-                            "{t.rows.len()} rows · {t.columns.len()} columns"
-                            if !r.nodes.is_empty() { " · {r.nodes.len()} nodes · {r.edges.len()} edges" }
-                            if t.truncated { " · truncated at the source's row cap" }
+                            {t!(ws, L, "table-counts", rows = t.rows.len(), columns = t.columns.len())}
+                            if !r.nodes.is_empty() { {t!(ws, L, "table-graph-counts", nodes = r.nodes.len(), edges = r.edges.len())} }
+                            if t.truncated { {t!(ws, L, "table-truncated")} }
                         }
                         table { class: "mk-table-grid",
                             thead { tr { for c in &t.columns { th { "{c}" } } } }

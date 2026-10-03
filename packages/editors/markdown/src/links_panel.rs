@@ -1,8 +1,9 @@
 //! Backlinks / outgoing links of the active document, from the index.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{Direction, EdgeKind, Node, NodeId, NodeKind, Query};
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 
 const CSS: Asset = asset!("/assets/links.css");
 
@@ -75,12 +76,12 @@ pub fn LinksPanel(ws: Workspace) -> Element {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-links",
             match (title, links()) {
-                (None, _) => rsx! { p { class: "mk-links-empty", "Open a document to see what links to it." } },
-                (Some(t), None) => rsx! { p { class: "mk-links-empty", "No index for {t} — open a folder to build one." } },
-                (Some(t), Some(l)) => rsx! {
-                    div { class: "mk-links-title", "{t}" }
-                    LinkSection { ws, heading: "Backlinks", nodes: l.backlinks, empty: "Nothing links here yet." }
-                    LinkSection { ws, heading: "Outgoing", nodes: l.outgoing, empty: "No links in this document." }
+                (None, _) => rsx! { p { class: "mk-links-empty", {t!(ws, L, "links-no-document")} } },
+                (Some(title), None) => rsx! { p { class: "mk-links-empty", {t!(ws, L, "links-no-index", name = title)} } },
+                (Some(title), Some(l)) => rsx! {
+                    div { class: "mk-links-title", "{title}" }
+                    LinkSection { ws, heading: t!(ws, L, "links-backlinks"), nodes: l.backlinks, empty: t!(ws, L, "links-backlinks-empty") }
+                    LinkSection { ws, heading: t!(ws, L, "links-outgoing"), nodes: l.outgoing, empty: t!(ws, L, "links-outgoing-empty") }
                 },
             }
         }
@@ -88,12 +89,7 @@ pub fn LinksPanel(ws: Workspace) -> Element {
 }
 
 #[component]
-fn LinkSection(
-    ws: Workspace,
-    heading: &'static str,
-    nodes: Vec<Node>,
-    empty: &'static str,
-) -> Element {
+fn LinkSection(ws: Workspace, heading: String, nodes: Vec<Node>, empty: String) -> Element {
     rsx! {
         div { class: "mk-links-section",
             div { class: "mk-links-heading", "{heading} " span { class: "mk-links-count", "{nodes.len()}" } }
@@ -109,7 +105,7 @@ fn LinkSection(
                         rsx! {
                             li { key: "{node.id}",
                                 class: if phantom { "mk-links-item mk-links-phantom" } else { "mk-links-item" },
-                                title: if phantom { "Unresolved link: no file with this name yet" } else { "{node.native_key}" },
+                                title: if phantom { t!(ws, L, "links-unresolved") } else { node.native_key.clone() },
                                 onclick: move |_| {
                                     let n = n.clone();
                                     if n.kind == NodeKind::File {
@@ -117,14 +113,14 @@ fn LinkSection(
                                             if let Err(e) = ws.open_node(n).await { ws2.set_status(e.to_string()); }
                                         });
                                     } else {
-                                        ws2.set_status(format!("{} does not exist yet — Create makes the page", n.label));
+                                        ws2.set_status(t!(ws2, L, "links-missing", name = n.label.clone()));
                                     }
                                 },
                                 span { class: "mk-links-label", "{node.label}" }
                                 if !phantom { span { class: "mk-links-path", "{node.native_key}" } }
                                 if phantom {
                                     // Spec 012: an unresolved link becomes a page next to the linking document.
-                                    button { class: "mk-btn mk-links-create", title: "Create this page",
+                                    button { class: "mk-btn mk-links-create", title: t!(ws, L, "links-create-title"),
                                         onclick: {
                                             let target = node.label.clone();
                                             move |e: MouseEvent| {
@@ -137,7 +133,7 @@ fn LinkSection(
                                                 });
                                             }
                                         },
-                                        "Create"
+                                        {t!(ws, L, "links-create")}
                                     }
                                 }
                             }

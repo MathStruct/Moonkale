@@ -2,9 +2,10 @@
 //! one overlay, two item sources, fuzzy-ranked, keyboard-driven.
 
 use crate::commands::{self, CommandRegistry};
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{NodeKind, Query};
-use moonkale_ext_api::{fuzzy_score, Workspace};
+use moonkale_ext_api::{fuzzy_score, t, Workspace};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PaletteMode {
@@ -148,7 +149,12 @@ pub fn Palette() -> Element {
                                     let _ = ws.reveal(node, line.saturating_sub(1), 0).await;
                                 }
                             }
-                            Err(e) => ws.set_status(format!("Open failed: {e}")),
+                            Err(e) => ws.set_status(t!(
+                                ws,
+                                L,
+                                "palette-open-failed",
+                                error = e.to_string()
+                            )),
                         }
                     });
                 }
@@ -157,8 +163,8 @@ pub fn Palette() -> Element {
     });
     let count = items.len();
     let placeholder = match mode {
-        PaletteMode::Commands => "Type a command…",
-        PaletteMode::Files => "Go to file (append :line)…",
+        PaletteMode::Commands => t!(ws, L, "palette-commands"),
+        PaletteMode::Files => t!(ws, L, "palette-files"),
     };
 
     rsx! {

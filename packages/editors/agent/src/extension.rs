@@ -1,6 +1,8 @@
 use crate::panel::AgentPanel;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::{i18n::Locales, t};
 
 pub const PANEL_ID: &str = "agent";
 
@@ -16,10 +18,12 @@ impl Extension for AgentExtension {
         .with_permissions(&["read-sources", "write-files", "run-commands", "network"])
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution::new(PANEL_ID, "Agent", PanelHome::Right)
-            .closable(true)
-            .activity(Activity::new("agent", 60, "Agent"))]
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
+        vec![
+            PanelContribution::new(PANEL_ID, t!(ws, L, "agent-title"), PanelHome::Right)
+                .closable(true)
+                .activity(Activity::new("agent", 60, t!(ws, L, "agent-title"))),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
@@ -31,8 +35,15 @@ impl Extension for AgentExtension {
     }
 
     // Milestone 7: the first extension-contributed command.
-    fn commands(&self, _ws: Workspace) -> Vec<CommandContribution> {
-        vec![CommandContribution::new("agent.focus", "Agent: Ask the agent…").key("Ctrl+Shift+A")]
+    fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
+        vec![
+            CommandContribution::new("agent.focus", t!(ws, L, "cmd-agent-focus"))
+                .key("Ctrl+Shift+A"),
+        ]
+    }
+
+    fn locales(&self) -> Locales {
+        L
     }
 
     fn run_command(&self, id: &str, mut ws: Workspace) {
@@ -57,10 +68,10 @@ impl Extension for AgentExtension {
             // A folder may not auto-approve writes (Milestone 18 phase 4.5):
             // in the workspace target the switch is shown, not offered.
             label { class: "mk-settings-check",
-                title: if target == SettingsTarget::Workspace { "Only your user settings can allow this — a folder's settings may not (it would let a cloned repository approve the agent's writes)" } else { "" },
+                title: if target == SettingsTarget::Workspace { t!(ws, L, "agent-allow-writes-folder") } else { String::new() },
                 input { r#type: "checkbox", checked: allow_writes, disabled: target == SettingsTarget::Workspace,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.policy.allow_writes = Some(v)); } }
-                "Allow mutating tools without asking (destructive ones always ask)"
+                {t!(ws, L, "agent-allow-writes")}
             }
             label { class: "mk-settings-field", "Denied tools"
                 input { class: "mk-input", value: "{denied}", placeholder: "comma-separated tool names",
@@ -69,7 +80,7 @@ impl Extension for AgentExtension {
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: on_server,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.agent.on_server = Some(v)); } }
-                "Run turns on the server — they finish without a window, and another device sees the state (web, or a desktop connected to a server)"
+                {t!(ws, L, "agent-on-server")}
             }
             p { class: "mk-muted", "The saved agents (language models, keys) are under Settings → Agents; each session picks one." }
         })

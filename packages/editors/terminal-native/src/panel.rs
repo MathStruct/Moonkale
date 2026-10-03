@@ -3,9 +3,11 @@
 //! Dioxus's `MountedData::get_client_rect`, keys from `onkeydown`.
 
 use crate::keys::encode;
+use crate::L;
 use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::t;
 use moonkale_terminal::{links, Output, Session, SessionId, TerminalBackend};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -84,6 +86,10 @@ impl NativeTerminalExtension {
 }
 
 impl Extension for NativeTerminalExtension {
+    fn locales(&self) -> moonkale_ext_api::i18n::Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::opt_in(
             "dev.moonkale.editor-terminal-native",
@@ -93,12 +99,12 @@ impl Extension for NativeTerminalExtension {
         .with_permissions(&["run-commands"])
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
         vec![
-            PanelContribution::new(PANEL_ID, "Terminal (Rust)", PanelHome::Bottom)
+            PanelContribution::new(PANEL_ID, t!(ws, L, "tn-title"), PanelHome::Bottom)
                 .closable(true)
                 .activity(
-                    Activity::new("terminal", 71, "Terminal (Rust)")
+                    Activity::new("terminal", 71, t!(ws, L, "tn-title"))
                         .badge(self.sessions.list.read().len() as u32),
                 ),
         ]
@@ -114,7 +120,7 @@ impl Extension for NativeTerminalExtension {
 
 async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<String>) {
     let Some(spawn_fn) = ws.spawn_terminal() else {
-        ws.set_status("Terminals are not available on this platform");
+        ws.set_status(t!(ws, L, "terminal-unavailable"));
         return;
     };
     match spawn_fn(cwd.clone(), 80, 24).await {
@@ -132,7 +138,7 @@ async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<St
                 .with_mut(|l| l.push(Rc::new(RefCell::new(session))));
             sessions.active.set(Some(id));
         }
-        Err(e) => ws.set_status(format!("Could not start a terminal: {e}")),
+        Err(e) => ws.set_status(t!(ws, L, "terminal-failed", error = e.to_string())),
     }
 }
 
@@ -162,7 +168,7 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                             span { key: "{id.0}", class: if active == Some(id) { "mk-tn-tab mk-tn-tab-active" } else { "mk-tn-tab" },
                                 onclick: move |_| sessions.active.set(Some(id)),
                                 "{title}"
-                                button { class: "mk-tn-close", title: "Close", onclick: move |e| {
+                                button { class: "mk-tn-close", title: t!(ws, L, "terminal-close"), onclick: move |e| {
                                     e.stop_propagation();
                                     sessions.list.with_mut(|l| l.retain(|s| s.borrow().id != id));
                                     if sessions.active.peek().as_ref() == Some(&id) {
@@ -174,11 +180,11 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         }
                     }
                 }
-                button { class: "mk-tn-new", disabled: !available, title: "New terminal (Rust renderer)",
+                button { class: "mk-tn-new", disabled: !available, title: t!(ws, L, "tn-new"),
                     onclick: move |_| { ws.processes.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); }, "+" }
             }
             if list.is_empty() {
-                p { class: "mk-muted mk-tn-empty", if available { "No terminal yet — press + or use View → New Terminal." } else { "Terminals are not available on this platform." } }
+                p { class: "mk-muted mk-tn-empty", if available { {t!(ws, L, "tn-empty")} } else { {t!(ws, L, "terminal-unavailable")} } }
             }
             for s in list.iter() {
                 {

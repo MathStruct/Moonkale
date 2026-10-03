@@ -9,9 +9,11 @@
 //! permissions, its own settings — is in the Extensions panel under the
 //! extension.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::settings::{AgentProfileFile, LlmFile, Scope, SettingsFile, DEFAULT_AGENT};
+use moonkale_ext_api::t;
 
 pub const PANEL_ID: &str = "settings";
 
@@ -26,11 +28,11 @@ impl Extension for SettingsExtension {
         )
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
         vec![
-            PanelContribution::new(PANEL_ID, "Settings", PanelHome::Main)
+            PanelContribution::new(PANEL_ID, t!(ws, L, "settings-title"), PanelHome::Main)
                 .closable(true)
-                .activity(Activity::new("settings", 900, "Settings")),
+                .activity(Activity::new("settings", 900, t!(ws, L, "settings-title"))),
         ]
     }
 
@@ -64,13 +66,19 @@ fn opt(s: String) -> Option<String> {
 }
 
 /// The provider kinds offered, in order.
-pub const PROVIDERS: [(&str, &str); 5] = [
-    ("mock", "mock (offline)"),
-    ("claude-code", "Claude Code (subscription, no API key)"),
-    ("anthropic", "Anthropic"),
-    ("openai", "OpenAI-compatible (OpenAI, Mistral, …)"),
-    ("ollama", "Ollama (local)"),
-];
+pub const PROVIDERS: [&str; 5] = ["mock", "claude-code", "anthropic", "openai", "ollama"];
+
+/// A provider kind's label in the user's language.
+fn provider_label(ws: Workspace, kind: &str) -> String {
+    match kind {
+        "mock" => t!(ws, L, "provider-mock"),
+        "claude-code" => t!(ws, L, "provider-claude-code"),
+        "anthropic" => "Anthropic".into(),
+        "openai" => t!(ws, L, "provider-openai"),
+        "ollama" => t!(ws, L, "provider-ollama"),
+        other => other.into(),
+    }
+}
 
 #[component]
 fn SettingsPanel(ws: Workspace) -> Element {
@@ -111,92 +119,115 @@ fn SettingsPanel(ws: Workspace) -> Element {
         div { class: "mk-settings",
             div { class: "mk-settings-toolbar",
                 span { class: "mk-settings-tabs",
-                    button { class: if tab() == "form" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| tab.set("form"), "Form" }
+                    button { class: if tab() == "form" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| tab.set("form"), {t!(ws, L, "settings-form")} }
                     button { class: if tab() == "json" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| tab.set("json"), "JSON" }
                 }
                 span { class: "mk-settings-spacer" }
-                span { class: "mk-muted", "changes go to: " }
-                button { class: if target() == Target::User { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| target.set(Target::User), title: "This machine (all folders)", "user" }
-                button { class: if target() == Target::Workspace { "mk-btn mk-btn-on" } else { "mk-btn" }, disabled: !has_workspace, onclick: move |_| target.set(Target::Workspace), title: "This folder (.moonkale/settings.json)", "workspace" }
+                span { class: "mk-muted", {t!(ws, L, "settings-changes-go-to")} }
+                button { class: if target() == Target::User { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| target.set(Target::User), title: t!(ws, L, "settings-user-title"), {t!(ws, L, "settings-user")} }
+                button { class: if target() == Target::Workspace { "mk-btn mk-btn-on" } else { "mk-btn" }, disabled: !has_workspace, onclick: move |_| target.set(Target::Workspace), title: t!(ws, L, "settings-workspace-title"), {t!(ws, L, "settings-workspace")} }
             }
             if !store_available {
-                p { class: "mk-settings-note", "User settings are not persisted on this platform; workspace settings still are." }
+                p { class: "mk-settings-note", {t!(ws, L, "settings-not-persisted")} }
             }
             if !settings.ignored_from_folder.is_empty() {
                 p { class: "mk-settings-note mk-settings-ignored",
-                    title: "A folder's .moonkale/settings.json is data, not authority: it may not set a language model or agent, auto-approve writes, turn on embeddings, grant permissions, name a shell or SSH hosts (Milestone 18 phase 4.5)",
-                    "This folder's settings tried to set {settings.ignored_from_folder.join(\", \")} — ignored: only your user settings decide those."
+                    title: t!(ws, L, "settings-ignored-title"),
+                    {t!(ws, L, "settings-ignored", fields = settings.ignored_from_folder.join(", "))}
                 }
             }
             if tab() == "form" {
                 div { class: "mk-settings-form",
-                    h3 { "Agents" span { class: "mk-settings-scope", "{scope_label(llm_scope)}" } }
-                    p { class: "mk-muted", "Saved agents: a name and a language model each. One runs by default; every session in the Agent panel can pick another. Keys are never stored in settings — they come from MOONKALE_SECRET_<NAME>, ANTHROPIC_API_KEY / OPENAI_API_KEY, or the secrets file (desktop) / the server's (web)." }
+                    h3 { {t!(ws, L, "settings-agents")} span { class: "mk-settings-scope", "{scope_label(llm_scope)}" } }
+                    p { class: "mk-muted", {t!(ws, L, "settings-agents-hint")} }
                     for profile in agents.iter() {
                         AgentProfileCard { key: "{profile.name}", ws, target: target(), profile: profile.clone(), is_default: profile.name == default_agent, only_one: agents.len() == 1 }
                     }
                     div { class: "mk-settings-actions",
-                        button { class: "mk-btn mk-settings-add-agent", onclick: move |_| { let name = next_name.clone(); apply(Box::new(move |f| f.agents.push(AgentProfileFile { name, llm: LlmFile { provider: Some("mock".into()), ..Default::default() } }))); }, "Add agent" }
+                        button { class: "mk-btn mk-settings-add-agent", onclick: move |_| { let name = next_name.clone(); apply(Box::new(move |f| f.agents.push(AgentProfileFile { name, llm: LlmFile { provider: Some("mock".into()), ..Default::default() } }))); }, {t!(ws, L, "settings-add-agent")} }
                     }
                     if ws.secret_store().is_some() {
                         div { class: "mk-settings-secret",
-                            input { class: "mk-input", placeholder: "secret name (e.g. openai)", value: "{secret_name}", oninput: move |e| secret_name.set(e.value()) }
-                            input { class: "mk-input", r#type: "password", placeholder: "API key", value: "{secret_value}", oninput: move |e| secret_value.set(e.value()) }
+                            input { class: "mk-input", placeholder: t!(ws, L, "settings-secret-name"), value: "{secret_name}", oninput: move |e| secret_name.set(e.value()) }
+                            input { class: "mk-input", r#type: "password", placeholder: t!(ws, L, "settings-api-key"), value: "{secret_value}", oninput: move |e| secret_value.set(e.value()) }
                             button { class: "mk-btn", disabled: secret_name().trim().is_empty(), onclick: move |_| {
                                 let name = secret_name.peek().trim().to_string();
                                 let value = secret_value.peek().clone();
                                 let store = ws.secret_store().unwrap();
                                 spawn(async move {
                                     match store(name.clone(), value).await {
-                                        Ok(()) => { secret_status.set(format!("stored secret {name:?}")); secret_value.set(String::new()); }
-                                        Err(e) => secret_status.set(format!("not stored: {e}")),
+                                        Ok(()) => { secret_status.set(t!(ws, L, "settings-secret-stored", name = format!("{name:?}"))); secret_value.set(String::new()); }
+                                        Err(e) => secret_status.set(t!(ws, L, "settings-secret-not-stored", error = e)),
                                     }
                                 });
-                            }, "Store secret" }
+                            }, {t!(ws, L, "settings-store-secret")} }
                             span { class: "mk-muted", "{secret_status}" }
                         }
                     }
 
-                    h3 { "Search" }
-                    label { "Embedding model"
-                        input { class: "mk-input", value: "{embed_model}", placeholder: "none (keyword search only)", title: "Served by the Default agent's provider",
+                    h3 { {t!(ws, L, "search-title")} }
+                    label { {t!(ws, L, "settings-embedding-model")}
+                        input { class: "mk-input", value: "{embed_model}", placeholder: t!(ws, L, "settings-embedding-none"), title: t!(ws, L, "settings-embedding-title"),
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.embed_model = opt(v))); } }
                     }
                     label { class: "mk-settings-check",
                         input { r#type: "checkbox", checked: settings.search.embeddings,
                             onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.search.embeddings = Some(v))); } }
-                        "Use embeddings when an embedding model is configured (applies to folders opened afterwards)"
+                        {t!(ws, L, "settings-use-embeddings")}
                     }
 
                     // Milestone 15: the one extension-related thing here — which of
                     // several extensions does a job. On/off and each extension's own
                     // settings are in the Extensions panel.
-                    h3 { "Which extension" }
-                    label { "Code editor"
+                    h3 { {t!(ws, L, "settings-which-extension")} }
+                    label { {t!(ws, L, "settings-code-editor")}
                         select { class: "mk-input mk-settings-editor-impl", value: "{editor_impl}",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.editor.implementation = Some(v))); },
-                            option { value: "codemirror", selected: editor_impl == "codemirror", "CodeMirror (JavaScript; language servers, wiki-links, wrap)" }
-                            option { value: "native", selected: editor_impl == "native", "Rust (dioxus-code-editor; tree-sitter for every core language, no LSP yet)" }
+                            option { value: "codemirror", selected: editor_impl == "codemirror", {t!(ws, L, "settings-editor-codemirror")} }
+                            option { value: "native", selected: editor_impl == "native", {t!(ws, L, "settings-editor-native")} }
                         }
                     }
-                    label { "Terminal"
+                    label { {t!(ws, L, "settings-terminal")}
                         select { class: "mk-input mk-settings-terminal-impl", value: "{terminal_impl}",
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.implementation = Some(v))); },
-                            option { value: "ask", selected: terminal_impl == "ask", "ask each time both are enabled" }
-                            option { value: "xterm", selected: terminal_impl == "xterm", "xterm.js (JavaScript)" }
-                            option { value: "native", selected: terminal_impl == "native", "Rust (vt100 grid, Dioxus rows)" }
+                            option { value: "ask", selected: terminal_impl == "ask", {t!(ws, L, "settings-terminal-ask")} }
+                            option { value: "xterm", selected: terminal_impl == "xterm", {t!(ws, L, "settings-terminal-xterm")} }
+                            option { value: "native", selected: terminal_impl == "native", {t!(ws, L, "settings-terminal-native")} }
                         }
                     }
-                    p { class: "mk-muted", "Only extensions that are switched on count; a choice that is off falls back to the other. Switch extensions on and off in the Extensions panel (puzzle icon), where each extension's own settings are too." }
+                    p { class: "mk-muted", {t!(ws, L, "settings-which-hint")} }
 
-                    h3 { "You" }
-                    label { "Name"
-                        input { class: "mk-input", value: "{settings.user_name}", placeholder: "shown in history and presence",
+                    h3 { {t!(ws, L, "settings-you")} }
+                    label { {t!(ws, L, "settings-name")}
+                        input { class: "mk-input", value: "{settings.user_name}", placeholder: t!(ws, L, "settings-name-placeholder"),
                             onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.user_name = opt(v))); } }
                     }
 
-                    h3 { "Keybindings" }
-                    p { class: "mk-muted", "Ctrl in a binding means Cmd on macOS (and only Cmd — Ctrl stays free for Emacs-style cursor keys). Empty = unbound; a scope only stores the bindings changed there." }
+                    // Spec 030: the UI language and the theme.
+                    h3 { {t!(ws, L, "settings-appearance")} }
+                    label { {t!(ws, L, "settings-language")}
+                        select { class: "mk-input mk-settings-language", value: "{settings.language}",
+                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.language = opt(v))); },
+                            option { value: "", selected: settings.language.is_empty(), {t!(ws, L, "settings-language-system", lang = ws.settings.system_language.read().clone())} }
+                            for (tag, name) in moonkale_ext_api::i18n::LANGUAGES {
+                                option { value: "{tag}", selected: settings.language == *tag, "{name}" }
+                            }
+                        }
+                    }
+                    label { {t!(ws, L, "settings-theme")}
+                        select { class: "mk-input mk-settings-theme", value: "{settings.theme}",
+                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.theme = opt(v))); },
+                            option { value: "dark", selected: settings.theme == "dark", {t!(ws, L, "settings-theme-dark")} }
+                            option { value: "light", selected: settings.theme == "light", {t!(ws, L, "settings-theme-light")} }
+                            option { value: "system", selected: settings.theme == "system", {t!(ws, L, "settings-theme-system")} }
+                            for name in crate::theme::extra_themes(ws) {
+                                option { value: "{name}", selected: settings.theme == name, "{name}" }
+                            }
+                        }
+                    }
+
+                    h3 { {t!(ws, L, "settings-keybindings")} }
+                    p { class: "mk-muted", {t!(ws, L, "settings-keybindings-hint")} }
                     for entry in registry.read().entries.iter() {
                         {
                             let id = entry.id.clone();
@@ -204,15 +235,15 @@ fn SettingsPanel(ws: Workspace) -> Element {
                             let overridden = settings.keybindings.contains_key(&id);
                             rsx! {
                                 label { key: "{id}", class: "mk-settings-key",
-                                    span { "{entry.title}" if overridden { span { class: "mk-settings-scope", "custom" } } }
-                                    input { class: "mk-input", value: "{bound}", placeholder: "unbound", "data-command": "{id}",
+                                    span { "{entry.title}" if overridden { span { class: "mk-settings-scope", {t!(ws, L, "settings-custom")} } } }
+                                    input { class: "mk-input", value: "{bound}", placeholder: t!(ws, L, "settings-unbound"), "data-command": "{id}",
                                         onchange: {
                                             let id = id.clone();
                                             move |e| {
                                                 let v = e.value().trim().to_string();
                                                 let id = id.clone();
                                                 if !v.is_empty() && moonkale_ext_api::Keybinding::parse(&v).is_none() {
-                                                    ws.set_status(format!("Not a keybinding: {v} (try Ctrl+Shift+P, F12, Alt+ArrowUp)"));
+                                                    ws.set_status(t!(ws, L, "settings-not-a-keybinding", value = v));
                                                     return;
                                                 }
                                                 apply(Box::new(move |f| { f.keybindings.insert(id, v); }));
@@ -223,18 +254,18 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         }
                     }
 
-                    h3 { "Remembered" }
+                    h3 { {t!(ws, L, "settings-remembered")} }
                     p { class: "mk-muted",
-                        "Recent folders: {settings.recent_folders.len()} · saved connections: {settings.remote_saved.len()} · layout saved: {settings.layout.is_some()} · open documents: {settings.open_documents.len()}"
+                        {t!(ws, L, "settings-remembered-line", recent = settings.recent_folders.len(), connections = settings.remote_saved.len(), layout = if settings.layout.is_some() { "yes" } else { "no" }, open = settings.open_documents.len())}
                     }
                 }
             } else {
                 div { class: "mk-settings-json",
-                    h3 { "User settings" span { class: "mk-settings-scope", "this machine" } }
+                    h3 { {t!(ws, L, "settings-json-user")} span { class: "mk-settings-scope", {t!(ws, L, "settings-this-machine")} } }
                     pre { "{user.to_json()}" }
-                    h3 { "Workspace file" span { class: "mk-settings-scope", ".moonkale/settings.json" } }
-                    pre { if has_workspace { "{workspace.to_json()}" } else { "(no folder open)" } }
-                    h3 { "Environment overrides" }
+                    h3 { {t!(ws, L, "settings-json-workspace")} span { class: "mk-settings-scope", ".moonkale/settings.json" } }
+                    pre { if has_workspace { "{workspace.to_json()}" } else { {t!(ws, L, "settings-no-folder")} } }
+                    h3 { {t!(ws, L, "settings-json-env")} }
                     pre { "{env.to_json()}" }
                 }
             }
@@ -310,7 +341,7 @@ fn AgentProfileCard(
                 if is_default_profile {
                     span { class: "mk-settings-agent-name", "{name}" }
                 } else {
-                    input { class: "mk-input mk-settings-agent-name", value: "{name}", title: "Rename this agent",
+                    input { class: "mk-input mk-settings-agent-name", value: "{name}", title: t!(ws, L, "settings-rename-agent"),
                         onchange: move |e| {
                             let new = e.value().trim().to_string();
                             let old = n1.clone();
@@ -327,52 +358,52 @@ fn AgentProfileCard(
                 label { class: "mk-settings-check mk-settings-agent-runs",
                     input { r#type: "radio", name: "mk-default-agent", checked: is_default,
                         onchange: move |_| { let n = n2.clone(); apply(Box::new(move |f| f.agent.default = if n == DEFAULT_AGENT { None } else { Some(n) })); } }
-                    "runs by default"
+                    {t!(ws, L, "settings-runs-by-default")}
                 }
                 span { class: "mk-settings-spacer" }
                 if !is_default_profile {
-                    button { class: "mk-btn mk-settings-agent-remove", disabled: only_one, title: "Forget this agent",
-                        onclick: move |_| { let n = n3.clone(); apply(Box::new(move |f| { f.agents.retain(|a| a.name != n); if f.agent.default.as_deref() == Some(n.as_str()) { f.agent.default = None; } })); }, "Remove" }
+                    button { class: "mk-btn mk-settings-agent-remove", disabled: only_one, title: t!(ws, L, "settings-forget-agent"),
+                        onclick: move |_| { let n = n3.clone(); apply(Box::new(move |f| { f.agents.retain(|a| a.name != n); if f.agent.default.as_deref() == Some(n.as_str()) { f.agent.default = None; } })); }, {t!(ws, L, "settings-remove")} }
                 }
             }
-            label { "Provider"
+            label { {t!(ws, L, "settings-provider")}
                 select { class: "mk-input mk-settings-agent-provider", value: "{provider}",
                     onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.provider = Some(v))); } },
-                    for (k, label) in PROVIDERS {
-                        option { value: "{k}", selected: provider == k, "{label}" }
+                    for k in PROVIDERS {
+                        option { value: "{k}", selected: provider == k, {provider_label(ws, k)} }
                     }
                 }
             }
-            label { "Model"
-                input { class: "mk-input mk-settings-agent-model", value: "{llm.model}", placeholder: if provider == "claude-code" { "the subscription's default (or e.g. claude-sonnet-5)" } else { "provider default" },
+            label { {t!(ws, L, "settings-model")}
+                input { class: "mk-input mk-settings-agent-model", value: "{llm.model}", placeholder: if provider == "claude-code" { t!(ws, L, "settings-model-claude") } else { t!(ws, L, "settings-model-default") },
                     onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.model = opt(v))); } } }
             }
             if provider == "claude-code" {
                 // Milestone 12: the CLI runs its own tools in the open folder; these are its knobs.
-                label { "Command"
-                    input { class: "mk-input", value: "{llm.base_url}", placeholder: "claude (on PATH)",
+                label { {t!(ws, L, "settings-command")}
+                    input { class: "mk-input", value: "{llm.base_url}", placeholder: t!(ws, L, "settings-command-placeholder"),
                         onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.base_url = opt(v))); } } }
                 }
-                label { "Permissions"
+                label { {t!(ws, L, "settings-permissions")}
                     select { class: "mk-input", value: "{permission_mode}",
                         onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| { l.options.insert("permission_mode".into(), v); })); } },
-                        for (k, label) in [("plan", "plan — read and propose only"), ("default", "default — Claude Code's own rules (.claude/settings.json)"), ("acceptEdits", "acceptEdits — may edit files in the folder"), ("bypassPermissions", "bypassPermissions — everything (careful)")] {
+                        for (k, label) in [("plan", t!(ws, L, "settings-mode-plan")), ("default", t!(ws, L, "settings-mode-default")), ("acceptEdits", t!(ws, L, "settings-mode-accept")), ("bypassPermissions", t!(ws, L, "settings-mode-bypass"))] {
                             option { value: "{k}", selected: permission_mode == k, "{label}" }
                         }
                     }
                 }
-                label { "Allowed tools"
-                    input { class: "mk-input", value: "{allowed_tools}", placeholder: "e.g. Read,Grep,Bash(git:*)",
+                label { {t!(ws, L, "settings-allowed-tools")}
+                    input { class: "mk-input", value: "{allowed_tools}", placeholder: t!(ws, L, "settings-allowed-tools-placeholder"),
                         onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| { l.options.insert("allowed_tools".into(), v); })); } } }
                 }
                 ClaudeStatus { ws, llm: llm.clone() }
             } else {
-                label { "Endpoint"
+                label { {t!(ws, L, "settings-endpoint")}
                     input { class: "mk-input", value: "{llm.base_url}", placeholder: "https://api.openai.com/v1 · https://api.mistral.ai/v1 · http://127.0.0.1:11434",
                         onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.base_url = opt(v))); } } }
                 }
-                label { "Secret name"
-                    input { class: "mk-input", value: "{llm.secret}", placeholder: "defaults to the provider name",
+                label { {t!(ws, L, "settings-secret")}
+                    input { class: "mk-input", value: "{llm.secret}", placeholder: t!(ws, L, "settings-secret-placeholder"),
                         onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.secret = opt(v))); } } }
                 }
             }
@@ -418,24 +449,24 @@ fn ClaudeStatus(
             )
             .await;
             let mut ws = ws;
-            ws.set_status("Claude Code: sign in in the browser, then paste the code into the terminal tab; press Check again afterwards");
+            ws.set_status(t!(ws, L, "claude-login-status"));
         });
     };
     rsx! {
         div { class: "mk-settings-claude",
             match status() {
-                None => rsx! { span { class: "mk-muted mk-settings-claude-status", "checking the claude CLI…" } },
-                Some(None) => rsx! { span { class: "mk-muted mk-settings-claude-status", "status not available on this platform" } },
+                None => rsx! { span { class: "mk-muted mk-settings-claude-status", {t!(ws, L, "claude-checking")} } },
+                Some(None) => rsx! { span { class: "mk-muted mk-settings-claude-status", {t!(ws, L, "claude-no-status")} } },
                 Some(Some(st)) => rsx! {
                     span { class: if st.ok { "mk-settings-claude-status mk-settings-ok" } else { "mk-settings-claude-status mk-settings-bad" }, "{st.summary}" }
                     if let Some(h) = st.hint.clone() { span { class: "mk-muted", " {h}" } }
                     if st.can_login && can_run {
-                        button { class: "mk-btn mk-settings-claude-login", onclick: login, title: "Runs `claude auth login` in a terminal tab", if st.ok { "Log in again" } else { "Log in" } }
+                        button { class: "mk-btn mk-settings-claude-login", onclick: login, title: t!(ws, L, "claude-login-title"), if st.ok { {t!(ws, L, "claude-login-again")} } else { {t!(ws, L, "claude-login")} } }
                     }
                 },
             }
-            button { class: "mk-btn", onclick: move |_| generation += 1, "Check again" }
-            p { class: "mk-muted", "Runs the claude CLI headless in the open folder with your subscription login; no key, nothing stored by Moonkale. Its tool calls appear in the transcript as ▸ lines. On the web the CLI runs — and is logged in — on the server." }
+            button { class: "mk-btn", onclick: move |_| generation += 1, {t!(ws, L, "claude-check-again")} }
+            p { class: "mk-muted", {t!(ws, L, "claude-hint")} }
         }
     }
 }

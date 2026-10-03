@@ -1,9 +1,10 @@
 //! `LspManager` — one language-server session per (language, folder root),
 //! shared by every editor panel; diagnostics collected per document URI.
 
+use crate::L;
 use dioxus::prelude::*;
 use futures_util::StreamExt;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 use moonkale_lsp::{Diagnostic, LspEvent, LspSession};
 use std::collections::HashMap;
 
@@ -61,9 +62,12 @@ impl LspManager {
         let spawn_lsp = ws.spawn_lsp()?;
         let mut this = self;
         this.starting.with_mut(|v| v.push(key.clone()));
-        ws.processes
-            .lsp_status
-            .set(Some(format!("{language}: starting language server…")));
+        ws.processes.lsp_status.set(Some(t!(
+            ws,
+            L,
+            "lsp-starting",
+            language = language.to_string()
+        )));
         let transport = match spawn_lsp(language.to_string(), root.to_string()).await {
             Ok(t) => t,
             Err(e) => {
@@ -80,10 +84,12 @@ impl LspManager {
         spawn(async move {
             while let Some(ev) = events.next().await {
                 match ev {
-                    LspEvent::Initialized { server } => ws
-                        .processes
-                        .lsp_status
-                        .set(Some(format!("{server}: ready"))),
+                    LspEvent::Initialized { server } => ws.processes.lsp_status.set(Some(t!(
+                        ws,
+                        L,
+                        "lsp-ready",
+                        server = server.clone()
+                    ))),
                     LspEvent::Status(s) => {
                         ws.processes.lsp_status.set(Some(format!("{lang}: {s}")))
                     }
@@ -93,9 +99,12 @@ impl LspManager {
                         });
                     }
                     LspEvent::Closed => {
-                        ws.processes
-                            .lsp_status
-                            .set(Some(format!("{lang}: language server exited")));
+                        ws.processes.lsp_status.set(Some(t!(
+                            ws,
+                            L,
+                            "lsp-exited",
+                            language = lang.clone()
+                        )));
                         break;
                     }
                 }
@@ -110,9 +119,13 @@ impl LspManager {
                 Some(session)
             }
             Err(e) => {
-                ws.processes
-                    .lsp_status
-                    .set(Some(format!("{language}: initialize failed: {e}")));
+                ws.processes.lsp_status.set(Some(t!(
+                    ws,
+                    L,
+                    "lsp-init-failed",
+                    language = language.to_string(),
+                    error = e.to_string()
+                )));
                 this.starting.with_mut(|v| v.retain(|k| k != &key));
                 None
             }

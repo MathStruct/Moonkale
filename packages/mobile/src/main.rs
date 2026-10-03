@@ -238,7 +238,10 @@ fn state_access() -> Option<moonkale_shell::StateAccess> {
 /// what each part needs from the platform).
 /// Services the extensions define (Milestone 18 phase 4.2).
 static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(git_any);
-static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
+/// The theme files (spec 030).
+static THEMES: moonkale_shell::theme::ThemeFiles =
+    moonkale_shell::theme::ThemeFiles(moonkale_server::themes::local_themes);
+static SERVICES: [&(dyn std::any::Any + Sync); 2] = [&GIT, &THEMES];
 
 fn workspace_config() -> WorkspaceConfig {
     let state = state_access();

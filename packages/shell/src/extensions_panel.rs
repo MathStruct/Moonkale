@@ -4,9 +4,11 @@
 
 use crate::frame::Extensions_;
 use crate::settings_panel::Target;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::settings::SettingsFile;
+use moonkale_ext_api::t;
 use std::rc::Rc;
 
 pub const PANEL_ID: &str = "extensions";
@@ -22,11 +24,11 @@ impl Extension for ExtensionsExtension {
         )
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
         vec![
-            PanelContribution::new(PANEL_ID, "Extensions", PanelHome::Main)
+            PanelContribution::new(PANEL_ID, t!(ws, L, "extensions-title"), PanelHome::Main)
                 .closable(true)
-                .activity(Activity::new("puzzle", 910, "Extensions")),
+                .activity(Activity::new("puzzle", 910, t!(ws, L, "extensions-title"))),
         ]
     }
 
@@ -41,23 +43,23 @@ fn ExtensionsPanel(ws: Workspace) -> Element {
     rsx! {
         div { class: "mk-settings mk-extensions",
             div { class: "mk-settings-head",
-                h2 { "Extensions" }
+                h2 { {t!(ws, L, "extensions-title")} }
                 span { class: "mk-settings-target",
-                    "Changes go to "
+                    {t!(ws, L, "extensions-changes-go-to")}
                     select {
                         value: if target() == Target::User { "user" } else { "workspace" },
                         onchange: move |e| target.set(if e.value() == "workspace" { Target::Workspace } else { Target::User }),
-                        option { value: "user", "user settings" }
-                        option { value: "workspace", "this folder" }
+                        option { value: "user", {t!(ws, L, "extensions-user-settings")} }
+                        option { value: "workspace", {t!(ws, L, "extensions-this-folder")} }
                     }
                 }
             }
             div { class: "mk-settings-form",
                 ExtensionsList { ws, target: target() }
                 p { class: "mk-muted",
-                    "What each extension is, which tier it belongs to and where it runs: the "
-                    a { href: "https://mathstruct.github.io/Moonkale/extensions/Extension-Catalogue", target: "_blank", "Extension Catalogue" }
-                    "."
+                    {t!(ws, L, "extensions-catalogue-before")}
+                    a { href: "https://mathstruct.github.io/Moonkale/extensions/Extension-Catalogue", target: "_blank", {t!(ws, L, "extensions-catalogue")} }
+                    {t!(ws, L, "extensions-catalogue-after")}
                 }
             }
         }
@@ -88,7 +90,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
         spawn(async move { ws.update_user_settings(|file| f(file)).await });
     };
     rsx! {
-        p { class: "mk-muted", "Optional features load only when switched on. Permissions are what an extension may do; untick to restrict it. Permissions are always yours (user settings): a folder cannot grant them." }
+        p { class: "mk-muted", {t!(ws, L, "extensions-hint")} }
         for ext in catalog.iter() {
             {
                 let m = ext.manifest();
@@ -96,16 +98,23 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                 let on = settings.extensions.is_enabled(&m);
                 let granted = settings.extensions.granted(&m);
                 let perms: Vec<&'static str> = m.permissions.to_vec();
+                // Spec 030: the extension's own strings name it, if it has them.
+                let lang = ws.lang();
+                let own = |key: &str, fallback: &str| {
+                    let s = moonkale_ext_api::i18n::tr(ext.locales(), &lang, key, None);
+                    if s == key { fallback.to_string() } else { s }
+                };
+                let (name, description) = (own("extension-name", m.name), own("extension-description", m.description));
                 rsx! {
                     div { key: "{id}", class: "mk-settings-ext",
                         label { class: "mk-settings-check",
                             input { r#type: "checkbox", checked: on, disabled: !m.optional,
                                 onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.extensions.set_enabled(id, v))); } }
-                            span { class: "mk-settings-ext-name", "{m.name}" }
-                            if !m.optional { span { class: "mk-settings-scope", "core" } }
-                            if m.optional && !m.default_enabled { span { class: "mk-settings-scope", "opt-in" } }
+                            span { class: "mk-settings-ext-name", "{name}" }
+                            if !m.optional { span { class: "mk-settings-scope", {t!(ws, L, "extensions-core")} } }
+                            if m.optional && !m.default_enabled { span { class: "mk-settings-scope", {t!(ws, L, "extensions-opt-in")} } }
                         }
-                        div { class: "mk-settings-ext-desc", "{m.description}" }
+                        div { class: "mk-settings-ext-desc", "{description}" }
                         // Milestone 13: the extension's own settings, with the extension.
                         if on {
                             if let Some(section) = ext.settings(ws, ext_target) {
@@ -147,8 +156,8 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
             let wasm = ws.contrib.wasm_extensions.read().clone();
             rsx! {
                 if !wasm.is_empty() {
-                    h4 { class: "mk-settings-sub", "Installed (wasm)" }
-                    p { class: "mk-muted", "Third-party modules from ~/.config/moonkale/extensions and <folder>/.moonkale/extensions. Off until enabled; no permission is granted until ticked." }
+                    h4 { class: "mk-settings-sub", {t!(ws, L, "extensions-wasm")} }
+                    p { class: "mk-muted", {t!(ws, L, "extensions-wasm-hint")} }
                 }
                 for m in wasm {
                     {
@@ -165,7 +174,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                     span { class: "mk-settings-ext-name", "{m.name}" }
                                     span { class: "mk-settings-scope", "wasm" }
                                 }
-                                div { class: "mk-settings-ext-desc", "{m.description} · commands: {m.commands.iter().map(|c| c.id.as_str()).collect::<Vec<_>>().join(\", \")}" }
+                                div { class: "mk-settings-ext-desc", {t!(ws, L, "extensions-wasm-desc", description = m.description.clone(), commands = m.commands.iter().map(|c| c.id.as_str()).collect::<Vec<_>>().join(", "))} }
                                 if !perms.is_empty() {
                                     div { class: "mk-settings-ext-perms",
                                         for p in perms {

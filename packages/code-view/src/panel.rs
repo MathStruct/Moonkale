@@ -6,9 +6,10 @@
 
 use crate::backend::{self, BackendEvent, CodeEditorBackend};
 use crate::lsp::LspManager;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{NodeId, SourceError};
-use moonkale_ext_api::{Command, Workspace};
+use moonkale_ext_api::{t, Command, Workspace};
 
 const PANEL_CSS: Asset = asset!("/assets/panel.css");
 
@@ -170,7 +171,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         ws.focus_element(&format!("{element_id_for_events}-rename"));
                     } else {
                         let mut ws = ws;
-                        ws.set_status("Rename needs a language server for this file");
+                        ws.set_status(t!(ws, L, "editor-rename-needs-lsp"));
                     }
                 }
                 BackendEvent::CodeActions {
@@ -229,15 +230,17 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                                         }
                                     } else {
                                         let mut ws = ws;
-                                        ws.set_status(format!(
-                                            "Definition is outside the folder: {}",
-                                            loc.uri
+                                        ws.set_status(t!(
+                                            ws,
+                                            L,
+                                            "editor-definition-outside",
+                                            uri = loc.uri.clone()
                                         ));
                                     }
                                 }
                                 Ok(None) => {
                                     let mut ws = ws;
-                                    ws.set_status("No definition found");
+                                    ws.set_status(t!(ws, L, "editor-no-definition"));
                                 }
                                 Err(e) => {
                                     let mut ws = ws;
@@ -462,11 +465,11 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             match crate::lsp::apply_workspace_edit(ws, &root, &edit).await {
                 Ok(n) => {
                     let mut ws = ws;
-                    ws.set_status(format!("Applied edits to {n} file(s)"));
+                    ws.set_status(t!(ws, L, "editor-applied", n = n));
                 }
                 Err(e) => {
                     let mut ws = ws;
-                    ws.set_status(format!("Edit failed: {e}"));
+                    ws.set_status(t!(ws, L, "editor-edit-failed", error = e.to_string()));
                 }
             }
         });
@@ -487,7 +490,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 match s.rename(&uri, line, col, &new_name).await {
                     Ok(edit) if edit.changes.is_empty() => {
                         let mut ws = ws;
-                        ws.set_status("Nothing to rename here");
+                        ws.set_status(t!(ws, L, "editor-nothing-to-rename"));
                     }
                     Ok(edit) => apply_edit.call(edit),
                     Err(e) => {
@@ -514,7 +517,11 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let d = doc.read();
     let dirty = d.dirty();
     let title = d.node.native_key.clone();
-    let lang = d.node.language_hint().unwrap_or("plain text");
+    let lang = d
+        .node
+        .language_hint()
+        .map(str::to_string)
+        .unwrap_or_else(|| t!(ws, L, "editor-plain-text"));
     let wrap_on = ws.settings.resolved.read().editor.wrap;
     let version = d.version;
     drop(d);
@@ -535,25 +542,25 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             },
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{title}" }
-                if dirty { span { class: "mk-editor-dirty", title: "Unsaved changes", "●" } }
+                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "editor-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", "{lang} · {version}" }
                 button {
                     class: if wrap_on { "mk-btn mk-btn-on" } else { "mk-btn" },
-                    title: "Wrap long lines (Alt+Z)",
+                    title: t!(ws, L, "editor-wrap-title"),
                     onclick: move |_| toggle_wrap(ws),
-                    "Wrap"
+                    {t!(ws, L, "editor-wrap")}
                 }
-                button { class: "mk-btn", disabled: !dirty, onclick: save, "Save" }
-                button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
+                button { class: "mk-btn", disabled: !dirty, onclick: save, {t!(ws, L, "editor-save")} }
+                button { class: "mk-btn", onclick: reload, title: t!(ws, L, "editor-reload-title"), {t!(ws, L, "editor-reload")} }
                 // Milestone 14: move this document to the Rust editor.
                 if ws.settings.resolved.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
-                    button { class: "mk-btn mk-editor-switch", title: "Show this file in the Rust editor (dioxus-code-editor)", onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }, "Rust" }
+                    button { class: "mk-btn mk-editor-switch", title: t!(ws, L, "editor-to-rust"), onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }, "Rust" }
                 }
             }
             if let Some((_, _, word)) = rename_prompt() {
                 div { class: "mk-editor-bar mk-editor-rename",
-                    span { "Rename " code { "{word}" } " to:" }
+                    span { {t!(ws, L, "editor-rename-prompt", word = word.clone())} }
                     input { id: "{rename_id}", class: "mk-input", value: "{rename_value}",
                         onmounted: { let w = word.clone(); move |_| rename_value.set(w.clone()) },
                         oninput: move |e| rename_value.set(e.value()),
@@ -566,13 +573,13 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                             }
                         },
                     }
-                    button { class: "mk-btn", onclick: move |_| commit_rename.call(()), "Rename" }
-                    button { class: "mk-btn", onclick: move |_| rename_prompt.set(None), "Cancel" }
+                    button { class: "mk-btn", onclick: move |_| commit_rename.call(()), {t!(ws, L, "editor-rename")} }
+                    button { class: "mk-btn", onclick: move |_| rename_prompt.set(None), {t!(ws, L, "editor-cancel")} }
                 }
             }
             if let Some(list) = actions() {
                 div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}",
-                    if list.is_empty() { span { class: "mk-muted", "No code actions here." } } else { span { "Code actions:" } }
+                    if list.is_empty() { span { class: "mk-muted", {t!(ws, L, "editor-no-actions")} } } else { span { {t!(ws, L, "editor-actions")} } }
                     for (i, a) in list.iter().enumerate() {
                         button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: {
                             let a = a.clone();
@@ -595,7 +602,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
             if let Some(list) = references() {
                 div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}",
-                    span { "{list.len()} reference(s)" }
+                    span { {t!(ws, L, "editor-references", n = list.len())} }
                     button { class: "mk-btn", onclick: move |_| references.set(None), "✕" }
                     ul {
                         for (i, l) in list.iter().enumerate() {
@@ -625,19 +632,19 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             if let Some(err) = last_error() {
                 div { class: "mk-editor-error",
                     match err {
-                        SourceError::Conflict { .. } => "The file changed outside the editor. Reload to see the new content (your edits will be lost) or save again to overwrite.".to_string(),
-                        other => format!("Save failed: {other}"),
+                        SourceError::Conflict { .. } => t!(ws, L, "editor-conflict"),
+                        other => t!(ws, L, "editor-save-failed", error = other.to_string()),
                     }
                 }
             }
             div { id: "{element_id}", class: "mk-editor-host", onmounted: mount,
                 if let Some(err) = mount_error() {
                     div { class: "mk-editor-failed",
-                        p { b { "The editor could not start." } " This is a bug — please report it with the message below (the file itself is fine; Reload retries)." }
+                        p { b { {t!(ws, L, "editor-failed")} } {t!(ws, L, "editor-failed-hint")} }
                         pre { "{err}" }
                     }
                 } else if !ready() {
-                    div { class: "mk-editor-loading", "Loading editor…" }
+                    div { class: "mk-editor-loading", {t!(ws, L, "editor-loading")} }
                 }
             }
         }

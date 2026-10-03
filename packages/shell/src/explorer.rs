@@ -5,10 +5,11 @@
 //! survives the panel being docked elsewhere. Children are loaded lazily on
 //! first expand with `Query::Children`.
 
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_core::{ContentRef, Node, NodeId, NodeKind, Query, SourceError};
 use moonkale_ext_api::prelude::*;
-use moonkale_ext_api::Command;
+use moonkale_ext_api::{t, Command};
 use std::collections::{HashMap, HashSet};
 
 pub(crate) const EXPLORER_CSS: Asset = asset!("/assets/styling/explorer.css");
@@ -94,13 +95,13 @@ impl Extension for ExplorerExtension {
         )
     }
 
-    fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
+    fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
         // "Sources", not "Explorer"/"Files" (Prompt26): it holds folders,
         // databases and, later, repositories. The ids stay `explorer`.
         vec![
-            PanelContribution::new("explorer", "Sources", PanelHome::Side)
+            PanelContribution::new("explorer", t!(ws, L, "explorer-title"), PanelHome::Side)
                 .closable(true)
-                .activity(Activity::new("files", 10, "Sources")),
+                .activity(Activity::new("files", 10, t!(ws, L, "explorer-title"))),
         ]
     }
 
@@ -260,20 +261,20 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             }
             if let Some(n) = confirm {
                 div { class: "mk-explorer-confirm", role: "alertdialog",
-                    span { "Delete " b { "{n.native_key}" } "? (kept in .moonkale/trash)" }
+                    span { {t!(ws, L, "explorer-delete-confirm", name = n.native_key.clone())} }
                     button { class: "mk-btn mk-btn-danger", onclick: move |_| {
                         let n = n.clone();
                         state.confirm.set(None);
                         spawn(async move {
                             if let Err(e) = ws.delete_node(&n).await { state.error.set(Some(e.to_string())); }
                         });
-                    }, "Delete" }
-                    button { class: "mk-btn", onclick: move |_| state.confirm.set(None), "Cancel" }
+                    }, {t!(ws, L, "explorer-delete")} }
+                    button { class: "mk-btn", onclick: move |_| state.confirm.set(None), {t!(ws, L, "cancel")} }
                 }
             }
             if has_dialog {
                 div { class: "mk-explorer-open",
-                    button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: move |_| ws.dispatch(Command::OpenFolder), "Open Folder…" }
+                    button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: move |_| ws.dispatch(Command::OpenFolder), {t!(ws, L, "menu-open-folder")} }
                 }
             }
             form { class: "mk-explorer-open",
@@ -284,17 +285,17 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                     // No cfg!() here: fullstack renders this on the server first and
                     // hydration keeps the server's markup, so the text must be the same
                     // on every platform.
-                    placeholder: "folder path (blank = default root)",
+                    placeholder: t!(ws, L, "explorer-path-placeholder"),
                     value: "{path}",
                     oninput: move |e| path.set(e.value()),
                 }
-                button { class: "mk-btn", r#type: "submit", disabled: opening(), if opening() { "Opening…" } else { "Open" } }
+                button { class: "mk-btn", r#type: "submit", disabled: opening(), if opening() { {t!(ws, L, "explorer-opening")} } else { {t!(ws, L, "explorer-open")} } }
             }
             if let Some(err) = state.error.read().clone() {
                 div { class: "mk-explorer-error", "{err}" }
             }
             if sources.is_empty() {
-                p { class: "mk-muted", "Open a folder to browse its files." }
+                p { class: "mk-muted", {t!(ws, L, "explorer-empty")} }
             }
             for s in sources {
                 {
@@ -308,7 +309,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                     let watched = ws.sources.watched.read().contains(&s.descriptor.id);
                     rsx! {
                 div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
-                    div { class: "mk-explorer-source-name", title: if read_only { "{kind} · read-only" } else { "{kind}" },
+                    div { class: "mk-explorer-source-name", title: if read_only { format!("{kind} · {}", t!(ws, L, "explorer-read-only")) } else { kind.to_string() },
                         oncontextmenu: {
                             let root_id = s.descriptor.root;
                             let sid = s.descriptor.id.clone();
@@ -322,13 +323,13 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                         },
                         span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
                         span { class: "mk-source-label", "{s.descriptor.display_name}" }
-                        if read_only { span { class: "mk-source-lock", title: "read-only", crate::icons::Icon { name: "lock" } } }
+                        if read_only { span { class: "mk-source-lock", title: t!(ws, L, "explorer-read-only"), crate::icons::Icon { name: "lock" } } }
                         // Changes on disk are followed for watched sources
                         // (Milestone 16); the others get a refresh button.
                         if !watched {
                             button { class: "mk-source-refresh", r#type: "button",
-                                title: "Not watched for changes — refresh",
-                                "aria-label": "Refresh {s.descriptor.display_name}",
+                                title: t!(ws, L, "explorer-not-watched"),
+                                "aria-label": t!(ws, L, "explorer-refresh-source", name = s.descriptor.display_name.clone()),
                                 onclick: {
                                     let id = s.descriptor.id.clone();
                                     move |e: MouseEvent| {
@@ -449,7 +450,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                         };
                                         spawn(async move {
                                             if let Err(e) = ws.open_folder(path).await {
-                                                ws2.set_status(format!("Could not open database: {e}"));
+                                                ws2.set_status(t!(ws2, L, "explorer-db-failed", error = e.to_string()));
                                             }
                                         });
                                     } else if is_text || is_viewable {
@@ -459,7 +460,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                             }
                                         });
                                     } else {
-                                        ws2.set_status(format!("{} is a binary file", n.native_key));
+                                        ws2.set_status(t!(ws2, L, "explorer-binary", name = n.native_key.clone()));
                                     }
                                 },
                                 span { class: "mk-tree-caret", if is_dir { if open { "▾" } else { "▸" } } else { "" } }
@@ -469,13 +470,13 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                     span { class: "mk-tree-label", "{node.label}" }
                                 }
                                 for m in others.iter().filter(|m| m.active.as_deref() == Some(node.native_key.as_str())) {
-                                    span { class: "mk-tree-presence", title: "{m.name} has this open", "{m.initials()}" }
+                                    span { class: "mk-tree-presence", title: t!(ws, L, "explorer-presence", name = m.name.clone()), "{m.initials()}" }
                                 }
                                 if is_dir && ws.spawn_terminal().is_some() {
                                     {
                                         let n2 = node.clone();
                                         rsx! {
-                                            span { class: "mk-tree-action", title: "New terminal here",
+                                            span { class: "mk-tree-action", title: t!(ws, L, "explorer-terminal-here"),
                                                 onclick: move |e| {
                                                     e.stop_propagation();
                                                     ws2.processes.terminal_cwd.set(ws2.folder_path(&n2));
@@ -522,19 +523,19 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
     rsx! {
         div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: |e| e.stop_propagation(),
             if menu.is_dir {
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewFile { parent: n1.clone() })); state.expanded.with_mut(|e| { e.insert(n1.id); }); }, "New File…" }
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewDir { parent: n2.clone() })); state.expanded.with_mut(|e| { e.insert(n2.id); }); }, "New Folder…" }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewFile { parent: n1.clone() })); state.expanded.with_mut(|e| { e.insert(n1.id); }); }, {t!(ws, L, "menu-new-file")} }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewDir { parent: n2.clone() })); state.expanded.with_mut(|e| { e.insert(n2.id); }); }, {t!(ws, L, "explorer-new-folder")} }
             }
             if !is_root {
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::Rename { node: n3.clone() })); }, "Rename…" }
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.confirm.set(Some(n4.clone())); }, "Delete…" }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::Rename { node: n3.clone() })); }, {t!(ws, L, "explorer-rename")} }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.confirm.set(Some(n4.clone())); }, {t!(ws, L, "explorer-delete-dots")} }
             }
             if can_terminal {
                 button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| {
                     state.menu.set(None);
                     ws.processes.terminal_cwd.set(ws.folder_path(&n5));
                     ws.dispatch(Command::NewTerminal);
-                }, "Open in Terminal" }
+                }, {t!(ws, L, "explorer-open-terminal")} }
             }
             if is_root {
                 // Milestone 16: re-read by hand — for every source, watched
@@ -548,7 +549,7 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
                             ws.refresh_source(&id).await;
                         });
                     }
-                }, "Refresh" }
+                }, {t!(ws, L, "explorer-refresh")} }
                 // Spec 015: a source can be closed again.
                 button { class: "mk-ctx-item", role: "menuitem", onclick: {
                     let id = node.source.clone();
@@ -559,7 +560,7 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
                             let _ = ws.close_source(&id).await;
                         });
                     }
-                }, "Close Folder" }
+                }, {t!(ws, L, "menu-close-folder")} }
             }
         }
     }
@@ -576,9 +577,9 @@ fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Elem
     };
     let mut value = use_signal(|| initial);
     let placeholder = match &edit {
-        Edit::NewFile { .. } => "file name",
-        Edit::NewDir { .. } => "folder name",
-        Edit::Rename { .. } => "new name",
+        Edit::NewFile { .. } => t!(ws, L, "explorer-file-name"),
+        Edit::NewDir { .. } => t!(ws, L, "explorer-folder-name"),
+        Edit::Rename { .. } => t!(ws, L, "explorer-new-name"),
     };
     let commit = {
         let edit = edit.clone();

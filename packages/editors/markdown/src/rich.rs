@@ -2,9 +2,10 @@
 //! [`RichTextBackend`]. Rust owns the markdown (`Document`); the view emits
 //! whole-document changes, like the code editor did in Milestone 1.
 
+use crate::L;
 use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
-use moonkale_ext_api::Workspace;
+use moonkale_ext_api::{t, Workspace};
 use serde::{Deserialize, Serialize};
 
 pub const BUNDLE: Asset = asset!("/assets/milkdown.js");
@@ -368,11 +369,11 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             },
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{doc.read().node.native_key}" }
-                if dirty { span { class: "mk-editor-dirty", title: "Unsaved changes", "●" } }
+                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "unsaved-changes"), "●" } }
                 span { class: "mk-editor-spacer" }
-                span { class: "mk-editor-meta", "rich · click a [[link]] to follow it · type [[ to link a page" }
-                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), "Save" }
-                button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
+                span { class: "mk-editor-meta", {t!(ws, L, "md-rich-meta")} }
+                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), {t!(ws, L, "save")} }
+                button { class: "mk-btn", onclick: reload, title: t!(ws, L, "reload-title"), {t!(ws, L, "reload")} }
             }
             if let Some(e) = error() {
                 div { class: "mk-editor-error", "{e}" }
@@ -390,8 +391,8 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                         button { class: "mk-props-head", r#type: "button", title: if has { "Front matter (YAML) — click to edit" } else { "Add front matter" },
                             onclick: move |_| props_open.toggle(),
                             span { class: "mk-props-caret", if props_open() { "▾" } else { "▸" } }
-                            span { class: "mk-props-label", "Properties" }
-                            span { class: "mk-props-summary", if has { "{summary}" } else { "none" } }
+                            span { class: "mk-props-label", {t!(ws, L, "md-properties")} }
+                            span { class: "mk-props-summary", if has { "{summary}" } else { {t!(ws, L, "md-properties-none")} } }
                         }
                         if props_open() {
                             textarea { class: "mk-props-yaml", rows: "{yaml.lines().count().max(2) + 1}", spellcheck: "false",
@@ -412,12 +413,12 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             }
             if let Some(why) = failed() {
                 div { class: "mk-rich-loading mk-rich-failed", role: "alert",
-                    span { "The rich editor did not start: {why}" }
+                    span { {t!(ws, L, "md-rich-failed", error = why.to_string())} }
                     button { class: "mk-btn", onclick: move |_| {
                         failed.set(None);
                         backend.set(None); // dropping it tells the old script to stop
                         mount.call(());
-                    }, "Retry" }
+                    }, {t!(ws, L, "retry")} }
                 }
             } else if !ready() {
                 div { class: "mk-rich-loading", "Loading rich editor…" }
@@ -442,7 +443,13 @@ async fn katex_macros(mut ws: Workspace, source: &moonkale_core::SourceId) -> se
             .cloned()
             .unwrap_or_else(|| serde_json::json!({})),
         Err(e) => {
-            ws.set_status(format!("{KATEX_FILE} ignored: {e}"));
+            ws.set_status(t!(
+                ws,
+                L,
+                "md-katex-ignored",
+                file = KATEX_FILE,
+                error = e.to_string()
+            ));
             serde_json::json!({})
         }
     }

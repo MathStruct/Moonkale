@@ -35,6 +35,8 @@ pub struct Renderer {
     /// depth is 0.5 and order wins).
     depth: wgpu::TextureView,
     pub backend: String,
+    /// The background (spec 030: the theme's `--mk-graph-bg`), sRGB 0..1.
+    pub clear: [f64; 3],
 }
 
 fn depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
@@ -232,6 +234,8 @@ impl Renderer {
             edge_pipe,
             depth,
             backend,
+            // #0c0e13, the dark theme's until `set_theme` says otherwise.
+            clear: [0.047, 0.055, 0.075],
         })
     }
 
@@ -311,9 +315,9 @@ impl Renderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.047,
-                            g: 0.055,
-                            b: 0.075,
+                            r: self.clear[0],
+                            g: self.clear[1],
+                            b: self.clear[2],
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,

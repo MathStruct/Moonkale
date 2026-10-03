@@ -2,10 +2,12 @@
 //! the same toolbar as the CodeMirror panel, and the caret reported to
 //! the workspace.
 
+use crate::L;
 use dioxus::prelude::*;
 use dioxus_code::{CodeTheme, Theme};
 use dioxus_code_editor::{CodeEditor, Language};
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::t;
 
 pub const PANEL_PREFIX: &str = "editor-native:";
 const CSS: Asset = asset!("/assets/code-native.css");
@@ -28,6 +30,10 @@ impl NativeCodeExtension {
 }
 
 impl Extension for NativeCodeExtension {
+    fn locales(&self) -> moonkale_ext_api::i18n::Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::opt_in(
             "dev.moonkale.editor-code-native",
@@ -155,7 +161,9 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
     let language = language_of(hint);
     let text = d.text.clone();
     drop(d);
-    let dark = ws.settings.resolved.read().theme != "light";
+    // Spec 030: the shell knows whether the theme (a file, or the system's
+    // preference) is light.
+    let dark = !*ws.shell.theme_light.read();
     let theme = if dark {
         CodeTheme::fixed(Theme::TOKYO_NIGHT)
     } else {
@@ -188,16 +196,16 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
             onselect: move |_| caret_select(),
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{title}" }
-                if dirty { span { class: "mk-editor-dirty", title: "Unsaved changes", "●" } }
+                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "cn-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
                 if let Some(w) = word {
-                    span { class: "mk-cn-word", title: "The identifier under the caret (Workspace::cursor_word)", "‹{w}›" }
+                    span { class: "mk-cn-word", title: t!(ws, L, "cn-word"), "‹{w}›" }
                 }
                 span { class: "mk-editor-meta", "{lang} · v{version} · Rust editor" }
-                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save_now.call(()), "Save" }
-                button { class: "mk-btn", onclick: reload, title: "Discard edits and reload from the source", "Reload" }
+                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save_now.call(()), {t!(ws, L, "cn-save")} }
+                button { class: "mk-btn", onclick: reload, title: t!(ws, L, "cn-reload-title"), {t!(ws, L, "cn-reload")} }
                 if codemirror_on {
-                    button { class: "mk-btn mk-editor-switch", title: "Show this file in CodeMirror (language server, wiki-links, wrap)", onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "codemirror"); }, "CodeMirror" }
+                    button { class: "mk-btn mk-editor-switch", title: t!(ws, L, "cn-to-codemirror"), onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "codemirror"); }, "CodeMirror" }
                 }
             }
             if let Some(e) = last_error() {

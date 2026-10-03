@@ -1,40 +1,40 @@
 .mk-agent { display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 13px; }
-.mk-agent-toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid #2a2e37; }
-.mk-agent-provider { color: #9aa0aa; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-agent-toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--mk-line); }
+.mk-agent-provider { color: var(--mk-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-agent-spacer { flex: 1; }
 .mk-agent-log { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 .mk-agent-hint { padding: 8px; }
 .mk-agent-msg { white-space: pre-wrap; word-break: break-word; padding: 6px 9px; border-radius: 8px; max-width: 95%; line-height: 1.4; }
-.mk-agent-user { align-self: flex-end; background: #2d3b55; }
-.mk-agent-assistant { align-self: flex-start; background: #23272f; }
-.mk-agent-error { background: #4a2328; color: #ffb4b4; }
-.mk-agent-tool { border: 1px solid #3a3f4b; border-radius: 6px; padding: 5px 8px; background: #1b1e25; font-size: 12px; }
+.mk-agent-user { align-self: flex-end; background: var(--mk-user-msg-bg); }
+.mk-agent-assistant { align-self: flex-start; background: var(--mk-raised-2); }
+.mk-agent-error { background: var(--mk-error-bg); color: var(--mk-error-ink-soft); }
+.mk-agent-tool { border: 1px solid var(--mk-line-strong); border-radius: 6px; padding: 5px 8px; background: var(--mk-raised); font-size: 12px; }
 .mk-agent-tool-head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.mk-agent-tool-name { font-family: ui-monospace, monospace; color: #d7dae0; }
-.mk-agent-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: #2a2e37; color: #9aa0aa; }
-.mk-agent-ok { color: #8ccf6a; }
-.mk-agent-err { color: #e86b8a; }
-.mk-agent-tool-input { display: block; font-size: 11px; color: #9aa0aa; white-space: pre-wrap; word-break: break-all; margin-top: 3px; }
-.mk-agent-tool-summary { margin-top: 4px; color: #c0c4cc; white-space: pre-wrap; }
-.mk-agent-approval { border: 1px solid #f2a03d; border-radius: 6px; padding: 8px; background: #2a2416; }
+.mk-agent-tool-name { font-family: ui-monospace, 'Noto Sans Mono CJK SC', monospace; color: var(--mk-ink); }
+.mk-agent-badge { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; background: var(--mk-line); color: var(--mk-muted); }
+.mk-agent-ok { color: var(--mk-ok); }
+.mk-agent-err { color: var(--mk-error-ink); }
+.mk-agent-tool-input { display: block; font-size: 11px; color: var(--mk-muted); white-space: pre-wrap; word-break: break-all; margin-top: 3px; }
+.mk-agent-tool-summary { margin-top: 4px; color: var(--mk-ink-2); white-space: pre-wrap; }
+.mk-agent-approval { border: 1px solid var(--mk-warn); border-radius: 6px; padding: 8px; background: var(--mk-approval-bg); }
 .mk-agent-approval-title { margin-bottom: 4px; }
 .mk-agent-approval-actions { display: flex; gap: 6px; margin-top: 6px; }
-.mk-agent-compose { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid #2a2e37; }
-.mk-agent-input { flex: 1; resize: vertical; background: #1e222a; color: inherit; border: 1px solid #3a3f4b; border-radius: 4px; padding: 6px; font: inherit; }
-.mk-agent-activity { max-height: 40%; overflow: auto; border-bottom: 1px solid #2a2e37; padding: 6px 8px; font-size: 12px; }
-.mk-agent-audit { padding: 4px 0; border-bottom: 1px dashed #2a2e37; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.mk-agent-audit-tool { font-family: ui-monospace, monospace; }
-.mk-agent-audit-summary { width: 100%; color: #9aa0aa; white-space: pre-wrap; }
+.mk-agent-compose { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--mk-line); }
+.mk-agent-input { flex: 1; resize: vertical; background: var(--mk-input-bg); color: inherit; border: 1px solid var(--mk-line-strong); border-radius: 4px; padding: 6px; font: inherit; }
+.mk-agent-activity { max-height: 40%; overflow: auto; border-bottom: 1px solid var(--mk-line); padding: 6px 8px; font-size: 12px; }
+.mk-agent-audit { padding: 4px 0; border-bottom: 1px dashed var(--mk-line); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.mk-agent-audit-tool { font-family: ui-monospace, 'Noto Sans Mono CJK SC', monospace; }
+.mk-agent-audit-summary { width: 100%; color: var(--mk-muted); white-space: pre-wrap; }
 .mk-agent-diff { display: grid; gap: 4px; margin-top: 4px; }
-.mk-agent-diff pre, .mk-agent-diff-cmd { margin: 0; padding: 6px; border-radius: 4px; font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
-.mk-agent-diff-old { background: #3a2224; color: #ffb4b4; }
-.mk-agent-diff-new { background: #1f3325; color: #b8f0b0; }
-.mk-agent-diff-cmd { background: #1b1e25; color: #d7dae0; }
+.mk-agent-diff pre, .mk-agent-diff-cmd { margin: 0; padding: 6px; border-radius: 4px; font: 11px/1.4 ui-monospace, 'Noto Sans Mono CJK SC', monospace; white-space: pre-wrap; word-break: break-word; }
+.mk-agent-diff-old { background: var(--mk-diff-del-bg); color: var(--mk-error-ink-soft); }
+.mk-agent-diff-new { background: var(--mk-diff-add-bg); color: var(--mk-diff-add-ink); }
+.mk-agent-diff-cmd { background: var(--mk-raised); color: var(--mk-ink); }
 
 /* Milestone 15: sessions and saved agents */
 .mk-agent-toolbar .mk-agent-sessions { max-width: 200px; }
 .mk-agent-toolbar .mk-agent-profile { max-width: 130px; }
-.mk-agent-toolbar select { font: inherit; font-size: 12px; background: var(--wb-sunken, #0b0d12); color: inherit; border: 1px solid var(--wb-line, #2a2e3a); border-radius: 4px; padding: 2px 4px; }
-.mk-agent-running-count { font-size: 11px; color: var(--wb-accent, #4c8dff); }
+.mk-agent-toolbar select { font: inherit; font-size: 12px; background: var(--wb-sunken); color: inherit; border: 1px solid var(--wb-line); border-radius: 4px; padding: 2px 4px; }
+.mk-agent-running-count { font-size: 11px; color: var(--wb-accent); }
 .mk-agent-close { padding: 0 8px; }
 .mk-agent-toolbar { flex-wrap: wrap; row-gap: 4px; }

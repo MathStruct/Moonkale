@@ -5,60 +5,60 @@
 
 .mk-titlebar {
   display: flex; align-items: center; height: var(--mk-titlebar-h); flex-shrink: 0;
-  background: #0b0d12; color: #a3a9b8; font-size: 13px; user-select: none;
-  border-bottom: 1px solid #2a2e3a;
+  background: var(--mk-sunken); color: var(--mk-ink-soft); font-size: 13px; user-select: none;
+  border-bottom: 1px solid var(--mk-line);
 }
 .mk-frame-undecorated .mk-titlebar { -webkit-app-region: drag; }
 .mk-titlebar-left { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
 .mk-titlebar-logo { width: 16px; height: 16px; margin: 0 10px 0 12px; border-radius: 3px; image-rendering: pixelated; user-select: none; }
 .mk-titlebar-title {
   flex: 1; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  padding: 0 12px; color: #7f8595; font-size: 12px;
+  padding: 0 12px; color: var(--mk-ink-faint); font-size: 12px;
 }
 
 .mk-menu { position: relative; height: 100%; }
 .mk-menu-button {
   height: 100%; padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; cursor: default;
 }
-.mk-menu-button:hover, .mk-menu-button-open { background: rgba(255,255,255,0.08); color: #e6e8ee; }
+.mk-menu-button:hover, .mk-menu-button-open { background: var(--mk-hover); color: var(--mk-ink); }
 .mk-menu-popup {
   position: absolute; top: 100%; left: 0; min-width: 220px; z-index: 1001; padding: 4px 0;
-  background: #161922; border: 1px solid #2a2e3a; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  background: var(--mk-surface); border: 1px solid var(--mk-line); border-radius: 6px; box-shadow: var(--mk-shadow);
 }
 .mk-menu-item {
   display: flex; justify-content: space-between; gap: 24px; width: 100%; padding: 5px 14px;
-  border: 0; background: transparent; color: #e6e8ee; font: inherit; text-align: left; cursor: default;
+  border: 0; background: transparent; color: var(--mk-ink); font: inherit; text-align: left; cursor: default;
 }
-.mk-menu-item:hover { background: #6ea8fe; color: #0b0d12; }
-.mk-menu-item:hover .mk-menu-shortcut { color: #0b0d12; }
-.mk-menu-shortcut { color: #7f8595; font-size: 12px; }
-.mk-menu-sep { height: 1px; margin: 4px 0; background: #2a2e3a; }
+.mk-menu-item:hover { background: var(--mk-accent); color: var(--mk-accent-ink); }
+.mk-menu-item:hover .mk-menu-shortcut { color: var(--mk-accent-ink); }
+.mk-menu-shortcut { color: var(--mk-ink-faint); font-size: 12px; }
+.mk-menu-sep { height: 1px; margin: 4px 0; background: var(--mk-line); }
 .mk-menu-backdrop { position: fixed; inset: 0; z-index: 1000; }
 
 .mk-window-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .mk-wc {
-  width: 46px; height: 100%; border: 0; background: transparent; color: #a3a9b8; display: grid; place-items: center; cursor: default;
+  width: 46px; height: 100%; border: 0; background: transparent; color: var(--mk-ink-soft); display: grid; place-items: center; cursor: default;
 }
-.mk-wc:hover { background: rgba(255,255,255,0.1); color: #e6e8ee; }
-.mk-wc-close:hover { background: #c42b1c; color: #fff; }
+.mk-wc:hover { background: var(--mk-pressed); color: var(--mk-ink); }
+.mk-wc-close:hover { background: var(--mk-close-hover); color: var(--mk-on-danger); }
 
 /* Cross-window drop target (shown while another window drags a document). */
 .mk-drop-target {
   position: absolute; inset: var(--mk-titlebar-h) 0 0 0; z-index: 1500;
-  display: grid; place-items: center; background: rgba(110,168,254,0.12);
-  outline: 2px dashed #6ea8fe; outline-offset: -8px;
+  display: grid; place-items: center; background: var(--mk-selected);
+  outline: 2px dashed var(--mk-accent); outline-offset: -8px;
 }
 .mk-drop-target-label {
-  padding: 10px 16px; border-radius: 6px; background: #161922; color: #e6e8ee; font-size: 13px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5); pointer-events: none;
+  padding: 10px 16px; border-radius: 6px; background: var(--mk-surface); color: var(--mk-ink); font-size: 13px;
+  box-shadow: var(--mk-shadow); pointer-events: none;
 }
 
 .mk-drop-banner {
   position: absolute; top: calc(var(--mk-titlebar-h) + 8px); left: 50%; transform: translateX(-50%); z-index: 1500;
   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px;
-  background: #161922; border: 1px solid #6ea8fe; color: #e6e8ee; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  background: var(--mk-surface); border: 1px solid var(--mk-accent); color: var(--mk-ink); font-size: 13px; box-shadow: var(--mk-shadow);
 }
-.mk-btn-accent { background: #6ea8fe; color: #0b0d12; border-color: #6ea8fe; }
+.mk-btn-accent { background: var(--mk-accent); color: var(--mk-accent-ink); border-color: var(--mk-accent); }
 .mk-btn-accent:hover { filter: brightness(1.1); }
 
 /* Invisible resize handles for the undecorated desktop window. */
@@ -71,4 +71,4 @@
 .mk-resize-nw { top: 0; left: 0; width: 8px; height: 8px; cursor: nw-resize; }
 .mk-resize-se { bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize; }
 .mk-resize-sw { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }
-.mk-menu-recent-path { font-size: 12px; color: #9aa0aa; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; display: inline-block; }
+.mk-menu-recent-path { font-size: 12px; color: var(--mk-muted); max-width: 40ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; display: inline-block; }

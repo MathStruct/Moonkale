@@ -1,15 +1,15 @@
 //! `Shell` — extensions in, workbench out.
 
 use crate::frame::Extensions_;
+use crate::L;
 use dioxus::prelude::*;
 use dioxus_workbench::prelude::*;
+use moonkale_ext_api::t;
 use moonkale_ext_api::{Command, Extension, Workspace};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 const SHELL_CSS: Asset = asset!("/assets/styling/shell.css");
-/// The theme tokens (phase 4.4): the one place colours are defined.
-const THEME_CSS: Asset = asset!("/assets/styling/theme.css");
 
 fn default_layout() -> PanelLayout {
     PanelLayout::new(LayoutNode::split(
@@ -174,38 +174,64 @@ pub fn Shell() -> Element {
             Some(Command::OpenFolder) => {
                 spawn(async move {
                     if let Err(e) = ws.open_folder_dialog().await {
-                        ws.set_status(format!("Open folder failed: {e}"));
+                        ws.set_status(t!(
+                            ws,
+                            L,
+                            "status-open-folder-failed",
+                            error = e.to_string()
+                        ));
                     }
                 });
             }
             // Ctrl+B / Ctrl+J (spec 009): hide every panel of the tile and
             // remember them; the next toggle shows them again.
             Some(Command::ToggleSide) | Some(Command::ToggleBottom) => {
-                let tile = if matches!(cmd, Some(Command::ToggleSide)) { "side" } else { "bottom" };
-                let remembered = ws.shell.hidden_tiles.peek().get(tile).cloned().unwrap_or_default();
+                let tile = if matches!(cmd, Some(Command::ToggleSide)) {
+                    "side"
+                } else {
+                    "bottom"
+                };
+                let remembered = ws
+                    .shell
+                    .hidden_tiles
+                    .peek()
+                    .get(tile)
+                    .cloned()
+                    .unwrap_or_default();
                 let ext_settings = ws.settings.resolved.peek().extensions.clone();
                 let closed = ws.shell.closed_panels.peek().clone();
                 let visible: Vec<String> = contributions(exts, &ext_settings, ws, false)
                     .into_iter()
                     .map(|(_, c)| c)
-                    .filter(|c| c.node.is_none() && !closed.contains(&c.id) && c.home.tile_id() == tile)
+                    .filter(|c| {
+                        c.node.is_none() && !closed.contains(&c.id) && c.home.tile_id() == tile
+                    })
                     .map(|c| c.id)
                     .collect();
                 if !visible.is_empty() {
-                    ws.shell.hidden_tiles.with_mut(|h| { h.insert(tile.to_string(), visible.clone()); });
+                    ws.shell.hidden_tiles.with_mut(|h| {
+                        h.insert(tile.to_string(), visible.clone());
+                    });
                     ws.shell.closed_panels.with_mut(|c| c.extend(visible));
                 } else if !remembered.is_empty() {
-                    ws.shell.hidden_tiles.with_mut(|h| { h.remove(tile); });
+                    ws.shell.hidden_tiles.with_mut(|h| {
+                        h.remove(tile);
+                    });
                     let first = remembered[0].clone();
-                    ws.shell.closed_panels.with_mut(|c| { for id in &remembered { c.remove(id); } });
+                    ws.shell.closed_panels.with_mut(|c| {
+                        for id in &remembered {
+                            c.remove(id);
+                        }
+                    });
                     ws.show_panel(&first);
                 } else {
-                    ws.set_status(format!("Nothing to show in the {tile} area"));
+                    ws.set_status(t!(ws, L, "status-nothing-in-tile", tile = tile.to_string()));
                 }
             }
             Some(Command::SaveAll) => {
                 let dirty: Vec<moonkale_core::NodeId> = ws
-                    .docs.open
+                    .docs
+                    .open
                     .peek()
                     .iter()
                     .filter(|(_, d)| d.peek().dirty())
@@ -218,12 +244,13 @@ pub fn Shell() -> Element {
                             n += 1;
                         }
                     }
-                    ws.set_status(format!("Saved {n} document(s)"));
+                    ws.set_status(t!(ws, L, "status-saved", n = n));
                 });
             }
             Some(Command::CloseAllEditors) => {
                 let clean: Vec<moonkale_core::NodeId> = ws
-                    .docs.open
+                    .docs
+                    .open
                     .peek()
                     .iter()
                     .filter(|(_, d)| !d.peek().dirty())
@@ -233,17 +260,19 @@ pub fn Shell() -> Element {
                 for id in clean {
                     ws.close_node(id);
                 }
-                let views: Vec<moonkale_core::NodeId> = ws.docs.views.peek().iter().map(|n| n.id).collect();
+                let views: Vec<moonkale_core::NodeId> =
+                    ws.docs.views.peek().iter().map(|n| n.id).collect();
                 for id in views {
                     ws.close_node(id);
                 }
                 if kept > 0 {
-                    ws.set_status(format!("{kept} unsaved document(s) left open"));
+                    ws.set_status(t!(ws, L, "status-kept-open", n = kept));
                 }
             }
             Some(Command::CloseFolder) => {
                 let first = ws
-                    .sources.open
+                    .sources
+                    .open
                     .peek()
                     .iter()
                     .find(|s| s.descriptor.family == moonkale_core::SourceFamily::Folder)
@@ -254,13 +283,17 @@ pub fn Shell() -> Element {
                             let _ = ws.close_source(&id).await;
                         });
                     }
-                    None => ws.set_status("No folder is open"),
+                    None => ws.set_status(t!(ws, L, "status-no-folder")),
                 }
             }
             Some(Command::Docs) => {
-                let _ = dioxus::document::eval("window.open('https://mathstruct.github.io/Moonkale/', '_blank');");
+                let _ = dioxus::document::eval(
+                    "window.open('https://mathstruct.github.io/Moonkale/', '_blank');",
+                );
             }
-            Some(Command::About) => ws.set_status("Moonkale 0.1.0 — graph-native code and knowledge editor · mathstruct.github.io/Moonkale"),
+            Some(Command::About) => {
+                ws.set_status(t!(ws, L, "status-about", version = moonkale_core::VERSION))
+            }
             _ => {}
         }
     });
@@ -492,7 +525,7 @@ pub fn Shell() -> Element {
             if act.order == 20 {
                 main.push((
                     editor_panel.clone().unwrap_or_default(),
-                    "Editor".into(),
+                    t!(ws, L, "editor"),
                     "editor",
                     editor_front,
                     0,
@@ -526,7 +559,6 @@ pub fn Shell() -> Element {
     let theme = ws.settings.resolved.read().theme.clone();
 
     rsx! {
-        moonkale_ext_api::Stylesheet { href: THEME_CSS }
         moonkale_ext_api::Stylesheet { href: SHELL_CSS }
         div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, "data-theme": "{theme}", onmounted: start_narrow_watch,
             Workbench {
@@ -537,7 +569,7 @@ pub fn Shell() -> Element {
                                 ActivityButton {
                                     id: format!("mk-rail-{id}"),
                                     label: label.clone(),
-                                    title: format!("{label} — click again to hide"),
+                                    title: t!(ws, L, "rail-title", label = label.clone()),
                                     icon: rsx! {
                                         span { class: "mk-rail-icon",
                                             crate::icons::Icon { name: icon }
@@ -565,8 +597,8 @@ pub fn Shell() -> Element {
                             // Presence: who else is here (spec 009).
                             ActivityButton {
                                 id: "mk-rail-presence".to_string(),
-                                label: "People".to_string(),
-                                title: if others_names.is_empty() { "Nobody else is here".to_string() } else { format!("Here: {others_names}") },
+                                label: t!(ws, L, "people"),
+                                title: if others_names.is_empty() { t!(ws, L, "people-nobody") } else { t!(ws, L, "people-here", names = others_names.clone()) },
                                 icon: rsx! {
                                     span { class: "mk-rail-icon",
                                         crate::icons::Icon { name: "presence" }
@@ -577,7 +609,7 @@ pub fn Shell() -> Element {
                                 bottom: true,
                                 onclick: {
                                     let names = others_names.clone();
-                                    move |_| ws.set_status(if names.is_empty() { "Nobody else is looking at this folder".to_string() } else { format!("Here: {names}") })
+                                    move |_| ws.set_status(if names.is_empty() { t!(ws, L, "people-nobody-folder") } else { t!(ws, L, "people-here", names = names.clone()) })
                                 },
                             }
                         }
@@ -592,26 +624,26 @@ pub fn Shell() -> Element {
                                 } else {
                                     StatusDot { tone: StatusTone::Neutral }
                                 }
-                                {source_name.clone().unwrap_or_else(|| "No folder open".into())}
+                                {source_name.clone().unwrap_or_else(|| t!(ws, L, "status-no-folder-open"))}
                             }
                         },
-                        message: rsx! { StatusMessage { "{status}" } },
+                        message: rsx! { StatusMessage { if status.is_empty() { {t!(ws, L, "status-ready")} } else { "{status}" } } },
                         right: rsx! {
                             if let Some(url) = server {
-                                StatusItem { title: "This app is a client of a Moonkale server",
+                                StatusItem { title: t!(ws, L, "status-server-client"),
                                     span { class: "mk-status-remote", "⇅ {url}" }
                                 }
                             }
                             if let Some((label, phase)) = remote {
-                                StatusItem { title: "Remote folder over SSH — {phase}",
+                                StatusItem { title: t!(ws, L, "status-remote", phase = phase.to_string()),
                                     span { class: "mk-status-remote", "⇅ {label} · {phase}" }
                                 }
                             }
                             if let Some(l) = lsp {
-                                StatusItem { title: "Language server", "{l}" }
+                                StatusItem { title: t!(ws, L, "status-lsp"), "{l}" }
                             }
                             if !others.is_empty() {
-                                StatusItem { title: "{others_names} — in this folder too",
+                                StatusItem { title: t!(ws, L, "status-others", names = others_names.clone()),
                                     span { class: "mk-presence", "data-count": "{others.len()}",
                                         "👥 "
                                         for (initials, title) in others_badges.iter() {
@@ -620,8 +652,8 @@ pub fn Shell() -> Element {
                                     }
                                 }
                             }
-                            StatusItem { title: "This window: {window_id}. Other windows of this session are counted once they answer.",
-                                if windows > 1 { "{windows} windows" } else { "1 window" }
+                            StatusItem { title: t!(ws, L, "status-window-title", id = window_id.to_string()),
+                                {t!(ws, L, "status-windows", n = windows)}
                             }
                             if let Some((path, dirty)) = active_doc {
                                 StatusItem { tone: if dirty { StatusTone::Caution } else { StatusTone::Neutral },
@@ -637,6 +669,7 @@ pub fn Shell() -> Element {
                     div { class: "mk-phone",
                         PanelWorkspace {
                             panels,
+                            strings: workbench_strings(ws),
                             layout: phone_layout,
                             reset_layout: narrow_layout(),
                             active_panel,
@@ -673,7 +706,7 @@ pub fn Shell() -> Element {
                                     "data-panel": "more",
                                     onclick: move |_| more_open.toggle(),
                                     span { class: "mk-rail-icon", crate::icons::Icon { name: "more" } }
-                                    span { "More" }
+                                    span { {t!(ws, L, "more")} }
                                 }
                             }
                         }
@@ -681,6 +714,7 @@ pub fn Shell() -> Element {
                 } else {
                     PanelWorkspace {
                         panels,
+                        strings: workbench_strings(ws),
                         layout,
                         reset_layout: default_layout(),
                         active_panel,
@@ -752,7 +786,14 @@ pub(crate) fn contributions(
     let mut claims: HashMap<moonkale_core::NodeId, (Vec<usize>, Option<usize>)> = HashMap::new();
     let mut out = Vec::new();
     for &i in &active {
-        for c in exts[i].panels(ws) {
+        // P-151: an untracked caller must not subscribe to the language
+        // through the panels' translated titles.
+        let panels = if tracked {
+            exts[i].panels(ws)
+        } else {
+            moonkale_ext_api::workspace::untracked(|| exts[i].panels(ws))
+        };
+        for c in panels {
             if let Some(node) = c.node {
                 let (claimants, won) = claims
                     .entry(node)
@@ -803,4 +844,27 @@ fn claim_winner(
             .or(tied.first().copied())
     };
     (claimants, won)
+}
+
+/// The workbench chrome's own words (tab tooltips, empty groups, splitters)
+/// in the user's language (spec 030).
+fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
+    dioxus_workbench::WorkbenchStrings {
+        tab_group_label: t!(ws, L, "wb-tab-group"),
+        tab_group_labelled: t!(ws, L, "wb-tab-group-labelled"),
+        tab_hint: t!(ws, L, "wb-tab-hint"),
+        close_tab: t!(ws, L, "wb-close-tab"),
+        empty_group_label: t!(ws, L, "wb-empty-group"),
+        empty_tile_title: t!(ws, L, "wb-empty-title"),
+        empty_tile_hint: t!(ws, L, "wb-empty-hint"),
+        empty_tile_keys: t!(ws, L, "wb-empty-keys"),
+        split_right_label: t!(ws, L, "wb-split-right"),
+        split_right_hint: t!(ws, L, "wb-split-right-hint"),
+        split_down_label: t!(ws, L, "wb-split-down"),
+        split_down_hint: t!(ws, L, "wb-split-down-hint"),
+        close_empty_label: t!(ws, L, "wb-close-empty"),
+        close_empty_hint: t!(ws, L, "wb-close-empty-hint"),
+        splitter_label: t!(ws, L, "wb-splitter"),
+        splitter_hint: t!(ws, L, "wb-splitter-hint"),
+    }
 }

@@ -1,9 +1,10 @@
 //! The Changes panel and the diff view.
 
 use crate::types::{Commit, GitRequest, GitResponse, StatusEntry};
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
-use moonkale_ext_api::FileMark;
+use moonkale_ext_api::{t, FileMark};
 use std::collections::HashMap;
 
 const CSS: Asset = asset!("/assets/git.css");
@@ -69,8 +70,10 @@ async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
     let git = ws
         .service::<crate::GitRunner>()
         .map(|r| r.0)
-        .ok_or("git is not available on this platform")?;
-    let root = ws.folder_root().ok_or("open a folder first")?;
+        .ok_or_else(|| t!(ws, L, "git-unavailable"))?;
+    let root = ws
+        .folder_root()
+        .ok_or_else(|| t!(ws, L, "git-open-folder"))?;
     git(root, req).await
 }
 
@@ -156,9 +159,24 @@ pub async fn show_history(mut ws: Workspace, state: GitState) {
         &root, &log, unique,
     )));
     ws.dispatch(Command::ShowPanel("graph"));
-    ws.set_status(format!("History: {} commits", log.len()));
+    ws.set_status(t!(ws, L, "git-history-status", n = log.len()));
 }
 
+/// The status letter as a word in the user's language (tooltips).
+fn status_label(ws: Workspace, c: char) -> String {
+    match c {
+        'M' => t!(ws, L, "git-modified"),
+        'A' => t!(ws, L, "git-added"),
+        'D' => t!(ws, L, "git-deleted"),
+        'R' => t!(ws, L, "git-renamed"),
+        'C' => t!(ws, L, "git-copied"),
+        '?' => t!(ws, L, "git-untracked"),
+        'U' => t!(ws, L, "git-conflict"),
+        _ => String::new(),
+    }
+}
+
+/// The status letter as a CSS class suffix.
 fn status_word(c: char) -> &'static str {
     match c {
         'M' => "modified",
@@ -222,7 +240,9 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                         });
                     }
                 }
-                Ok(GitResponse::Unavailable(m)) | Err(m) => ws.set_status(format!("git: {m}")),
+                Ok(GitResponse::Unavailable(m)) | Err(m) => {
+                    ws.set_status(t!(ws, L, "git-error", error = m))
+                }
                 Ok(_) => {}
             }
             state.busy.set(false);
@@ -264,10 +284,10 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-git",
             if !available {
-                p { class: "mk-muted", "Git is not available on this platform." }
+                p { class: "mk-muted", {t!(ws, L, "git-unavailable-panel")} }
             } else {
                 match status {
-                    None => rsx! { p { class: "mk-muted", "Open a folder that is a git repository." } },
+                    None => rsx! { p { class: "mk-muted", {t!(ws, L, "git-no-repo")} } },
                     Some(Err(e)) => rsx! { p { class: "mk-muted", "{e}" } },
                     Some(Ok(st)) => {
                         let staged: Vec<StatusEntry> = st.entries.iter().filter(|e| e.staged()).cloned().collect();
@@ -276,15 +296,15 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                         let unstaged_paths: Vec<String> = unstaged.iter().map(|e| e.path.clone()).collect();
                         rsx! {
                             div { class: "mk-git-head",
-                                span { class: "mk-git-branch", title: "{st.upstream.clone().unwrap_or_default()}", "⎇ {st.branch.clone().unwrap_or_else(|| \"(detached)\".into())}" }
+                                span { class: "mk-git-branch", title: "{st.upstream.clone().unwrap_or_default()}", "⎇ " {st.branch.clone().unwrap_or_else(|| t!(ws, L, "git-detached"))} }
                                 if st.ahead > 0 { span { class: "mk-muted", " ↑{st.ahead}" } }
                                 if st.behind > 0 { span { class: "mk-muted", " ↓{st.behind}" } }
                                 span { class: "mk-git-spacer" }
-                                button { class: "mk-btn", disabled: busy, onclick: move |_| state.bump(), title: "Refresh", "↻" }
-                                button { class: "mk-btn", disabled: busy || log.is_empty(), onclick: move |_| { spawn(async move { show_history(ws, state).await; }); }, title: "Draw the last commits in the Graph panel", "Graph" }
+                                button { class: "mk-btn", disabled: busy, onclick: move |_| state.bump(), title: t!(ws, L, "git-refresh"), "↻" }
+                                button { class: "mk-btn", disabled: busy || log.is_empty(), onclick: move |_| { spawn(async move { show_history(ws, state).await; }); }, title: t!(ws, L, "git-graph-title"), {t!(ws, L, "git-graph")} }
                             }
                             div { class: "mk-git-commit",
-                                textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: "Commit message (Ctrl+Enter)", value: "{message}",
+                                textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: t!(ws, L, "git-message"), value: "{message}",
                                     oninput: move |e| message.set(e.value()),
                                     onkeydown: move |e| {
                                         if e.key() == Key::Enter && moonkale_ext_api::keys::primary(&e.modifiers()) {
@@ -297,25 +317,25 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                 }
                                 button { class: "mk-btn mk-btn-on", disabled: busy || staged.is_empty() || message.read().trim().is_empty(),
                                     onclick: move |_| { let m = message.peek().clone(); message.set(String::new()); act(GitRequest::Commit { message: m }); },
-                                    "Commit {staged.len()} staged"
+                                    {t!(ws, L, "git-commit-staged", n = staged.len())}
                                 }
                             }
                             div { class: "mk-git-group",
                                 div { class: "mk-git-group-head",
-                                    span { "Staged ({staged.len()})" }
-                                    if !staged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: { let p = staged_paths.clone(); move |_| act(GitRequest::Unstage { paths: p.clone() }) }, "unstage all" } }
+                                    span { {t!(ws, L, "git-staged", n = staged.len())} }
+                                    if !staged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: { let p = staged_paths.clone(); move |_| act(GitRequest::Unstage { paths: p.clone() }) }, {t!(ws, L, "git-unstage-all")} } }
                                 }
                                 for e in staged.iter() {
                                     {
                                         let (p1, p2) = (e.path.clone(), e.path.clone());
                                         let letter = e.index;
                                         rsx! {
-                                            div { key: "s:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: "{status_word(letter)}",
+                                            div { key: "s:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: status_label(ws, letter),
                                                 onclick: move |_| open_diff(p1.clone(), true),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
                                                 span { class: "mk-git-path", "{e.path}" }
                                                 span { class: "mk-git-actions",
-                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: "Unstage", onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Unstage { paths: vec![p2.clone()] }) }, "−" }
+                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-unstage"), onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Unstage { paths: vec![p2.clone()] }) }, "−" }
                                                 }
                                             }
                                         }
@@ -324,30 +344,30 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                             }
                             div { class: "mk-git-group",
                                 div { class: "mk-git-group-head",
-                                    span { "Changes ({unstaged.len()})" }
-                                    if !unstaged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: { let p = unstaged_paths.clone(); move |_| act(GitRequest::Stage { paths: p.clone() }) }, "stage all" } }
+                                    span { {t!(ws, L, "git-changes-n", n = unstaged.len())} }
+                                    if !unstaged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: { let p = unstaged_paths.clone(); move |_| act(GitRequest::Stage { paths: p.clone() }) }, {t!(ws, L, "git-stage-all")} } }
                                 }
                                 for e in unstaged.iter() {
                                     {
                                         let (p1, p2, p3) = (e.path.clone(), e.path.clone(), e.path.clone());
                                         let letter = if e.index == '?' { '?' } else { e.worktree };
                                         rsx! {
-                                            div { key: "w:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: "{status_word(letter)}",
+                                            div { key: "w:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: status_label(ws, letter),
                                                 onclick: move |_| open_diff(p1.clone(), false),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
                                                 span { class: "mk-git-path", "{e.path}" }
                                                 span { class: "mk-git-actions",
-                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: "Stage", onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Stage { paths: vec![p2.clone()] }) }, "+" }
-                                                    button { class: "mk-btn mk-btn-mini mk-btn-danger", disabled: busy, title: "Discard changes (untracked files are deleted)", onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Discard { path: p3.clone() }) }, "✕" }
+                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-stage"), onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Stage { paths: vec![p2.clone()] }) }, "+" }
+                                                    button { class: "mk-btn mk-btn-mini mk-btn-danger", disabled: busy, title: t!(ws, L, "git-discard"), onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Discard { path: p3.clone() }) }, "✕" }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                                if st.entries.is_empty() { p { class: "mk-muted", "Working tree clean." } }
+                                if st.entries.is_empty() { p { class: "mk-muted", {t!(ws, L, "git-clean")} } }
                             }
                             div { class: "mk-git-group mk-git-log",
-                                div { class: "mk-git-group-head", span { "Log" } }
+                                div { class: "mk-git-group-head", span { {t!(ws, L, "git-log")} } }
                                 for c in log.iter() {
                                     div { key: "{c.hash}", class: "mk-git-commit-row", title: "{c.hash}\n{c.author} · {c.date}\n{c.files.join(\"\\n\")}",
                                         span { class: "mk-git-hash", "{c.short}" }
@@ -372,7 +392,7 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
         .find(|d| d.key() == view_key)
         .cloned();
     let Some(view) = view else {
-        return rsx! { div { class: "mk-git-diff", p { class: "mk-muted", "Closed." } } };
+        return rsx! { div { class: "mk-git-diff", p { class: "mk-muted", {t!(ws, L, "git-closed")} } } };
     };
     let path = view.path.clone();
     rsx! {
@@ -380,17 +400,17 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
         div { class: "mk-git-diff",
             div { class: "mk-git-diff-head",
                 span { class: "mk-git-path", "{view.path}" }
-                span { class: "mk-muted", if view.staged { " staged vs HEAD" } else { " working tree vs index" } }
+                span { class: "mk-muted", if view.staged { {t!(ws, L, "git-staged-vs-head")} } else { {t!(ws, L, "git-worktree-vs-index")} } }
                 span { class: "mk-git-spacer" }
                 button { class: "mk-btn", onclick: move |_| {
                     let p = path.clone();
                     spawn(async move { if let Ok(n) = ws.open_relative_path(&p).await { let _ = ws.reveal(n, 0, 0).await; } });
-                }, "Open file" }
+                }, {t!(ws, L, "git-open-file")} }
             }
             match &view.text {
-                None => rsx! { p { class: "mk-muted", "Loading…" } },
+                None => rsx! { p { class: "mk-muted", {t!(ws, L, "git-loading")} } },
                 Some(Err(e)) => rsx! { p { class: "mk-explorer-error", "{e}" } },
-                Some(Ok(t)) if t.trim().is_empty() => rsx! { p { class: "mk-muted", "No differences." } },
+                Some(Ok(t)) if t.trim().is_empty() => rsx! { p { class: "mk-muted", {t!(ws, L, "git-no-diff")} } },
                 Some(Ok(t)) => rsx! {
                     pre { class: "mk-git-diff-body",
                         for (i, line) in t.lines().enumerate() {

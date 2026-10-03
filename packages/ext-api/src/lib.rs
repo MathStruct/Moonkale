@@ -41,6 +41,13 @@ pub mod contrib;
 pub mod document;
 pub mod extension;
 pub mod i18n;
+
+/// `ext-api`'s own strings (spec 030): the workspace's status messages.
+pub(crate) static L: i18n::Locales = &[
+    ("en", include_str!("../locales/en.ftl")),
+    ("de", include_str!("../locales/de.ftl")),
+    ("zh-CN", include_str!("../locales/zh-CN.ftl")),
+];
 pub mod keys;
 pub mod manifest;
 pub mod session;

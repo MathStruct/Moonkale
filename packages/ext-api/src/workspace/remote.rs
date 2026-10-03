@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     // ---- Remote folders (Milestone 11) ----
@@ -74,7 +75,7 @@ impl Workspace {
     /// there); phases arrive on a channel and drive the status bar.
     pub fn open_remote(mut self, host: String, path: String) {
         let Some(remote) = self.config.network.remote else {
-            self.set_status("Remote folders are not available on this platform");
+            self.set_status(t!(self, L, "remote-unavailable"));
             return;
         };
         if self.remote.ssh.peek().is_some() {
@@ -83,7 +84,7 @@ impl Workspace {
         let host = host.trim().to_string();
         let path = path.trim().to_string();
         if host.is_empty() || path.is_empty() {
-            self.set_status("Remote: a host and a path are needed");
+            self.set_status(t!(self, L, "remote-need-host"));
             return;
         }
         let (tx, mut rx) = futures_channel::mpsc::unbounded::<crate::remote::RemotePhase>();
@@ -93,7 +94,7 @@ impl Workspace {
         let (backend, session) = match (remote.open)(host.clone(), path.clone(), sink) {
             Ok(x) => x,
             Err(e) => {
-                self.set_status(format!("Remote: {e}"));
+                self.set_status(t!(self, L, "remote-error", error = e.to_string()));
                 return;
             }
         };
@@ -111,7 +112,7 @@ impl Workspace {
             cwd: None,
             backend,
         });
-        self.set_status(format!("Remote: connecting to {host}…"));
+        self.set_status(t!(self, L, "remote-connecting", host = host.clone()));
         spawn(async move {
             use crate::remote::RemotePhase as P;
             use futures_util::StreamExt;
@@ -126,20 +127,41 @@ impl Workspace {
                 });
                 match &p {
                     P::Prompt(line) => {
-                        self.set_status(format!("ssh {host}: {line} — answer in the terminal"));
+                        self.set_status(t!(
+                            self,
+                            L,
+                            "remote-prompt",
+                            host = host.clone(),
+                            line = line.clone()
+                        ));
                         self.dispatch(Command::ShowPanel("terminal"));
                     }
-                    P::Uploading => self.set_status(format!(
-                        "Remote: {host} has no Moonkale server yet — uploading it (once per version)…"
-                    )),
-                    P::Starting => self.set_status(format!("Remote: starting the server on {host}…")),
+                    P::Uploading => {
+                        self.set_status(t!(self, L, "remote-uploading", host = host.clone()))
+                    }
+                    P::Starting => {
+                        self.set_status(t!(self, L, "remote-starting", host = host.clone()))
+                    }
                     P::Ready => {
-                        self.set_status(format!("Remote: connected to {host}, opening {path}…"));
+                        self.set_status(t!(
+                            self,
+                            L,
+                            "remote-connected",
+                            host = host.clone(),
+                            path = path.clone()
+                        ));
                         if let Err(e) = self.open_folder(path.clone()).await {
-                            self.set_status(format!("Remote: {host} is connected but {path} did not open: {e}"));
+                            self.set_status(t!(
+                                self,
+                                L,
+                                "remote-open-failed",
+                                host = host.clone(),
+                                path = path.clone(),
+                                error = e.to_string()
+                            ));
                         }
                     }
-                    P::Failed(e) => self.set_status(format!("Remote: {e}")),
+                    P::Failed(e) => self.set_status(t!(self, L, "remote-error", error = e)),
                     P::Connecting | P::Closed => {}
                 }
                 if p.is_final() {
@@ -187,7 +209,7 @@ impl Workspace {
             }
             self.sources.graph_epoch.with_mut(|e| *e += 1);
         }
-        self.set_status(format!("Remote: disconnected from {}", state.label()));
+        self.set_status(t!(self, L, "remote-disconnected", host = state.label()));
     }
 
     // ---- A server's client (Milestone 12) ----
@@ -200,26 +222,30 @@ impl Workspace {
     /// Become `url`'s client and open its root folder.
     pub async fn connect_server(mut self, url: String, token: Option<String>) {
         let Some(sc) = self.config.network.server else {
-            self.set_status("Connecting to a server is not available on this platform");
+            self.set_status(t!(self, L, "server-unavailable"));
             return;
         };
         let url = url.trim().trim_end_matches('/').to_string();
         if url.is_empty() {
-            self.set_status("Server: a URL is needed");
+            self.set_status(t!(self, L, "server-need-url"));
             return;
         }
         if self.remote.server.peek().is_some() {
             self.disconnect_server();
         }
         if let Err(e) = (sc.connect)(url.clone(), token.filter(|t| !t.trim().is_empty())) {
-            self.set_status(format!("Server: {e}"));
+            self.set_status(t!(self, L, "server-error", error = e.to_string()));
             return;
         }
         self.remote.server.set(Some((url.clone(), Vec::new())));
-        self.set_status(format!("Connected to {url}; opening its folder…"));
+        self.set_status(t!(self, L, "server-connected", url = url.clone()));
         if let Err(e) = self.open_folder(String::new()).await {
-            self.set_status(format!(
-                "Server {url}: connected, but its folder did not open: {e}"
+            self.set_status(t!(
+                self,
+                L,
+                "server-open-failed",
+                url = url.clone(),
+                error = e.to_string()
             ));
         }
     }
@@ -262,7 +288,7 @@ impl Workspace {
             }
             self.sources.graph_epoch.with_mut(|e| *e += 1);
         }
-        self.set_status(format!("Disconnected from {url}"));
+        self.set_status(t!(self, L, "server-disconnected", url = url.clone()));
     }
 }
 

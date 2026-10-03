@@ -2,6 +2,7 @@
 //! (no API change; phase 3c turns the areas into services).
 
 use super::*;
+use crate::{t, L};
 
 impl Workspace {
     /// Install the platform's session transport and announce this window.
@@ -98,7 +99,7 @@ impl Workspace {
                 // Our document landed in another window: close it here.
                 if self.document(node).is_some() {
                     self.close_node(node);
-                    self.set_status(format!("Moved to window {to}"));
+                    self.set_status(t!(self, L, "moved-to-window", window = to.to_string()));
                 }
                 // Someone accepted the offer: withdraw it everywhere.
                 if self.session.foreign_drag.peek().as_ref().map(|d| d.node.id) == Some(node) {
@@ -125,10 +126,7 @@ impl Workspace {
             return;
         };
         self.session.own_drag.set(Some(node));
-        self.set_status(format!(
-            "Dragging {} — drop it on another Moonkale window to move it there",
-            doc.native_key
-        ));
+        self.set_status(t!(self, L, "dragging", name = doc.native_key.clone()));
         self.send(SessionMessage::DragStarted {
             from: self.session.window.peek().clone(),
             node: doc,

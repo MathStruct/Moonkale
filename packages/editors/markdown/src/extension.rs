@@ -1,9 +1,11 @@
 use crate::links_panel::LinksPanel;
 use crate::rich::RichPanel;
 use crate::typst_preview::TypstPreviewPanel;
+use crate::L;
 use dioxus::prelude::*;
 use moonkale_code_view::{lsp::LspManager, CodeEditorPanel};
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::{i18n::Locales, t};
 use std::collections::HashMap;
 
 pub const PANEL_ID: &str = "links";
@@ -40,6 +42,10 @@ impl LinksExtension {
 }
 
 impl Extension for LinksExtension {
+    fn locales(&self) -> Locales {
+        L
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::optional(
             "dev.moonkale.editor-markdown",
@@ -49,9 +55,14 @@ impl Extension for LinksExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        let mut panels = vec![PanelContribution::new(PANEL_ID, "Links", PanelHome::Side)
-            .closable(true)
-            .activity(Activity::new("links", 30, "Links").phone_secondary())];
+        let mut panels =
+            vec![
+                PanelContribution::new(PANEL_ID, t!(ws, L, "links-title"), PanelHome::Side)
+                    .closable(true)
+                    .activity(
+                        Activity::new("links", 30, t!(ws, L, "links-title")).phone_secondary(),
+                    ),
+            ];
         // A preview tab exists while any .typ document is open and the platform can compile.
         let any_typ = ws
             .docs
@@ -61,7 +72,8 @@ impl Extension for LinksExtension {
             .any(|(_, d)| d.read().node.native_key.ends_with(".typ"));
         if any_typ && ws.compile_typst().is_some() {
             panels.push(
-                PanelContribution::new(PREVIEW_ID, "Typst preview", PanelHome::Main).closable(true),
+                PanelContribution::new(PREVIEW_ID, t!(ws, L, "typst-preview"), PanelHome::Main)
+                    .closable(true),
             );
         }
         // Markdown documents: one editor tab each (Source | Rich).
@@ -125,19 +137,19 @@ impl Extension for LinksExtension {
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: rich,
                     onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.markdown_rich = Some(v)); } }
-                "Open markdown files in Rich mode (Source | Rich still switches)"
+                {t!(ws, L, "md-open-rich")}
             }
             // Typography of the rich editor (Prompt23).
-            label { class: "mk-settings-field", "Rich editor font size (px)"
+            label { class: "mk-settings-field", {t!(ws, L, "md-font-size")}
                 input { class: "mk-input mk-settings-rich-size", r#type: "number", min: "8", max: "48", value: "{size}",
                     onchange: move |e| { if let Ok(v) = e.value().parse::<u32>() { ws.update_settings_in(target, move |f| f.editor.rich_font_size = Some(v)); } } }
             }
-            label { class: "mk-settings-field", "Rich editor font (CSS font-family; empty = the theme's)"
-                input { class: "mk-input mk-settings-rich-font", value: "{font}", placeholder: "e.g. \"Source Serif 4\", Georgia, serif",
+            label { class: "mk-settings-field", {t!(ws, L, "md-font")}
+                input { class: "mk-input mk-settings-rich-font", value: "{font}", placeholder: t!(ws, L, "md-font-placeholder"),
                     onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_font = if v.trim().is_empty() { None } else { Some(v) }); } }
             }
-            label { class: "mk-settings-field", "Code font in rich notes (CSS font-family)"
-                input { class: "mk-input mk-settings-rich-code-font", value: "{code_font}", placeholder: "e.g. \"JetBrains Mono\", monospace",
+            label { class: "mk-settings-field", {t!(ws, L, "md-code-font")}
+                input { class: "mk-input mk-settings-rich-code-font", value: "{code_font}", placeholder: t!(ws, L, "md-code-font-placeholder"),
                     onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_code_font = if v.trim().is_empty() { None } else { Some(v) }); } }
             }
         })
@@ -161,8 +173,8 @@ fn MarkdownPanel(
     rsx! {
         div { class: "mk-md",
             div { class: "mk-md-modes",
-                button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, false); }); }, title: "Markdown source (CodeMirror)", "Source" }
-                button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, true); }); }, title: "WYSIWYG (Milkdown) — the markdown is what gets saved", "Rich" }
+                button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, false); }); }, title: t!(ws, L, "md-source-title"), {t!(ws, L, "md-source")} }
+                button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, true); }); }, title: t!(ws, L, "md-rich-title"), {t!(ws, L, "md-rich")} }
             }
             div { class: "mk-md-body",
                 if is_rich {
