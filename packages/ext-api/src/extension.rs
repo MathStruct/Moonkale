@@ -8,7 +8,9 @@
 use crate::{Manifest, PanelContribution, Workspace};
 use dioxus::prelude::Element;
 
+/// An extension: what it is ([`Manifest`]), the panels it contributes and how to render them, and optionally commands, settings, document claims, strings and file marks. Implemented by every built-in editor and panel; listed by a distribution.
 pub trait Extension: 'static {
+    /// Id, name, tier and permissions.
     fn manifest(&self) -> Manifest;
 
     /// The panels this extension currently contributes.
@@ -33,6 +35,17 @@ pub trait Extension: 'static {
     /// Run one of them. Default: nothing.
     fn run_command(&self, _id: &str, _ws: Workspace) {}
 
+    /// Whether this extension is an editor for `node`, and how strongly
+    /// (Milestone 18 phase 2): `None` = it does not open it. Of the enabled
+    /// extensions that claim a node, the highest number wins its document
+    /// tab; on a tie the user's choice decides
+    /// ([`Workspace::preferred_editor`]). Built-ins use 10 for "any text"
+    /// (the code editors) and 50 for one format (markdown, flow, images,
+    /// tables). Default: `None`.
+    fn claims(&self, _node: &moonkale_core::Node) -> Option<u8> {
+        None
+    }
+
     /// Block libraries for the flow editor (Milestone 6). Default: none.
     fn flow_libraries(&self) -> Vec<crate::flow::FlowLibrary> {
         Vec::new()
@@ -44,11 +57,21 @@ pub trait Extension: 'static {
     fn settings(&self, _ws: Workspace, _target: crate::SettingsTarget) -> Option<Element> {
         None
     }
+
+    /// The extension's strings per language (Milestone 18 phase 4.4, for
+    /// spec 030): Fluent sources keyed by language tag, English required.
+    /// Look up with [`crate::i18n::lookup`]. Default: none (the extension's
+    /// text is still Rust literals).
+    fn locales(&self) -> crate::i18n::Locales {
+        &[]
+    }
 }
 
 /// Which settings file a change goes to (the Extensions panel's switch).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsTarget {
+    /// The user's settings (this machine, every folder).
     User,
+    /// The open folder's `.moonkale/settings.json` (data, not authority: see `SettingsFile::without_authority`).
     Workspace,
 }

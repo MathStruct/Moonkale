@@ -9,6 +9,10 @@ The brief: *all targets are served; the apps need not be identical; single-platf
 
 ## Capability matrix
 
+> [!note] Checked 2026-10-01
+> The matrix below is the design; deviations today: folders on the **phone** are the app's private storage (no picker, spec [[028]]) and get the same `notify` watcher as on desktop (not verified on the phone); there are **no drivers** in the Android build; the **wasm runtime is absent** on the phone; **tree-sitter** is native (`arborium`), so the index runs on desktop and the server only; **LadybugDB** is Linux-only (P-144); **secrets** are a `secrets.json` + environment everywhere (no OS keychain yet); there is **no CI check** that the web crate stays free of native-only crates.
+
+
 | Capability | Desktop (webview) | Web (browser) | Mobile (webview) | Server (`api`) |
 |---|---|---|---|---|
 | Workbench UI, all editors | ✅ | ✅ | ✅ (adapted layout) | — |

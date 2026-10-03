@@ -1,0 +1,7 @@
+# Known layering violations (tools/check-deps.py). The check fails on any
+# violation NOT listed here and on any listed one that has been fixed, so this
+# list can only shrink. Each group names the step of Milestone 18 that removes it.
+# Rules are evaluated on the default feature set (`cargo metadata`); the shell
+# rule on the shell's own (`cargo tree -p moonkale-shell`, phase 4.1).
+
+# (empty since Milestone 18 phase 4.3: every rule holds)

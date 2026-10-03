@@ -1,0 +1,136 @@
+name: CI
+
+# Milestone 18, phase 0: the safety net for the library refactor.
+#   lint  — rustfmt, the layering rules (tools/check-deps.py), the colour ratchet (tools/check-colors.py)
+#   test  — cargo test, clippy -D warnings, the web client for wasm32
+#   e2e   — a smoke batch of the browser suites against `dx serve`
+# Tags are built by release.yml, not here.
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # CI builds once from scratch (or a restored cache): incremental artefacts
+  # and debug info only cost disk on the runner.
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  DX_VERSION: 0.7.10
+
+jobs:
+  lint:
+    name: fmt + layering
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: Layering rules (tools/deps-allow.txt lists today's known violations)
+        run: python3 tools/check-deps.py
+      - name: No new hard-coded colours outside the theme (spec 030 prep)
+        run: python3 tools/check-colors.py
+
+  test:
+    name: test + clippy + wasm check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space (a clean workspace build needs ~30 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          # rust-analyzer: packages/services/lsp-local/tests/rust_analyzer.rs talks to a real one.
+          components: clippy, rust-analyzer
+      - name: System libraries (WebKitGTK 4.1, libxdo; clang for RocksDB's bindgen and wasm C code)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libssl-dev pkg-config binutils clang libclang-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-test
+      - name: cargo test
+        run: cargo test --workspace --locked
+      - name: The wasm runtime with the example extension (feature wasmtime is off by default)
+        run: cargo test -p moonkale-ext-host --features wasmtime --locked
+      - name: The state store's reference (redb) and recommended (SQLite) backends through the conformance suite
+        run: cargo test -p moonkale-state -p moonkale-state-stores --features moonkale-state-stores/redb,moonkale-state-stores/sqlite --locked
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: The minimum distribution (no optional extension) builds
+        run: cargo check -p moonkale-distribution --no-default-features --locked
+      - name: The distribution with Lux.jl from MathStruct/moonkale-julia (by tag, feature julia)
+        run: cargo check -p moonkale-distribution --features julia --locked
+      - name: The library crates' docs build without warnings (Milestone 18 phase 6.3)
+        run: cargo doc -p moonkale-core -p moonkale-ext-api -p moonkale-graph-render --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: Web client compiles for wasm32 (no native-only crate leaked in)
+        run: cargo check -p web --target wasm32-unknown-unknown --features web --locked
+      - run: df -h /
+        if: always()
+
+  e2e:
+    name: browser smoke suites
+    runs-on: ubuntu-24.04
+    env:
+      # A cold debug build of server + client can take longer than serve.sh's default 20 minutes.
+      SERVE_WAIT: 600
+      # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
+      SUITES: files rich stores palette shell wiki
+    steps:
+      - uses: actions/checkout@v4
+      - name: Working directory for the suites
+        run: echo "MOONKALE_E2E=$RUNNER_TEMP/e2e" >> "$GITHUB_ENV"
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libssl-dev pkg-config binutils clang libclang-dev
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Dioxus CLI
+        run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci-e2e
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright (Firefox)
+        run: |
+          mkdir -p "$MOONKALE_E2E/e2e"
+          cd "$MOONKALE_E2E/e2e" && npm init -y >/dev/null && npm i playwright && npx playwright install --with-deps firefox
+      - name: Fixture
+        run: packages/web/tests/e2e/fixture.sh "$MOONKALE_E2E/m2root"
+      - name: Start the web build (dx serve)
+        run: packages/web/tests/e2e/serve.sh start
+      - name: Suites
+        run: packages/web/tests/e2e/run-all.sh $SUITES
+      - name: Server log and screenshots on failure
+        if: failure()
+        run: tail -100 "$MOONKALE_E2E"/dx-*.log || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-shots
+          path: ${{ runner.temp }}/e2e/shots
+      - name: Stop the server
+        if: always()
+        run: packages/web/tests/e2e/serve.sh stop

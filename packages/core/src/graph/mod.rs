@@ -28,9 +28,8 @@ pub mod edge;
 pub mod history;
 pub mod node;
 pub mod property;
-pub mod view;
 
 pub use edge::{Edge, EdgeKind};
 pub use history::{Actor, EntityLog, Event, EventId, EventKind, State as HistoryState};
 pub use node::{ContentRef, Node, NodeKind, Version};
-pub use property::Value;
+pub use property::{Properties, Value};

@@ -51,9 +51,9 @@ pub fn LinksPanel(ws: Workspace) -> Element {
     let mut for_node: Signal<Option<NodeId>> = use_signal(|| None);
 
     use_effect(move || {
-        let active = *ws.active.read();
-        let _epoch = *ws.graph_epoch.read();
-        let _sources = ws.sources.read().len();
+        let active = *ws.docs.active.read();
+        let _epoch = *ws.sources.graph_epoch.read();
+        let _sources = ws.sources.open.read().len();
         match active {
             Some(node) => {
                 spawn(async move {

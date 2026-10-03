@@ -70,4 +70,4 @@ Plan: [[Milestone 7 - Daily Driver]].
 5. `MOONKALE_TOKEN=test dx serve --port 8080` in `packages/web` → `/login`.
 
 ## Deferred to Milestone 8
-Entity log (P-33) and collaboration (P-30/P-34), Postgres/Turso (P-19), TypeDB/Helix (P-26), 3D (P-27), browser-side wasm extensions (P-28), JS-free desktop (P-29), user accounts on the server, a CodeMirror merge view for diffs, git push/pull/fetch and branch creation, per-hunk staging, LSP signature help and semantic tokens, OS trash/keychain.
+Entity log (R-33) and collaboration (R-30/R-34), Postgres/Turso (R-19), TypeDB/Helix (R-26), 3D (R-27), browser-side wasm extensions (R-28), JS-free desktop (R-29), user accounts on the server, a CodeMirror merge view for diffs, git push/pull/fetch and branch creation, per-hunk staging, LSP signature help and semantic tokens, OS trash/keychain.

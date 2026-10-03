@@ -14,6 +14,7 @@ mod panel;
 mod transcript;
 
 pub use extension::{AgentExtension, PANEL_ID};
+pub use panel::{saved_sessions, sessions_key, Item, SavedSession, SESSIONS_DIR};
 
 pub mod server_panel;
 

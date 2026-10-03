@@ -2,7 +2,7 @@
 //!
 //! Git as a first-class part of the workspace (Milestone 7): a *Changes*
 //! panel (status, stage/unstage/discard, commit, branch, log), diff views,
-//! status decorations for the Explorer (`Workspace::vcs_status`), and the
+//! status marks for the Explorer and tabs (`Workspace::file_marks`), and the
 //! history as a graph source the Graph panel can draw.
 //!
 //! The `git` binary runs where the folder lives — in-process on desktop and
@@ -14,12 +14,24 @@
 pub mod cli;
 pub mod history;
 mod panel;
+pub mod server;
+pub mod types;
+
+pub use server::{git_run, remote};
+pub use types::{GitRequest, GitResponse};
 
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 
 pub const PANEL_ID: &str = "git";
 const DIFF_PREFIX: &str = "git-diff:";
+
+/// The platform's git (Milestone 7; a service since Milestone 18 phase
+/// 4.2): the folder's absolute path (server-relative on the web) and a
+/// request. The app provides it in `WorkspaceConfig::services` — the local
+/// [`cli`] runner on desktop, [`remote`] where the folder is on a server —
+/// and the panel finds it with `ws.service::<GitRunner>()`.
+pub struct GitRunner(pub fn(String, GitRequest) -> moonkale_ext_api::SettingsFuture<GitResponse>);
 
 pub struct GitExtension {
     state: panel::GitState,
@@ -50,36 +62,29 @@ impl Extension for GitExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        let mut out = vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Changes".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(
+        let mut out = vec![PanelContribution::new(PANEL_ID, "Changes", PanelHome::Side)
+            .closable(true)
+            .activity(
                 Activity::new("git", 40, "Git")
                     .phone_secondary()
-                    .badge(ws.vcs_status.read().len() as u32),
-            ),
-        }];
-        if ws.git().is_none() {
+                    .badge(ws.contrib.file_marks.read().len() as u32),
+            )];
+        if ws.service::<GitRunner>().is_none() {
             return out;
         }
         for d in self.state.diffs.read().iter() {
-            out.push(PanelContribution {
-                id: format!("{DIFF_PREFIX}{}", d.key()),
-                title: format!(
-                    "{}{}",
-                    d.path.rsplit('/').next().unwrap_or(&d.path),
-                    if d.staged { " (staged)" } else { "" }
-                ),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: None,
-                activity: None,
-            });
+            out.push(
+                PanelContribution::new(
+                    format!("{DIFF_PREFIX}{}", d.key()),
+                    format!(
+                        "{}{}",
+                        d.path.rsplit('/').next().unwrap_or(&d.path),
+                        if d.staged { " (staged)" } else { "" }
+                    ),
+                    PanelHome::Main,
+                )
+                .closable(true),
+            );
         }
         out
     }

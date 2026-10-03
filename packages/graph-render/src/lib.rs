@@ -1,0 +1,27 @@
+//! # moonkale-graph-render
+//!
+//! The graph view's renderer, compiled to a **standalone wasm module** and
+//! loaded into the page (web) or the webview (desktop) like the CodeMirror
+//! bundle — see vault `decisions/ADR-0011 Desktop graph surface strategy.md`
+//! (plan A). It knows nothing about Moonkale's model: it receives a JSON
+//! graph, lays it out, draws it with `wgpu` (WebGPU, or WebGL2 where WebGPU
+//! is missing) and reports hover/click events back.
+//!
+//! Layout and hit-testing are plain Rust (`graph`, `layout`, `camera`) and
+//! are unit-tested natively; only `web` touches the browser. [`scene`] is
+//! the Rust API around them — graph in, events out — for hosts other than
+//! the page (Milestone 18 phase 6.1; see `README.md` and
+//! `examples/headless.rs`). The crate depends on no Moonkale crate.
+//!
+//! Build: `packages/graph-render/build.sh` → `packages/editors/graph/assets/`.
+
+pub mod camera;
+pub mod graph;
+pub mod layout;
+pub mod quadtree;
+pub mod scene;
+
+#[cfg(target_arch = "wasm32")]
+pub mod render;
+#[cfg(target_arch = "wasm32")]
+pub mod web;

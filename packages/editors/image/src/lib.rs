@@ -59,6 +59,7 @@ mod tests {
     fn node(key: &str, kind: NodeKind) -> Node {
         let src = SourceId::new("folder:/x");
         Node {
+            props: Default::default(),
             id: NodeId::derive(&src, key),
             source: src,
             kind,

@@ -2,7 +2,10 @@
 title: "Host API Reference"
 tags: [extensions, reference]
 ---
-The `Host` handle is the only door. Every method is capability-checked (see `ext-api/src/capability.rs`) and representable across the WASM boundary.
+> [!warning] Target design — there is no `Host` handle yet (checked 2026-10-01)
+> A **static** extension receives the `Workspace` (`ext-api/src/workspace.rs`) and may call any of its public methods — no capability checks. A **wasm** module has three host calls, each checked against its granted permission: `list_sources`, `query`, `fetch_text` (`read-sources`). (Until Milestone 18 `ext-api` also held `capability.rs` and `host.rs` as comment-only files; they were never compiled and were removed in phase 1.) The table below is the planned surface.
+
+The `Host` handle is the only door. Every method is capability-checked (`Capability` mirrors the manifest's `[permissions]`: `SourcesRead`, `SourcesWrite`, `Network(UrlPattern)`, `Process`, `Fs(PathPattern)`, `Llm`, `Clipboard`, `Secrets`; a denied call is `ExtError::Denied`, never a panic; static extensions go through the same checks) and representable across the WASM boundary.
 
 ## Graph (`permissions.sources`)
 | method | permission | returns |
@@ -19,7 +22,7 @@ The `Host` handle is the only door. Every method is capability-checked (see `ext
 ## UI
 `show_panel(id)`, `open_editor(NodeId, preferred: Option<EditorId>)`, `set_status(text)`, `notify(level, text)`, `ask(Prompt) -> Answer` (confirm / input / pick), `set_context_key(key, value)`.
 
-For wasm panels, `PanelOutput` is a `ui::Tree`:
+For wasm panels, `PanelOutput` is a `moonkale_shell::Tree`:
 `column, row, text, heading, button(label, Action), input(bind), list(items), table(rows), embed(view_id), spacer`. `Action::command(id, args)` or `Action::open(NodeId)`. Diffs are computed by the host.
 
 ## Storage

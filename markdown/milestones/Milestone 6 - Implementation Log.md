@@ -81,4 +81,4 @@ Barnes–Hut turns the step from quadratic to n·log n; wasm costs ~10 %. Drawin
 4. Resize the window below 700 px: the bottom bar appears; widen it again.
 
 ## Deferred to Milestone 7
-WIT/component extensions and the browser runtime (P-28), an MTK/data-pipeline flow library, execute-in-place Julia (run the generated model in a terminal with output back into the flow), GPU compute layouts (not needed at 100k), 3D graph (P-27), Postgres/Turso (P-19), TypeDB/Helix (P-26), an Android build on a machine with the SDK, OS keychain, a cancel for running tools (P-069), settled-layout callback in dioxus-flow (P-073).
+WIT/component extensions and the browser runtime (R-28), an MTK/data-pipeline flow library, execute-in-place Julia (run the generated model in a terminal with output back into the flow), GPU compute layouts (not needed at 100k), 3D graph (R-27), Postgres/Turso (R-19), TypeDB/Helix (R-26), an Android build on a machine with the SDK, OS keychain, a cancel for running tools (P-069), settled-layout callback in dioxus-flow (P-073).

@@ -4,6 +4,13 @@ tags: [architecture, index]
 ---
 Crate: `index`. The index turns *files and rows* into a *graph* by deriving what sources don't know: symbols, links, outlines, embeddings, stack frames. It is exposed as `IndexSource`, so its output is just more nodes and edges.
 
+> [!note] As built (2026-10-01)
+> - **Extractors**: wiki-links (markdown) and tree-sitter symbols for Rust; Julia and Python extractors exist but **never run** because `walk::wants_text` only fetches markdown and Rust (issue #16). No headings/front matter nodes, no imports, no calls/references (spec [[022]]).
+> - **Parsing** is native tree-sitter through `arborium` (shared with the Rust code editor, P-113) — not `.wasm` grammars; the index runs on desktop and the server, and the web/phone query the server's.
+> - **Storage is memory**: the graph, BM25 postings (hand-written, `search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) are rebuilt on every open. No sqlite/duckdb store, no tantivy, no usearch, no `recoco`. A persisted index is part of [[Internal State]].
+> - **LSP as a second extractor** and the `precision` field are not built.
+> - Stack traces live in their own crate, `moonkale-trace` (`TraceSource`), not in `index::trace`.
+
 ```mermaid
 flowchart LR
   EV[SourceEvent] --> P[pipeline: debounce, prioritise visible]

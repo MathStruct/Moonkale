@@ -50,8 +50,9 @@ Tested on Linux (desktop and browser) and on one Android phone:
   formulas and front matter, plus a Typst preview.
 - **Graph view** in 2D and 3D, GPU-rendered, for a folder's files, links and
   symbols, usable with 100k nodes.
-- **Databases**: SQLite, DuckDB (including folders of CSV/Parquet files) and
-  LadybugDB (Cypher), as tables and as graphs.
+- **Databases**: SQLite, DuckDB (including folders of CSV/Parquet files),
+  Turso, redb, RocksDB, embedded HelixDB and LadybugDB (Cypher, Linux only),
+  as tables and as graphs, read-only for now.
 - **Terminal**: stack traces in it become clickable graphs.
 - **Git**: changes, diffs, staging, commits and history as a graph.
 - **Search**: keyword search, plus meaning-based search when an embedding
@@ -67,12 +68,16 @@ Tested on Linux (desktop and browser) and on one Android phone:
   the phone. (Only test in local network!! Still has some security flaws)
 
 Windows and macOS builds are produced but **untested**: nobody on the project
-has those machines.
+has those machines. Area by area, with what is still missing:
+[Status](https://mathstruct.github.io/Moonkale/Status).
 
 ## Planned
 
-- More data sources: Postgres, Turso, TypeDB, HelixDB, FalkorDB, Redis. These
-  are only stubs today.
+- A refactor into a library with a small core: extensions, sources and
+  server routes added without editing the shell, and one store for
+  Moonkale's own state that can sync between devices.
+- Writes to the embedded databases (the OLTP side), and more data sources:
+  Postgres, TypeDB, FalkorDB, Redis (only stubs today).
 - Projects that combine several sources, and links across them.
 - The Julia side, in a separate repository: a Julia package source, a
   ModelingToolkit editor, and the Lenticulum.jl factor-graph editor.

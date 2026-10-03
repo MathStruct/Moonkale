@@ -10,25 +10,12 @@ use moonkale_ext_api::prelude::*;
 pub const PANEL_PREFIX: &str = "editor-native:";
 const CSS: Asset = asset!("/assets/code-native.css");
 
-pub struct NativeCodeExtension {
-    skip: Option<fn(&moonkale_core::Node) -> bool>,
-}
-
-impl Default for NativeCodeExtension {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[derive(Default)]
+pub struct NativeCodeExtension;
 
 impl NativeCodeExtension {
     pub fn new() -> Self {
-        Self { skip: None }
-    }
-
-    /// Leave documents matching `f` to another extension (markdown, flow).
-    pub fn skipping(mut self, f: fn(&moonkale_core::Node) -> bool) -> Self {
-        self.skip = Some(f);
-        self
+        Self
     }
 
     pub fn panel_id(node: NodeId) -> String {
@@ -50,24 +37,25 @@ impl Extension for NativeCodeExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.documents
+        ws.docs
+            .open
             .read()
             .iter()
-            .filter(|(_, doc)| !self.skip.is_some_and(|f| f(&doc.read().node)))
-            .filter(|(id, _)| ws.editor_for(*id) == "native")
+            // The shell keeps the ones this editor wins (`claims`; a tie
+            // with CodeMirror goes to the user's choice).
             .map(|(id, doc)| {
                 let d = doc.read();
-                PanelContribution {
-                    id: Self::panel_id(*id),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                }
+                PanelContribution::new(Self::panel_id(*id), d.node.label.clone(), PanelHome::Main)
+                    .closable(true)
+                    .dirty(d.dirty())
+                    .node(*id)
             })
             .collect()
+    }
+
+    /// Any text document, like CodeMirror (the user's choice breaks the tie).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        matches!(node.content, Some(moonkale_core::ContentRef::Text { .. })).then_some(10)
     }
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
@@ -167,7 +155,7 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
     let language = language_of(hint);
     let text = d.text.clone();
     drop(d);
-    let dark = ws.settings.read().theme != "light";
+    let dark = ws.settings.resolved.read().theme != "light";
     let theme = if dark {
         CodeTheme::fixed(Theme::TOKYO_NIGHT)
     } else {
@@ -176,6 +164,7 @@ fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
     let word = ws.cursor_word();
     let codemirror_on = ws
         .settings
+        .resolved
         .read()
         .extensions
         .is_enabled_id("dev.moonkale.editor-code", true);

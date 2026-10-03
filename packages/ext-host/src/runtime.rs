@@ -56,6 +56,23 @@ impl Runtime {
         if manifest.id.is_empty() {
             return Err(format!("{}: manifest has no id", path.display()));
         }
+        // An id belongs to the file that loaded it first (Milestone 18 phase
+        // 4.5, audit #4): `discover` lists the user's config directory before
+        // the folder, so a folder's module cannot take the id — and with it
+        // the grants — of a module the user installed. Reloading the same
+        // file is fine.
+        if let Some(other) = self
+            .extensions
+            .iter()
+            .find(|e| e.manifest.id == manifest.id && e.path != path)
+        {
+            return Err(format!(
+                "{}: the id {} is taken by {}",
+                path.display(),
+                manifest.id,
+                other.path.display()
+            ));
+        }
         self.extensions.retain(|e| e.manifest.id != manifest.id);
         self.extensions.push(LoadedExtension {
             path: path.to_path_buf(),

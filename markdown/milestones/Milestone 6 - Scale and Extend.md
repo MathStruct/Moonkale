@@ -22,7 +22,7 @@ tags: [milestone, planning]
 6. **Phone-sized shell**: below ~700 px the shell collapses to one tile with a bottom bar switching Explorer / Editor / Graph / Agent; touch-sized targets; the `mobile` crate builds and runs the same shell. Verified on web at 420 px (no Android SDK here; documented how to build the APK).
 7. Web parity where it applies (extensions settings, flow editor, collapsed shell); E2E; documentation.
 
-**Deferred** (documented): WIT/component extensions and the browser runtime (P-28), MTK library, execute-in-place Julia kernel, GPU compute layouts (if not needed), 3D (P-27), Postgres/Turso (P-19), TypeDB/Helix (P-26).
+**Deferred** (documented): WIT/component extensions and the browser runtime (R-28), MTK library, execute-in-place Julia kernel, GPU compute layouts (if not needed), 3D (R-27), Postgres/Turso (R-19), TypeDB/Helix (R-26).
 
 ## Architecture decisions for this milestone
 

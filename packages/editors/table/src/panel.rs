@@ -17,16 +17,31 @@ fn default_query(node: &Node, dialect: &str) -> String {
             // native key is the bare name either way.
             format!("MATCH (n:{table}) RETURN n LIMIT 200")
         }
+        // Milestone 17: key/value tables and Helix labels.
+        "kv" => format!("scan {} limit 200", quote_word(table)),
+        "helix" => {
+            let (what, label) = match table.strip_prefix("edge:") {
+                Some(l) => ("edges", l),
+                None => ("nodes", table.strip_prefix("label:").unwrap_or(table)),
+            };
+            format!("{what} {} limit 200", quote_word(label))
+        }
         _ => format!("SELECT * FROM \"{}\" LIMIT 200", table.replace('"', "\"\"")),
     }
 }
 
-fn dialect_name(d: Option<TextDialect>) -> &'static str {
-    match d {
-        Some(TextDialect::Cypher) => "cypher",
-        Some(TextDialect::TypeQl) => "typeql",
-        _ => "sql",
+/// A name as one word of the `kv`/`helix` dialects: quoted when it has
+/// spaces or quotes in it.
+fn quote_word(s: &str) -> String {
+    if !s.is_empty() && !s.contains(|c: char| c.is_whitespace() || c == '"') {
+        s.to_string()
+    } else {
+        format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
     }
+}
+
+fn dialect_name(d: Option<TextDialect>) -> &'static str {
+    d.map(TextDialect::name).unwrap_or("sql")
 }
 
 #[component]
@@ -34,6 +49,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let source_id = node.source.clone();
     let dialect = ws
         .sources
+        .open
         .peek()
         .iter()
         .find(|s| s.descriptor.id == source_id)
@@ -82,7 +98,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         let source_id = source_id.clone();
         move |_| {
             let mut ws = ws;
-            ws.graph_request.set(Some(GraphRequest {
+            ws.docs.graph_request.set(Some(GraphRequest {
                 source: source_id.clone(),
                 dialect: dialect.into(),
                 text: text.peek().clone(),

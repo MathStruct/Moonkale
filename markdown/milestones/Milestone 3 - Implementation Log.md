@@ -52,7 +52,7 @@ Plan: [[Milestone 3 - Databases and Tools]].
 - **`SpawnTerminal` / `SpawnLsp` / `CompileTypst` are plain `fn` pointers in `WorkspaceConfig`**, like `open_folder`; `None` on mobile. Platforms decide where the process runs; the panels never know.
 - **Query results carry nodes/edges *and* a table.** `QueryResult` already had both; Ladybug fills both from one Cypher run so the table editor and the graph panel share a result without a second query.
 - **`Workspace::graph_request`** is the one-way channel from any panel to the Graph panel ("draw this"). A checkbox in the panel lets the user go back to the schema.
-- **Security stays explicit**: `MOONKALE_ROOT` jails cwd/root for terminal, LSP and databases on the server; nothing else is hardened (P-20).
+- **Security stays explicit**: `MOONKALE_ROOT` jails cwd/root for terminal, LSP and databases on the server; nothing else is hardened (R-20).
 
 ## Verified
 - Web (Firefox, Playwright): `terminal.mjs`, `typst.mjs`, `lsp.mjs`, `ladybug.mjs`, plus M2's `graph.mjs`, `links-sqlite.mjs`, M1's `session.mjs`, `menubar.mjs` — all PASS against `MOONKALE_ROOT=<fixture>` with rust-analyzer installed.
@@ -66,4 +66,4 @@ Plan: [[Milestone 3 - Databases and Tools]].
 4. File → Open Folder… on a `.lbug` file or directory (or click one inside a folder): tables appear; Cypher runs; *Show in Graph*.
 
 ## Deferred to Milestone 4
-Milkdown WYSIWYG (P-11), Postgres/Turso/DuckDB, Falkor/TypeDB/Helix, cross-source edges (P-16), cursor positioning after cross-file go-to-definition, Typst packages, LSP completion/rename, terminal/LSP auth for a real server, wasm-side Typst.
+Milkdown WYSIWYG (R-11), Postgres/Turso/DuckDB, Falkor/TypeDB/Helix, cross-source edges (R-16), cursor positioning after cross-file go-to-definition, Typst packages, LSP completion/rename, terminal/LSP auth for a real server, wasm-side Typst.

@@ -6,11 +6,11 @@
 
 use dioxus::prelude::*;
 use futures_util::{SinkExt, StreamExt};
+use moonkale_shell::{PresenceLink, PresenceMember};
 use std::rc::Rc;
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
-use ui::{PresenceLink, PresenceMember};
 
-type Msg = ui::PresenceMessage;
+type Msg = moonkale_shell::PresenceMessage;
 
 pub fn hub_url() -> Option<String> {
     let hub = std::env::var("MOONKALE_HUB").ok()?;

@@ -77,6 +77,9 @@ build() {
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_NET_OFFLINE=true
   export CARGO_TARGET_DIR="$srcdir/Moonkale/target"
+  # LadybugDB is linked statically with its bundled zstd/SimSIMD symbols made
+  # local (LBUG_LOCALIZE_BUNDLED_SYMBOLS in .cargo/config.toml, P-144): the
+  # binutils from base-devel do the partial link.
   # dx (not plain cargo): it collects the hashed `asset!()` files next to the
   # binary. The desktop app, then the server it uploads to remote hosts.
   (cd packages/desktop && dx build --release --platform desktop --features desktop)

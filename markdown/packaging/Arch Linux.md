@@ -52,3 +52,5 @@ git add PKGBUILD .SRCINFO && git commit -m "Initial import" && git push
 - No icon yet (`bundle.icon` in `Dioxus.toml`, `hicolor` install line commented out).
 - `dioxus-cli` in the AUR may lag the workspace's `dioxus` version; if so, `cargo install dioxus-cli --version 0.7.10 --locked` in `prepare()` is *not* allowed by AUR rules — pin the AUR package version in `makedepends` instead (`'dioxus-cli>=0.7.10'`).
 - Reproducibility: dx's asset hashes are content-based, so two builds of the same commit produce the same file names — good for `pacman` diffs.
+- **LadybugDB** is linked statically like the other drivers. Its bundled zstd/SimSIMD are made local at build time (`LBUG_LOCALIZE_BUNDLED_SYMBOLS=1` from the repo's `.cargo/config.toml`, lbug ≥ 0.21; P-144), so no extra source or library is installed. The Linux packages (Arch, Debian, tarball, Nix) include it; macOS/Windows do not.
+

@@ -10,24 +10,33 @@ name = "moonkale"
 path = "src/main.rs"
 
 [dependencies]
+# The store for this app's own state (ADR-0014): SQLite.
+moonkale-state = { workspace = true }
+moonkale-state-stores = { workspace = true, features = ["sqlite"] }
 tokio = { version = "1", features = ["rt", "macros"] }
 tokio-tungstenite = "0.28"
 tracing = "0.1"
 dioxus = { workspace = true, features = ["fullstack"] }
-ui = { workspace = true }
+moonkale-shell = { workspace = true }
+moonkale-distribution = { workspace = true }
+moonkale-editor-markdown = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-sources = { workspace = true }
 moonkale-index = { workspace = true }
-moonkale-sources-sql = { workspace = true, features = ["sqlite", "duckdb"] }
-moonkale-sources-graph = { workspace = true, features = ["ladybug"] }
+moonkale-sources-sql = { workspace = true, features = ["sqlite", "duckdb", "turso"] }
+# Milestone 17: embedded HelixDB, redb, RocksDB. LadybugDB on Linux only (the
+# target table below): its static library can be linked next to them only
+# with its bundled symbols localized, an ELF-only step (.cargo/config.toml).
+moonkale-sources-graph = { workspace = true, features = ["helix"] }
+moonkale-sources-kv = { workspace = true, features = ["redb", "rocksdb"] }
 moonkale-terminal = { workspace = true }
 moonkale-terminal-pty = { workspace = true }
 moonkale-typst = { workspace = true }
 moonkale-lsp = { workspace = true }
 moonkale-lsp-local = { workspace = true }
 moonkale-llm = { workspace = true, features = ["http", "claude-code"] }
-api = { workspace = true }
+moonkale-server = { workspace = true }
 moonkale-remote = { workspace = true }
 moonkale-ext-host = { workspace = true, features = ["wasmtime"] }
 moonkale-ext-git = { workspace = true, features = ["cli"] }
@@ -41,9 +50,13 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 [features]
 default = []
 desktop = ["dioxus/desktop"]
-server = ["dioxus/server", "ui/server"]
+server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
+# Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
+julia = ["moonkale-distribution/julia"]
+
 
 [target.'cfg(target_os = "linux")'.dependencies]
+moonkale-sources-graph = { workspace = true, features = ["helix", "ladybug"] }
 libc = "0.2"
 
 [dev-dependencies]

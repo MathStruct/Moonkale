@@ -2,15 +2,15 @@
 title: "Specifications — small requests and bugs"
 tags: [spec, moc]
 ---
-Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behave, or a little bug — not big specifications (those are the milestone plans under [[Milestone 6 - Scale and Extend|milestones]]). Daniel writes them; whoever fixes one edits the same file: add `status: done` and a short "Done <date>" paragraph naming the change and the test that covers it. Bigger findings still go to the [[Problem Log]].
+Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behave, or a little bug — not big specifications (those are the milestone plans — see the [[Roadmap]]). Daniel writes them; whoever fixes one edits the same file: add `status: done` and a short "Done <date>" paragraph naming the change and the test that covers it. Bigger findings still go to the [[Problem Log]].
 
 | # | topic | status |
 |---|---|---|
 | [[001]] | Flow editor: Backspace/Delete in a parameter field deleted the block | done |
-| [[002]] | HelixDB as an embedded graph source — exists, but only as a git dependency for now | open |
+| [[002]] | HelixDB as an embedded graph source — done in Milestone 17 (git dependency, read-only; HTTP mode open) | done |
 | [[003]] | Projects: several sources at once, a selector, import/export and sync — desired behaviour in [[Projects and Sources]] | documented |
 | [[004]] | Unicode input: `\int` → ∫ with a dropdown, in every text field — design in [[Unicode Input]] | documented |
-| [[005]] | A Claude Code extension without an API key — plan in [[Claude Code Extension]] | planned |
+| [[005]] | A Claude Code extension without an API key — plan in [[Claude Code Extension]] | partly done — the provider (Level 3) since Milestone 12, login since 15; the IDE bridge (Level 2) open |
 | [[006]] | Android graph: pinch zooms, two fingers pan, rotation orbits in 3D | done |
 | [[007]] | Android app name + icon via `packages/mobile/build-android.sh` (dx 0.7.10 ignores both) | done |
 | [[008]] | View png/jpg/svg inside Moonkale — image viewer extension (zoom, pan, SVG source) | done |
@@ -27,11 +27,12 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[019]] | Front matter as a Properties bar in the rich editor, body-only view, saved intact | done |
 | [[020]] | Several folders in one graph: every index drawn, per-folder colours, picker narrows to one; cross-folder links wait for projects | done |
 | [[021]] | Markdown opens in Rich mode by default (`editor.markdown_rich`); loading no longer marks the file dirty | done |
-| [[022]] | Julia and Python symbols in the index/graph (tree-sitter); calls/references still not extracted for any language | done |
+| [[022]] | Julia and Python symbols in the index/graph (tree-sitter); calls/references still not extracted for any language | done — the extractors did not run until 2026-10-02 (issue #16, fixed in [[Milestone 18 - Implementation Log\|Milestone 18]] phase 1) |
 | [[023]] | Why a pull costs a 30-minute build: two debug builds of 1.8 GB, feature changes, a thrashed `target/`; `debug = "line-tables-only"` applied: clean debug build 399 s, binaries 449 + 470 MB instead of 1.8 + 1.7 GB | done |
 | [[024]] | Go to definition / centre a graph view from the symbol under the cursor (menu, double or right click); builds on `cursor_word` and the index's symbols | documented |
 | [[025]] | A five-button mouse is the expected device: thumb buttons = back/forward, middle click = open aside, configurable; guard the webview's own button handling | documented |
 | [[026]] | Rich editor typography: font size, body font, code font — settings under the Markdown extension | done |
-| [[029]] | The Android app's name and launcher icon come from a post-build patch that Gradle's caches can defeat (an APK said "Mobile" with the template icon); verify the artefact, then move it into configuration | partly done |
-| [[028]] | Export/import the phone's vault (and open a real folder through the Storage Access Framework): private storage is lost on every uninstall and `run-as` only works on debug builds | open |
 | [[027]] | macOS keybindings: `Ctrl` in a binding means Cmd on a Mac and only Cmd; Ctrl stays the text system's (Emacs keys); `keys::primary` everywhere | done (unverified on a Mac) |
+| [[028]] | Export/import the phone's vault (and open a real folder through the Storage Access Framework): private storage is lost on every uninstall and `run-as` only works on debug builds | open |
+| [[029]] | The Android app's name and launcher icon come from a post-build patch that Gradle's caches can defeat (an APK said "Mobile" with the template icon); verify the artefact, then move it into configuration | partly done |
+| [[030]] | The UI in English, German and Chinese; themes (dark, light, follow system, user/extension themes) | open — after Milestone 18 phase 4 (per-extension strings and settings) |

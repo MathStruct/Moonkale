@@ -1,5 +1,5 @@
 //! The desktop as a client of a Moonkale server (Milestone 11, step 1):
-//! `api::client::connect` points the server functions at `MOONKALE_REMOTE`,
+//! `moonkale_server::client::connect` points the server functions at `MOONKALE_REMOTE`,
 //! after which the desktop's config callbacks open folders, read files, run
 //! git and wasm commands *there*. Ignored unless a server is running, e.g.
 //! `MOONKALE_REMOTE=http://127.0.0.1:8090 cargo test -p desktop --test remote -- --ignored`
@@ -12,12 +12,12 @@ use moonkale_core::{NodeKind, Query, SourceFamily};
 async fn open_query_read_and_git_over_the_server() {
     let url = std::env::var("MOONKALE_REMOTE").expect("MOONKALE_REMOTE");
     let token = std::env::var("MOONKALE_TOKEN").ok();
-    dioxus::fullstack::set_server_url(api::relay::install().unwrap().leak());
-    api::client::connect(&url, token.as_deref(), "test");
-    assert!(api::client::active().is_some());
+    dioxus::fullstack::set_server_url(moonkale_server::relay::install().unwrap().leak());
+    moonkale_server::client::connect(&url, token.as_deref(), "test");
+    assert!(moonkale_server::client::active().is_some());
 
     // Open the server's default root: the folder and its index come back.
-    let sources = api::client::open_folder(String::new(), Default::default())
+    let sources = moonkale_server::client::open_folder(String::new(), Default::default())
         .await
         .expect("open_folder over the server");
     let folder = sources
@@ -40,20 +40,24 @@ async fn open_query_read_and_git_over_the_server() {
     assert!(!text.is_empty());
     println!("read {} ({} bytes)", file.native_key, text.len());
     // A second attach by descriptor (another window would do this).
-    let again = api::client::attach_source(d.clone()).await.expect("attach");
+    let again = moonkale_server::client::attach_source(d.clone())
+        .await
+        .expect("attach");
     assert_eq!(again.id(), d.id);
     // Git and wasm relays answer (an error string is fine on a folder without git/modules).
-    let git = api::client::git(
+    let git = moonkale_ext_git::remote(
         d.id.as_str().trim_start_matches("folder:").to_string(),
-        ui::GitRequest::Status,
+        moonkale_ext_git::GitRequest::Status,
     )
     .await;
     println!(
         "git status: {}",
         git.as_ref().map(|_| "ok").unwrap_or("error")
     );
-    let wasm = api::client::wasm_list(None).await.expect("wasm list");
+    let wasm = moonkale_server::client::wasm_list(None)
+        .await
+        .expect("wasm list");
     println!("wasm modules on the server: {}", wasm.len());
-    api::client::disconnect();
-    assert!(api::client::active().is_none());
+    moonkale_server::client::disconnect();
+    assert!(moonkale_server::client::active().is_none());
 }

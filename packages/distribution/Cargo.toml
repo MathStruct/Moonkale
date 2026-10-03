@@ -1,0 +1,41 @@
+[package]
+name = "moonkale-distribution"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Which extensions a Moonkale app ships (Milestone 18 phase 4.1): the catalogue, one Cargo feature per optional extension. Without default features: Explorer, Search, Settings, Extensions, Graph, Links, Code, Markdown."
+
+[features]
+default = ["code-native", "table", "image", "terminal", "terminal-native", "agent", "flow", "git", "history"]
+code-native = ["dep:moonkale-editor-code-native"]
+table = ["dep:moonkale-editor-table"]
+image = ["dep:moonkale-editor-image"]
+terminal = ["dep:moonkale-editor-terminal"]
+terminal-native = ["dep:moonkale-editor-terminal-native"]
+agent = ["dep:moonkale-editor-agent"]
+flow = ["dep:moonkale-editor-flow"]
+# Lux.jl for the flow editor, from MathStruct/moonkale-julia (phase 6.4): off by default.
+julia = ["dep:moonkale-ext-lux"]
+git = ["dep:moonkale-ext-git"]
+history = ["dep:moonkale-ext-history"]
+# The server halves of the extensions that have one (Milestone 18 phase 4.3).
+server = ["moonkale-ext-git?/server", "moonkale-editor-markdown/server"]
+
+[dependencies]
+moonkale-shell = { workspace = true }
+moonkale-ext-api = { workspace = true }
+# Always in: the minimum workbench.
+moonkale-editor-code = { workspace = true }
+moonkale-editor-graph = { workspace = true }
+moonkale-editor-markdown = { workspace = true }
+# One feature each.
+moonkale-editor-code-native = { workspace = true, optional = true }
+moonkale-editor-table = { workspace = true, optional = true }
+moonkale-editor-image = { workspace = true, optional = true }
+moonkale-editor-terminal = { workspace = true, optional = true }
+moonkale-editor-terminal-native = { workspace = true, optional = true }
+moonkale-editor-agent = { workspace = true, optional = true }
+moonkale-editor-flow = { workspace = true, optional = true }
+moonkale-ext-lux = { workspace = true, optional = true }
+moonkale-ext-git = { workspace = true, optional = true }
+moonkale-ext-history = { workspace = true, optional = true }

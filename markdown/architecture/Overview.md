@@ -8,9 +8,9 @@ Moonkale unifies code editing and knowledge editing around one idea: **everythin
 flowchart LR
   subgraph Sources
     FS[Folder]
-    SQL[(Postgres / SQLite / DuckDB / Turso)]
-    GDB[(TypeDB / Ladybug / Helix / Falkor)]
-    KV[(Redis / Dragonfly)]
+    SQL[(SQLite / DuckDB / Turso · Postgres planned)]
+    GDB[(Ladybug / Helix · TypeDB, Falkor planned)]
+    KV[(redb / RocksDB · Redis planned)]
   end
   subgraph Core["moonkale-core: graph model"]
     G[(Nodes + Edges)]
@@ -40,6 +40,9 @@ flowchart LR
   EXT[Extensions: static + WASM] -.contribute.-> Editors & Sources & LLM
 ```
 
+> [!note] As built (2026-10-01)
+> The picture holds, with three differences: the index's store is **memory** (rebuilt on open; no tantivy/usearch), extension contributions are panels, commands, settings and flow libraries (no declarative manifest yet — [[Extension System]]), and every database source is read-only. Area by area: [[Status]].
+
 ## The three bets
 
 1. **Graph-native model** ([[Graph-Native Model]]). A folder, a Postgres schema and an Obsidian vault are all nodes and edges. This is what lets one graph view show a Rust crate next to a database next to a wiki, and what gives LLM agents a single traversal surface.
@@ -60,7 +63,7 @@ flowchart TB
   I[api — server: fullstack functions] --> G & H
 ```
 
-Dependency direction is strictly downward. `core` depends on nothing. See [[Project Structure]] for every crate.
+Dependency direction is meant to be strictly downward, and `core` depends on nothing. Today four edges point the wrong way (`ui` → editors and drivers, `ext-api` → `llm`/`ext-host`, `llm` → `sources-sql`, `api` → `ext-git`) — listed in [[Project Structure#Where reality differs from the rules below]] and removed by [[Milestone 18 - Library Refactor]].
 
 ## What this replaces
 

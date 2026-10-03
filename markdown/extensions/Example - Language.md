@@ -2,6 +2,9 @@
 title: "Example — Language"
 tags: [extensions, example]
 ---
+> [!warning] Target design
+> This example uses the planned manifest and `Host` API ([[Writing an Extension]] Part B), which are not built. A working example of today's API is Part A of the same page.
+
 Languages are **data-only** contributions. This is the Unison entry that will live in `editors/code/src/languages/unison.rs` (as a static contribution) — a third-party extension would put the same in `moonkale.toml`:
 
 ```toml

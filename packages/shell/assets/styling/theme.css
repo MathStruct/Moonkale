@@ -1,0 +1,20 @@
+/* The theme tokens (Milestone 18 phase 4.4, preparing spec 030): the one
+   place colours are defined. Every stylesheet — the shell's and the
+   extensions' — uses these variables, never a hex colour of its own
+   (tools/check-colors.py counts the ones that are left; the count may only
+   shrink). The shell sets `data-theme` on `.mk-shell` from `Settings.theme`;
+   spec 030 adds `light` and `system` here, and theme files on top.
+
+   dioxus-workbench declares its variables on both .wb-shell and
+   .wb-workspace, so the theme sets both. */
+/* Dark — for every `data-theme` until spec 030 adds the others (a setting
+   of "light" must not fall back to the workbench crate's own defaults). */
+.mk-shell .wb-shell,
+.mk-shell .wb-workspace {
+  --wb-canvas: #0f1116; --wb-surface: #161922; --wb-sunken: #0b0d12; --wb-viewport: #12141b;
+  --wb-hover: rgb(255 255 255 / 0.06); --wb-pressed: rgb(255 255 255 / 0.11);
+  --wb-line: #2a2e3a; --wb-ink: #e6e8ee; --wb-ink-soft: #a3a9b8; --wb-ink-faint: #7f8595;
+  --wb-accent: #6ea8fe; --wb-selected: rgb(110 168 254 / 0.16);
+  --wb-good: #6cb28c; --wb-caution: #c9a75f; --wb-danger: #e07a75; --wb-danger-soft: rgb(224 122 117 / 0.14);
+  --wb-shadow: 0 6px 18px rgb(0 0 0 / 0.5);
+}

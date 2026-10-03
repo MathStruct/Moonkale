@@ -1,0 +1,14 @@
+[package]
+name = "moonkale-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The interface of the store for Moonkale's own state (ADR-0014): StateStore, order-preserving keys, versioned records, the table layout, an in-memory store, the conformance suite, copy(). No engines: those are in moonkale-state-stores."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

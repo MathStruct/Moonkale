@@ -44,7 +44,7 @@ claude -p --output-format stream-json --input-format stream-json --include-parti
 - `--bare` is **never** used (it disables the OAuth login, i.e. the subscription). `--restricted` is a checkbox in the provider's settings for a read-only assistant.
 
 ## Shape
-`packages/extensions/claude-code/` — a static Rust extension in the `opt_in` tier (`ui::default_extensions()`), enabled in *Settings → Extensions*:
+`packages/extensions/claude-code/` — a static Rust extension in the `opt_in` tier (`moonkale_shell::default_extensions()`), enabled in *Settings → Extensions*:
 - `ide.rs` — lock file + WebSocket MCP server (desktop in-process; `api` route on the server, gated by `MOONKALE_TOKEN` like everything else); contributes the `selection_changed` publisher and the *Send to Claude Code* command.
 - `provider.rs` — the `claude-code` `Provider` (spawns the CLI; `stream-json` codec; permission tool; MCP config file written to a temp path with the server's URL and token).
 - `commands.rs` — `claude.start` (terminal with `--ide`), `claude.continue` (`--continue`), `claude.at_mention`, `claude.open_session` (the CLI's JSONL as a page).

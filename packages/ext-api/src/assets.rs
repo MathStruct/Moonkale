@@ -21,7 +21,7 @@ pub fn StylesheetUrl(href: String) -> Element {
     let ws = use_context::<Workspace>();
     let url = href;
     use_effect(move || {
-        let _ = ws.assets_epoch.read();
+        let _ = ws.docs.assets_epoch.read();
         let js = format!(
             r#"(() => {{ const h = {url:?}; if (![...document.querySelectorAll('link[rel=stylesheet]')].some(l => l.getAttribute('href') === h)) {{ const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = h; document.head.appendChild(l); }} }})();"#
         );

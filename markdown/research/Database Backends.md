@@ -2,6 +2,9 @@
 title: "Database Backends — driver survey (2026-09-17)"
 tags: [research, sources]
 ---
+> [!note] Since this survey (checked 2026-10-01)
+> Built as read-only, embedded sources: SQLite (`rusqlite`), DuckDB, LadybugDB (`lbug` 0.21, Linux only — P-144), Turso (`turso` 0.7), redb 4, RocksDB 0.25, HelixDB embedded (git dependency, spec [[002]]). Not started: Postgres/Supabase, Redis/Dragonfly, TypeDB, FalkorDB. The same crates are now also candidates for Moonkale's own state: [[Internal State]].
+
 Verified on crates.io at time of writing. Re-verify before implementation.
 
 | Target | Crate | Version | Maturity | Notes |

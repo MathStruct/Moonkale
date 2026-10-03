@@ -1,5 +1,5 @@
 //! Desktop entrypoint: an undecorated window whose title bar (menus + window
-//! controls) is drawn by `ui::Frame`, VS Code style. Everything that touches
+//! controls) is drawn by `moonkale_shell::Frame`, VS Code style. Everything that touches
 //! `dioxus::desktop` lives in this file; `ui` only receives callbacks.
 //!
 //! Multiple windows: *View → New Window* spawns another `App` in the same
@@ -10,14 +10,14 @@ use dioxus::prelude::*;
 use futures_channel::mpsc;
 use futures_util::StreamExt;
 use moonkale_core::{Source, SourceDescriptor, SourceError};
+use moonkale_shell::{
+    AttachFuture, Frame, OpenFolderFuture, PickFolderFuture, SessionBus, SessionMessage, Shell,
+    ShellConfig, WindowControls, WindowId, WorkspaceConfig,
+};
 use moonkale_sources::SourceRegistry;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
-use ui::{
-    AttachFuture, Frame, OpenFolderFuture, PickFolderFuture, SessionBus, SessionMessage, Shell,
-    ShellConfig, WindowControls, WindowId, WorkspaceConfig,
-};
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
@@ -25,7 +25,7 @@ fn main() {
     // Milestone 11: server functions always go to a loopback relay of our
     // own (dioxus's server URL can be set only once, before launch — P-098);
     // the relay pipes to the remote that is active, if any.
-    match api::relay::install() {
+    match moonkale_server::relay::install() {
         Ok(url) => dioxus::fullstack::set_server_url(url.leak()),
         Err(e) => eprintln!("moonkale: client relay not started ({e}); remote folders are off"),
     }
@@ -33,7 +33,7 @@ fn main() {
     // desktop a client of that Moonkale server from the start.
     if let Ok(url) = std::env::var("MOONKALE_REMOTE") {
         let token = std::env::var("MOONKALE_TOKEN").ok();
-        api::client::connect(&url, token.as_deref(), &url);
+        moonkale_server::client::connect(&url, token.as_deref(), &url);
         eprintln!("moonkale: remote mode — sources, terminal, LSP and git on {url}");
     }
     #[cfg(all(feature = "desktop", target_os = "linux"))]
@@ -86,24 +86,24 @@ fn registry() -> &'static SourceRegistry {
 /// and register both process-wide. A `.sqlite`/`.db` file or a
 /// `.lbug`/`.kuzu` database opens as that database instead.
 /// Milestone 11: when the desktop is connected to a Moonkale server
-/// (`api::client::active()`), sources, terminal, LSP, git, Typst and wasm
+/// (`moonkale_server::client::active()`), sources, terminal, LSP, git, Typst and wasm
 /// extensions go to that server; otherwise everything is local. The LLM
 /// provider is always local (keys stay on this machine).
-fn open_folder(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
-    if api::client::active().is_some() {
-        return api::client::open_folder(path, options);
+fn open_folder(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::open_folder(path, options);
     }
     open_local(path, options)
 }
 
-fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
+fn open_local(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
             ".".to_string()
         } else {
             path
         };
-        if let Some(db) = open_database(&path)? {
+        if let Some(db) = open_database(&path).await? {
             if let Some(existing) = registry().get(&db.id()) {
                 return Ok(vec![existing]);
             }
@@ -141,35 +141,18 @@ fn open_local(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
     })
 }
 
-/// Database files/directories by name; `None` means "treat as a folder".
-fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
-    let p = std::path::Path::new(path);
-    if p.is_file() && moonkale_sources_sql::is_sqlite_path(path) {
-        return Ok(Some(Arc::new(moonkale_sources_sql::SqliteSource::open(p)?)));
-    }
-    // DuckDB (Milestone 9): a database file, or a data file whose folder
-    // becomes a database of CSV/TSV/Parquet views.
-    if p.is_file() && moonkale_sources_sql::is_duckdb_path(path) {
-        return Ok(Some(Arc::new(moonkale_sources_sql::DuckDbSource::open(p)?)));
-    }
-    if p.is_file() && moonkale_sources_sql::is_data_path(path) {
-        let dir = p.parent().ok_or(SourceError::NotFound)?;
-        return Ok(Some(Arc::new(
-            moonkale_sources_sql::DuckDbSource::open_data_folder(dir)?,
-        )));
-    }
-    if moonkale_sources_graph::is_ladybug_path(path) {
-        return Ok(Some(Arc::new(
-            moonkale_sources_graph::ladybug::LadybugSource::open(p)?,
-        )));
-    }
-    Ok(None)
+/// Database files/directories (the app's source openers); `None` means
+/// "treat as a folder".
+async fn open_database(path: &str) -> Result<Option<Arc<dyn Source>>, SourceError> {
+    let p = std::path::PathBuf::from(path);
+    let is_dir = p.is_dir();
+    openers().open(p, is_dir).await
 }
 
 /// Another window opened it: take the shared instance from the registry.
 fn attach_source(descriptor: SourceDescriptor) -> AttachFuture {
-    if api::client::active().is_some() {
-        return api::client::attach_source(descriptor);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::attach_source(descriptor);
     }
     attach_local(descriptor)
 }
@@ -185,9 +168,13 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
             .strip_prefix("folder:")
             .or_else(|| id.strip_prefix("sqlite:"))
             .or_else(|| id.strip_prefix("ladybug:"))
+            .or_else(|| id.strip_prefix("turso:"))
+            .or_else(|| id.strip_prefix("redb:"))
+            .or_else(|| id.strip_prefix("rocksdb:"))
+            .or_else(|| id.strip_prefix("helix:"))
             .unwrap_or(".")
             .to_string();
-        let opened = open_local(path, ui::OpenOptions::default()).await?;
+        let opened = open_local(path, moonkale_shell::OpenOptions::default()).await?;
         opened
             .into_iter()
             .find(|s| s.id() == descriptor.id)
@@ -202,8 +189,8 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
 fn open_remote(
     host: String,
     path: String,
-    sink: ui::remote::PhaseSink,
-) -> Result<ui::remote::Opened, String> {
+    sink: moonkale_shell::remote::PhaseSink,
+) -> Result<moonkale_shell::remote::Opened, String> {
     use moonkale_remote::Phase;
     let target = moonkale_remote::SshTarget::parse(&host, &path)?;
     let binary = moonkale_remote::server_binary();
@@ -212,20 +199,20 @@ fn open_remote(
     }
     let (session, tee) = moonkale_remote::SshSession::open(target, binary, move |p| {
         sink(match p {
-            Phase::Connecting => ui::remote::RemotePhase::Connecting,
-            Phase::Prompt(l) => ui::remote::RemotePhase::Prompt(l),
-            Phase::Uploading => ui::remote::RemotePhase::Uploading,
-            Phase::Starting => ui::remote::RemotePhase::Starting,
-            Phase::Ready { .. } => ui::remote::RemotePhase::Ready,
-            Phase::Failed(e) => ui::remote::RemotePhase::Failed(e),
-            Phase::Closed => ui::remote::RemotePhase::Closed,
+            Phase::Connecting => moonkale_shell::remote::RemotePhase::Connecting,
+            Phase::Prompt(l) => moonkale_shell::remote::RemotePhase::Prompt(l),
+            Phase::Uploading => moonkale_shell::remote::RemotePhase::Uploading,
+            Phase::Starting => moonkale_shell::remote::RemotePhase::Starting,
+            Phase::Ready { .. } => moonkale_shell::remote::RemotePhase::Ready,
+            Phase::Failed(e) => moonkale_shell::remote::RemotePhase::Failed(e),
+            Phase::Closed => moonkale_shell::remote::RemotePhase::Closed,
         })
     })?;
     Ok((Box::new(tee), Arc::new(RemoteHandle(session))))
 }
 
 struct RemoteHandle(moonkale_remote::SshSession);
-impl ui::remote::RemoteSession for RemoteHandle {
+impl moonkale_shell::remote::RemoteSession for RemoteHandle {
     fn close(&self) {
         self.0.close();
     }
@@ -265,14 +252,14 @@ fn ssh_hosts_in(text: &str) -> Vec<String> {
 }
 
 /// *Connect to Server…* (Milestone 12): URL + token through the relay.
-fn server_client() -> ui::ServerClient {
-    ui::ServerClient {
+fn server_client() -> moonkale_shell::ServerClient {
+    moonkale_shell::ServerClient {
         connect: |url, token| {
-            api::client::connect(&url, token.as_deref(), &url);
+            moonkale_server::client::connect(&url, token.as_deref(), &url);
             Ok(())
         },
-        disconnect: api::client::disconnect,
-        active: || api::client::active().map(|r| r.label),
+        disconnect: moonkale_server::client::disconnect,
+        active: || moonkale_server::client::active().map(|r| r.label),
     }
 }
 
@@ -310,8 +297,8 @@ fn spawn_terminal(
     cols: u16,
     rows: u16,
 ) -> moonkale_terminal::SpawnTerminalFuture {
-    if api::client::active().is_some() {
-        return api::client::spawn_terminal(cwd, cols, rows);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::spawn_terminal(cwd, cols, rows);
     }
     Box::pin(async move {
         moonkale_terminal_pty::PtyBackend::spawn(cwd.as_deref(), None, cols, rows)
@@ -333,9 +320,13 @@ fn spawn_program(
 }
 
 /// Typst compiles in-process (embedded fonts) — or on the server.
-fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
-    if api::client::active().is_some() {
-        return api::client::compile_typst(root, main_rel, text);
+fn compile_typst(
+    root: String,
+    main_rel: String,
+    text: String,
+) -> moonkale_shell::CompileTypstFuture {
+    if moonkale_server::client::active().is_some() {
+        return moonkale_editor_markdown::remote_typst(root, main_rel, text);
     }
     Box::pin(async move {
         moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text).map_err(|d| {
@@ -351,8 +342,8 @@ fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTyp
 
 /// Language servers run locally over stdio — or on the server.
 fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
-    if api::client::active().is_some() {
-        return api::client::spawn_lsp(language, root);
+    if moonkale_server::client::active().is_some() {
+        return moonkale_server::client::spawn_lsp(language, root);
     }
     Box::pin(async move {
         let spec = moonkale_lsp_local::discover::find(&language).ok_or_else(|| {
@@ -369,7 +360,7 @@ fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture
 
 /// The LLM provider from the environment (`MOONKALE_LLM`, keys), built
 /// once; HTTP providers run in-process on desktop.
-fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
+fn llm_provider(settings: moonkale_llm::LlmSettings) -> moonkale_shell::LlmProviderFuture {
     let needs_key = !matches!(
         settings.provider.as_str(),
         "mock" | "ollama" | "claude-code"
@@ -413,24 +404,26 @@ fn settings_path() -> Option<std::path::PathBuf> {
     moonkale_llm::secrets::config_dir().map(|d| d.join("settings.json"))
 }
 
-fn load_settings() -> ui::SettingsFuture<ui::SettingsFile> {
+fn load_settings() -> moonkale_shell::SettingsFuture<moonkale_shell::SettingsFile> {
     Box::pin(async move {
         let Some(path) = settings_path() else {
-            return Ok(ui::SettingsFile::new());
+            return Ok(moonkale_shell::SettingsFile::new());
         };
         match std::fs::read_to_string(&path) {
-            Ok(text) => ui::SettingsFile::parse(&text),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(ui::SettingsFile::new()),
+            Ok(text) => moonkale_shell::SettingsFile::parse(&text),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Ok(moonkale_shell::SettingsFile::new())
+            }
             Err(e) => Err(e.to_string()),
         }
     })
 }
 
-fn store_secret(name: String, value: String) -> ui::SettingsFuture<()> {
+fn store_secret(name: String, value: String) -> moonkale_shell::SettingsFuture<()> {
     Box::pin(async move { moonkale_llm::secrets::store(&name, &value) })
 }
 
-fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
+fn save_settings(file: moonkale_shell::SettingsFile) -> moonkale_shell::SettingsFuture<()> {
     Box::pin(async move {
         let path = settings_path().ok_or("no config directory on this platform")?;
         if let Some(dir) = path.parent() {
@@ -441,9 +434,12 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 }
 
 /// wasm extensions run in-process (wasmtime) over the process registry.
-fn git_local(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
-    if api::client::active().is_some() {
-        return api::client::git(root, req);
+fn git_local(
+    root: String,
+    req: moonkale_ext_git::GitRequest,
+) -> moonkale_shell::SettingsFuture<moonkale_ext_git::GitResponse> {
+    if moonkale_server::client::active().is_some() {
+        return moonkale_ext_git::remote(root, req);
     }
     Box::pin(async move { moonkale_ext_git::cli::run(std::path::Path::new(&root), req).await })
 }
@@ -472,9 +468,9 @@ mod wasm_ext {
     }
 
     /// Server-side modules when connected (Milestone 11), local ones otherwise.
-    pub fn list_any(folder: Option<String>) -> ui::SettingsFuture<Vec<WasmManifest>> {
-        if api::client::active().is_some() {
-            return api::client::wasm_list(folder);
+    pub fn list_any(folder: Option<String>) -> moonkale_shell::SettingsFuture<Vec<WasmManifest>> {
+        if moonkale_server::client::active().is_some() {
+            return moonkale_server::client::wasm_list(folder);
         }
         list(folder)
     }
@@ -484,14 +480,14 @@ mod wasm_ext {
         command: String,
         args: serde_json::Value,
         granted: Vec<String>,
-    ) -> ui::SettingsFuture<String> {
-        if api::client::active().is_some() {
-            return api::client::wasm_run(ext, command, args, granted);
+    ) -> moonkale_shell::SettingsFuture<String> {
+        if moonkale_server::client::active().is_some() {
+            return moonkale_server::client::wasm_run(ext, command, args, granted);
         }
         run(ext, command, args, granted)
     }
 
-    pub fn list(folder: Option<String>) -> ui::SettingsFuture<Vec<WasmManifest>> {
+    pub fn list(folder: Option<String>) -> moonkale_shell::SettingsFuture<Vec<WasmManifest>> {
         Box::pin(async move {
             let config = moonkale_llm::secrets::config_dir();
             let folder = folder.map(std::path::PathBuf::from);
@@ -511,7 +507,7 @@ mod wasm_ext {
         command: String,
         args: serde_json::Value,
         granted: Vec<String>,
-    ) -> ui::SettingsFuture<String> {
+    ) -> moonkale_shell::SettingsFuture<String> {
         Box::pin(async move {
             let handle = tokio::runtime::Handle::current();
             tokio::task::spawn_blocking(move || {
@@ -602,7 +598,7 @@ fn window_config() -> dioxus::desktop::Config {
         .with_inner_size(LogicalSize::new(1400.0, 900.0))
         // Small enough to try the phone-sized shell (< 700 px) on desktop.
         .with_min_inner_size(LogicalSize::new(360.0, 400.0))
-        // No native decorations: the title bar is ours (see ui::TitleBar).
+        // No native decorations: the title bar is ours (see moonkale_shell::TitleBar).
         .with_decorations(false);
     Config::new()
         .with_window(window)
@@ -623,7 +619,7 @@ fn new_window() {
 #[cfg(feature = "desktop")]
 fn window_controls() -> WindowControls {
     use dioxus::desktop::{tao::window::ResizeDirection, window};
-    use ui::ResizeEdge;
+    use moonkale_shell::ResizeEdge;
     WindowControls {
         minimize: Callback::new(|_| window().window.set_minimized(true)),
         toggle_maximize: Callback::new(|_| window().toggle_maximized()),
@@ -661,14 +657,106 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         Frame {
             config: ShellConfig {
-                extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder, pick_folder: Some(pick_folder), attach_source, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: Some(store_secret), reopen_last_folder: true, wasm: Some(ui::WasmExtensions { list: wasm_ext::list_any, run: wasm_ext::run_any }), git: Some(git_local), presence: Some(presence::join), wasm_module_url: None, remote: Some(ui::remote::RemoteHosts { open: open_remote, hosts: ssh_hosts, at_start: ssh_at_start }), agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)), server: Some(server_client()), spawn_program: Some(spawn_program) },
+                extensions: moonkale_distribution::default_extensions,
+                workspace: workspace_config(),
                 session,
                 new_window: open_window,
             },
             controls,
             Shell {}
         }
+    }
+}
+
+/// The source openers of this app: every driver crate's (Milestone 18
+/// phase 2). Moves to the `distribution` crate in phase 4.
+fn openers() -> &'static moonkale_core::Openers {
+    static OPENERS: std::sync::OnceLock<moonkale_core::Openers> = std::sync::OnceLock::new();
+    OPENERS.get_or_init(|| {
+        moonkale_core::Openers::new(
+            [
+                moonkale_sources_sql::openers(),
+                moonkale_sources_kv::openers(),
+                moonkale_sources_graph::openers(),
+            ]
+            .concat(),
+        )
+    })
+}
+
+/// This machine's state store (ADR-0014): `<config dir>/state.sqlite`.
+fn state_access() -> Option<moonkale_shell::StateAccess> {
+    let dir = moonkale_llm::secrets::config_dir()?;
+    let _ = std::fs::create_dir_all(&dir);
+    match moonkale_state_stores::SqliteStore::open_with(
+        &dir.join("state.sqlite"),
+        moonkale_state::Durability::Relaxed,
+    ) {
+        Ok(store) => Some(moonkale_shell::local_state(std::sync::Arc::new(store))),
+        Err(e) => {
+            tracing::warn!("state: no store ({e}); layouts stay in the folder");
+            None
+        }
+    }
+}
+
+/// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
+/// what each part needs from the platform).
+/// Services the extensions define (Milestone 18 phase 4.2).
+static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(git_local);
+static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
+
+fn workspace_config() -> WorkspaceConfig {
+    let state = state_access();
+    WorkspaceConfig {
+        folders: moonkale_shell::FolderAccess {
+            open: open_folder,
+            pick: Some(pick_folder),
+            attach: attach_source,
+            reopen_last: true,
+            openers: openers(),
+        },
+        processes: moonkale_shell::Processes {
+            terminal: Some(spawn_terminal),
+            lsp: Some(spawn_lsp),
+            program: Some(spawn_program),
+        },
+        persistence: moonkale_shell::Persistence {
+            settings: Some(moonkale_shell::SettingsStore {
+                load: load_settings,
+                save: save_settings,
+            }),
+            secrets: Some(store_secret),
+            state,
+            // The folder's host keeps its entity log: this store for local
+            // folders, the server's while connected (phase 5.10).
+            host: state.map(|_| moonkale_server::client::host_state_routed()),
+            // The user's settings too (phase 5.18): `settings.json` is
+            // imported once, then only the store is written.
+            user_settings_in_state: true,
+        },
+        network: moonkale_shell::Network {
+            presence: Some(presence::join),
+            remote: Some(moonkale_shell::remote::RemoteHosts {
+                open: open_remote,
+                hosts: ssh_hosts,
+                at_start: ssh_at_start,
+            }),
+            agent_sessions: Some(moonkale_server::client::agent_sessions(
+                moonkale_server::client::agent_available,
+            )),
+            server: Some(server_client()),
+        },
+        runtimes: moonkale_shell::Runtimes {
+            typst: Some(compile_typst),
+            llm: Some(llm_provider),
+            wasm: Some(moonkale_shell::WasmExtensions {
+                list: wasm_ext::list_any,
+                run: wasm_ext::run_any,
+            }),
+            ..Default::default()
+        },
+        services: &SERVICES,
     }
 }
 

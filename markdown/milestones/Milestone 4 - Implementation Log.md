@@ -66,4 +66,4 @@ Plan: [[Milestone 4 - Agents]].
 4. Terminal: `cargo build` in `~/moonkale-sample` (it has a type error) → **Trace → Graph**.
 
 ## Deferred to Milestone 5
-Milkdown WYSIWYG (P-11), MCP server for external agents, Postgres/Turso (P-19), Falkor/TypeDB/Helix (P-26), agent write tools (edit files, run commands — the `Ask` gate is ready), LSP completion/rename, document-level shortcuts (P-065), secure remote tools (P-20).
+Milkdown WYSIWYG (R-11), MCP server for external agents, Postgres/Turso (R-19), Falkor/TypeDB/Helix (R-26), agent write tools (edit files, run commands — the `Ask` gate is ready), LSP completion/rename, document-level shortcuts (P-065), secure remote tools (R-20).

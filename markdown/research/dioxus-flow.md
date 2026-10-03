@@ -20,6 +20,6 @@ Pannable/zoomable canvas, draggable nodes, **connectable handles** (drag to crea
 | maturity | 0.1.x, one author, CI | ⚠️ same risk profile as `dioxus-workbench`, which worked out |
 
 ## Recommendation
-Adopt `dioxus-flow` as the **canvas of the Flow Editor** (Phase 5, P-24): it removes the SVG canvas, wiring, snapping and layout work from `packages/editors/flow` and leaves us the parts that are actually ours — block libraries as extension contributions, port-type validation, and codegen (Lux.jl / ModelingToolkit.jl). Keep the graph view (wgpu) separate; the two crates address different scales and interaction models. One design implication for now: `editors/flow` should model blocks/ports so they convert to `dioxus_flow::{Node, Edge}` without a second representation.
+Adopt `dioxus-flow` as the **canvas of the Flow Editor** (Phase 5, R-24): it removes the SVG canvas, wiring, snapping and layout work from `packages/editors/flow` and leaves us the parts that are actually ours — block libraries as extension contributions, port-type validation, and codegen (Lux.jl / ModelingToolkit.jl). Keep the graph view (wgpu) separate; the two crates address different scales and interaction models. One design implication for now: `editors/flow` should model blocks/ports so they convert to `dioxus_flow::{Node, Edge}` without a second representation.
 
 Not adopted yet — nothing in Milestone 2 needs it. Recorded in [[Flow Editor]].

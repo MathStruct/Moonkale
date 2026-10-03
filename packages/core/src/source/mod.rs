@@ -4,7 +4,7 @@
 //! (optionally) accept changes: a folder, a SQL database, a graph database, a
 //! remote Moonkale server. `core` defines only the **trait and the
 //! query/result types**; implementations live in `moonkale-project-fs`,
-//! `moonkale-sources-*` (native only) and `api::RemoteSource` (the proxy the
+//! `moonkale-sources-*` (native only) and `moonkale_server::RemoteSource` (the proxy the
 //! web build uses).
 //!
 //! Object safety: the trait is `async` via `async-trait` so it can be held as
@@ -14,12 +14,16 @@
 
 pub mod descriptor;
 pub mod event;
+pub mod opener;
 pub mod query;
+pub mod risk;
 pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
 pub use event::Changes;
+pub use opener::{Openers, Shape, SourceOpener};
 pub use query::{Direction, Query, QueryResult, Table};
+pub use risk::Risk;
 pub use transaction::{Applied, Op, OpResult, Splice, TextPatch, Transaction};
 
 use crate::error::SourceError;
@@ -74,6 +78,14 @@ pub trait Source: MaybeSendSync {
     /// `seq` is the position to continue from.
     async fn changes_since(&self, _since: u64) -> Result<Option<Changes>, SourceError> {
         Ok(None)
+    }
+
+    /// What running `text` in `dialect` would do — the read-only gate and
+    /// the agent's policy both ask this. Default: the shared rules in
+    /// [`risk::classify`]; a source that knows better (functions that read
+    /// files, a dialect of its own) overrides it.
+    fn classify(&self, dialect: &str, text: &str) -> Risk {
+        risk::classify(dialect, text)
     }
 }
 

@@ -96,6 +96,11 @@ pub struct Node {
     pub native_key: String,
     pub content: Option<ContentRef>,
     pub version: Version,
+    /// Typed properties (Milestone 18 phase 6.2): what the source knows
+    /// about the node beyond its label — a row's columns, a factor's
+    /// parameters, a declaration's hash. Empty for most files.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub props: crate::graph::Properties,
 }
 
 impl Node {

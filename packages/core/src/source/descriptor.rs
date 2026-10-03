@@ -33,6 +33,25 @@ pub enum TextDialect {
     Sql,
     Cypher,
     TypeQl,
+    /// Key/value stores (Milestone 17): `scan <table> [prefix <p>] [limit <n>]`,
+    /// `get <table> <key>`.
+    Kv,
+    /// HelixDB (Milestone 17): `nodes [<label>] [limit <n>]`,
+    /// `edges [<label>] [limit <n>]`.
+    Helix,
+}
+
+impl TextDialect {
+    /// The name `Query::Text { dialect }` carries for this dialect.
+    pub fn name(self) -> &'static str {
+        match self {
+            TextDialect::Sql => "sql",
+            TextDialect::Cypher => "cypher",
+            TextDialect::TypeQl => "typeql",
+            TextDialect::Kv => "kv",
+            TextDialect::Helix => "helix",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

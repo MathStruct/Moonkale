@@ -65,5 +65,5 @@ flowchart LR
 | wgpu in WebKitGTK without WebGPU | WebGL2 backend is compiled in; the module reports which backend it got (shown in the popup/toolbar) |
 | Dynamic `import()` of the ESM module from `dioxus://` asset URLs on desktop | the loader is one line of JS in the eval; if the custom scheme refuses ESM, fall back to `--target no-modules` (a global) — documented as a fallback |
 | tree-sitter C build in the workspace (also on wasm checks) | `index` is native-only (`cfg`), like `project-fs` |
-| O(n²) CPU layout | fine to ~3k nodes; node cap + "graph truncated" message; GPU layout is P-22 |
-| SQLite scope creep | read-only in M2; editing needs PK handling (P-08 continues) |
+| O(n²) CPU layout | fine to ~3k nodes; node cap + "graph truncated" message; GPU layout is R-22 |
+| SQLite scope creep | read-only in M2; editing needs PK handling (R-08 continues) |

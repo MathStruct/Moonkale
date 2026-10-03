@@ -4,6 +4,7 @@
 // any client can answer.
 import { firefox } from "playwright";
 import fs from "node:fs";
+import { rows } from "./state.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
@@ -33,9 +34,11 @@ try {
     await ask(page, "/tool workspace.list_sources {}");
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-agent-tool")].some((t) => /workspace.list_sources/.test(t.textContent) && /ok/.test(t.textContent)), null, { timeout: 30000 });
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-agent-assistant")].some((e) => /returned: id\tname/.test(e.textContent)), null, { timeout: 30000 });
-    const dir = fs.readdirSync(`${ROOT}/.moonkale/agent-sessions`);
-    console.log("\n  on disk:", dir.join(", "));
-    if (dir.length !== 1) throw new Error("expected one session log");
+    const stored = rows("agent_sessions").filter((r) => r.parts[1] === "server");
+    const heads = stored.filter((r) => r.rest.length === 0);
+    console.log("\n  stored:", heads.length, "session(s),", stored.length - heads.length, "items");
+    if (heads.length !== 1 || stored.length < 3) throw new Error("expected one stored session with its items");
+    if (fs.existsSync(`${ROOT}/.moonkale/agent-sessions`)) throw new Error("session logs still written");
   });
   await step("the page closes; a new one lists the session and shows its transcript", async () => {
     await ctx.close();
@@ -43,7 +46,9 @@ try {
     await init(ctx);
     page = await ctx.newPage();
     await open(page);
-    await page.waitForFunction(() => document.querySelectorAll(".mk-agent-sessions option").length === 2, null, { timeout: 15000 });
+    // "new" + this run's session — and earlier runs' sessions while the same server is up (it keeps
+    // them in memory; the reset only clears the store). Newest first, so index 1 is this run's.
+    await page.waitForFunction(() => document.querySelectorAll(".mk-agent-sessions option").length >= 2, null, { timeout: 15000 });
     const label = await page.$$eval(".mk-agent-sessions option", (o) => o.map((x) => x.textContent.trim()).join(" | "));
     console.log("\n  sessions:", label);
     await page.selectOption(".mk-agent-sessions", { index: 1 });

@@ -1,0 +1,8 @@
+[package]
+name = "moonkale-server-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "What every server half shares (Milestone 18 phase 4.3): the jail — paths a client names resolve inside MOONKALE_ROOT. No dependencies; auth and routes stay in the server binary."
+
+[dependencies]

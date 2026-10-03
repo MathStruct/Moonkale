@@ -26,25 +26,27 @@ impl Extension for TableExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.views
+        ws.docs
+            .views
             .read()
             .iter()
             .filter(|n| n.kind == NodeKind::Table)
-            .map(|n| PanelContribution {
-                id: Self::panel_id(n.id),
-                title: n.label.clone(),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: Some(n.id),
-                activity: None,
+            .map(|n| {
+                PanelContribution::new(Self::panel_id(n.id), n.label.clone(), PanelHome::Main)
+                    .closable(true)
+                    .node(n.id)
             })
             .collect()
     }
 
+    /// Its own format, above the code editors (Milestone 18 phase 2).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        (node.kind == NodeKind::Table).then_some(50)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id)
-            .and_then(|id| ws.views.read().iter().find(|n| n.id == id).cloned())
+            .and_then(|id| ws.docs.views.read().iter().find(|n| n.id == id).cloned())
         {
             Some(node) => rsx! { TablePanel { ws, node } },
             None => rsx! { "unknown table panel {panel_id}" },

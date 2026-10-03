@@ -22,18 +22,29 @@
         # time (no network in the sandbox; from source it needs CMake and an
         # hour). Fetch the same archive as a fixed-output derivation and hand
         # it to the build script through LBUG_LIBRARY_DIR / LBUG_INCLUDE_DIR.
-        lbugVersion = "0.20.4";
+        # The archive's bundled zstd/SimSIMD symbols clash with Turso, HelixDB
+        # and RocksDB (P-144). lbug >= 0.21 localizes them itself, but only for
+        # an archive it downloaded — not in this external mode — so the
+        # derivation does the same: partial link, every strong unmangled
+        # symbol except the `lbug_*` C API made local, archived back.
+        lbugVersion = "0.21.0";
         liblbug = pkgs.stdenv.mkDerivation {
           pname = "liblbug-prebuilt";
           version = lbugVersion;
           src = pkgs.fetchurl {
             url = "https://github.com/LadybugDB/ladybug/releases/download/v${lbugVersion}/liblbug-static-linux-x86_64-compat.tar.gz";
-            hash = "sha256-eZ8Y8WX6FQdbBJ1x6EKeD/n3aIvl0YbElz0RGmmAUJo=";
+            hash = "sha256-+T4BFBkdYjpwanjsqApUpyyFY8nmMjiIlo/5hNWYYVQ=";
           };
           sourceRoot = ".";
+          nativeBuildInputs = [ pkgs.binutils ];
           installPhase = ''
             mkdir -p $out/lib
-            cp -r . $out/lib/
+            cp lbug.h lbug.hpp $out/lib/
+            ld -r --whole-archive liblbug.a --no-whole-archive -o merged.o
+            nm --defined-only -g --format=posix merged.o \
+              | awk '{ strong = ($2 == "T" || $2 == "D" || $2 == "B" || $2 == "R"); if (!strong || $1 ~ /^_Z/ || $1 ~ /^lbug_/) print $1 }' > keep.txt
+            objcopy --keep-global-symbols=keep.txt merged.o
+            ar rcs $out/lib/liblbug.a merged.o
           '';
         };
       in
@@ -43,9 +54,12 @@
           version = "0.1.0";
           src = self;
           # No cargoHash to keep in sync: vendor from the committed lockfile.
-          cargoLock.lockFile = ./Cargo.lock;
+          # HelixDB (Milestone 17) is a git dependency pinned by rev in the
+          # lockfile; builtins.fetchGit fetches it without per-crate hashes.
+          cargoLock = { lockFile = ./Cargo.lock; allowBuiltinFetchGit = true; };
 
-          nativeBuildInputs = with pkgs; [ pkg-config wrapGAppsHook3 dioxus-cli ];
+          # bindgenHook: RocksDB's bindings are generated with libclang.
+          nativeBuildInputs = with pkgs; [ pkg-config wrapGAppsHook3 dioxus-cli rustPlatform.bindgenHook ];
           buildInputs = runtimeLibs;
 
           # dx must be >= 0.7.10 (the workspace's dioxus version); check with
@@ -100,8 +114,8 @@
           pname = "moonkale-tests";
           version = "0.1.0";
           src = self;
-          cargoLock.lockFile = ./Cargo.lock;
-          nativeBuildInputs = with pkgs; [ pkg-config ];
+          cargoLock = { lockFile = ./Cargo.lock; allowBuiltinFetchGit = true; };
+          nativeBuildInputs = with pkgs; [ pkg-config rustPlatform.bindgenHook ];
           buildInputs = runtimeLibs;
           buildPhase = "true";
           LBUG_LIBRARY_DIR = "${liblbug}/lib";

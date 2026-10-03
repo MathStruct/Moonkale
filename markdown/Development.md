@@ -17,21 +17,25 @@ Everything that used to be in the README about building lives here.
 
 ```
 Moonkale/
-├─ Cargo.toml            # workspace; every crate under packages/ is a member
+├─ Cargo.toml            # workspace; 36 crates under packages/
+├─ .cargo/config.toml    # LBUG_LOCALIZE_BUNDLED_SYMBOLS (P-144)
 ├─ packages/
-│  ├─ web/ desktop/ mobile/   platform entrypoints (routers, platform assets)
-│  ├─ ui/                     the workbench shell (dioxus-workbench)
-│  ├─ api/                    fullstack server functions
-│  ├─ core/ ext-api/ ext-host/ sources*/ project-fs/ index/ llm/ lsp*/ terminal*/
-│  │                          the architecture skeleton (comment-only today)
-│  ├─ editors/{code,markdown,table,graph,graph-desktop,flow,terminal}/
-│  └─ js/{codemirror,milkdown,xterm}/   isolated TypeScript view packages
+│  ├─ web/ desktop/ mobile/   platform entrypoints and platform services
+│  ├─ ui/                     the shell (dioxus-workbench) and, for now, the extension catalogue
+│  ├─ api/                    the server: fullstack functions, auth, MCP, relays
+│  ├─ core/ ext-api/ ext-host/              model, extension contract, wasm runtime
+│  ├─ sources*/ project-fs/ index/ trace/ typst/    sources and derived data
+│  ├─ llm/ lsp*/ terminal*/ remote/         services
+│  ├─ editors/*  extensions/*               the built-in extensions
+│  └─ js/{codemirror,milkdown,xterm,wasm-host}/   isolated TypeScript packages
 ├─ markdown/             # this vault (design record; published as the website)
+├─ packaging/            # PKGBUILDs, Debian, release scripts
 ├─ site/                 # vendored Quartz + TikZ/Typst/Tabs plugins
-└─ .github/workflows/    # Pages deploy
+├─ tools/                # check-deps.py: the layering rules, deps-allow.txt: today's known violations
+└─ .github/workflows/    # ci (fmt, layering, tests, clippy, wasm, e2e smoke), release, Pages deploy, labels
 ```
 
-The crate-by-crate rationale is in [[Project Structure]]; what runs on which platform in [[Platform Matrix]].
+Every crate with real code is listed with its size and role in [[Project Structure]]; what runs on which platform in [[Platform Matrix]].
 
 ## Build and check
 
@@ -52,6 +56,8 @@ cd packages/desktop && dx serve --platform desktop    # native window (needs a d
 cd packages/mobile  && dx serve --platform android    # or ios; needs the SDKs
 ```
 
+**LadybugDB** is in Linux builds only. Its static library bundles zstd and SimSIMD, which clash with Turso, HelixDB and RocksDB (P-144). `.cargo/config.toml` sets `LBUG_LOCALIZE_BUNDLED_SYMBOLS=1`, so `lbug` makes those symbols local after downloading its prebuilt archive; that needs GNU binutils (`ld`, `nm`, `objcopy`), which every Linux toolchain has. Nothing to do by hand: plain `dx serve` / `cargo build` get it. On macOS and Windows the app is built without LadybugDB.
+
 `dx serve` hot-reloads `rsx!` and assets; press `r` to force a rebuild, `v` for verbose logs. Where output goes on each platform — including compiled release builds — is in [[Debugging and Logging]].
 
 Headless smoke test of the web build (what CI will do):
@@ -66,10 +72,22 @@ firefox --headless --profile /tmp/ffp --window-size=1400,900 --screenshot /tmp/s
 
 ```sh
 cargo test --workspace                  # native suite (core, project-fs, …)
-cargo nextest run --workspace           # parallel, per-process (cargo install cargo-nextest)
+cargo test -p moonkale-index           # one crate; scripts and agents use CARGO_TARGET_DIR=target/agent (spec 023)
 ```
 
 End-to-end (real browser against the web build): `packages/web/tests/e2e/README.md`.
+
+What CI runs on every push (`.github/workflows/ci.yml`), and how to run the same locally:
+
+```sh
+cargo fmt --all --check
+python3 tools/check-deps.py             # layering rules; fails on a new violation or on a fixed one still listed
+cargo clippy --workspace --all-targets -- -D warnings
+cargo check -p web --target wasm32-unknown-unknown --features web
+packages/web/tests/e2e/run-all.sh files rich stores palette shell wiki   # with serve.sh running
+```
+
+When a refactor removes a layering violation, delete its line from `tools/deps-allow.txt` in the same change (the check insists).
 
 ## Running Milestone 1
 
@@ -79,21 +97,21 @@ End-to-end (real browser against the web build): `packages/web/tests/e2e/README.
 - Windows: **View → New Window** (`Ctrl+Shift+N`). Drag an editor **tab** onto another window to move it there; if the drop doesn't land, release anyway — the other window shows a *Move it here* banner. The status bar shows how many windows are in the session; the `dx serve` terminal logs every `session[…]` message (see [[P-045 Cross-window drag and drop]] for what to report).
 - Menus: **File** (Open Folder… `Ctrl+O` — native dialog on desktop, Save, Close Editor `Ctrl+W`, Exit), **Edit** (Undo/Redo), **View** (Reset Layout, Toggle Developer Tools in debug builds), **Help** (About). On desktop the window is undecorated and the bar carries minimize/maximize/close; drag the empty bar area to move, double-click to maximize, edges to resize.
 - Databases: click a `.sqlite`/`.db` file in the Explorer (or type its path in *Open*) — it appears as a source with its tables; click a table for the read-only grid + SQL box. Graph tab: Whole/Local, kind filters, hover, double-click opens the file.
-- The graph renderer is a separate wasm module: rebuild with `packages/editors/graph-render/build.sh` after changing `packages/editors/graph-render/src` (needs `wasm32-unknown-unknown` and dx's `wasm-bindgen` 0.2.128 under `~/.local/share/.dx/tools`); the output in `packages/editors/graph/assets/` is committed.
+- The graph renderer is a separate wasm module: rebuild with `packages/graph-render/build.sh` after changing `packages/graph-render/src` (needs `wasm32-unknown-unknown` and dx's `wasm-bindgen` 0.2.128 under `~/.local/share/.dx/tools`); the output in `packages/editors/graph/assets/` is committed.
 - **Milestone 3 tools:** *View → New Terminal* (Ctrl+`) opens a shell in the bottom tile — on web it runs **on the server** (dev only, no auth; cwd jailed to `MOONKALE_ROOT`). Open a `.typ` file for the live Typst preview. Open a `.rs` file in a cargo project for rust-analyzer (`rustup component add rust-analyzer`; the status bar says what is missing) — on web the server spawns it. A `.lbug`/`.kuzu` database (file or directory) in the folder opens as a source (make one with `cargo run -p moonkale-sources-graph --features ladybug --example seed_people -- ~/moonkale-sample/people.lbug`); tables open the Cypher box; *Show in Graph* draws the result in the Graph tab's source picker.
 - **Settings (Milestone 5):** `Ctrl+,` opens the Settings panel. User scope: `~/.config/moonkale/settings.json` (desktop) or `localStorage` (web); workspace scope: `<folder>/.moonkale/settings.json` (also the layout and open documents). API keys go into `~/.config/moonkale/secrets.json` via *Store secret* (or `MOONKALE_SECRET_<NAME>`); settings only hold the secret's name. External agents: `claude mcp add --transport http moonkale http://127.0.0.1:8080/mcp` (read-only; `MOONKALE_MCP_TOKEN` adds bearer auth).
 - **Extensions (Milestone 6):** Settings → Extensions toggles built-ins and grants permissions (`extensions.enabled/disabled/permissions` in either scope). The **Flow editor** and the **Lux.jl blocks** are off by default: enable both, then File → New Flow… (`*.flow.json`), place blocks from the palette, wire typed ports, **Generate** writes `model.jl` next to the flow. **wasm extensions**: `packages/extensions/wordcount/build.sh` (needs `rustup target add wasm32-unknown-unknown`) installs the example into `~/.config/moonkale/extensions/`; modules there and in `<folder>/.moonkale/extensions/` are listed in Settings (off, no permissions) and their commands become agent tools once enabled. On web the modules run on the server (`MOONKALE_CONFIG_DIR` picks its config dir). Below 700 px the shell collapses to one tile with a bottom bar.
 - **Daily driver (Milestone 7):** `Ctrl+Shift+P` command palette, `Ctrl+P` quick open (`path:line`), Settings → Keybindings to rebind. Right-click in the Explorer for New File / New Folder / Rename / Delete (to `.moonkale/trash/`); drag a file onto a folder to move it. `Ctrl+F` / `Ctrl+H` in an editor; Search → Replace with… for the workspace. With rust-analyzer: completion, `F2` rename, `Ctrl+.` code actions, `Shift+F12` references. **Changes** tab: stage/commit/discard, diffs, **Graph** for the history. **Exposing the web server**: `MOONKALE_TOKEN=<random> dx serve --addr 0.0.0.0` (a non-loopback bind without a token refuses to start); browsers log in at `/login` (HttpOnly cookie), scripts send `Authorization: Bearer <token>`; every relay call is logged under the `moonkale::audit` target. Put a reverse proxy with TLS in front and let it set `X-Forwarded-Proto` / `X-Forwarded-For`.
 - **Research (Milestone 8):** the **History** tab lists the workspace's entity log (`.moonkale/history.jsonl`; Settings → You → Name is the actor); **presence** works on web (a room per folder on the server; badges in the status bar, tabs and Explorer); Graph → **3D** (right-drag or Shift-drag orbits, wheel dollies); wasm extensions run *in the browser* when the page is cross-origin isolated (the server sends COOP/COEP; `MOONKALE_ISOLATE=0` turns that off). The renderer test (`graph3d.mjs`) needs Playwright's Chromium: `npx playwright install chromium` in the E2E working dir.
 - **Second halves (Milestone 9):** History → **Compact** / **Restore**; presence cursors need nothing extra; the desktop joins a hub with `MOONKALE_HUB=http://host:port` (and `MOONKALE_TOKEN` if the server has one). DuckDB is built in on desktop and the server (`moonkale-sources-sql/duckdb`, bundled; ~3 min extra on a clean build): click a `.csv`/`.tsv`/`.parquet` to get its folder as tables, or a `.duckdb` file. **Android** (verified on a Galaxy S10e): `export ANDROID_HOME=~/Android/Sdk ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865 NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=/usr/lib/jvm/java-17-openjdk`, `rustup target add aarch64-linux-android`, then `cd packages/mobile && dx build --release --platform android --features mobile --target aarch64-linux-android` and `adb install -r target/dx/mobile/release/android/app/app/build/outputs/apk/debug/app-debug.apk` — release, because the debug APK is x86_64 and too large for a small phone. Details and the inspection recipe (screenshots, WebView DevTools, `run-as`) in `packages/mobile/README.md`.
-- **Remote (Milestone 11):** **File → Open Remote Folder…** in the desktop app (or `moonkale --ssh "host:/path"`, `MOONKALE_SSH=…`): the host typed as after `ssh` — `SSH_AUTH_SOCK=0 -p 443 daniel@192.168.178.62`, `-i ~/.ssh/MathStruct daniel@dtrmblog.de`, or a `~/.ssh/config` alias (offered) — and the folder path; the `ssh` runs as a terminal tab (answer its prompts there), the server is uploaded once per version into `~/.local/share/moonkale/server/<version>/` on the host — it is whatever `MOONKALE_SERVER_BINARY` names, else `moonkale-server` next to the app, else the dev build from `cd packages/web && dx build --platform server --release` (`target/dx/web/release/web/server`, 188 MB). *Disconnect Remote* or closing the folder ends the session. **Desktop as a client** of any server: `MOONKALE_REMOTE=http://host:port MOONKALE_TOKEN=… ./moonkale`. **Standalone server**: `MOONKALE_TOKEN=… ./server --port 8443 --bind 0.0.0.0 --root /srv/code` needs `MOONKALE_TLS_CERT`/`MOONKALE_TLS_KEY` (PEM) off loopback, or `MOONKALE_INSECURE_HTTP=1` behind a TLS proxy; `--token-stdin` reads the token from the first stdin line; `MOONKALE_TERMINAL=0` switches shells off. Tests: `packages/web/tests/e2e/server.mjs` (in `run-all.sh` as `server`), `cargo test -p moonkale-remote --test shim -- --ignored` (fake `ssh`; plus a real-`sshd` variant with `MOONKALE_TEST_SSH`, recipe in `packages/remote/remote.md`), `cargo test -p moonkale-ext-api --test remote_flow`, `MOONKALE_REMOTE=http://127.0.0.1:8090 cargo test -p desktop --test remote -- --ignored`.
+- **Remote (Milestone 11):** **File → Open Remote Folder…** in the desktop app (or `moonkale --ssh "host:/path"`, `MOONKALE_SSH=…`): the host typed as after `ssh` — `SSH_AUTH_SOCK=0 -p 443 daniel@192.168.178.62`, `-i ~/.ssh/MathStruct daniel@dtrmblog.de`, or a `~/.ssh/config` alias (offered) — and the folder path; the `ssh` runs as a terminal tab (answer its prompts there), the server is uploaded once per version into `~/.local/share/moonkale/server/<version>/` on the host — it is whatever `MOONKALE_SERVER_BINARY` names, else `moonkale-server` next to the app, else the dev build from `cd packages/web && dx build --platform server --release` (`target/dx/web/release/web/server`, 188 MB). *Disconnect Remote* or closing the folder ends the session. **Desktop as a client** of any server: `MOONKALE_REMOTE=http://host:port MOONKALE_TOKEN=… ./moonkale`. **Standalone server**: `MOONKALE_TOKEN=… ./server --port 8443 --bind 0.0.0.0 --root /srv/code` needs `MOONKALE_TLS_CERT`/`MOONKALE_TLS_KEY` (PEM) off loopback, or `MOONKALE_INSECURE_HTTP=1` behind a TLS proxy; `--token-stdin` reads the token from the first stdin line; `MOONKALE_TERMINAL=0` switches shells off. Tests: `packages/web/tests/e2e/server.mjs` (in `run-all.sh` as `server`), `cargo test -p moonkale-remote --test shim -- --ignored` (fake `ssh`; plus a real-`sshd` variant with `MOONKALE_TEST_SSH`, recipe in `packages/services/remote/remote.md`), `cargo test -p moonkale-ext-api --test remote_flow`, `MOONKALE_REMOTE=http://127.0.0.1:8090 cargo test -p desktop --test remote -- --ignored`.
 - **Build time (spec 023):** a desktop `dx serve` builds the client *and* a server binary; with full debug info both were 1.8 GB and a pull that changes crate features (anything touching `tokio`, `serde`, `dioxus`) cost ~30 min. The root `Cargo.toml` now sets `[profile.dev] debug = "line-tables-only"` and no debug info for dependencies (set `debug = 2` for a session in a debugger). Scripts and agents keep their own `CARGO_TARGET_DIR` so `cargo test`/`clippy` with other feature sets do not invalidate what `dx serve` built into `target/debug`.
 - **Graph with several folders (spec 020):** all open folders are drawn in one graph, coloured per folder; the source picker narrows to one. **Markdown opens in Rich mode** (spec 021; Settings → Editor → *Open markdown files in Rich mode*; the E2E fixture turns it off in `.moonkale/settings.json` because the suites drive the source editor). **Julia and Python symbols** in the graph (spec 022).
-- **Milestone 12:** Settings → Language model → **Claude Code** runs the `claude` CLI in the open folder (`MOONKALE_CLAUDE_BIN` overrides the binary; `packages/llm/tests/mock-claude.sh` is the test double, which `serve.sh` passes to the E2E server). **Run agent turns on the server** (same settings page) keeps a turn going without a window; sessions are under `<folder>/.moonkale/agent-sessions/`. **File → Connect to Server…** (desktop, phone) = `MOONKALE_REMOTE` as a dialog. **Terminal (Rust)**: enable in the Extensions panel; Settings → Terminal → Implementation or the chooser on *New Terminal*.
+- **Milestone 12:** Settings → Language model → **Claude Code** runs the `claude` CLI in the open folder (`MOONKALE_CLAUDE_BIN` overrides the binary; `packages/services/llm/tests/mock-claude.sh` is the test double, which `serve.sh` passes to the E2E server). **Run agent turns on the server** (same settings page) keeps a turn going without a window; sessions are under `<folder>/.moonkale/agent-sessions/`. **File → Connect to Server…** (desktop, phone) = `MOONKALE_REMOTE` as a dialog. **Terminal (Rust)**: enable in the Extensions panel; Settings → Terminal → Implementation or the chooser on *New Terminal*.
 - **API keys** for the dev shell live in `.secrets/llm.env` (gitignored): `source .secrets/llm.env` before `dx serve` — the file exports `MOONKALE_LLM`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `MOONKALE_LLM_MODEL`, `MOONKALE_EMBED_MODEL`. Mistral's API is OpenAI-compatible (`https://api.mistral.ai/v1`, `mistral-code-latest`, `mistral-embed`). `packages/web/tests/e2e/agent-live.mjs` checks a real model against the fixture; it is not part of the regular suite.
 - **Milestone 4 agent:** the Agent tab uses `MOONKALE_LLM` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `OLLAMA_HOST` from the environment of the process that runs the provider (the desktop app, or the server under `dx serve` for web); nothing set = offline mock (`/tool <name> <json>` in the chat calls a tool). `MOONKALE_EMBED_MODEL` turns on embeddings for search. Ctrl+Shift+F searches; **Trace → Graph** in the terminal draws a panic/compiler error.
 - The xterm bundle is committed (`packages/editors/terminal/assets/xterm.{js,css}`); rebuild after changing `packages/js/xterm/src` with `npm run build` there.
-- The CodeMirror bundle is committed (`packages/editors/code/assets/codemirror.js`); rebuild it after changing `packages/js/codemirror/src` with `npm run build` there.
+- The CodeMirror bundle is committed (`packages/code-view/assets/codemirror.js`); rebuild it after changing `packages/js/codemirror/src` with `npm run build` there.
 
 Strategy and per-layer recipes: [[Testing Strategy]], [[How to Write Tests]].
 
@@ -106,7 +124,7 @@ Source images live in `/assets` (`Moonkale.png` 1254², `Moonkale512.png`, `Moon
 | desktop/mobile bundle icon (`Dioxus.toml` `icon`), Arch package | `packages/{desktop,mobile}/assets/icon.png` | `Moonkale512.png` |
 | desktop window/taskbar icon (no decoder at runtime) | `packages/desktop/assets/icon64.rgba` | `magick assets/Moonkale64.png -depth 8 rgba:…` |
 | web favicon (16/32/64 in one `.ico`) + touch icon | `packages/web/assets/{favicon.ico,icon.png}` | `magick Moonkale16.png Moonkale32.png Moonkale64.png favicon.ico` |
-| title-bar logo (drawn at 16 px) | `packages/ui/assets/icon32.png` | `Moonkale32.png` |
+| title-bar logo (drawn at 16 px) | `packages/shell/assets/icon32.png` | `Moonkale32.png` |
 | website favicon + page-title logo, social preview | `site/quartz/static/{icon.png,og-image.png}` | `-resize 256x256`; `-resize 1200x675^ -gravity center -extent 1200x675` |
 | banner on the site index and the README | `markdown/assets/MoonkaleBanner.png` (1400 px, PNG8) | `-resize 1400x -dither None -colors 256` |
 
@@ -131,6 +149,11 @@ Conventions:
 - Diagrams: Mermaid fences render everywhere. ```` ```tikz ```` and ```` ```typst ```` fences and `$…$` math also render on the site (Typst first, KaTeX fallback — see the MathStruct [authoring guide](https://mathstruct.github.io/guides/authoring) for the rules).
 - Every problem hit during implementation gets a note via [[Problem Template]] and a row in [[Problem Log]].
 - Versioning of the vault itself is plain git; versioning *inside* Moonkale is described in [[Version Management]].
+- **Status is kept in one place, [[Status]]**, updated at the end of every milestone; the landing page, [[Home]] and the [[Roadmap]] link to it rather than repeating it.
+- **Design notes say what is built.** A note that describes more than exists carries an *As built* box at the top; when the code and a note disagree, the code is checked and the note fixed.
+- **Two id spaces**: `R-nn` for the anticipated problems ([[Problem Ranking]]), `P-nnn` for problems hit ([[Problem Log]]). GitHub issues are cited as `#n`.
+- **Crate notes** (`packages/**/<crate>.md`, part of the Obsidian vault but not of the website) hold implementation detail for one crate; the vault links to them and does not repeat them. Update the crate note in the same change as the crate.
+- **Shared pages with a rule**: [[Extension Catalogue]] (update whenever an extension is added, moved or retiered), [[JavaScript Inventory]] (whenever a bundle changes), specifications (Daniel numbers them; the fixer edits the file in place).
 
 ## Packaging
 

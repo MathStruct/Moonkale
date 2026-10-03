@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// One command an extension (or the shell) offers.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CommandContribution {
     /// Stable, dotted id (`file.save`, `git.commit`). Settings rebind by it.
     pub id: String,
@@ -16,6 +17,7 @@ pub struct CommandContribution {
 }
 
 impl CommandContribution {
+    /// A command with no default keybinding.
     pub fn new(id: impl Into<String>, title: impl Into<String>) -> Self {
         Self {
             id: id.into(),
@@ -23,6 +25,7 @@ impl CommandContribution {
             keybinding: None,
         }
     }
+    /// Its default keybinding (`"Ctrl+Shift+P"`); the user's settings override it.
     pub fn key(mut self, binding: impl Into<String>) -> Self {
         self.keybinding = Some(binding.into());
         self
@@ -36,9 +39,13 @@ impl CommandContribution {
 /// table serves every platform; `crate::keys::primary` decides per event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Keybinding {
+    /// Ctrl (also matched by ⌘ on macOS).
     pub ctrl: bool,
+    /// Shift.
     pub shift: bool,
+    /// Alt (Option on macOS).
     pub alt: bool,
+    /// The key: a character in lower case, or a DOM key name (`Enter`, `F2`, `ArrowUp`).
     pub key: String,
 }
 

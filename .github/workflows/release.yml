@@ -24,6 +24,10 @@ env:
   # silently falls back to another target's binary (the macOS arm64 job got
   # the x86_64 dx, which then aborted looking for Intel Homebrew's OpenSSL).
   BINSTALL_MAXIMUM_RESOLUTION_TIMEOUT: 120
+  # The name the binaries report (moonkale_core::VERSION): the tag, e.g.
+  # 260927-proto. Empty on a manual run, which falls back to the crate version.
+  # The Nix build cannot see it (sandbox) and reports the crate version.
+  MOONKALE_RELEASE: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
 
 jobs:
   meta:
@@ -114,7 +118,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           sudo -u builder git config --global --add safe.directory "$GITHUB_WORKSPACE"
           # Build the checked-out commit itself (the tag), not master.
-          sudo -u builder env PATH="$PATH" MOONKALE_GIT_URL="file://$GITHUB_WORKSPACE#commit=$GITHUB_SHA" \
+          sudo -u builder env PATH="$PATH" MOONKALE_RELEASE="$MOONKALE_RELEASE" MOONKALE_GIT_URL="file://$GITHUB_WORKSPACE#commit=$GITHUB_SHA" \
             bash -c 'cd packaging/arch && makepkg -f --noconfirm --nodeps --skipchecksums'
           mkdir -p dist && mv packaging/arch/moonkale-*.pkg.tar.zst dist/
       - uses: actions/upload-artifact@v4

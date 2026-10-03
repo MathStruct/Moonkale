@@ -1,7 +1,7 @@
 //! Tool execution against the workspace, and the approval hand-off to the UI.
 
 use dioxus::prelude::*;
-use moonkale_core::{Direction, NodeId, Query, SourceFamily, TextDialect};
+use moonkale_core::{Direction, NodeId, Query, SourceFamily};
 use moonkale_ext_api::Workspace;
 use moonkale_llm::agent::HostFuture;
 use moonkale_llm::tools::{MAX_NODES, MAX_ROWS};
@@ -42,12 +42,10 @@ impl WorkspaceHost {
         match call.name.as_str() {
             "workspace.list_sources" => {
                 let mut out = String::from("id\tname\tfamily\tdialect\troot\n");
-                for s in ws.sources.peek().iter() {
+                for s in ws.sources.open.peek().iter() {
                     let d = &s.descriptor;
                     let dialect = match d.capabilities.text_query {
-                        Some(TextDialect::Sql) => "sql",
-                        Some(TextDialect::Cypher) => "cypher",
-                        Some(TextDialect::TypeQl) => "typeql",
+                        Some(d) => d.name(),
                         None => match d.family {
                             SourceFamily::Index => "search",
                             _ => "-",
@@ -210,10 +208,10 @@ impl WorkspaceHost {
                 }
                 doc.with_mut(|d| d.text = d.text.replacen(&old, &new, 1));
                 let mut ws = ws;
-                ws.active.set(Some(node));
+                ws.docs.active.set(Some(node));
                 // The save that follows is attributed to the agent (Milestone 8 history).
                 let actor = {
-                    let llm = &ws.settings.peek().llm;
+                    let llm = &ws.settings.resolved.peek().llm;
                     format!(
                         "agent:{}",
                         if llm.model.is_empty() {
@@ -223,7 +221,7 @@ impl WorkspaceHost {
                         }
                     )
                 };
-                ws.pending_actor.with_mut(|m| {
+                ws.history.pending_actor.with_mut(|m| {
                     m.insert(node, actor);
                 });
                 Ok(format!(
@@ -261,6 +259,7 @@ impl WorkspaceHost {
                     .to_string();
                 let cwd = call.str("cwd").map(str::to_string).or_else(|| {
                     ws.sources
+                        .open
                         .peek()
                         .iter()
                         .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -298,8 +297,9 @@ impl WorkspaceHost {
 
 /// Commands of enabled wasm extensions as agent tools (`llm_tool` only).
 pub fn wasm_tools(ws: Workspace) -> Vec<moonkale_llm::ToolDef> {
-    let settings = ws.settings.peek();
-    ws.wasm_extensions
+    let settings = ws.settings.resolved.peek();
+    ws.contrib
+        .wasm_extensions
         .peek()
         .iter()
         .filter(|m| settings.extensions.is_enabled_id(&m.id, false))
@@ -318,8 +318,9 @@ pub fn wasm_tools(ws: Workspace) -> Vec<moonkale_llm::ToolDef> {
 
 /// Which wasm extension owns a command, if any.
 fn wasm_owner(ws: Workspace, command: &str) -> Option<String> {
-    let settings = ws.settings.peek();
-    ws.wasm_extensions
+    let settings = ws.settings.resolved.peek();
+    ws.contrib
+        .wasm_extensions
         .peek()
         .iter()
         .find(|m| {
@@ -381,6 +382,7 @@ fn source_of(
     let sid = moonkale_core::SourceId::new(id);
     let handle = ws
         .sources
+        .open
         .peek()
         .iter()
         .find(|s| s.descriptor.id == sid)
@@ -449,4 +451,25 @@ impl ToolHost for WorkspaceHost {
             answer
         })
     }
+
+    /// The target source classifies its own text queries.
+    fn classify(&self, call: &ToolCall) -> Option<moonkale_core::Risk> {
+        text_query_risk(call, |c| source_of(self.ws, c).ok().map(|(s, _)| s))
+    }
+}
+
+/// `Source::classify` of the source a `source.text_query` targets; `None`
+/// for other tools or an unknown source (the policy then uses the shared rules).
+pub(crate) fn text_query_risk(
+    call: &ToolCall,
+    source: impl FnOnce(&ToolCall) -> Option<std::sync::Arc<dyn moonkale_core::Source>>,
+) -> Option<moonkale_core::Risk> {
+    if call.name != "source.text_query" {
+        return None;
+    }
+    let s = source(call)?;
+    Some(s.classify(
+        call.str("dialect").unwrap_or("sql"),
+        call.str("text").unwrap_or_default(),
+    ))
 }

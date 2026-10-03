@@ -9,6 +9,6 @@ description = "Example third-party extension: a wasm core module (ABI v1) that c
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-moonkale-ext-host = { workspace = true }
+moonkale-ext-abi = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

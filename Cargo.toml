@@ -6,27 +6,34 @@ members = [
     "packages/desktop",
     "packages/mobile",
     # Shell + server
-    "packages/ui",
-    "packages/api",
+    "packages/shell",
+    "packages/distribution",
+    "packages/server",
+    "packages/server-host",
     # Foundation
     "packages/core",
     "packages/ext-api",
     "packages/ext-host",
+    "packages/ext-abi",
+    "packages/state",
+    "packages/state-stores",
     # Data access
-    "packages/sources",
-    "packages/sources-sql",
-    "packages/sources-graph",
-    "packages/sources-kv",
-    "packages/project-fs",
-    "packages/index",
+    "packages/sources/registry",
+    "packages/sources/sql",
+    "packages/sources/graph",
+    "packages/sources/kv",
+    "packages/sources/project-fs",
+    "packages/services/index",
     # Services
-    "packages/llm",
-    "packages/lsp",
-    "packages/lsp-local",
-    "packages/terminal",
-    "packages/terminal-pty",
-    "packages/remote",
+    "packages/services/llm",
+    "packages/services/llm-types",
+    "packages/services/lsp",
+    "packages/services/lsp-local",
+    "packages/services/terminal",
+    "packages/services/terminal-pty",
+    "packages/services/remote",
     # Editors ("windows")
+    "packages/code-view",
     "packages/editors/code",
     "packages/editors/code-native",
     "packages/editors/markdown",
@@ -37,13 +44,12 @@ members = [
     "packages/editors/terminal",
     "packages/editors/terminal-native",
     "packages/editors/agent",
-    "packages/trace",
-    "packages/extensions/lux",
+    "packages/services/trace",
     "packages/extensions/git",
+    "packages/extensions/history",
     "packages/extensions/wordcount",
-    "packages/editors/graph-desktop",
-    "packages/editors/graph-render",
-    "packages/typst",
+    "packages/graph-render",
+    "packages/services/typst",
 ]
 
 [workspace.package]
@@ -57,23 +63,31 @@ dioxus = { version = "0.7.10" }
 dioxus-workbench = { version = "0.1.0" }
 
 # workspace
-ui = { path = "packages/ui" }
-api = { path = "packages/api" }
+moonkale-shell = { path = "packages/shell" }
+moonkale-distribution = { path = "packages/distribution" }
+moonkale-ext-history = { path = "packages/extensions/history" }
+moonkale-server = { path = "packages/server" }
+moonkale-server-host = { path = "packages/server-host" }
 moonkale-core = { path = "packages/core" }
 moonkale-ext-api = { path = "packages/ext-api" }
 moonkale-ext-host = { path = "packages/ext-host" }
-moonkale-sources = { path = "packages/sources" }
-moonkale-sources-sql = { path = "packages/sources-sql" }
-moonkale-sources-graph = { path = "packages/sources-graph" }
-moonkale-sources-kv = { path = "packages/sources-kv" }
-moonkale-project-fs = { path = "packages/project-fs" }
-moonkale-index = { path = "packages/index" }
-moonkale-llm = { path = "packages/llm" }
-moonkale-lsp = { path = "packages/lsp" }
-moonkale-lsp-local = { path = "packages/lsp-local" }
-moonkale-terminal = { path = "packages/terminal" }
-moonkale-terminal-pty = { path = "packages/terminal-pty" }
-moonkale-remote = { path = "packages/remote" }
+moonkale-ext-abi = { path = "packages/ext-abi" }
+moonkale-state = { path = "packages/state" }
+moonkale-state-stores = { path = "packages/state-stores" }
+moonkale-sources = { path = "packages/sources/registry" }
+moonkale-sources-sql = { path = "packages/sources/sql" }
+moonkale-sources-graph = { path = "packages/sources/graph" }
+moonkale-sources-kv = { path = "packages/sources/kv" }
+moonkale-project-fs = { path = "packages/sources/project-fs" }
+moonkale-index = { path = "packages/services/index" }
+moonkale-llm = { path = "packages/services/llm" }
+moonkale-llm-types = { path = "packages/services/llm-types" }
+moonkale-lsp = { path = "packages/services/lsp" }
+moonkale-lsp-local = { path = "packages/services/lsp-local" }
+moonkale-terminal = { path = "packages/services/terminal" }
+moonkale-terminal-pty = { path = "packages/services/terminal-pty" }
+moonkale-remote = { path = "packages/services/remote" }
+moonkale-code-view = { path = "packages/code-view" }
 moonkale-editor-code = { path = "packages/editors/code" }
 moonkale-editor-code-native = { path = "packages/editors/code-native" }
 moonkale-editor-markdown = { path = "packages/editors/markdown" }
@@ -84,13 +98,14 @@ moonkale-editor-flow = { path = "packages/editors/flow" }
 moonkale-editor-terminal = { path = "packages/editors/terminal" }
 moonkale-editor-terminal-native = { path = "packages/editors/terminal-native" }
 moonkale-editor-agent = { path = "packages/editors/agent" }
-moonkale-trace = { path = "packages/trace" }
-moonkale-ext-lux = { path = "packages/extensions/lux" }
+moonkale-trace = { path = "packages/services/trace" }
+# Lux.jl lives in its own repository since Milestone 18 phase 6.4 (Daniel's
+# tool, off by default for everyone else: the distribution's `julia` feature).
+moonkale-ext-lux = { git = "https://github.com/MathStruct/moonkale-julia", tag = "v0.1.0" }
 moonkale-ext-git = { path = "packages/extensions/git" }
 moonkale-ext-wordcount = { path = "packages/extensions/wordcount" }
-moonkale-editor-graph-desktop = { path = "packages/editors/graph-desktop" }
-moonkale-graph-render = { path = "packages/editors/graph-render" }
-moonkale-typst = { path = "packages/typst" }
+moonkale-graph-render = { path = "packages/graph-render" }
+moonkale-typst = { path = "packages/services/typst" }
 
 # Debug builds: line tables only (backtraces keep file:line), no debug info
 # for dependencies — the desktop and server debug binaries were 1.8 GB each
@@ -102,8 +117,24 @@ debug = "line-tables-only"
 [profile.dev.package."*"]
 debug = false
 
-# Size-optimised profile for standalone wasm modules (the graph renderer).
-# Used by packages/editors/graph-render/build.sh.
+# Size-optimised profile for the graph renderer's standalone wasm module
+# (packages/graph-render/build.sh). Named `graph-wasm`, not
+# `wasm-release`: dx builds the browser client with a profile called
+# `wasm-release`, so a workspace profile of that name silently applied these
+# settings to the whole web client too (P-135, Milestone 18 phase 1).
+[profile.graph-wasm]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# The browser client's release profile. dx builds the web client with a
+# profile named `wasm-release`; until Milestone 18 that was the graph
+# renderer's profile by accident of the name (P-135). Kept size-optimised on
+# purpose: every visitor downloads this module (measured 2026-10-02 in the
+# Milestone 18 log: 54.9 MB with dx's defaults, 46.2 MB with these). `strip` makes dx run rust-objcopy (llvm on Arch, P-134).
 [profile.wasm-release]
 inherits = "release"
 opt-level = "s"
@@ -111,3 +142,9 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# moonkale-julia depends on moonkale-ext-api by git tag; inside this workspace
+# that must be *this* moonkale-ext-api, or the extension's `Extension` would be
+# another crate's trait (Milestone 18 phase 6.4).
+[patch."https://github.com/MathStruct/Moonkale"]
+moonkale-ext-api = { path = "packages/ext-api" }

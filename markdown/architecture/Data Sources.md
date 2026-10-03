@@ -4,6 +4,9 @@ tags: [architecture, sources]
 ---
 Crates: `sources` (abstraction, registry, lifting, remote proxy), `sources-sql`, `sources-graph`, `sources-kv`, `project-fs`. Driver availability is in [[Database Backends]].
 
+> [!note] As built (2026-10-01)
+> Built: folders; SQLite, DuckDB (+ folders of CSV/TSV/Parquet), Turso, redb, RocksDB, HelixDB (embedded), LadybugDB (Linux) — **all opened from a file or directory, all read-only**; the remote proxy. Not built: any networked database (Postgres, Redis, TypeDB, FalkorDB), connection parameters with `SecretRef`, the connection state machine, `SourceEvent` subscriptions (sources report external changes through `changes_since` instead), and the shared lifting rules (`sources::lift` is a stub — each driver lifts its own rows and decides its own ids). `Capabilities` has `read`, `write`, `watch`, `text_query` only. Which file opens as which source is decided by **source openers** since Milestone 18 phase 2: each driver crate exports `openers()` (`moonkale_core::SourceOpener`: a name check that compiles everywhere, and an `open` function where the driver is built); the app assembles them into one `Openers` list that the Explorer, the desktop and the server all ask. Text queries are classified by the source itself (`Source::classify`, default rules in `moonkale_core::source::risk`).
+
 ## Query path
 
 ```mermaid
@@ -45,18 +48,19 @@ sequenceDiagram
 `ConnectParams` are persisted with a `SecretRef` name, never a password. Resolution per platform: keychain (desktop), server env (web), Keystore (mobile). The connection state machine (`Connecting → Ready ↔ Degraded → Closed`) feeds the status bar dot.
 
 ## Remote source ([[ADR-0005 Server functions as the remote backend]])
-`api` exposes `query/fetch/apply` as server functions and (later) `subscribe` as a websocket, per `SourceId`. The web/mobile builds have one factory: `api::RemoteSource`. The desktop build has it too ("connect to a team server").
+`api` exposes `query/fetch/apply` as server functions and (later) `subscribe` as a websocket, per `SourceId`. The web/mobile builds have one factory: `moonkale_server::RemoteSource`. The desktop build has it too ("connect to a team server").
 
 **As built (Milestone 1):** `RemoteSource` lives in the `api` crate, not `sources`, to avoid a dependency cycle (it calls `api`'s server functions; `api` holds the registry). The server confines `open_folder` to `MOONKALE_ROOT`; there is no auth yet. Errors are nested `Result<Result<T, SourceError>, ServerFnError>` so a remote `Conflict` is a local `Conflict`.
 
-## Order of implementation (from [[Roadmap]])
-1. Folder (native) — everything else needs files.
-2. SQLite + DuckDB — embedded, no server, exercises the SQL lifting; DuckDB also gives "folder of CSV/parquet as tables".
-3. Remote proxy — web parity.
-4. Postgres/Supabase, Turso.
-5. LadybugDB (embedded) and FalkorDB (simple protocol) — first graph backends.
-6. Redis/Dragonfly.
-7. TypeDB, HelixDB — richer, less mature drivers.
+## Order of implementation (from [[Roadmap]]), with where each stands
+1. ✅ Folder (native) — everything else needs files.
+2. ✅ SQLite + DuckDB — embedded, no server; DuckDB also gives "folder of CSV/parquet as tables".
+3. ✅ Remote proxy — web parity.
+4. ◐ Turso ✅ (embedded, Milestone 17) · Postgres/Supabase ○.
+5. ◐ LadybugDB ✅ (embedded; Linux only, P-144) · FalkorDB ○.
+6. ◐ redb, RocksDB ✅ (embedded key/value, Milestone 17, not in the original list) · Redis/Dragonfly ○.
+7. ◐ HelixDB ✅ (embedded, git dependency, Milestone 17) · TypeDB ○.
+8. ○ Writes (OLTP) for every database source — the next step announced after Milestone 17.
 
 ## Projects
 Several sources open at once, grouped into a saved **project** with a selector, per-source colour and read-only, suspended sources, an open report and sync: [[Projects and Sources]] (desired behaviour, 2026-09-19).
@@ -64,3 +68,12 @@ Several sources open at once, grouped into a saved **project** with a selector, 
 ## Open questions
 - Supabase's REST/RPC layer would allow a *browser-direct* source. Deferred; treat as Postgres for now.
 - Should `IndexSource` (derived data) be allowed to *write back* (e.g. materialise embeddings into `pgvector`)? Leaning yes, behind `Capabilities::VECTOR`.
+
+## Driver designs not built yet
+Until Milestone 18 these lived as comment-only files in the driver crates; they were removed in phase 1 so the workspace compiles only real code ([[Milestone 18 - Implementation Log]]).
+- **Connection lifecycle** (`sources/connect.rs`): `ConnectParams` → `SourceFactory::connect` → `ConnectionState` (Connecting → Ready ↔ Degraded → Closed) with backoff; the UI draws the status dot from it. Today every source is a file opened synchronously that never reconnects.
+- **Credentials** (`sources/credentials.rs`): `SecretRef` names are persisted, values resolved at connect time — desktop from the OS keychain (`keyring`), web never in the browser, mobile from Keychain/Keystore.
+- **Lifting** (`sources/lift.rs`): the shared rules of the section above; folder lifting is trivial and lives in `project-fs`.
+- **SQL** — *schema* (`sources-sql/schema.rs`): `information_schema` / `PRAGMA table_info` / `duckdb_tables()` → a schema cached per connection, invalidated on `SchemaChanged`. *Structured queries* (`structured.rs`): `Query` → SQL, conservative — paginated `SELECT` with keyset pagination, FK-based neighbour expansion, `LIKE`/FTS for text search, dialect-specific vector ops (`pgvector`, `sqlite-vec`, DuckDB `array_cosine_similarity`) when the capability is there. *Postgres/Supabase* (`postgres.rs`): `LISTEN/NOTIFY` for change events when the user opts in (needs a trigger; offer to install it).
+- **Graph** — *dialects* (`sources-graph/dialect.rs`): `GraphDialect::{Cypher, TypeQl, HelixQl}` with per-dialect decoding into nodes / edges / paths / scalars. *Structured queries* (`structured.rs`): `Query` → Cypher / TypeQL / HelixQL — neighbourhood expansion, path queries, kind filters, `SKIP/LIMIT` or cursor pagination. *Schema* (`schema.rs`): TypeDB `match $t sub thing;`; property graphs list labels and relationship types plus sampled property keys. *FalkorDB* (`falkor.rs`): the `falkordb` crate over RESP, Cypher, sharing connection plumbing with Redis. *TypeDB* (`typedb.rs`): `typedb-driver`; a strongly typed schema, explicit read/write/schema transactions that map well onto `core::Transaction`.
+- **Key/value** — *Redis* (`sources-kv/redis.rs`): a connection pool, `SCAN` with cursor pagination, keyspace-notification subscription, raw commands through `Query::Text`. *Values* (`values.rs`): strings as text/blob, hashes as property maps, lists/sets/zsets as rows, streams as paginated rows, RedisJSON as nested values. *Key patterns* (`patterns.rs`): `user:{id}:{field}` → a synthetic hierarchy, editable per source, auto-detected by splitting on `:` / `/` and sampling.

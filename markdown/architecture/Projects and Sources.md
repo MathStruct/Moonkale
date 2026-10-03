@@ -58,7 +58,7 @@ Each source in a project has an **accent colour**: chosen by the user or assigne
     { "kind": "database", "id": "…", "driver": "postgres", "params": { "host": "db.local", "db": "app", "user": "ro" }, "secret": "pg-app-ro", "open": true, "read_only": true }
   ],
   "layout": "…PanelLayout::encode()…",  // moves here from .moonkale/settings.json
-  "open_documents": ["src:folder:…/packages/ui/src/frame.rs"],
+  "open_documents": ["src:folder:…/packages/shell/src/frame.rs"],
   "active_document": "…",
   "settings": { "llm": { "provider": "mistral" } }   // project-scope overrides, same SettingsFile shape
 }

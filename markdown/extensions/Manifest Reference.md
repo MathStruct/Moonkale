@@ -2,6 +2,9 @@
 title: "Manifest Reference — `moonkale.toml`"
 tags: [extensions, reference]
 ---
+> [!warning] Target design — there is no `moonkale.toml` yet (checked 2026-10-01)
+> A static extension's manifest is the Rust value `Manifest { id, name, description, optional, default_enabled, permissions }` returned by `Extension::manifest()`; a wasm module returns its manifest as JSON from its `manifest()` export ([[ADR-0013 JSON ABI before components]]). Permission names in use: `read-sources`, `write-files`, `run-commands`, `network`. Everything below is the planned file format.
+
 ```toml
 [extension]
 id          = "dev.example.unison"     # reverse-DNS, stable forever

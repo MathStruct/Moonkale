@@ -1,17 +1,14 @@
 //! `CodeEditorExtension` — one closable panel per open document.
 
-use crate::panel::CodeEditorPanel;
 use dioxus::prelude::*;
+use moonkale_code_view::CodeEditorPanel;
 use moonkale_core::NodeId;
 use moonkale_ext_api::prelude::*;
 
 pub const PANEL_PREFIX: &str = "editor:";
 
 pub struct CodeEditorExtension {
-    lsp: crate::lsp::LspManager,
-    /// Documents another extension claims (markdown → the markdown
-    /// extension, which hosts this panel in its Source mode).
-    skip: Option<fn(&moonkale_core::Node) -> bool>,
+    lsp: moonkale_code_view::lsp::LspManager,
 }
 
 impl Default for CodeEditorExtension {
@@ -23,15 +20,8 @@ impl Default for CodeEditorExtension {
 impl CodeEditorExtension {
     pub fn new() -> Self {
         Self {
-            lsp: crate::lsp::LspManager::new(),
-            skip: None,
+            lsp: moonkale_code_view::lsp::LspManager::new(),
         }
-    }
-
-    /// Leave documents matching `f` to another extension.
-    pub fn skipping(mut self, f: fn(&moonkale_core::Node) -> bool) -> Self {
-        self.skip = Some(f);
-        self
     }
 
     pub fn panel_id(node: NodeId) -> String {
@@ -53,25 +43,26 @@ impl Extension for CodeEditorExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.documents
+        ws.docs
+            .open
             .read()
             .iter()
-            .filter(|(_, doc)| !self.skip.is_some_and(|f| f(&doc.read().node)))
-            // Milestone 14: a document shown by the Rust editor is not ours.
-            .filter(|(id, _)| ws.editor_for(*id) == "codemirror")
+            // Which documents end up here is the shell's decision
+            // (`claims`): markdown and flow files go to their editors, and
+            // the Rust editor takes the ones the user switched to it.
             .map(|(id, doc)| {
                 let d = doc.read();
-                PanelContribution {
-                    id: Self::panel_id(*id),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                }
+                PanelContribution::new(Self::panel_id(*id), d.node.label.clone(), PanelHome::Main)
+                    .closable(true)
+                    .dirty(d.dirty())
+                    .node(*id)
             })
             .collect()
+    }
+
+    /// Any text document, at the lowest priority.
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        matches!(node.content, Some(moonkale_core::ContentRef::Text { .. })).then_some(10)
     }
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
@@ -93,13 +84,13 @@ impl Extension for CodeEditorExtension {
 
     fn run_command(&self, id: &str, ws: Workspace) {
         if id == "editor.toggleWrap" {
-            toggle_wrap(ws);
+            moonkale_code_view::toggle_wrap(ws);
         }
     }
 
     // Milestone 13: the editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let wrap = ws.settings.read().editor.wrap;
+        let wrap = ws.settings.resolved.read().editor.wrap;
         // Which editor opens a file is Settings → Which extension (Milestone 15).
         Some(rsx! {
             label { class: "mk-settings-check",
@@ -109,14 +100,4 @@ impl Extension for CodeEditorExtension {
             }
         })
     }
-}
-
-/// Flip `editor.wrap` in the user settings (spec 014); every open editor
-/// follows through its settings effect.
-pub fn toggle_wrap(ws: Workspace) {
-    let next = !ws.settings.peek().editor.wrap;
-    dioxus::core::spawn_forever(async move {
-        ws.update_user_settings(|f| f.editor.wrap = Some(next))
-            .await;
-    });
 }

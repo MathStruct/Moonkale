@@ -1,0 +1,11 @@
+[package]
+name = "moonkale-ext-history"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The History panel (Milestone 8, 9): the folder's entity log — events, the active file's, text at any event, compaction, restore. Its own extension since Milestone 18 phase 4.2."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }

@@ -134,3 +134,25 @@ async fn example_extension_runs_and_permissions_are_enforced() {
     .unwrap_err();
     assert!(err.contains("no command"));
 }
+
+/// Audit #4: a second file with the same id — a folder's copy of a module
+/// the user installed — is refused, and the first keeps the id.
+#[test]
+fn an_id_belongs_to_the_file_that_loaded_it_first() {
+    let Some(wasm) = wasm_path() else { return };
+    let dir = tempfile::tempdir().unwrap();
+    let squatter = dir.path().join("squatter.wasm");
+    std::fs::copy(&wasm, &squatter).unwrap();
+    let mut rt = Runtime::new().unwrap();
+    rt.load(&wasm).unwrap();
+    let err = rt
+        .load(&squatter)
+        .err()
+        .expect("the second file is refused");
+    assert!(err.contains("is taken by"), "{err}");
+    assert_eq!(rt.extensions.len(), 1);
+    assert_eq!(rt.extensions[0].path, wasm);
+    // The first file reloads.
+    rt.load(&wasm).unwrap();
+    assert_eq!(rt.extensions.len(), 1);
+}

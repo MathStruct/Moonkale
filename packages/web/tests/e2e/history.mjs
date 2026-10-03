@@ -1,11 +1,15 @@
-// Milestone 8: the entity log — edits, creates, renames, deletes and commits become events in
-// .moonkale/history.jsonl; the History panel lists them, filters to the active file, and shows a
-// file's text as it was after any event; the log survives a reload.
+// Milestone 8: the entity log — edits, creates, renames, deletes and commits become events, one row
+// each in the server's state store (phase 5.10; it was .moonkale/history.jsonl); the History panel
+// lists them, filters to the active file, and shows a file's text as it was after any event; the
+// log survives a reload.
 import { firefox } from "playwright";
 import fs from "node:fs";
+import { rows } from "./state.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
+// The server's store, read as a second process.
+const events = () => rows("events").map((r) => r.data);
 const browser = await firefox.launch();
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 900 } });
 const page = await ctx.newPage();
@@ -40,9 +44,10 @@ try {
     const actor = await page.$eval(".mk-history-event[data-kind=content] .mk-history-actor", (e) => e.getAttribute("title"));
     console.log("\n  actor:", actor, "| summary:", await page.$eval(".mk-history-event[data-kind=content] .mk-history-summary", (e) => e.textContent));
     if (!actor.startsWith("user:")) throw new Error("actor");
-    for (let i = 0; i < 20 && !fs.existsSync(`${ROOT}/.moonkale/history.jsonl`); i++) await sleep(250);
-    const lines = fs.readFileSync(`${ROOT}/.moonkale/history.jsonl`, "utf8").trim().split("\n");
-    if (lines.length !== 1 || !/"kind":"content"/.test(lines[0])) throw new Error("file: " + lines.join(" | "));
+    for (let i = 0; i < 20 && events().length === 0; i++) await sleep(250);
+    const stored = events();
+    if (stored.length !== 1 || stored[0].kind !== "content") throw new Error("store: " + JSON.stringify(stored));
+    if (fs.existsSync(`${ROOT}/.moonkale/history.jsonl`)) throw new Error("history.jsonl still written");
   });
   await step("new file, rename, delete → add / rename / remove events", async () => {
     await page.click(".wb-tab:has-text('Sources')");
@@ -118,9 +123,9 @@ try {
     if (fs.readFileSync(`${ROOT}/README.md`, "utf8").includes("Second edit.") === false) throw new Error("disk changed before save");
     await page.keyboard.press("Control+S");
     await page.waitForFunction(() => !document.querySelector(".mk-tab-dirty"), null, { timeout: 5000 });
-    for (let i = 0; i < 20; i++) { if (/"cause"/.test(fs.readFileSync(`${ROOT}/.moonkale/history.jsonl`, "utf8"))) break; await sleep(250); }
-    const lines = fs.readFileSync(`${ROOT}/.moonkale/history.jsonl`, "utf8").trim().split("\n");
-    const last = JSON.parse(lines[lines.length - 1]);
+    for (let i = 0; i < 20; i++) { if (events().some((e) => e.cause)) break; await sleep(250); }
+    const stored = events();
+    const last = stored[stored.length - 1];
     console.log("\n  last event:", last.kind, "cause:", last.cause ? "set" : "none");
     if (last.kind !== "content" || !last.cause) throw new Error("no cause on the restore save");
   });

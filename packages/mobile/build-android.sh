@@ -61,7 +61,7 @@ sx = f"{res}/values/strings.xml"
 open(sx, "w").write('<resources>\n    <string name="app_name">Moonkale</string>\n</resources>\n')
 # System bars in the app's own colour (Prompt26/27): dx's template theme is
 # AppCompat *Light*, which leaves a grey strip above the app. A dark theme with
-# the title bar's colour (#0b0d12, packages/ui/assets/styling/titlebar.css) for
+# the title bar's colour (#0b0d12, packages/shell/assets/styling/titlebar.css) for
 # the status bar, the navigation bar and the window background (no light flash
 # at start). Not handled: Android 15 draws apps targeting API 35 edge to edge
 # and ignores the bar colours; the opt-out attribute needs compileSdk 35 and

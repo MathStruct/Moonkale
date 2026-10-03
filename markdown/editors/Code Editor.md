@@ -34,3 +34,9 @@ Backend chosen by measured size — see [[Case Selector]] (design).
 
 ## Unison note
 Unison stores code in a codebase DB, not files. A `UnisonSource` extension (definitions as nodes, dependency edges) would make Moonkale one of the few editors that shows Unison the way Unison thinks. Good showcase; later phase.
+
+## Designs not built yet
+Removed from `editors/code/src` as comment-only files in Milestone 18 phase 1:
+- **Decorations** (`decorations.rs`) in a neutral form — `Highlight { range, token }`, `Fold`, `Diagnostic`, `InlayHint`, `Gutter` — produced by the index/LSP and consumed by any backend. Today diagnostics and wiki-link marks go to CodeMirror in their own messages, and highlighting is the bundle's (P-093).
+- **Document** (`document.rs`): rope + version + undo stack + node id, turning backend edits into `core` patches and applying incoming changes (external change → reconcile or prompt). Today `ext-api::Document` holds a `String` and the view owns undo.
+- **A Rust-native backend** (`backend/native.rs`): a virtualised Dioxus text view or a wgpu text renderer over the same rope and decorations. The Rust editor that exists ([[Code Editor Implementations]]) is a separate extension on `dioxus-code-editor`, not this backend.

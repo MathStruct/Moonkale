@@ -2,7 +2,7 @@ use crate::links_panel::LinksPanel;
 use crate::rich::RichPanel;
 use crate::typst_preview::TypstPreviewPanel;
 use dioxus::prelude::*;
-use moonkale_editor_code::{lsp::LspManager, CodeEditorPanel};
+use moonkale_code_view::{lsp::LspManager, CodeEditorPanel};
 use moonkale_ext_api::prelude::*;
 use std::collections::HashMap;
 
@@ -49,48 +49,43 @@ impl Extension for LinksExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        let mut panels = vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Links".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("links", 30, "Links").phone_secondary()),
-        }];
+        let mut panels = vec![PanelContribution::new(PANEL_ID, "Links", PanelHome::Side)
+            .closable(true)
+            .activity(Activity::new("links", 30, "Links").phone_secondary())];
         // A preview tab exists while any .typ document is open and the platform can compile.
         let any_typ = ws
-            .documents
+            .docs
+            .open
             .read()
             .iter()
             .any(|(_, d)| d.read().node.native_key.ends_with(".typ"));
         if any_typ && ws.compile_typst().is_some() {
-            panels.push(PanelContribution {
-                id: PREVIEW_ID.into(),
-                title: "Typst preview".into(),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: None,
-                activity: None,
-            });
+            panels.push(
+                PanelContribution::new(PREVIEW_ID, "Typst preview", PanelHome::Main).closable(true),
+            );
         }
         // Markdown documents: one editor tab each (Source | Rich).
-        for (id, doc) in ws.documents.read().iter() {
+        for (id, doc) in ws.docs.open.read().iter() {
             let d = doc.read();
             if is_markdown(&d.node) {
-                panels.push(PanelContribution {
-                    id: format!("{EDITOR_PREFIX}{id}"),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                });
+                panels.push(
+                    PanelContribution::new(
+                        format!("{EDITOR_PREFIX}{id}"),
+                        d.node.label.clone(),
+                        PanelHome::Main,
+                    )
+                    .closable(true)
+                    .dirty(d.dirty())
+                    .node(*id),
+                );
             }
         }
         panels
+    }
+
+    /// Its own format, above the code editors (Milestone 18 phase 2).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        (is_markdown(node)).then_some(50)
     }
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
@@ -118,7 +113,7 @@ impl Extension for LinksExtension {
     // Milestone 13: the markdown editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
         let (rich, size, font, code_font) = {
-            let s = ws.settings.read();
+            let s = ws.settings.resolved.read();
             (
                 s.editor.markdown_rich,
                 s.editor.rich_font_size,
@@ -162,7 +157,7 @@ fn MarkdownPanel(
         .read()
         .get(&node)
         .copied()
-        .unwrap_or_else(|| ws.settings.read().editor.markdown_rich);
+        .unwrap_or_else(|| ws.settings.resolved.read().editor.markdown_rich);
     rsx! {
         div { class: "mk-md",
             div { class: "mk-md-modes",

@@ -12,8 +12,10 @@
 pub mod extension;
 pub mod links_panel;
 pub mod rich;
+pub mod server;
 pub mod typst_preview;
 
 pub use extension::{is_markdown, LinksExtension};
 pub use links_panel::LinksPanel;
+pub use server::{compile_typst, remote_typst};
 pub use typst_preview::TypstPreviewPanel;

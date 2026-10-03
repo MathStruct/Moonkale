@@ -22,16 +22,28 @@
 //! up. The reason is that `core` is what extensions compiled to WASM see, and it
 //! must stay tiny, stable and free of host assumptions.
 //!
-//! **Milestone 1 status**: `id`, `graph::{node,edge}`, `source::{query,
-//! transaction, descriptor}` and the `Source` trait are implemented at the
-//! size the walking skeleton needs. `graph::{property,view}`, `command` and
-//! `source::event` are still design stubs. See `core.md` next to this crate.
+//! What is here: ids, `graph::{node, edge, property, history}` (the entity
+//! log), `source::{query, transaction, descriptor, event}` and the `Source`
+//! trait. Commands live in `moonkale-ext-api`. The model's open questions
+//! (properties, `GraphView`, content ids, `subscribe`) are settled in the
+//! vault's `decisions/ADR-0015 The core model.md`. See `core.md` next to
+//! this crate.
 
-pub mod command;
 pub mod error;
 pub mod graph;
 pub mod id;
 pub mod source;
+
+/// The version this build reports (`moonkale-server --version`, MCP's
+/// `serverInfo`, the remote-server directory on SSH hosts): the release name
+/// (`260927-proto`) when the release workflow set `MOONKALE_RELEASE` at build
+/// time, otherwise the crate version. Releases are named by date and the
+/// crate version stays `0.1.0`, so without this every release looked the same
+/// — and a remote host kept the server uploaded by an older release.
+pub const VERSION: &str = match option_env!("MOONKALE_RELEASE") {
+    Some(v) if !v.is_empty() => v,
+    _ => env!("CARGO_PKG_VERSION"),
+};
 
 pub use error::SourceError;
 pub use graph::{Actor, EntityLog, Event, EventId, EventKind, HistoryState};
@@ -39,6 +51,7 @@ pub use graph::{ContentRef, Edge, EdgeKind, Node, NodeKind, Value, Version};
 pub use id::{NodeId, SourceId};
 pub use source::async_trait;
 pub use source::{
-    Applied, Capabilities, Changes, Direction, Op, OpResult, Query, QueryResult, Source,
-    SourceDescriptor, SourceFamily, Splice, Table, TextDialect, TextPatch, Transaction,
+    Applied, Capabilities, Changes, Direction, Op, OpResult, Openers, Query, QueryResult, Risk,
+    Shape, Source, SourceDescriptor, SourceFamily, SourceOpener, Splice, Table, TextDialect,
+    TextPatch, Transaction,
 };

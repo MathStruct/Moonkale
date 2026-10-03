@@ -4,12 +4,12 @@
 
 use dioxus::prelude::*;
 use moonkale_core::{Source, SourceDescriptor};
-use std::rc::Rc;
-use std::sync::Arc;
-use ui::{
+use moonkale_shell::{
     AttachFuture, Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig,
     WorkspaceConfig,
 };
+use std::rc::Rc;
+use std::sync::Arc;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const ICON_PNG: Asset = asset!("/assets/icon.png");
@@ -31,7 +31,9 @@ fn public_dir(
         std::path::PathBuf::from("/usr/lib/Moonkale/public"),
         std::path::PathBuf::from("/usr/local/lib/Moonkale/public"),
     ];
-    candidates.into_iter().find(|c| exists(&c.join("index.html")))
+    candidates
+        .into_iter()
+        .find(|c| exists(&c.join("index.html")))
 }
 
 #[cfg(feature = "server")]
@@ -70,12 +72,20 @@ mod tests {
         // dx's own layout: public next to the binary.
         let exe = Path::new("/opt/moonkale/bin/moonkale-server");
         assert_eq!(
-            public_dir(exe, has(vec![PathBuf::from("/opt/moonkale/bin/public/index.html")])),
+            public_dir(
+                exe,
+                has(vec![PathBuf::from("/opt/moonkale/bin/public/index.html")])
+            ),
             Some(PathBuf::from("/opt/moonkale/bin/public"))
         );
         // A distribution: bin/ and lib/ side by side.
         assert_eq!(
-            public_dir(exe, has(vec![PathBuf::from("/opt/moonkale/bin/../lib/Moonkale/public/index.html")])),
+            public_dir(
+                exe,
+                has(vec![PathBuf::from(
+                    "/opt/moonkale/bin/../lib/Moonkale/public/index.html"
+                )])
+            ),
             Some(PathBuf::from("/opt/moonkale/bin/../lib/Moonkale/public"))
         );
         // The Arch/deb layout, from /usr/bin: the relative candidate is
@@ -92,7 +102,9 @@ mod tests {
         assert_eq!(
             public_dir(
                 Path::new("/usr/bin/moonkale-server"),
-                has(vec![PathBuf::from("/usr/bin/../lib/Moonkale/public/index.html")])
+                has(vec![PathBuf::from(
+                    "/usr/bin/../lib/Moonkale/public/index.html"
+                )])
             ),
             Some(PathBuf::from("/usr/bin/../lib/Moonkale/public"))
         );
@@ -141,7 +153,7 @@ fn main() {
                     std::env::set_var("MOONKALE_TOKEN", t);
                 }
                 "--version" => {
-                    println!("moonkale-server {}", env!("CARGO_PKG_VERSION"));
+                    println!("moonkale-server {}", moonkale_core::VERSION);
                     return;
                 }
                 other => {
@@ -158,17 +170,17 @@ fn main() {
         // the binary in `bin/` and its data in `lib/`. Point it at the first
         // layout that exists; `DIOXUS_PUBLIC_PATH` still wins.
         set_public_path();
-        api::auth::guard_bind();
+        moonkale_server::auth::guard_bind();
         fn build_router() -> axum::Router {
             let router = dioxus::server::router(App)
-                .route("/mcp", axum::routing::post(api::mcp::handler))
+                .route("/mcp", axum::routing::post(moonkale_server::mcp::handler))
                 .route(
                     "/api/ext/module/{id}",
-                    axum::routing::get(api::module_bytes),
+                    axum::routing::get(moonkale_server::module_bytes),
                 );
-            api::auth::protect(router)
+            moonkale_server::auth::protect(router)
         }
-        if let Some((cert, key)) = api::auth::tls_files() {
+        if let Some((cert, key)) = moonkale_server::auth::tls_files() {
             serve_tls(cert, key, build_router);
         }
         dioxus::server::serve(|| async { Ok(build_router()) });
@@ -204,9 +216,9 @@ fn serve_tls(cert: String, key: String, build: fn() -> axum::Router) -> ! {
     std::process::exit(0)
 }
 
-fn open_remote(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
+fn open_remote(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
-        api::RemoteSource::open_folder(&path, options.embed)
+        moonkale_server::RemoteSource::open_folder(&path, options.embed)
             .await
             .map(|v| {
                 v.into_iter()
@@ -219,7 +231,7 @@ fn open_remote(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
 /// Another tab already opened this source on the server: just wrap its descriptor.
 fn attach_remote(descriptor: SourceDescriptor) -> AttachFuture {
     Box::pin(async move {
-        Ok(Arc::new(api::RemoteSource::from_descriptor(descriptor)) as Arc<dyn Source>)
+        Ok(Arc::new(moonkale_server::RemoteSource::from_descriptor(descriptor)) as Arc<dyn Source>)
     })
 }
 
@@ -259,43 +271,39 @@ fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
     Rc::new(BroadcastBus { eval })
 }
 
-/// Web terminals run on the server (dev-server feature; see api::terminal).
-fn spawn_terminal(cwd: Option<String>, cols: u16, rows: u16) -> ui::SpawnTerminalFuture {
+/// Web terminals run on the server (dev-server feature; see moonkale_server::terminal).
+fn spawn_terminal(
+    cwd: Option<String>,
+    cols: u16,
+    rows: u16,
+) -> moonkale_shell::SpawnTerminalFuture {
     Box::pin(async move {
-        api::RemoteTerminal::connect(cwd, cols, rows)
+        moonkale_server::RemoteTerminal::connect(cwd, cols, rows)
             .await
-            .map(|t| Box::new(t) as Box<dyn ui::TerminalBackend>)
-    })
-}
-
-fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
-    Box::pin(async move {
-        api::compile_typst(root, main_rel, text)
-            .await
-            .unwrap_or_else(|e| Err(vec![e.to_string()]))
+            .map(|t| Box::new(t) as Box<dyn moonkale_shell::TerminalBackend>)
     })
 }
 
 /// Language servers run on the server; the client sees a websocket.
-fn spawn_lsp(language: String, root: String) -> ui::LspTransportFuture {
+fn spawn_lsp(language: String, root: String) -> moonkale_shell::LspTransportFuture {
     Box::pin(async move {
-        api::RemoteLsp::connect(language, root)
+        moonkale_server::RemoteLsp::connect(language, root)
             .await
-            .map(|t| Box::new(t) as Box<dyn ui::LspTransport>)
+            .map(|t| Box::new(t) as Box<dyn moonkale_shell::LspTransport>)
     })
 }
 
 /// The provider lives on the server; the client talks to `/api/llm`.
 #[cfg(target_arch = "wasm32")]
-fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
+fn llm_provider(settings: moonkale_llm::LlmSettings) -> moonkale_shell::LlmProviderFuture {
     Box::pin(async move {
-        api::RemoteProvider::connect(settings)
+        moonkale_server::RemoteProvider::connect(settings)
             .await
             .map(|p| std::sync::Arc::new(p) as std::sync::Arc<dyn moonkale_llm::Provider>)
     })
 }
 #[cfg(not(target_arch = "wasm32"))]
-fn llm_provider(_settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
+fn llm_provider(_settings: moonkale_llm::LlmSettings) -> moonkale_shell::LlmProviderFuture {
     // Server-side render only: the real provider is connected on the client.
     Box::pin(async move { Err("no provider during server render".into()) })
 }
@@ -310,21 +318,21 @@ fn local_storage() -> Option<web_sys::Storage> {
     web_sys::window()?.local_storage().ok()?
 }
 
-fn load_settings() -> ui::SettingsFuture<ui::SettingsFile> {
+fn load_settings() -> moonkale_shell::SettingsFuture<moonkale_shell::SettingsFile> {
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
         {
             if let Some(s) = local_storage() {
                 if let Ok(Some(text)) = s.get_item(SETTINGS_KEY) {
-                    return ui::SettingsFile::parse(&text);
+                    return moonkale_shell::SettingsFile::parse(&text);
                 }
             }
         }
-        Ok(ui::SettingsFile::new())
+        Ok(moonkale_shell::SettingsFile::new())
     })
 }
 
-fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
+fn save_settings(file: moonkale_shell::SettingsFile) -> moonkale_shell::SettingsFuture<()> {
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
         {
@@ -344,24 +352,18 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 /// wasm extensions run on the server; the client lists and calls.
 fn join_presence(
     room: String,
-    member: ui::PresenceMember,
-    on_members: Callback<Vec<ui::PresenceMember>>,
-) -> Rc<dyn ui::PresenceLink> {
-    Rc::new(api::presence::RemotePresence::join(
+    member: moonkale_shell::PresenceMember,
+    on_members: Callback<Vec<moonkale_shell::PresenceMember>>,
+) -> Rc<dyn moonkale_shell::PresenceLink> {
+    Rc::new(moonkale_server::presence::RemotePresence::join(
         room, member, on_members,
     ))
 }
-fn git_remote(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
+fn wasm_list(
+    folder: Option<String>,
+) -> moonkale_shell::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
     Box::pin(async move {
-        match api::git_run(root, req).await {
-            Ok(r) => r,
-            Err(e) => Err(e.to_string()),
-        }
-    })
-}
-fn wasm_list(folder: Option<String>) -> ui::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
-    Box::pin(async move {
-        api::list_wasm_extensions(folder)
+        moonkale_server::list_wasm_extensions(folder)
             .await
             .map_err(|e| e.to_string())
     })
@@ -371,9 +373,9 @@ fn wasm_run(
     command: String,
     args: serde_json::Value,
     granted: Vec<String>,
-) -> ui::SettingsFuture<String> {
+) -> moonkale_shell::SettingsFuture<String> {
     Box::pin(async move {
-        api::run_wasm_command(ext, command, args, granted)
+        moonkale_server::run_wasm_command(ext, command, args, granted)
             .await
             .map_err(|e| e.to_string())?
     })
@@ -392,12 +394,143 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         Frame {
             config: ShellConfig {
-                extensions: ui::default_extensions,
-                workspace: WorkspaceConfig { open_folder: open_remote, pick_folder: None, attach_source: attach_remote, spawn_terminal: Some(spawn_terminal), compile_typst: Some(compile_typst), spawn_lsp: Some(spawn_lsp), llm: Some(llm_provider), settings_store: Some(ui::SettingsStore { load: load_settings, save: save_settings }), secret_store: None, reopen_last_folder: false, wasm: Some(ui::WasmExtensions { list: wasm_list, run: wasm_run }), git: Some(git_remote), presence: Some(join_presence), wasm_module_url: Some(|id| format!("/api/ext/module/{id}")), remote: None, agent_sessions: Some(api::client::agent_sessions(|| true)), server: None, spawn_program: None },
+                extensions: moonkale_distribution::default_extensions,
+                workspace: workspace_config(),
                 session,
                 new_window: Some(new_window),
             },
             Shell {}
         }
+    }
+}
+
+/// The source openers of this app: every driver crate's (Milestone 18
+/// phase 2). Moves to the `distribution` crate in phase 4.
+fn openers() -> &'static moonkale_core::Openers {
+    static OPENERS: std::sync::OnceLock<moonkale_core::Openers> = std::sync::OnceLock::new();
+    OPENERS.get_or_init(|| {
+        moonkale_core::Openers::new(
+            [
+                moonkale_sources_sql::openers(),
+                moonkale_sources_kv::openers(),
+                moonkale_sources_graph::openers(),
+            ]
+            .concat(),
+        )
+    })
+}
+
+/// The browser keeps this client's state (ADR-0014) in localStorage, one item
+/// per entry: `moonkale.state/<table>/<key as hex>` → the value as hex.
+fn state_access() -> Option<moonkale_shell::StateAccess> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        fn hex(b: &[u8]) -> String {
+            b.iter().map(|x| format!("{x:02x}")).collect()
+        }
+        fn unhex(s: &str) -> Vec<u8> {
+            (0..s.len() / 2)
+                .filter_map(|i| u8::from_str_radix(&s[2 * i..2 * i + 2], 16).ok())
+                .collect()
+        }
+        fn item(table: &str, key: &[u8]) -> String {
+            format!("moonkale.state/{table}/{}", hex(key))
+        }
+        Some(moonkale_shell::StateAccess {
+            get: |t, k| {
+                Box::pin(async move {
+                    let s = local_storage().ok_or("localStorage unavailable")?;
+                    Ok(s.get_item(&item(&t, &k)).ok().flatten().map(|v| unhex(&v)))
+                })
+            },
+            scan: |t, p| {
+                Box::pin(async move {
+                    let s = local_storage().ok_or("localStorage unavailable")?;
+                    let head = format!("moonkale.state/{t}/");
+                    let want = format!("{head}{}", hex(&p));
+                    let n = s.length().unwrap_or(0);
+                    let mut out: Vec<(Vec<u8>, Vec<u8>)> = (0..n)
+                        .filter_map(|i| s.key(i).ok().flatten())
+                        .filter(|k| k.starts_with(&want))
+                        .filter_map(|k| {
+                            let v = s.get_item(&k).ok().flatten()?;
+                            Some((unhex(&k[head.len()..]), unhex(&v)))
+                        })
+                        .collect();
+                    out.sort();
+                    Ok(out)
+                })
+            },
+            write: |b| {
+                Box::pin(async move {
+                    let s = local_storage().ok_or("localStorage unavailable")?;
+                    for op in b.ops {
+                        match op {
+                            moonkale_state::Op::Put { table, key, value } => s
+                                .set_item(&item(&table, &key), &hex(&value))
+                                .map_err(|_| "localStorage write failed".to_string())?,
+                            moonkale_state::Op::Delete { table, key } => {
+                                let _ = s.remove_item(&item(&table, &key));
+                            }
+                        }
+                    }
+                    Ok(())
+                })
+            },
+        })
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        None
+    }
+}
+
+/// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
+/// what each part needs from the platform).
+/// Services the extensions define (Milestone 18 phase 4.2): git runs on the server.
+static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(moonkale_ext_git::remote);
+static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
+
+fn workspace_config() -> WorkspaceConfig {
+    WorkspaceConfig {
+        folders: moonkale_shell::FolderAccess {
+            open: open_remote,
+            pick: None,
+            attach: attach_remote,
+            reopen_last: false,
+            openers: openers(),
+        },
+        processes: moonkale_shell::Processes {
+            terminal: Some(spawn_terminal),
+            lsp: Some(spawn_lsp),
+            ..Default::default()
+        },
+        persistence: moonkale_shell::Persistence {
+            settings: Some(moonkale_shell::SettingsStore {
+                load: load_settings,
+                save: save_settings,
+            }),
+            state: state_access(),
+            // Every folder is on the server; so is its entity log (phase 5.10).
+            host: Some(moonkale_server::client::host_state()),
+            // `localStorage["moonkale.settings"]` already is this browser's store.
+            user_settings_in_state: false,
+            ..Default::default()
+        },
+        network: moonkale_shell::Network {
+            presence: Some(join_presence),
+            agent_sessions: Some(moonkale_server::client::agent_sessions(|| true)),
+            ..Default::default()
+        },
+        runtimes: moonkale_shell::Runtimes {
+            typst: Some(moonkale_editor_markdown::remote_typst),
+            llm: Some(llm_provider),
+            wasm: Some(moonkale_shell::WasmExtensions {
+                list: wasm_list,
+                run: wasm_run,
+            }),
+            wasm_module_url: Some(|id| format!("/api/ext/module/{id}")),
+        },
+        services: &SERVICES,
     }
 }

@@ -23,7 +23,7 @@ Screenshots land in `M1_SHOTS`. Cargo ignores `.mjs` files in `tests/`.
 
 ## Milestone 2 and 3 suites
 
-`graph.mjs`, `links-sqlite.mjs`, `terminal.mjs`, `typst.mjs`, `lsp.mjs`, `ladybug.mjs` expect a fixture folder as `MOONKALE_ROOT` containing: `Home.md` (`See [[Alpha]] and [[notes/Beta]] and [[Missing]].`), `Alpha.md`, `notes/Beta.md`, `data.sqlite` (any table), `report.typ`, a cargo crate (`Cargo.toml` + `src/main.rs` with `fn add(a: u32, b: u32) -> u32` and a deliberate `let wrong: String = total;`), and `people.lbug` (Person/City node tables, Knows/LivesIn rel tables — see `packages/sources-graph/tests/ladybug.rs` for the Cypher). `lsp.mjs` needs `rust-analyzer` on the server's PATH.
+`graph.mjs`, `links-sqlite.mjs`, `terminal.mjs`, `typst.mjs`, `lsp.mjs`, `ladybug.mjs` expect a fixture folder as `MOONKALE_ROOT` containing: `Home.md` (`See [[Alpha]] and [[notes/Beta]] and [[Missing]].`), `Alpha.md`, `notes/Beta.md`, `data.sqlite` (any table), `report.typ`, a cargo crate (`Cargo.toml` + `src/main.rs` with `fn add(a: u32, b: u32) -> u32` and a deliberate `let wrong: String = total;`), and `people.lbug` (Person/City node tables, Knows/LivesIn rel tables — see `packages/sources/graph/tests/ladybug.rs` for the Cypher). `lsp.mjs` needs `rust-analyzer` on the server's PATH.
 
 `graph.mjs` **edits** `Home.md` (adds `[[Another]]`) — restore it before running `links-sqlite.mjs` (P-059).
 
@@ -55,7 +55,7 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 
 ## Milestone 8 suites
 
-`history.mjs` (entity log: content/add/rename/remove/checkpoint events, active-file filter, text-at view, reload from `.moonkale/history.jsonl`), `presence.mjs` (two browser contexts with different names see each other on the status bar, tabs and Explorer; leaving clears), `graph3d.mjs` — **Chromium** with software WebGL (`npx playwright install chromium` once): renderer starts on WebGL2, labels drawn, the 3D toggle, orbit changes the frame. `wasm-ext.mjs` gained a step: the page is cross-origin isolated, the module ran in the browser (no `/api/ext/run` request) and keeps working with that endpoint blocked.
+`history.mjs` (entity log: content/add/rename/remove/checkpoint events, active-file filter, text-at view, reload from the server's state store — read with `node:sqlite`; `run-all.sh` clears its `events` rows between suites), `presence.mjs` (two browser contexts with different names see each other on the status bar, tabs and Explorer; leaving clears), `graph3d.mjs` — **Chromium** with software WebGL (`npx playwright install chromium` once): renderer starts on WebGL2, labels drawn, the 3D toggle, orbit changes the frame. `wasm-ext.mjs` gained a step: the page is cross-origin isolated, the module ran in the browser (no `/api/ext/run` request) and keeps working with that endpoint blocked.
 
 ## Milestone 9
 

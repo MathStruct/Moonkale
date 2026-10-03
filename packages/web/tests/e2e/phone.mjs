@@ -15,6 +15,18 @@ const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); c
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const front = () => page.$eval(".mk-phone-bar", (b) => [...b.querySelectorAll(".mk-phone-btn.mk-active")].map((x) => x.dataset.panel).join(","));
 const tiles = () => page.$$eval(".wb-tile", (t) => t.length);
+// ADR-0014: the layout lives in the client's state store — in the browser,
+// localStorage items `moonkale.state/layout/<hex key>` holding a hex-encoded
+// `{"v":1,"data":{layout, open_documents, active_document}}`.
+const layoutRecord = (page) => page.evaluate(() => {
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k.startsWith("moonkale.state/layout/")) continue;
+    const bytes = new Uint8Array((localStorage.getItem(k).match(/../g) || []).map((x) => parseInt(x, 16)));
+    return JSON.parse(new TextDecoder().decode(bytes)).data;
+  }
+  return {};
+});
 try {
   await step("420 px: one tile, a bottom bar, no rail", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
@@ -66,10 +78,9 @@ try {
     await page.waitForSelector(".cm-content", { timeout: 5000 });
     await page.screenshot({ path: `${S}/m6-phone-agent.png` });
   });
-  await step("the phone layout is not persisted (settings.json has no narrow layout)", async () => {
+  await step("the phone layout is not persisted (the state store has no narrow layout)", async () => {
     await sleep(800);
-    let f = {};
-    try { f = JSON.parse(fs.readFileSync(`${ROOT}/.moonkale/settings.json`, "utf8")); } catch {}
+    const f = await layoutRecord(page);
     console.log("\n  layout saved:", !!f.layout, "open:", JSON.stringify(f.open_documents));
     if (f.layout && /"main"/.test(f.layout) && !/"side"/.test(f.layout)) throw new Error("phone layout persisted");
   });

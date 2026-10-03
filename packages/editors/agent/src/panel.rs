@@ -3,8 +3,10 @@
 //! chosen among the saved agents of Settings → Agents — busy flag and
 //! pending approval. A turn runs in a root-owned task, so closing the panel
 //! or switching sessions does not stop it. Finished turns are written to
-//! `.moonkale/agent-sessions/local/<id>.json`; the folder's saved sessions
-//! are listed in the session select and restored on pick.
+//! the store of the folder's host (Milestone 18 phase 5.15: table
+//! `agent_sessions`, one row per session; without a store, and before it,
+//! `.moonkale/agent-sessions/local/<id>.json`, imported once); the folder's
+//! saved sessions are listed in the session select and restored on pick.
 
 use crate::host::{PendingApproval, WorkspaceHost};
 use crate::transcript;
@@ -24,7 +26,8 @@ pub const INPUT_ID: &str = "mk-agent-input";
 
 const CSS: Asset = asset!("/assets/agent.css");
 
-/// Where a folder's local sessions are kept.
+/// Where a folder's local sessions were kept before the state store (and
+/// still are without one).
 pub const SESSIONS_DIR: &str = ".moonkale/agent-sessions/local";
 
 /// What the panel shows, in order.
@@ -83,17 +86,29 @@ pub struct SavedSummary {
     pub created: u64,
 }
 
-/// The file shape under `SESSIONS_DIR`.
+/// A saved session: the file shape under `SESSIONS_DIR`, and the record in
+/// the host's store.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct SavedSession {
-    id: String,
-    title: String,
-    profile: String,
-    created: u64,
-    messages: Vec<Message>,
-    items: Vec<Item>,
+pub struct SavedSession {
+    pub id: String,
+    pub title: String,
+    pub profile: String,
+    pub created: u64,
+    pub messages: Vec<Message>,
+    pub items: Vec<Item>,
     #[serde(default)]
-    cited: Vec<String>,
+    pub cited: Vec<String>,
+}
+
+impl moonkale_state::Record for SavedSession {
+    const TABLE: &'static str = moonkale_state::tables::AGENT_SESSIONS;
+    const VERSION: u32 = 1;
+}
+
+/// The folder's local sessions: `str(folder id) · str("local")`; a session
+/// adds `· str(session id)`. (The server's sessions are under `"server"`.)
+pub fn sessions_key(folder: &SourceId) -> moonkale_state::Key {
+    moonkale_state::Key::new().str(folder.as_str()).str("local")
 }
 
 /// Per-window state, provided at the root once; survives panel remounts.
@@ -133,6 +148,7 @@ impl Chats {
 
 fn folder_of(ws: Workspace) -> Option<moonkale_ext_api::SourceHandle> {
     ws.sources
+        .open
         .peek()
         .iter()
         .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -157,7 +173,7 @@ fn system_prompt(ws: Workspace) -> String {
          things in files, graph.query to browse structure, graph.fetch to read, and \
          source.text_query for SQL/Cypher. Be concise; cite file paths.\n",
     );
-    let sources = ws.sources.peek();
+    let sources = ws.sources.open.peek();
     if !sources.is_empty() {
         s.push_str("\nOpen sources:\n");
         for h in sources.iter() {
@@ -167,7 +183,7 @@ fn system_prompt(ws: Workspace) -> String {
             ));
         }
     }
-    if let Some(active) = *ws.active.peek() {
+    if let Some(active) = *ws.docs.active.peek() {
         if let Some(doc) = ws.document(active) {
             let d = doc.peek();
             s.push_str(&format!(
@@ -219,7 +235,7 @@ fn connect(ws: Workspace, s: Session) {
         return;
     }
     let (llm, known) = {
-        let settings = ws.settings.peek();
+        let settings = ws.settings.resolved.peek();
         let name = profile.peek().clone();
         let known = settings.agents.iter().any(|a| a.name == name);
         (settings.agent(&name).llm.clone(), known)
@@ -287,7 +303,7 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
             g.tools = moonkale_llm::builtin_tools();
             g.tools.extend(crate::host::wasm_tools(ws));
             let (ps, ext) = {
-                let s = ws.settings.peek();
+                let s = ws.settings.resolved.peek();
                 (s.policy.clone(), s.extensions.clone())
             };
             // Permissions removed in the Extensions panel deny the tools.
@@ -400,35 +416,93 @@ async fn persist(ws: Workspace, s: Session) {
             cited: s.cited.peek().clone(),
         }
     };
-    let Ok(text) = serde_json::to_string_pretty(&file) else {
-        return;
+    let result = if ws.has_host_state() {
+        let key = sessions_key(&folder).str(&s.id);
+        ws.host_write(moonkale_state::put_in(
+            moonkale_state::Batch::new(),
+            &key,
+            &file,
+        ))
+        .await
+    } else {
+        let Ok(text) = serde_json::to_string_pretty(&file) else {
+            return;
+        };
+        let rel = format!("{SESSIONS_DIR}/{}.json", s.id);
+        ws.write_text_at(&folder, &rel, &text)
+            .await
+            .map_err(|e| e.to_string())
     };
-    let rel = format!("{SESSIONS_DIR}/{}.json", s.id);
-    if let Err(e) = ws.write_text_at(&folder, &rel, &text).await {
+    if let Err(e) = result {
         let mut ws = ws;
         ws.set_status(format!("Agent session not saved: {e}"));
     }
 }
 
-/// List the folder's saved sessions (newest first).
-async fn load_saved(ws: Workspace, chats: Chats, folder: SourceId) {
-    let mut list = Vec::new();
-    for node in ws.list_at(&folder, SESSIONS_DIR).await {
+/// The session files under `SESSIONS_DIR`.
+async fn read_session_files(ws: Workspace, folder: &SourceId) -> Vec<SavedSession> {
+    let mut out = Vec::new();
+    for node in ws.list_at(folder, SESSIONS_DIR).await {
         if !node.native_key.ends_with(".json") {
             continue;
         }
-        let Some(text) = ws.read_text_at(&folder, &node.native_key).await else {
+        let Some(text) = ws.read_text_at(folder, &node.native_key).await else {
             continue;
         };
         if let Ok(f) = serde_json::from_str::<SavedSession>(&text) {
-            list.push(SavedSummary {
-                id: f.id,
-                title: f.title,
-                profile: f.profile,
-                created: f.created,
-            });
+            out.push(f);
         }
     }
+    out
+}
+
+/// The folder's saved sessions: from the host's store — importing the
+/// files once when it has none — or, without a store, from the files.
+pub async fn saved_sessions(ws: Workspace, folder: &SourceId) -> Vec<SavedSession> {
+    if !ws.has_host_state() {
+        return read_session_files(ws, folder).await;
+    }
+    match ws.host_scan::<SavedSession>(&sessions_key(folder)).await {
+        Ok(rows) if !rows.is_empty() => rows.into_iter().map(|(_, s)| s).collect(),
+        Ok(_) => {
+            let files = read_session_files(ws, folder).await;
+            if !files.is_empty() {
+                let batch = files.iter().fold(moonkale_state::Batch::new(), |b, f| {
+                    moonkale_state::put_in(b, &sessions_key(folder).str(&f.id), f)
+                });
+                match ws.host_write(batch).await {
+                    Ok(()) => dioxus::logger::tracing::info!(
+                        "agent: imported {} sessions of {SESSIONS_DIR} into the store",
+                        files.len()
+                    ),
+                    Err(e) => dioxus::logger::tracing::warn!(
+                        "agent: import of {SESSIONS_DIR} failed: {e}"
+                    ),
+                }
+            }
+            files
+        }
+        Err(e) => {
+            dioxus::logger::tracing::warn!(
+                "agent: the host's store failed ({e}); reading {SESSIONS_DIR}"
+            );
+            read_session_files(ws, folder).await
+        }
+    }
+}
+
+/// List the folder's saved sessions (newest first).
+async fn load_saved(ws: Workspace, chats: Chats, folder: SourceId) {
+    let mut list: Vec<SavedSummary> = saved_sessions(ws, &folder)
+        .await
+        .into_iter()
+        .map(|f| SavedSummary {
+            id: f.id,
+            title: f.title,
+            profile: f.profile,
+            created: f.created,
+        })
+        .collect();
     list.sort_by_key(|s| std::cmp::Reverse(s.created));
     let mut chats = chats;
     chats.saved.set(list);
@@ -437,16 +511,29 @@ async fn load_saved(ws: Workspace, chats: Chats, folder: SourceId) {
 
 /// Bring a saved session back as a live one.
 async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
-    let rel = format!("{SESSIONS_DIR}/{id}.json");
-    let Some(text) = ws.read_text_at(&folder, &rel).await else {
-        let mut ws = ws;
-        ws.set_status("That session's file is gone");
-        return;
+    let stored = match ws.has_host_state() {
+        true => {
+            ws.host_get::<SavedSession>(&sessions_key(&folder).str(&id))
+                .await
+        }
+        false => None,
     };
-    let Ok(f) = serde_json::from_str::<SavedSession>(&text) else {
-        let mut ws = ws;
-        ws.set_status("That session's file could not be read");
-        return;
+    let f = match stored {
+        Some(f) => f,
+        None => {
+            let rel = format!("{SESSIONS_DIR}/{id}.json");
+            let Some(text) = ws.read_text_at(&folder, &rel).await else {
+                let mut ws = ws;
+                ws.set_status("That session is gone");
+                return;
+            };
+            let Ok(f) = serde_json::from_str::<SavedSession>(&text) else {
+                let mut ws = ws;
+                ws.set_status("That session's file could not be read");
+                return;
+            };
+            f
+        }
     };
     let s = Session {
         id: f.id,
@@ -496,6 +583,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     // The folder's saved sessions, when the folder changes.
     let folder = use_memo(move || {
         ws.sources
+            .open
             .read()
             .iter()
             .find(|s| s.descriptor.family == SourceFamily::Folder)
@@ -520,11 +608,11 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     // One session at least; reconnect the current one when the settings
     // its profile resolves to change (a model edited in Settings).
     use_effect(move || {
-        let _ = ws.settings.read().agents.len();
-        let _ = ws.settings.read().llm.clone();
-        let _ = ws.settings.read().agents.clone();
+        let _ = ws.settings.resolved.read().agents.len();
+        let _ = ws.settings.resolved.read().llm.clone();
+        let _ = ws.settings.resolved.read().agents.clone();
         if sessions.peek().is_empty() {
-            let profile = ws.settings.peek().agent.default.clone();
+            let profile = ws.settings.resolved.peek().agent.default.clone();
             new_session(ws, chats, profile);
             return;
         }
@@ -650,6 +738,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
     let running = live.iter().filter(|(_, _, b)| *b).count();
     let agents: Vec<String> = ws
         .settings
+        .resolved
         .read()
         .agents
         .iter()
@@ -703,7 +792,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                         }
                     }
                 }
-                button { class: "mk-btn mk-agent-new", title: "A new session (the current one keeps running)", onclick: move |_| { let profile = ws.settings.peek().agent.default.clone(); new_session(ws, chats, profile); }, "New" }
+                button { class: "mk-btn mk-agent-new", title: "A new session (the current one keeps running)", onclick: move |_| { let profile = ws.settings.resolved.peek().agent.default.clone(); new_session(ws, chats, profile); }, "New" }
                 select { class: "mk-agent-profile", title: "Which saved agent this session runs (Settings → Agents)",
                     value: "{profile_now}",
                     disabled: busy(),

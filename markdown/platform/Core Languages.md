@@ -53,7 +53,7 @@ A core language extension provides, in this order of importance:
 Highlighting (2026-09-20, [[010]]): grammars ship in the CodeMirror bundle — decision P-093 — so every language with a Lezer or legacy grammar highlights; Lean, Nix, HelixQL, TypeQL and GraphQL wait for one. "LSP discovered" means the server is started when it is on `PATH`, with an install hint otherwise.
 
 ## How they get bundled
-- **Core language extensions** live in `packages/extensions/lang-<id>/` as static Rust crates registered in `ui::default_extensions()` (`core` tier — always on), each carrying its grammar (native `tree-sitter-<x>` crate; the `.wasm` grammar as an asset for the browser) and queries. Bundling all sixteen costs grammar size only (≈ 0.2–1 MB each as wasm); on Android that argues for the lazy asset loading in [[Android Extensions and Bundling]].
+- **Core language extensions** live in `packages/extensions/lang-<id>/` as static Rust crates registered in `moonkale_shell::default_extensions()` (`core` tier — always on), each carrying its grammar (native `tree-sitter-<x>` crate; the `.wasm` grammar as an asset for the browser) and queries. Bundling all sixteen costs grammar size only (≈ 0.2–1 MB each as wasm); on Android that argues for the lazy asset loading in [[Android Extensions and Bundling]].
 - **Marketplace languages** ship the same manifest as a wasm extension (`kind = "language"`, data only — grammar + queries + LSP command), installed under `~/.config/moonkale/extensions/<id>/`. Nothing about a marketplace language is second-class except that it is not in the APK.
 - LSP servers are never bundled; they are discovered on `PATH` with an install hint *(exists)*, and later per-language settings for a custom command.
 

@@ -24,11 +24,17 @@ pub struct WikiCandidate {
 /// the whole link and its parts.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct WikiSpan {
+    /// Byte offset of `[[`.
     pub start: usize,
+    /// Byte offset after `]]`.
     pub end: usize,
+    /// The page named (`target`).
     pub target: String,
+    /// `#heading`, if any.
     pub heading: Option<String>,
+    /// `|alias`, if any.
     pub alias: Option<String>,
+    /// Whether a page of that name exists.
     pub resolved: bool,
 }
 
@@ -166,7 +172,8 @@ impl Workspace {
         if query.is_empty() {
             // Open documents first, most recently activated at the top.
             let open: Vec<String> = self
-                .documents
+                .docs
+                .open
                 .peek()
                 .iter()
                 .rev()
@@ -309,6 +316,7 @@ impl Workspace {
         id: &moonkale_core::SourceId,
     ) -> Option<crate::workspace::SourceHandle> {
         self.sources
+            .open
             .peek()
             .iter()
             .find(|s| &s.descriptor.id == id)
@@ -378,6 +386,7 @@ mod tests {
     fn page(key: &str) -> Node {
         let src = SourceId("index:test".into());
         Node {
+            props: Default::default(),
             id: NodeId::derive(&src, key),
             source: src,
             kind: NodeKind::File,

@@ -16,6 +16,19 @@ const openFolder = async () => {
   await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
 };
 const wsFile = () => JSON.parse(fs.readFileSync(`${ROOT}/.moonkale/settings.json`, "utf8"));
+// ADR-0014: the layout lives in the client's state store — in the browser,
+// localStorage items `moonkale.state/layout/<hex key>` holding a hex-encoded
+// `{"v":1,"data":{layout, open_documents, active_document}}`.
+const layoutRecord = (page) => page.evaluate(() => {
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k.startsWith("moonkale.state/layout/")) continue;
+    const bytes = new Uint8Array((localStorage.getItem(k).match(/../g) || []).map((x) => parseInt(x, 16)));
+    return JSON.parse(new TextDecoder().decode(bytes)).data;
+  }
+  return {};
+});
+
 try {
   await step("open folder, open README.md, activate the Links tab", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
@@ -26,11 +39,12 @@ try {
     await page.click(".wb-tab:has-text('Links')");
     await page.waitForFunction(() => fetch("/").then(() => true), null, { timeout: 5000 });
   });
-  await step("workspace file records the open document and the layout", async () => {
-    await page.waitForFunction(() => true, null, { timeout: 1000 });
-    let f; for (let i = 0; i < 30; i++) { try { f = wsFile(); if (f.open_documents?.includes("README.md") && f.layout) break; } catch {} await new Promise((r) => setTimeout(r, 300)); }
-    console.log("\n  workspace:", JSON.stringify({ open: f.open_documents, active: f.active_document, layout: !!f.layout }));
+  await step("the state store records the open document and the layout; the folder file does not", async () => {
+    let f = {}; for (let i = 0; i < 30; i++) { f = await layoutRecord(page); if (f.open_documents?.includes("README.md") && f.layout) break; await new Promise((r) => setTimeout(r, 300)); }
+    console.log("\n  layout record:", JSON.stringify({ open: f.open_documents, active: f.active_document, layout: !!f.layout }));
     if (!f.open_documents?.includes("README.md") || !f.layout) throw new Error("not recorded");
+    let disk = {}; try { disk = wsFile(); } catch {}
+    if (disk.layout || disk.open_documents) throw new Error("layout written into the folder: " + JSON.stringify(disk));
   });
   await step("Ctrl+, opens Settings; a user-scope change lands in localStorage", async () => {
     await page.click(".wb-status-bar");
@@ -41,22 +55,40 @@ try {
     await page.waitForFunction(() => /test-model/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
     await page.screenshot({ path: `${S}/m5-settings.png` });
   });
-  await step("workspace-scope 'allow writes' (on the Agent extension's row, Milestone 15) → the agent runs a write without asking", async () => {
+  await step("Milestone 18 phase 4.5: a folder's 'allow writes' is saved but ignored — the agent still asks, and Settings says so", async () => {
+    // The switch is not offered for the folder scope …
     await page.click("#mk-rail-extensions");
     await page.waitForSelector(".mk-extensions", { timeout: 10000 });
     await page.selectOption(".mk-extensions .mk-settings-target select", "workspace");
     const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
-    await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").click();
-    let f; for (let i = 0; i < 30; i++) { try { f = wsFile(); if (f.policy?.allow_writes) break; } catch {} await new Promise((r) => setTimeout(r, 300)); }
-    if (!f.policy?.allow_writes) throw new Error("allow_writes not saved");
-    const src = await page.$eval(".mk-agent", () => "");
-    void src;
+    if (!(await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").isDisabled())) throw new Error("the folder scope offers allow_writes");
+    // … and a folder file that sets it anyway (a cloned repository) is ignored.
+    const f = wsFile(); f.policy = { ...(f.policy || {}), allow_writes: true };
+    fs.writeFileSync(`${ROOT}/.moonkale/settings.json`, JSON.stringify(f));
+    await page.click("#mk-rail-explorer");
+    await openFolder();
     const id = "folder:" + ROOT;
     await page.fill(".mk-agent-input", `/tool source.text_query {"source":"${id}","dialect":"sql","text":"DELETE FROM t"}`);
     await page.click(".mk-agent-compose button");
-    await page.waitForFunction(() => [...document.querySelectorAll(".mk-agent-tool .mk-agent-badge")].some((b) => b.textContent === "Allow") && [...document.querySelectorAll(".mk-agent-tool")].some((t) => /failed|ok/.test(t.textContent)), null, { timeout: 20000 });
-    const approval = await page.$(".mk-agent-approval");
-    if (approval) throw new Error("approval box shown despite allow_writes");
+    await page.waitForSelector(".mk-agent-approval", { timeout: 20000 });
+    await page.click(".mk-agent-approval button:has-text('Deny')");
+    await page.waitForFunction(() => !document.querySelector(".mk-agent-approval"), null, { timeout: 10000 });
+    await page.keyboard.press("Control+,");
+    await page.waitForFunction(() => /policy\.allow_writes/.test(document.querySelector(".mk-settings-ignored")?.textContent || ""), null, { timeout: 10000 });
+  });
+  await step("the same switch in the user scope → the agent runs a write without asking", async () => {
+    await page.click("#mk-rail-extensions");
+    await page.waitForSelector(".mk-extensions", { timeout: 10000 });
+    await page.selectOption(".mk-extensions .mk-settings-target select", "user");
+    const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
+    await row.locator(".mk-settings-ext-settings label:has-text('Allow mutating') input").click();
+    await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem("moonkale.settings")).policy?.allow_writes === true; } catch { return false; } }, null, { timeout: 10000 });
+    const before = await page.$$eval(".mk-agent-tool", (t) => t.length);
+    const id = "folder:" + ROOT;
+    await page.fill(".mk-agent-input", `/tool source.text_query {"source":"${id}","dialect":"sql","text":"DELETE FROM t"}`);
+    await page.click(".mk-agent-compose button");
+    await page.waitForFunction((n) => { const t = [...document.querySelectorAll(".mk-agent-tool")]; return t.length > n && /failed|ok/.test(t[t.length - 1].textContent) && [...t[t.length - 1].querySelectorAll(".mk-agent-badge")].some((b) => b.textContent === "Allow"); }, before, { timeout: 20000 });
+    if (await page.$(".mk-agent-approval")) throw new Error("approval box shown despite the user's allow_writes");
   });
   await step("reload + reopen: README.md is open again, Links tab active, recent folder listed", async () => {
     await page.reload({ waitUntil: "networkidle" });

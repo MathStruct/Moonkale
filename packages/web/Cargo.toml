@@ -4,12 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# Op/Batch types for the browser's state store (localStorage, ADR-0014).
+moonkale-state = { workspace = true }
 dioxus = { workspace = true, features = ["fullstack"] }
-ui = { workspace = true }
-api = { workspace = true }
+moonkale-shell = { workspace = true }
+moonkale-distribution = { workspace = true }
+moonkale-editor-markdown = { workspace = true }
+moonkale-ext-git = { workspace = true }
+moonkale-server = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-llm = { workspace = true }
 moonkale-ext-host = { workspace = true }
+# The driver crates' source openers (names only here: no driver features in
+# the client build) — Milestone 18 phase 2.
+moonkale-sources-sql = { workspace = true }
+moonkale-sources-graph = { workspace = true }
+moonkale-sources-kv = { workspace = true }
 serde_json = "1"
 tracing = "0.1"
 
@@ -26,4 +36,6 @@ web-sys = { version = "0.3", features = ["Window", "Storage"] }
 [features]
 default = []
 web = ["dioxus/web"]
-server = ["dioxus/server", "ui/server", "api/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio"]
+server = ["dioxus/server", "moonkale-server/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio", "moonkale-distribution/server"]
+# Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
+julia = ["moonkale-distribution/julia"]

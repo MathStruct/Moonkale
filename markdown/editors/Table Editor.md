@@ -14,4 +14,4 @@ Because the grid renders any `QueryResult::Rows`, it is also "open as table" for
 Sort/filter/paginate are sent to the source when `Capabilities` allow; otherwise applied client-side with a "partial" indicator. Keyset pagination, never OFFSET on large tables.
 
 ## Why not AG Grid / a JS grid
-The grid is where Rust-native pays off immediately: it is data-heavy, not text-input-heavy, and Dioxus signals + virtualisation are sufficient. Keeping it Rust also means it works identically in a wasm extension's `ui::Tree` (the `Table` primitive is this component).
+The grid is where Rust-native pays off immediately: it is data-heavy, not text-input-heavy, and Dioxus signals + virtualisation are sufficient. Keeping it Rust also means it works identically in a wasm extension's `moonkale_shell::Tree` (the `Table` primitive is this component).

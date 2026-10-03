@@ -1,8 +1,9 @@
 //! The Changes panel and the diff view.
 
+use crate::types::{Commit, GitRequest, GitResponse, StatusEntry};
 use dioxus::prelude::*;
-use moonkale_ext_api::git::{Commit, GitRequest, GitResponse, StatusEntry};
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::FileMark;
 use std::collections::HashMap;
 
 const CSS: Asset = asset!("/assets/git.css");
@@ -65,7 +66,10 @@ impl GitState {
 }
 
 async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
-    let git = ws.git().ok_or("git is not available on this platform")?;
+    let git = ws
+        .service::<crate::GitRunner>()
+        .map(|r| r.0)
+        .ok_or("git is not available on this platform")?;
     let root = ws.folder_root().ok_or("open a folder first")?;
     git(root, req).await
 }
@@ -74,7 +78,7 @@ async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
 pub async fn refresh(mut ws: Workspace, mut state: GitState) {
     if ws.folder_root().is_none() {
         state.status.set(None);
-        ws.vcs_status.set(HashMap::new());
+        ws.contrib.file_marks.set(HashMap::new());
         return;
     }
     match run(ws, GitRequest::Status).await {
@@ -85,12 +89,12 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
             behind,
             entries,
         }) => {
-            let map: HashMap<String, (char, char)> = entries
+            let map: HashMap<String, FileMark> = entries
                 .iter()
-                .map(|e| (e.path.clone(), (e.index, e.worktree)))
+                .filter_map(|e| mark(e.index, e.worktree).map(|m| (e.path.clone(), m)))
                 .collect();
-            if *ws.vcs_status.peek() != map {
-                ws.vcs_status.set(map);
+            if *ws.contrib.file_marks.peek() != map {
+                ws.contrib.file_marks.set(map);
             }
             state.status.set(Some(Ok(Status {
                 branch,
@@ -102,7 +106,7 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
         }
         Ok(GitResponse::Unavailable(msg)) => {
             state.status.set(Some(Err(msg)));
-            ws.vcs_status.set(HashMap::new());
+            ws.contrib.file_marks.set(HashMap::new());
             return;
         }
         Ok(_) => {}
@@ -173,7 +177,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     let mut state = state;
     let mut ws = ws;
     let mut message = use_signal(String::new);
-    let available = ws.git().is_some();
+    let available = ws.service::<crate::GitRunner>().is_some();
 
     // Refresh when the folder changes, when files or documents change, and
     // when asked (`epoch`).
@@ -181,9 +185,9 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     use_effect(move || {
         let key = (
             *state.epoch.read(),
-            *ws.fs_epoch.read(),
-            *ws.graph_epoch.read(),
-            ws.sources.read().len(),
+            *ws.sources.fs_epoch.read(),
+            *ws.sources.graph_epoch.read(),
+            ws.sources.open.read().len(),
         );
         if *seen.peek() == key {
             return;
@@ -405,4 +409,25 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
             }
         }
     }
+}
+
+/// Git's mark for a file from its index and worktree status letters (the
+/// shell draws it; the classes are styled in the shell's stylesheet).
+fn mark(index: char, worktree: char) -> Option<FileMark> {
+    let c = if index == '?' {
+        '?'
+    } else if worktree != '.' {
+        worktree
+    } else {
+        index
+    };
+    let (class, title) = match c {
+        'M' => ("mk-vcs-modified", "modified"),
+        'A' | '?' => ("mk-vcs-added", "added"),
+        'D' => ("mk-vcs-deleted", "deleted"),
+        'R' | 'C' => ("mk-vcs-renamed", "renamed"),
+        'U' => ("mk-vcs-conflict", "conflict"),
+        _ => return None,
+    };
+    Some(FileMark::new(c, class, title))
 }

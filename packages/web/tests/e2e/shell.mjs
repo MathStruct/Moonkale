@@ -70,5 +70,13 @@ try {
     await page.waitForSelector(".cm-search", { timeout: 5000 });
     await page.screenshot({ path: `${S}/m10-menus.png` });
   });
+  await step("the theme tokens come from theme.css (Milestone 18 phase 4.4): data-theme on the shell, the dark palette", async () => {
+    await page.waitForFunction(() => {
+      const ws = document.querySelector(".mk-shell .wb-workspace");
+      return ws && getComputedStyle(ws).getPropertyValue("--wb-surface").trim() === "#161922";
+    }, null, { timeout: 10000 });
+    const theme = await page.$eval(".mk-shell", (e) => e.getAttribute("data-theme"));
+    if (theme !== "dark") throw new Error("data-theme " + theme);
+  });
   console.log("\nSHELL E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m10-shell-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

@@ -25,23 +25,28 @@ impl Extension for FlowExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        ws.documents
+        ws.docs
+            .open
             .read()
             .iter()
             .filter(|(_, d)| is_flow(&d.read().node))
             .map(|(id, doc)| {
                 let d = doc.read();
-                PanelContribution {
-                    id: format!("{EDITOR_PREFIX}{id}"),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                }
+                PanelContribution::new(
+                    format!("{EDITOR_PREFIX}{id}"),
+                    d.node.label.clone(),
+                    PanelHome::Main,
+                )
+                .closable(true)
+                .dirty(d.dirty())
+                .node(*id)
             })
             .collect()
+    }
+
+    /// Its own format, above the code editors (Milestone 18 phase 2).
+    fn claims(&self, node: &moonkale_core::Node) -> Option<u8> {
+        (is_flow(node)).then_some(50)
     }
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {

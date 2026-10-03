@@ -31,4 +31,4 @@ Confirmed working by hand. If it regresses, this is what to look at when running
 3. Drag the editor **tab** from window A over window B. Either B shows the blue drop overlay while dragging (HTML5 drag crosses windows on WebKitGTK ✅) or nothing changes until you release, and then B shows the *Move it here* banner (bus works, OS drag doesn't cross ➜ fallback path). If neither happens, paste the terminal lines.
 
 ## Deferred
-Two-monitor use (a window per screen) is exactly this feature; nothing more is needed once the desktop path is confirmed. Kept in [[Problem Ranking]] under P-34 (presence) as the multi-window baseline.
+Two-monitor use (a window per screen) is exactly this feature; nothing more is needed once the desktop path is confirmed. Kept in [[Problem Ranking]] under R-34 (presence) as the multi-window baseline.

@@ -2,32 +2,45 @@
 //!
 //! **This crate is the contract.** Everything an extension can see or do is
 //! declared here. The built-in editors are extensions that happen to be
-//! compiled in; there is no privileged path.
+//! compiled in; there is no privileged path. Versioned since `lib-v1`
+//! (Milestone 18 phase 6.3): see `CHANGELOG.md` next to this crate for what
+//! each `lib-vN` tag changed and the compatibility rules.
 //!
-//! **Milestone 1 scope** — the *static* half of the design, sized for two
-//! extensions (an explorer and a code editor):
+//! What an extension uses:
+//! - [`Extension`] — the trait: [`Manifest`], panels and their rendering,
+//!   and optionally commands, settings, document claims, flow libraries,
+//!   strings ([`i18n`]) and file marks.
+//! - [`contrib`] — [`PanelContribution`] (built with
+//!   [`PanelContribution::new`]), [`Activity`], [`FileMark`];
+//!   [`CommandContribution`] and [`Keybinding`].
+//! - [`Workspace`] — the host handle: sources, documents, history, settings,
+//!   presence, remotes, and platform services by type
+//!   ([`Workspace::service`]). Documents live here, not in panels, so a
+//!   dock/undock (which remounts panel content) cannot lose edits. Its state
+//!   is grouped by area (`ws.sources`, `ws.docs`, `ws.settings`, …); the
+//!   methods are on the facade.
+//! - [`settings`], [`flow`], [`wiki`], [`presence`], [`remote`], [`session`]
+//!   — types shared between the shell, extensions and the server.
 //!
-//! - [`manifest::Manifest`] — id and name.
-//! - [`contrib::PanelContribution`] — dockable panels; the only contribution
-//!   point so far.
-//! - [`extension::Extension`] — `manifest()`, `panels()`, `render()`.
-//! - [`workspace::Workspace`] — the host handle: open sources, open
-//!   documents, the active document, status. It is the design's `Host`
-//!   reduced to what M1 needs. Documents live *here*, not in panels, so a
-//!   dock/undock (which remounts panel content) cannot lose edits.
+//! What an app (a platform crate) uses: [`WorkspaceConfig`] — what the
+//! platform gives the workspace, grouped as folders, processes,
+//! persistence, network, runtimes and services.
 //!
-//! Not started: WASM extensions and the declarative `ui::Tree`, permissions,
-//! commands/keybindings/languages as contributions. Their design notes are
-//! in the vault (`architecture/Extension System.md`).
+//! Wasm extensions use a separate JSON ABI (`moonkale-ext-abi`, hosted by
+//! `moonkale-ext-host`; [[ADR-0013 JSON ABI before components]]).
 //!
 //! This crate depends on `dioxus` because static extensions return
-//! `Element`s. The WASM path will not; it will render through `ui::Tree`.
+//! `Element`s; on `moonkale-core` for the model; on the protocol crates
+//! `moonkale-lsp`, `moonkale-terminal`, `moonkale-llm-types`, `moonkale-ext-abi`
+//! and on `moonkale-state` — nothing else (checked by `tools/check-deps.py`).
+#![warn(missing_docs)]
 
 mod assets;
 mod command;
 pub mod contrib;
 pub mod document;
 pub mod extension;
+pub mod i18n;
 pub mod keys;
 pub mod manifest;
 pub mod session;
@@ -35,11 +48,10 @@ pub mod workspace;
 
 pub use assets::{Stylesheet, StylesheetUrl};
 pub use command::{fuzzy_score, CommandContribution, Keybinding};
-pub use contrib::{Activity, PanelContribution, PanelHome};
+pub use contrib::{Activity, FileMark, PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub mod flow;
-pub mod git;
 pub mod presence;
 pub mod remote;
 pub mod settings;
@@ -48,12 +60,13 @@ pub use extension::SettingsTarget;
 pub use manifest::Manifest;
 pub use session::{SessionBus, SessionMessage, WindowId};
 pub use settings::{ExtensionsSettings, Scope, SecretRef, Settings, SettingsFile};
+pub use workspace::{installed_local_state, local_state};
 pub use workspace::{
     AgentSessions, AttachFuture, AttachSource, Command, CompileTypst, CompileTypstFuture,
-    EditorAction, ForeignDrag, GraphRequest, LlmProvider, LlmProviderFuture, OpenFolder,
-    OpenFolderFuture, OpenOptions, PickFolder, PickFolderFuture, Reveal, SecretStore, ServerClient,
-    SettingsFuture, SettingsStore, SourceHandle, WasmExtensions, WasmList, WasmRun, Workspace,
-    WorkspaceConfig,
+    EditorAction, FolderAccess, ForeignDrag, GraphRequest, LlmProvider, LlmProviderFuture, Network,
+    OpenFolder, OpenFolderFuture, OpenOptions, Persistence, PickFolder, PickFolderFuture,
+    Processes, Reveal, Runtimes, SecretStore, ServerClient, SettingsFuture, SettingsStore,
+    SourceHandle, StateAccess, WasmExtensions, WasmList, WasmRun, Workspace, WorkspaceConfig,
 };
 
 /// Everything an extension typically needs.

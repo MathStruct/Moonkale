@@ -4,17 +4,29 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# The store for this app's own state (ADR-0014): SQLite.
+moonkale-state = { workspace = true }
+moonkale-state-stores = { workspace = true, features = ["sqlite"] }
 dioxus = { workspace = true, features = ["fullstack"] }
-ui = { workspace = true }
+moonkale-shell = { workspace = true }
+moonkale-distribution = { workspace = true }
+moonkale-ext-git = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-index = { workspace = true }
 # A server's client on the phone (Milestone 12): *Connect to Server…*.
-api = { workspace = true }
+moonkale-server = { workspace = true }
 moonkale-terminal = { workspace = true }
+# The driver crates' source openers (names only here: no driver features in
+# the client build) — Milestone 18 phase 2.
+moonkale-sources-sql = { workspace = true }
+moonkale-sources-graph = { workspace = true }
+moonkale-sources-kv = { workspace = true }
 tracing = "0.1"
 
 [features]
 default = []
 mobile = ["dioxus/mobile"]
-server = ["dioxus/server", "ui/server"]
+server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
+# Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
+julia = ["moonkale-distribution/julia"]

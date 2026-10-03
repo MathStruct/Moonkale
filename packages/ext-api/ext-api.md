@@ -18,7 +18,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - **`SessionMessage::sender()`** is what echo-suppression keys on; for `Moved` the sender is `to` (P-042).
 - **Documents are owned by the workspace**, one `Signal<Document>` each in `documents: Signal<Vec<(NodeId, Signal<Document>)>>`. A keystroke re-renders only readers of that document's signal; opening/closing re-renders readers of the list. Panel remounts (docking) cannot lose text — proven by the E2E split step.
 - **`OpenFolder` is a `fn` pointer** (`fn(String) -> OpenFolderFuture`), installed by the platform crate. Desktop passes an in-process `FolderSource` factory, web a `RemoteSource` factory; the shell can't tell them apart.
-- **Depends on `dioxus`** because static extensions return `Element`. The WASM path (`ui::Tree`) is not started and will not.
+- **Depends on `dioxus`** because static extensions return `Element`. The WASM path (`moonkale_shell::Tree`) is not started and will not.
 - `Workspace::save` maps a refused op to `SourceError` and leaves the document dirty, so the editor can offer *Reload*.
 
 ## Milestone 4
@@ -39,7 +39,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 ## Milestone 7
 - `command.rs`: `CommandContribution { id, title, keybinding }`, `Keybinding::{parse, matches, display}` (`Ctrl` also matches `Meta`; named keys by DOM name), `fuzzy_score` (subsequence with word-start/adjacency bonuses). `Extension::commands(ws)` / `run_command(id, ws)` are the contribution point; `Command::{Palette, QuickOpen, SearchWorkspace}` added. `SettingsFile.keybindings: BTreeMap<id, text>` (empty = unbound) overlays per id.
 - `workspace.rs`: `create_dir`, `rename_node` (re-keys open documents and views to the new node id, keeps text/dirty/version, active follows), `delete_node` (closes documents under it), `count_occurrences` / `replace_in_file` (open document → unsaved edit; closed file → `WriteText` with version check + index refresh), `focus_element(id)`, `fs_epoch` (Explorer reloads), `vcs_status` (git decorations), `git()` / `folder_root()`, `WorkspaceConfig::git`.
-- `git.rs`: `StatusEntry`, `Commit`, `GitRequest`, `GitResponse`, `parse_status` (porcelain v2, `-z`), `parse_log`, `LOG_FORMAT` — shared by the git extension and `api::git_run`.
+- `git.rs`: `StatusEntry`, `Commit`, `GitRequest`, `GitResponse`, `parse_status` (porcelain v2, `-z`), `parse_log`, `LOG_FORMAT` — shared by the git extension and `moonkale_server::git_run`.
 
 ## Milestone 8
 - `workspace.rs`: `history` signal (loaded from `.moonkale/history.jsonl` with the workspace settings), `record` / `record_as` / `record_event` (append + best-effort rewrite of the file), appends in `save` (Content, with `base` for files the log never saw and the agent actor from `pending_actor`), `create_text`/`create_dir` (Add), `rename_node` (Rename), `delete_node` (Remove); `user_actor()` from `settings.user_name`. Presence: `presence` signal, `join_presence(room)` on folder open through `WorkspaceConfig::presence`, `publish_presence()`, `my_presence()`, `others()`. Browser wasm: `WorkspaceConfig::wasm_module_url`; `run_wasm_command` tries `run_wasm_in_browser` (an eval driving `window.moonkale.wasmHost`, host calls answered by `answer_host_call` over this workspace's sources with the host's permission check) and falls back to the platform runner.
@@ -62,7 +62,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 
 ## Milestone 11 (remote folders)
 - `remote.rs`: `RemotePhase` (`Connecting, Prompt(line), Uploading, Starting, Ready, Failed, Closed`, `label()`), `RemoteSession { close }`, `PhaseSink`, `Opened`, `OpenRemote`, `RemoteHosts { open, hosts, at_start }` (in `WorkspaceConfig::remote`), `RemoteState { host, path, phase, session, sources }`.
-- `workspace.rs`: `Workspace::remote` signal; `open_remote(host, path)` — starts the session, hands its terminal to the terminal panel through `adopt_terminals` (+ `Command::ShowPanel("terminal")`), and a spawned task turns phases into status text, opens `path` through the normal `open_folder` on `Ready` (those sources are recorded in `RemoteState::sources`, **not** in the recent folders), and shows the terminal on a `Prompt`. `close_remote()` closes the session's sources and documents and the session; `close_source` of a remote folder does the same. `is_remote_source`, `has_remote`, `remote_hosts`, `adopt_terminal`. `Command::{OpenRemote, CloseRemote}`. `load_user_settings` opens `at_start()` before reopening the last folder.
+- `workspace.rs`: `Workspace::remote.ssh` signal; `open_remote(host, path)` — starts the session, hands its terminal to the terminal panel through `adopt_terminals` (+ `Command::ShowPanel("terminal")`), and a spawned task turns phases into status text, opens `path` through the normal `open_folder` on `Ready` (those sources are recorded in `RemoteState::sources`, **not** in the recent folders), and shows the terminal on a `Prompt`. `close_remote()` closes the session's sources and documents and the session; `close_source` of a remote folder does the same. `is_remote_source`, `has_remote`, `remote_hosts`, `adopt_terminal`. `Command::{OpenRemote, CloseRemote}`. `load_user_settings` opens `at_start()` before reopening the last folder.
 - `tests/remote_flow.rs`: the whole workspace side in a `VirtualDom` with a fake `OpenRemote` (prompt → status; ready → `open_folder` once; remote source flagged, recents untouched; close → session closed once, sources gone).
 
 ## Milestone 12
@@ -71,7 +71,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - `tests/remote_flow.rs`: `connect_server_opens_the_root_and_disconnect_closes_it`.
 
 ## Milestone 13
-`Extension::settings(&self, ws, target: SettingsTarget) -> Option<Element>` — an extension's own settings section, rendered under its row in the Extensions panel (`ui/extensions_panel.rs`); `Workspace::update_settings_in(target, f)` writes the chosen scope. Implemented by code (wrap), markdown (Rich by default), terminal + terminal-native (shell, implementation), agent (on the server).
+`Extension::settings(&self, ws, target: SettingsTarget) -> Option<Element>` — an extension's own settings section, rendered under its row in the Extensions panel (`shell/extensions_panel.rs`); `Workspace::update_settings_in(target, f)` writes the chosen scope. Implemented by code (wrap), markdown (Rich by default), terminal + terminal-native (shell, implementation), agent (on the server).
 
 ## Milestone 14
 `Workspace::{editor_choice, editor_for, choose_editor}` (which code editor shows a document), `cursor` + `set_cursor(node, line, col)` + `cursor_word()` with `word_at(text, line, col)` (unit-tested); `editor.implementation` setting.
@@ -79,3 +79,11 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 ## Milestone 15
 - `settings.rs`: `AgentProfileFile` (`name` + flattened `LlmFile`) in `SettingsFile::agents`, `agent.default`, `RemoteFile { saved: Vec<SavedConnection> }`; resolved `Settings::agents` (Default = the flat `llm`, first), `Settings::llm` = the default agent's, `Settings::agent(name)`, `remote_saved`; same-name profiles overlay field-wise (`overlay_llm`); `DEFAULT_AGENT`.
 - `workspace.rs`: `remote_saved / save_remote / forget_remote` (user file); `WorkspaceConfig::spawn_program` (`SpawnProgram = fn(program, args, cols, rows)`) + `run_in_terminal(title, program, args)` → `adopt_terminal`; `write_text_at(source, rel, text)` (create or replace) and `list_at(source, rel)` (the `ls` dialect: hidden entries too).
+
+## Milestone 18 phase 5
+- `workspace/config.rs`: `Persistence::state` (this machine's store: layouts) and `Persistence::host` (the store of the machine that hosts the open folder: the entity log); `local_state(store)` installs a process-wide store, `installed_local_state()` hands out its access again.
+- `workspace/history.rs`: with a host store the log is one `EventRecord` row per event (`event_key(folder, id)` = `str(folder id) · u128(event id)`); `load_history` scans the folder's rows and, when there are none, imports `.moonkale/history.jsonl` once (the file stays, unwritten); `record_event` stores its event alone; `compact_history` deletes the folded rows and puts the snapshot in one batch. Without a host store: the old file rewrite. Test: `tests/state_history.rs`.
+- `workspace/settings.rs` (phase 5.15): `has_host_state`, `host_get::<R>`, `host_scan::<R>`, `host_write(batch)` — records in the folder host's store, for extensions (the Agent panel's sessions).
+- Phase 5.18: `Persistence::user_settings_in_state` — the user scope as `settings::UserSettingsRecord` (table `settings`, key `"user"`) in `Persistence::state`; `load_user_settings` imports what `Persistence::settings` loads when the store has no record, `update_user_settings` then writes only the store; `has_settings_store` counts it. Desktop and phone: on; web: off. Test: `tests/state_user_settings.rs`.
+- Phase 4.4: `i18n.rs` — `Locales` (`(language tag, Fluent source)` pairs), `lookup(locales, lang, key)` with region → language → English fallback; `Extension::locales()` (default none). Prep for spec 030.
+- Phase 4.2b: `WorkspaceConfig::services` (`Services = &'static [&'static (dyn Any + Sync)]`) and `Workspace::service::<T>()`; `Processes::git`, `GitRun` and `git.rs` are gone (git's types live in `moonkale-ext-git`).
