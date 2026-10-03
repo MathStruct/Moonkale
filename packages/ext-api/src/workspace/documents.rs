@@ -171,6 +171,7 @@ impl Workspace {
             .cloned()
     }
 
+    /// Open `node` in the editor `which` (an extension's editor name) from now on.
     pub fn choose_editor(&mut self, node: NodeId, which: &'static str) {
         self.docs.editor_choice.with_mut(|m| {
             m.insert(node, which);
@@ -183,6 +184,7 @@ impl Workspace {
         self.document(id).map(|d| (id, d))
     }
 
+    /// The open document of `node`, if it is open.
     pub fn document(&self, node: NodeId) -> Option<Signal<Document>> {
         self.docs
             .open
@@ -233,6 +235,7 @@ impl Workspace {
         Ok(())
     }
 
+    /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
         self.docs.open.with_mut(|v| v.retain(|(id, _)| *id != node));
         self.docs.views.with_mut(|v| v.retain(|n| n.id != node));
@@ -609,6 +612,7 @@ pub struct DocsState {
     /// Open non-text nodes (tables, later graphs/rows): shown by the editor
     /// extension that claims their kind.
     pub views: Signal<Vec<Node>>,
+    /// The document that has the focus.
     pub active: Signal<Option<NodeId>>,
     /// Which code editor shows a document, when chosen by hand
     /// (Milestone 14): `"codemirror"` | `"native"`.

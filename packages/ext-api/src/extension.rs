@@ -8,7 +8,9 @@
 use crate::{Manifest, PanelContribution, Workspace};
 use dioxus::prelude::Element;
 
+/// An extension: what it is ([`Manifest`]), the panels it contributes and how to render them, and optionally commands, settings, document claims, strings and file marks. Implemented by every built-in editor and panel; listed by a distribution.
 pub trait Extension: 'static {
+    /// Id, name, tier and permissions.
     fn manifest(&self) -> Manifest;
 
     /// The panels this extension currently contributes.
@@ -68,6 +70,8 @@ pub trait Extension: 'static {
 /// Which settings file a change goes to (the Extensions panel's switch).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsTarget {
+    /// The user's settings (this machine, every folder).
     User,
+    /// The open folder's `.moonkale/settings.json` (data, not authority: see `SettingsFile::without_authority`).
     Workspace,
 }

@@ -116,10 +116,12 @@ impl Workspace {
         }
     }
 
+    /// Whether the user's settings are persisted on this platform.
     pub fn has_settings_store(&self) -> bool {
         self.config.persistence.settings.is_some() || self.user_settings_state().is_some()
     }
 
+    /// The platform's secret store, if any.
     pub fn secret_store(&self) -> Option<SecretStore> {
         self.config.persistence.secrets
     }
@@ -390,9 +392,11 @@ impl Workspace {
 /// The settings files of both scopes and what they resolve to. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
 #[derive(Clone, Copy)]
 pub struct SettingsState {
+    /// The settings everyone reads: user, folder (without authority) and environment merged.
     pub resolved: Signal<crate::settings::Settings>,
     /// Persisted scopes and the resolved value (see `settings.rs`).
     pub user: Signal<crate::settings::SettingsFile>,
+    /// The open folder's settings file as read.
     pub workspace: Signal<crate::settings::SettingsFile>,
     /// The folder whose `.moonkale/settings.json` is loaded, if any.
     pub folder: Signal<Option<SourceId>>,

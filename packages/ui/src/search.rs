@@ -21,15 +21,9 @@ impl Extension for SearchExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Search".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("search", 20, "Search")),
-        }]
+        vec![PanelContribution::new(PANEL_ID, "Search", PanelHome::Side)
+            .closable(true)
+            .activity(Activity::new("search", 20, "Search"))]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

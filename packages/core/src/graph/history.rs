@@ -8,7 +8,7 @@
 //! State is a fold over the log: [`EntityLog::fold`] gives the live nodes
 //! and tombstones, [`EntityLog::text_at`] replays content patches to show a
 //! node's text as it was after any event. Persistence is one JSON object
-//! per line ([`EntityLog::to_jsonl`] / [`from_jsonl`]), small enough to
+//! per line ([`EntityLog::to_jsonl`] / [`from_jsonl`](EntityLog::from_jsonl)), small enough to
 //! rewrite whole on every append.
 
 use crate::graph::Node;

@@ -62,36 +62,29 @@ impl Extension for GitExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        let mut out = vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Changes".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(
+        let mut out = vec![PanelContribution::new(PANEL_ID, "Changes", PanelHome::Side)
+            .closable(true)
+            .activity(
                 Activity::new("git", 40, "Git")
                     .phone_secondary()
                     .badge(ws.contrib.file_marks.read().len() as u32),
-            ),
-        }];
+            )];
         if ws.service::<GitRunner>().is_none() {
             return out;
         }
         for d in self.state.diffs.read().iter() {
-            out.push(PanelContribution {
-                id: format!("{DIFF_PREFIX}{}", d.key()),
-                title: format!(
-                    "{}{}",
-                    d.path.rsplit('/').next().unwrap_or(&d.path),
-                    if d.staged { " (staged)" } else { "" }
-                ),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: None,
-                activity: None,
-            });
+            out.push(
+                PanelContribution::new(
+                    format!("{DIFF_PREFIX}{}", d.key()),
+                    format!(
+                        "{}{}",
+                        d.path.rsplit('/').next().unwrap_or(&d.path),
+                        if d.staged { " (staged)" } else { "" }
+                    ),
+                    PanelHome::Main,
+                )
+                .closable(true),
+            );
         }
         out
     }

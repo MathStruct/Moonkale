@@ -49,15 +49,9 @@ impl Extension for LinksExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        let mut panels = vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Links".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("links", 30, "Links").phone_secondary()),
-        }];
+        let mut panels = vec![PanelContribution::new(PANEL_ID, "Links", PanelHome::Side)
+            .closable(true)
+            .activity(Activity::new("links", 30, "Links").phone_secondary())];
         // A preview tab exists while any .typ document is open and the platform can compile.
         let any_typ = ws
             .docs
@@ -66,29 +60,24 @@ impl Extension for LinksExtension {
             .iter()
             .any(|(_, d)| d.read().node.native_key.ends_with(".typ"));
         if any_typ && ws.compile_typst().is_some() {
-            panels.push(PanelContribution {
-                id: PREVIEW_ID.into(),
-                title: "Typst preview".into(),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: None,
-                activity: None,
-            });
+            panels.push(
+                PanelContribution::new(PREVIEW_ID, "Typst preview", PanelHome::Main).closable(true),
+            );
         }
         // Markdown documents: one editor tab each (Source | Rich).
         for (id, doc) in ws.docs.open.read().iter() {
             let d = doc.read();
             if is_markdown(&d.node) {
-                panels.push(PanelContribution {
-                    id: format!("{EDITOR_PREFIX}{id}"),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                });
+                panels.push(
+                    PanelContribution::new(
+                        format!("{EDITOR_PREFIX}{id}"),
+                        d.node.label.clone(),
+                        PanelHome::Main,
+                    )
+                    .closable(true)
+                    .dirty(d.dirty())
+                    .node(*id),
+                );
             }
         }
         panels

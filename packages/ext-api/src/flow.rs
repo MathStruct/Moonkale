@@ -9,23 +9,28 @@ use std::collections::BTreeMap;
 /// A tensor shape with unknown dimensions allowed (`None`).
 pub type Shape = Vec<Option<u64>>;
 
+/// What a port carries; wires connect compatible types.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PortType {
     /// Connects to anything.
     Any,
+    /// A single number.
     Scalar,
     /// A tensor whose shape may be partially known (batch dim excluded).
     Tensor {
+        /// Its shape (`None` = unknown dimension).
         shape: Shape,
     },
     /// Opaque, must match by name (e.g. `"optimiser"`, `"loss"`).
     Named {
+        /// The name both ends must share.
         name: String,
     },
 }
 
 impl PortType {
+    /// A tensor port of `shape`.
     pub fn tensor(shape: impl Into<Shape>) -> Self {
         PortType::Tensor {
             shape: shape.into(),
@@ -64,6 +69,7 @@ impl PortType {
         }
     }
 
+    /// A short human form (`tensor[?, 784]`).
     pub fn describe(&self) -> String {
         match self {
             PortType::Any => "any".into(),
@@ -82,29 +88,45 @@ impl PortType {
     }
 }
 
+/// An input or output of a block.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Port {
+    /// The port's name, unique within the block's inputs or outputs.
     pub name: String,
+    /// What it carries.
     pub ty: PortType,
     /// Inputs that must be wired for the flow to be valid.
     #[serde(default)]
     pub required: bool,
 }
 
+/// The kind of value a block parameter takes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ParamKind {
+    /// An integer.
     Int,
+    /// A number.
     Float,
+    /// Free text.
     Text,
+    /// On/off.
     Bool,
-    Choice { options: Vec<String> },
+    /// One of `options`.
+    Choice {
+        /// The choices.
+        options: Vec<String>,
+    },
 }
 
+/// A parameter of a block (units, activation, …).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Param {
+    /// The parameter's name.
     pub name: String,
+    /// What it takes.
     pub kind: ParamKind,
+    /// Its value when a block is created, as text.
     pub default: String,
 }
 
@@ -113,20 +135,29 @@ pub struct Param {
 pub struct BlockKind {
     /// Unique within the library (`"dense"`).
     pub id: String,
+    /// The name shown in the palette.
     pub name: String,
+    /// The palette group (`"layers"`).
     pub category: String,
+    /// One line for the palette.
     pub description: String,
+    /// Its input ports.
     pub inputs: Vec<Port>,
+    /// Its output ports.
     pub outputs: Vec<Port>,
+    /// Its parameters.
     pub params: Vec<Param>,
 }
 
 /// Generated code for a flow: file name + text.
 pub type Codegen = fn(&Flow, &FlowLibrary) -> Result<Generated, String>;
 
+/// What a [`Codegen`] produces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Generated {
+    /// The file to write (`model.jl`).
     pub file_name: String,
+    /// Its text.
     pub text: String,
     /// How to run it, shown to the user (`"julia model.jl"`).
     pub run_hint: String,
@@ -138,13 +169,18 @@ pub struct Generated {
 pub struct FlowLibrary {
     /// Namespace for block ids (`"lux"`): blocks are referenced as `lux/dense`.
     pub id: &'static str,
+    /// The library's display name.
     pub name: &'static str,
+    /// Its block types.
     pub blocks: Vec<BlockKind>,
+    /// Turns a flow into code, if the library can.
     pub codegen: Option<Codegen>,
+    /// The language of that code (`"julia"`).
     pub language: &'static str,
 }
 
 impl FlowLibrary {
+    /// A block type by id (within this library).
     pub fn block(&self, id: &str) -> Option<&BlockKind> {
         self.blocks.iter().find(|b| b.id == id)
     }
@@ -158,38 +194,56 @@ impl PartialEq for FlowLibrary {
 
 // ---- the stored model ------------------------------------------------------
 
+/// A block placed on the canvas.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Block {
+    /// Unique within the flow.
     pub id: String,
     /// `"<library>/<kind>"`.
     pub kind: String,
+    /// Canvas position.
     pub x: f64,
+    /// Canvas position.
     pub y: f64,
+    /// Parameter values by name, as text.
     #[serde(default)]
     pub params: BTreeMap<String, String>,
 }
 
+/// A wire from an output port to an input port.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Wire {
+    /// Unique within the flow.
     pub id: String,
+    /// The block it leaves.
     pub from_block: String,
+    /// Its output port.
     pub from_port: String,
+    /// The block it enters.
     pub to_block: String,
+    /// Its input port.
     pub to_port: String,
 }
 
+/// A `*.flow.json` file: blocks and wires.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Flow {
+    /// The file format's version ([`Flow::VERSION`]).
     pub version: u32,
+    /// The blocks.
     pub blocks: Vec<Block>,
+    /// The wires.
     pub wires: Vec<Wire>,
 }
 
 impl Flow {
+    /// The version this build writes.
     pub const VERSION: u32 = 1;
+    /// The file name suffix of flows.
     pub const EXTENSION: &'static str = ".flow.json";
 
+    /// Read a flow; an unparseable file is an error, never an empty flow.
     pub fn parse(json: &str) -> Result<Self, String> {
         if json.trim().is_empty() {
             return Ok(Self::new());
@@ -197,6 +251,7 @@ impl Flow {
         serde_json::from_str(json).map_err(|e| e.to_string())
     }
 
+    /// An empty flow.
     pub fn new() -> Self {
         Self {
             version: Self::VERSION,
@@ -204,10 +259,12 @@ impl Flow {
         }
     }
 
+    /// The file's text.
     pub fn to_json(&self) -> String {
         serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".into())
     }
 
+    /// A block by id.
     pub fn block(&self, id: &str) -> Option<&Block> {
         self.blocks.iter().find(|b| b.id == id)
     }
@@ -265,6 +322,7 @@ impl Flow {
     }
 }
 
+/// The library and block type of a `"<library>/<kind>"` reference.
 pub fn find_kind<'a>(
     libraries: &'a [FlowLibrary],
     kind: &str,
@@ -279,6 +337,7 @@ pub fn find_kind<'a>(
 pub struct Issue {
     /// Block id (or wire id) the issue is about.
     pub about: String,
+    /// What is wrong.
     pub message: String,
 }
 

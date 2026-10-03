@@ -94,18 +94,14 @@ impl Extension for NativeTerminalExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Terminal (Rust)".into(),
-            home: PanelHome::Bottom,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(
-                Activity::new("terminal", 71, "Terminal (Rust)")
-                    .badge(self.sessions.list.read().len() as u32),
-            ),
-        }]
+        vec![
+            PanelContribution::new(PANEL_ID, "Terminal (Rust)", PanelHome::Bottom)
+                .closable(true)
+                .activity(
+                    Activity::new("terminal", 71, "Terminal (Rust)")
+                        .badge(self.sessions.list.read().len() as u32),
+                ),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

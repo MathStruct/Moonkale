@@ -23,15 +23,11 @@ impl Extension for ExtensionsExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Extensions".into(),
-            home: PanelHome::Main,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("puzzle", 910, "Extensions")),
-        }]
+        vec![
+            PanelContribution::new(PANEL_ID, "Extensions", PanelHome::Main)
+                .closable(true)
+                .activity(Activity::new("puzzle", 910, "Extensions")),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

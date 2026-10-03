@@ -7,7 +7,9 @@ use super::*;
 /// A source the workspace has open.
 #[derive(Clone)]
 pub struct SourceHandle {
+    /// What the source says about itself.
     pub descriptor: SourceDescriptor,
+    /// The source.
     pub source: Arc<dyn Source>,
 }
 
@@ -27,8 +29,10 @@ pub type OpenFolderFuture =
 /// embedding provider settings for the index (`None` = BM25-only search).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct OpenOptions {
+    /// The provider settings for embeddings (the server builds the index's embedder from them), if search uses embeddings.
     pub embed: Option<moonkale_llm_types::LlmSettings>,
 }
+/// Open a folder (or a database file) by path → its sources (the folder, then its index).
 pub type OpenFolder = fn(String, OpenOptions) -> OpenFolderFuture;
 /// The future an [`AttachSource`] returns: one source, by descriptor.
 pub type AttachFuture = Pin<Box<dyn Future<Output = Result<Arc<dyn Source>, SourceError>>>>;
@@ -37,6 +41,7 @@ pub type AttachFuture = Pin<Box<dyn Future<Output = Result<Arc<dyn Source>, Sour
 /// user cancelled (or no dialog is available). Desktop provides one; web
 /// and mobile pass `None` and fall back to typing a path.
 pub type PickFolderFuture = Pin<Box<dyn Future<Output = Option<String>>>>;
+/// The platform's folder picker → the chosen path.
 pub type PickFolder = fn() -> PickFolderFuture;
 
 /// Re-open a source another window already has, from its descriptor:
@@ -46,6 +51,7 @@ pub type AttachSource = fn(SourceDescriptor) -> AttachFuture;
 /// Compile a Typst document: `(folder root, main path relative to it, text)` →
 /// SVG pages, or diagnostics. Desktop compiles in-process, web asks the server.
 pub type CompileTypstFuture = Pin<Box<dyn Future<Output = Result<Vec<String>, Vec<String>>>>>;
+/// `(root, main file relative to root, its text)` → SVG pages, or diagnostics.
 pub type CompileTypst = fn(String, String, String) -> CompileTypstFuture;
 
 /// Builds the LLM provider for this platform (in-process on desktop, the
@@ -69,17 +75,23 @@ pub type SecretStore = fn(String, String) -> SettingsFuture<()>;
 /// installed and runs commands where the runtime lives (desktop in-process,
 /// web on the server). `granted` are the permissions the user ticked.
 pub type WasmList = fn(Option<String>) -> SettingsFuture<Vec<moonkale_ext_abi::WasmManifest>>;
+/// `(extension id, command, args, granted permissions)` → the command's result.
 pub type WasmRun = fn(String, String, serde_json::Value, Vec<String>) -> SettingsFuture<String>;
+/// Installed wasm extensions on this platform (Milestone 6).
 #[derive(Clone, Copy)]
 pub struct WasmExtensions {
     /// Argument: the open folder's path (for `.moonkale/extensions`).
     pub list: WasmList,
+    /// Run one command of one module.
     pub run: WasmRun,
 }
 
+/// Where the user scope's settings file lives on this platform.
 #[derive(Clone, Copy)]
 pub struct SettingsStore {
+    /// Read it (missing = defaults).
     pub load: fn() -> SettingsFuture<crate::settings::SettingsFile>,
+    /// Write it.
     pub save: fn(crate::settings::SettingsFile) -> SettingsFuture<()>,
 }
 
@@ -87,8 +99,11 @@ pub struct SettingsStore {
 /// go-to-definition). Lines and columns are 0-based.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Reveal {
+    /// The node to open.
     pub node: NodeId,
+    /// 0-based line.
     pub line: u32,
+    /// 0-based column.
     pub col: u32,
     /// Bumped per request so the same position can be revealed twice.
     pub seq: u64,
@@ -100,10 +115,15 @@ pub struct Reveal {
 /// it has (the web client and the phone have no processes of their own).
 #[derive(Clone, Copy)]
 pub struct WorkspaceConfig {
+    /// Opening sources.
     pub folders: FolderAccess,
+    /// Programs on this machine (terminal, LSP).
     pub processes: Processes,
+    /// Settings, secrets and state stores.
     pub persistence: Persistence,
+    /// Servers, SSH remotes, presence, the session bus.
     pub network: Network,
+    /// Typst, the language model, wasm extensions.
     pub runtimes: Runtimes,
     /// Platform services an extension defines and the app provides
     /// (Milestone 18 phase 4.2): looked up by type with
@@ -149,7 +169,9 @@ pub struct Processes {
 /// Where settings, secrets and this app's own state are kept.
 #[derive(Clone, Copy, Default)]
 pub struct Persistence {
+    /// The user scope's settings file.
     pub settings: Option<SettingsStore>,
+    /// Store a secret by name (`None`: secrets come from the environment only).
     pub secrets: Option<SecretStore>,
     /// The store for this machine's own state (ADR-0014): layouts and open
     /// documents per folder today. Desktop and phone: `state.sqlite` in the
@@ -175,10 +197,14 @@ pub struct Persistence {
 /// `StateAccess::get`: `(table, key)` → the value, if any.
 pub type StateGet = fn(String, Vec<u8>) -> SettingsFuture<Option<Vec<u8>>>;
 
+/// See [`Persistence::state`]: three functions over a store, wherever it is.
 #[derive(Clone, Copy)]
 pub struct StateAccess {
+    /// Read one key.
     pub get: StateGet,
+    /// `(table, prefix)` → the entries under it, in key order.
     pub scan: fn(String, Vec<u8>) -> SettingsFuture<moonkale_state::Entries>,
+    /// Apply a batch, all or nothing.
     pub write: fn(moonkale_state::Batch) -> SettingsFuture<()>,
 }
 
@@ -226,7 +252,9 @@ pub struct Network {
 /// In-process engines.
 #[derive(Clone, Copy, Default)]
 pub struct Runtimes {
+    /// The language-model provider for these settings (the Agent; embeddings).
     pub llm: Option<LlmProvider>,
+    /// wasm extensions (`None`: none on this platform).
     pub wasm: Option<WasmExtensions>,
     /// Where the browser runtime fetches a wasm extension's bytes (by id);
     /// `Some` enables running modules in the page (Milestone 8, web).
@@ -243,6 +271,7 @@ pub type SpawnProgram = fn(String, Vec<String>, u16, u16) -> moonkale_terminal::
 pub struct ServerClient {
     /// `(url, token)`; the sources then come from that server.
     pub connect: fn(String, Option<String>) -> Result<(), String>,
+    /// Drop the connection; local sources again.
     pub disconnect: fn(),
     /// The connected server's label, if any.
     pub active: fn() -> Option<String>,
@@ -253,6 +282,7 @@ pub struct ServerClient {
 pub struct AgentSessions {
     /// Are the sources a server's right now?
     pub available: fn() -> bool,
+    /// A folder's sessions on the server.
     pub list: fn(String) -> SettingsFuture<Vec<moonkale_llm_types::sessions::SessionSummary>>,
     /// `(session or None, folder, text, settings)` → session id.
     pub send: fn(
@@ -278,16 +308,22 @@ impl PartialEq for AgentSessions {
 /// consumed by the Graph panel, which switches its source picker to it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GraphRequest {
+    /// The source to query.
     pub source: SourceId,
+    /// Its text dialect (`sql`, `cypher`, …).
     pub dialect: String,
+    /// The query.
     pub text: String,
 }
 
 /// A document being dragged out of another window of this session.
 #[derive(Clone, PartialEq)]
 pub struct ForeignDrag {
+    /// The window the drag started in.
     pub from: WindowId,
+    /// The document's node.
     pub node: Node,
+    /// Its source, so this window can attach it.
     pub source: SourceDescriptor,
     /// `true` while the mouse button is still down in the origin window (a
     /// real HTML5 drop can land here); `false` after the drag ended without
@@ -297,20 +333,27 @@ pub struct ForeignDrag {
 }
 
 /// Application-level commands: what menus, keybindings and (later) the
-/// palette and LLM tools dispatch. Consumers watch [`Workspace::commands`]
+/// palette and LLM tools dispatch. Consumers watch `Workspace::shell.commands`
 /// and act on the commands that concern them (the active editor handles
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Open a folder (the Explorer's path field or the picker).
     OpenFolder,
     /// Close the first folder source (spec 015); the Explorer's context
     /// menu closes a specific one through `Workspace::close_source`.
     CloseFolder,
+    /// Save the active document.
     Save,
+    /// Close the active document.
     CloseEditor,
+    /// Undo in the active editor.
     Undo,
+    /// Redo in the active editor.
     Redo,
+    /// Back to the default panel layout.
     ResetLayout,
+    /// Open another window of this session.
     NewWindow,
     /// Open a terminal; `Workspace::terminal_cwd` may carry a directory.
     /// The frame turns it into `NewTerminalIn` (Milestone 12).
@@ -318,6 +361,7 @@ pub enum Command {
     /// Open a terminal in a named implementation: `"xterm"` (the JS
     /// panel) or `"native"` (the Rust panel).
     NewTerminalIn(&'static str),
+    /// Show the About dialog.
     About,
     /// Bring a panel's tab to the front (the shell owns the layout); a
     /// closed static panel is reopened first (spec 011).
@@ -341,6 +385,7 @@ pub enum Command {
     CloseAllEditors,
     /// Show/hide the side bar (Ctrl+B) and the bottom panel (Ctrl+J).
     ToggleSide,
+    /// Show/hide the bottom panel (Ctrl+J).
     ToggleBottom,
     /// An action for the active editor (menus: Find, Rename, …).
     Editor(EditorAction),
@@ -361,13 +406,22 @@ pub enum Command {
 /// forwards them to its view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EditorAction {
+    /// Find in the document.
     Find,
+    /// Find and replace.
     Replace,
+    /// Rename the symbol (LSP).
     Rename,
+    /// Code actions at the cursor (LSP).
     CodeActions,
+    /// Go to definition (LSP).
     Definition,
+    /// Find references (LSP).
     References,
+    /// Comment or uncomment the selection.
     ToggleComment,
+    /// Fold every region.
     FoldAll,
+    /// Unfold every region.
     UnfoldAll,
 }

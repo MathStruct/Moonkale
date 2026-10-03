@@ -16,6 +16,7 @@ use std::fmt;
 pub struct WindowId(pub String);
 
 impl WindowId {
+    /// A new random id for this window.
     pub fn fresh() -> Self {
         Self(uuid::Uuid::new_v4().simple().to_string())
     }
@@ -27,36 +28,49 @@ impl fmt::Display for WindowId {
     }
 }
 
+/// What the windows of one session tell each other (the session bus).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SessionMessage {
     /// A window came up and wants to know the session state.
     Hello {
+        /// The window that sent it.
         from: WindowId,
     },
     /// Reply to `Hello`: "I exist" (so the newcomer can count its peers).
     Welcome {
+        /// The window that sent it.
         from: WindowId,
     },
     /// Reply to `Hello` (and broadcast whenever a source is opened).
     SourceOpened {
+        /// The window that opened it.
         from: WindowId,
+        /// The source, to attach it by descriptor.
         descriptor: SourceDescriptor,
     },
     /// A document is being dragged out of `from`; other windows become
     /// drop targets. Carries everything needed to open it on the other side.
     DragStarted {
+        /// The window the drag started in.
         from: WindowId,
+        /// The dragged document's node.
         node: Node,
+        /// Its source.
         source: SourceDescriptor,
     },
+    /// The drag ended without a drop.
     DragEnded {
+        /// The window the drag started in.
         from: WindowId,
     },
     /// `to` accepted the drop; `from` closes its copy.
     Moved {
+        /// The moved document.
         node: NodeId,
+        /// The window it left.
         from: WindowId,
+        /// The window it moved to.
         to: WindowId,
     },
 }
@@ -79,5 +93,6 @@ impl SessionMessage {
 /// Transport, implemented per platform: an in-process channel on desktop,
 /// `BroadcastChannel` on web. `send` must not deliver back to the sender.
 pub trait SessionBus {
+    /// Send a message to every other window of the session.
     fn send(&self, msg: SessionMessage);
 }

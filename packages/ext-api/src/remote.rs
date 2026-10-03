@@ -12,22 +12,29 @@ use std::sync::Arc;
 /// Where a session is, for the status bar and the menus.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RemotePhase {
+    /// Starting `ssh`.
     Connecting,
     /// `ssh` is waiting for the user (the line it printed).
     Prompt(String),
     /// The server binary is being copied to the host (first time per version).
     Uploading,
+    /// The server is starting on the host.
     Starting,
+    /// Connected; the folder is open.
     Ready,
+    /// It failed, with the reason.
     Failed(String),
+    /// The session ended.
     Closed,
 }
 
 impl RemotePhase {
+    /// Whether the phase is an end (ready, failed, closed).
     pub fn is_final(&self) -> bool {
         matches!(self, Self::Ready | Self::Failed(_) | Self::Closed)
     }
 
+    /// What the status bar shows for this phase.
     pub fn label(&self) -> String {
         match self {
             Self::Connecting => "connecting…".into(),
@@ -43,6 +50,7 @@ impl RemotePhase {
 
 /// A running session the workspace can end.
 pub trait RemoteSession: Send + Sync {
+    /// End the SSH session (and the remote server).
     fn close(&self);
 }
 
@@ -59,6 +67,7 @@ pub type OpenRemote = fn(String, String, PhaseSink) -> Result<Opened, String>;
 /// What the platform hands the workspace for remote folders.
 #[derive(Clone, Copy)]
 pub struct RemoteHosts {
+    /// Open `host:path` over SSH.
     pub open: OpenRemote,
     /// Host aliases to offer (`~/.ssh/config`).
     pub hosts: fn() -> Vec<String>,
@@ -70,9 +79,13 @@ pub struct RemoteHosts {
 /// The one session a window has.
 #[derive(Clone)]
 pub struct RemoteState {
+    /// The host as typed after `ssh`.
     pub host: String,
+    /// The folder on the host.
     pub path: String,
+    /// Where the session is.
     pub phase: RemotePhase,
+    /// The session, to close it.
     pub session: Arc<dyn RemoteSession>,
     /// Sources opened through the session (closed with it).
     pub sources: Vec<SourceId>,

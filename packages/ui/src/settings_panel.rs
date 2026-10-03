@@ -27,15 +27,11 @@ impl Extension for SettingsExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Settings".into(),
-            home: PanelHome::Main,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("settings", 900, "Settings")),
-        }]
+        vec![
+            PanelContribution::new(PANEL_ID, "Settings", PanelHome::Main)
+                .closable(true)
+                .activity(Activity::new("settings", 900, "Settings")),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

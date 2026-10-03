@@ -52,15 +52,10 @@ impl Extension for CodeEditorExtension {
             // the Rust editor takes the ones the user switched to it.
             .map(|(id, doc)| {
                 let d = doc.read();
-                PanelContribution {
-                    id: Self::panel_id(*id),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                }
+                PanelContribution::new(Self::panel_id(*id), d.node.label.clone(), PanelHome::Main)
+                    .closable(true)
+                    .dirty(d.dirty())
+                    .node(*id)
             })
             .collect()
     }

@@ -83,6 +83,7 @@ impl Workspace {
         self.record_as(self.user_actor(), kind)
     }
 
+    /// Record an event as `actor` (`"user:<name>"`, `"agent:<model>"`).
     pub fn record_as(
         &mut self,
         actor: String,
@@ -269,6 +270,7 @@ impl moonkale_state::Record for EventRecord {
     const VERSION: u32 = 1;
 }
 
+/// The store key of an event: `str(folder id) · u128(event id)`.
 pub fn event_key(folder: &SourceId, id: moonkale_core::EventId) -> Vec<u8> {
     moonkale_state::Key::new()
         .str(folder.as_str())

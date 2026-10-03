@@ -72,6 +72,10 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: The minimum distribution (no optional extension) builds
         run: cargo check -p moonkale-distribution --no-default-features --locked
+      - name: The library crates' docs build without warnings (Milestone 18 phase 6.3)
+        run: cargo doc -p moonkale-core -p moonkale-ext-api -p moonkale-graph-render --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
       - name: Web client compiles for wasm32 (no native-only crate leaked in)
         run: cargo check -p web --target wasm32-unknown-unknown --features web --locked
       - run: df -h /

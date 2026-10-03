@@ -58,25 +58,18 @@ impl Extension for HistoryExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        let mut out = vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "History".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("history", 50, "History").phone_secondary()),
-        }];
+        let mut out = vec![PanelContribution::new(PANEL_ID, "History", PanelHome::Side)
+            .closable(true)
+            .activity(Activity::new("history", 50, "History").phone_secondary())];
         for (ev, _, key) in self.state.views.read().iter() {
-            out.push(PanelContribution {
-                id: format!("{VIEW_PREFIX}{ev}"),
-                title: format!("{} @ {}", key.rsplit('/').next().unwrap_or(key), ev.short()),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: None,
-                activity: None,
-            });
+            out.push(
+                PanelContribution::new(
+                    format!("{VIEW_PREFIX}{ev}"),
+                    format!("{} @ {}", key.rsplit('/').next().unwrap_or(key), ev.short()),
+                    PanelHome::Main,
+                )
+                .closable(true),
+            );
         }
         out
     }

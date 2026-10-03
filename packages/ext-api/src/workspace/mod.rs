@@ -42,16 +42,26 @@ pub use session::SessionState;
 pub use settings::SettingsState;
 pub use sources::SourcesState;
 
+/// The workspace: every open source, document and setting, and the platform's services. `Copy` (signals inside); handed to every extension call. Its state is grouped by area; the methods are on this facade.
 #[derive(Clone, Copy)]
 pub struct Workspace {
+    /// Open sources and their change epochs.
     pub sources: SourcesState,
+    /// Open documents, views, the active one, the cursor.
     pub docs: DocsState,
+    /// The entity log.
     pub history: HistoryState,
+    /// The resolved settings and their scopes.
     pub settings: SettingsState,
+    /// Status line, commands, closed panels.
     pub shell: ShellState,
+    /// What extensions contributed (flow libraries, wasm modules, file marks).
     pub contrib: ContribState,
+    /// This window, other windows, presence.
     pub session: SessionState,
+    /// SSH remotes and the server connection.
     pub remote: RemoteLinks,
+    /// LSP status and terminal requests.
     pub processes: ProcessesState,
     config: WorkspaceConfig,
 }
@@ -108,6 +118,7 @@ impl Workspace {
         self.shell.commands.set((seq, Some(cmd)));
     }
 
+    /// Show `msg` in the status bar.
     pub fn set_status(&mut self, msg: impl Into<String>) {
         self.shell.status.set(msg.into());
     }

@@ -31,14 +31,10 @@ impl Extension for ImageExtension {
             .read()
             .iter()
             .filter(|n| crate::is_image(n))
-            .map(|n| PanelContribution {
-                id: Self::panel_id(n.id),
-                title: n.label.clone(),
-                home: PanelHome::Main,
-                closable: true,
-                dirty: false,
-                node: Some(n.id),
-                activity: None,
+            .map(|n| {
+                PanelContribution::new(Self::panel_id(n.id), n.label.clone(), PanelHome::Main)
+                    .closable(true)
+                    .node(n.id)
             })
             .collect()
     }

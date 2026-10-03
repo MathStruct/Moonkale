@@ -7,10 +7,13 @@
 //! `moonkale.toml` for third-party extensions is parsed into this type by
 //! `ext-host`.
 
+/// What an extension is: id, name, tier and permissions. Built with [`Manifest::core`], [`Manifest::optional`] or [`Manifest::opt_in`] (`#[non_exhaustive]` since `lib-v1`).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Manifest {
     /// Reverse-DNS, stable forever (`"dev.moonkale.editor-code"`).
     pub id: &'static str,
+    /// The name shown in the Extensions panel.
     pub name: &'static str,
     /// One line for the Extensions list.
     pub description: &'static str,
@@ -61,6 +64,7 @@ impl Manifest {
         }
     }
 
+    /// What the extension needs (`"read-sources"`, `"write-files"`, `"run-commands"`, `"network"`); granted per extension by the user.
     pub const fn with_permissions(mut self, permissions: &'static [&'static str]) -> Self {
         self.permissions = permissions;
         self

@@ -3,17 +3,21 @@
 
 use moonkale_core::{Node, TextPatch, Version};
 
+/// An open document: the node, its text as edited, and the version it was read at. Owned by the workspace ([`crate::Workspace::document`]); editors are views on it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Document {
+    /// The node it edits.
     pub node: Node,
     /// The text as last loaded or saved.
     pub saved: String,
     /// The text as currently edited.
     pub text: String,
+    /// The source's version when the text was read or last saved (conflict detection).
     pub version: Version,
 }
 
 impl Document {
+    /// A document whose text is as saved.
     pub fn new(node: Node, text: String, version: Version) -> Self {
         Self {
             node,
@@ -23,6 +27,7 @@ impl Document {
         }
     }
 
+    /// Whether the text differs from what was saved.
     pub fn dirty(&self) -> bool {
         self.text != self.saved
     }

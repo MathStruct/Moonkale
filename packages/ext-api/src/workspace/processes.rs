@@ -38,14 +38,17 @@ impl Workspace {
         self.dispatch(Command::ShowPanel("terminal"));
     }
 
+    /// The platform's language-server spawner, if any.
     pub fn spawn_lsp(&self) -> Option<moonkale_lsp::SpawnLsp> {
         self.config.processes.lsp
     }
 
+    /// The platform's language-model provider factory, if any.
     pub fn llm(&self) -> Option<LlmProvider> {
         self.config.runtimes.llm
     }
 
+    /// The platform's Typst compiler, if any.
     pub fn compile_typst(&self) -> Option<CompileTypst> {
         self.config.runtimes.typst
     }

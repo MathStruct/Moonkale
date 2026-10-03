@@ -32,15 +32,14 @@ impl Extension for FlowExtension {
             .filter(|(_, d)| is_flow(&d.read().node))
             .map(|(id, doc)| {
                 let d = doc.read();
-                PanelContribution {
-                    id: format!("{EDITOR_PREFIX}{id}"),
-                    title: d.node.label.clone(),
-                    home: PanelHome::Main,
-                    closable: true,
-                    dirty: d.dirty(),
-                    node: Some(*id),
-                    activity: None,
-                }
+                PanelContribution::new(
+                    format!("{EDITOR_PREFIX}{id}"),
+                    d.node.label.clone(),
+                    PanelHome::Main,
+                )
+                .closable(true)
+                .dirty(d.dirty())
+                .node(*id)
             })
             .collect()
     }

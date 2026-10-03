@@ -33,18 +33,14 @@ impl Extension for TerminalExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Terminal".into(),
-            home: PanelHome::Bottom,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(
-                Activity::new("terminal", 70, "Terminal")
-                    .badge(self.sessions.list.read().len() as u32),
-            ),
-        }]
+        vec![
+            PanelContribution::new(PANEL_ID, "Terminal", PanelHome::Bottom)
+                .closable(true)
+                .activity(
+                    Activity::new("terminal", 70, "Terminal")
+                        .badge(self.sessions.list.read().len() as u32),
+                ),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

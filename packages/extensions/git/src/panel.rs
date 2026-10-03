@@ -429,9 +429,5 @@ fn mark(index: char, worktree: char) -> Option<FileMark> {
         'U' => ("mk-vcs-conflict", "conflict"),
         _ => return None,
     };
-    Some(FileMark {
-        letter: c,
-        class,
-        title,
-    })
+    Some(FileMark::new(c, class, title))
 }

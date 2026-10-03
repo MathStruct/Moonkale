@@ -19,6 +19,7 @@ impl Workspace {
             .filter(|a| (a.available)())
     }
 
+    /// Whether this platform can open SSH remotes.
     pub fn has_remote(&self) -> bool {
         self.config.network.remote.is_some()
     }
@@ -53,6 +54,7 @@ impl Workspace {
         .await;
     }
 
+    /// Forget a saved SSH connection.
     pub async fn forget_remote(self, name: String) {
         self.update_user_settings(move |f| f.remote.saved.retain(|c| c.name != name))
             .await;
@@ -190,6 +192,7 @@ impl Workspace {
 
     // ---- A server's client (Milestone 12) ----
 
+    /// Whether this platform can connect to a Moonkale server.
     pub fn has_server_client(&self) -> bool {
         self.config.network.server.is_some()
     }

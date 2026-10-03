@@ -21,6 +21,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// The settings file format this build writes.
 pub const SETTINGS_VERSION: u32 = 1;
 /// Workspace settings path, relative to the folder root.
 pub const WORKSPACE_FILE: &str = ".moonkale/settings.json";
@@ -32,6 +33,7 @@ pub type SecretRef = String;
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SettingsFile {
+    /// The file format's version ([`SETTINGS_VERSION`]).
     pub version: u32,
     /// The language model — since Milestone 15 the profile called
     /// **Default**; `agents` holds the other saved ones.
@@ -43,17 +45,24 @@ pub struct SettingsFile {
     /// Saved SSH connections for *Open Remote Folder…* (user scope).
     #[serde(default)]
     pub remote: RemoteFile,
+    /// The agent's policy.
     pub policy: PolicyFile,
+    /// Search.
     pub search: SearchFile,
+    /// The agent panel.
     #[serde(default)]
     pub agent: AgentFile,
+    /// The terminal.
     pub terminal: TerminalFile,
+    /// The editors.
     pub editor: EditorFile,
+    /// Which extensions are on, and their permissions.
     pub extensions: ExtensionsFile,
     /// Command id → keybinding text (`"file.save": "Ctrl+S"`); an empty
     /// string unbinds. Later scopes override per id.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub keybindings: BTreeMap<String, String>,
+    /// The theme's name (spec 030; only `dark` so far).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
     /// The name edits and presence are attributed to (Milestone 8).
@@ -72,21 +81,25 @@ pub struct SettingsFile {
     /// Workspace scope: relative keys of the documents that were open.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub open_documents: Vec<String>,
+    /// The focused document (a folder's, per machine; in the state store since phase 5.7).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_document: Option<String>,
 }
 
+/// A language-model provider, as stored (every field optional; later scopes win per field).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LlmFile {
     /// `anthropic` | `openai` | `ollama` | `mock`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// The model (empty = the provider's default).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// OpenAI-compatible endpoint or Ollama host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+    /// The embedding model, for search.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embed_model: Option<String>,
     /// Which secret holds the API key (default: the provider's name).
@@ -103,7 +116,9 @@ pub struct LlmFile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AgentProfileFile {
+    /// Its name (unique; `Default` is the main profile).
     pub name: String,
+    /// Its provider.
     #[serde(flatten)]
     pub llm: LlmFile,
 }
@@ -112,6 +127,7 @@ pub struct AgentProfileFile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RemoteFile {
+    /// The saved connections, by name.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub saved: Vec<SavedConnection>,
 }
@@ -120,25 +136,31 @@ pub struct RemoteFile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SavedConnection {
+    /// Its name in the menu.
     pub name: String,
     /// The host as typed after `ssh` (options and `VAR=value` words included).
     pub host: String,
+    /// The folder on the host.
     pub path: String,
 }
 
+/// The agent's policy, as stored.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PolicyFile {
     /// Let the agent run mutating tools without asking.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_writes: Option<bool>,
+    /// Tools the agent may never call.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub denied_tools: Option<Vec<String>>,
 }
 
+/// Search, as stored.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SearchFile {
+    /// Whether search uses embeddings (default on; a folder may only turn it off).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embeddings: Option<bool>,
 }
@@ -162,8 +184,10 @@ pub struct AgentFile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ExtensionsFile {
+    /// Optional extensions switched on, by id.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub enabled: Vec<String>,
+    /// Optional extensions switched off, by id.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub disabled: Vec<String>,
     /// Granted permissions per extension id (`"read-sources"`, …).
@@ -184,9 +208,11 @@ impl ExtensionsFile {
     }
 }
 
+/// The terminal, as stored.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TerminalFile {
+    /// The shell to start (default: the user's login shell). User scope only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell: Option<String>,
     /// Which terminal panel *New Terminal* opens when both are enabled:
@@ -213,13 +239,16 @@ pub struct EditorFile {
     /// body font family, code font family.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rich_font_size: Option<u32>,
+    /// The Rich editor's font family.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rich_font: Option<String>,
+    /// The Rich editor's code font family.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rich_code_font: Option<String>,
 }
 
 impl SettingsFile {
+    /// An empty file of this build's version.
     pub fn new() -> Self {
         Self {
             version: SETTINGS_VERSION,
@@ -239,6 +268,7 @@ impl SettingsFile {
         Ok(file)
     }
 
+    /// The file's text (pretty JSON).
     pub fn to_json(&self) -> String {
         let mut f = self.clone();
         f.version = SETTINGS_VERSION;
@@ -379,9 +409,13 @@ impl SettingsFile {
 /// Where a resolved value came from (shown as a badge in the Settings panel).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Scope {
+    /// Nobody set it.
     Default,
+    /// The user's settings.
     User,
+    /// The folder's settings.
     Workspace,
+    /// An environment variable.
     Env,
 }
 
@@ -395,18 +429,31 @@ pub struct Settings {
     pub agents: Vec<AgentProfile>,
     /// Saved SSH connections (user scope).
     pub remote_saved: Vec<SavedConnection>,
+    /// The agent's policy.
     pub policy: PolicySettings,
+    /// Search.
     pub search: SearchSettings,
+    /// The agent panel.
     pub agent: AgentSettings,
+    /// The terminal.
     pub terminal: TerminalSettings,
+    /// The editors.
     pub editor: EditorSettings,
+    /// Extensions on and off, and permissions.
     pub extensions: ExtensionsSettings,
+    /// Command id → keybinding.
     pub keybindings: BTreeMap<String, String>,
+    /// The theme's name.
     pub theme: String,
+    /// Who edits are attributed to.
     pub user_name: String,
+    /// Recently opened folders, newest first.
     pub recent_folders: Vec<String>,
+    /// The folder's saved layout.
     pub layout: Option<String>,
+    /// The folder's open documents.
     pub open_documents: Vec<String>,
+    /// The folder's focused document.
     pub active_document: Option<String>,
     /// What the folder's settings tried to decide and may not
     /// ([`SettingsFile::without_authority`]); shown in Settings.
@@ -419,24 +466,32 @@ pub use moonkale_llm_types::LlmSettings;
 /// A saved agent, resolved (Milestone 15).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AgentProfile {
+    /// Its name.
     pub name: String,
+    /// Its resolved provider.
     pub llm: LlmSettings,
 }
 
 /// The name of the profile made of the flat `llm` fields.
 pub const DEFAULT_AGENT: &str = "Default";
 
+/// The agent's resolved policy.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct PolicySettings {
+    /// Mutating tools run without asking (destructive ones still ask).
     pub allow_writes: bool,
+    /// Tools the agent may never call.
     pub denied_tools: Vec<String>,
 }
 
+/// Resolved search settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SearchSettings {
+    /// Whether search uses embeddings.
     pub embeddings: bool,
 }
 
+/// Resolved agent-panel settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AgentSettings {
     /// Turns run on the server when the sources are a server's (default off).
@@ -445,13 +500,16 @@ pub struct AgentSettings {
     pub default: String,
 }
 
+/// Resolved terminal settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TerminalSettings {
+    /// The shell to start, if not the login shell.
     pub shell: Option<String>,
     /// `ask` | `xterm` | `native`.
     pub implementation: String,
 }
 
+/// Resolved editor settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EditorSettings {
     /// Soft-wrap long lines (default off, like most code editors).
@@ -464,14 +522,20 @@ pub struct EditorSettings {
     /// Rich editor typography: size in px (default 16), body and code
     /// font families (empty = the theme's).
     pub rich_font_size: u32,
+    /// The Rich editor's font family (empty = default).
     pub rich_font: String,
+    /// The Rich editor's code font family (empty = default).
     pub rich_code_font: String,
 }
 
+/// Which extensions are on, and what they may do.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ExtensionsSettings {
+    /// Optional extensions switched on.
     pub enabled: Vec<String>,
+    /// Optional extensions switched off.
     pub disabled: Vec<String>,
+    /// Granted permissions per extension id (user scope only).
     pub permissions: std::collections::BTreeMap<String, Vec<String>>,
 }
 
@@ -511,6 +575,7 @@ impl ExtensionsSettings {
         }
     }
 
+    /// Whether extension `m` may use `permission`.
     pub fn has(&self, m: &crate::Manifest, permission: &str) -> bool {
         self.granted(m).iter().any(|p| p == permission)
     }
@@ -951,8 +1016,11 @@ mod tests {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LayoutRecord {
+    /// The folder's panel layout (encoded).
     pub layout: Option<String>,
+    /// Its open documents (native keys).
     pub open_documents: Vec<String>,
+    /// Its focused document.
     pub active_document: Option<String>,
 }
 
@@ -967,6 +1035,7 @@ impl moonkale_state::Record for UserSettingsRecord {
 }
 
 impl UserSettingsRecord {
+    /// The record's key: `str("user")`.
     pub fn key() -> moonkale_state::Key {
         moonkale_state::Key::new().str("user")
     }
@@ -987,6 +1056,7 @@ impl LayoutRecord {
         }
     }
 
+    /// Whether nothing is stored.
     pub fn is_empty(&self) -> bool {
         self.layout.is_none() && self.open_documents.is_empty() && self.active_document.is_none()
     }

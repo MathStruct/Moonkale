@@ -17,15 +17,9 @@ impl Extension for AgentExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Agent".into(),
-            home: PanelHome::Right,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("agent", 60, "Agent")),
-        }]
+        vec![PanelContribution::new(PANEL_ID, "Agent", PanelHome::Right)
+            .closable(true)
+            .activity(Activity::new("agent", 60, "Agent"))]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

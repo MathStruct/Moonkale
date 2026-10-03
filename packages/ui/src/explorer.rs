@@ -95,17 +95,13 @@ impl Extension for ExplorerExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: "explorer".into(),
-            // "Sources", not "Explorer"/"Files" (Prompt26): it holds folders,
-            // databases and, later, repositories. The ids stay `explorer`.
-            title: "Sources".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("files", 10, "Sources")),
-        }]
+        // "Sources", not "Explorer"/"Files" (Prompt26): it holds folders,
+        // databases and, later, repositories. The ids stay `explorer`.
+        vec![
+            PanelContribution::new("explorer", "Sources", PanelHome::Side)
+                .closable(true)
+                .activity(Activity::new("files", 10, "Sources")),
+        ]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

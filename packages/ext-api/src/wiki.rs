@@ -24,11 +24,17 @@ pub struct WikiCandidate {
 /// the whole link and its parts.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct WikiSpan {
+    /// Byte offset of `[[`.
     pub start: usize,
+    /// Byte offset after `]]`.
     pub end: usize,
+    /// The page named (`target`).
     pub target: String,
+    /// `#heading`, if any.
     pub heading: Option<String>,
+    /// `|alias`, if any.
     pub alias: Option<String>,
+    /// Whether a page of that name exists.
     pub resolved: bool,
 }
 

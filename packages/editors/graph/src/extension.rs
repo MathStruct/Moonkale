@@ -16,15 +16,9 @@ impl Extension for GraphExtension {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: PANEL_ID.into(),
-            title: "Graph".into(),
-            home: PanelHome::Main,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("graph", 80, "Graph")),
-        }]
+        vec![PanelContribution::new(PANEL_ID, "Graph", PanelHome::Main)
+            .closable(true)
+            .activity(Activity::new("graph", 80, "Graph"))]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

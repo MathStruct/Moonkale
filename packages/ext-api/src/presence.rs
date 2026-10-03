@@ -5,10 +5,12 @@
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
+/// One window of one user in a room: who, and where they are.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Member {
     /// The window's id (a user may have several).
     pub window: String,
+    /// The name shown on badges (Settings → You).
     pub name: String,
     /// Relative key of the active document, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -46,15 +48,27 @@ impl Member {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PresenceMessage {
     /// Client → hub: join `room` as `member` (first message).
-    Join { room: String, member: Member },
+    Join {
+        /// The room (one per folder).
+        room: String,
+        /// This window.
+        member: Member,
+    },
     /// Client → hub: my state changed.
-    Update { member: Member },
+    Update {
+        /// This window, as it is now.
+        member: Member,
+    },
     /// Hub → clients: everyone in the room (including the receiver).
-    Members { members: Vec<Member> },
+    Members {
+        /// Every window in the room.
+        members: Vec<Member>,
+    },
 }
 
 /// A live connection to the hub; dropping it leaves the room.
 pub trait PresenceLink {
+    /// Tell the room this window's state changed.
     fn update(&self, member: Member);
 }
 

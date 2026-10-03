@@ -5,7 +5,7 @@ tags: [extensions, guide]
 Moonkale is extension-driven: the built-in editors are extensions. This guide takes you from an empty folder to a panel, a command, a language and a data source. Reference material: [[Manifest Reference]], [[Contribution Points]], [[Host API Reference]], [[Publishing and Platforms]].
 
 > [!warning] Two halves — read which one you need
-> **Part A** is how to write an extension **today**, against the code as it is (checked 2026-10-01). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `ui::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
+> **Part A** is how to write an extension **today**, against `moonkale-ext-api` as tagged `lib-v1` (Milestone 18 phase 6.3, 2026-10-03; what changed per tag: `packages/ext-api/CHANGELOG.md`). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `ui::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
 
 # Part A — writing an extension today
 
@@ -15,12 +15,15 @@ There are two kinds, and they can do different things:
 |---|---|---|
 | can contribute | panels (any Dioxus `Element`), commands + keybindings, its own settings UI, flow-editor block libraries | commands, optionally offered to the agent as tools |
 | sees | the whole `Workspace` (sources, documents, settings, …) | three host calls: `list_sources`, `query`, `fetch_text`, each checked against the granted permissions |
-| ships | compiled into the binary; listed in `ui::default_extensions()` | a `.wasm` file in `~/.config/moonkale/extensions/` or `<folder>/.moonkale/extensions/` |
+| ships | compiled into the binary; listed in `moonkale_distribution::default_extensions()` behind a Cargo feature | a `.wasm` file in `~/.config/moonkale/extensions/` or `<folder>/.moonkale/extensions/` |
 | runs on | every platform | desktop and server (wasmtime), browser (Worker); not on Android yet |
 | example | `packages/editors/image` (≈ 60 lines of extension code) | `packages/extensions/wordcount` |
 
 ## A static extension
-Depend on `moonkale-ext-api` and `dioxus` (workspace versions), implement the trait, and add one line to `ui::default_extensions()` (and the crate to `ui/Cargo.toml`) — that line moves to a `distribution` crate in [[Milestone 18 - Library Refactor]].
+Depend on `moonkale-ext-api` (and `moonkale-core` for the model) and `dioxus`, implement the trait, and list the crate in `packages/distribution` — a Cargo feature and one `#[cfg(feature = …)]` line in `default_extensions()`; the shell is never edited.
+
+- **Inside the repository**: a crate under `packages/editors/` or `packages/extensions/`, `moonkale-ext-api = { workspace = true }`.
+- **In a repository of its own** (as `MathStruct/moonkale-julia` does): depend **by git tag**, never a branch — `moonkale-ext-api = { git = "https://github.com/MathStruct/Moonkale", tag = "lib-v1" }` (likewise `moonkale-core`); Moonkale's distribution then pulls your crate by git behind an off-by-default feature. A `lib-vN` tag marks a state where `core`, `ext-api` and `graph-render` are compatible.
 
 ```rust
 use dioxus::prelude::*;
@@ -36,15 +39,11 @@ impl Extension for Hello {
     }
 
     fn panels(&self, _ws: Workspace) -> Vec<PanelContribution> {
-        vec![PanelContribution {
-            id: "hello".into(),
-            title: "Hello".into(),
-            home: PanelHome::Side,
-            closable: true,
-            dirty: false,
-            node: None,
-            activity: Some(Activity::new("puzzle", 100, "Hello")),
-        }]
+        // The contribution structs are #[non_exhaustive]: build them with
+        // `new` and the builder methods, so a new field is not breaking.
+        vec![PanelContribution::new("hello", "Hello", PanelHome::Side)
+            .closable(true)
+            .activity(Activity::new("puzzle", 100, "Hello"))]
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
@@ -64,7 +63,14 @@ impl Extension for Hello {
 }
 ```
 
-What the trait offers (`packages/ext-api/src/extension.rs`): `manifest`, `panels` (called on every shell render — read signals there to contribute one panel per open document), `render`, `on_panel_closed`, `commands`/`run_command`, `claims` (see below), `flow_libraries` (block libraries for the flow editor, see `extensions/lux`), `settings` (an `Element` shown under the extension's row in the Extensions panel; write with `Workspace::update_settings_in`). Keep state in the `Workspace` or in signals the extension owns, not in the rendered element: a panel is remounted when it is docked elsewhere.
+What the trait offers (`packages/ext-api/src/extension.rs`, every item documented — `cargo doc -p moonkale-ext-api --open`): `manifest`, `panels` (called on every shell render — read signals there to contribute one panel per open document), `render`, `on_panel_closed`, `commands`/`run_command`, `claims` (see below), `flow_libraries` (block libraries for the flow editor, see `moonkale-julia`'s Lux), `settings` (an `Element` shown under the extension's row in the Extensions panel; write with `Workspace::update_settings_in`), `locales` (your strings per language, Fluent `key = text` files, English required — `i18n::lookup`; for spec [[030]]).
+
+More that an extension can rely on since Milestone 18:
+- **Platform services by type.** Define a type (`pub struct GitRunner(pub fn(…) -> …)`), let the app put a value in `WorkspaceConfig::services`, and find it with `ws.service::<GitRunner>()` — `ext-api` never has to know your service (git does it this way).
+- **A server half.** A `server` feature on your crate with `#[post("/api/…")]` server functions: the server binary registers them when your crate is linked with that feature (the distribution's `server` feature turns it on). Use `moonkale_server_host::jail_dir` for every path a client names. Shared relays (terminal, LSP, LLM) stay in the host.
+- **State that is not a file.** `Workspace::state_get/state_put` (this machine's store) and `host_get/host_scan/host_write` (the store of the folder's host) with a `moonkale_state::Record` type — see the Agent's saved sessions.
+- **Properties on nodes and edges** (`Node::props`, `Edge::props`), and content-addressed ids (`NodeId::from_content`) for sources whose entities are their structure ([[ADR-0015 The core model]]).
+- **A folder's settings are data, not authority**: whatever your settings section writes to the workspace scope, a folder can never grant permissions, name a program or point a secret somewhere ([[Security]]). Offer such switches in the user scope only (see the Agent's "Allow mutating tools"). Keep state in the `Workspace` or in signals the extension owns, not in the rendered element: a panel is remounted when it is docked elsewhere.
 
 An editor is a static extension that contributes one panel per node it opens (see `editors/image/src/extension.rs`: it filters `ws.docs.views` for the nodes it can show) and **claims** those nodes: `fn claims(&self, node: &Node) -> Option<u8>` — the built-in code editors claim any text with 10, format editors their format with 50. When several enabled extensions claim a document, the shell keeps only the highest claimant's tab (a tie goes to the user's choice), so a new editor for, say, `*.lenticulum.json` takes those files from the code editor by claiming them above 10. A database driver contributes **source openers** instead (`moonkale_core::SourceOpener`: a name check and an `open` function), which the app adds to its `Openers` list.
 

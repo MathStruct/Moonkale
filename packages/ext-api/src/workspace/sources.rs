@@ -82,11 +82,12 @@ impl Workspace {
     }
 
     /// Can this platform open folders over SSH?
-    /// The source openers of this build ([`WorkspaceConfig::openers`]).
+    /// The source openers of this build (`FolderAccess::openers`).
     pub fn openers(&self) -> &'static moonkale_core::Openers {
         self.config.folders.openers
     }
 
+    /// Attach a source another window of this session opened.
     pub async fn attach_source(mut self, descriptor: SourceDescriptor) -> Result<(), SourceError> {
         if self.source(&descriptor.id).is_some() {
             return Ok(());
@@ -231,6 +232,7 @@ impl Workspace {
         }
     }
 
+    /// An open source by id.
     pub fn source(&self, id: &SourceId) -> Option<Arc<dyn Source>> {
         self.sources
             .open
@@ -351,6 +353,7 @@ impl Workspace {
             .cloned()
     }
 
+    /// Run a query against an open source.
     pub async fn query(&self, source: &SourceId, query: Query) -> Result<QueryResult, SourceError> {
         let s = self.source(source).ok_or(SourceError::NotFound)?;
         s.query(query).await
@@ -499,6 +502,7 @@ impl Workspace {
 /// Open sources and whether they are followed. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
 #[derive(Clone, Copy)]
 pub struct SourcesState {
+    /// The open sources, in the order they were opened.
     pub open: Signal<Vec<SourceHandle>>,
     /// Sources whose changes on disk are followed (Milestone 16): their
     /// `changes_since` answered. Every other source gets a refresh button.

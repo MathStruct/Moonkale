@@ -2,27 +2,38 @@
 //!
 //! **This crate is the contract.** Everything an extension can see or do is
 //! declared here. The built-in editors are extensions that happen to be
-//! compiled in; there is no privileged path.
+//! compiled in; there is no privileged path. Versioned since `lib-v1`
+//! (Milestone 18 phase 6.3): see `CHANGELOG.md` next to this crate for what
+//! each `lib-vN` tag changed and the compatibility rules.
 //!
-//! What is here:
-//! - [`manifest::Manifest`] — id, name, description, tier, permissions.
-//! - [`extension::Extension`] — panels, commands, settings, flow libraries.
-//! - [`contrib`] — `PanelContribution` (+ the activity-bar `Activity`),
-//!   [`CommandContribution`] and keybindings.
-//! - [`workspace::Workspace`] — the host handle: sources, documents, history,
-//!   settings, presence, remote … Documents live *here*, not in panels, so a
-//!   dock/undock (which remounts panel content) cannot lose edits. It is far
-//!   larger than a contract should be; Milestone 18 phase 3 splits it into
-//!   services.
-//! - [`settings`], [`flow`], [`wiki`], [`git`], [`presence`], [`remote`],
-//!   [`session`] — types shared between the shell, extensions and the server.
+//! What an extension uses:
+//! - [`Extension`] — the trait: [`Manifest`], panels and their rendering,
+//!   and optionally commands, settings, document claims, flow libraries,
+//!   strings ([`i18n`]) and file marks.
+//! - [`contrib`] — [`PanelContribution`] (built with
+//!   [`PanelContribution::new`]), [`Activity`], [`FileMark`];
+//!   [`CommandContribution`] and [`Keybinding`].
+//! - [`Workspace`] — the host handle: sources, documents, history, settings,
+//!   presence, remotes, and platform services by type
+//!   ([`Workspace::service`]). Documents live here, not in panels, so a
+//!   dock/undock (which remounts panel content) cannot lose edits. Its state
+//!   is grouped by area (`ws.sources`, `ws.docs`, `ws.settings`, …); the
+//!   methods are on the facade.
+//! - [`settings`], [`flow`], [`wiki`], [`presence`], [`remote`], [`session`]
+//!   — types shared between the shell, extensions and the server.
 //!
-//! Wasm extensions use a separate JSON ABI (`moonkale-ext-host::abi`). The
-//! target design (a `moonkale.toml` manifest, a `Host` handle, `ui::Tree`
-//! panels) is in the vault: `extensions/Writing an Extension.md`, Part B.
+//! What an app (a platform crate) uses: [`WorkspaceConfig`] — what the
+//! platform gives the workspace, grouped as folders, processes,
+//! persistence, network, runtimes and services.
+//!
+//! Wasm extensions use a separate JSON ABI (`moonkale-ext-abi`, hosted by
+//! `moonkale-ext-host`; [[ADR-0013 JSON ABI before components]]).
 //!
 //! This crate depends on `dioxus` because static extensions return
-//! `Element`s.
+//! `Element`s; on `moonkale-core` for the model; on the protocol crates
+//! `moonkale-lsp`, `moonkale-terminal`, `moonkale-llm-types`, `moonkale-ext-abi`
+//! and on `moonkale-state` — nothing else (checked by `tools/check-deps.py`).
+#![warn(missing_docs)]
 
 mod assets;
 mod command;
