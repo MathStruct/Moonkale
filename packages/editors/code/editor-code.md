@@ -61,3 +61,6 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 - `panels()` claims only documents `Workspace::editor_for(node) == "codemirror"`; the toolbar has a *Rust* switch when the native editor extension is enabled (`choose_editor`).
 - `BackendEvent::Cursor { line, col }` now reaches `Workspace::set_cursor` (line and column; `cursor_word()` derives the identifier) — before, only the line was used for presence.
 - `EditorImplementationSetting` (also re-declared in the native crate): `editor.implementation`.
+
+## Milestone 18 phase 4.1
+- The component — `panel.rs` (`CodeEditorPanel`, `toggle_wrap`), `backend/` (CodeMirror), `lsp.rs` (`LspManager`) and `assets/` (the CodeMirror bundle, `panel.css`) — moved to `packages/code-view` (`moonkale-code-view`); this crate keeps the extension (`extension.rs`) and re-exports the rest. Markdown's Source mode depends on `code-view`, not on this extension. The bundle now builds into `packages/code-view/assets/codemirror.js`.

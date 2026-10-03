@@ -1,14 +1,14 @@
 //! `CodeEditorExtension` — one closable panel per open document.
 
-use crate::panel::CodeEditorPanel;
 use dioxus::prelude::*;
+use moonkale_code_view::CodeEditorPanel;
 use moonkale_core::NodeId;
 use moonkale_ext_api::prelude::*;
 
 pub const PANEL_PREFIX: &str = "editor:";
 
 pub struct CodeEditorExtension {
-    lsp: crate::lsp::LspManager,
+    lsp: moonkale_code_view::lsp::LspManager,
 }
 
 impl Default for CodeEditorExtension {
@@ -20,7 +20,7 @@ impl Default for CodeEditorExtension {
 impl CodeEditorExtension {
     pub fn new() -> Self {
         Self {
-            lsp: crate::lsp::LspManager::new(),
+            lsp: moonkale_code_view::lsp::LspManager::new(),
         }
     }
 
@@ -89,7 +89,7 @@ impl Extension for CodeEditorExtension {
 
     fn run_command(&self, id: &str, ws: Workspace) {
         if id == "editor.toggleWrap" {
-            toggle_wrap(ws);
+            moonkale_code_view::toggle_wrap(ws);
         }
     }
 
@@ -105,14 +105,4 @@ impl Extension for CodeEditorExtension {
             }
         })
     }
-}
-
-/// Flip `editor.wrap` in the user settings (spec 014); every open editor
-/// follows through its settings effect.
-pub fn toggle_wrap(ws: Workspace) {
-    let next = !ws.settings.resolved.peek().editor.wrap;
-    dioxus::core::spawn_forever(async move {
-        ws.update_user_settings(|f| f.editor.wrap = Some(next))
-            .await;
-    });
 }

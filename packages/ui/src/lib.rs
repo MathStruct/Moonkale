@@ -16,7 +16,6 @@ pub mod commands;
 mod explorer;
 mod extensions_panel;
 mod frame;
-mod history;
 pub mod icons;
 mod palette;
 mod remote_dialog;
@@ -50,29 +49,15 @@ pub use titlebar::TitleBar;
 
 use moonkale_ext_api::Extension;
 
-/// The built-in extensions, in contribution order.
-pub fn default_extensions() -> Vec<Box<dyn Extension>> {
+/// The shell's own extensions (Explorer, Search, Settings, Extensions), in
+/// contribution order. Everything else comes from a distribution
+/// (`moonkale-distribution`, Milestone 18 phase 4.1), which starts its list
+/// with these.
+pub fn builtin_extensions() -> Vec<Box<dyn Extension>> {
     vec![
         Box::new(ExplorerExtension::new()),
         Box::new(search::SearchExtension),
         Box::new(settings_panel::SettingsExtension),
         Box::new(extensions_panel::ExtensionsExtension),
-        Box::new(moonkale_editor_graph::GraphExtension),
-        Box::new(moonkale_editor_markdown::LinksExtension::new()),
-        // Which documents each editor shows is decided by `Extension::claims`
-        // (Milestone 18 phase 2), not by this list.
-        Box::new(moonkale_editor_code::CodeEditorExtension::new()),
-        // Milestone 14: the Rust code editor; the user's choice breaks the tie.
-        Box::new(moonkale_editor_code_native::NativeCodeExtension::new()),
-        Box::new(moonkale_editor_table::TableExtension),
-        Box::new(moonkale_editor_image::ImageExtension),
-        Box::new(moonkale_editor_terminal::TerminalExtension::new()),
-        Box::new(moonkale_editor_terminal_native::NativeTerminalExtension::new()),
-        Box::new(moonkale_editor_agent::AgentExtension),
-        // Opt-in (off until enabled in Settings → Extensions):
-        Box::new(moonkale_editor_flow::FlowExtension),
-        Box::new(moonkale_ext_lux::LuxExtension),
-        Box::new(moonkale_ext_git::GitExtension::new()),
-        Box::new(history::HistoryExtension::new()),
     ]
 }

@@ -111,7 +111,7 @@ When a refactor removes a layering violation, delete its line from `tools/deps-a
 - **API keys** for the dev shell live in `.secrets/llm.env` (gitignored): `source .secrets/llm.env` before `dx serve` — the file exports `MOONKALE_LLM`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `MOONKALE_LLM_MODEL`, `MOONKALE_EMBED_MODEL`. Mistral's API is OpenAI-compatible (`https://api.mistral.ai/v1`, `mistral-code-latest`, `mistral-embed`). `packages/web/tests/e2e/agent-live.mjs` checks a real model against the fixture; it is not part of the regular suite.
 - **Milestone 4 agent:** the Agent tab uses `MOONKALE_LLM` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `OLLAMA_HOST` from the environment of the process that runs the provider (the desktop app, or the server under `dx serve` for web); nothing set = offline mock (`/tool <name> <json>` in the chat calls a tool). `MOONKALE_EMBED_MODEL` turns on embeddings for search. Ctrl+Shift+F searches; **Trace → Graph** in the terminal draws a panic/compiler error.
 - The xterm bundle is committed (`packages/editors/terminal/assets/xterm.{js,css}`); rebuild after changing `packages/js/xterm/src` with `npm run build` there.
-- The CodeMirror bundle is committed (`packages/editors/code/assets/codemirror.js`); rebuild it after changing `packages/js/codemirror/src` with `npm run build` there.
+- The CodeMirror bundle is committed (`packages/code-view/assets/codemirror.js`); rebuild it after changing `packages/js/codemirror/src` with `npm run build` there.
 
 Strategy and per-layer recipes: [[Testing Strategy]], [[How to Write Tests]].
 

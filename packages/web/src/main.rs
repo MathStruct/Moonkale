@@ -404,7 +404,7 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         Frame {
             config: ShellConfig {
-                extensions: ui::default_extensions,
+                extensions: moonkale_distribution::default_extensions,
                 workspace: workspace_config(),
                 session,
                 new_window: Some(new_window),

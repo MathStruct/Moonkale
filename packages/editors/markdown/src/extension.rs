@@ -2,7 +2,7 @@ use crate::links_panel::LinksPanel;
 use crate::rich::RichPanel;
 use crate::typst_preview::TypstPreviewPanel;
 use dioxus::prelude::*;
-use moonkale_editor_code::{lsp::LspManager, CodeEditorPanel};
+use moonkale_code_view::{lsp::LspManager, CodeEditorPanel};
 use moonkale_ext_api::prelude::*;
 use std::collections::HashMap;
 

@@ -70,7 +70,9 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 | crate | note |
 |---|---|
 | `packages/api` | [api.md](https://github.com/MathStruct/Moonkale/blob/master/packages/api/api.md) |
+| `packages/code-view` | [editor-code.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code/editor-code.md) (phase 4.1 section) |
 | `packages/core` | [core.md](https://github.com/MathStruct/Moonkale/blob/master/packages/core/core.md) |
+| `packages/distribution` | [distribution.md](https://github.com/MathStruct/Moonkale/blob/master/packages/distribution/distribution.md) |
 | `packages/desktop` | [desktop.md](https://github.com/MathStruct/Moonkale/blob/master/packages/desktop/desktop.md) |
 | `packages/editors/agent` | [editor-agent.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/agent/editor-agent.md) |
 | `packages/editors/code-native` | [editor-code-native.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/code-native/editor-code-native.md) |
@@ -86,6 +88,7 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 | `packages/ext-api` | [ext-api.md](https://github.com/MathStruct/Moonkale/blob/master/packages/ext-api/ext-api.md) |
 | `packages/ext-host` | [ext-host.md](https://github.com/MathStruct/Moonkale/blob/master/packages/ext-host/ext-host.md) |
 | `packages/extensions/git` | [git.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/git/git.md) |
+| `packages/extensions/history` | [history.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/history/history.md) |
 | `packages/extensions/lux` | [lux.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/lux/lux.md) |
 | `packages/extensions/wordcount` | [wordcount.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/wordcount/wordcount.md) |
 | `packages/index` | [index.md](https://github.com/MathStruct/Moonkale/blob/master/packages/index/index.md) |
@@ -111,7 +114,7 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 
 ## Where reality differs from the rules below
 Measured 2026-10-01; each item is a step of [[Milestone 18 - Library Refactor]].
-- **`ui` is not "the shell only"**: it depends on every editor and extension crate and on `api`, and `ui::default_extensions()` is the catalogue — so the core cannot be built without them and an outside crate cannot be added without editing `ui`. (Its driver dependencies are gone since phase 2: the Explorer asks the source openers.)
+- ~~`ui` is not "the shell only"~~ — since phase 4.1 the catalogue is `moonkale-distribution` (a Cargo feature per extension) and `ui` depends on `core`, `ext-api` and the protocol crates only; History is its own extension (4.2), and the CodeMirror component is `code-view`, so Markdown no longer depends on the Code extension.
 - **`ext-api` is not yet a small contract**: since phase 3 it depends only on `core`, `ext-abi`, `llm-types`, `lsp` and `terminal`, and `Workspace` (2 603 lines, 39 public signals, 94 public methods) holds the state of almost every feature.
 - ~~`llm` depends on `sources-sql`~~ — gone in phase 2: sources classify their own queries (`Source::classify`).
 - **`api` depends on the git extension**, and holds the server half of every extension that has one.

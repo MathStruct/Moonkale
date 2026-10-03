@@ -541,7 +541,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 button {
                     class: if wrap_on { "mk-btn mk-btn-on" } else { "mk-btn" },
                     title: "Wrap long lines (Alt+Z)",
-                    onclick: move |_| crate::extension::toggle_wrap(ws),
+                    onclick: move |_| toggle_wrap(ws),
                     "Wrap"
                 }
                 button { class: "mk-btn", disabled: !dirty, onclick: save, "Save" }
@@ -642,4 +642,14 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
         }
     }
+}
+
+/// Flip `editor.wrap` in the user settings (spec 014); every open editor
+/// follows through its settings effect.
+pub fn toggle_wrap(ws: Workspace) {
+    let next = !ws.settings.resolved.peek().editor.wrap;
+    dioxus::core::spawn_forever(async move {
+        ws.update_user_settings(|f| f.editor.wrap = Some(next))
+            .await;
+    });
 }

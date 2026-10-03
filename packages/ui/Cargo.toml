@@ -9,25 +9,9 @@ dioxus = { workspace = true }
 dioxus-workbench = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
-moonkale-editor-code = { workspace = true }
-moonkale-editor-code-native = { workspace = true }
-moonkale-editor-graph = { workspace = true }
-moonkale-editor-markdown = { workspace = true }
-moonkale-editor-table = { workspace = true }
-moonkale-editor-image = { workspace = true }
-moonkale-editor-terminal = { workspace = true }
-moonkale-editor-terminal-native = { workspace = true }
-moonkale-editor-agent = { workspace = true }
-moonkale-editor-flow = { workspace = true }
-moonkale-ext-lux = { workspace = true }
-moonkale-ext-git = { workspace = true }
 moonkale-terminal = { workspace = true }
 moonkale-lsp = { workspace = true }
-api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
-
-[features]
-server = ["api/server"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "macros", "time"] }

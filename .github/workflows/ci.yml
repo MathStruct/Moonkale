@@ -68,6 +68,8 @@ jobs:
         run: cargo test -p moonkale-state -p moonkale-state-stores --features moonkale-state-stores/redb,moonkale-state-stores/sqlite --locked
       - name: clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: The minimum distribution (no optional extension) builds
+        run: cargo check -p moonkale-distribution --no-default-features --locked
       - name: Web client compiles for wasm32 (no native-only crate leaked in)
         run: cargo check -p web --target wasm32-unknown-unknown --features web --locked
       - run: df -h /

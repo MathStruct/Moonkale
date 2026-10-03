@@ -3,9 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Thin CodeMirror 6 wrapper for Moonkale's code editor. Builds into packages/editors/code/assets/codemirror.js.",
+  "description": "Thin CodeMirror 6 wrapper for Moonkale's code editor. Builds into packages/code-view/assets/codemirror.js.",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --outfile=../../editors/code/assets/codemirror.js",
+    "build": "esbuild src/index.ts --bundle --format=iife --minify --target=es2020 --outfile=../../code-view/assets/codemirror.js",
     "check": "tsc --noEmit"
   },
   "devDependencies": {

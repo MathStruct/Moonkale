@@ -2,11 +2,16 @@
 //! create, rename, delete, edit (by user or agent) and git checkpoint —
 //! newest first, filterable to the active document, with "text at this
 //! point" views that replay the log.
+//!
+//! Its own crate since Milestone 18 phase 4.2 (it was `ui/src/history.rs`):
+//! nothing in the shell is privileged, and a distribution may leave it out.
 
 use dioxus::prelude::*;
 use moonkale_core::{EventId, EventKind, NodeId};
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::Command;
+
+const CSS: Asset = asset!("/assets/history.css");
 
 pub const PANEL_ID: &str = "history";
 const VIEW_PREFIX: &str = "history-view:";
@@ -162,6 +167,7 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
     let foldable = log.len().saturating_sub(KEEP);
 
     rsx! {
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-history",
             div { class: "mk-history-head",
                 span { class: "mk-muted", "{log.len()} events · {checkpoints} checkpoints · {kb} KB" }
@@ -241,6 +247,7 @@ fn TextAtPanel(ws: Workspace, state: HistoryState, event: String) -> Element {
     let same = current.as_ref().is_some_and(|c| Some(c) == text.as_ref());
     let mut ws = ws;
     rsx! {
+        moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-history-view",
             div { class: "mk-history-view-head",
                 span { "{key}" }

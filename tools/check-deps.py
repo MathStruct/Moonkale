@@ -51,15 +51,6 @@ def violations(meta):
     def direct(pid):
         return {name[d] for d in normal[pid]}
 
-    def closure(pid):
-        seen, todo = set(), [pid]
-        while todo:
-            for d in normal[todo.pop()]:
-                if d not in seen:
-                    seen.add(d)
-                    todo.append(d)
-        return {name[d] for d in seen}
-
     found = set()
     for m in members:
         n = name[m]
@@ -75,9 +66,19 @@ def violations(meta):
                 if d != n:
                     found.add(f"only-apps-assemble {n} -> {d}")
         if n in ("ui", "moonkale-shell"):
-            for d in closure(m) & HEAVY:
+            for d in shell_tree(n) & HEAVY:
                 found.add(f"shell-stays-light {n} ~> {d}")
     return found
+
+
+def shell_tree(crate):
+    """The shell's dependencies as `cargo tree -p <shell>` resolves them: with
+    the shell's own features, not the whole workspace's (where e.g. `api`
+    turns on Dioxus's `fullstack`, which brings `reqwest`, for every crate
+    that uses Dioxus)."""
+    out = subprocess.run(["cargo", "tree", "-p", crate, "-e", "normal", "--prefix", "none", "--locked"],
+                         cwd=ROOT, check=True, capture_output=True, text=True).stdout
+    return {line.split(" ")[0] for line in out.splitlines() if line.strip()}
 
 
 def main():

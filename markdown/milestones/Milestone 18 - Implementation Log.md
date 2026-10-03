@@ -132,3 +132,13 @@ What phase 3 did **not** do, against the plan's wording: settings are not yet na
 
 Next: phase 5 is done for the state that exists today; a persisted index (graph, BM25, embeddings) is its own comparison (HelixDB is a candidate there). Then phase 4.
 
+## Phase 4 — Catalogue out of the shell; server contributions (2026-10-03)
+
+| # | step | outcome | notes |
+|---|---|---|---|
+| 4.1 | **`moonkale-distribution`** (`packages/distribution`) | `default_extensions()` moved out of `ui`: the shell's own four come from `ui::builtin_extensions()`, Graph, Links, Code, Markdown are always in, the rest behind one Cargo feature each (`code-native`, `table`, `image`, `terminal`, `terminal-native`, `agent`, `flow`, `lux`, `git`, `history`). The apps pass it to the shell. `ui` depends on `core`, `ext-api`, `lsp`, `terminal` and Dioxus only — no editor, no `api`, no `server` feature | CI checks `-p moonkale-distribution --no-default-features`. `ui` keeps its name until phase 6's renames |
+| 4.1b | **`moonkale-code-view`** (`packages/code-view`) | the CodeMirror component, its backend, the LSP manager and the bundle moved out of the Code extension; Markdown's Source mode depends on the component, not on another extension. `editors/code` keeps `extension.rs` and re-exports | `packages/js/codemirror` builds into `code-view/assets/` now |
+| 4.2a | **History** → `packages/extensions/history` (`moonkale-ext-history`) | with its CSS (was in `shell.css`) | the panel's code unchanged |
+| — | Layering | **16 → 1** known violations (`api -> moonkale-ext-git`, step 4.3). The shell rule now resolves the shell's own features (`cargo tree -p ui`): the workspace-wide resolution blamed `ui` for `reqwest`, which Dioxus's `fullstack` feature brings when `api` turns it on for everyone | |
+| — | Checks (4.1, 4.2a) | fmt ✅ · layering **1 known** ✅ · clippy ✅ · wasm32 ✅ · minimum distribution ✅ · **152 tests**, 5 ignored ✅ · browser suites **42 of 42 in one batch** ✅ | |
+
