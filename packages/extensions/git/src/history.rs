@@ -1,11 +1,11 @@
 //! History as a graph: commits and the files they touched, as an in-memory
 //! [`Source`] the Graph panel can pick (like a trace, Milestone 4).
 
+use crate::types::Commit;
 use moonkale_core::{
     async_trait, Applied, Capabilities, Edge, EdgeKind, Node, NodeId, NodeKind, Query, QueryResult,
     Source, SourceDescriptor, SourceError, SourceFamily, SourceId, Transaction, Version,
 };
-use moonkale_ext_api::git::Commit;
 
 pub struct GitHistorySource {
     id: SourceId,

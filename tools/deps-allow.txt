@@ -4,5 +4,4 @@
 # Rules are evaluated on the default feature set (`cargo metadata`); the shell
 # rule on the shell's own (`cargo tree -p ui`, phase 4.1).
 
-# Phase 4.3 — server halves move into their extensions
-only-apps-assemble api -> moonkale-ext-git
+# (empty since Milestone 18 phase 4.3: every rule holds)

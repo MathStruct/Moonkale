@@ -10,6 +10,7 @@ moonkale-state-stores = { workspace = true, features = ["sqlite"] }
 dioxus = { workspace = true, features = ["fullstack"] }
 ui = { workspace = true }
 moonkale-distribution = { workspace = true }
+moonkale-ext-git = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-index = { workspace = true }
@@ -26,4 +27,4 @@ tracing = "0.1"
 [features]
 default = []
 mobile = ["dioxus/mobile"]
-server = ["dioxus/server", "api/server"]
+server = ["dioxus/server", "api/server", "moonkale-distribution/server"]

@@ -14,12 +14,24 @@
 pub mod cli;
 pub mod history;
 mod panel;
+pub mod server;
+pub mod types;
+
+pub use server::{git_run, remote};
+pub use types::{GitRequest, GitResponse};
 
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 
 pub const PANEL_ID: &str = "git";
 const DIFF_PREFIX: &str = "git-diff:";
+
+/// The platform's git (Milestone 7; a service since Milestone 18 phase
+/// 4.2): the folder's absolute path (server-relative on the web) and a
+/// request. The app provides it in `WorkspaceConfig::services` — the local
+/// [`cli`] runner on desktop, [`remote`] where the folder is on a server —
+/// and the panel finds it with `ws.service::<GitRunner>()`.
+pub struct GitRunner(pub fn(String, GitRequest) -> moonkale_ext_api::SettingsFuture<GitResponse>);
 
 pub struct GitExtension {
     state: panel::GitState,
@@ -63,7 +75,7 @@ impl Extension for GitExtension {
                     .badge(ws.contrib.file_marks.read().len() as u32),
             ),
         }];
-        if ws.git().is_none() {
+        if ws.service::<GitRunner>().is_none() {
             return out;
         }
         for d in self.state.diffs.read().iter() {

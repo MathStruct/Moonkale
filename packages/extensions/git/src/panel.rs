@@ -1,7 +1,7 @@
 //! The Changes panel and the diff view.
 
+use crate::types::{Commit, GitRequest, GitResponse, StatusEntry};
 use dioxus::prelude::*;
-use moonkale_ext_api::git::{Commit, GitRequest, GitResponse, StatusEntry};
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::FileMark;
 use std::collections::HashMap;
@@ -66,7 +66,10 @@ impl GitState {
 }
 
 async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
-    let git = ws.git().ok_or("git is not available on this platform")?;
+    let git = ws
+        .service::<crate::GitRunner>()
+        .map(|r| r.0)
+        .ok_or("git is not available on this platform")?;
     let root = ws.folder_root().ok_or("open a folder first")?;
     git(root, req).await
 }
@@ -174,7 +177,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     let mut state = state;
     let mut ws = ws;
     let mut message = use_signal(String::new);
-    let available = ws.git().is_some();
+    let available = ws.service::<crate::GitRunner>().is_some();
 
     // Refresh when the folder changes, when files or documents change, and
     // when asked (`epoch`).

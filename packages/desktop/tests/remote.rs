@@ -43,9 +43,9 @@ async fn open_query_read_and_git_over_the_server() {
     let again = api::client::attach_source(d.clone()).await.expect("attach");
     assert_eq!(again.id(), d.id);
     // Git and wasm relays answer (an error string is fine on a folder without git/modules).
-    let git = api::client::git(
+    let git = moonkale_ext_git::remote(
         d.id.as_str().trim_start_matches("folder:").to_string(),
-        ui::GitRequest::Status,
+        moonkale_ext_git::GitRequest::Status,
     )
     .await;
     println!(

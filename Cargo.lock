@@ -171,13 +171,13 @@ dependencies = [
  "http",
  "moonkale-core",
  "moonkale-ext-api",
- "moonkale-ext-git",
  "moonkale-ext-host",
  "moonkale-index",
  "moonkale-llm",
  "moonkale-lsp",
  "moonkale-lsp-local",
  "moonkale-project-fs",
+ "moonkale-server-host",
  "moonkale-sources",
  "moonkale-sources-graph",
  "moonkale-sources-kv",
@@ -6931,6 +6931,7 @@ dependencies = [
  "dioxus",
  "moonkale-core",
  "moonkale-distribution",
+ "moonkale-ext-git",
  "moonkale-index",
  "moonkale-project-fs",
  "moonkale-sources-graph",
@@ -7166,6 +7167,7 @@ dependencies = [
  "dioxus",
  "moonkale-core",
  "moonkale-ext-api",
+ "moonkale-server-host",
  "serde",
  "serde_json",
  "tempfile",
@@ -7324,6 +7326,10 @@ dependencies = [
  "tokio",
  "tracing",
 ]
+
+[[package]]
+name = "moonkale-server-host"
+version = "0.1.0"
 
 [[package]]
 name = "moonkale-sources"
@@ -13155,6 +13161,7 @@ dependencies = [
  "dioxus",
  "moonkale-core",
  "moonkale-distribution",
+ "moonkale-ext-git",
  "moonkale-ext-host",
  "moonkale-llm",
  "moonkale-sources-graph",

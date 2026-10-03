@@ -154,6 +154,7 @@ fn config() -> WorkspaceConfig {
         persistence: Default::default(),
         network: Default::default(),
         runtimes: Default::default(),
+        services: &[],
     }
 }
 

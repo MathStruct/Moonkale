@@ -58,9 +58,12 @@ fn spawn_terminal(
     })
 }
 
-fn git_any(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
+fn git_any(
+    root: String,
+    req: moonkale_ext_git::GitRequest,
+) -> ui::SettingsFuture<moonkale_ext_git::GitResponse> {
     if api::client::active().is_some() {
-        return api::client::git(root, req);
+        return moonkale_ext_git::remote(root, req);
     }
     Box::pin(async { Err("git needs a server on the phone".to_string()) })
 }
@@ -231,6 +234,10 @@ fn state_access() -> Option<ui::StateAccess> {
 
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
+/// Services the extensions define (Milestone 18 phase 4.2).
+static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(git_any);
+static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
+
 fn workspace_config() -> WorkspaceConfig {
     let state = state_access();
     WorkspaceConfig {
@@ -243,7 +250,6 @@ fn workspace_config() -> WorkspaceConfig {
         },
         processes: ui::Processes {
             terminal: Some(spawn_terminal),
-            git: Some(git_any),
             ..Default::default()
         },
         persistence: ui::Persistence {
@@ -266,5 +272,6 @@ fn workspace_config() -> WorkspaceConfig {
             ..Default::default()
         },
         runtimes: Default::default(),
+        services: &SERVICES,
     }
 }

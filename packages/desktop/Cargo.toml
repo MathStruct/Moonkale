@@ -49,7 +49,7 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 [features]
 default = []
 desktop = ["dioxus/desktop"]
-server = ["dioxus/server", "api/server"]
+server = ["dioxus/server", "api/server", "moonkale-distribution/server"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]

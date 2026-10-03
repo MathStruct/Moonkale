@@ -77,10 +77,6 @@ pub struct WasmExtensions {
     pub run: WasmRun,
 }
 
-/// Git on the platform that has the folder (Milestone 7): the folder's
-/// absolute path (or server-relative on web) and a request.
-pub type GitRun = fn(String, crate::git::GitRequest) -> SettingsFuture<crate::git::GitResponse>;
-
 #[derive(Clone, Copy)]
 pub struct SettingsStore {
     pub load: fn() -> SettingsFuture<crate::settings::SettingsFile>,
@@ -109,7 +105,16 @@ pub struct WorkspaceConfig {
     pub persistence: Persistence,
     pub network: Network,
     pub runtimes: Runtimes,
+    /// Platform services an extension defines and the app provides
+    /// (Milestone 18 phase 4.2): looked up by type with
+    /// [`crate::Workspace::service`]. The git extension's `GitRunner` is
+    /// one; `ext-api` knows none of them.
+    pub services: Services,
 }
+
+/// Values of types the extensions define, provided by the app: a static
+/// list, e.g. `&[&GIT]` with `static GIT: GitRunner = GitRunner(run);`.
+pub type Services = &'static [&'static (dyn std::any::Any + Sync)];
 
 /// Opening sources.
 #[derive(Clone, Copy)]
@@ -139,8 +144,6 @@ pub struct Processes {
     pub program: Option<SpawnProgram>,
     /// Start a language server (`None`: no LSP features).
     pub lsp: Option<moonkale_lsp::SpawnLsp>,
-    /// Git for the open folder.
-    pub git: Option<GitRun>,
 }
 
 /// Where settings, secrets and this app's own state are kept.

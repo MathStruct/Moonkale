@@ -363,14 +363,6 @@ fn join_presence(
         room, member, on_members,
     ))
 }
-fn git_remote(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
-    Box::pin(async move {
-        match api::git_run(root, req).await {
-            Ok(r) => r,
-            Err(e) => Err(e.to_string()),
-        }
-    })
-}
 fn wasm_list(folder: Option<String>) -> ui::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
     Box::pin(async move {
         api::list_wasm_extensions(folder)
@@ -497,6 +489,10 @@ fn state_access() -> Option<ui::StateAccess> {
 
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
+/// Services the extensions define (Milestone 18 phase 4.2): git runs on the server.
+static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(moonkale_ext_git::remote);
+static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
+
 fn workspace_config() -> WorkspaceConfig {
     WorkspaceConfig {
         folders: ui::FolderAccess {
@@ -509,7 +505,6 @@ fn workspace_config() -> WorkspaceConfig {
         processes: ui::Processes {
             terminal: Some(spawn_terminal),
             lsp: Some(spawn_lsp),
-            git: Some(git_remote),
             ..Default::default()
         },
         persistence: ui::Persistence {
@@ -538,5 +533,6 @@ fn workspace_config() -> WorkspaceConfig {
             }),
             wasm_module_url: Some(|id| format!("/api/ext/module/{id}")),
         },
+        services: &SERVICES,
     }
 }

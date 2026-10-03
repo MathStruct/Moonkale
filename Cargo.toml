@@ -9,6 +9,7 @@ members = [
     "packages/ui",
     "packages/distribution",
     "packages/api",
+    "packages/server-host",
     # Foundation
     "packages/core",
     "packages/ext-api",
@@ -67,6 +68,7 @@ ui = { path = "packages/ui" }
 moonkale-distribution = { path = "packages/distribution" }
 moonkale-ext-history = { path = "packages/extensions/history" }
 api = { path = "packages/api" }
+moonkale-server-host = { path = "packages/server-host" }
 moonkale-core = { path = "packages/core" }
 moonkale-ext-api = { path = "packages/ext-api" }
 moonkale-ext-host = { path = "packages/ext-host" }

@@ -1,7 +1,7 @@
 //! Runs the `git` binary for one repository (feature `cli`). Every
 //! command is confined to `root` (`-C`); paths are checked against `..`.
 
-use moonkale_ext_api::git::{parse_log, parse_status, GitRequest, GitResponse, LOG_FORMAT};
+use crate::types::{parse_log, parse_status, GitRequest, GitResponse, LOG_FORMAT};
 use std::path::Path;
 
 async fn git(root: &Path, args: &[&str]) -> Result<String, String> {

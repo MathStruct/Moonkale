@@ -40,7 +40,6 @@ pub use contrib::{Activity, FileMark, PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;
 pub mod flow;
-pub mod git;
 pub mod presence;
 pub mod remote;
 pub mod settings;

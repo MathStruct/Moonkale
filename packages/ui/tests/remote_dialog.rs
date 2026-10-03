@@ -51,6 +51,7 @@ fn config() -> WorkspaceConfig {
             ..Default::default()
         },
         runtimes: Default::default(),
+        services: &[],
     }
 }
 

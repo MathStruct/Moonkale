@@ -428,9 +428,12 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 }
 
 /// wasm extensions run in-process (wasmtime) over the process registry.
-fn git_local(root: String, req: ui::GitRequest) -> ui::SettingsFuture<ui::GitResponse> {
+fn git_local(
+    root: String,
+    req: moonkale_ext_git::GitRequest,
+) -> ui::SettingsFuture<moonkale_ext_git::GitResponse> {
     if api::client::active().is_some() {
-        return api::client::git(root, req);
+        return moonkale_ext_git::remote(root, req);
     }
     Box::pin(async move { moonkale_ext_git::cli::run(std::path::Path::new(&root), req).await })
 }
@@ -693,6 +696,10 @@ fn state_access() -> Option<ui::StateAccess> {
 
 /// What this platform gives the workspace (Milestone 18 phase 3c: grouped by
 /// what each part needs from the platform).
+/// Services the extensions define (Milestone 18 phase 4.2).
+static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(git_local);
+static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
+
 fn workspace_config() -> WorkspaceConfig {
     let state = state_access();
     WorkspaceConfig {
@@ -706,7 +713,6 @@ fn workspace_config() -> WorkspaceConfig {
         processes: ui::Processes {
             terminal: Some(spawn_terminal),
             lsp: Some(spawn_lsp),
-            git: Some(git_local),
             program: Some(spawn_program),
         },
         persistence: ui::Persistence {
@@ -742,6 +748,7 @@ fn workspace_config() -> WorkspaceConfig {
             }),
             ..Default::default()
         },
+        services: &SERVICES,
     }
 }
 

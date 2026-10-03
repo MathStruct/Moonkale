@@ -46,6 +46,7 @@ fn App() -> Element {
             },
             network: Default::default(),
             runtimes: Default::default(),
+            services: &[],
         })
     });
     use_hook(move || {

@@ -11,7 +11,6 @@
 //! stays local, so API keys never leave the machine that owns them.
 
 use moonkale_core::{Source, SourceDescriptor};
-use moonkale_ext_api::git::{GitRequest, GitResponse};
 use moonkale_ext_api::{AttachFuture, OpenFolderFuture, OpenOptions, SettingsFuture};
 use std::sync::{Arc, RwLock};
 
@@ -109,15 +108,6 @@ pub fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFu
         crate::RemoteLsp::connect(language, root)
             .await
             .map(|t| Box::new(t) as Box<dyn moonkale_lsp::LspTransport>)
-    })
-}
-
-pub fn git(root: String, req: GitRequest) -> SettingsFuture<GitResponse> {
-    Box::pin(async move {
-        match crate::git_run(root, req).await {
-            Ok(r) => r,
-            Err(e) => Err(e.to_string()),
-        }
     })
 }
 

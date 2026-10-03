@@ -55,9 +55,13 @@ impl Workspace {
         self.config.processes.terminal
     }
 
-    /// The platform's git runner, if any.
-    pub fn git(&self) -> Option<GitRun> {
-        self.config.processes.git
+    /// The platform's value of a service type an extension defined
+    /// ([`WorkspaceConfig::services`]), if the app provides one.
+    pub fn service<T: std::any::Any>(&self) -> Option<&'static T> {
+        self.config
+            .services
+            .iter()
+            .find_map(|s| (*s as &dyn std::any::Any).downcast_ref::<T>())
     }
 }
 

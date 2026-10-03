@@ -17,6 +17,8 @@ flow = ["dep:moonkale-editor-flow"]
 lux = ["dep:moonkale-ext-lux"]
 git = ["dep:moonkale-ext-git"]
 history = ["dep:moonkale-ext-history"]
+# The server halves of the extensions that have one (Milestone 18 phase 4.3).
+server = ["moonkale-ext-git?/server"]
 
 [dependencies]
 ui = { workspace = true }

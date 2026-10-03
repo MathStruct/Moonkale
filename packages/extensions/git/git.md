@@ -12,3 +12,8 @@ Notes for `moonkale-ext-git` (Milestone 7). Design: [[Version Management]], [[AD
 - Commands: `git.refresh`, `git.commit` (`Ctrl+Shift+G`, focuses the message), `git.history`.
 
 Not yet: push/pull/fetch, branch creation, per-hunk staging, merge-view diffs, blame. Tests: `cli` round trip on a temp repository; E2E `git.mjs` (the fixture folder is a repository since `fixture.sh` of this milestone).
+
+## Milestone 18 phase 4
+- `types.rs` — the request/response types and the parsers, moved here from `ext-api/src/git.rs` (4.2b): `ext-api` knows no git.
+- `GitRunner` — the platform's git as a **service** (`WorkspaceConfig::services`, `ws.service::<GitRunner>()`); the desktop provides the local `cli` runner (or `remote` while connected to a server), the web and the phone `remote`.
+- `server.rs` — the server half (feature `server`, 4.3): `git_run` (`POST /api/git`) runs the CLI inside the jail (`moonkale_server_host::jail_dir`); `remote` is the client-side `GitRunner` over it. Was `api::git_run`.
