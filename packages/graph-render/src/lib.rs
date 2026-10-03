@@ -13,7 +13,7 @@
 //! the page (Milestone 18 phase 6.1; see `README.md` and
 //! `examples/headless.rs`). The crate depends on no Moonkale crate.
 //!
-//! Build: `packages/editors/graph-render/build.sh` → `../graph/assets/`.
+//! Build: `packages/graph-render/build.sh` → `packages/editors/graph/assets/`.
 
 pub mod camera;
 pub mod graph;

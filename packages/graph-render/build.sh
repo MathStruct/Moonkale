@@ -4,7 +4,7 @@
 # (the version dx installs under ~/.local/share/.dx/tools; the CLI version must
 # match the wasm-bindgen crate version in Cargo.lock).
 set -euo pipefail
-cd "$(dirname "$0")/../../.."
+cd "$(dirname "$0")/../.."
 BINDGEN="${WASM_BINDGEN:-$HOME/.local/share/.dx/tools/wasm-bindgen-0.2.128/wasm-bindgen}"
 cargo build -p moonkale-graph-render --target wasm32-unknown-unknown --profile graph-wasm
 "$BINDGEN" --target web --no-typescript \
