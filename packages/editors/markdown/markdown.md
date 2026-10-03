@@ -27,3 +27,7 @@ Only the index-backed part exists so far: `LinksExtension` contributes a **Links
 ## Milestone 16
 - **No `<br />`**: Milkdown's `remarkPreserveEmptyLinePlugin` writes empty paragraphs as `<br />`; `packages/js/milkdown/src/clean.ts` drops `<br />`-only lines and collapses blank runs outside fenced code in everything the view reports (changes, `getText`, the baseline after load). `npm test` in `packages/js/milkdown` (P-140).
 - **Bounded start**: the mount script waits at most ~1 s for the host element, inserts the bundle's `<script>` itself if it has not loaded after 300 ms and waits 20 s for it, and gives `crepe.create()` 20 s. A failure reaches Rust as `RichEvent::Failed`; the panel shows the reason and **Retry** (P-141).
+
+## Milestone 18 phase 4.3
+- `server.rs` — Markdown's server half (feature `server`): `compile_typst` (`POST /api/typst/compile`, was `api::compile_typst`) compiles inside the jail on a blocking thread; `remote_typst` is the client's `CompileTypst` over it (the web client; the desktop while connected to a server). The desktop compiles in-process otherwise.
+- Depends on `moonkale-code-view` (the CodeMirror component) instead of the Code extension (4.1).

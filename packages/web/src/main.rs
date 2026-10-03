@@ -280,14 +280,6 @@ fn spawn_terminal(cwd: Option<String>, cols: u16, rows: u16) -> ui::SpawnTermina
     })
 }
 
-fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
-    Box::pin(async move {
-        api::compile_typst(root, main_rel, text)
-            .await
-            .unwrap_or_else(|e| Err(vec![e.to_string()]))
-    })
-}
-
 /// Language servers run on the server; the client sees a websocket.
 fn spawn_lsp(language: String, root: String) -> ui::LspTransportFuture {
     Box::pin(async move {
@@ -525,7 +517,7 @@ fn workspace_config() -> WorkspaceConfig {
             ..Default::default()
         },
         runtimes: ui::Runtimes {
-            typst: Some(compile_typst),
+            typst: Some(moonkale_editor_markdown::remote_typst),
             llm: Some(llm_provider),
             wasm: Some(ui::WasmExtensions {
                 list: wasm_list,

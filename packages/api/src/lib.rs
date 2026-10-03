@@ -242,27 +242,3 @@ pub async fn apply_to(
         .ok_or_else(|| server_error("unknown source"))?;
     Ok(s.apply(tx).await)
 }
-
-/// Compile a Typst document on the server. `root` must be inside
-/// `MOONKALE_ROOT`; `main_rel` is `/`-rooted relative to it.
-#[post("/api/typst/compile")]
-pub async fn compile_typst(
-    root: String,
-    main_rel: String,
-    text: String,
-) -> Result<Result<Vec<String>, Vec<String>>, ServerFnError> {
-    let root = state::jail_dir(Some(&root)).map_err(server_error)?;
-    let out = tokio::task::spawn_blocking(move || {
-        moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text)
-    })
-    .await
-    .map_err(server_error)?;
-    Ok(out.map_err(|d| {
-        d.into_iter()
-            .map(|d| match d.hint {
-                Some(h) => format!("{} (hint: {h})", d.message),
-                None => d.message,
-            })
-            .collect()
-    }))
-}

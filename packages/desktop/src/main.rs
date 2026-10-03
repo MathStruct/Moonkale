@@ -322,7 +322,7 @@ fn spawn_program(
 /// Typst compiles in-process (embedded fonts) — or on the server.
 fn compile_typst(root: String, main_rel: String, text: String) -> ui::CompileTypstFuture {
     if api::client::active().is_some() {
-        return api::client::compile_typst(root, main_rel, text);
+        return moonkale_editor_markdown::remote_typst(root, main_rel, text);
     }
     Box::pin(async move {
         moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text).map_err(|d| {

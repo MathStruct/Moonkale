@@ -91,18 +91,6 @@ pub fn spawn_terminal(
     })
 }
 
-pub fn compile_typst(
-    root: String,
-    main_rel: String,
-    text: String,
-) -> moonkale_ext_api::CompileTypstFuture {
-    Box::pin(async move {
-        crate::compile_typst(root, main_rel, text)
-            .await
-            .unwrap_or_else(|e| Err(vec![e.to_string()]))
-    })
-}
-
 pub fn spawn_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
     Box::pin(async move {
         crate::RemoteLsp::connect(language, root)
