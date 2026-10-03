@@ -103,7 +103,7 @@ fn App() -> Element {
     });
     rsx! {
         if open() {
-            ui::ServerDialog { open }
+            moonkale_shell::ServerDialog { open }
         }
     }
 }

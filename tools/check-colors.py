@@ -14,7 +14,7 @@ import os, re, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX = os.path.join(ROOT, "tools", "colors-max.txt")
 HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
-THEME = {"packages/ui/assets/styling/theme.css"}
+THEME = {"packages/shell/assets/styling/theme.css"}
 VENDORED = ("site/", ".obsidian/", "packages/editors/markdown/assets/katex/")
 
 

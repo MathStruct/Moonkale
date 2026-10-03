@@ -7,7 +7,7 @@ edition = "2021"
 # Op/Batch types for the browser's state store (localStorage, ADR-0014).
 moonkale-state = { workspace = true }
 dioxus = { workspace = true, features = ["fullstack"] }
-ui = { workspace = true }
+moonkale-shell = { workspace = true }
 moonkale-distribution = { workspace = true }
 moonkale-editor-markdown = { workspace = true }
 moonkale-ext-git = { workspace = true }

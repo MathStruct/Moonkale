@@ -16,7 +16,7 @@ use moonkale_ext_api::Extension;
 /// phase 2), not by this order; opt-in extensions (Flow, Lux, Git, History)
 /// stay off until enabled in Settings → Extensions.
 pub fn default_extensions() -> Vec<Box<dyn Extension>> {
-    let mut v: Vec<Box<dyn Extension>> = ui::builtin_extensions();
+    let mut v: Vec<Box<dyn Extension>> = moonkale_shell::builtin_extensions();
     v.push(Box::new(moonkale_editor_graph::GraphExtension));
     v.push(Box::new(moonkale_editor_markdown::LinksExtension::new()));
     v.push(Box::new(moonkale_editor_code::CodeEditorExtension::new()));

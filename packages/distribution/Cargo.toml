@@ -21,7 +21,7 @@ history = ["dep:moonkale-ext-history"]
 server = ["moonkale-ext-git?/server", "moonkale-editor-markdown/server"]
 
 [dependencies]
-ui = { workspace = true }
+moonkale-shell = { workspace = true }
 moonkale-ext-api = { workspace = true }
 # Always in: the minimum workbench.
 moonkale-editor-code = { workspace = true }

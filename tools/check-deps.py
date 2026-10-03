@@ -65,7 +65,7 @@ def violations(meta):
             for d in ds & (DRIVERS | extensions):
                 if d != n:
                     found.add(f"only-apps-assemble {n} -> {d}")
-        if n in ("ui", "moonkale-shell"):
+        if n == "moonkale-shell":
             for d in shell_tree(n) & HEAVY:
                 found.add(f"shell-stays-light {n} ~> {d}")
     return found

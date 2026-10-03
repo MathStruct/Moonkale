@@ -4,12 +4,12 @@
 
 use dioxus::prelude::*;
 use moonkale_core::{Source, SourceDescriptor, SourceError};
-use std::rc::Rc;
-use std::sync::Arc;
-use ui::{
+use moonkale_shell::{
     AttachFuture, Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig,
     WorkspaceConfig,
 };
+use std::rc::Rc;
+use std::sync::Arc;
 
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
@@ -27,7 +27,7 @@ fn main() {
 }
 
 /// Sources: the phone's own folder, or the connected server's.
-fn open_any(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
+fn open_any(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
     if api::client::active().is_some() {
         return api::client::open_folder(path, options);
     }
@@ -61,15 +61,15 @@ fn spawn_terminal(
 fn git_any(
     root: String,
     req: moonkale_ext_git::GitRequest,
-) -> ui::SettingsFuture<moonkale_ext_git::GitResponse> {
+) -> moonkale_shell::SettingsFuture<moonkale_ext_git::GitResponse> {
     if api::client::active().is_some() {
         return moonkale_ext_git::remote(root, req);
     }
     Box::pin(async { Err("git needs a server on the phone".to_string()) })
 }
 
-fn server_client() -> ui::ServerClient {
-    ui::ServerClient {
+fn server_client() -> moonkale_shell::ServerClient {
+    moonkale_shell::ServerClient {
         connect: |url, token| {
             api::client::connect(&url, token.as_deref(), &url);
             Ok(())
@@ -129,23 +129,25 @@ fn settings_path() -> std::path::PathBuf {
         .join("settings.json")
 }
 
-fn load_settings() -> ui::SettingsFuture<ui::SettingsFile> {
+fn load_settings() -> moonkale_shell::SettingsFuture<moonkale_shell::SettingsFile> {
     Box::pin(async move {
         match std::fs::read_to_string(settings_path()) {
-            Ok(text) => ui::SettingsFile::parse(&text),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(ui::SettingsFile::new()),
+            Ok(text) => moonkale_shell::SettingsFile::parse(&text),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Ok(moonkale_shell::SettingsFile::new())
+            }
             Err(e) => Err(e.to_string()),
         }
     })
 }
 
-fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
+fn save_settings(file: moonkale_shell::SettingsFile) -> moonkale_shell::SettingsFuture<()> {
     Box::pin(
         async move { std::fs::write(settings_path(), file.to_json()).map_err(|e| e.to_string()) },
     )
 }
 
-fn open_local(path: String, _options: ui::OpenOptions) -> OpenFolderFuture {
+fn open_local(path: String, _options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
         let path = if path.trim().is_empty() {
             app_folder().to_string_lossy().into_owned()
@@ -170,7 +172,7 @@ fn attach_local(descriptor: SourceDescriptor) -> AttachFuture {
         .unwrap_or(".")
         .to_string();
     Box::pin(async move {
-        open_local(path, ui::OpenOptions::default())
+        open_local(path, moonkale_shell::OpenOptions::default())
             .await?
             .into_iter()
             .next()
@@ -220,11 +222,11 @@ fn openers() -> &'static moonkale_core::Openers {
 }
 
 /// This phone's state store (ADR-0014): `state.sqlite` next to settings.json.
-fn state_access() -> Option<ui::StateAccess> {
+fn state_access() -> Option<moonkale_shell::StateAccess> {
     let path = settings_path().with_file_name("state.sqlite");
     match moonkale_state_stores::SqliteStore::open_with(&path, moonkale_state::Durability::Relaxed)
     {
-        Ok(store) => Some(ui::local_state(std::sync::Arc::new(store))),
+        Ok(store) => Some(moonkale_shell::local_state(std::sync::Arc::new(store))),
         Err(e) => {
             tracing::warn!("state: no store ({e}); layouts stay in the folder");
             None
@@ -241,19 +243,19 @@ static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
 fn workspace_config() -> WorkspaceConfig {
     let state = state_access();
     WorkspaceConfig {
-        folders: ui::FolderAccess {
+        folders: moonkale_shell::FolderAccess {
             open: open_any,
             pick: None,
             attach: attach_any,
             reopen_last: true,
             openers: openers(),
         },
-        processes: ui::Processes {
+        processes: moonkale_shell::Processes {
             terminal: Some(spawn_terminal),
             ..Default::default()
         },
-        persistence: ui::Persistence {
-            settings: Some(ui::SettingsStore {
+        persistence: moonkale_shell::Persistence {
+            settings: Some(moonkale_shell::SettingsStore {
                 load: load_settings,
                 save: save_settings,
             }),
@@ -266,7 +268,7 @@ fn workspace_config() -> WorkspaceConfig {
             user_settings_in_state: true,
             ..Default::default()
         },
-        network: ui::Network {
+        network: moonkale_shell::Network {
             agent_sessions: Some(api::client::agent_sessions(api::client::agent_available)),
             server: Some(server_client()),
             ..Default::default()

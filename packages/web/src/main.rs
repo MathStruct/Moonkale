@@ -4,12 +4,12 @@
 
 use dioxus::prelude::*;
 use moonkale_core::{Source, SourceDescriptor};
-use std::rc::Rc;
-use std::sync::Arc;
-use ui::{
+use moonkale_shell::{
     AttachFuture, Frame, OpenFolderFuture, SessionBus, SessionMessage, Shell, ShellConfig,
     WorkspaceConfig,
 };
+use std::rc::Rc;
+use std::sync::Arc;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const ICON_PNG: Asset = asset!("/assets/icon.png");
@@ -216,7 +216,7 @@ fn serve_tls(cert: String, key: String, build: fn() -> axum::Router) -> ! {
     std::process::exit(0)
 }
 
-fn open_remote(path: String, options: ui::OpenOptions) -> OpenFolderFuture {
+fn open_remote(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderFuture {
     Box::pin(async move {
         api::RemoteSource::open_folder(&path, options.embed)
             .await
@@ -272,26 +272,30 @@ fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
 }
 
 /// Web terminals run on the server (dev-server feature; see api::terminal).
-fn spawn_terminal(cwd: Option<String>, cols: u16, rows: u16) -> ui::SpawnTerminalFuture {
+fn spawn_terminal(
+    cwd: Option<String>,
+    cols: u16,
+    rows: u16,
+) -> moonkale_shell::SpawnTerminalFuture {
     Box::pin(async move {
         api::RemoteTerminal::connect(cwd, cols, rows)
             .await
-            .map(|t| Box::new(t) as Box<dyn ui::TerminalBackend>)
+            .map(|t| Box::new(t) as Box<dyn moonkale_shell::TerminalBackend>)
     })
 }
 
 /// Language servers run on the server; the client sees a websocket.
-fn spawn_lsp(language: String, root: String) -> ui::LspTransportFuture {
+fn spawn_lsp(language: String, root: String) -> moonkale_shell::LspTransportFuture {
     Box::pin(async move {
         api::RemoteLsp::connect(language, root)
             .await
-            .map(|t| Box::new(t) as Box<dyn ui::LspTransport>)
+            .map(|t| Box::new(t) as Box<dyn moonkale_shell::LspTransport>)
     })
 }
 
 /// The provider lives on the server; the client talks to `/api/llm`.
 #[cfg(target_arch = "wasm32")]
-fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
+fn llm_provider(settings: moonkale_llm::LlmSettings) -> moonkale_shell::LlmProviderFuture {
     Box::pin(async move {
         api::RemoteProvider::connect(settings)
             .await
@@ -299,7 +303,7 @@ fn llm_provider(settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
     })
 }
 #[cfg(not(target_arch = "wasm32"))]
-fn llm_provider(_settings: moonkale_llm::LlmSettings) -> ui::LlmProviderFuture {
+fn llm_provider(_settings: moonkale_llm::LlmSettings) -> moonkale_shell::LlmProviderFuture {
     // Server-side render only: the real provider is connected on the client.
     Box::pin(async move { Err("no provider during server render".into()) })
 }
@@ -314,21 +318,21 @@ fn local_storage() -> Option<web_sys::Storage> {
     web_sys::window()?.local_storage().ok()?
 }
 
-fn load_settings() -> ui::SettingsFuture<ui::SettingsFile> {
+fn load_settings() -> moonkale_shell::SettingsFuture<moonkale_shell::SettingsFile> {
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
         {
             if let Some(s) = local_storage() {
                 if let Ok(Some(text)) = s.get_item(SETTINGS_KEY) {
-                    return ui::SettingsFile::parse(&text);
+                    return moonkale_shell::SettingsFile::parse(&text);
                 }
             }
         }
-        Ok(ui::SettingsFile::new())
+        Ok(moonkale_shell::SettingsFile::new())
     })
 }
 
-fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
+fn save_settings(file: moonkale_shell::SettingsFile) -> moonkale_shell::SettingsFuture<()> {
     Box::pin(async move {
         #[cfg(target_arch = "wasm32")]
         {
@@ -348,14 +352,16 @@ fn save_settings(file: ui::SettingsFile) -> ui::SettingsFuture<()> {
 /// wasm extensions run on the server; the client lists and calls.
 fn join_presence(
     room: String,
-    member: ui::PresenceMember,
-    on_members: Callback<Vec<ui::PresenceMember>>,
-) -> Rc<dyn ui::PresenceLink> {
+    member: moonkale_shell::PresenceMember,
+    on_members: Callback<Vec<moonkale_shell::PresenceMember>>,
+) -> Rc<dyn moonkale_shell::PresenceLink> {
     Rc::new(api::presence::RemotePresence::join(
         room, member, on_members,
     ))
 }
-fn wasm_list(folder: Option<String>) -> ui::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
+fn wasm_list(
+    folder: Option<String>,
+) -> moonkale_shell::SettingsFuture<Vec<moonkale_ext_host::WasmManifest>> {
     Box::pin(async move {
         api::list_wasm_extensions(folder)
             .await
@@ -367,7 +373,7 @@ fn wasm_run(
     command: String,
     args: serde_json::Value,
     granted: Vec<String>,
-) -> ui::SettingsFuture<String> {
+) -> moonkale_shell::SettingsFuture<String> {
     Box::pin(async move {
         api::run_wasm_command(ext, command, args, granted)
             .await
@@ -416,7 +422,7 @@ fn openers() -> &'static moonkale_core::Openers {
 
 /// The browser keeps this client's state (ADR-0014) in localStorage, one item
 /// per entry: `moonkale.state/<table>/<key as hex>` → the value as hex.
-fn state_access() -> Option<ui::StateAccess> {
+fn state_access() -> Option<moonkale_shell::StateAccess> {
     #[cfg(target_arch = "wasm32")]
     {
         fn hex(b: &[u8]) -> String {
@@ -430,7 +436,7 @@ fn state_access() -> Option<ui::StateAccess> {
         fn item(table: &str, key: &[u8]) -> String {
             format!("moonkale.state/{table}/{}", hex(key))
         }
-        Some(ui::StateAccess {
+        Some(moonkale_shell::StateAccess {
             get: |t, k| {
                 Box::pin(async move {
                     let s = local_storage().ok_or("localStorage unavailable")?;
@@ -487,20 +493,20 @@ static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&GIT];
 
 fn workspace_config() -> WorkspaceConfig {
     WorkspaceConfig {
-        folders: ui::FolderAccess {
+        folders: moonkale_shell::FolderAccess {
             open: open_remote,
             pick: None,
             attach: attach_remote,
             reopen_last: false,
             openers: openers(),
         },
-        processes: ui::Processes {
+        processes: moonkale_shell::Processes {
             terminal: Some(spawn_terminal),
             lsp: Some(spawn_lsp),
             ..Default::default()
         },
-        persistence: ui::Persistence {
-            settings: Some(ui::SettingsStore {
+        persistence: moonkale_shell::Persistence {
+            settings: Some(moonkale_shell::SettingsStore {
                 load: load_settings,
                 save: save_settings,
             }),
@@ -511,15 +517,15 @@ fn workspace_config() -> WorkspaceConfig {
             user_settings_in_state: false,
             ..Default::default()
         },
-        network: ui::Network {
+        network: moonkale_shell::Network {
             presence: Some(join_presence),
             agent_sessions: Some(api::client::agent_sessions(|| true)),
             ..Default::default()
         },
-        runtimes: ui::Runtimes {
+        runtimes: moonkale_shell::Runtimes {
             typst: Some(moonkale_editor_markdown::remote_typst),
             llm: Some(llm_provider),
-            wasm: Some(ui::WasmExtensions {
+            wasm: Some(moonkale_shell::WasmExtensions {
                 list: wasm_list,
                 run: wasm_run,
             }),

@@ -123,7 +123,7 @@ fn App() -> Element {
     use_hook(move || WS.with(|w| w.set(Some(ws))));
     rsx! {
         if open() {
-            ui::RemoteDialog { open }
+            moonkale_shell::RemoteDialog { open }
         }
     }
 }
