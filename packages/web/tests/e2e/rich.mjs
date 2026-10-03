@@ -162,4 +162,17 @@ try {
     if (/\n\n\n/.test(text)) throw new Error("blank lines not collapsed: " + JSON.stringify(text));
   });
   console.log("\nRICH E2E: PASS");
-} catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }
+} catch (e) {
+  console.log("\nFAIL:", e.message);
+  console.log(logs.slice(-10).join("\n"));
+  console.log("FAILED AT:", e.message.split("\n").slice(0, 3).join(" | ").slice(0, 300));
+  // P-154: the Rich click sometimes finds no visible target on CI — sample what the page shows.
+  for (let i = 0; i < 6; i++) {
+    const d = await page.evaluate(() => ({
+      active: document.querySelector(".mk-titlebar-title")?.textContent,
+      modes: [...document.querySelectorAll(".mk-md-modes button")].filter((b) => /Rich/.test(b.textContent)).map((b) => { const r = b.getBoundingClientRect(); const cs = getComputedStyle(b); return `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} vis=${cs.visibility} op=${cs.opacity} disp=${cs.display} parent=${!!b.offsetParent}`; }),
+    })).catch((x) => String(x));
+    console.log("DIAG", JSON.stringify(d));
+    await page.waitForTimeout(150);
+  }
+  await page.screenshot({ path: `${S}/m5-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }
