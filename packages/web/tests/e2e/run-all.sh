@@ -12,6 +12,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
+AUTH_PORT="${AUTH_PORT:-8091}"   # the token-mode server of auth.mjs
 export PORT="${PORT:-8090}" M1_ROOT="$E/m2root" M1_SHOTS="$E/shots" MOONKALE_REPO="$(cd "$HERE/../../../.." && pwd)"
 mkdir -p "$E/e2e" "$E/shots"
 cp "$HERE"/*.mjs "$E/e2e/"   # playwright resolves from the working directory
@@ -37,10 +38,10 @@ cd "$E/e2e"
 for s in ${@:-$ALL}; do
   reset
   if [ "$s" = auth ]; then
-    # Token mode needs its own server (port 8091), started and stopped here.
-    PORT=8091 MOONKALE_TOKEN=e2e-secret-token "$HERE/serve.sh" start >/dev/null || { echo "== auth: server failed"; fail=1; continue; }
-    out=$(PORT=8091 timeout 420 node auth.mjs 2>&1); rc=$?
-    PORT=8091 "$HERE/serve.sh" stop
+    # Token mode needs its own server (AUTH_PORT, default 8091), started and stopped here.
+    PORT=$AUTH_PORT MOONKALE_TOKEN=e2e-secret-token "$HERE/serve.sh" start >/dev/null || { echo "== auth: server failed"; fail=1; continue; }
+    out=$(PORT=$AUTH_PORT timeout 420 node auth.mjs 2>&1); rc=$?
+    PORT=$AUTH_PORT "$HERE/serve.sh" stop
   elif [ "$s" = server ]; then
     # The standalone server binary (Milestone 11) — needs `cd packages/web && dx build --platform server`.
     out=$(timeout 300 node server.mjs 2>&1); rc=$?
