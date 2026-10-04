@@ -19,7 +19,12 @@ impl Host for Reg {
 
 fn wasm_path() -> Option<PathBuf> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let p = root.join("target/wasm32-unknown-unknown/release/moonkale_ext_wordcount.wasm");
+    // Where the build below puts it: CARGO_TARGET_DIR when set (relative to
+    // the workspace root), else <root>/target.
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(|t| root.join(t))
+        .unwrap_or_else(|| root.join("target"));
+    let p = target.join("wasm32-unknown-unknown/release/moonkale_ext_wordcount.wasm");
     if !p.exists() {
         let ok = std::process::Command::new("cargo")
             .args([
