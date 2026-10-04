@@ -14,3 +14,6 @@ flow-layout = Anordnen
 flow-fit = Einpassen
 flow-save = Speichern
 flow-no-libraries = Keine Bausteinbibliothek ist eingeschaltet. Schalte eine unter Einstellungen → Erweiterungen ein (z. B. Lux.jl).
+flow-broken = Diese Datei ist kein gültiger Flow ({ $error }). Es wird nichts hineingeschrieben; korrigiere sie in einem Texteditor und drücke dann Neu laden.
+flow-reload = Neu laden
+flow-reload-title = Änderungen verwerfen und aus der Datei neu laden

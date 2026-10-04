@@ -39,6 +39,17 @@ try {
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-tn-screen:not(.mk-tn-hidden) .mk-tn-run.mk-tn-b")].some((s) => s.textContent === "bold"), null, { timeout: 15000 });
     await page.screenshot({ path: `${S}/m12-terminal-native.png` });
   });
+  await step("the view is mounted again (phone width and back): the screen stays and output still arrives (#12)", async () => {
+    const vp = page.viewportSize();
+    await page.setViewportSize({ width: 420, height: vp.height });
+    await page.waitForSelector(".mk-phone-bar", { timeout: 10000 });
+    await page.setViewportSize(vp);
+    await page.waitForFunction(() => /native-ok/.test(document.querySelector(".mk-tn-screen:not(.mk-tn-hidden) .mk-tn-grid")?.textContent || ""), null, { timeout: 15000 });
+    await page.click(".mk-tn-screen:not(.mk-tn-hidden)");
+    await page.keyboard.type("echo still-o''k");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => /still-ok/.test(document.querySelector(".mk-tn-screen:not(.mk-tn-hidden) .mk-tn-grid")?.textContent || ""), null, { timeout: 15000 });
+  });
   await step("Ctrl+click on src/main.rs:2 opens the file", async () => {
     await page.keyboard.type("echo src/main.rs:2:1");
     await page.keyboard.press("Enter");

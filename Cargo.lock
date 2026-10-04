@@ -7328,6 +7328,7 @@ dependencies = [
  "ignore",
  "moonkale-core",
  "notify",
+ "rustix 1.1.4",
  "tempfile",
  "tokio",
 ]

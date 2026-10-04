@@ -12,6 +12,7 @@ What could replace each TS package behind its trait ([[JS Interop Boundary]]).
 | `helix-view` / `helix-core` | model only | rope + syntax via tree-sitter; rendering is TUI. Could donate the *model* layer. |
 | Zed's `gpui` editor | no | tied to gpui, not embeddable in a webview. |
 | `lapce`'s `floem` editor | partial | floem is its own UI toolkit. |
+| Freya's editor (`freya-code-editor`, `freya_edit` 0.4) | reference | Rope model, virtual scroll, pointer selection, IME preedit — the best behaviour reference. Freya ≥ 0.4 is its own UI stack (not Dioxus), Skia, no web; not embeddable in a tab — [[ADR-0016 Freya is a reference, not a target]]. |
 
 Recommendation: Dioxus virtualised view first; it reuses the rope + decorations unchanged.
 

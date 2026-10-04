@@ -78,6 +78,8 @@ pub async fn terminal_socket(
 pub struct RemoteTerminal {
     input: futures_channel::mpsc::UnboundedSender<TerminalMessage>,
     output: Option<moonkale_terminal::Output>,
+    /// Dropped with the terminal: ends the output pump, which closes the socket.
+    _closed: futures_channel::oneshot::Sender<()>,
 }
 
 impl RemoteTerminal {
@@ -94,9 +96,13 @@ impl RemoteTerminal {
         let socket = std::rc::Rc::new(socket);
         let (in_tx, mut in_rx) = futures_channel::mpsc::unbounded::<TerminalMessage>();
         let (out_tx, out_rx) = futures_channel::mpsc::unbounded::<Vec<u8>>();
+        let (closed_tx, mut closed) = futures_channel::oneshot::channel::<()>();
+        // Both pumps live as long as the terminal, not as long as the
+        // component that happened to connect it (#12: remounting the panel
+        // dropped them, the socket closed and the server ended the shell).
         // input pump
         let s = socket.clone();
-        spawn(async move {
+        dioxus::core::spawn_forever(async move {
             while let Some(msg) = in_rx.next().await {
                 if s.send(msg).await.is_err() {
                     break;
@@ -105,9 +111,17 @@ impl RemoteTerminal {
         });
         // output pump
         let s = socket;
-        spawn(async move {
+        dioxus::core::spawn_forever(async move {
             loop {
-                match s.recv().await {
+                let next = {
+                    let recv = std::pin::pin!(s.recv());
+                    match futures_util::future::select(recv, &mut closed).await {
+                        futures_util::future::Either::Left((m, _)) => m,
+                        // The terminal was dropped (its session closed).
+                        futures_util::future::Either::Right(_) => break,
+                    }
+                };
+                match next {
                     Ok(TerminalMessage::Output { data }) => {
                         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(data) {
                             if out_tx.unbounded_send(bytes).is_err() {
@@ -129,6 +143,7 @@ impl RemoteTerminal {
         Ok(Self {
             input: in_tx,
             output: Some(out_rx),
+            _closed: closed_tx,
         })
     }
 }

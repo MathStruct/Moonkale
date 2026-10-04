@@ -9,5 +9,5 @@ BINDGEN="${WASM_BINDGEN:-$HOME/.local/share/.dx/tools/wasm-bindgen-0.2.128/wasm-
 cargo build -p moonkale-graph-render --target wasm32-unknown-unknown --profile graph-wasm
 "$BINDGEN" --target web --no-typescript \
   --out-dir packages/editors/graph/assets --out-name graph_render \
-  target/wasm32-unknown-unknown/graph-wasm/moonkale_graph_render.wasm
+  "${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/graph-wasm/moonkale_graph_render.wasm"
 ls -la packages/editors/graph/assets/graph_render*

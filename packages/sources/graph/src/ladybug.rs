@@ -11,7 +11,8 @@
 //!   node tables (`EdgeKind::Custom(<rel name>)`). With
 //!   `kinds: Some([Vertex])` it returns the **data** instead: every node and
 //!   relation up to `limit` (`MATCH (a)-[r]->(b)` plus isolated nodes).
-//! - `Query::Text { dialect: "cypher" }` runs any statement (the database is
+//! - `Query::Text { dialect: "cypher" }` runs one read statement (the
+//!   shared gate, `moonkale_core::source::risk`; the database is also
 //!   opened read-only), capped at [`ROW_CAP`] rows. The result is a `Table`
 //!   of `Value`s **and**, when a column yields `NODE`/`REL`, the matching
 //!   `Vertex` nodes and edges so the Graph panel can draw the answer.
@@ -516,6 +517,16 @@ impl Source for LadybugSource {
                     return Err(SourceError::Unsupported(format!(
                         "dialect {dialect}; this source speaks cypher"
                     )));
+                }
+                // The database is opened read-only; the gate refuses writes
+                // before they reach the engine, as the SQL sources do (#9).
+                match self.classify("cypher", &text) {
+                    moonkale_core::Risk::Read => {}
+                    other => {
+                        return Err(SourceError::Unsupported(format!(
+                            "{other:?} statements are not allowed on a read-only source"
+                        )))
+                    }
                 }
                 self.run_cypher(text).await
             }
