@@ -51,10 +51,19 @@ impl DuckDbSource {
     /// Open a `.duckdb` file read-only.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, SourceError> {
         let path = std::fs::canonicalize(path)?;
+        // Read-only, and no files beyond the database (#2): DuckDB's table
+        // functions (`read_csv('/etc/passwd')`, `glob`, …) and extension
+        // auto-loading (`httpfs`, `sqlite_scan`) would otherwise reach any
+        // path or URL the process can, whatever the SQL gate says.
         let config = Config::default()
             .access_mode(AccessMode::ReadOnly)
+            .and_then(|c| c.enable_external_access(false))
+            .and_then(|c| c.enable_autoload_extension(false))
+            .and_then(|c| c.with("autoinstall_known_extensions", "false"))
             .map_err(io)?;
         let conn = Connection::open_with_flags(&path, config).map_err(io)?;
+        conn.execute_batch("SET lock_configuration = true")
+            .map_err(io)?;
         Ok(Self::new(
             format!("duckdb:{}", path.display()),
             path,
@@ -86,7 +95,11 @@ impl DuckDbSource {
                 dir.display()
             )));
         }
-        let conn = Connection::open_in_memory().map_err(io)?;
+        let config = Config::default()
+            .enable_autoload_extension(false)
+            .and_then(|c| c.with("autoinstall_known_extensions", "false"))
+            .map_err(io)?;
+        let conn = Connection::open_in_memory_with_flags(config).map_err(io)?;
         let mut used: HashMap<String, usize> = HashMap::new();
         for f in &files {
             let stem = f
@@ -119,6 +132,15 @@ impl DuckDbSource {
                 tracing::warn!("duckdb: {}: {e}", f.display());
             }
         }
+        // The views read their files on every query, so file access stays —
+        // but only to this folder, and nothing can switch that back (#2).
+        let allowed = format!("{}/", dir.display()).replace('\'', "''");
+        conn.execute_batch(&format!(
+            "SET allowed_directories = ['{allowed}']; \
+             SET enable_external_access = false; \
+             SET lock_configuration = true;"
+        ))
+        .map_err(io)?;
         Ok(Self::new(
             format!("duckdb:{}/", dir.display()),
             dir,
@@ -493,5 +515,68 @@ mod tests {
         assert!(
             is_duckdb_path("a/b.DuckDB") && is_data_path("x.parquet") && !is_data_path("x.json")
         );
+    }
+    /// #2: a SELECT must not read files beyond the source, in either mode.
+    #[tokio::test]
+    async fn no_file_access_beyond_the_source() {
+        let outside = tempfile::tempdir().unwrap();
+        let secret = outside.path().join("secret.csv");
+        std::fs::write(&secret, "k,v\nkey,hunter2\n").unwrap();
+        let attempts = |p: &str| {
+            [
+                format!("SELECT * FROM read_csv('{p}')"),
+                format!("SELECT * FROM read_text('{p}')"),
+                format!("SELECT * FROM glob('{p}')"),
+                format!("WITH x AS (SELECT * FROM read_csv_auto('{p}')) SELECT * FROM x"),
+                "SELECT * FROM read_csv('https://example.com/x.csv')".to_string(),
+                "SET enable_external_access = true".to_string(),
+            ]
+        };
+        let leaked = |r: &Result<QueryResult, SourceError>| {
+            r.as_ref()
+                .ok()
+                .and_then(|r| r.table.as_ref())
+                .is_some_and(|t| format!("{:?}", t.rows).contains("hunter2"))
+        };
+
+        // File mode.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("x.duckdb");
+        Connection::open(&path)
+            .unwrap()
+            .execute_batch("CREATE TABLE t(a INTEGER)")
+            .unwrap();
+        let src = DuckDbSource::open(&path).unwrap();
+        for sql in attempts(&secret.display().to_string()) {
+            let r = src
+                .query(Query::Text {
+                    dialect: "sql".into(),
+                    text: sql.clone(),
+                })
+                .await;
+            assert!(r.is_err() && !leaked(&r), "file mode: {sql}: {r:?}");
+        }
+
+        // Folder mode: its own files still work, others do not.
+        let data = tempfile::tempdir().unwrap();
+        std::fs::write(data.path().join("people.csv"), "name\nAda\n").unwrap();
+        let src = DuckDbSource::open_data_folder(data.path()).unwrap();
+        let own = src
+            .query(Query::Text {
+                dialect: "sql".into(),
+                text: "SELECT count(*) FROM people".into(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(own.table.unwrap().rows[0][0], Value::Int(1));
+        for sql in attempts(&secret.display().to_string()) {
+            let r = src
+                .query(Query::Text {
+                    dialect: "sql".into(),
+                    text: sql.clone(),
+                })
+                .await;
+            assert!(r.is_err() && !leaked(&r), "folder mode: {sql}: {r:?}");
+        }
     }
 }
