@@ -81,7 +81,9 @@ pub fn color_for(kind: &str) -> [f32; 4] {
 /// `#rrggbb` → linear-ish RGBA with the given alpha.
 pub fn parse_hex(s: &str, alpha: f32) -> Option<[f32; 4]> {
     let h = s.strip_prefix('#')?;
-    if h.len() != 6 {
+    // Bytes, not chars: a multi-byte colour string must not slice inside a
+    // character (#12).
+    if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
     }
     let c = |i: usize| {
@@ -206,4 +208,18 @@ pub fn layer_z(kind: &str, i: usize) -> f32 {
     };
     let jitter = ((i as f32 * 0.618_034).fract() - 0.5) * 20.0;
     layer * 140.0 + jitter
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_hex;
+
+    #[test]
+    fn hex_colours_parse_and_multibyte_strings_are_refused() {
+        assert_eq!(parse_hex("#ff0000", 1.0), Some([1.0, 0.0, 0.0, 1.0]));
+        // Six bytes, but `é` is two of them: used to slice inside it and panic (#12).
+        assert_eq!(parse_hex("#éabcd", 1.0), None);
+        assert_eq!(parse_hex("#gg0000", 1.0), None);
+        assert_eq!(parse_hex("ff0000", 1.0), None);
+    }
 }

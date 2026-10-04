@@ -6,9 +6,10 @@ use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
 use futures_util::StreamExt;
 use moonkale_ext_api::{t, Command, Workspace};
-use moonkale_terminal::{links, Session, SessionId};
+use moonkale_terminal::{links, Relay, Session, SessionId};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 const CSS: Asset = asset!("/assets/terminal.css");
@@ -19,9 +20,14 @@ const XTERM_CSS: Asset = asset!("/assets/xterm.css");
 #[derive(Clone, Copy)]
 pub struct Sessions {
     pub list: Signal<Vec<Rc<RefCell<Session>>>>,
+    /// Each session's output, kept for whichever view mounts next (#12).
+    relays: Signal<HashMap<SessionId, Rc<RefCell<Relay>>>>,
     pub active: Signal<Option<SessionId>>,
     /// Bumped by "Trace → Graph": the visible session sends its text.
     pub trace_tick: Signal<u64>,
+    /// The last command handled: a remounted panel must not start the last
+    /// New Terminal again (#12).
+    handled: Signal<u64>,
 }
 
 impl PartialEq for Sessions {
@@ -34,8 +40,48 @@ impl Sessions {
     pub fn new() -> Self {
         Self {
             list: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            relays: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             active: Signal::new_in_scope(None, ScopeId::ROOT),
             trace_tick: Signal::new_in_scope(0, ScopeId::ROOT),
+            handled: Signal::new_in_scope(0, ScopeId::ROOT),
+        }
+    }
+}
+
+impl Sessions {
+    /// Add a running session: its output is pumped into a relay for as long
+    /// as the session lives — not for as long as a view of it is mounted
+    /// (#12: docking the panel elsewhere ended the output for good).
+    fn add(mut self, session: Session) {
+        let id = session.id;
+        let session = Rc::new(RefCell::new(session));
+        let relay = Rc::new(RefCell::new(Relay::new()));
+        let output = session.borrow_mut().backend.take_output();
+        if let Some(mut out) = output {
+            let relay = relay.clone();
+            // Ends when the session is closed: dropping the backend closes the stream.
+            dioxus::core::spawn_forever(async move {
+                while let Some(chunk) = out.next().await {
+                    relay.borrow_mut().push(&chunk);
+                }
+                relay.borrow_mut().end(b"\r\n[process exited]\r\n");
+            });
+        }
+        self.relays.with_mut(|m| {
+            m.insert(id, relay);
+        });
+        self.list.with_mut(|l| l.push(session));
+        self.active.set(Some(id));
+    }
+
+    fn close(mut self, id: SessionId) {
+        self.list.with_mut(|l| l.retain(|s| s.borrow().id != id));
+        self.relays.with_mut(|m| {
+            m.remove(&id);
+        });
+        if self.active.peek().as_ref() == Some(&id) {
+            let next = self.list.peek().last().map(|s| s.borrow().id);
+            self.active.set(next);
         }
     }
 }
@@ -94,7 +140,7 @@ for (;;) {
 }
 "#;
 
-async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<String>) {
+async fn start_session(mut ws: Workspace, sessions: Sessions, cwd: Option<String>) {
     let Some(spawn_fn) = ws.spawn_terminal() else {
         ws.set_status(t!(ws, L, "terminal-unavailable"));
         return;
@@ -103,16 +149,12 @@ async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<St
         Ok(backend) => {
             let id = SessionId::fresh();
             let title = backend.title();
-            let session = Session {
+            sessions.add(Session {
                 id,
                 title,
                 cwd,
                 backend,
-            };
-            sessions
-                .list
-                .with_mut(|l| l.push(Rc::new(RefCell::new(session))));
-            sessions.active.set(Some(id));
+            });
         }
         Err(e) => ws.set_status(t!(ws, L, "terminal-failed", error = e.to_string())),
     }
@@ -123,7 +165,12 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let mut sessions = sessions;
     // View → New Terminal / "New terminal here".
     use_effect(move || {
-        let (_, cmd) = *ws.shell.commands.read();
+        let (seq, cmd) = *ws.shell.commands.read();
+        let mut handled = sessions.handled;
+        if seq <= *handled.peek() {
+            return;
+        }
+        handled.set(seq);
         // The frame resolves `NewTerminal` to an implementation (Milestone 12).
         if cmd == Some(Command::NewTerminalIn("xterm")) {
             let cwd = ws.processes.terminal_cwd.peek().clone();
@@ -146,11 +193,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
         }
         ws.processes.adopt_terminals.with_mut(|v| v.clear());
         for session in pending {
-            let id = session.id;
-            sessions
-                .list
-                .with_mut(|l| l.push(Rc::new(RefCell::new(session))));
-            sessions.active.set(Some(id));
+            sessions.add(session);
         }
     });
     let list = sessions.list.read().clone();
@@ -174,11 +217,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                                 "{title}"
                                 span { class: "mk-term-close", title: t!(ws, L, "terminal-close"), onclick: move |e| {
                                     e.stop_propagation();
-                                    sessions.list.with_mut(|l| l.retain(|s| s.borrow().id != id));
-                                    if sessions.active.peek().as_ref() == Some(&id) {
-                                        let next = sessions.list.peek().last().map(|s| s.borrow().id);
-                                        sessions.active.set(next);
-                                    }
+                                    sessions.close(id);
                                 }, "✕" }
                             }
                         }
@@ -204,8 +243,11 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                 for s in list.iter() {
                     {
                         let id = s.borrow().id;
+                        let relay = sessions.relays.peek().get(&id).cloned();
                         rsx! {
-                            SessionView { key: "{id.0}", ws, session: s.clone(), visible: active == Some(id), trace_tick: sessions.trace_tick }
+                            if let Some(relay) = relay {
+                                SessionView { key: "{id.0}", ws, session: s.clone(), relay, visible: active == Some(id), trace_tick: sessions.trace_tick }
+                            }
                         }
                     }
                 }
@@ -218,6 +260,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
 struct SessionViewProps {
     ws: Workspace,
     session: Rc<RefCell<Session>>,
+    relay: Rc<RefCell<Relay>>,
     visible: bool,
     trace_tick: Signal<u64>,
 }
@@ -233,6 +276,7 @@ fn SessionView(props: SessionViewProps) -> Element {
     let SessionViewProps {
         ws,
         session,
+        relay,
         visible,
         trace_tick,
     } = props;
@@ -249,7 +293,9 @@ fn SessionView(props: SessionViewProps) -> Element {
             let script = SCRIPT.replace("ID", &serde_json::to_string(&element_id).unwrap());
             let ev = document::eval(&script);
             let mut rx = ev;
-            let output = session.borrow_mut().backend.take_output();
+            // What this session printed so far (a remounted view repaints
+            // from it), then the live output.
+            let (replay, mut live) = relay.borrow_mut().subscribe();
             let session_in = session.clone();
             // JS → Rust: keystrokes, resizes, links.
             spawn(async move {
@@ -294,21 +340,21 @@ fn SessionView(props: SessionViewProps) -> Element {
                 }
             });
             // Backend → JS: process output, base64.
-            if let Some(mut out) = output {
-                let ev_out = ev;
-                spawn(async move {
-                    while let Some(chunk) = out.next().await {
-                        let data = base64::engine::general_purpose::STANDARD.encode(&chunk);
-                        if ev_out.send(ToJs::Output { data: &data }).is_err() {
-                            break;
-                        }
+            let ev_out = ev;
+            spawn(async move {
+                let send = |chunk: &[u8]| {
+                    let data = base64::engine::general_purpose::STANDARD.encode(chunk);
+                    ev_out.send(ToJs::Output { data: &data }).is_ok()
+                };
+                if !replay.is_empty() && !send(&replay) {
+                    return;
+                }
+                while let Some(chunk) = live.next().await {
+                    if !send(&chunk) {
+                        break;
                     }
-                    let _ = ev_out.send(ToJs::Output {
-                        data: &base64::engine::general_purpose::STANDARD
-                            .encode(b"\r\n[process exited]\r\n"),
-                    });
-                });
-            }
+                }
+            });
             let _ = ev.send(serde_json::json!({ "kind": "init" }));
             eval.set(Some(ev));
         }

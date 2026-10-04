@@ -47,6 +47,27 @@ struct State {
     label_hover: String,
 }
 
+impl State {
+    /// The id of the node being dragged, if any.
+    fn dragged_id(&self) -> Option<String> {
+        match self.dragging {
+            Drag::Node { index } => self.graph.nodes.get(index).map(|n| n.id.clone()),
+            _ => None,
+        }
+    }
+
+    /// After the graph was replaced: a node drag follows its node to its new
+    /// index, or ends when the node is gone (#12 — a stale index panicked
+    /// every pointer move).
+    fn keep_drag(&mut self, id: Option<String>) {
+        if let Drag::Node { .. } = self.dragging {
+            self.dragging = id
+                .and_then(|id| self.graph.nodes.iter().position(|n| n.id == id))
+                .map_or(Drag::None, |index| Drag::Node { index });
+        }
+    }
+}
+
 struct Stashed {
     graph: Graph,
     layout: Layout,
@@ -233,7 +254,9 @@ impl GraphView {
         let Some(saved) = s.stashed.remove(name) else {
             return false;
         };
+        let dragged = s.dragged_id();
         s.graph = saved.graph;
+        s.keep_drag(dragged);
         s.layout = saved.layout;
         s.camera = saved.camera;
         s.auto_fit = saved.auto_fit;
@@ -246,6 +269,7 @@ impl GraphView {
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
+        let dragged = s.dragged_id();
         let mut next = Graph::from_input(input);
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
             .graph
@@ -321,6 +345,7 @@ impl GraphView {
             let new_count = known.iter().filter(|k| !**k).count();
             let total = next.nodes.len().max(1);
             s.graph = next;
+            s.keep_drag(dragged);
             if changed || !same_edges {
                 // A few newcomers: warm, so known nodes only drift. Many (an
                 // index still filling up): a full reheat from the kept
@@ -336,6 +361,7 @@ impl GraphView {
             return Ok(());
         }
         s.graph = next;
+        s.keep_drag(dragged);
         s.layout = Layout::new(&s.graph);
         s.hovered = None;
         s.auto_fit = true;
@@ -646,7 +672,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         let (a, b) = (s.touches[0], s.touches[1]);
                         // A node picked up by the first finger stays where it is.
                         if let Drag::Node { index } = s.dragging {
-                            s.graph.nodes[index].pinned = true;
+                            if let Some(n) = s.graph.nodes.get_mut(index) {
+                                n.pinned = true;
+                            }
                         }
                         s.dragging = Drag::Pinch {
                             last_dist: ((a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt().max(1.0),
@@ -742,6 +770,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         s.camera.orbit(x - last.0, y - last.1);
                         s.dragging = Drag::Orbit { last: (x, y) };
                         s.dirty = true;
+                    }
+                    Drag::Node { index } if index >= s.graph.nodes.len() => {
+                        s.dragging = Drag::None;
                     }
                     Drag::Node { index } => {
                         s.auto_fit = false;
