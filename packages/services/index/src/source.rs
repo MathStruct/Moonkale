@@ -9,7 +9,24 @@ use moonkale_core::{
     QueryResult, Source, SourceDescriptor, SourceError, SourceFamily, SourceId, Table, Transaction,
     Value, Version,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+/// The index's locks survive a panic while held (#6): a poisoned lock is
+/// taken over instead of failing every later search for the session. The
+/// data may miss the one update that panicked; the next refresh repairs it.
+trait Lock<T> {
+    fn r(&self) -> RwLockReadGuard<'_, T>;
+    fn w(&self) -> RwLockWriteGuard<'_, T>;
+}
+
+impl<T> Lock<T> for RwLock<T> {
+    fn r(&self) -> RwLockReadGuard<'_, T> {
+        self.read().unwrap_or_else(|e| e.into_inner())
+    }
+    fn w(&self) -> RwLockWriteGuard<'_, T> {
+        self.write().unwrap_or_else(|e| e.into_inner())
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct IndexStats {
@@ -73,13 +90,13 @@ impl IndexSource {
         };
         let mut done = 0;
         loop {
-            let batch = self.search.read().unwrap().pending_embeddings(EMBED_BATCH);
+            let batch = self.search.r().pending_embeddings(EMBED_BATCH);
             if batch.is_empty() {
                 break;
             }
             let texts: Vec<String> = batch.iter().map(|(_, t)| t.clone()).collect();
             let vectors = e.embed(texts).await?;
-            let mut s = self.search.write().unwrap();
+            let mut s = self.search.w();
             for ((i, _), v) in batch.into_iter().zip(vectors) {
                 s.set_embedding(i, v);
                 done += 1;
@@ -90,7 +107,7 @@ impl IndexSource {
 
     /// `(chunks, embedded)` for the status line.
     pub fn search_stats(&self) -> (usize, usize) {
-        let s = self.search.read().unwrap();
+        let s = self.search.r();
         (s.chunk_count(), s.embedded_count())
     }
 
@@ -99,7 +116,7 @@ impl IndexSource {
         // or unreachable the keyword half must still answer (BM25 alone),
         // so it gets a short budget.
         let qv = match &self.embedder {
-            Some(e) if self.search.read().unwrap().embedded_count() > 0 => {
+            Some(e) if self.search.r().embedded_count() > 0 => {
                 match tokio::time::timeout(
                     std::time::Duration::from_secs(3),
                     e.embed(vec![query.to_string()]),
@@ -127,7 +144,7 @@ impl IndexSource {
     }
 
     pub fn stats(&self) -> IndexStats {
-        *self.stats.read().unwrap()
+        *self.stats.r()
     }
 
     async fn rebuild(&self) -> Result<(), SourceError> {
@@ -155,8 +172,8 @@ impl IndexSource {
         for (parent, edges) in contains {
             graph.set_derived(parent, Vec::new(), edges);
         }
-        *self.graph.write().unwrap() = graph;
-        *self.search.write().unwrap() = SearchIndex::default();
+        *self.graph.w() = graph;
+        *self.search.w() = SearchIndex::default();
 
         let mut files = 0;
         for (_, node) in entries {
@@ -169,8 +186,8 @@ impl IndexSource {
                 }
             }
         }
-        let g = self.graph.read().unwrap();
-        *self.stats.write().unwrap() = IndexStats {
+        let g = self.graph.r();
+        *self.stats.w() = IndexStats {
             files,
             links: g.count_edge_kind(&moonkale_core::EdgeKind::Links),
             symbols: g.count_kind(&NodeKind::Symbol),
@@ -183,7 +200,7 @@ impl IndexSource {
     /// changed); ignores files that vanished meanwhile.
     async fn re_extract(&self, files: &[NodeId]) {
         for id in files {
-            let node = self.graph.read().unwrap().node(*id).cloned();
+            let node = self.graph.r().node(*id).cloned();
             let Some(node) = node else { continue };
             if node.kind != NodeKind::File || !walk::wants_text(&node, &self.limits) {
                 continue;
@@ -195,17 +212,17 @@ impl IndexSource {
     }
 
     fn update_counts(&self) {
-        let g = self.graph.read().unwrap();
-        let mut s = self.stats.write().unwrap();
+        let g = self.graph.r();
+        let mut s = self.stats.w();
         s.files = g.count_kind(&NodeKind::File);
         s.links = g.count_edge_kind(&moonkale_core::EdgeKind::Links);
         s.symbols = g.count_kind(&NodeKind::Symbol);
     }
 
     fn extract_into(&self, file: &Node, text: &str) {
-        self.search.write().unwrap().set_file(file, text);
+        self.search.w().set_file(file, text);
         let derived = {
-            let g = self.graph.read().unwrap();
+            let g = self.graph.r();
             let mut d = Derived::default();
             match file.content.as_ref().and_then(|c| match c {
                 ContentRef::Text { lang, .. } => lang.as_deref(),
@@ -258,7 +275,7 @@ impl Source for IndexSource {
     }
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
-        let g = self.graph.read().unwrap();
+        let g = self.graph.r();
         match query {
             Query::Node(id) => g
                 .node(id)
@@ -304,7 +321,7 @@ impl Source for IndexSource {
             Query::Text { dialect, text } if dialect == "search" => {
                 drop(g);
                 let hits = self.run_search(text.trim(), 20).await?;
-                let g = self.graph.read().unwrap();
+                let g = self.graph.r();
                 let mut nodes: Vec<Node> = Vec::new();
                 for h in &hits {
                     if !nodes.iter().any(|n| n.id == h.file) {
@@ -380,7 +397,7 @@ impl Source for IndexSource {
         };
         let Some(top) = found else {
             let (gone, linkers) = {
-                let mut g = self.graph.write().unwrap();
+                let mut g = self.graph.w();
                 // Files that linked here: their links become unresolved
                 // (collect before the edges are dropped with the subtree).
                 let linkers = g.origins_linking_to(&g.subtree(node));
@@ -388,7 +405,7 @@ impl Source for IndexSource {
                 (gone, linkers)
             };
             {
-                let mut search = self.search.write().unwrap();
+                let mut search = self.search.w();
                 for g in &gone {
                     search.remove_file(*g);
                 }
@@ -412,7 +429,7 @@ impl Source for IndexSource {
             entries.extend(below);
         }
         {
-            let mut g = self.graph.write().unwrap();
+            let mut g = self.graph.w();
             for (parent, n) in &entries {
                 g.insert_node(n.clone());
                 g.add_edge(*parent, Edge::contains(&n.source, *parent, n.id));
@@ -427,7 +444,7 @@ impl Source for IndexSource {
         }
         // Links that were unresolved and now have a target.
         let linkers = {
-            let g = self.graph.read().unwrap();
+            let g = self.graph.r();
             let phantoms: Vec<NodeId> = entries
                 .iter()
                 .filter(|(_, n)| n.kind == NodeKind::File)
@@ -438,5 +455,25 @@ impl Source for IndexSource {
         self.re_extract(&linkers).await;
         self.update_counts();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod lock_tests {
+    use super::Lock;
+    use std::sync::{Arc, RwLock};
+
+    #[test]
+    fn a_poisoned_lock_is_taken_over() {
+        let lock = Arc::new(RwLock::new(1));
+        let l = lock.clone();
+        let _ = std::thread::spawn(move || {
+            let _g = l.write().unwrap();
+            panic!("poison it");
+        })
+        .join();
+        assert!(lock.is_poisoned());
+        *lock.w() += 1;
+        assert_eq!(*lock.r(), 2);
     }
 }
