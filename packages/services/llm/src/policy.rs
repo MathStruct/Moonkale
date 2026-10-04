@@ -90,34 +90,125 @@ impl Policy {
     }
 }
 
-/// Shell commands: obviously destructive patterns ask every time; the rest
-/// are mutating (they run code).
+/// Shell commands: obviously destructive ones ask every time; the rest are
+/// mutating (they run code). A denylist can never be complete — it decides
+/// only whether a command asks *every* time — but it reads the command as
+/// words, per simple command, so spacing, case, a path to the binary or a
+/// wrapper (`sudo`, `xargs`, `env`, …) does not hide `rm -r` (#9).
 pub fn classify_command(cmd: &str) -> Class {
     let c = cmd.to_ascii_lowercase();
-    let destructive = [
-        "rm -rf",
-        "rm -fr",
-        "rm -r ",
-        "mkfs",
-        "dd if=",
-        "git push --force",
-        "git push -f",
-        "git reset --hard",
-        "git clean -fd",
-        "drop table",
-        "truncate ",
-        "> /dev/",
-        ":(){",
-        "chmod -r",
-        "chown -r",
-        "sudo ",
-        "shutdown",
-        "reboot",
-    ];
-    if destructive.iter().any(|d| c.contains(d)) {
+    // Patterns that are destructive wherever they appear.
+    if [":(){", "drop table", "drop database", "truncate table"]
+        .iter()
+        .any(|p| c.contains(p))
+    {
+        return Class::Destructive;
+    }
+    let simple = c.split([';', '&', '|', '\n', '(', ')', '`']);
+    if simple
+        .into_iter()
+        .any(|part| destructive_simple(part.split_whitespace().collect()))
+    {
         Class::Destructive
     } else {
         Class::Mutating
+    }
+}
+
+fn destructive_simple(mut words: Vec<&str>) -> bool {
+    // Writing to a raw device (`> /dev/sda`; `/dev/null` is harmless).
+    if words
+        .windows(2)
+        .any(|w| w[0].ends_with('>') && w[1].starts_with("/dev/") && w[1] != "/dev/null")
+        || words
+            .iter()
+            .any(|w| w.contains(">/dev/") && !w.ends_with(">/dev/null"))
+    {
+        return true;
+    }
+    // Strip environment assignments and wrappers to reach the program.
+    loop {
+        let Some(first) = words.first() else {
+            return false;
+        };
+        let prog = first.rsplit('/').next().unwrap_or(first);
+        if first.contains('=') && !first.starts_with('-') {
+            words.remove(0);
+        } else if matches!(prog, "sudo" | "doas" | "su" | "pkexec") {
+            return true;
+        } else if matches!(
+            prog,
+            "env"
+                | "nice"
+                | "nohup"
+                | "time"
+                | "exec"
+                | "command"
+                | "builtin"
+                | "xargs"
+                | "timeout"
+        ) {
+            words.remove(0);
+            // Their own flags and arguments (`timeout 5`, `xargs -0`).
+            while words
+                .first()
+                .is_some_and(|w| w.starts_with('-') || w.parse::<f64>().is_ok())
+            {
+                words.remove(0);
+            }
+        } else {
+            break;
+        }
+    }
+    let prog = words[0].rsplit('/').next().unwrap_or(words[0]);
+    let args = &words[1..];
+    let flag = |short: char, long: &str| {
+        args.iter().any(|a| {
+            *a == long || (a.starts_with('-') && !a.starts_with("--") && a[1..].contains(short))
+        })
+    };
+    match prog {
+        "rm" => flag('r', "--recursive"),
+        "rmdir" | "shred" | "wipefs" | "fdisk" | "sfdisk" | "parted" | "dd" | "truncate"
+        | "shutdown" | "reboot" | "poweroff" | "halt" => true,
+        p if p.starts_with("mkfs") => true,
+        "find" => {
+            args.contains(&"-delete")
+                || args.windows(2).any(|w| {
+                    matches!(w[0], "-exec" | "-execdir" | "-ok" | "-okdir")
+                        && matches!(
+                            w[1].rsplit('/').next().unwrap_or(""),
+                            "rm" | "shred" | "unlink"
+                        )
+                })
+        }
+        "chmod" | "chown" | "chgrp" => flag('r', "--recursive"),
+        "git" => {
+            let sub = args
+                .iter()
+                .find(|a| !a.starts_with('-'))
+                .copied()
+                .unwrap_or("");
+            match sub {
+                "push" => {
+                    flag('f', "--force")
+                        || args
+                            .iter()
+                            .any(|a| a.starts_with("--force-with-lease") || a.starts_with('+'))
+                        || args.contains(&"--delete")
+                        || args.contains(&"--mirror")
+                }
+                "reset" => args.contains(&"--hard"),
+                "clean" => flag('f', "--force"),
+                "branch" => args
+                    .iter()
+                    .any(|a| *a == "-d" || *a == "-D" || *a == "--delete"),
+                "checkout" | "restore" => args.contains(&".") || args.contains(&"--"),
+                "filter-branch" | "filter-repo" => true,
+                _ => false,
+            }
+        }
+        _ => false,
     }
 }
 
@@ -125,6 +216,44 @@ pub fn classify_command(cmd: &str) -> Class {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn commands_are_read_as_words() {
+        for c in [
+            "rm -rf /",
+            "rm  -rf  build",
+            "RM -Rf x",
+            "/bin/rm -r x",
+            "rm --recursive x",
+            "find / -delete",
+            "find . -name '*.o' -exec rm {} +",
+            "ls | xargs rm -r",
+            "ls | xargs -0 rm -fr",
+            "FOO=1 rm -r x",
+            "sudo ls",
+            "git push --force-with-lease",
+            "git push origin +main",
+            "git clean -xfd",
+            "git reset --hard HEAD~1",
+            "echo hi > /dev/sda",
+            "mkfs.ext4 /dev/sdb1",
+            "cd x && rm -r y",
+            "psql -c 'DROP TABLE t'",
+        ] {
+            assert_eq!(classify_command(c), Class::Destructive, "{c}");
+        }
+        for c in [
+            "rm file.txt",
+            "cargo build 2>/dev/null",
+            "echo hi > /dev/null",
+            "git push origin main",
+            "git status",
+            "find . -name '*.rs'",
+            "ls -la",
+        ] {
+            assert_eq!(classify_command(c), Class::Mutating, "{c}");
+        }
+    }
 
     fn call(dialect: &str, text: &str) -> ToolCall {
         ToolCall {
