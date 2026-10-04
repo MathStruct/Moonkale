@@ -80,6 +80,17 @@ impl FolderSource {
         id
     }
 
+    /// Forget the ids of `rel` and everything under it (#15): ids derive from
+    /// paths, so a stale entry would point a later file at the same path to
+    /// whoever still holds the old id.
+    fn forget(&self, rel: &str) {
+        let under = format!("{rel}/");
+        self.known
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|_, r| r != rel && !r.starts_with(&under));
+    }
+
     fn rel_of(&self, id: NodeId) -> Result<String, SourceError> {
         self.known
             .read()
@@ -425,13 +436,21 @@ impl FolderSource {
             format!("{parent_rel}/{name}")
         };
         let path = tree::absolute(&self.root, &rel);
-        if tokio::fs::metadata(&path).await.is_ok() {
+        if tokio::fs::symlink_metadata(&path).await.is_ok() {
             return Err(SourceError::Invalid(format!("{rel} already exists")));
         }
         if let Some(dir) = path.parent() {
             tokio::fs::create_dir_all(dir).await?;
         }
-        tokio::fs::write(&path, text.as_bytes()).await?;
+        // `create_new`: a file that appeared since the check is refused, not
+        // truncated (#15).
+        let file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .await
+            .map_err(|e| exists_as_invalid(e, &rel))?;
+        write_all(file, text.as_bytes()).await?;
         let (_, version) = self.stat(&rel).await?;
         Ok((self.node_id(&rel), version))
     }
@@ -457,10 +476,13 @@ impl FolderSource {
     ) -> Result<(NodeId, Version), SourceError> {
         let rel = self.child_rel(parent, name)?;
         let path = tree::absolute(&self.root, &rel);
-        if tokio::fs::metadata(&path).await.is_ok() {
-            return Err(SourceError::Invalid(format!("{rel} already exists")));
+        if let Some(dir) = path.parent() {
+            tokio::fs::create_dir_all(dir).await?;
         }
-        tokio::fs::create_dir_all(&path).await?;
+        // `create_dir`, not `create_dir_all`: an existing one is an error.
+        tokio::fs::create_dir(&path)
+            .await
+            .map_err(|e| exists_as_invalid(e, &rel))?;
         let (_, version) = self.stat(&rel).await?;
         Ok((self.node_id(&rel), version))
     }
@@ -482,19 +504,28 @@ impl FolderSource {
         }
         let src = tree::absolute(&self.root, &from);
         let dst = tree::absolute(&self.root, to);
-        if tokio::fs::metadata(&dst).await.is_ok() {
-            return Err(SourceError::Invalid(format!("{to} already exists")));
-        }
         if to.starts_with(&format!("{from}/")) {
             return Err(SourceError::Invalid(format!(
                 "cannot move {from} into itself"
             )));
         }
-        if let Some(dir) = dst.parent() {
-            tokio::fs::create_dir_all(dir).await?;
+        if tokio::fs::symlink_metadata(&dst).await.is_ok() {
+            return Err(SourceError::Invalid(format!("{to} already exists")));
         }
-        tokio::fs::rename(&src, &dst).await?;
-        self.known.write().unwrap().remove(&node);
+        // Parents are made only after the checks, and removed again if the
+        // rename fails (#15).
+        let made = make_parents(&dst).await?;
+        let moved = {
+            let (src, dst) = (src.clone(), dst.clone());
+            tokio::task::spawn_blocking(move || rename_no_replace(&src, &dst))
+                .await
+                .map_err(|e| SourceError::Io(e.to_string()))?
+        };
+        if let Err(e) = moved {
+            remove_empty_parents(&dst, made).await;
+            return Err(exists_as_invalid(e, to));
+        }
+        self.forget(&from);
         let (_, version) = self.stat(to).await?;
         Ok((self.node_id(to), version))
     }
@@ -507,22 +538,43 @@ impl FolderSource {
             return Err(SourceError::Invalid("cannot delete the root".into()));
         }
         let src = tree::absolute(&self.root, &rel);
-        tokio::fs::metadata(&src).await?;
+        tokio::fs::symlink_metadata(&src).await?;
+        let trash = self.root.join(".moonkale").join("trash");
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis())
             .unwrap_or(0);
-        let dst = self
-            .root
-            .join(".moonkale")
-            .join("trash")
-            .join(stamp.to_string())
-            .join(&rel);
-        if let Some(dir) = dst.parent() {
-            tokio::fs::create_dir_all(dir).await?;
+        // Never over an earlier trash copy (#15): two deletes of the same
+        // path in one millisecond get `<ms>`, `<ms>-1`, …
+        let mut n = 0u32;
+        loop {
+            let slot = if n == 0 {
+                stamp.to_string()
+            } else {
+                format!("{stamp}-{n}")
+            };
+            let dst = trash.join(slot).join(&rel);
+            let made = make_parents(&dst).await?;
+            let moved = {
+                let (src, dst) = (src.clone(), dst.clone());
+                tokio::task::spawn_blocking(move || rename_no_replace(&src, &dst))
+                    .await
+                    .map_err(|e| SourceError::Io(e.to_string()))?
+            };
+            match moved {
+                Ok(()) => break,
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => {
+                    remove_empty_parents(&dst, made).await;
+                    n += 1;
+                }
+                Err(e) => {
+                    remove_empty_parents(&dst, made).await;
+                    return Err(e.into());
+                }
+            }
         }
-        tokio::fs::rename(&src, &dst).await?;
-        self.known.write().unwrap().remove(&node);
+        self.forget(&rel);
+        prune_trash(&trash, stamp).await;
         Ok(())
     }
 
@@ -545,14 +597,131 @@ impl FolderSource {
         }
         let current = tokio::fs::read_to_string(&path).await?;
         let next = patch.apply(&current)?;
-        // Atomic replace: write a sibling temp file, then rename over.
-        let tmp = path.with_extension(format!(
-            "{}.moonkale-tmp",
-            path.extension().and_then(|e| e.to_str()).unwrap_or("")
-        ));
-        tokio::fs::write(&tmp, next.as_bytes()).await?;
-        tokio::fs::rename(&tmp, &path).await?;
+        // Atomic replace: write a sibling temp file of our own (a unique
+        // name, created new — #15), then rename over; removed on failure.
+        let tmp = unique_tmp(&path);
+        let written = async {
+            let file = tokio::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&tmp)
+                .await?;
+            write_all(file, next.as_bytes()).await?;
+            tokio::fs::rename(&tmp, &path).await
+        }
+        .await;
+        if let Err(e) = written {
+            let _ = tokio::fs::remove_file(&tmp).await;
+            return Err(e.into());
+        }
         let (_, version) = self.stat(&rel).await?;
         Ok(version)
+    }
+}
+
+/// Trash folders older than this are removed on the next delete.
+const TRASH_DAYS: u128 = 30;
+
+fn exists_as_invalid(e: std::io::Error, rel: &str) -> SourceError {
+    if e.kind() == std::io::ErrorKind::AlreadyExists {
+        SourceError::Invalid(format!("{rel} already exists"))
+    } else {
+        e.into()
+    }
+}
+
+async fn write_all(mut file: tokio::fs::File, bytes: &[u8]) -> std::io::Result<()> {
+    use tokio::io::AsyncWriteExt;
+    file.write_all(bytes).await?;
+    file.flush().await
+}
+
+/// A temp file next to `path` that no other save uses.
+fn unique_tmp(path: &Path) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static N: AtomicU64 = AtomicU64::new(0);
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    path.with_file_name(format!(
+        ".{name}.{}-{nanos}-{}.moonkale-tmp",
+        std::process::id(),
+        N.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+/// Rename unless `dst` exists. Atomic on Linux and Android
+/// (`RENAME_NOREPLACE`); elsewhere, and on file systems without it, a check
+/// right before the rename (a small window remains).
+fn rename_no_replace(src: &Path, dst: &Path) -> std::io::Result<()> {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        use rustix::fs::{renameat_with, RenameFlags, CWD};
+        use rustix::io::Errno;
+        match renameat_with(CWD, src, CWD, dst, RenameFlags::NOREPLACE) {
+            Ok(()) => return Ok(()),
+            Err(e) if e == Errno::INVAL || e == Errno::NOSYS => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    if std::fs::symlink_metadata(dst).is_ok() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "destination exists",
+        ));
+    }
+    std::fs::rename(src, dst)
+}
+
+/// Create `path`'s missing parents; returns how many levels were made.
+async fn make_parents(path: &Path) -> std::io::Result<usize> {
+    let mut missing = 0;
+    let mut dir = path.parent();
+    while let Some(d) = dir {
+        if tokio::fs::symlink_metadata(d).await.is_ok() {
+            break;
+        }
+        missing += 1;
+        dir = d.parent();
+    }
+    if let Some(d) = path.parent() {
+        tokio::fs::create_dir_all(d).await?;
+    }
+    Ok(missing)
+}
+
+/// Undo [`make_parents`]: remove the `levels` directories it made, as long
+/// as they are still empty.
+async fn remove_empty_parents(path: &Path, levels: usize) {
+    let mut dir = path.parent();
+    for _ in 0..levels {
+        let Some(d) = dir else { break };
+        if tokio::fs::remove_dir(d).await.is_err() {
+            break;
+        }
+        dir = d.parent();
+    }
+}
+
+/// Remove trash folders (`<ms>` or `<ms>-<n>`) older than [`TRASH_DAYS`].
+/// Best effort: a failure leaves the folder for next time.
+async fn prune_trash(trash: &Path, now_ms: u128) {
+    let Ok(mut entries) = tokio::fs::read_dir(trash).await else {
+        return;
+    };
+    let max_age = TRASH_DAYS * 24 * 60 * 60 * 1000;
+    while let Ok(Some(e)) = entries.next_entry().await {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Ok(ms) = name.split('-').next().unwrap_or("").parse::<u128>() else {
+            continue;
+        };
+        if now_ms.saturating_sub(ms) > max_age {
+            let _ = tokio::fs::remove_dir_all(e.path()).await;
+        }
     }
 }
