@@ -37,15 +37,15 @@ pub async fn lsp_socket(
         let root = match crate::state::jail_dir(Some(&open.root)) {
             Ok(r) => r,
             Err(e) => {
-                let _ = socket.send(Frame(format!(r#"{{"error":"{e}"}}"#))).await;
+                let _ = socket.send(error_frame(&e.to_string())).await;
                 return;
             }
         };
         let Some(spec) = moonkale_lsp_local::discover::find(&open.language) else {
             let hint = moonkale_lsp_local::discover::install_hint(&open.language).unwrap_or("");
             let _ = socket
-                .send(Frame(format!(
-                    r#"{{"error":"no language server for {} on the server ({hint})"}}"#,
+                .send(error_frame(&format!(
+                    "no language server for {} on the server ({hint})",
                     open.language
                 )))
                 .await;
@@ -56,7 +56,7 @@ pub async fn lsp_socket(
             match moonkale_lsp_local::StdioTransport::spawn(&spec.program, &args, &root) {
                 Ok(t) => t,
                 Err(e) => {
-                    let _ = socket.send(Frame(format!(r#"{{"error":"{e}"}}"#))).await;
+                    let _ = socket.send(error_frame(&e.to_string())).await;
                     return;
                 }
             };
@@ -127,4 +127,11 @@ impl moonkale_lsp::LspTransport for RemoteLsp {
     fn take_incoming(&mut self) -> Option<futures_channel::mpsc::UnboundedReceiver<String>> {
         self.incoming.take()
     }
+}
+
+/// An error frame, built as JSON (#20: the language name and error texts
+/// were pasted into a JSON string unescaped).
+#[cfg(feature = "server")]
+fn error_frame(message: &str) -> Frame {
+    Frame(serde_json::json!({ "error": message }).to_string())
 }
