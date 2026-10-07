@@ -232,6 +232,11 @@ pub fn Frame(
         });
     };
 
+    // Links that would run code or load a document of their own (#10).
+    use_hook(|| {
+        let _ = document::eval(LINK_GUARD);
+    });
+
     // Shortcuts when nothing inside the frame has focus (P-065): a
     // document-level listener forwards Ctrl-combos whose target is the body.
     use_hook(move || {
@@ -571,6 +576,34 @@ fn key_name(key: &Key) -> String {
 
 /// Forwards Ctrl/Cmd-combos to Rust only when the event would otherwise be
 /// lost (target is the document body, i.e. nothing focused inside the frame).
+/// One guard for every link the app renders (#10): markdown from a cloned
+/// repository can hold `[x](javascript:…)` or `data:` links, and the rich
+/// editor's link tooltip is a plain anchor. A click (or middle click) on a
+/// link whose scheme is not http(s), mailto or the app's own is stopped
+/// before any editor's handler sees it.
+const LINK_GUARD: &str = r##"
+if (!window.__mkLinkGuard) {
+    window.__mkLinkGuard = true;
+    const allowed = (a) => {
+        const href = a.getAttribute("href");
+        if (href === null || href === "" || href.startsWith("#")) return true;
+        let url;
+        try { url = new URL(href, location.href); } catch (_) { return false; }
+        return ["http:", "https:", "mailto:"].includes(url.protocol) || url.protocol === location.protocol;
+    };
+    const guard = (e) => {
+        const a = e.target && e.target.closest && e.target.closest("a[href]");
+        if (a && !allowed(a)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            console.warn("moonkale: blocked a link to " + a.getAttribute("href").split(":")[0] + ":");
+        }
+    };
+    window.addEventListener("click", guard, true);
+    window.addEventListener("auxclick", guard, true);
+}
+"##;
+
 const GLOBAL_KEYS: &str = r#"
 document.addEventListener("keydown", (e) => {
     const fkey = /^F\d{1,2}$/.test(e.key);

@@ -78,5 +78,33 @@ try {
     const theme = await page.$eval(".mk-shell", (e) => e.getAttribute("data-theme"));
     if (theme !== "dark") throw new Error("data-theme " + theme);
   });
+  await step("links that would run code are stopped; normal links are not; the server sends a CSP (#10)", async () => {
+    const res = await page.request.get(`http://127.0.0.1:${PORT}/`);
+    const csp = res.headers()["content-security-policy"] || "";
+    if (!/frame-ancestors 'none'/.test(csp) || !/object-src 'none'/.test(csp)) throw new Error("CSP: " + csp);
+    // Links as markdown renders them (a cloned repository's note can hold any href).
+    const outcome = await page.evaluate(() => {
+      const host = document.querySelector(".wb-workspace");
+      const make = (href) => { const a = document.createElement("a"); a.href = href; a.textContent = href; host.appendChild(a); return a; };
+      window.__pwned = 0;
+      const results = {};
+      for (const href of ["javascript:window.__pwned=1", "data:text/html,<script>parent.__pwned=2<\/script>", "vbscript:x"]) {
+        const a = make(href);
+        const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
+        a.dispatchEvent(ev);
+        results[href.split(":")[0]] = ev.defaultPrevented;
+        a.remove();
+      }
+      // An allowed one is left alone (stopped here only so the test page stays).
+      const ok = make("https://example.com/");
+      let reached = false;
+      ok.addEventListener("click", (e) => { reached = true; e.preventDefault(); });
+      ok.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      ok.remove();
+      return { results, reached, pwned: window.__pwned };
+    });
+    console.log("\n  blocked:", JSON.stringify(outcome));
+    if (!Object.values(outcome.results).every(Boolean) || !outcome.reached || outcome.pwned) throw new Error(JSON.stringify(outcome));
+  });
   console.log("\nSHELL E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m10-shell-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

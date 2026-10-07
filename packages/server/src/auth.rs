@@ -315,8 +315,20 @@ pub fn protect(router: axum::Router) -> axum::Router {
         .layer(axum::middleware::from_fn(isolation_headers))
 }
 
+/// What a Content-Security-Policy can do for a Dioxus fullstack page (#10).
+/// Script sources cannot be restricted: the page carries inline scripts
+/// (the hydration bootstrap and per-page hydration data, which no hash
+/// matches and Dioxus gives no nonce), and the eval bridges need
+/// `unsafe-eval`. So `javascript:` links are stopped by the shell's link
+/// guard; the policy adds what holds regardless: no plugins, no `<base>`
+/// rewriting, no framing (clickjacking), forms only to this server.
+pub const CSP: &str =
+    "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
+
 async fn isolation_headers(req: Request, next: Next) -> Response {
     let mut resp = next.run(req).await;
+    resp.headers_mut()
+        .insert("content-security-policy", HeaderValue::from_static(CSP));
     if std::env::var("MOONKALE_ISOLATE")
         .map(|v| v != "0")
         .unwrap_or(true)

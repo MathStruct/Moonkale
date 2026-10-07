@@ -606,6 +606,12 @@ fn window_config() -> dioxus::desktop::Config {
         // including the "Toggle Developer Tools" entry.
         .with_menu(None)
         .with_disable_context_menu(true)
+        // The web server's policy (moonkale_server::auth::CSP, #10) as far as a
+        // meta tag can carry it (`frame-ancestors` only works as a header).
+        .with_custom_head(
+            r#"<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; form-action 'self'">"#
+                .to_string(),
+        )
 }
 
 /// View → New Window: a second window running the same app; it joins the
