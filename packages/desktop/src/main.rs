@@ -329,14 +329,16 @@ fn compile_typst(
         return moonkale_editor_markdown::remote_typst(root, main_rel, text);
     }
     Box::pin(async move {
-        moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text).map_err(|d| {
-            d.into_iter()
-                .map(|d| match d.hint {
-                    Some(h) => format!("{} (hint: {h})", d.message),
-                    None => d.message,
-                })
-                .collect()
-        })
+        moonkale_typst::compile_bounded(root.into(), main_rel, text)
+            .await
+            .map_err(|d| {
+                d.into_iter()
+                    .map(|d| match d.hint {
+                        Some(h) => format!("{} (hint: {h})", d.message),
+                        None => d.message,
+                    })
+                    .collect()
+            })
     })
 }
 

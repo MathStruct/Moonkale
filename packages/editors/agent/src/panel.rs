@@ -571,10 +571,14 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
     connect(ws, s.clone());
     let agent = s.agent;
     dioxus::core::spawn_forever(async move {
-        for _ in 0..200 {
+        for _ in 0..12_000 {
+            // A turn sent right after restoring holds the agent across its
+            // await (#13: `borrow_mut` here panicked); wait for it.
             if let Some(a) = agent.peek().clone() {
-                a.borrow_mut().messages = messages;
-                return;
+                if let Ok(mut g) = a.try_borrow_mut() {
+                    g.messages = messages;
+                    return;
+                }
             }
             crate::sleep_ms(50).await;
         }

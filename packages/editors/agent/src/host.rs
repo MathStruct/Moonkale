@@ -277,13 +277,33 @@ impl WorkspaceHost {
                 backend.write(format!("{command}; exit $?\n").as_bytes());
                 let mut bytes: Vec<u8> = Vec::new();
                 use futures_util::StreamExt;
-                while let Some(chunk) = out.next().await {
-                    bytes.extend_from_slice(&chunk);
-                    if bytes.len() > 200_000 {
-                        bytes.extend_from_slice(b"\n[output truncated]");
-                        break;
+                // A command that never ends (`sleep infinity`, an open quote
+                // swallowing the `exit`) must not wedge the turn (#13): a
+                // wall-clock limit, then the shell is dropped.
+                let mut deadline = std::pin::pin!(crate::sleep_ms(TERMINAL_RUN_MS));
+                loop {
+                    match futures_util::future::select(out.next(), deadline.as_mut()).await {
+                        futures_util::future::Either::Left((Some(chunk), _)) => {
+                            bytes.extend_from_slice(&chunk);
+                            if bytes.len() > 200_000 {
+                                bytes.extend_from_slice(b"\n[output truncated]");
+                                break;
+                            }
+                        }
+                        futures_util::future::Either::Left((None, _)) => break,
+                        futures_util::future::Either::Right(_) => {
+                            bytes.extend_from_slice(
+                                format!(
+                                    "\n[stopped after {} s without finishing; the shell was closed]",
+                                    TERMINAL_RUN_MS / 1000
+                                )
+                                .as_bytes(),
+                            );
+                            break;
+                        }
                     }
                 }
+                drop(backend);
                 let text = strip_ansi(&String::from_utf8_lossy(&bytes));
                 Ok(format!("$ {command}\n{text}"))
             }
@@ -294,6 +314,12 @@ impl WorkspaceHost {
         }
     }
 }
+
+/// How long a tool call waits for the user's approval before it is declined.
+const APPROVAL_MS: u32 = 600_000;
+
+/// How long `terminal.run` waits for a command to finish.
+const TERMINAL_RUN_MS: u32 = 120_000;
 
 /// Commands of enabled wasm extensions as agent tools (`llm_tool` only).
 pub fn wasm_tools(ws: Workspace) -> Vec<moonkale_llm::ToolDef> {
@@ -445,8 +471,24 @@ impl ToolHost for WorkspaceHost {
             class,
             reply: std::rc::Rc::new(std::cell::RefCell::new(Some(tx))),
         }));
+        // The card lives in the Agent panel; if that is closed or docked out
+        // of sight, say so on the status line, and give up after a while
+        // rather than keep the turn busy forever (#13).
+        let mut ws = self.ws;
+        ws.set_status(moonkale_ext_api::t!(ws, crate::L, "agent-approval-waiting"));
         Box::pin(async move {
-            let answer = rx.await.unwrap_or(false);
+            let answer = match futures_util::future::select(
+                rx,
+                std::pin::pin!(crate::sleep_ms(APPROVAL_MS)),
+            )
+            .await
+            {
+                futures_util::future::Either::Left((answer, _)) => answer.unwrap_or(false),
+                futures_util::future::Either::Right(_) => {
+                    ws.set_status(moonkale_ext_api::t!(ws, crate::L, "agent-approval-timeout"));
+                    false
+                }
+            };
             pending.set(None);
             answer
         })

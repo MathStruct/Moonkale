@@ -58,7 +58,10 @@ pub fn token_matches(presented: &str, expected: &str) -> bool {
 /// Refuse to serve a non-loopback address without a token. Called before
 /// the router is built; prints the mode once.
 pub fn guard_bind() {
-    for (name, t) in [("MOONKALE_TOKEN", token()), ("MOONKALE_MCP_TOKEN", mcp_token())] {
+    for (name, t) in [
+        ("MOONKALE_TOKEN", token()),
+        ("MOONKALE_MCP_TOKEN", mcp_token()),
+    ] {
         if t.as_deref().is_some_and(|t| !token_ok(t)) {
             eprintln!("moonkale: {name} may contain only visible ASCII without ; , \" or \\");
             std::process::exit(2);
@@ -206,11 +209,18 @@ fn cross_origin(req: &Request) -> Option<String> {
 /// `host[:port]` of an origin or a `Host` header, lower-cased, with the
 /// default port of `scheme` filled in.
 fn authority(s: &str, scheme: &str) -> (String, u16) {
-    let default = if scheme == "https" || scheme == "wss" { 443 } else { 80 };
+    let default = if scheme == "https" || scheme == "wss" {
+        443
+    } else {
+        80
+    };
     let s = s.to_ascii_lowercase();
     if let Some(rest) = s.strip_prefix('[') {
         if let Some((host, after)) = rest.split_once(']') {
-            let port = after.strip_prefix(':').and_then(|p| p.parse().ok()).unwrap_or(default);
+            let port = after
+                .strip_prefix(':')
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(default);
             return (format!("[{host}]"), port);
         }
     }
@@ -242,7 +252,8 @@ pub fn same_origin(origin: &str, host: &str) -> bool {
 /// `evil.example`, which an origin check alone passes).
 fn loopback_host(host: &str) -> bool {
     let (h, _) = authority(host, "http");
-    matches!(h.as_str(), "localhost" | "[::1]") || h.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+    matches!(h.as_str(), "localhost" | "[::1]")
+        || h.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
 /// The client address: the socket's (when the host installs `ConnectInfo`;
@@ -332,7 +343,10 @@ pub async fn middleware(req: Request, next: Next) -> Response {
                 // /login (#7).
                 if failures_limited(&ip) {
                     tracing::warn!(target: "moonkale::audit", "{ip} {method} {path} → 429");
-                    return (StatusCode::TOO_MANY_REQUESTS, "moonkale: too many failed attempts; wait a minute")
+                    return (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "moonkale: too many failed attempts; wait a minute",
+                    )
                         .into_response();
                 }
                 tracing::warn!(target: "moonkale::audit", "{ip} {method} {path} → 401");
@@ -455,7 +469,11 @@ pub async fn login_post(req: Request) -> Response {
             resp
         }
         // guard_bind refuses such tokens; never panic on a login.
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "the server's token cannot be a cookie").into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the server's token cannot be a cookie",
+        )
+            .into_response(),
     }
 }
 
@@ -524,10 +542,19 @@ mod tests {
 
     #[test]
     fn dev_mode_answers_to_loopback_names_only() {
-        for h in ["127.0.0.1:8090", "localhost:8080", "[::1]:3000", "127.0.0.1"] {
+        for h in [
+            "127.0.0.1:8090",
+            "localhost:8080",
+            "[::1]:3000",
+            "127.0.0.1",
+        ] {
             assert!(loopback_host(h), "{h}");
         }
-        for h in ["evil.example:8090", "192.168.1.5:8090", "localhost.evil.example"] {
+        for h in [
+            "evil.example:8090",
+            "192.168.1.5:8090",
+            "localhost.evil.example",
+        ] {
             assert!(!loopback_host(h), "{h}");
         }
     }

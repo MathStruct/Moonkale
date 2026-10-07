@@ -7518,6 +7518,8 @@ dependencies = [
 name = "moonkale-typst"
 version = "0.1.0"
 dependencies = [
+ "tempfile",
+ "tokio",
  "typst",
  "typst-assets",
  "typst-layout",
