@@ -310,6 +310,7 @@ pub async fn middleware(req: Request, next: Next) -> Response {
         }
     }
     let public = path == "/login"
+        || path == crate::handshake::PATH
         || path.starts_with("/assets/")
         || path.starts_with("/wasm/")
         || path.starts_with("/_dioxus")
@@ -411,6 +412,19 @@ button{font:inherit;padding:8px 14px;border-radius:4px;border:1px solid #2a2e3a;
 <body><form method="post" action="/login"><h1>Moonkale</h1><p>This server needs its access token.</p>MSG
 <input type="password" name="token" placeholder="token" autofocus autocomplete="current-password"><button type="submit">Log in</button></form></body></html>"#;
 
+/// `POST /moonkale-proof` with a challenge as the body: the HMAC of it under
+/// this server's token (audit #18; see `crate::handshake`). 404 without a
+/// token: nothing to prove.
+pub async fn proof_post(body: String) -> Response {
+    let challenge = body.trim();
+    match token() {
+        Some(t) if !challenge.is_empty() && challenge.len() <= 256 => {
+            crate::handshake::proof(&t, challenge).into_response()
+        }
+        _ => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 pub async fn login_page() -> Html<String> {
     Html(LOGIN_HTML.replace("MSG", ""))
 }
@@ -484,6 +498,7 @@ pub async fn login_post(req: Request) -> Response {
 pub fn protect(router: axum::Router) -> axum::Router {
     router
         .route("/login", axum::routing::get(login_page).post(login_post))
+        .route(crate::handshake::PATH, axum::routing::post(proof_post))
         .layer(axum::middleware::from_fn(middleware))
         .layer(axum::middleware::from_fn(isolation_headers))
 }

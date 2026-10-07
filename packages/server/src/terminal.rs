@@ -70,7 +70,7 @@ pub async fn terminal_socket(
                     Ok(TerminalMessage::Input { data }) => {
                         if let Ok(bytes) = b64.decode(data) { pty.write(&bytes); }
                     }
-                    Ok(TerminalMessage::Resize { cols, rows }) => pty.resize(cols, rows),
+                    Ok(TerminalMessage::Resize { cols, rows }) => pty.resize(cols.clamp(2, 1000), rows.clamp(1, 500)),
                     Ok(_) => {}
                     Err(_) => break, // client went away → pty dropped → process killed
                 },

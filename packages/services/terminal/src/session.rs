@@ -117,7 +117,10 @@ mod tests {
         while tx.try_send(vec![0u8; 8192]).is_ok() {
             sent += 1;
         }
-        assert!((OUTPUT_CHUNKS..=OUTPUT_CHUNKS + 2).contains(&sent), "{sent}");
+        assert!(
+            (OUTPUT_CHUNKS..=OUTPUT_CHUNKS + 2).contains(&sent),
+            "{sent}"
+        );
         let done = Arc::new(AtomicBool::new(false));
         let d = done.clone();
         let producer = std::thread::spawn(move || {
