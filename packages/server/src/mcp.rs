@@ -41,12 +41,12 @@ fn tool_name(mcp: &str) -> Option<&'static str> {
 }
 
 pub async fn handler(headers: HeaderMap, body: Json<Value>) -> Response {
-    if let Ok(token) = std::env::var("MOONKALE_MCP_TOKEN") {
+    if let Some(token) = crate::auth::mcp_token() {
         let ok = headers
             .get("authorization")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
-            .is_some_and(|t| t == token);
+            .is_some_and(|t| crate::auth::token_matches(t.trim(), &token));
         if !ok {
             return (StatusCode::UNAUTHORIZED, "missing or wrong bearer token").into_response();
         }
