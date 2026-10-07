@@ -921,14 +921,15 @@ mod tests {
 
     #[test]
     fn extension_enablement() {
-        let core = crate::Manifest::core("a", "A", "");
-        let opt = crate::Manifest::optional("b", "B", "");
-        let opt_in = crate::Manifest::opt_in("c", "C", "").with_permissions(&["network"]);
+        let core = crate::Manifest::core("dev.moonkale.a", "A", "");
+        let opt = crate::Manifest::optional("dev.moonkale.b", "B", "");
+        let opt_in =
+            crate::Manifest::opt_in("dev.moonkale.c", "C", "").with_permissions(&["network"]);
         let mut user = SettingsFile::new();
-        user.extensions.set_enabled("c", true);
-        user.extensions.set_enabled("b", false);
+        user.extensions.set_enabled("dev.moonkale.c", true);
+        user.extensions.set_enabled("dev.moonkale.b", false);
         let mut ws = SettingsFile::new();
-        ws.extensions.set_enabled("b", true); // workspace re-enables B
+        ws.extensions.set_enabled("dev.moonkale.b", true); // a folder may re-enable a built-in
         let s = Settings::resolve(&user, &ws, &SettingsFile::new());
         assert!(s.extensions.is_enabled(&core));
         assert!(s.extensions.is_enabled(&opt));
