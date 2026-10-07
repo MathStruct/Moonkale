@@ -90,10 +90,52 @@ pub fn TypstPreviewPanel(ws: Workspace) -> Element {
                 State::Pages(pages) => rsx! {
                     div { class: "mk-typst-meta", {t!(ws, L, "typst-pages", n = pages.len())} if busy() { {t!(ws, L, "typst-compiling")} } }
                     for (i, svg) in pages.iter().enumerate() {
-                        div { key: "{i}", class: "mk-typst-page", dangerous_inner_html: "{svg}" }
+                        if crate::typst_preview::plain_svg(svg) {
+                            div { key: "{i}", class: "mk-typst-page", dangerous_inner_html: "{svg}" }
+                        } else {
+                            div { key: "{i}", class: "mk-typst-error", {t!(ws, L, "typst-unsafe-svg")} }
+                        }
                     }
                 },
             }
         }
+    }
+}
+
+/// Whether a page from the Typst compiler is a plain SVG to put into the
+/// page as HTML (#19): it must be an `<svg>` document with no script,
+/// event handler, `javascript:` URL or embedded HTML. Typst emits none of
+/// them; this is the check that it stays that way.
+pub fn plain_svg(svg: &str) -> bool {
+    let start = svg.trim_start();
+    let start = start.strip_prefix("<?xml").map_or(start, |r| {
+        r.split_once("?>").map_or("", |(_, r)| r.trim_start())
+    });
+    if !start.starts_with("<svg") {
+        return false;
+    }
+    let lower = svg.to_ascii_lowercase();
+    !["<script", "javascript:", "<foreignobject", "<iframe"]
+        .iter()
+        .any(|bad| lower.contains(bad))
+        && !lower
+            .split(|c: char| c.is_whitespace())
+            .any(|w| w.starts_with("on") && w.contains('='))
+}
+
+#[cfg(test)]
+mod svg_tests {
+    #[test]
+    fn only_plain_svg_is_put_into_the_page() {
+        assert!(super::plain_svg(
+            r#"<svg class="typst-doc" viewBox="0 0 10 10"><path d="M0 0"/></svg>"#
+        ));
+        assert!(super::plain_svg("<?xml version=\"1.0\"?>\n<svg></svg>"));
+        assert!(!super::plain_svg("<svg><script>alert(1)</script></svg>"));
+        assert!(!super::plain_svg(r#"<svg onload="alert(1)"></svg>"#));
+        assert!(!super::plain_svg(
+            r#"<svg><a href="javascript:x">l</a></svg>"#
+        ));
+        assert!(!super::plain_svg("<div>not svg</div>"));
     }
 }

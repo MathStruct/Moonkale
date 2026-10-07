@@ -106,7 +106,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev libxdo-dev libssl-dev pkg-config binutils clang libclang-dev
-      - uses: cargo-bins/cargo-binstall@main
+      - uses: cargo-bins/cargo-binstall@c06f6a0003f7c6165a00c89d1697731c9e8a5c72 # v1.25.2 (pinned, audit #19)
       - name: Dioxus CLI
         run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
       - uses: Swatinem/rust-cache@v2

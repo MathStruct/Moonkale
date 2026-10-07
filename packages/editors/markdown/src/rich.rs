@@ -326,14 +326,11 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     let typography = {
         let s = ws.settings.resolved.read();
         let mut css = format!("--mk-rich-size: {}px;", s.editor.rich_font_size);
-        if !s.editor.rich_font.trim().is_empty() {
-            css.push_str(&format!(" --mk-rich-font: {};", s.editor.rich_font.trim()));
+        if let Some(f) = font_family(&s.editor.rich_font) {
+            css.push_str(&format!(" --mk-rich-font: {f};"));
         }
-        if !s.editor.rich_code_font.trim().is_empty() {
-            css.push_str(&format!(
-                " --mk-rich-code-font: {};",
-                s.editor.rich_code_font.trim()
-            ));
+        if let Some(f) = font_family(&s.editor.rich_code_font) {
+            css.push_str(&format!(" --mk-rich-code-font: {f};"));
         }
         css
     };
@@ -455,6 +452,29 @@ async fn katex_macros(mut ws: Workspace, source: &moonkale_core::SourceId) -> se
     }
 }
 
+/// A font setting as a CSS `font-family` list, or `None` (#19: the value
+/// went into a style string as is, so `url(…)` or a `;` passed): names
+/// (quoted or not) of letters, digits, spaces, `-` and `_`, comma-separated.
+fn font_family(setting: &str) -> Option<String> {
+    let s = setting.trim();
+    if s.is_empty() || s.len() > 200 {
+        return None;
+    }
+    let ok = s.split(',').all(|name| {
+        let n = name.trim();
+        let bare = n
+            .strip_prefix('"')
+            .and_then(|n| n.strip_suffix('"'))
+            .or_else(|| n.strip_prefix('\'').and_then(|n| n.strip_suffix('\'')))
+            .unwrap_or(n);
+        !bare.is_empty()
+            && bare
+                .chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_'))
+    });
+    ok.then(|| s.to_string())
+}
+
 /// Split leading YAML front matter (`---\n…\n---\n`) from the body. The
 /// first part keeps its delimiters and trailing newline so the two halves
 /// concatenate back to the original text.
@@ -469,10 +489,38 @@ pub fn split_frontmatter(text: &str) -> (&str, &str) {
     for line in rest.split_inclusive('\n') {
         offset += line.len();
         if line.trim_end() == "---" {
-            return (&text[..offset], &text[offset..]);
+            // Only YAML is front matter (#19): a note may start with a
+            // thematic break, and the text up to the next one is content.
+            let inner = &text[text.len() - rest.len()..offset - line.len()];
+            return if looks_like_yaml(inner) {
+                (&text[..offset], &text[offset..])
+            } else {
+                ("", text)
+            };
         }
     }
     ("", text)
+}
+
+/// Every line a `key: value`, a `- item`, an indented continuation, a
+/// comment, or blank; and it does not start with a blank line.
+fn looks_like_yaml(block: &str) -> bool {
+    if block.starts_with(['\n', '\r']) {
+        return false;
+    }
+    block.lines().all(|l| {
+        let t = l.trim_end();
+        t.is_empty()
+            || t.starts_with([' ', '\t', '#'])
+            || t.starts_with("- ")
+            || t == "-"
+            || t.split_once(':').is_some_and(|(k, _)| {
+                !k.is_empty()
+                    && k.chars().all(|c| {
+                        c.is_alphanumeric() || matches!(c, '_' | '-' | ' ' | '.' | '"' | '\'')
+                    })
+            })
+    })
 }
 
 /// The YAML between the delimiters of a front-matter block ("" when none).
@@ -525,6 +573,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn font_settings_are_font_names_only() {
+        assert_eq!(
+            font_family(" \"Source Serif 4\", Georgia, serif ").as_deref(),
+            Some("\"Source Serif 4\", Georgia, serif")
+        );
+        assert_eq!(
+            font_family("JetBrains Mono, monospace").as_deref(),
+            Some("JetBrains Mono, monospace")
+        );
+        assert_eq!(font_family("x; background: url(https://evil/)"), None);
+        assert_eq!(font_family("url(x)"), None);
+        assert_eq!(font_family(""), None);
+    }
+
+    #[test]
     fn frontmatter_round_trips() {
         let text = "---\ntitle: \"A\"\ntags: [x]\n---\n# A\n\nbody\n";
         let (fm, body) = split_frontmatter(text);
@@ -538,6 +601,13 @@ mod tests {
             split_frontmatter("no front matter\n---\n"),
             ("", "no front matter\n---\n")
         );
+        // #19: a thematic break first, prose up to the next one: content.
+        let ruled = "---\n\nSome text.\n\n---\nmore\n";
+        assert_eq!(split_frontmatter(ruled), ("", ruled));
+        let prose = "---\nThis is just a sentence.\n---\n";
+        assert_eq!(split_frontmatter(prose), ("", prose));
+        let listy = "---\ntags:\n  - a\n  - b\n# comment\n---\nbody";
+        assert_eq!(split_frontmatter(listy).1, "body");
         assert_eq!(
             frontmatter_summary("title: \"A\"\ntags: [x]\ndescription: long\nmore: 1"),
             "title: A · tags: [x] · description: long"

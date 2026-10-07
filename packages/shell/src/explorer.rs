@@ -261,6 +261,8 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             }
             if let Some(n) = confirm {
                 div { class: "mk-explorer-confirm", role: "alertdialog",
+                    // Escape cancels; the focus starts on Cancel (#19).
+                    onkeydown: move |e| { if e.key() == Key::Escape { e.stop_propagation(); state.confirm.set(None); } },
                     span { {t!(ws, L, "explorer-delete-confirm", name = n.native_key.clone())} }
                     button { class: "mk-btn mk-btn-danger", onclick: move |_| {
                         let n = n.clone();
@@ -269,7 +271,9 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                             if let Err(e) = ws.delete_node(&n).await { state.error.set(Some(e.to_string())); }
                         });
                     }, {t!(ws, L, "explorer-delete")} }
-                    button { class: "mk-btn", onclick: move |_| state.confirm.set(None), {t!(ws, L, "cancel")} }
+                    button { class: "mk-btn", autofocus: true,
+                        onmounted: move |e| { spawn(async move { let _ = e.set_focus(true).await; }); },
+                        onclick: move |_| state.confirm.set(None), {t!(ws, L, "cancel")} }
                 }
             }
             if has_dialog {
@@ -634,6 +638,8 @@ fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Elem
             oninput: move |e| value.set(e.value()),
             onkeydown: move |e| {
                 e.stop_propagation();
+                // Enter/Escape inside an IME composition belong to it (#19).
+                if e.is_composing() { return; }
                 match e.key() {
                     Key::Enter => { e.prevent_default(); commit_key(); }
                     Key::Escape => { e.prevent_default(); state.edit.set(None); }

@@ -178,6 +178,7 @@ pub fn Palette() -> Element {
                     autocomplete: "off",
                     oninput: move |e| { query.set(e.value()); selected.set(0); },
                     onkeydown: move |e| {
+                        if e.is_composing() { return; } // the IME's keys (#19)
                         match e.key() {
                             Key::ArrowDown => { e.prevent_default(); selected.set((sel + 1).min(count.saturating_sub(1))); }
                             Key::ArrowUp => { e.prevent_default(); selected.set(sel.saturating_sub(1)); }

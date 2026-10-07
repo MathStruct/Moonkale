@@ -6,3 +6,4 @@ image-zoom-out = Zoom out (−)
 image-zoom-in = Zoom in (+)
 image-svg-title = Edit the SVG source as text
 image-source = Source
+image-too-many-pixels = { $name } is { $width } × { $height } pixels — too large to show here; open it outside Moonkale

@@ -74,7 +74,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
-      - uses: cargo-bins/cargo-binstall@main
+      - uses: cargo-bins/cargo-binstall@c06f6a0003f7c6165a00c89d1697731c9e8a5c72 # v1.25.2 (pinned, audit #19)
       - run: cargo binstall -y cargo-ndk
       - name: Cross-build (clean, release, this backend only)
         shell: bash
