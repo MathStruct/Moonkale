@@ -182,6 +182,8 @@ fn summary(msg: &SessionMessage) -> String {
 
 /// Where the entity log lives inside a workspace (Milestone 8).
 pub const HISTORY_FILE: &str = ".moonkale/history.jsonl";
+/// Where unreadable lines of [`HISTORY_FILE`] are kept (#17).
+pub const QUARANTINE_FILE: &str = ".moonkale/history.quarantine.jsonl";
 
 /// Milliseconds since the Unix epoch, on native and in the browser.
 pub fn now_ms() -> u64 {
