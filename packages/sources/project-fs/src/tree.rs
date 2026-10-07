@@ -82,7 +82,69 @@ pub fn relative(root: &Path, path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// Inverse of [`relative`].
+/// Whether `rel` is a plain relative path inside a folder (#5): `/`-separated
+/// names only — no `..`, no root or drive prefix, no backslash (a separator
+/// on Windows), no NUL. The empty path is the folder itself.
+pub fn check_rel(rel: &str) -> Result<(), String> {
+    if rel.contains(['\\', '\0']) {
+        return Err(format!("bad path {rel:?}"));
+    }
+    for c in Path::new(rel).components() {
+        match c {
+            std::path::Component::Normal(_) | std::path::Component::CurDir => {}
+            _ => return Err(format!("path {rel:?} escapes the folder")),
+        }
+    }
+    Ok(())
+}
+
+/// [`absolute`] for a path that must stay inside `root` (#5), which is
+/// canonical. The path itself, or for one that does not exist yet its
+/// nearest existing parent, must resolve inside `root` — a symlink to
+/// `/etc/passwd` or a linked directory outside is refused, a link within the
+/// folder is fine. A dangling link is refused too: writing through it would
+/// create its target.
+pub async fn jailed(root: &Path, rel: &str) -> std::io::Result<PathBuf> {
+    let denied =
+        |what: &str| std::io::Error::new(std::io::ErrorKind::PermissionDenied, what.to_string());
+    check_rel(rel).map_err(|e| denied(&e))?;
+    let path = absolute(root, rel);
+    let mut probe = path.as_path();
+    loop {
+        match tokio::fs::canonicalize(probe).await {
+            Ok(real) => {
+                if !real.starts_with(root) {
+                    return Err(denied(&format!("{rel:?} leads outside the folder")));
+                }
+                break;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                if tokio::fs::symlink_metadata(probe).await.is_ok() {
+                    return Err(denied(&format!("{rel:?} is a dangling link")));
+                }
+                match probe.parent() {
+                    Some(parent) if parent.starts_with(root) => probe = parent,
+                    _ => return Err(denied(&format!("{rel:?} is outside the folder"))),
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(path)
+}
+
+/// [`jailed`] for operations on the entry itself, not what it points to
+/// (rename, delete move a link, not its target): only the parent must
+/// resolve inside `root`, so a link leading outside can still be removed.
+pub async fn jailed_entry(root: &Path, rel: &str) -> std::io::Result<PathBuf> {
+    check_rel(rel).map_err(|e| std::io::Error::new(std::io::ErrorKind::PermissionDenied, e))?;
+    let parent = rel.rsplit_once('/').map_or("", |(p, _)| p);
+    jailed(root, parent).await?;
+    Ok(absolute(root, rel))
+}
+
+/// Inverse of [`relative`]. Unchecked: user-given paths go through
+/// [`jailed`].
 pub fn absolute(root: &Path, rel: &str) -> PathBuf {
     if rel.is_empty() {
         root.to_path_buf()

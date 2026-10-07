@@ -7,6 +7,25 @@ pub struct SseEvent {
     pub data: String,
 }
 
+/// The longest event kept (#14): a server that never sends the blank line
+/// ending an event cannot grow the buffer past this; what is beyond is
+/// dropped (the event is lost, the stream goes on).
+pub const MAX_EVENT: usize = 8 << 20;
+
+/// The most text a streamed tool call may accumulate (arguments, partial
+/// JSON): an `editor.replace` with a whole large file still fits.
+pub const MAX_TOOL_INPUT: usize = 16 << 20;
+
+/// The most tool calls one response may hold.
+pub const MAX_TOOL_CALLS: usize = 64;
+
+/// Append `more` to `s` unless that passes `limit`.
+pub fn push_capped(s: &mut String, more: &str, limit: usize) {
+    if s.len() + more.len() <= limit {
+        s.push_str(more);
+    }
+}
+
 #[derive(Default)]
 pub struct SseParser {
     buf: String,
@@ -28,6 +47,9 @@ impl SseParser {
             if let Some(ev) = parse_block(&block) {
                 out.push(ev);
             }
+        }
+        if self.buf.len() > MAX_EVENT {
+            self.buf.clear();
         }
         out
     }
@@ -68,6 +90,19 @@ fn parse_block(block: &str) -> Option<SseEvent> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_event_without_end_cannot_grow_the_buffer() {
+        let mut p = super::SseParser::new();
+        let chunk = "x".repeat(1 << 20);
+        for _ in 0..20 {
+            assert!(p.feed(&chunk).is_empty());
+        }
+        assert!(p.buf.len() <= super::MAX_EVENT);
+        // The stream goes on afterwards.
+        let ev = p.feed("\n\ndata: ok\n\n");
+        assert_eq!(ev.last().map(|e| e.data.as_str()), Some("ok"));
+    }
+
     use super::*;
 
     #[test]

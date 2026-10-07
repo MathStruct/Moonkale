@@ -91,6 +91,25 @@ impl FolderSource {
             .retain(|_, r| r != rel && !r.starts_with(&under));
     }
 
+    /// The absolute path of `rel`, kept inside the folder (#5).
+    async fn path(&self, rel: &str) -> Result<PathBuf, SourceError> {
+        tree::jailed(&self.root, rel).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                SourceError::Invalid(e.to_string())
+            } else {
+                e.into()
+            }
+        })
+    }
+
+    /// [`Self::path`] for rename and delete: the entry itself (a link, not
+    /// its target).
+    async fn entry_path(&self, rel: &str) -> Result<PathBuf, SourceError> {
+        tree::jailed_entry(&self.root, rel)
+            .await
+            .map_err(|e| SourceError::Invalid(e.to_string()))
+    }
+
     fn rel_of(&self, id: NodeId) -> Result<String, SourceError> {
         self.known
             .read()
@@ -155,7 +174,7 @@ impl FolderSource {
     }
 
     async fn stat(&self, rel: &str) -> Result<(std::fs::Metadata, Version), SourceError> {
-        let meta = tokio::fs::metadata(tree::absolute(&self.root, rel)).await?;
+        let meta = tokio::fs::metadata(self.path(rel).await?).await?;
         let v = Self::version_of(&meta);
         Ok((meta, v))
     }
@@ -228,8 +247,8 @@ impl Source for FolderSource {
             // `.moonkale/settings.json`), without walking the tree.
             Query::Text { dialect, text } if dialect == "path" => {
                 let rel = text.trim().trim_start_matches("./").trim_matches('/').to_string();
-                if rel.split('/').any(|p| p == "..") {
-                    return Err(SourceError::Invalid("path escapes the folder".into()));
+                if let Err(e) = tree::check_rel(&rel) {
+                    return Err(SourceError::Invalid(e));
                 }
                 let (meta, v) = self.stat(&rel).await?;
                 Ok(QueryResult::single(self.node_for(
@@ -244,10 +263,10 @@ impl Source for FolderSource {
             // sessions under `.moonkale/`, which `Children` never lists).
             Query::Text { dialect, text } if dialect == "ls" => {
                 let rel = text.trim().trim_start_matches("./").trim_matches('/').to_string();
-                if rel.split('/').any(|p| p == "..") {
-                    return Err(SourceError::Invalid("path escapes the folder".into()));
+                if let Err(e) = tree::check_rel(&rel) {
+                    return Err(SourceError::Invalid(e));
                 }
-                let dir = tree::absolute(&self.root, &rel);
+                let dir = self.path(&rel).await?;
                 let mut result = QueryResult::default();
                 let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
                     return Ok(result);
@@ -290,7 +309,7 @@ impl Source for FolderSource {
             }
             Query::Children(id) => {
                 let rel = self.rel_of(id)?;
-                let dir = tree::absolute(&self.root, &rel);
+                let dir = self.path(&rel).await?;
                 let root = self.root.clone();
                 let entries = tokio::task::spawn_blocking(move || tree::list_children(&root, &dir))
                     .await
@@ -313,8 +332,9 @@ impl Source for FolderSource {
 
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
         let rel = self.rel_of(node)?;
-        let path = tree::absolute(&self.root, &rel);
-        let (_, version) = self.stat(&rel).await?;
+        let path = self.path(&rel).await?;
+        let (meta, version) = self.stat(&rel).await?;
+        too_big(&meta)?;
         let text = tokio::fs::read_to_string(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::InvalidData {
                 SourceError::Unsupported("not valid UTF-8".into())
@@ -327,8 +347,9 @@ impl Source for FolderSource {
 
     async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
         let rel = self.rel_of(node)?;
-        let path = tree::absolute(&self.root, &rel);
-        let (_, version) = self.stat(&rel).await?;
+        let path = self.path(&rel).await?;
+        let (meta, version) = self.stat(&rel).await?;
+        too_big(&meta)?;
         let bytes = tokio::fs::read(&path).await?;
         Ok((bytes, version))
     }
@@ -427,7 +448,7 @@ impl FolderSource {
     ) -> Result<(NodeId, Version), SourceError> {
         let parent_rel = self.rel_of(parent)?;
         let name = name.trim_matches('/');
-        if name.is_empty() || name.split('/').any(|p| p == "..") {
+        if name.is_empty() || tree::check_rel(name).is_err() {
             return Err(SourceError::Invalid(format!("bad name {name:?}")));
         }
         let rel = if parent_rel.is_empty() {
@@ -435,7 +456,7 @@ impl FolderSource {
         } else {
             format!("{parent_rel}/{name}")
         };
-        let path = tree::absolute(&self.root, &rel);
+        let path = self.path(&rel).await?;
         if tokio::fs::symlink_metadata(&path).await.is_ok() {
             return Err(SourceError::Invalid(format!("{rel} already exists")));
         }
@@ -459,7 +480,7 @@ impl FolderSource {
     fn child_rel(&self, parent: NodeId, name: &str) -> Result<String, SourceError> {
         let parent_rel = self.rel_of(parent)?;
         let name = name.trim_matches('/');
-        if name.is_empty() || name.split('/').any(|p| p == "..") {
+        if name.is_empty() || tree::check_rel(name).is_err() {
             return Err(SourceError::Invalid(format!("bad name {name:?}")));
         }
         Ok(if parent_rel.is_empty() {
@@ -475,7 +496,7 @@ impl FolderSource {
         name: &str,
     ) -> Result<(NodeId, Version), SourceError> {
         let rel = self.child_rel(parent, name)?;
-        let path = tree::absolute(&self.root, &rel);
+        let path = self.path(&rel).await?;
         if let Some(dir) = path.parent() {
             tokio::fs::create_dir_all(dir).await?;
         }
@@ -495,15 +516,15 @@ impl FolderSource {
             return Err(SourceError::Invalid("cannot rename the root".into()));
         }
         let to = to.trim_matches('/');
-        if to.is_empty() || to.split('/').any(|p| p == "..") {
+        if to.is_empty() || tree::check_rel(to).is_err() {
             return Err(SourceError::Invalid(format!("bad path {to:?}")));
         }
         if to == from {
             let (_, version) = self.stat(&from).await?;
             return Ok((node, version));
         }
-        let src = tree::absolute(&self.root, &from);
-        let dst = tree::absolute(&self.root, to);
+        let src = self.entry_path(&from).await?;
+        let dst = self.path(to).await?;
         if to.starts_with(&format!("{from}/")) {
             return Err(SourceError::Invalid(format!(
                 "cannot move {from} into itself"
@@ -526,7 +547,8 @@ impl FolderSource {
             return Err(exists_as_invalid(e, to));
         }
         self.forget(&from);
-        let (_, version) = self.stat(to).await?;
+        // A link leading outside was moved, but is not read through (#5).
+        let version = self.stat(to).await.map(|(_, v)| v).unwrap_or_default();
         Ok((self.node_id(to), version))
     }
 
@@ -537,7 +559,7 @@ impl FolderSource {
         if rel.is_empty() {
             return Err(SourceError::Invalid("cannot delete the root".into()));
         }
-        let src = tree::absolute(&self.root, &rel);
+        let src = self.entry_path(&rel).await?;
         tokio::fs::symlink_metadata(&src).await?;
         let trash = self.root.join(".moonkale").join("trash");
         let stamp = std::time::SystemTime::now()
@@ -585,7 +607,7 @@ impl FolderSource {
         patch: &moonkale_core::TextPatch,
     ) -> Result<Version, SourceError> {
         let rel = self.rel_of(node)?;
-        let path = tree::absolute(&self.root, &rel);
+        let path = self.path(&rel).await?;
         let (meta, actual) = self.stat(&rel).await?;
         if meta.is_dir() {
             return Err(SourceError::Unsupported(
@@ -724,4 +746,19 @@ async fn prune_trash(trash: &Path, now_ms: u128) {
             let _ = tokio::fs::remove_dir_all(e.path()).await;
         }
     }
+}
+
+/// The largest file `fetch_text`/`fetch_bytes` read whole (#14): a multi-GB
+/// file must not be one click or one agent call away from filling memory.
+pub const MAX_FETCH: u64 = 64 << 20;
+
+fn too_big(meta: &std::fs::Metadata) -> Result<(), SourceError> {
+    if meta.len() > MAX_FETCH {
+        return Err(SourceError::Unsupported(format!(
+            "too large to open ({} MB; the limit is {} MB)",
+            meta.len() >> 20,
+            MAX_FETCH >> 20
+        )));
+    }
+    Ok(())
 }

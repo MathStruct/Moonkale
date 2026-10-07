@@ -24,3 +24,4 @@ tokio = { version = "1", features = ["rt"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 moonkale-project-fs = { workspace = true }
 tempfile = "3"
+wat = "1"

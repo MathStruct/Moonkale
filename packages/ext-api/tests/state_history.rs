@@ -64,7 +64,12 @@ fn App() -> Element {
                 },
             ));
         }
-        std::fs::write(dir.path().join(".moonkale/history.jsonl"), old.to_jsonl()).unwrap();
+        // …and one line nothing can read (#17: kept, not dropped).
+        std::fs::write(
+            dir.path().join(".moonkale/history.jsonl"),
+            format!("{}{{broken line}}\n", old.to_jsonl()),
+        )
+        .unwrap();
         let folder = moonkale_project_fs::FolderSource::open(dir.path()).unwrap();
         let d = ws.add_source(Arc::new(folder));
         let path = dir.path().to_path_buf();
@@ -110,6 +115,9 @@ async fn the_log_lives_in_the_host_store_one_row_per_event() {
     settle(&mut dom).await;
     assert_eq!(ws.history.log.peek().len(), 3);
     assert_eq!(&rows(&store, &folder)[..], ws.history.log.peek().events());
+    let kept =
+        std::fs::read_to_string(path.join(moonkale_ext_api::workspace::QUARANTINE_FILE)).unwrap();
+    assert_eq!(kept, "{broken line}\n");
 
     // An edit appends one row; the old file is left alone.
     let src = SourceId::new("folder:old");

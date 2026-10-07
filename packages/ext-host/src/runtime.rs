@@ -4,7 +4,31 @@ use crate::abi::{HostCall, HostReply, RunReply, RunRequest, WasmManifest, ABI_VE
 use moonkale_core::{NodeId, Query, Source, SourceDescriptor, SourceId};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use wasmtime::{Caller, Engine, Extern, Linker, Memory, Module, Store, TypedFunc};
+use wasmtime::{
+    Caller, Config, Engine, Extern, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
+    TypedFunc,
+};
+
+/// Budgets (audit #4): a module from an opened folder must not wedge the host.
+/// Fuel is roughly one unit per wasm instruction; host calls (source queries)
+/// do not consume it.
+pub const MANIFEST_FUEL: u64 = 50_000_000;
+/// Per command run: a few seconds of pure computation.
+pub const RUN_FUEL: u64 = 5_000_000_000;
+/// Linear memory per instance.
+pub const MEMORY_BYTES: usize = 256 << 20;
+
+fn limits() -> StoreLimits {
+    StoreLimitsBuilder::new()
+        .memory_size(MEMORY_BYTES)
+        .instances(1)
+        .tables(4)
+        .memories(1)
+        .build()
+}
+
+/// Ids in this namespace belong to the built-in extensions.
+const RESERVED_PREFIX: &str = "dev.moonkale.";
 
 /// What the host offers to extensions (implemented over a source registry).
 pub trait Host: Send + Sync {
@@ -26,6 +50,7 @@ pub struct Runtime {
 }
 
 struct State {
+    limits: StoreLimits,
     host: Arc<dyn Host>,
     granted: Vec<String>,
     handle: tokio::runtime::Handle,
@@ -34,7 +59,9 @@ struct State {
 
 impl Runtime {
     pub fn new() -> Result<Self, String> {
-        let engine = Engine::default();
+        let mut config = Config::new();
+        config.consume_fuel(true);
+        let engine = Engine::new(&config).map_err(|e| e.to_string())?;
         Ok(Self {
             engine,
             extensions: Vec::new(),
@@ -55,6 +82,13 @@ impl Runtime {
         }
         if manifest.id.is_empty() {
             return Err(format!("{}: manifest has no id", path.display()));
+        }
+        if manifest.id.starts_with(RESERVED_PREFIX) {
+            return Err(format!(
+                "{}: the id {} is reserved for built-in extensions",
+                path.display(),
+                manifest.id
+            ));
         }
         // An id belongs to the file that loaded it first (Milestone 18 phase
         // 4.5, audit #4): `discover` lists the user's config directory before
@@ -83,21 +117,23 @@ impl Runtime {
     }
 
     fn read_manifest(&self, module: &Module) -> Result<WasmManifest, String> {
-        let mut store = Store::new(&self.engine, ());
-        let mut linker: Linker<()> = Linker::new(&self.engine);
+        let mut store = Store::new(&self.engine, limits());
+        store.limiter(|l| l);
+        store.set_fuel(MANIFEST_FUEL).map_err(|e| e.to_string())?;
+        let mut linker: Linker<StoreLimits> = Linker::new(&self.engine);
         // The manifest must not need host calls: stub them.
         linker
             .func_wrap(
                 "moonkale",
                 "log",
-                |_caller: Caller<'_, ()>, _p: i32, _l: i32| {},
+                |_caller: Caller<'_, StoreLimits>, _p: i32, _l: i32| {},
             )
             .map_err(|e| e.to_string())?;
         linker
             .func_wrap(
                 "moonkale",
                 "call",
-                |_caller: Caller<'_, ()>, _p: i32, _l: i32| -> i64 { 0 },
+                |_caller: Caller<'_, StoreLimits>, _p: i32, _l: i32| -> i64 { 0 },
             )
             .map_err(|e| e.to_string())?;
         let instance = linker
@@ -109,7 +145,7 @@ impl Runtime {
         let manifest: TypedFunc<(), i64> = instance
             .get_typed_func(&mut store, "manifest")
             .map_err(|e| format!("manifest export: {e}"))?;
-        let packed = manifest.call(&mut store, ()).map_err(|e| e.to_string())?;
+        let packed = manifest.call(&mut store, ()).map_err(trapped)?;
         let json = read_packed(&memory, &store, packed)?;
         serde_json::from_str(&json).map_err(|e| format!("manifest JSON: {e}"))
     }
@@ -133,15 +169,23 @@ impl Runtime {
         if !ext.manifest.commands.iter().any(|c| c.id == command) {
             return Err(format!("{ext_id} has no command {command}"));
         }
+        // Never more than the module asked for, whatever the caller grants.
+        let granted: Vec<String> = granted
+            .into_iter()
+            .filter(|g| ext.manifest.permissions.contains(g))
+            .collect();
         let mut store = Store::new(
             &self.engine,
             State {
+                limits: limits(),
                 host,
                 granted,
                 handle,
                 log_prefix: ext.manifest.id.clone(),
             },
         );
+        store.limiter(|s| &mut s.limits);
+        store.set_fuel(RUN_FUEL).map_err(|e| e.to_string())?;
         let mut linker: Linker<State> = Linker::new(&self.engine);
         linker
             .func_wrap(
@@ -204,11 +248,21 @@ impl Runtime {
             .map_err(|e| format!("run export: {e}"))?;
         let packed = run
             .call(&mut store, (ptr, request.len() as i32))
-            .map_err(|e| format!("extension trapped: {e}"))?;
+            .map_err(|e| format!("extension trapped: {}", trapped(e)))?;
         let json = read_packed(&memory, &store, packed)?;
         let reply: RunReply =
             serde_json::from_str(&json).map_err(|e| format!("reply JSON: {e}: {json}"))?;
         reply.into_result()
+    }
+}
+
+/// A trap as text; running out of fuel or memory is named as such.
+fn trapped(e: wasmtime::Error) -> String {
+    match e.downcast_ref::<wasmtime::Trap>() {
+        Some(wasmtime::Trap::OutOfFuel) => {
+            "stopped: it used up its computation budget (fuel)".into()
+        }
+        _ => format!("{e:#}"),
     }
 }
 
@@ -264,9 +318,18 @@ fn read(
     ptr: i32,
     len: i32,
 ) -> Result<String, String> {
-    let mut buf = vec![0u8; len.max(0) as usize];
+    // Bounded by the module's memory before allocating (#4: a guest-chosen
+    // length allocated up to 2 GiB on the host).
+    let (start, len) = (ptr.max(0) as usize, len.max(0) as usize);
+    if start
+        .checked_add(len)
+        .is_none_or(|end| end > memory.data_size(&store))
+    {
+        return Err(format!("out of bounds: {len} bytes at {start}"));
+    }
+    let mut buf = vec![0u8; len];
     memory
-        .read(store, ptr as usize, &mut buf)
+        .read(&store, start, &mut buf)
         .map_err(|e| e.to_string())?;
     String::from_utf8(buf).map_err(|e| e.to_string())
 }

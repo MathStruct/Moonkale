@@ -32,7 +32,7 @@ Milestone 14 added the Rust code editor next to CodeMirror ([[Code Editor Implem
 | `dev.moonkale.lux` | Lux.jl model assembler | **[`MathStruct/moonkale-julia`](https://github.com/MathStruct/moonkale-julia)** (583; moved in Milestone 18 phase 6.4, pulled by git tag behind the distribution's off-by-default `julia` feature) | opt-in | a block library for the flow editor + Julia code generation | ✅ | ✅ | ✅ (generate only) | Julia + Lux.jl to *run* the generated model (never from Moonkale yet) |
 | `dev.moonkale.git` | Git | `extensions/git` (1 051) + `ext-api/git.rs` | optional | Changes panel, diff panel, commit, history as a graph, vcs marks | ✅ | ⚙️ | ❌ (no `git`) | the `git` binary (feature `cli`) |
 | `history` | History | `extensions/history` (its own crate since Milestone 18 phase 4.2; feature `history` of the distribution) | optional | entity-log panel: events, text at any event, compact, restore | ✅ | ✅ | ✅ | — (the host's state store, table `events`; was `.moonkale/history.jsonl`) |
-| `dev.moonkale.example-wordcount` | Word count | `extensions/wordcount` (164) | wasm example | two commands / agent tools | ✅ (wasmtime) | ✅ (browser runtime or server) | ❌ (no runtime yet) | the module file |
+| `org.example.wordcount` | Word count | `extensions/wordcount` (164) | wasm example | two commands / agent tools | ✅ (wasmtime) | ✅ (browser runtime or server) | ❌ (no runtime yet) | the module file |
 
 Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence (web + desktop hub; mobile `None`), the wasm runtime, secret store, settings store, folder picker. They are candidates for extension status only where a contribution point exists.
 

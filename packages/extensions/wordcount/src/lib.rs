@@ -77,7 +77,7 @@ fn info(text: &str) {
 pub fn manifest_value() -> WasmManifest {
     WasmManifest {
         abi: ABI_VERSION,
-        id: "dev.moonkale.example-wordcount".into(),
+        id: "org.example.wordcount".into(),
         name: "Word count (wasm example)".into(),
         description: "Counts lines, words and characters of a file; lists the most frequent words."
             .into(),

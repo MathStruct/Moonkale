@@ -117,9 +117,14 @@ pub(crate) fn provider_checked(
     static CACHE: OnceLock<Mutex<HashMap<moonkale_llm::LlmSettings, Arc<dyn Provider>>>> =
         OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut map = cache.lock().unwrap();
+    let mut map = cache.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(p) = map.get(settings) {
         return Ok(p.clone());
+    }
+    // Every distinct settings value was kept forever (#14): a client could
+    // grow the map without bound. A small cache, emptied when full.
+    if map.len() >= 32 {
+        map.clear();
     }
     let key = moonkale_llm::secrets::resolve(&settings.secret);
     let cfg = moonkale_llm::Config::from_settings(settings, key);

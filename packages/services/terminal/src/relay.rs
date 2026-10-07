@@ -4,7 +4,6 @@
 //! session feeds it, each mounted view subscribes, gets the recent output to
 //! repaint from, then the live stream.
 
-use crate::Output;
 use futures_channel::mpsc;
 use std::collections::VecDeque;
 
@@ -43,7 +42,7 @@ impl Relay {
 
     /// A view mounts: the output so far, and the stream from now on. The
     /// previous subscriber's stream ends.
-    pub fn subscribe(&mut self) -> (Vec<u8>, Output) {
+    pub fn subscribe(&mut self) -> (Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>) {
         let (tx, rx) = mpsc::unbounded();
         self.sink = Some(tx);
         (self.recent.iter().copied().collect(), rx)

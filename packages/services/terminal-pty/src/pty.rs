@@ -1,4 +1,3 @@
-use futures_channel::mpsc;
 use moonkale_terminal::{Output, TerminalBackend};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use std::io::{Read, Write};
@@ -84,7 +83,10 @@ impl PtyBackend {
             .master
             .take_writer()
             .map_err(|e| format!("writer: {e}"))?;
-        let (tx, rx) = mpsc::unbounded::<Vec<u8>>();
+        // Bounded (#14): while the consumer lags, this thread waits, the
+        // PTY's buffer fills and the program blocks on its output — like a
+        // terminal nobody scrolls, not a queue that grows with `yes`.
+        let (mut tx, rx) = moonkale_terminal::output_channel();
         std::thread::Builder::new()
             .name("moonkale-pty-reader".into())
             .spawn(move || {
@@ -93,7 +95,7 @@ impl PtyBackend {
                     match reader.read(&mut buf) {
                         Ok(0) | Err(_) => break,
                         Ok(n) => {
-                            if tx.unbounded_send(buf[..n].to_vec()).is_err() {
+                            if !moonkale_terminal::send_blocking(&mut tx, buf[..n].to_vec()) {
                                 break;
                             }
                         }

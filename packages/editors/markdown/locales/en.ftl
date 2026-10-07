@@ -38,3 +38,4 @@ typst-pages =
        *[other] { $n } pages
     }
 typst-compiling =  · compiling…
+typst-unsafe-svg = This page was not shown: the compiled SVG contained script or embedded HTML.

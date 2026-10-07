@@ -52,7 +52,14 @@ pub async fn terminal_socket(
             tokio::select! {
                 chunk = out.next() => match chunk {
                     Some(bytes) => {
-                        if socket.send(TerminalMessage::Output { data: b64.encode(&bytes) }).await.is_err() { break; }
+                        // A client that takes no output for a minute is gone
+                        // (#14); the PTY is dropped and the shell ends.
+                        let sent = tokio::time::timeout(
+                            std::time::Duration::from_secs(60),
+                            socket.send(TerminalMessage::Output { data: b64.encode(&bytes) }),
+                        )
+                        .await;
+                        if !matches!(sent, Ok(Ok(()))) { break; }
                     }
                     None => {
                         let _ = socket.send(TerminalMessage::Exit { code: None, message: None }).await;
@@ -63,13 +70,24 @@ pub async fn terminal_socket(
                     Ok(TerminalMessage::Input { data }) => {
                         if let Ok(bytes) = b64.decode(data) { pty.write(&bytes); }
                     }
-                    Ok(TerminalMessage::Resize { cols, rows }) => pty.resize(cols, rows),
+                    Ok(TerminalMessage::Resize { cols, rows }) => pty.resize(cols.clamp(2, 1000), rows.clamp(1, 500)),
                     Ok(_) => {}
                     Err(_) => break, // client went away → pty dropped → process killed
                 },
             }
         }
     }))
+}
+
+/// Send on a bounded channel, waiting for room. False when it is closed.
+async fn send_async(tx: &mut futures_channel::mpsc::Sender<Vec<u8>>, chunk: Vec<u8>) -> bool {
+    if futures_util::future::poll_fn(|cx| tx.poll_ready(cx))
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    tx.start_send(chunk).is_ok()
 }
 
 /// Client-side backend: a [`moonkale_terminal::TerminalBackend`] over the
@@ -95,7 +113,7 @@ impl RemoteTerminal {
             .map_err(|e| e.to_string())?;
         let socket = std::rc::Rc::new(socket);
         let (in_tx, mut in_rx) = futures_channel::mpsc::unbounded::<TerminalMessage>();
-        let (out_tx, out_rx) = futures_channel::mpsc::unbounded::<Vec<u8>>();
+        let (mut out_tx, out_rx) = moonkale_terminal::output_channel();
         let (closed_tx, mut closed) = futures_channel::oneshot::channel::<()>();
         // Both pumps live as long as the terminal, not as long as the
         // component that happened to connect it (#12: remounting the panel
@@ -124,14 +142,17 @@ impl RemoteTerminal {
                 match next {
                     Ok(TerminalMessage::Output { data }) => {
                         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(data) {
-                            if out_tx.unbounded_send(bytes).is_err() {
+                            // Waits while the view lags: the socket is not
+                            // read, and TCP holds the server back (#14).
+                            if !send_async(&mut out_tx, bytes).await {
                                 break;
                             }
                         }
                     }
                     Ok(TerminalMessage::Exit { message, .. }) => {
                         if let Some(m) = message {
-                            let _ = out_tx.unbounded_send(format!("\r\n[{m}]\r\n").into_bytes());
+                            let _ = send_async(&mut out_tx, format!("\r\n[{m}]\r\n").into_bytes())
+                                .await;
                         }
                         break;
                     }
