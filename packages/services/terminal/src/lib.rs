@@ -15,6 +15,6 @@ pub mod session;
 
 pub use relay::Relay;
 pub use session::{
-    Output, Session, SessionId, SpawnTerminal, SpawnTerminalFuture, TerminalBackend,
-    TerminalMessage,
+    output_channel, send_blocking, Output, Session, SessionId, SpawnTerminal, SpawnTerminalFuture,
+    TerminalBackend, TerminalMessage, OUTPUT_CHUNKS,
 };

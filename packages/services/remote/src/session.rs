@@ -209,7 +209,7 @@ impl SshSession {
                 // bar line is easy to miss) and ends the master `ssh`, so the
                 // host's script stops waiting (P-106).
                 if let Phase::Failed(reason) = &p {
-                    let _ = notice.unbounded_send(
+                    let _ = notice.clone().try_send(
                         format!("\r\n[moonkale] remote session failed: {reason}\r\n").into_bytes(),
                     );
                     master.kill();

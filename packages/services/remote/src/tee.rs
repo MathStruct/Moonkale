@@ -10,7 +10,7 @@ pub struct TeeBackend {
     inner: Arc<Mutex<Box<dyn TerminalBackend + Send>>>,
     panel_out: Option<Output>,
     /// Lines the session itself adds to the tab (failure notices).
-    notices: mpsc::UnboundedSender<Vec<u8>>,
+    notices: mpsc::Sender<Vec<u8>>,
     title: String,
 }
 
@@ -19,8 +19,8 @@ impl TeeBackend {
     /// receiver of the same output (for the session).
     pub fn new(mut inner: Box<dyn TerminalBackend + Send>, title: &str) -> (Self, Output) {
         let source = inner.take_output();
-        let (panel_tx, panel_rx) = mpsc::unbounded::<Vec<u8>>();
-        let (watch_tx, watch_rx) = mpsc::unbounded::<Vec<u8>>();
+        let (mut panel_tx, panel_rx) = moonkale_terminal::output_channel();
+        let (mut watch_tx, watch_rx) = moonkale_terminal::output_channel();
         let notices = panel_tx.clone();
         if let Some(mut src) = source {
             std::thread::Builder::new()
@@ -29,8 +29,13 @@ impl TeeBackend {
                     use futures_util::StreamExt;
                     futures_executor::block_on(async move {
                         while let Some(chunk) = src.next().await {
-                            let _ = panel_tx.unbounded_send(chunk.clone());
-                            let _ = watch_tx.unbounded_send(chunk);
+                            // The tab gets everything (waiting while it lags);
+                            // the session reads only the early output, so its
+                            // copy is dropped when full instead of growing (#14).
+                            let _ = watch_tx.try_send(chunk.clone());
+                            if !moonkale_terminal::send_blocking(&mut panel_tx, chunk) {
+                                break;
+                            }
                         }
                     });
                 })
@@ -49,7 +54,7 @@ impl TeeBackend {
 
     /// A sender whose bytes appear in the terminal tab as if the PTY had
     /// printed them (the session's own notices).
-    pub fn notices(&self) -> mpsc::UnboundedSender<Vec<u8>> {
+    pub fn notices(&self) -> mpsc::Sender<Vec<u8>> {
         self.notices.clone()
     }
 

@@ -333,7 +333,8 @@ impl Source for FolderSource {
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
         let rel = self.rel_of(node)?;
         let path = self.path(&rel).await?;
-        let (_, version) = self.stat(&rel).await?;
+        let (meta, version) = self.stat(&rel).await?;
+        too_big(&meta)?;
         let text = tokio::fs::read_to_string(&path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::InvalidData {
                 SourceError::Unsupported("not valid UTF-8".into())
@@ -347,7 +348,8 @@ impl Source for FolderSource {
     async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
         let rel = self.rel_of(node)?;
         let path = self.path(&rel).await?;
-        let (_, version) = self.stat(&rel).await?;
+        let (meta, version) = self.stat(&rel).await?;
+        too_big(&meta)?;
         let bytes = tokio::fs::read(&path).await?;
         Ok((bytes, version))
     }
@@ -744,4 +746,19 @@ async fn prune_trash(trash: &Path, now_ms: u128) {
             let _ = tokio::fs::remove_dir_all(e.path()).await;
         }
     }
+}
+
+/// The largest file `fetch_text`/`fetch_bytes` read whole (#14): a multi-GB
+/// file must not be one click or one agent call away from filling memory.
+pub const MAX_FETCH: u64 = 64 << 20;
+
+fn too_big(meta: &std::fs::Metadata) -> Result<(), SourceError> {
+    if meta.len() > MAX_FETCH {
+        return Err(SourceError::Unsupported(format!(
+            "too large to open ({} MB; the limit is {} MB)",
+            meta.len() >> 20,
+            MAX_FETCH >> 20
+        )));
+    }
+    Ok(())
 }

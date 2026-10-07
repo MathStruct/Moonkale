@@ -151,6 +151,10 @@ impl Translator {
             }
             for tc in delta["tool_calls"].as_array().into_iter().flatten() {
                 let idx = tc["index"].as_u64().unwrap_or(0) as usize;
+                // `"index": 2e9` would allocate two billion slots (#14).
+                if idx >= crate::sse::MAX_TOOL_CALLS {
+                    continue;
+                }
                 while self.calls.len() <= idx {
                     self.calls.push(Default::default());
                 }
@@ -159,10 +163,10 @@ impl Translator {
                     slot.0 = id.to_string();
                 }
                 if let Some(n) = tc["function"]["name"].as_str() {
-                    slot.1.push_str(n);
+                    crate::sse::push_capped(&mut slot.1, n, 256);
                 }
                 if let Some(a) = tc["function"]["arguments"].as_str() {
-                    slot.2.push_str(a);
+                    crate::sse::push_capped(&mut slot.2, a, crate::sse::MAX_TOOL_INPUT);
                 }
             }
             match choice["finish_reason"].as_str() {
@@ -361,6 +365,13 @@ impl Provider for OpenAi {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_huge_tool_call_index_is_ignored() {
+        let mut tr = Translator::default();
+        tr.on_data(r#"{"choices":[{"delta":{"tool_calls":[{"index":2000000000,"id":"x","function":{"name":"n","arguments":"{}"}}]},"finish_reason":null}]}"#);
+        assert!(tr.calls.is_empty());
+    }
 
     #[test]
     fn translates_streamed_tool_calls() {

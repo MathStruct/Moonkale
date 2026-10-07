@@ -148,3 +148,22 @@ async fn create_refuses_a_file_that_exists_without_touching_it() {
         "theirs\n"
     );
 }
+
+/// #14: a file past the fetch limit is refused, not read into memory.
+#[tokio::test]
+async fn huge_files_are_not_read_whole() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = fs::File::create(dir.path().join("big.log")).unwrap();
+    f.set_len(moonkale_project_fs::source::MAX_FETCH + 1)
+        .unwrap(); // sparse
+    let src = FolderSource::open(dir.path()).unwrap();
+    let id = by_path(&src, "big.log").await;
+    assert!(matches!(
+        src.fetch_text(id).await,
+        Err(SourceError::Unsupported(_))
+    ));
+    assert!(matches!(
+        src.fetch_bytes(id).await,
+        Err(SourceError::Unsupported(_))
+    ));
+}
