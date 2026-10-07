@@ -42,7 +42,7 @@ try {
   });
   await step("enable it without permissions: the host refuses the read", async () => {
     await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Word count (wasm example)')) > label input");
-    await page.waitForFunction(() => /example-wordcount/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
+    await page.waitForFunction(() => /org\.example\.wordcount/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
     await ask(`/tool wordcount.count {"source":"folder:${ROOT}","node":"${readme}"}`);
     await page.waitForSelector(".mk-agent-approval", { timeout: 20000 });
     await page.click(".mk-agent-approval button:has-text('Allow')");
