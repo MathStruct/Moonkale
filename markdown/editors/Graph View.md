@@ -65,3 +65,11 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 2. Labels with LOD, styles, subgraph ops, saved views.
 3. GPU compute layout; 100k target; desktop surface decision.
 4. 3D.
+
+## Spec 031 — the frontend graph engine (2026-10-08)
+[[031]] turns this view into the **one** frontend graph engine — layered, port- and route-aware, shared by graph exploration and flow editing (ADR-0018). The requirements are mapped onto this crate with a staged plan in [[Frontend Graph Engine Mapping]]; implementation notes per stage live in the crate note (`packages/graph-render/graph-render.md`). Built so far:
+
+- **Stage 0 — persistent instance buffers**: geometry/appearance split per pipeline, revision-gated uploads; 100 k nodes settle at 1.14 ms per drawn frame (`bench-draw.mjs`).
+- **Stage 1 — edges and selection**: `frame.rs` tessellates edges into segments (parallel fan-out, self-loop rings, dashes, widths), arrowheads for directed edges, `edge_at` picking; selection by instance id with `select` events — a plain click picks a node, then an edge, then clears; Ctrl toggles; a released drag selects nothing. `graph-edges.mjs` covers it; the shader is validated natively (naga, P-158).
+
+Next: ports and edit mode (stage 2), layers and traces (3), groups and LOD (4), higher-order edges (5), pulses (6), the flow editor's move onto this engine (7, ADR-0018).
