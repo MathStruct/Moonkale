@@ -12,6 +12,7 @@
 //! `{kind:"settled"}`.
 
 use crate::camera::Camera;
+use crate::frame;
 use crate::graph::{Graph, InGraph};
 use crate::layout::Layout;
 use crate::render::Renderer;
@@ -50,6 +51,13 @@ struct State {
     /// renderer uploads only the half whose revision moved.
     pos_rev: u64,
     attr_rev: u64,
+    /// The selection, by instance id (spec 031 §5) — ids survive an
+    /// incremental `set_graph`; a fresh graph's stale ids match nothing.
+    selected: frame::Selection,
+    /// Whether the current drag moved anything: a click after a drag
+    /// selects nothing (the pointer released a pan or a node move, not a
+    /// pick).
+    drag_moved: bool,
 }
 
 impl State {
@@ -107,6 +115,19 @@ pub struct GraphView {
     state: Rc<RefCell<State>>,
 }
 
+/// The selection changed (spec 031 §5): the ids, sorted for a stable
+/// payload.
+fn emit_select(s: &State) {
+    let mut nodes: Vec<&String> = s.selected.nodes.iter().collect();
+    nodes.sort();
+    let mut edges: Vec<&String> = s.selected.edges.iter().collect();
+    edges.sort();
+    emit(
+        s,
+        serde_json::json!({ "kind": "select", "nodes": nodes, "edges": edges }),
+    );
+}
+
 fn emit(state: &State, value: serde_json::Value) {
     let js = js_sys::JSON::parse(&value.to_string()).unwrap_or(JsValue::NULL);
     let _ = state.on_event.call1(&JsValue::NULL, &js);
@@ -150,6 +171,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             b: i / 7,
             kind: "contains".into(),
             color: None,
+            ..Default::default()
         });
         if i % 5 == 0 {
             edges.push(InEdge {
@@ -157,6 +179,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
                 b: (i * 7919) % n,
                 kind: "links".into(),
                 color: None,
+                ..Default::default()
             });
         }
     }
@@ -226,6 +249,8 @@ pub async fn create(
         label_hover: "#ffffff".into(),
         pos_rev: 1,
         attr_rev: 1,
+        selected: frame::Selection::default(),
+        drag_moved: false,
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -515,6 +540,25 @@ impl GraphView {
         vec![c.scale, c.cx, c.cy, c.yaw, c.pitch, c.dist]
     }
 
+    /// The current selection as `{"nodes":[…],"edges":[…]}` — for tests
+    /// (spec 031 §5).
+    pub fn selection_state(&self) -> String {
+        let s = self.state.borrow();
+        let mut nodes: Vec<&String> = s.selected.nodes.iter().collect();
+        nodes.sort();
+        let mut edges: Vec<&String> = s.selected.edges.iter().collect();
+        edges.sort();
+        serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
+    }
+
+    /// `[segments, arrows]` — the built frame's instance counts, for tests
+    /// (spec 031 §2: curves tessellate, directed edges grow heads).
+    pub fn frame_state(&self) -> Vec<f64> {
+        let s = self.state.borrow();
+        let f = s.renderer.frame();
+        vec![f.segs.len() as f64, f.arrows.len() as f64]
+    }
+
     /// Screen position of a node by id (for tests and for the host's popup).
     pub fn node_screen_position(&self, id: &str) -> Option<Vec<f32>> {
         let s = self.state.borrow();
@@ -582,11 +626,12 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 camera,
                 renderer,
                 hovered,
+                selected,
                 pos_rev,
                 attr_rev,
                 ..
             } = &mut *s;
-            renderer.draw(graph, camera, *hovered, *pos_rev, *attr_rev);
+            renderer.draw(graph, camera, *hovered, selected, *pos_rev, *attr_rev);
             if let Some(t0) = t0 {
                 let t1 = web_sys::window()
                     .and_then(|w| w.performance())
@@ -710,6 +755,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 e.prevent_default();
                 let (x, y) = local(&e);
                 let mut s = st.borrow_mut();
+                s.drag_moved = false;
                 if e.pointer_type() == "touch" {
                     // Keep receiving moves after the finger leaves the canvas.
                     let _ = el.set_pointer_capture(e.pointer_id());
@@ -802,6 +848,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         last_angle: angle,
                         last_mid: mid,
                     };
+                    s.drag_moved = true;
                     s.dirty = true;
                     return;
                 }
@@ -810,12 +857,14 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         s.auto_fit = false;
                         s.camera.pan(x - last.0, y - last.1);
                         s.dragging = Drag::Pan { last: (x, y) };
+                        s.drag_moved = true;
                         s.dirty = true;
                     }
                     Drag::Orbit { last } => {
                         s.auto_fit = false;
                         s.camera.orbit(x - last.0, y - last.1);
                         s.dragging = Drag::Orbit { last: (x, y) };
+                        s.drag_moved = true;
                         s.dirty = true;
                     }
                     Drag::Node { index } if index >= s.graph.nodes.len() => {
@@ -832,6 +881,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                                 n.y = wy;
                                 n.z = wz;
                             }
+                            s.drag_moved = true;
                             s.pos_rev += 1;
                             s.dirty = true;
                             return;
@@ -843,6 +893,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             s.layout.temperature = 2.0;
                             s.layout.running = true;
                         }
+                        s.drag_moved = true;
                         s.pos_rev += 1;
                         s.dirty = true;
                     }
@@ -890,15 +941,69 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 }
                 // A node the user placed stays put (pinned) until Relayout.
                 s.dragging = Drag::None;
+                let moved = s.drag_moved;
+                s.drag_moved = false;
+                if moved {
+                    return; // a released pan or node move is not a pick
+                }
                 if let Some(i) = s.camera.hit(&s.graph, x, y) {
                     let now = js_sys::Date::now();
                     let dbl = now - s.last_click_ms < 350.0;
                     s.last_click_ms = if dbl { 0.0 } else { now };
+                    // Selecting (spec 031 §5): a plain click replaces the
+                    // selection, Ctrl/Meta toggles one instance.
                     let id = s.graph.nodes[i].id.clone();
+                    let toggle = e.ctrl_key() || e.meta_key();
+                    let before = s.selected.clone();
+                    if toggle {
+                        if !s.selected.nodes.remove(&id) {
+                            s.selected.nodes.insert(id.clone());
+                        }
+                    } else {
+                        s.selected = frame::Selection {
+                            nodes: [id.clone()].into_iter().collect(),
+                            edges: Default::default(),
+                        };
+                    }
+                    if before != s.selected {
+                        s.attr_rev += 1;
+                        emit_select(&s);
+                    }
                     emit(
                         &s,
                         serde_json::json!({ "kind": if dbl { "dblclick" } else { "click" }, "id": id }),
                     );
+                    return;
+                }
+                // No node under the pointer: an edge, or empty space.
+                let fr = frame::build_frame(&s.graph, s.camera.three_d);
+                match frame::edge_at(&fr, &s.camera, x, y) {
+                    Some(i) => {
+                        let id = s.graph.edges[i].id.clone();
+                        let toggle = e.ctrl_key() || e.meta_key();
+                        let before = s.selected.clone();
+                        if toggle {
+                            if !s.selected.edges.remove(&id) {
+                                s.selected.edges.insert(id);
+                            }
+                        } else {
+                            s.selected = frame::Selection {
+                                nodes: Default::default(),
+                                edges: [id].into_iter().collect(),
+                            };
+                        }
+                        if before != s.selected {
+                            s.attr_rev += 1;
+                            emit_select(&s);
+                        }
+                    }
+                    None => {
+                        if !s.selected.is_empty() {
+                            s.selected = frame::Selection::default();
+                            s.attr_rev += 1;
+                            emit_select(&s);
+                        }
+                    }
                 }
             },
         );

@@ -1,7 +1,8 @@
-//! wgpu: surface on a `<canvas>`, two instanced pipelines (edges, nodes).
-//! Written against wgpu 30.
+//! wgpu: surface on a `<canvas>`, three instanced pipelines (segments,
+//! arrowheads, nodes). Written against wgpu 30.
 
 use crate::camera::Camera;
+use crate::frame::{self, ArrowAttr, ArrowPos, SegAttr, SegPos, Selection};
 use crate::graph::Graph;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -14,26 +15,14 @@ struct NodePos {
     pos: [f32; 3],
 }
 
-/// Node appearance per instance — colour and radius change on a graph swap
-/// or a hover only (uploaded on `attr_rev`).
+/// Node appearance per instance — colour, radius and the selected ring
+/// change on a graph swap, a hover or a selection (uploaded on `attr_rev`).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct NodeAttr {
     color: [f32; 4],
     radius: f32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct EdgePos {
-    a: [f32; 3],
-    b: [f32; 3],
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct EdgeAttr {
-    color: [f32; 4],
+    selected: f32,
 }
 
 /// One primitive class's persistent instance buffers. Geometry and
@@ -99,9 +88,16 @@ pub struct Renderer {
     camera_buf: wgpu::Buffer,
     camera_bind: wgpu::BindGroup,
     node_pipe: wgpu::RenderPipeline,
-    edge_pipe: wgpu::RenderPipeline,
+    seg_pipe: wgpu::RenderPipeline,
+    arrow_pipe: wgpu::RenderPipeline,
     node_bufs: InstBufs,
-    edge_bufs: InstBufs,
+    seg_bufs: InstBufs,
+    arrow_bufs: InstBufs,
+    /// The built scene (`frame::build_frame`), cached until a revision
+    /// moves — a camera pan or zoom re-draws it without rebuilding.
+    frame: frame::Frame,
+    built_pos_rev: u64,
+    built_attr_rev: u64,
     /// Depth buffer (3D mode draws nodes over edges by depth; in 2D every
     /// depth is 0.5 and order wins).
     depth: wgpu::TextureView,
@@ -290,10 +286,15 @@ impl Renderer {
                     offset: 16,
                     shader_location: 2,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 20,
+                    shader_location: 3,
+                },
             ],
         );
-        let edge_pos_layout = inst(
-            std::mem::size_of::<EdgePos>() as u64,
+        let seg_pos_layout = inst(
+            std::mem::size_of::<SegPos>() as u64,
             &[
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
@@ -307,13 +308,55 @@ impl Renderer {
                 },
             ],
         );
-        let edge_attr_layout = inst(
-            std::mem::size_of::<EdgeAttr>() as u64,
-            &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
-                offset: 0,
-                shader_location: 2,
-            }],
+        let seg_attr_layout = inst(
+            std::mem::size_of::<SegAttr>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 2,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 16,
+                    shader_location: 3,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 20,
+                    shader_location: 4,
+                },
+            ],
+        );
+        let arrow_pos_layout = inst(
+            std::mem::size_of::<ArrowPos>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 12,
+                    shader_location: 1,
+                },
+            ],
+        );
+        let arrow_attr_layout = inst(
+            std::mem::size_of::<ArrowAttr>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 2,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 16,
+                    shader_location: 3,
+                },
+            ],
         );
         let node_pipe = make(
             "nodes",
@@ -321,11 +364,17 @@ impl Renderer {
             "node_fs",
             &[Some(node_pos_layout), Some(node_attr_layout)],
         );
-        let edge_pipe = make(
-            "edges",
+        let seg_pipe = make(
+            "segments",
             "edge_vs",
             "edge_fs",
-            &[Some(edge_pos_layout), Some(edge_attr_layout)],
+            &[Some(seg_pos_layout), Some(seg_attr_layout)],
+        );
+        let arrow_pipe = make(
+            "arrowheads",
+            "arrow_vs",
+            "arrow_fs",
+            &[Some(arrow_pos_layout), Some(arrow_attr_layout)],
         );
         let depth = depth_view(&device, config.width, config.height);
         let node_bufs = InstBufs::new(
@@ -333,10 +382,15 @@ impl Renderer {
             std::mem::size_of::<NodePos>() as u64,
             std::mem::size_of::<NodeAttr>() as u64,
         );
-        let edge_bufs = InstBufs::new(
+        let seg_bufs = InstBufs::new(
             &device,
-            std::mem::size_of::<EdgePos>() as u64,
-            std::mem::size_of::<EdgeAttr>() as u64,
+            std::mem::size_of::<SegPos>() as u64,
+            std::mem::size_of::<SegAttr>() as u64,
+        );
+        let arrow_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<ArrowPos>() as u64,
+            std::mem::size_of::<ArrowAttr>() as u64,
         );
 
         Ok(Self {
@@ -347,9 +401,14 @@ impl Renderer {
             camera_buf,
             camera_bind,
             node_pipe,
-            edge_pipe,
+            seg_pipe,
+            arrow_pipe,
             node_bufs,
-            edge_bufs,
+            seg_bufs,
+            arrow_bufs,
+            frame: frame::Frame::default(),
+            built_pos_rev: 0,
+            built_attr_rev: 0,
             depth,
             backend,
             // #0c0e13, the dark theme's until `set_theme` says otherwise.
@@ -367,32 +426,53 @@ impl Renderer {
         self.depth = depth_view(&self.device, width, height);
     }
 
+    /// The cached scene (for tests: segment and arrow counts, spec 031 §2).
+    pub fn frame(&self) -> &frame::Frame {
+        &self.frame
+    }
+
     /// Upload instance data — only the half whose revision moved; a layout
-    /// step moves `pos_rev`, a hover or a graph swap moves both (spec 031,
-    /// stage 0) — and draw one frame.
+    /// step moves `pos_rev`, a hover or a selection moves `attr_rev` — and
+    /// draw one frame. The scene (`frame::build_frame`) is cached until a
+    /// revision moves, so a camera pan or zoom re-draws it without
+    /// rebuilding the segments.
     pub fn draw(
         &mut self,
         graph: &Graph,
         camera: &Camera,
         hovered: Option<usize>,
+        selected: &Selection,
         pos_rev: u64,
         attr_rev: u64,
     ) {
+        if pos_rev != self.built_pos_rev || attr_rev != self.built_attr_rev {
+            self.frame = frame::build_frame(graph, camera.three_d);
+            self.built_pos_rev = pos_rev;
+            self.built_attr_rev = attr_rev;
+        }
         let node_stride = std::mem::size_of::<NodePos>() as u64;
         let node_attr_stride = std::mem::size_of::<NodeAttr>() as u64;
-        let edge_stride = std::mem::size_of::<EdgePos>() as u64;
-        let edge_attr_stride = std::mem::size_of::<EdgeAttr>() as u64;
+        let seg_stride = std::mem::size_of::<SegPos>() as u64;
+        let seg_attr_stride = std::mem::size_of::<SegAttr>() as u64;
+        let arrow_stride = std::mem::size_of::<ArrowPos>() as u64;
+        let arrow_attr_stride = std::mem::size_of::<ArrowAttr>() as u64;
         self.node_bufs.ensure(
             &self.device,
             graph.nodes.len() as u64,
             node_stride,
             node_attr_stride,
         );
-        self.edge_bufs.ensure(
+        self.seg_bufs.ensure(
             &self.device,
-            graph.edges.len() as u64,
-            edge_stride,
-            edge_attr_stride,
+            self.frame.segs.len() as u64,
+            seg_stride,
+            seg_attr_stride,
+        );
+        self.arrow_bufs.ensure(
+            &self.device,
+            self.frame.arrows.len() as u64,
+            arrow_stride,
+            arrow_attr_stride,
         );
 
         if pos_rev != self.node_bufs.pos_rev {
@@ -414,9 +494,17 @@ impl Renderer {
                 .enumerate()
                 .map(|(i, n)| {
                     let h = Some(i) == hovered;
+                    let sel = selected.nodes.contains(&n.id);
                     NodeAttr {
                         color: if h { [1.0, 1.0, 1.0, 1.0] } else { n.color },
-                        radius: if h { n.radius * 1.4 } else { n.radius },
+                        radius: if h {
+                            n.radius * 1.4
+                        } else if sel {
+                            n.radius * 1.15
+                        } else {
+                            n.radius
+                        },
+                        selected: sel as u32 as f32,
                     }
                 })
                 .collect();
@@ -424,28 +512,62 @@ impl Renderer {
                 .write_buffer(&self.node_bufs.attr, 0, bytemuck::cast_slice(&attr));
             self.node_bufs.attr_rev = attr_rev;
         }
-        if pos_rev != self.edge_bufs.pos_rev {
-            let pos: Vec<EdgePos> = graph
-                .edges
+        if pos_rev != self.seg_bufs.pos_rev {
+            self.queue.write_buffer(
+                &self.seg_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.segs),
+            );
+            self.seg_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.seg_bufs.attr_rev {
+            // Per segment, but the appearance is per edge: a selected edge
+            // lifts its colour and thickens every segment it spans.
+            let attr: Vec<SegAttr> = self
+                .frame
+                .seg_edge
                 .iter()
-                .map(|e| EdgePos {
-                    a: [graph.nodes[e.a].x, graph.nodes[e.a].y, graph.nodes[e.a].z],
-                    b: [graph.nodes[e.b].x, graph.nodes[e.b].y, graph.nodes[e.b].z],
+                .map(|&e| {
+                    let edge = &graph.edges[e];
+                    if selected.edges.contains(&edge.id) {
+                        SegAttr {
+                            color: [
+                                edge.color[0] * 0.55 + 0.45,
+                                edge.color[1] * 0.55 + 0.45,
+                                edge.color[2] * 0.55 + 0.45,
+                                edge.color[3].max(0.9),
+                            ],
+                            width: edge.width * 1.6,
+                            dash: edge.dash,
+                        }
+                    } else {
+                        SegAttr {
+                            color: edge.color,
+                            width: edge.width,
+                            dash: edge.dash,
+                        }
+                    }
                 })
                 .collect();
             self.queue
-                .write_buffer(&self.edge_bufs.pos, 0, bytemuck::cast_slice(&pos));
-            self.edge_bufs.pos_rev = pos_rev;
+                .write_buffer(&self.seg_bufs.attr, 0, bytemuck::cast_slice(&attr));
+            self.seg_bufs.attr_rev = attr_rev;
         }
-        if attr_rev != self.edge_bufs.attr_rev {
-            let attr: Vec<EdgeAttr> = graph
-                .edges
-                .iter()
-                .map(|e| EdgeAttr { color: e.color })
-                .collect();
-            self.queue
-                .write_buffer(&self.edge_bufs.attr, 0, bytemuck::cast_slice(&attr));
-            self.edge_bufs.attr_rev = attr_rev;
+        if pos_rev != self.arrow_bufs.pos_rev {
+            self.queue.write_buffer(
+                &self.arrow_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.arrows),
+            );
+            self.arrow_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.arrow_bufs.attr_rev {
+            self.queue.write_buffer(
+                &self.arrow_bufs.attr,
+                0,
+                bytemuck::cast_slice(&self.frame.arrow_attrs),
+            );
+            self.arrow_bufs.attr_rev = attr_rev;
         }
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
@@ -489,21 +611,37 @@ impl Renderer {
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_bind, &[]);
-            if !graph.edges.is_empty() {
-                pass.set_pipeline(&self.edge_pipe);
+            if !self.frame.segs.is_empty() {
+                pass.set_pipeline(&self.seg_pipe);
                 pass.set_vertex_buffer(
                     0,
-                    self.edge_bufs
+                    self.seg_bufs
                         .pos
-                        .slice(..graph.edges.len() as u64 * edge_stride),
+                        .slice(..self.frame.segs.len() as u64 * seg_stride),
                 );
                 pass.set_vertex_buffer(
                     1,
-                    self.edge_bufs
+                    self.seg_bufs
                         .attr
-                        .slice(..graph.edges.len() as u64 * edge_attr_stride),
+                        .slice(..self.frame.segs.len() as u64 * seg_attr_stride),
                 );
-                pass.draw(0..4, 0..graph.edges.len() as u32);
+                pass.draw(0..4, 0..self.frame.segs.len() as u32);
+            }
+            if !self.frame.arrows.is_empty() {
+                pass.set_pipeline(&self.arrow_pipe);
+                pass.set_vertex_buffer(
+                    0,
+                    self.arrow_bufs
+                        .pos
+                        .slice(..self.frame.arrows.len() as u64 * arrow_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.arrow_bufs
+                        .attr
+                        .slice(..self.frame.arrows.len() as u64 * arrow_attr_stride),
+                );
+                pass.draw(0..4, 0..self.frame.arrows.len() as u32);
             }
             if !graph.nodes.is_empty() {
                 pass.set_pipeline(&self.node_pipe);

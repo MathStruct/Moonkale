@@ -2,6 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Parallel edges bow apart in half-steps of this many world units
+/// (spec 031 §2; the ideal edge length is ~28, so a pair sits visibly apart).
+pub const BOW_SPACING: f32 = 9.0;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InNode {
     pub id: String,
@@ -16,7 +20,7 @@ pub struct InNode {
     pub color: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InEdge {
     /// Indices into `nodes`.
     pub a: usize,
@@ -25,6 +29,71 @@ pub struct InEdge {
     pub kind: String,
     #[serde(default)]
     pub color: Option<String>,
+    /// Stable instance id; when the host sends none, `{a}:{b}:{i}` is derived
+    /// (unique per position in the input — hosts that reload graphs should
+    /// send their own, spec 031 §1).
+    #[serde(default)]
+    pub id: Option<String>,
+    /// A directed edge carries an arrowhead at its target unless `arrow`
+    /// says otherwise.
+    #[serde(default)]
+    pub directed: bool,
+    /// Stroke width in screen pixels (default 1.2).
+    #[serde(default)]
+    pub width: Option<f32>,
+    /// Dash length in screen pixels; absent = solid.
+    #[serde(default)]
+    pub dash: Option<f32>,
+    /// Multiplies the edge's alpha (0..1).
+    #[serde(default)]
+    pub opacity: Option<f32>,
+    /// Arrowheads override `directed`'s default (target only).
+    #[serde(default)]
+    pub arrow: Option<InArrow>,
+    /// Shown on hover (the panel's popup), stage 1 of spec 031.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// `straight` (default) or `bezier { offset }` — a perpendicular control
+    /// offset in world units (spec 031 §2; orthogonal routes come with the
+    /// flow editor, stage 7).
+    #[serde(default)]
+    pub route: Option<InRoute>,
+}
+
+/// Where arrowheads sit on an edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InArrow {
+    Source,
+    Target,
+    Both,
+}
+
+/// How an edge reaches its target.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum InRoute {
+    Straight,
+    /// A quadratic Bézier whose control point sits `offset` world units off
+    /// the midpoint, perpendicular to the endpoints' line.
+    Bezier {
+        offset: f32,
+    },
+}
+
+/// The resolved form of [`InArrow`] plus the "none" case.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Arrow {
+    None,
+    Source,
+    Target,
+    Both,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Route {
+    Straight,
+    Bezier { offset: f32 },
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -53,9 +122,18 @@ pub struct Node {
 
 #[derive(Clone, Debug)]
 pub struct Edge {
+    pub id: String,
     pub a: usize,
     pub b: usize,
     pub color: [f32; 4],
+    /// Stroke width in screen pixels.
+    pub width: f32,
+    /// Dash length in screen pixels; 0 = solid.
+    pub dash: f32,
+    pub arrow: Arrow,
+    pub label: String,
+    /// Resolved route; parallel edges get their bow here (spec 031 §2).
+    pub route: Route,
 }
 
 #[derive(Clone, Default)]
@@ -147,18 +225,80 @@ impl Graph {
         let edges = input
             .edges
             .into_iter()
-            .filter(|e| e.a < degree.len() && e.b < degree.len() && e.a != e.b)
-            .map(|e| Edge {
-                a: e.a,
-                b: e.b,
-                color: e
+            .enumerate()
+            .filter(|(_, e)| e.a < degree.len() && e.b < degree.len())
+            .map(|(i, e)| {
+                let arrow = match (e.arrow, e.directed) {
+                    (Some(InArrow::Source), _) => Arrow::Source,
+                    (Some(InArrow::Target), _) => Arrow::Target,
+                    (Some(InArrow::Both), _) => Arrow::Both,
+                    (None, true) => Arrow::Target,
+                    (None, false) => Arrow::None,
+                };
+                let route = match e.route {
+                    Some(InRoute::Bezier { offset }) => Route::Bezier { offset },
+                    _ => Route::Straight,
+                };
+                let mut color = e
                     .color
                     .as_deref()
                     .and_then(|c| parse_hex(c, 0.55))
-                    .unwrap_or_else(|| edge_color(&e.kind)),
+                    .unwrap_or_else(|| edge_color(&e.kind));
+                if let Some(o) = e.opacity {
+                    color[3] *= o.clamp(0.0, 1.0);
+                }
+                Edge {
+                    id: e.id.unwrap_or_else(|| format!("{}:{}:{}", e.a, e.b, i)),
+                    a: e.a,
+                    b: e.b,
+                    color,
+                    width: e.width.unwrap_or(1.2).clamp(0.5, 12.0),
+                    dash: e.dash.unwrap_or(0.0).clamp(0.0, 64.0),
+                    arrow,
+                    label: e.label.unwrap_or_default(),
+                    route,
+                }
             })
             .collect();
-        Self { nodes, edges }
+        Self { nodes, edges }.with_bows()
+    }
+
+    /// Parallel edges (same endpoint pair, either direction) bow away from
+    /// the straight line so they do not overdraw each other: the middle one
+    /// stays straight, the others curve by their rank (spec 031 §2). A
+    /// self-loop is its own group — its bow widens the loop.
+    fn with_bows(mut self) -> Self {
+        use std::collections::HashMap;
+        let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
+        for (i, e) in self.edges.iter().enumerate() {
+            let key = if e.a <= e.b { (e.a, e.b) } else { (e.b, e.a) };
+            groups.entry(key).or_default().push(i);
+        }
+        for idx in groups.values() {
+            let n = idx.len();
+            if n < 2 {
+                continue;
+            }
+            for (rank, &i) in idx.iter().enumerate() {
+                // rank 0 of n → −(n−1)/2 … rank n−1 → +(n−1)/2, in half-steps
+                // of BOW_SPACING so neighbours keep apart (stage 4's LOD
+                // bundling takes over below the pixel threshold). The exact
+                // middle keeps its straight line — a zero-offset Bézier
+                // would tessellate into colinear segments for nothing.
+                let bow = (rank as f32 - (n as f32 - 1.0) / 2.0) * BOW_SPACING;
+                if bow == 0.0 {
+                    continue;
+                }
+                let e = &mut self.edges[i];
+                e.route = match e.route {
+                    Route::Straight => Route::Bezier { offset: bow },
+                    Route::Bezier { offset } => Route::Bezier {
+                        offset: offset + bow,
+                    },
+                };
+            }
+        }
+        self
     }
 
     /// Axis-aligned bounds of all nodes (world units).

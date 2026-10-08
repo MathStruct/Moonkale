@@ -7247,6 +7247,7 @@ dependencies = [
  "bytemuck",
  "console_error_panic_hook",
  "js-sys",
+ "naga",
  "serde",
  "serde_json",
  "wasm-bindgen",

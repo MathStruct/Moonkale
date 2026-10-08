@@ -38,6 +38,7 @@ fn main() {
         b,
         kind: "connects".into(),
         color: None,
+        ..Default::default()
     };
     let edges = vec![
         edge(4, 0),

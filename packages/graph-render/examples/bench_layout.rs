@@ -26,6 +26,7 @@ fn synthetic(n: usize) -> Graph {
             b: i / 7,
             kind: "contains".into(),
             color: None,
+            ..Default::default()
         });
         if i % 5 == 0 {
             edges.push(InEdge {
@@ -33,6 +34,7 @@ fn synthetic(n: usize) -> Graph {
                 b: (i * 7919) % n,
                 kind: "links".into(),
                 color: None,
+                ..Default::default()
             });
         }
     }

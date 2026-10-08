@@ -167,12 +167,14 @@ mod tests {
                 b: l,
                 kind: String::new(),
                 color: None,
+                ..Default::default()
             });
             edges.push(InEdge {
                 a: 1,
                 b: l,
                 kind: String::new(),
                 color: None,
+                ..Default::default()
             });
         }
         let mut g = Graph::from_input(InGraph { nodes, edges });
@@ -220,6 +222,7 @@ mod tests {
                 b: i,
                 kind: "links".into(),
                 color: None,
+                ..Default::default()
             })
             .collect();
         Graph::from_input(InGraph { nodes, edges })
