@@ -31,10 +31,13 @@ fn fog(w: f32) -> f32 {
 }
 
 // ---------------- nodes: instanced SDF circles ----------------
+// Two instance buffers (spec 031, stage 0): slot 0 = geometry (pos, uploaded
+// while the layout runs), slot 1 = appearance (colour + radius, uploaded on a
+// graph swap or a hover).
 struct NodeInst {
     @location(0) pos: vec3<f32>,
-    @location(1) radius: f32,
-    @location(2) color: vec4<f32>,
+    @location(1) color: vec4<f32>,
+    @location(2) radius: f32,
 };
 struct NodeOut {
     @builtin(position) clip: vec4<f32>,

@@ -45,6 +45,11 @@ struct State {
     /// Label colours (spec 030: `--mk-graph-label`, `--mk-graph-label-hover`).
     label: String,
     label_hover: String,
+    /// Instance-data revisions (spec 031, stage 0): positions move with every
+    /// layout step and drag, appearance on a graph swap or a hover; the
+    /// renderer uploads only the half whose revision moved.
+    pos_rev: u64,
+    attr_rev: u64,
 }
 
 impl State {
@@ -105,6 +110,22 @@ pub struct GraphView {
 fn emit(state: &State, value: serde_json::Value) {
     let js = js_sys::JSON::parse(&value.to_string()).unwrap_or(JsValue::NULL);
     let _ = state.on_event.call1(&JsValue::NULL, &js);
+}
+
+/// Draw-time instrumentation (spec 031, stage 0): total milliseconds spent
+/// in `Renderer::draw` and frames drawn, since module load. Read before and
+/// after a workload to isolate the draw cost (`bench-draw.mjs`).
+static DRAW_MICROS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static DRAW_FRAMES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// `[draw_ms_total, frames_drawn]` — deltas are the measurement.
+#[wasm_bindgen]
+pub fn draw_stats() -> Vec<f64> {
+    use std::sync::atomic::Ordering;
+    vec![
+        DRAW_MICROS.load(Ordering::Relaxed) as f64 / 1000.0,
+        DRAW_FRAMES.load(Ordering::Relaxed) as f64,
+    ]
 }
 
 /// Layout-only benchmark for the wasm build (no GPU needed): milliseconds
@@ -203,6 +224,8 @@ pub async fn create(
         stashed: std::collections::HashMap::new(),
         label: "rgba(230,232,238,0.85)".into(),
         label_hover: "#ffffff".into(),
+        pos_rev: 1,
+        attr_rev: 1,
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -261,6 +284,8 @@ impl GraphView {
         s.camera = saved.camera;
         s.auto_fit = saved.auto_fit;
         s.hovered = None;
+        s.pos_rev += 1;
+        s.attr_rev += 1;
         s.dirty = true;
         true
     }
@@ -357,6 +382,8 @@ impl GraphView {
                 s.layout = l;
             }
             s.hovered = None;
+            s.pos_rev += 1;
+            s.attr_rev += 1;
             s.dirty = true;
             return Ok(());
         }
@@ -365,6 +392,8 @@ impl GraphView {
         s.layout = Layout::new(&s.graph);
         s.hovered = None;
         s.auto_fit = true;
+        s.pos_rev += 1;
+        s.attr_rev += 1;
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -445,6 +474,7 @@ impl GraphView {
         if s.camera.three_d != three_d {
             s.camera.three_d = three_d;
             s.hovered = None;
+            s.attr_rev += 1;
             let g = std::mem::take(&mut s.graph);
             s.camera.fit(&g, 40.0);
             s.graph = g;
@@ -528,6 +558,7 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 s.layout.step(&mut g);
             }
             s.graph = g;
+            s.pos_rev += 1;
             s.dirty = true;
             // An untouched view follows the layout while it spreads (O(n)
             // per frame, nothing next to a layout step), so a big graph is
@@ -543,14 +574,30 @@ fn start_loop(state: Rc<RefCell<State>>) {
         }
         if s.dirty {
             s.dirty = false;
+            let t0 = web_sys::window()
+                .and_then(|w| w.performance())
+                .map(|p| p.now());
             let State {
                 graph,
                 camera,
                 renderer,
                 hovered,
+                pos_rev,
+                attr_rev,
                 ..
             } = &mut *s;
-            renderer.draw(graph, camera, *hovered);
+            renderer.draw(graph, camera, *hovered, *pos_rev, *attr_rev);
+            if let Some(t0) = t0 {
+                let t1 = web_sys::window()
+                    .and_then(|w| w.performance())
+                    .map(|p| p.now())
+                    .unwrap_or(t0);
+                DRAW_MICROS.fetch_add(
+                    ((t1 - t0) * 1000.0) as u64,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            }
+            DRAW_FRAMES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             draw_labels(&s);
         }
         drop(s);
@@ -785,6 +832,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                                 n.y = wy;
                                 n.z = wz;
                             }
+                            s.pos_rev += 1;
                             s.dirty = true;
                             return;
                         }
@@ -795,6 +843,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             s.layout.temperature = 2.0;
                             s.layout.running = true;
                         }
+                        s.pos_rev += 1;
                         s.dirty = true;
                     }
                     Drag::Pinch { .. } => {}
@@ -802,6 +851,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         let hit = s.camera.hit(&s.graph, x, y);
                         if hit != s.hovered {
                             s.hovered = hit;
+                            s.attr_rev += 1;
                             s.dirty = true;
                             let payload = match hit {
                                 Some(i) => {
@@ -881,6 +931,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 }
                 s.dragging = Drag::None;
                 if s.hovered.take().is_some() {
+                    s.attr_rev += 1;
                     s.dirty = true;
                     emit(&s, serde_json::json!({ "kind": "hover", "id": null }));
                 }

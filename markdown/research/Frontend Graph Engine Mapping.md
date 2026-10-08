@@ -99,7 +99,7 @@ pub fn build_frame(graph: &Graph, pres: &Presentation, lod: &Lod) -> Frame
 
 | Stage | Delivers | Acceptance | Tests |
 |---|---|---|---|
-| 0 — Persistent buffers | replace `draw`'s per-frame `create_buffer_init` with persistent buffers + partial `write_buffer` updates (positions change every layout step, styles rarely) | none by itself, but it removes today's per-frame cost at 100 k and depends on nothing else — do it first and measure | `bench.mjs` before/after |
+| 0 — Persistent buffers | replace `draw`'s per-frame `create_buffer_init` with persistent buffers + partial `write_buffer` updates (positions change every layout step, styles rarely) | none by itself, but it removes today's per-frame cost at 100 k and depends on nothing else — do it first and measure | **Done 2026-10-08**: geometry/appearance split per pipeline, revision-gated uploads; `bench-draw.mjs` (new) on SwiftShader: settling 1.91 → 1.14 ms/frame, hover 1.88 → 0.89 ms; graph, graph-local, graph3d suites pass |
 | 1 — Edges & selection | segment instances, width/dash/opacity/arrow, parallel fan-out, self-loops, edge labels on hover, CPU edge/port-free picking, selection + `select` events | §8.1 (partly: edges selectable), §8.2 (routes minus orthogonal) | frame unit tests; graph3d.mjs picks an edge, selects two nodes |
 | 2 — Ports & edit mode | `InPort`, port hit targets, `set_mode("edit")`, connect gesture + `connect` event, bezier routes | §8.1 (ports), §8.7 (mode switch on the same renderer) | e2e: wire two nodes in edit mode, mode switch preserves camera |
 | 3 — Layers & traces | `InLayer` visibility/commands, offset parallel strokes, `InTrace` ordered walks, overlays | §8.3 | e2e: blue call layer + yellow trace, recursion shows two occurrences |

@@ -6,20 +6,89 @@ use crate::graph::Graph;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
+/// Node geometry per instance — the part that changes with every layout
+/// step and drag (spec 031, stage 0: uploaded on `pos_rev` only).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct NodeInst {
+struct NodePos {
     pos: [f32; 3],
-    radius: f32,
+}
+
+/// Node appearance per instance — colour and radius change on a graph swap
+/// or a hover only (uploaded on `attr_rev`).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct NodeAttr {
     color: [f32; 4],
+    radius: f32,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct EdgeInst {
+struct EdgePos {
     a: [f32; 3],
     b: [f32; 3],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct EdgeAttr {
     color: [f32; 4],
+}
+
+/// One primitive class's persistent instance buffers. Geometry and
+/// appearance are separate so a running layout (positions every frame,
+/// colours never) uploads half the bytes, and nothing is allocated per
+/// frame: the buffers grow to the next power of two of the instance count
+/// and force one full upload when they do.
+struct InstBufs {
+    pos: wgpu::Buffer,
+    attr: wgpu::Buffer,
+    cap: u64,
+    pos_rev: u64,
+    attr_rev: u64,
+}
+
+impl InstBufs {
+    fn new(device: &wgpu::Device, pos_stride: u64, attr_stride: u64) -> Self {
+        let mk = |stride: u64| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("graph instances"),
+                size: stride,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        };
+        Self {
+            pos: mk(pos_stride),
+            attr: mk(attr_stride),
+            cap: 0,
+            pos_rev: u64::MAX,
+            attr_rev: u64::MAX,
+        }
+    }
+
+    /// Grow to hold `count` instances; recreating forces both halves to be
+    /// uploaded once (the revisions reset to `u64::MAX`).
+    fn ensure(&mut self, device: &wgpu::Device, count: u64, pos_stride: u64, attr_stride: u64) {
+        if count <= self.cap {
+            return;
+        }
+        let cap = count.max(1).next_power_of_two();
+        let mk = |stride: u64, label: &str| {
+            device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size: cap * stride,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        };
+        self.pos = mk(pos_stride, "graph instance positions");
+        self.attr = mk(attr_stride, "graph instance appearance");
+        self.cap = cap;
+        self.pos_rev = u64::MAX;
+        self.attr_rev = u64::MAX;
+    }
 }
 
 pub struct Renderer {
@@ -31,6 +100,8 @@ pub struct Renderer {
     camera_bind: wgpu::BindGroup,
     node_pipe: wgpu::RenderPipeline,
     edge_pipe: wgpu::RenderPipeline,
+    node_bufs: InstBufs,
+    edge_bufs: InstBufs,
     /// Depth buffer (3D mode draws nodes over edges by depth; in 2D every
     /// depth is 0.5 and order wins).
     depth: wgpu::TextureView,
@@ -151,7 +222,7 @@ impl Renderer {
         })];
 
         let make =
-            |name: &str, vs: &str, fs: &str, stride: u64, attrs: &[wgpu::VertexAttribute]| {
+            |name: &str, vs: &str, fs: &str, buffers: &[Option<wgpu::VertexBufferLayout>]| {
                 device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some(name),
                     layout: Some(&pipe_layout),
@@ -159,11 +230,7 @@ impl Renderer {
                         module: &shader,
                         entry_point: Some(vs),
                         compilation_options: Default::default(),
-                        buffers: &[Some(wgpu::VertexBufferLayout {
-                            array_stride: stride,
-                            step_mode: wgpu::VertexStepMode::Instance,
-                            attributes: attrs,
-                        })],
+                        buffers,
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
@@ -187,15 +254,46 @@ impl Renderer {
                     cache: None,
                 })
             };
-        let node_pipe = make(
-            "nodes",
-            "node_vs",
-            "node_fs",
-            std::mem::size_of::<NodeInst>() as u64,
-            // Explicit offsets: `NodeInst` pads `radius` to 16 bytes before
-            // `color`; `vertex_attr_array!` would pack the colour at 12 and
-            // the shader would read (pad, r, g, b) — every node lost its red
-            // channel (P-068).
+        fn inst<'a>(
+            stride: u64,
+            attrs: &'a [wgpu::VertexAttribute],
+        ) -> wgpu::VertexBufferLayout<'a> {
+            wgpu::VertexBufferLayout {
+                array_stride: stride,
+                step_mode: wgpu::VertexStepMode::Instance,
+                attributes: attrs,
+            }
+        }
+        // Two slots per pipeline (spec 031, stage 0): slot 0 carries the
+        // per-instance geometry (uploaded while the layout runs), slot 1 the
+        // appearance (uploaded on a graph swap or a hover). The location
+        // numbering keeps the P-068 lesson: explicit offsets, because the
+        // attribute macro would pack them and drop the red channel again.
+        let node_pos_layout = inst(
+            std::mem::size_of::<NodePos>() as u64,
+            &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 0,
+            }],
+        );
+        let node_attr_layout = inst(
+            std::mem::size_of::<NodeAttr>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 16,
+                    shader_location: 2,
+                },
+            ],
+        );
+        let edge_pos_layout = inst(
+            std::mem::size_of::<EdgePos>() as u64,
             &[
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
@@ -203,25 +301,43 @@ impl Renderer {
                     shader_location: 0,
                 },
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 12,
                     shader_location: 1,
                 },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 16,
-                    shader_location: 2,
-                },
             ],
+        );
+        let edge_attr_layout = inst(
+            std::mem::size_of::<EdgeAttr>() as u64,
+            &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 0,
+                shader_location: 2,
+            }],
+        );
+        let node_pipe = make(
+            "nodes",
+            "node_vs",
+            "node_fs",
+            &[Some(node_pos_layout), Some(node_attr_layout)],
         );
         let edge_pipe = make(
             "edges",
             "edge_vs",
             "edge_fs",
-            std::mem::size_of::<EdgeInst>() as u64,
-            &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4],
+            &[Some(edge_pos_layout), Some(edge_attr_layout)],
         );
         let depth = depth_view(&device, config.width, config.height);
+        let node_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<NodePos>() as u64,
+            std::mem::size_of::<NodeAttr>() as u64,
+        );
+        let edge_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<EdgePos>() as u64,
+            std::mem::size_of::<EdgeAttr>() as u64,
+        );
 
         Ok(Self {
             surface,
@@ -232,6 +348,8 @@ impl Renderer {
             camera_bind,
             node_pipe,
             edge_pipe,
+            node_bufs,
+            edge_bufs,
             depth,
             backend,
             // #0c0e13, the dark theme's until `set_theme` says otherwise.
@@ -249,49 +367,86 @@ impl Renderer {
         self.depth = depth_view(&self.device, width, height);
     }
 
-    /// Upload instance data and draw one frame.
-    pub fn draw(&mut self, graph: &Graph, camera: &Camera, hovered: Option<usize>) {
-        let nodes: Vec<NodeInst> = graph
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(i, n)| NodeInst {
-                pos: [n.x, n.y, n.z],
-                radius: if Some(i) == hovered {
-                    n.radius * 1.4
-                } else {
-                    n.radius
-                },
-                color: if Some(i) == hovered {
-                    [1.0, 1.0, 1.0, 1.0]
-                } else {
-                    n.color
-                },
-            })
-            .collect();
-        let edges: Vec<EdgeInst> = graph
-            .edges
-            .iter()
-            .map(|e| EdgeInst {
-                a: [graph.nodes[e.a].x, graph.nodes[e.a].y, graph.nodes[e.a].z],
-                b: [graph.nodes[e.b].x, graph.nodes[e.b].y, graph.nodes[e.b].z],
-                color: e.color,
-            })
-            .collect();
-        let node_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("nodes"),
-                contents: bytemuck::cast_slice(&nodes),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-        let edge_buf = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("edges"),
-                contents: bytemuck::cast_slice(&edges),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+    /// Upload instance data — only the half whose revision moved; a layout
+    /// step moves `pos_rev`, a hover or a graph swap moves both (spec 031,
+    /// stage 0) — and draw one frame.
+    pub fn draw(
+        &mut self,
+        graph: &Graph,
+        camera: &Camera,
+        hovered: Option<usize>,
+        pos_rev: u64,
+        attr_rev: u64,
+    ) {
+        let node_stride = std::mem::size_of::<NodePos>() as u64;
+        let node_attr_stride = std::mem::size_of::<NodeAttr>() as u64;
+        let edge_stride = std::mem::size_of::<EdgePos>() as u64;
+        let edge_attr_stride = std::mem::size_of::<EdgeAttr>() as u64;
+        self.node_bufs.ensure(
+            &self.device,
+            graph.nodes.len() as u64,
+            node_stride,
+            node_attr_stride,
+        );
+        self.edge_bufs.ensure(
+            &self.device,
+            graph.edges.len() as u64,
+            edge_stride,
+            edge_attr_stride,
+        );
+
+        if pos_rev != self.node_bufs.pos_rev {
+            let pos: Vec<NodePos> = graph
+                .nodes
+                .iter()
+                .map(|n| NodePos {
+                    pos: [n.x, n.y, n.z],
+                })
+                .collect();
+            self.queue
+                .write_buffer(&self.node_bufs.pos, 0, bytemuck::cast_slice(&pos));
+            self.node_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.node_bufs.attr_rev {
+            let attr: Vec<NodeAttr> = graph
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(i, n)| {
+                    let h = Some(i) == hovered;
+                    NodeAttr {
+                        color: if h { [1.0, 1.0, 1.0, 1.0] } else { n.color },
+                        radius: if h { n.radius * 1.4 } else { n.radius },
+                    }
+                })
+                .collect();
+            self.queue
+                .write_buffer(&self.node_bufs.attr, 0, bytemuck::cast_slice(&attr));
+            self.node_bufs.attr_rev = attr_rev;
+        }
+        if pos_rev != self.edge_bufs.pos_rev {
+            let pos: Vec<EdgePos> = graph
+                .edges
+                .iter()
+                .map(|e| EdgePos {
+                    a: [graph.nodes[e.a].x, graph.nodes[e.a].y, graph.nodes[e.a].z],
+                    b: [graph.nodes[e.b].x, graph.nodes[e.b].y, graph.nodes[e.b].z],
+                })
+                .collect();
+            self.queue
+                .write_buffer(&self.edge_bufs.pos, 0, bytemuck::cast_slice(&pos));
+            self.edge_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.edge_bufs.attr_rev {
+            let attr: Vec<EdgeAttr> = graph
+                .edges
+                .iter()
+                .map(|e| EdgeAttr { color: e.color })
+                .collect();
+            self.queue
+                .write_buffer(&self.edge_bufs.attr, 0, bytemuck::cast_slice(&attr));
+            self.edge_bufs.attr_rev = attr_rev;
+        }
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
 
@@ -334,15 +489,37 @@ impl Renderer {
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_bind, &[]);
-            if !edges.is_empty() {
+            if !graph.edges.is_empty() {
                 pass.set_pipeline(&self.edge_pipe);
-                pass.set_vertex_buffer(0, edge_buf.slice(..));
-                pass.draw(0..4, 0..edges.len() as u32);
+                pass.set_vertex_buffer(
+                    0,
+                    self.edge_bufs
+                        .pos
+                        .slice(..graph.edges.len() as u64 * edge_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.edge_bufs
+                        .attr
+                        .slice(..graph.edges.len() as u64 * edge_attr_stride),
+                );
+                pass.draw(0..4, 0..graph.edges.len() as u32);
             }
-            if !nodes.is_empty() {
+            if !graph.nodes.is_empty() {
                 pass.set_pipeline(&self.node_pipe);
-                pass.set_vertex_buffer(0, node_buf.slice(..));
-                pass.draw(0..4, 0..nodes.len() as u32);
+                pass.set_vertex_buffer(
+                    0,
+                    self.node_bufs
+                        .pos
+                        .slice(..graph.nodes.len() as u64 * node_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.node_bufs
+                        .attr
+                        .slice(..graph.nodes.len() as u64 * node_attr_stride),
+                );
+                pass.draw(0..4, 0..graph.nodes.len() as u32);
             }
         }
         self.queue.submit(Some(enc.finish()));
