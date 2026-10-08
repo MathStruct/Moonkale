@@ -183,7 +183,7 @@ fn SearchPanel(ws: Workspace) -> Element {
                     value: "{query}",
                     oninput: move |e| query.set(e.value()),
                     onkeydown: move |e: KeyboardEvent| {
-                        if e.key() == Key::Enter {
+                        if e.key() == Key::Enter && !e.is_composing() {
                             e.prevent_default();
                             run();
                         }
@@ -198,7 +198,7 @@ fn SearchPanel(ws: Workspace) -> Element {
                         placeholder: t!(ws, L, "search-replace-with"),
                         value: "{replacement}",
                         oninput: move |e| { replacement.set(e.value()); preview.set(None); },
-                        onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Enter { e.prevent_default(); do_preview(); } },
+                        onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Enter && !e.is_composing() { e.prevent_default(); do_preview(); } },
                     }
                     button { class: "mk-btn", disabled: replacing(), onclick: move |_| do_preview(), {t!(ws, L, "search-preview")} }
                 }

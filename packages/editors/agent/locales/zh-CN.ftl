@@ -54,3 +54,5 @@ agent-profile-next = 下一轮运行哪个已保存的智能体（设置 → 智
 agent-server-hint = 询问有关打开的文件夹的问题。对话轮次在服务器上运行，即使关闭此窗口也会完成；稍后回来（或从其他设备连接）即可查看进度。
 agent-waiting = （{ $class }）——等待任一已连接的人回应
 agent-ask-server = 向智能体提问…（在服务器上运行；回车发送）
+agent-approval-waiting = 智能体正在等待你的批准（智能体面板）
+agent-approval-timeout = 10 分钟内无回应：已拒绝智能体的请求

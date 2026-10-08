@@ -124,43 +124,22 @@ try {
     await page.click(".wb-tab:has-text('untitled.flow.json')");
     await page.waitForFunction(() => +document.querySelector(".mk-flow-status")?.dataset.issues >= 7, null, { timeout: 10000 });
   });
-  await step("an unparseable .flow.json is an error state, not an empty canvas (issue #11)", async () => {
-    // A broken flow on disk must open as an error and never be overwritten by
-    // an empty canvas serialising itself over the file. Other flow tabs stay
-    // mounted, so every check is scoped to this document's own panel.
-    const broken = '{ "version": 1, "blocks": [ oops';
-    fs.writeFileSync(`${ROOT}/broken.flow.json`, broken);
+  await step("an unparseable .flow.json shows an error and is never written (#11); fixed on disk, Reload loads it", async () => {
+    const bad = '{"version": 1, "blocks": [ {"id": "b1", "kind": "lux/Dense", "x": 0, "y": 0, "params": {} } ';
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, bad);
+    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer");
+    await page.click(".mk-explorer-open button[type=submit]");
     await page.waitForSelector(".mk-tree-file >> text=broken.flow.json", { timeout: 15000 });
     await page.click(".mk-tree-file >> text=broken.flow.json");
-    const panel = () => page.evaluate(() => {
-      const p = Array.from(document.querySelectorAll(".mk-flow"))
-        .find((x) => x.querySelector(".mk-editor-path")?.textContent.includes("broken.flow.json"));
-      return p && {
-        error: p.querySelector(".mk-editor-error")?.textContent || null,
-        hasEditor: !!p.querySelector(".mk-flow-status, .mk-flow-palette"),
-        blocks: p.querySelector(".mk-flow-status")?.dataset.blocks,
-      };
-    });
-    let st = null;
-    for (let i = 0; i < 30 && !(st && /not a valid flow/.test(st.error)); i++) { await page.waitForTimeout(500); st = await panel(); }
-    if (!st || !/not a valid flow/.test(st.error)) throw new Error("no parse error: " + JSON.stringify(st));
-    if (st.hasEditor) throw new Error("canvas or palette rendered for a broken flow");
-    console.log("\n  error:", st.error.trim().slice(0, 80));
-    if (fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8") !== broken) throw new Error("the broken flow was overwritten");
-    // Fixed from outside: an open document is not auto-reloaded, so the user
-    // flow is close and reopen — which must show the canvas again.
-    const fixed = JSON.stringify({ version: 1, blocks: [], wires: [] });
-    fs.writeFileSync(`${ROOT}/broken.flow.json`, fixed);
-    const item = page.locator(".wb-tab-item", { has: page.locator(".wb-tab", { hasText: /broken\.flow\.json/ }) }).first();
-    await item.hover();
-    await item.locator(".wb-tab-close").click({ force: true });
-    await page.waitForFunction(() => !Array.from(document.querySelectorAll(".wb-tab")).some((t) => t.textContent.includes("broken.flow.json")), null, { timeout: 15000 });
-    await page.click(".mk-tree-file >> text=broken.flow.json");
-    let ok = null;
-    for (let i = 0; i < 30 && !(ok && ok.hasEditor); i++) { await page.waitForTimeout(500); ok = await panel(); }
-    if (!ok || !ok.hasEditor) throw new Error("canvas did not reload: " + JSON.stringify(ok));
-    if (ok.blocks !== "0") throw new Error("canvas did not reload: " + JSON.stringify(ok));
-    if (fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8") !== fixed) throw new Error("the fixed flow was rewritten");
+    await page.waitForSelector(".mk-flow-broken:visible", { timeout: 15000 });
+    if (await page.$(".mk-flow:has(.mk-flow-broken) .mk-flow-body")) throw new Error("canvas shown for a broken file");
+    await page.keyboard.press("Control+s");
+    await page.waitForTimeout(1500);
+    if (fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8") !== bad) throw new Error("broken file was rewritten");
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, JSON.stringify({ version: 1, blocks: [], wires: [] }));
+    await page.click(".mk-flow-reload:visible");
+    await page.waitForSelector(".mk-flow:has(.mk-flow-body) .mk-flow-status:visible", { timeout: 20000 });
+    if (await page.$(".mk-flow-broken:visible")) throw new Error("error banner stayed after the fix");
   });
   console.log("\nFLOW E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m6-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

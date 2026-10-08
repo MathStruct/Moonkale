@@ -206,14 +206,22 @@ impl EntityLog {
         id
     }
 
-    /// Merge another log (set union by id).
+    /// Merge another log (set union by id). One pass and one sort (#17:
+    /// a scan and an insert per event made a 100k-event merge quadratic).
     pub fn merge(&mut self, other: &EntityLog) -> usize {
-        let mut added = 0;
-        for e in &other.events {
-            if !self.events.iter().any(|x| x.id == e.id) {
-                self.append(e.clone());
-                added += 1;
-            }
+        let known: std::collections::HashSet<EventId> = self.events.iter().map(|e| e.id).collect();
+        let before = self.events.len();
+        let mut seen = std::collections::HashSet::new();
+        self.events.extend(
+            other
+                .events
+                .iter()
+                .filter(|e| !known.contains(&e.id) && seen.insert(e.id))
+                .cloned(),
+        );
+        let added = self.events.len() - before;
+        if added > 0 {
+            self.events.sort_by_key(|e| e.id);
         }
         added
     }
@@ -285,7 +293,12 @@ impl EntityLog {
         if self.events.len() <= keep {
             return 0;
         }
-        let cut = self.events.len() - keep;
+        let mut cut = self.events.len() - keep;
+        // The snapshot takes the id right after the boundary; if an event
+        // already has it, fold that one too (#17: two events, one id).
+        while cut < self.events.len() && self.events[cut].id.0 == self.events[cut - 1].id.0 + 1 {
+            cut += 1;
+        }
         let boundary = self.events[cut - 1].id;
         let st = self.fold(Some(boundary));
         let mut texts = BTreeMap::new();
@@ -383,19 +396,30 @@ impl EntityLog {
         out
     }
 
-    /// Tolerant: bad lines are skipped.
+    /// Tolerant: bad lines are skipped (see [`EntityLog::from_jsonl_lossy`]
+    /// to keep them).
     pub fn from_jsonl(text: &str) -> Self {
-        let mut log = Self::new();
+        Self::from_jsonl_lossy(text).0
+    }
+
+    /// [`EntityLog::from_jsonl`] that also returns the lines it could not
+    /// read, so a caller that rewrites the file can keep them somewhere
+    /// instead of erasing them on the next save (#17).
+    pub fn from_jsonl_lossy(text: &str) -> (Self, Vec<String>) {
+        let mut events = Vec::new();
+        let mut bad = Vec::new();
         for line in text.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
             }
-            if let Ok(e) = serde_json::from_str::<Event>(line) {
-                log.append(e);
+            match serde_json::from_str::<Event>(line) {
+                Ok(e) => events.push(e),
+                Err(_) => bad.push(line.to_string()),
             }
         }
-        log
+        events.sort_by_key(|e| e.id);
+        (Self { events }, bad)
     }
 }
 
@@ -418,6 +442,69 @@ mod tests {
             content: None,
             version: Version::default(),
         }
+    }
+
+    fn checkpoint(at: u64) -> Event {
+        Event::new(
+            at,
+            "user:t",
+            EventKind::Checkpoint {
+                commit: format!("c{at}"),
+                message: String::new(),
+            },
+        )
+    }
+
+    /// #17: merging is a set union by id, and fast on big logs.
+    #[test]
+    fn merge_is_a_union_and_linear() {
+        let mut a = EntityLog::new();
+        let mut b = EntityLog::new();
+        for i in 0..50_000u64 {
+            let e = checkpoint(i);
+            if i % 2 == 0 {
+                a.append(e.clone());
+            }
+            b.append(e);
+        }
+        let started = std::time::Instant::now();
+        assert_eq!(a.merge(&b), 25_000);
+        assert!(started.elapsed().as_secs() < 5, "{:?}", started.elapsed());
+        assert_eq!(a.len(), 50_000);
+        assert!(a.events().windows(2).all(|w| w[0].id < w[1].id));
+        assert_eq!(a.merge(&b), 0, "merging again adds nothing");
+    }
+
+    /// #17: the snapshot's id never equals an event's.
+    #[test]
+    fn a_snapshot_never_shares_an_id() {
+        let mut log = EntityLog::new();
+        for (i, id) in [10u128, 11, 12, 20].into_iter().enumerate() {
+            let mut e = checkpoint(i as u64);
+            e.kind = EventKind::Add {
+                node: node(&format!("f{i}.md")),
+                text: Some("x".into()),
+            };
+            e.id = EventId(id);
+            log.append(e);
+        }
+        // Keep the last two: the boundary would be 11 and the snapshot 12.
+        log.compact(2, 99, "user:t");
+        let ids: Vec<u128> = log.events().iter().map(|e| e.id.0).collect();
+        let mut unique = ids.clone();
+        unique.dedup();
+        assert_eq!(ids, unique, "{ids:?}");
+    }
+
+    /// #17: unreadable lines are handed back, not dropped.
+    #[test]
+    fn bad_lines_are_returned() {
+        let mut log = EntityLog::new();
+        log.append(checkpoint(1));
+        let text = format!("{}{{not json}}\n", log.to_jsonl());
+        let (read, bad) = EntityLog::from_jsonl_lossy(&text);
+        assert_eq!(read.len(), 1);
+        assert_eq!(bad, ["{not json}"]);
     }
 
     #[test]

@@ -110,24 +110,25 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
     let libs = ws.contrib.flow_libraries.read().clone();
-    // An unparseable file is an error state, never an empty canvas (issue #11):
-    // the document stays untouched until it parses again.
-    let (initial, initial_error) = match Flow::parse(&doc.peek().text) {
-        Ok(flow) => (flow, None),
-        Err(e) => (Flow::new(), Some(e)),
-    };
+    // A document that does not parse is shown as an error and never written
+    // back: an empty canvas synced into it would replace the file (#11).
+    let parsed = Flow::parse(&doc.peek().text);
+    let mut broken: Signal<Option<String>> = use_signal(|| parsed.as_ref().err().cloned());
+    let initial = parsed.unwrap_or_default();
     let (n0, e0) = to_canvas(&initial, &libs);
     let mut nodes: Signal<Vec<Node<BlockData>>> = use_signal(|| n0);
     let mut edges: Signal<Vec<Edge>> = use_signal(|| e0);
     let mut last_text = use_signal(|| doc.peek().text.clone());
     let mut error: Signal<Option<String>> = use_signal(|| None);
-    let mut parse_error: Signal<Option<String>> = use_signal(|| initial_error);
     let mut selected_lib = use_signal(|| 0usize);
     let handle: FlowHandle<BlockData> = use_flow_handle();
 
     // Canvas → document (dirty), and re-validate.
     let libs_for_sync = libs.clone();
     let sync = move || {
+        if broken.peek().is_some() {
+            return;
+        }
         let flow = to_flow(&nodes.peek(), &edges.peek());
         let issues = validate(&flow, &libs_for_sync);
         nodes.with_mut(|ns| {
@@ -152,9 +153,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         doc.with_mut(|d| d.text = text);
     };
 
-    // Document replaced from outside (reload): rebuild the canvas — or park
-    // the new text in the error state if it does not parse; the working
-    // copy waits until it does, and the document is never overwritten.
+    // Document replaced from outside (reload): rebuild the canvas.
     {
         let libs = libs.clone();
         use_effect(move || {
@@ -163,33 +162,20 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 return;
             }
             last_text.set(text.clone());
-            match Flow::parse(&text) {
-                Ok(flow) => {
-                    parse_error.set(None);
-                    let (n, e) = to_canvas(&flow, &libs);
-                    nodes.set(n);
-                    edges.set(e);
+            let flow = match Flow::parse(&text) {
+                Ok(f) => {
+                    broken.set(None);
+                    f
                 }
-                Err(e) => parse_error.set(Some(e)),
-            }
+                Err(e) => {
+                    broken.set(Some(e));
+                    return;
+                }
+            };
+            let (n, e) = to_canvas(&flow, &libs);
+            nodes.set(n);
+            edges.set(e);
         });
-    }
-
-    // Not a flow: an error state, never an empty canvas (issue #11) — an
-    // empty canvas would serialise itself over the file on the first change.
-    // The document stays untouched; fixed text (on reopen or a reload)
-    // brings the canvas back.
-    if let Some(e) = parse_error() {
-        return rsx! {
-            moonkale_ext_api::Stylesheet { href: CSS }
-            div {
-                class: "mk-flow",
-                div { class: "mk-editor-toolbar",
-                    span { class: "mk-editor-path", "{doc.read().node.native_key}" }
-                }
-                div { class: "mk-editor-error", {t!(ws, L, "flow-parse-error", error = e)} }
-            }
-        };
     }
 
     let libs_valid = libs.clone();
@@ -382,6 +368,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // Codegen: every library with a generator and at least one block in use.
     let generators: Vec<FlowLibrary> = libs
         .iter()
+        .filter(|_| broken.read().is_none())
         .filter(|l| {
             l.codegen.is_some()
                 && flow_now
@@ -489,33 +476,41 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 button { class: "mk-btn", onclick: move |_| handle.auto_layout(&LayoutOptions { direction: LayoutDirection::LeftToRight, node_gap: 40.0, rank_gap: 90.0, update_handle_sides: false }), {t!(ws, L, "flow-layout")} }
                 button { class: "mk-btn", onclick: move |_| handle.fit_view(200), {t!(ws, L, "flow-fit")} }
                 button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), {t!(ws, L, "flow-save")} }
+                button { class: "mk-btn mk-flow-reload", title: t!(ws, L, "flow-reload-title"),
+                    onclick: move |_| { spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); },
+                    {t!(ws, L, "flow-reload")}
+                }
             }
             if let Some(e) = error() { div { class: "mk-editor-error", "{e}" } }
-            div { class: "mk-flow-body",
-                div { class: "mk-flow-palette",
-                    if libs.is_empty() {
-                        p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
-                    } else {
-                        if libs.len() > 1 {
-                            select { class: "mk-input", onchange: move |e| selected_lib.set(e.value().parse().unwrap_or(0)),
-                                for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == selected_lib(), "{l.name}" } }
+            if let Some(why) = broken() {
+                div { class: "mk-editor-error mk-flow-broken", role: "alert", {t!(ws, L, "flow-broken", error = why)} }
+            } else {
+                div { class: "mk-flow-body",
+                    div { class: "mk-flow-palette",
+                        if libs.is_empty() {
+                            p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
+                        } else {
+                            if libs.len() > 1 {
+                                select { class: "mk-input", onchange: move |e| selected_lib.set(e.value().parse().unwrap_or(0)),
+                                    for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == selected_lib(), "{l.name}" } }
+                                }
                             }
-                        }
-                        {
-                            let lib = libs.get(selected_lib()).or(libs.first()).cloned();
-                            rsx! {
-                                if let Some(lib) = lib {
-                                    div { class: "mk-flow-palette-title", "{lib.name}" }
-                                    {
-                                        let mut cats: Vec<&str> = lib.blocks.iter().map(|b| b.category.as_str()).collect();
-                                        cats.dedup();
-                                        rsx! {
-                                            for cat in cats {
-                                                div { key: "{cat}", class: "mk-flow-palette-cat", "{cat}" }
-                                                for b in lib.blocks.iter().filter(|b| b.category == cat) {
-                                                    button { key: "{b.id}", class: "mk-flow-palette-block", title: "{b.description}",
-                                                        onclick: { let mut add = add_block.clone(); let kind = format!("{}/{}", lib.id, b.id); move |_| add(kind.clone()) },
-                                                        "{b.name}"
+                            {
+                                let lib = libs.get(selected_lib()).or(libs.first()).cloned();
+                                rsx! {
+                                    if let Some(lib) = lib {
+                                        div { class: "mk-flow-palette-title", "{lib.name}" }
+                                        {
+                                            let mut cats: Vec<&str> = lib.blocks.iter().map(|b| b.category.as_str()).collect();
+                                            cats.dedup();
+                                            rsx! {
+                                                for cat in cats {
+                                                    div { key: "{cat}", class: "mk-flow-palette-cat", "{cat}" }
+                                                    for b in lib.blocks.iter().filter(|b| b.category == cat) {
+                                                        button { key: "{b.id}", class: "mk-flow-palette-block", title: "{b.description}",
+                                                            onclick: { let mut add = add_block.clone(); let kind = format!("{}/{}", lib.id, b.id); move |_| add(kind.clone()) },
+                                                            "{b.name}"
+                                                        }
                                                     }
                                                 }
                                             }
@@ -525,21 +520,21 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             }
                         }
                     }
-                }
-                div { class: "mk-flow-canvas",
-                    Flow {
-                        nodes,
-                        edges,
-                        handle,
-                        node_view,
-                        is_valid_connection: is_valid,
-                        on_connect,
-                        on_node_drag_stop: on_drag_stop,
-                        on_delete,
-                        drag_threshold: 4.0,
-                        pan_on_scroll: false,
-                        Background {}
-                        Controls {}
+                    div { class: "mk-flow-canvas",
+                        Flow {
+                            nodes,
+                            edges,
+                            handle,
+                            node_view,
+                            is_valid_connection: is_valid,
+                            on_connect,
+                            on_node_drag_stop: on_drag_stop,
+                            on_delete,
+                            drag_threshold: 4.0,
+                            pan_on_scroll: false,
+                            Background {}
+                            Controls {}
+                        }
                     }
                 }
             }

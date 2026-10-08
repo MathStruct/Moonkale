@@ -16,8 +16,34 @@ impl SessionId {
     }
 }
 
-/// Output from the process, as raw bytes (VT sequences included).
-pub type Output = mpsc::UnboundedReceiver<Vec<u8>>;
+/// Output from the process, as raw bytes (VT sequences included). Bounded
+/// (#14): a producer waits while [`OUTPUT_CHUNKS`] chunks are unread, so a
+/// consumer that stalls (a client that stopped reading its websocket) holds
+/// the process back instead of filling memory.
+pub type Output = mpsc::Receiver<Vec<u8>>;
+
+/// How many chunks an [`Output`] holds unread (a PTY reads 8 KiB at a time).
+pub const OUTPUT_CHUNKS: usize = 64;
+
+/// A bounded output channel.
+pub fn output_channel() -> (mpsc::Sender<Vec<u8>>, Output) {
+    mpsc::channel(OUTPUT_CHUNKS)
+}
+
+/// Send from a thread, waiting while the channel is full. False when the
+/// receiver is gone.
+pub fn send_blocking(tx: &mut mpsc::Sender<Vec<u8>>, mut chunk: Vec<u8>) -> bool {
+    loop {
+        match tx.try_send(chunk) {
+            Ok(()) => return true,
+            Err(e) if e.is_full() => {
+                chunk = e.into_inner();
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Err(_) => return false,
+        }
+    }
+}
 
 /// The wire format between a terminal view/client and its backend. Also
 /// what goes over the websocket for remote terminals.
@@ -75,3 +101,40 @@ pub type SpawnTerminalFuture =
     Pin<Box<dyn Future<Output = Result<Box<dyn TerminalBackend>, String>>>>;
 /// Installed by the platform: how to start a terminal (cwd, cols, rows).
 pub type SpawnTerminal = fn(Option<String>, u16, u16) -> SpawnTerminalFuture;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    /// #14: a producer waits while the consumer lags, instead of queueing.
+    #[test]
+    fn a_full_output_holds_the_producer_back() {
+        let (mut tx, mut rx) = output_channel();
+        // futures' bounded channel takes `buffer + senders` messages.
+        let mut sent = 0;
+        while tx.try_send(vec![0u8; 8192]).is_ok() {
+            sent += 1;
+        }
+        assert!(
+            (OUTPUT_CHUNKS..=OUTPUT_CHUNKS + 2).contains(&sent),
+            "{sent}"
+        );
+        let done = Arc::new(AtomicBool::new(false));
+        let d = done.clone();
+        let producer = std::thread::spawn(move || {
+            assert!(send_blocking(&mut tx, b"more".to_vec()));
+            d.store(true, Ordering::SeqCst);
+        });
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        assert!(!done.load(Ordering::SeqCst), "the producer must wait");
+        rx.try_recv().unwrap();
+        producer.join().unwrap();
+        assert!(done.load(Ordering::SeqCst));
+        // A gone consumer ends the producer.
+        let (mut tx, rx) = output_channel();
+        drop(rx);
+        assert!(!send_blocking(&mut tx, b"x".to_vec()));
+    }
+}

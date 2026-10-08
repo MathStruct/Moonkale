@@ -14,11 +14,7 @@ pub async fn compile_typst(
     text: String,
 ) -> Result<Result<Vec<String>, Vec<String>>, ServerFnError> {
     let root = moonkale_server_host::jail_dir(Some(&root)).map_err(ServerFnError::new)?;
-    let out = tokio::task::spawn_blocking(move || {
-        moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text)
-    })
-    .await
-    .map_err(ServerFnError::new)?;
+    let out = moonkale_typst::compile_bounded(root.into(), main_rel, text).await;
     Ok(out.map_err(|d| {
         d.into_iter()
             .map(|d| match d.hint {

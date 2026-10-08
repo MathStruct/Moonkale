@@ -10,4 +10,6 @@ flow-layout = 布局
 flow-fit = 适应窗口
 flow-save = 保存
 flow-no-libraries = 未启用任何模块库。请在 设置 → 扩展 中开启一个（例如 Lux.jl）。
-flow-parse-error = 此文件不是有效的流程图：{ $error }。文件内容未被改动——请修正 JSON 后重新打开文件。
+flow-broken = 此文件不是有效的流程（{ $error }）。不会向其写入任何内容；请在文本编辑器中修复，然后点击“重新加载”。
+flow-reload = 重新加载
+flow-reload-title = 放弃修改并从文件重新加载

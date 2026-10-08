@@ -116,7 +116,11 @@ impl Translator {
                 }
                 if d["type"] == "input_json_delta" {
                     if let Some(b) = &mut self.block {
-                        b.2.push_str(d["partial_json"].as_str().unwrap_or_default());
+                        crate::sse::push_capped(
+                            &mut b.2,
+                            d["partial_json"].as_str().unwrap_or_default(),
+                            crate::sse::MAX_TOOL_INPUT,
+                        );
                     }
                 }
                 Vec::new()

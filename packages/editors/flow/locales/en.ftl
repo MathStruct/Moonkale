@@ -14,4 +14,6 @@ flow-layout = Layout
 flow-fit = Fit
 flow-save = Save
 flow-no-libraries = No block libraries are enabled. Turn one on in Settings → Extensions (e.g. Lux.jl).
-flow-parse-error = This file is not a valid flow: { $error }. Nothing was changed — fix the JSON and reopen the file.
+flow-broken = This file is not a valid flow ({ $error }). Nothing is written to it; fix it in a text editor, then press Reload.
+flow-reload = Reload
+flow-reload-title = Discard edits and reload from the file

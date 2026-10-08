@@ -329,14 +329,16 @@ fn compile_typst(
         return moonkale_editor_markdown::remote_typst(root, main_rel, text);
     }
     Box::pin(async move {
-        moonkale_typst::compile_to_svg(std::path::Path::new(&root), &main_rel, text).map_err(|d| {
-            d.into_iter()
-                .map(|d| match d.hint {
-                    Some(h) => format!("{} (hint: {h})", d.message),
-                    None => d.message,
-                })
-                .collect()
-        })
+        moonkale_typst::compile_bounded(root.into(), main_rel, text)
+            .await
+            .map_err(|d| {
+                d.into_iter()
+                    .map(|d| match d.hint {
+                        Some(h) => format!("{} (hint: {h})", d.message),
+                        None => d.message,
+                    })
+                    .collect()
+            })
     })
 }
 
@@ -606,6 +608,12 @@ fn window_config() -> dioxus::desktop::Config {
         // including the "Toggle Developer Tools" entry.
         .with_menu(None)
         .with_disable_context_menu(true)
+        // The web server's policy (moonkale_server::auth::CSP, #10) as far as a
+        // meta tag can carry it (`frame-ancestors` only works as a header).
+        .with_custom_head(
+            r#"<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'; form-action 'self'">"#
+                .to_string(),
+        )
 }
 
 /// View → New Window: a second window running the same app; it joins the

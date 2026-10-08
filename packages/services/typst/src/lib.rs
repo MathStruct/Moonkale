@@ -155,8 +155,56 @@ fn to_diag(d: &SourceDiagnostic) -> Diagnostic {
     }
 }
 
+/// How many compiles run at once, and how long a caller waits for one.
+pub const MAX_CONCURRENT: usize = 2;
+pub const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// [`compile_to_svg`] with a budget (#13): on a blocking thread (it never
+/// holds up the async runtime), at most [`MAX_CONCURRENT`] at a time, and the
+/// caller gets an error after [`TIMEOUT`]. Typst cannot be interrupted, so a
+/// runaway compile finishes on its thread — but keeps its slot, so a flood
+/// of them cannot use more than [`MAX_CONCURRENT`] threads. Needs a tokio
+/// runtime.
+pub async fn compile_bounded(
+    root: std::path::PathBuf,
+    main_rel: String,
+    text: String,
+) -> Result<Vec<String>, Vec<Diagnostic>> {
+    static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(MAX_CONCURRENT);
+    let fail = |message: String| {
+        vec![Diagnostic {
+            message,
+            hint: None,
+        }]
+    };
+    let work = async {
+        let permit = SLOTS.acquire().await.map_err(|e| fail(e.to_string()))?;
+        let handle = tokio::task::spawn_blocking(move || {
+            let out = compile_to_svg(&root, &main_rel, text);
+            drop(permit);
+            out
+        });
+        handle.await.map_err(|e| fail(e.to_string()))?
+    };
+    match tokio::time::timeout(TIMEOUT, work).await {
+        Ok(out) => out,
+        Err(_) => Err(fail(format!(
+            "Typst did not finish within {} s",
+            TIMEOUT.as_secs()
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn bounded_compile_answers() {
+        let dir = tempfile::tempdir().unwrap();
+        let out =
+            super::compile_bounded(dir.path().into(), "/main.typ".into(), "= Hi".into()).await;
+        assert_eq!(out.map(|p| p.len()).ok(), Some(1));
+    }
+
     use super::*;
 
     #[test]

@@ -307,7 +307,14 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
             // Where a turn acts (Milestone 12): the first open folder.
             g.cwd = folder_path(ws);
             g.tools = moonkale_llm::builtin_tools();
-            g.tools.extend(crate::host::wasm_tools(ws));
+            // A wasm command named like a built-in tool is not offered: the
+            // built-in would run anyway (it is dispatched first), and a
+            // second definition under the same name misleads the model (#4).
+            let wasm: Vec<_> = crate::host::wasm_tools(ws)
+                .into_iter()
+                .filter(|t| !g.tools.iter().any(|b| b.name == t.name))
+                .collect();
+            g.tools.extend(wasm);
             let (ps, ext) = {
                 let s = ws.settings.resolved.peek();
                 (s.policy.clone(), s.extensions.clone())
@@ -564,10 +571,14 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
     connect(ws, s.clone());
     let agent = s.agent;
     dioxus::core::spawn_forever(async move {
-        for _ in 0..200 {
+        for _ in 0..12_000 {
+            // A turn sent right after restoring holds the agent across its
+            // await (#13: `borrow_mut` here panicked); wait for it.
             if let Some(a) = agent.peek().clone() {
-                a.borrow_mut().messages = messages;
-                return;
+                if let Ok(mut g) = a.try_borrow_mut() {
+                    g.messages = messages;
+                    return;
+                }
             }
             crate::sleep_ms(50).await;
         }

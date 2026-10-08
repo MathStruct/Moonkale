@@ -119,6 +119,8 @@ pub const VERSION: &str = moonkale_core::VERSION;
 const NEED_UPLOAD: &str = "MOONKALE_NEED_UPLOAD";
 const ASK_TOKEN: &str = "MOONKALE_TOKEN?";
 const STARTING: &str = "MOONKALE_STARTING";
+/// The script could not switch off echo: the token would show (#18).
+const NO_NOECHO: &str = "MOONKALE_NO_NOECHO";
 const REMOTE_DIR: &str = "~/.local/share/moonkale/server";
 
 /// A live session; dropping it ends everything on both machines.
@@ -152,8 +154,7 @@ impl SshSession {
             getrandom::fill(&mut b).expect("OS randomness");
             20_000 + (u16::from_le_bytes(b) % 12_000)
         };
-        let dir = std::env::temp_dir().join(format!("moonkale-ssh-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).map_err(|e| format!("temp dir: {e}"))?;
+        let dir = control_dir()?;
         let control = dir.join(format!("cm-{local_port}"));
         let script = remote_script(&target.path, remote_port);
         let mut args: Vec<String> = vec![
@@ -209,7 +210,7 @@ impl SshSession {
                 // bar line is easy to miss) and ends the master `ssh`, so the
                 // host's script stops waiting (P-106).
                 if let Phase::Failed(reason) = &p {
-                    let _ = notice.unbounded_send(
+                    let _ = notice.clone().try_send(
                         format!("\r\n[moonkale] remote session failed: {reason}\r\n").into_bytes(),
                     );
                     master.kill();
@@ -219,7 +220,8 @@ impl SshSession {
             }
         };
         let handshake = async move {
-            let mut line = String::new();
+            // Bytes, decoded per line: a multibyte MOTD came out as mojibake (#18).
+            let mut line: Vec<u8> = Vec::new();
             let mut uploaded = false;
             let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
             loop {
@@ -238,7 +240,7 @@ impl SshSession {
                 };
                 for b in chunk {
                     if b == b'\n' || b == b'\r' {
-                        let l = strip_ansi(line.trim());
+                        let l = strip_ansi(String::from_utf8_lossy(&line).trim());
                         line.clear();
                         if l.is_empty() {
                             continue;
@@ -267,6 +269,11 @@ impl SshSession {
                                     return;
                                 }
                             }
+                        } else if l == NO_NOECHO {
+                            set(Phase::Failed(
+                                "the host's terminal cannot hide input (stty -echo failed), so the session token was not sent".into(),
+                            ));
+                            return;
                         } else if l == "MOONKALE_UPLOAD_TIMEOUT" {
                             set(Phase::Failed(
                                 "the host waited 10 minutes for the server upload".into(),
@@ -298,9 +305,9 @@ impl SshSession {
                             set(Phase::Prompt(l.clone()));
                         }
                     } else {
-                        line.push(b as char);
+                        line.push(b);
                         // Prompts end without a newline: check the partial line too.
-                        let partial = strip_ansi(line.trim());
+                        let partial = strip_ansi(String::from_utf8_lossy(&line).trim());
                         if looks_like_prompt(&partial) {
                             set(Phase::Prompt(partial));
                         }
@@ -384,7 +391,7 @@ if [ ! -x "$d/moonkale-server" ]; then
   done
   rm -f "$d/moonkale-server.ready"
 fi
-stty -echo 2>/dev/null || true
+stty -echo 2>/dev/null || {{ echo "{NO_NOECHO}"; exit 4; }}
 echo "{ASK_TOKEN}"
 read TOKEN
 stty echo 2>/dev/null || true
@@ -411,7 +418,7 @@ async fn upload(control: &Path, target: &SshTarget, bin: &Path, arch: &str) -> R
         .await
         .map_err(|e| format!("open {}: {e}", bin.display()))?;
     let remote_cmd = format!(
-        "d={dir}; cat > \"$d/moonkale-server.tmp\" && chmod +x \"$d/moonkale-server.tmp\" && mv \"$d/moonkale-server.tmp\" \"$d/moonkale-server\" && touch \"$d/moonkale-server.ready\""
+        "d={dir}; t=$(mktemp \"$d/moonkale-server.XXXXXX\") && cat > \"$t\" && chmod +x \"$t\" && mv \"$t\" \"$d/moonkale-server\" && touch \"$d/moonkale-server.ready\" || {{ rm -f \"$t\"; exit 1; }}"
     );
     let mut child = tokio::process::Command::new("ssh")
         .arg("-S")
@@ -458,6 +465,32 @@ async fn wait_for_server(url: &str, token: &str, ssh: &PtyBackend) -> Result<(),
         if !ssh.is_running() {
             return Err("the remote server exited (see the ssh terminal)".into());
         }
+        // Whoever answers must prove it holds the token before it is sent
+        // (#18: another user of the host could listen on the port first).
+        let challenge = moonkale_server::handshake::challenge();
+        let proved = client
+            .post(format!("{url}{}", moonkale_server::handshake::PATH))
+            .body(challenge.clone())
+            .send()
+            .await;
+        match proved {
+            Ok(resp) if resp.status().is_success() => {
+                let answer = resp.text().await.unwrap_or_default();
+                if answer.trim() != moonkale_server::handshake::proof(token, &challenge) {
+                    return Err("something else answers on the remote port (it could not prove the session token); the session was not started".into());
+                }
+            }
+            Ok(resp) if resp.status().as_u16() == 404 => {
+                return Err("the server on the remote port cannot prove the session token (another program, or a moonkale-server older than this client); the session was not started".into());
+            }
+            _ => {
+                if tokio::time::Instant::now() > deadline {
+                    return Err("the remote server did not answer on the forwarded port".into());
+                }
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                continue;
+            }
+        }
         let r = client
             .post(format!("{url}/api/sources/list"))
             .header("authorization", format!("Bearer {token}"))
@@ -477,6 +510,45 @@ async fn wait_for_server(url: &str, token: &str, ssh: &PtyBackend) -> Result<(),
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
+}
+
+/// Where the ssh control sockets live: a directory only this user can
+/// enter (#18 — anyone who can open a ControlMaster socket gets new ssh
+/// sessions as this user without credentials). `$XDG_RUNTIME_DIR` is
+/// per-user already; the temp dir fallback is created 0700 and checked.
+fn control_dir() -> Result<PathBuf, String> {
+    let base = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir())
+        .unwrap_or_else(std::env::temp_dir);
+    let dir = base.join(format!("moonkale-ssh-{}", std::process::id()));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+        match std::fs::DirBuilder::new().mode(0o700).create(&dir) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("control dir {}: {e}", dir.display())),
+        }
+        let meta = std::fs::symlink_metadata(&dir).map_err(|e| format!("control dir: {e}"))?;
+        // SAFETY: getuid has no preconditions.
+        let me = unsafe { libc_getuid() };
+        if !meta.is_dir() || meta.uid() != me || meta.permissions().mode() & 0o077 != 0 {
+            return Err(format!(
+                "control dir {} is not a private directory of this user; refusing to put the ssh control socket there",
+                dir.display()
+            ));
+        }
+    }
+    #[cfg(not(unix))]
+    std::fs::create_dir_all(&dir).map_err(|e| format!("control dir: {e}"))?;
+    Ok(dir)
+}
+
+#[cfg(unix)]
+extern "C" {
+    #[link_name = "getuid"]
+    fn libc_getuid() -> u32;
 }
 
 fn reqwest_client() -> reqwest::Client {
@@ -556,14 +628,29 @@ fn strip_ansi(s: &str) -> String {
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\u{1b}' {
-            // CSI … final byte in @..~
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                for n in chars.by_ref() {
-                    if ('@'..='~').contains(&n) {
-                        break;
+            match chars.peek() {
+                // CSI … final byte in @..~
+                Some('[') => {
+                    chars.next();
+                    for n in chars.by_ref() {
+                        if ('@'..='~').contains(&n) {
+                            break;
+                        }
                     }
                 }
+                // OSC … BEL or ESC \ (a title sequence could hide a marker, #18)
+                Some(']') => {
+                    chars.next();
+                    while let Some(n) = chars.next() {
+                        if n == '\u{7}' || (n == '\u{1b}' && chars.peek() == Some(&'\\')) {
+                            if n == '\u{1b}' {
+                                chars.next();
+                            }
+                            break;
+                        }
+                    }
+                }
+                _ => {}
             }
             continue;
         }
@@ -586,6 +673,65 @@ pub fn looks_like_prompt(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #18: another program on the forwarded port answers the challenge
+    /// wrongly — the session is refused and the token is never sent to it.
+    #[tokio::test]
+    async fn an_impostor_on_the_port_never_sees_the_token() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let log = seen.clone();
+        tokio::spawn(async move {
+            while let Ok((mut c, _)) = listener.accept().await {
+                let mut buf = vec![0u8; 8192];
+                let n = c.read(&mut buf).await.unwrap_or(0);
+                log.lock()
+                    .unwrap()
+                    .push_str(&String::from_utf8_lossy(&buf[..n]));
+                let _ = c
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\ncontent-length: 4\r\nconnection: close\r\n\r\nnope",
+                    )
+                    .await;
+            }
+        });
+        let ssh =
+            PtyBackend::spawn_with_env(None, Some("sleep"), &["30".into()], &[], 80, 24).unwrap();
+        let token = "secret-session-token";
+        let r = wait_for_server(&format!("http://127.0.0.1:{port}"), token, &ssh).await;
+        assert!(
+            r.as_ref().is_err_and(|e| e.contains("could not prove")),
+            "{r:?}"
+        );
+        let seen = seen.lock().unwrap();
+        assert!(seen.contains(moonkale_server::handshake::PATH), "{seen}");
+        assert!(
+            !seen.contains(token),
+            "the token reached the impostor: {seen}"
+        );
+        assert!(
+            !seen.to_ascii_lowercase().contains("authorization"),
+            "{seen}"
+        );
+    }
+
+    #[test]
+    fn escape_sequences_are_stripped() {
+        assert_eq!(
+            strip_ansi("\u{1b}[1mMOONKALE_STARTING\u{1b}[0m"),
+            "MOONKALE_STARTING"
+        );
+        assert_eq!(
+            strip_ansi("\u{1b}]0;title\u{7}MOONKALE_STARTING"),
+            "MOONKALE_STARTING"
+        );
+        assert_eq!(
+            strip_ansi("\u{1b}]2;t\u{1b}\\MOONKALE_STARTING"),
+            "MOONKALE_STARTING"
+        );
+    }
 
     #[test]
     fn prompts_and_quoting() {

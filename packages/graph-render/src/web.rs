@@ -47,6 +47,27 @@ struct State {
     label_hover: String,
 }
 
+impl State {
+    /// The id of the node being dragged, if any.
+    fn dragged_id(&self) -> Option<String> {
+        match self.dragging {
+            Drag::Node { index } => self.graph.nodes.get(index).map(|n| n.id.clone()),
+            _ => None,
+        }
+    }
+
+    /// After the graph was replaced: a node drag follows its node to its new
+    /// index, or ends when the node is gone (#12 — a stale index panicked
+    /// every pointer move).
+    fn keep_drag(&mut self, id: Option<String>) {
+        if let Drag::Node { .. } = self.dragging {
+            self.dragging = id
+                .and_then(|id| self.graph.nodes.iter().position(|n| n.id == id))
+                .map_or(Drag::None, |index| Drag::Node { index });
+        }
+    }
+}
+
 struct Stashed {
     graph: Graph,
     layout: Layout,
@@ -54,7 +75,7 @@ struct Stashed {
     auto_fit: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum Drag {
     None,
     Pan {
@@ -67,11 +88,7 @@ enum Drag {
         last_angle: f32,
         last_mid: (f32, f32),
     },
-    /// A dragged node, held by id with the last index as a fast path: the
-    /// graph can be replaced under the pointer (`set_graph`, `unstash`),
-    /// which makes a bare index stale — out of bounds or another node (P-155).
     Node {
-        id: String,
         index: usize,
     },
     /// 3D: right button or Shift-drag turns the camera around its target.
@@ -237,7 +254,9 @@ impl GraphView {
         let Some(saved) = s.stashed.remove(name) else {
             return false;
         };
+        let dragged = s.dragged_id();
         s.graph = saved.graph;
+        s.keep_drag(dragged);
         s.layout = saved.layout;
         s.camera = saved.camera;
         s.auto_fit = saved.auto_fit;
@@ -250,6 +269,7 @@ impl GraphView {
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
+        let dragged = s.dragged_id();
         let mut next = Graph::from_input(input);
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
             .graph
@@ -325,6 +345,7 @@ impl GraphView {
             let new_count = known.iter().filter(|k| !**k).count();
             let total = next.nodes.len().max(1);
             s.graph = next;
+            s.keep_drag(dragged);
             if changed || !same_edges {
                 // A few newcomers: warm, so known nodes only drift. Many (an
                 // index still filling up): a full reheat from the kept
@@ -340,6 +361,7 @@ impl GraphView {
             return Ok(());
         }
         s.graph = next;
+        s.keep_drag(dragged);
         s.layout = Layout::new(&s.graph);
         s.hovered = None;
         s.auto_fit = true;
@@ -649,8 +671,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     if s.touches.len() >= 2 {
                         let (a, b) = (s.touches[0], s.touches[1]);
                         // A node picked up by the first finger stays where it is.
-                        if let Drag::Node { id, .. } = s.dragging.clone() {
-                            if let Some(n) = s.graph.nodes.iter_mut().find(|n| n.id == id) {
+                        if let Drag::Node { index } = s.dragging {
+                            if let Some(n) = s.graph.nodes.get_mut(index) {
                                 n.pinned = true;
                             }
                         }
@@ -670,10 +692,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     // A node under the pointer drags in its own depth plane (Milestone 9).
                     if let Some(i) = s.camera.hit(&s.graph, x, y) {
                         s.graph.nodes[i].pinned = true;
-                        s.dragging = Drag::Node {
-                            id: s.graph.nodes[i].id.clone(),
-                            index: i,
-                        };
+                        s.dragging = Drag::Node { index: i };
                     } else {
                         s.dragging = Drag::Pan { last: (x, y) };
                     }
@@ -683,10 +702,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 s.dragging = match hit {
                     Some(i) => {
                         s.graph.nodes[i].pinned = true;
-                        Drag::Node {
-                            id: s.graph.nodes[i].id.clone(),
-                            index: i,
-                        }
+                        Drag::Node { index: i }
                     }
                     None => Drag::Pan { last: (x, y) },
                 };
@@ -708,12 +724,11 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         t.2 = y;
                     }
                 }
-                let drag = s.dragging.clone();
                 if let Drag::Pinch {
                     last_dist,
                     last_angle,
                     last_mid,
-                } = drag
+                } = s.dragging
                 {
                     if s.touches.len() < 2 {
                         return;
@@ -743,7 +758,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     s.dirty = true;
                     return;
                 }
-                match drag {
+                match s.dragging {
                     Drag::Pan { last } => {
                         s.auto_fit = false;
                         s.camera.pan(x - last.0, y - last.1);
@@ -756,26 +771,11 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         s.dragging = Drag::Orbit { last: (x, y) };
                         s.dirty = true;
                     }
-                    Drag::Node { id, index } => {
+                    Drag::Node { index } if index >= s.graph.nodes.len() => {
+                        s.dragging = Drag::None;
+                    }
+                    Drag::Node { index } => {
                         s.auto_fit = false;
-                        // The graph may have been replaced under the pointer
-                        // (set_graph, unstash), so the stored index is a hint
-                        // only: re-resolve the node by id — ending the drag
-                        // when it is gone — and follow it to a new index (P-155).
-                        let index = if s.graph.nodes.get(index).is_some_and(|n| n.id == id) {
-                            index
-                        } else {
-                            match s.graph.nodes.iter().position(|n| n.id == id) {
-                                Some(i) => {
-                                    s.dragging = Drag::Node { id, index: i };
-                                    i
-                                }
-                                None => {
-                                    s.dragging = Drag::None;
-                                    return;
-                                }
-                            }
-                        };
                         if s.camera.three_d {
                             let n = &s.graph.nodes[index];
                             if let Some((_, _, w)) = s.camera.project(n.x, n.y, n.z) {
