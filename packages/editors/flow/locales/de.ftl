@@ -14,3 +14,4 @@ flow-layout = Anordnen
 flow-fit = Einpassen
 flow-save = Speichern
 flow-no-libraries = Keine Bausteinbibliothek ist eingeschaltet. Schalte eine unter Einstellungen → Erweiterungen ein (z. B. Lux.jl).
+flow-parse-error = Diese Datei ist kein gültiger Flow: { $error }. Es wurde nichts verändert – korrigiere das JSON und öffne die Datei erneut.

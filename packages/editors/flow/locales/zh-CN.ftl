@@ -10,3 +10,4 @@ flow-layout = 布局
 flow-fit = 适应窗口
 flow-save = 保存
 flow-no-libraries = 未启用任何模块库。请在 设置 → 扩展 中开启一个（例如 Lux.jl）。
+flow-parse-error = 此文件不是有效的流程图：{ $error }。文件内容未被改动——请修正 JSON 后重新打开文件。

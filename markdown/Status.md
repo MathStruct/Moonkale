@@ -23,8 +23,8 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Markdown** — rich (Milkdown), source, wiki-links, KaTeX, front matter, typography | ✅ | specs 012, 013, 019, 021, 026 |
 | **Typst preview** | ✅ | no packages |
 | **Diagram fences** (tabs, Typst math, Mermaid, TikZ) | 📝 | [[Markdown Diagrams and Math]] |
-| **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; coarse tier 📝 ([[Case Selector]]); stale drag-index panic (#12) |
-| **Flow editor** + Lux.jl library | ◐ | editing and codegen; running the model is not built; destroys an unparseable file (#11) |
+| **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; coarse tier 📝 ([[Case Selector]]) |
+| **Flow editor** + Lux.jl library | ◐ | editing and codegen; running the model is not built |
 | **Table editor** | ✅ | read-only |
 | **Image viewer** | ✅ | spec [[008]] |
 | **Terminal** — xterm and Rust | ✅ | traces become graphs |

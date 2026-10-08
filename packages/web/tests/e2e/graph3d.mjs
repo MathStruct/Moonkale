@@ -173,6 +173,36 @@ try {
     console.log("\n  camera before:", before.slice(0, 3).map((v) => v.toFixed(2)).join(","), "after:", after.slice(0, 3).map((v) => v.toFixed(2)).join(","));
     if (Math.abs(after[0] - before[0]) > 1e-3 || Math.abs(after[1] - before[1]) > 1 || Math.abs(after[2] - before[2]) > 1) throw new Error("the reload reset the camera");
   });
+  await step("a graph replaced under a held node ends the drag instead of panicking (P-155)", async () => {
+    if ((await info()).mode === "3d") await page.click("button:has-text('3D')");
+    await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
+    await sleep(300);
+    const box = await page.$eval(".mk-graph-overlay", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    // A synthetic graph whose ids we know, so the drag can target a node and
+    // the replacement can remove it while the pointer is held down.
+    const setGraph = (json) => page.evaluate((j) => Object.values(window.moonkale.graphViews)[0].set_graph(j), json);
+    const graph = (ids) => JSON.stringify({
+      nodes: ids.map((id) => ({ id, label: id, kind: "page" })),
+      edges: ids.length > 1 ? [{ a: 0, b: 1 }] : [],
+    });
+    await setGraph(graph(["p1", "p2", "p3"]));
+    await sleep(1500); // settle + auto-fit
+    const p3 = await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].node_screen_position("p3"));
+    if (!p3) throw new Error("p3 not placed");
+    const sx = box.x + p3[0], sy = box.y + p3[1];
+    await page.mouse.move(sx, sy);
+    await page.mouse.down(); // pick p3 (index 2 of 3)
+    // The graph is replaced mid-drag with one node: the stale index 2 is out
+    // of bounds - the old renderer panicked here (issue #12).
+    await setGraph(graph(["p9"]));
+    await page.mouse.move(sx + 80, sy + 60, { steps: 4 });
+    await page.mouse.up();
+    await sleep(300);
+    const cam = await page.evaluate(() => Array.from(Object.values(window.moonkale.graphViews)[0].camera_state()));
+    console.log("\n  camera after mid-drag replacement:", cam.slice(0, 3).map((v) => v.toFixed(1)).join(","));
+    if (logs.some((l) => l.includes("panicked"))) throw new Error("the renderer panicked on a stale drag index");
+    if (cam.length < 6) throw new Error("the view died on a mid-drag graph replacement");
+  });
   console.log("GRAPH3D E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

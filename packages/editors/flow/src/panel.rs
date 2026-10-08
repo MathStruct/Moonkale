@@ -110,12 +110,18 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
     let libs = ws.contrib.flow_libraries.read().clone();
-    let initial = Flow::parse(&doc.peek().text).unwrap_or_default();
+    // An unparseable file is an error state, never an empty canvas (issue #11):
+    // the document stays untouched until it parses again.
+    let (initial, initial_error) = match Flow::parse(&doc.peek().text) {
+        Ok(flow) => (flow, None),
+        Err(e) => (Flow::new(), Some(e)),
+    };
     let (n0, e0) = to_canvas(&initial, &libs);
     let mut nodes: Signal<Vec<Node<BlockData>>> = use_signal(|| n0);
     let mut edges: Signal<Vec<Edge>> = use_signal(|| e0);
     let mut last_text = use_signal(|| doc.peek().text.clone());
     let mut error: Signal<Option<String>> = use_signal(|| None);
+    let mut parse_error: Signal<Option<String>> = use_signal(|| initial_error);
     let mut selected_lib = use_signal(|| 0usize);
     let handle: FlowHandle<BlockData> = use_flow_handle();
 
@@ -146,7 +152,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         doc.with_mut(|d| d.text = text);
     };
 
-    // Document replaced from outside (reload): rebuild the canvas.
+    // Document replaced from outside (reload): rebuild the canvas — or park
+    // the new text in the error state if it does not parse; the working
+    // copy waits until it does, and the document is never overwritten.
     {
         let libs = libs.clone();
         use_effect(move || {
@@ -155,11 +163,33 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 return;
             }
             last_text.set(text.clone());
-            let flow = Flow::parse(&text).unwrap_or_default();
-            let (n, e) = to_canvas(&flow, &libs);
-            nodes.set(n);
-            edges.set(e);
+            match Flow::parse(&text) {
+                Ok(flow) => {
+                    parse_error.set(None);
+                    let (n, e) = to_canvas(&flow, &libs);
+                    nodes.set(n);
+                    edges.set(e);
+                }
+                Err(e) => parse_error.set(Some(e)),
+            }
         });
+    }
+
+    // Not a flow: an error state, never an empty canvas (issue #11) — an
+    // empty canvas would serialise itself over the file on the first change.
+    // The document stays untouched; fixed text (on reopen or a reload)
+    // brings the canvas back.
+    if let Some(e) = parse_error() {
+        return rsx! {
+            moonkale_ext_api::Stylesheet { href: CSS }
+            div {
+                class: "mk-flow",
+                div { class: "mk-editor-toolbar",
+                    span { class: "mk-editor-path", "{doc.read().node.native_key}" }
+                }
+                div { class: "mk-editor-error", {t!(ws, L, "flow-parse-error", error = e)} }
+            }
+        };
     }
 
     let libs_valid = libs.clone();
