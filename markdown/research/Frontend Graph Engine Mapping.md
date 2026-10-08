@@ -54,6 +54,10 @@ Today: label LOD, 2 px min node radius, iteration caps. Missing: the general rul
 
 **§7 Domain compatibility.** The wire format is the config surface: typed edges = `kind` + per-layer styles (RDF: one layer per predicate); call graphs = layers for call vs trace; flows = ports + orthogonal routes + edit mode; MTK/factor graphs = port sides + directed edges; hypergraphs/simplicial = `InHyperedge { members, style: Junction | Region }` and `InSimplex { members }` (junction = a small node + spokes, region = tinted hull — deliberately distinct instance classes so they can't be conflated); spatial layouts = `fixed` positions. Validation/simulation stay in the domains, outside the renderer, as the spec demands.
 
+**3D.** The renderer has a 3D mode (`set_mode`, orbit camera, kind planes). Everything this note adds is 2D-first: routes, ports, hulls, orthogonal edges and edit mode are 2D-only — in 3D every edge stays a straight quad between endpoints, groups show as their members, and edit mode is refused (the mode stays 2D while it is active). Straight segments and pulses work in both (a pulse travels the projected path).
+
+**Accessibility.** A canvas graph is invisible to keyboards and screen readers today. Two minimums, tracked as requirements rather than a stage: keyboard focus moves between nodes (arrows/Tab over the instance order, Enter = click), and the selection is described in text (an `aria-live` line naming the selected nodes/edges, mirroring what the events already carry).
+
 ## 3. Minimal interfaces (proposal)
 
 All wire additions are `#[serde(default)]`, so the current panel — and every existing e2e suite — keeps working unchanged.
@@ -89,18 +93,21 @@ pub fn build_frame(graph: &Graph, pres: &Presentation, lod: &Lod) -> Frame
 
 `render.rs` then draws one pipeline per instance class and uploads ranges into persistent buffers. Native unit tests target `build_frame` (counts, fan-out geometry, LOD cutoffs) — the same style as the existing `scene.rs`/`camera.rs` tests — and `graph3d.mjs`/`graph.mjs` gain per-stage e2e steps.
 
+*Updates at scale:* every update re-sends the whole graph as JSON today, which will not stay fluid at 100 k nodes under edit-mode-frequency changes. A delta form — add/remove/change **by instance id**, next to the incremental `set_graph` that matches whole graphs — belongs in the same command set; it is the wire-level twin of ADR-0015's `changes_since` model and can be introduced per stage without changing the shapes above.
+
 ## 4. Staged plan
 
 | Stage | Delivers | Acceptance | Tests |
 |---|---|---|---|
+| 0 — Persistent buffers | replace `draw`'s per-frame `create_buffer_init` with persistent buffers + partial `write_buffer` updates (positions change every layout step, styles rarely) | none by itself, but it removes today's per-frame cost at 100 k and depends on nothing else — do it first and measure | `bench.mjs` before/after |
 | 1 — Edges & selection | segment instances, width/dash/opacity/arrow, parallel fan-out, self-loops, edge labels on hover, CPU edge/port-free picking, selection + `select` events | §8.1 (partly: edges selectable), §8.2 (routes minus orthogonal) | frame unit tests; graph3d.mjs picks an edge, selects two nodes |
 | 2 — Ports & edit mode | `InPort`, port hit targets, `set_mode("edit")`, connect gesture + `connect` event, bezier routes | §8.1 (ports), §8.7 (mode switch on the same renderer) | e2e: wire two nodes in edit mode, mode switch preserves camera |
 | 3 — Layers & traces | `InLayer` visibility/commands, offset parallel strokes, `InTrace` ordered walks, overlays | §8.3 | e2e: blue call layer + yellow trace, recursion shows two occurrences |
-| 4 — Groups & LOD | group hulls, collapse/expand via host + incremental set_graph, LOD table (ports/icons/labels/dashes/pulses), frustum culling, persistent buffers, `focus` | §8.5, §8.6 | bench.mjs stays within budget; e2e collapse keeps selection + external edges |
+| 4 — Groups & LOD | group hulls, collapse/expand via host + incremental set_graph, LOD table (ports/icons/labels/dashes/pulses), frustum culling, `focus` | §8.5, §8.6 | bench.mjs stays within budget; e2e collapse keeps selection + external edges |
 | 5 — Higher-order | hyperedge junctions/regions, simplices, clique hulls | §8.4 | unit: distinct instance classes; e2e shows all three differently |
 | 6 — Pulses | shader-animated edge particles, LOD-gated | §8.2 (variable speed) | e2e + a GPU-frame sanity check |
-| 7 — Flow migration | hierarchical layout, orthogonal routing, port-typed wiring parity; the flow editor drives the wgpu engine in edit mode; dioxus-flow retired | §8.7 complete | flow.mjs rewritten against the engine; only then does the second stack die |
+| 7 — Flow migration | hierarchical layout, orthogonal routing, port-typed wiring parity — including **parameter editing**: an HTML editor shown only for the selected node, positioned from `Scene::screen_position` (the spec forbids rich per-node UI). The flow editor drives the wgpu engine in edit mode; dioxus-flow retired | §8.7 complete | flow.mjs rewritten against the engine; only then does the second stack die |
 
 Order notes: stages 1–3 are additive and independently shippable; 4 is where performance work lands (it gates 5–6 visually); 7 is the only stage that removes code and is explicitly gated on a parity checklist (ports, typed validation hooks, layered layout, undo are the flow editor's today — [[Flow Editor]] phase list). GPU id-picking is deliberately *not* scheduled: CPU picking over culled segments is O(visible), and the pick-buffer only wins if measurements say otherwise ([[Graph Rendering Options]] lists it; decide with data).
 
-Decisions to confirm before stage 1: (a) this staged order; (b) flow-editor migration as stage 7 rather than "never" or "first"; (c) whether hulls/regions are worth their own pipeline early, or wait for stage 5.
+Decisions to confirm before stage 0: (a) this staged order; (b) flow-editor migration as stage 7 rather than "never" or "first" — it cuts against `research/dioxus-flow.md` (which recommended separate stacks at Milestone 6 scale) and the Roadmap's Lenticulum item (undirected ports, nested subgraphs on the current flow editor), so it belongs in an ADR — the next free number is **ADR-0018**; (c) whether hulls/regions are worth their own pipeline early, or wait for stage 5. Open on Daniel's side: the specification itself is not in the repository yet — specs are numbered by him (`markdown/specifications/`, 030 is the last); once it is registered (031), link it here and re-check the mapping against it section by section.
