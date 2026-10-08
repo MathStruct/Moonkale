@@ -71,5 +71,6 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 
 - **Stage 0 — persistent instance buffers**: geometry/appearance split per pipeline, revision-gated uploads; 100 k nodes settle at 1.14 ms per drawn frame (`bench-draw.mjs`).
 - **Stage 1 — edges and selection**: `frame.rs` tessellates edges into segments (parallel fan-out, self-loop rings, dashes, widths), arrowheads for directed edges, `edge_at` picking; selection by instance id with `select` events — a plain click picks a node, then an edge, then clears; Ctrl toggles; a released drag selects nothing. `graph-edges.mjs` covers it; the shader is validated natively (naga, P-158).
+- **Stage 2 — ports and edit mode**: `InPort` on the wire format (side/offset/direction), edges anchor at their ports, ports draw in edit mode only, and a wire dragged between ports emits `connect` — the host validates and adds the edge. `set_interaction("explore"|"edit")` switches modes on the same renderer without touching the camera (`set_mode` stays 2D/3D). `graph-edit.mjs` covers it.
 
-Next: ports and edit mode (stage 2), layers and traces (3), groups and LOD (4), higher-order edges (5), pulses (6), the flow editor's move onto this engine (7, ADR-0018).
+Next: layers and traces (stage 3), groups and LOD (4), higher-order edges (5), pulses (6), the flow editor's move onto this engine (7, ADR-0018).

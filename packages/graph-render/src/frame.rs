@@ -7,7 +7,7 @@
 //! same segments.
 
 use crate::camera::Camera;
-use crate::graph::{Arrow, Edge, Graph, Route};
+use crate::graph::{Arrow, Edge, Graph, InSide, Port, Route};
 use bytemuck::{Pod, Zeroable};
 
 /// Segment endpoints (instance slot 0 — changes while the layout runs).
@@ -60,6 +60,21 @@ impl Selection {
     }
 }
 
+/// What one frame needs besides the graph (spec 031, stage 2: the draw
+/// call's inputs grew past the inline style). `render::draw` takes it; a
+/// native host could run the same numbers through it later.
+pub struct DrawInput<'a> {
+    pub camera: &'a Camera,
+    pub hovered: Option<usize>,
+    pub selected: &'a Selection,
+    /// Edit mode draws the ports and the pending wire (spec 031 §5).
+    pub edit: bool,
+    /// The wire being dragged, world endpoints — not yet an edge.
+    pub pending: Option<([f32; 3], [f32; 3])>,
+    pub pos_rev: u64,
+    pub attr_rev: u64,
+}
+
 /// Segments per curved edge (a parallel's bow is a shallow arc; stage 4's
 /// LOD replaces distant curves with fewer).
 pub const CURVE_SEGS: usize = 8;
@@ -67,6 +82,9 @@ pub const CURVE_SEGS: usize = 8;
 pub const LOOP_SEGS: usize = 16;
 /// Arrowhead size in world units (the nodes' own radius is 4–10).
 pub const ARROW_SIZE: f32 = 6.0;
+/// Port marker radius in world units; a port sits this far outside the rim.
+pub const PORT_STANDOFF: f32 = 2.5;
+pub const PORT_RADIUS: f32 = 2.5;
 
 #[derive(Default)]
 pub struct Frame {
@@ -76,11 +94,17 @@ pub struct Frame {
     pub seg_edge: Vec<usize>,
     pub arrows: Vec<ArrowPos>,
     pub arrow_attrs: Vec<ArrowAttr>,
+    /// World positions of the graph's ports, same order as `graph.ports`
+    /// (drawn in edit mode, picked always — spec 031 §2, stage 2).
+    pub port_pos: Vec<[f32; 3]>,
 }
 
 /// The scene → instance lists for one frame.
 pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
-    let mut f = Frame::default();
+    let mut f = Frame {
+        port_pos: graph.ports.iter().map(|p| port_world(graph, p)).collect(),
+        ..Default::default()
+    };
     for (i, e) in graph.edges.iter().enumerate() {
         let line = polyline(graph, e);
         for w in line.windows(2) {
@@ -145,7 +169,8 @@ pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
 /// The edge's world-space polyline (its tessellation): `[a, …, b]`.
 fn polyline(graph: &Graph, e: &Edge) -> Vec<[f32; 3]> {
     let na = &graph.nodes[e.a];
-    let nb = &graph.nodes[e.b];
+    let a_end = anchored(graph, e.a, &e.a_port);
+    let b_end = anchored(graph, e.b, &e.b_port);
     if e.a == e.b {
         // A self-loop: a circle resting on the node, starting and ending at
         // its centre so it reads as attached; the bow widens the ring.
@@ -165,27 +190,21 @@ fn polyline(graph: &Graph, e: &Edge) -> Vec<[f32; 3]> {
             .collect()
     } else {
         match e.route {
-            Route::Straight => vec![[na.x, na.y, na.z], [nb.x, nb.y, nb.z]],
+            Route::Straight => vec![a_end, b_end],
             Route::Bezier { offset } => {
-                let (dx, dy) = (nb.x - na.x, nb.y - na.y);
+                let (dx, dy) = (b_end[0] - a_end[0], b_end[1] - a_end[1]);
                 let len = (dx * dx + dy * dy).sqrt().max(1e-3);
                 // Perpendicular of the endpoint line, unit length.
                 let (px, py) = (-dy / len, dx / len);
                 let (mx, my) = (
-                    (na.x + nb.x) / 2.0 + px * offset,
-                    (na.y + nb.y) / 2.0 + py * offset,
+                    (a_end[0] + b_end[0]) / 2.0 + px * offset,
+                    (a_end[1] + b_end[1]) / 2.0 + py * offset,
                 );
                 (0..=CURVE_SEGS)
                     .map(|k| {
                         let t = k as f32 / CURVE_SEGS as f32;
                         let s = 1.0 - t;
-                        bezier(
-                            [na.x, na.y, na.z],
-                            [mx, my, (na.z + nb.z) / 2.0],
-                            [nb.x, nb.y, nb.z],
-                            t,
-                            s,
-                        )
+                        bezier(a_end, [mx, my, (a_end[2] + b_end[2]) / 2.0], b_end, t, s)
                     })
                     .collect()
             }
@@ -204,6 +223,68 @@ fn bezier(a: [f32; 3], c: [f32; 3], b: [f32; 3], t: f32, s: f32) -> [f32; 3] {
 
 /// One arrowhead: its tip a unit's width off the node's rim, the billboard
 /// centred half a head behind it, pointing along `dir`.
+/// A port's world position: outside the node's rim on its side, spread
+/// along the side by `offset` (0..1). Circles for now — stage 7's port
+/// diagrams on rectangles re-derives this from the node's shape.
+pub fn port_world(graph: &Graph, port: &Port) -> [f32; 3] {
+    let n = &graph.nodes[port.node];
+    let (dir, tangent) = match port.side {
+        InSide::Right => ([1.0, 0.0], [0.0, 1.0]),
+        InSide::Left => ([-1.0, 0.0], [0.0, 1.0]),
+        InSide::Top => ([0.0, -1.0], [1.0, 0.0]),
+        InSide::Bottom => ([0.0, 1.0], [1.0, 0.0]),
+    };
+    let along = (port.offset - 0.5) * n.radius * 2.0;
+    [
+        n.x + dir[0] * (n.radius + PORT_STANDOFF) + tangent[0] * along,
+        n.y + dir[1] * (n.radius + PORT_STANDOFF) + tangent[1] * along,
+        n.z,
+    ]
+}
+
+/// An edge endpoint: the named port's position, or the node's centre when
+/// the port does not exist (a stale name never breaks the geometry).
+fn anchored(graph: &Graph, node: usize, port: &Option<String>) -> [f32; 3] {
+    match port {
+        Some(name) => graph
+            .ports
+            .iter()
+            .find(|p| p.node == node && &p.name == name)
+            .map(|p| port_world(graph, p))
+            .unwrap_or_else(|| node_pos(graph, node)),
+        None => node_pos(graph, node),
+    }
+}
+
+fn node_pos(graph: &Graph, node: usize) -> [f32; 3] {
+    let n = &graph.nodes[node];
+    [n.x, n.y, n.z]
+}
+
+/// The port under a screen point, nearest within its marker's reach
+/// (spec 031 §2: ports are independent hit targets).
+pub fn port_at(frame: &Frame, camera: &Camera, x: f32, y: f32) -> Option<usize> {
+    let project = |p: [f32; 3]| -> Option<(f32, f32)> {
+        if camera.three_d {
+            camera.project(p[0], p[1], p[2]).map(|(sx, sy, _)| (sx, sy))
+        } else {
+            Some(camera.world_to_screen(p[0], p[1]))
+        }
+    };
+    let mut best: Option<(f32, usize)> = None;
+    for (i, p) in frame.port_pos.iter().enumerate() {
+        let Some((px, py)) = project(*p) else {
+            continue;
+        };
+        let d = ((px - x).powi(2) + (py - y).powi(2)).sqrt();
+        let reach = (PORT_RADIUS * camera.scale).max(4.0) + 2.0;
+        if d <= reach && best.is_none_or(|(bd, _)| d < bd) {
+            best = Some((d, i));
+        }
+    }
+    best.map(|(_, i)| i)
+}
+
 fn sub2(a: [f32; 3], b: [f32; 3]) -> [f32; 2] {
     [a[0] - b[0], a[1] - b[1]]
 }
@@ -282,11 +363,27 @@ mod tests {
             arrow: Arrow::None,
             label: String::new(),
             route: Route::Straight,
+            a_port: None,
+            b_port: None,
         }
     }
 
     fn graph(nodes: Vec<Node>, edges: Vec<Edge>) -> Graph {
-        Graph { nodes, edges }
+        Graph {
+            nodes,
+            edges,
+            ports: Vec::new(),
+        }
+    }
+
+    fn port(node: usize, name: &str, side: InSide, offset: f32) -> Port {
+        Port {
+            node,
+            name: name.into(),
+            side,
+            offset,
+            ..Default::default()
+        }
     }
 
     fn cam(w: f32, h: f32) -> Camera {
@@ -429,6 +526,74 @@ mod tests {
         let hit = edge_at(&f, &c, 70.0, 57.5);
         assert_eq!(hit, Some(1), "the bowed edge, not the straight one");
         assert_eq!(edge_at(&f, &c, 70.0, 50.0), Some(0), "on the line");
+    }
+
+    #[test]
+    fn ports_sit_outside_the_rim_on_their_side() {
+        let n = node("a", 0.0, 0.0); // radius 5
+        let g = Graph {
+            nodes: vec![n],
+            edges: Vec::new(),
+            ports: vec![
+                port(0, "out", InSide::Right, 0.5),
+                port(0, "in", InSide::Left, 0.5),
+                port(0, "top", InSide::Top, 0.5),
+                port(0, "bot", InSide::Bottom, 0.75),
+            ],
+        };
+        let f = build_frame(&g, false);
+        assert_eq!(f.port_pos.len(), 4);
+        let near = |a: [f32; 3], x: f32, y: f32| (a[0] - x).abs() < 1e-4 && (a[1] - y).abs() < 1e-4;
+        // Standoff 2.5 beyond the radius-5 rim; the offsets spread along the
+        // side's tangent (offset 0.75 of 1 → (0.75 − 0.5) · 2 · 5 = 2.5).
+        assert!(near(f.port_pos[0], 7.5, 0.0), "right: {:?}", f.port_pos[0]);
+        assert!(near(f.port_pos[1], -7.5, 0.0), "left: {:?}", f.port_pos[1]);
+        assert!(near(f.port_pos[2], 0.0, -7.5), "top: {:?}", f.port_pos[2]);
+        assert!(
+            near(f.port_pos[3], 2.5, 7.5),
+            "bottom at 0.75: {:?}",
+            f.port_pos[3]
+        );
+    }
+
+    #[test]
+    fn edges_anchor_at_ports_and_stale_names_fall_back() {
+        let mut e = edge(0, 1);
+        e.a_port = Some("out".into());
+        e.b_port = Some("in".into());
+        let g = Graph {
+            nodes: vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
+            edges: vec![e],
+            ports: vec![
+                port(0, "out", InSide::Right, 0.5),
+                port(1, "in", InSide::Left, 0.5),
+            ],
+        };
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 1);
+        assert_eq!(f.segs[0].a, [7.5, 0.0, 0.0], "starts at a's port");
+        assert_eq!(f.segs[0].b, [32.5, 0.0, 0.0], "ends at b's port");
+        // A port name that does not exist anchors at the node's centre.
+        let mut stale = edge(0, 1);
+        stale.a_port = Some("nope".into());
+        let g2 = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![stale]);
+        let f2 = build_frame(&g2, false);
+        assert_eq!(f2.segs[0].a, [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn port_at_picks_the_marker() {
+        let g = Graph {
+            nodes: vec![node("a", 0.0, 0.0)],
+            edges: Vec::new(),
+            ports: vec![port(0, "out", InSide::Right, 0.5)],
+        };
+        let f = build_frame(&g, false);
+        let c = cam(100.0, 100.0);
+        // World (7.5, 0) → screen (57.5, 50).
+        assert_eq!(port_at(&f, &c, 57.5, 50.0), Some(0));
+        assert_eq!(port_at(&f, &c, 57.5, 54.0), Some(0), "within the reach");
+        assert_eq!(port_at(&f, &c, 57.5, 62.0), None, "too far");
     }
 
     #[test]

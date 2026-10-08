@@ -14,6 +14,7 @@
 //! let mut scene = Scene::new(InGraph {
 //!     nodes: vec![node("a"), node("b"), node("c")],
 //!     edges: vec![InEdge { a: 0, b: 1, kind: "link".into(), color: None, ..Default::default() }],
+//!     ..Default::default()
 //! });
 //! scene.resize(800.0, 600.0);
 //! scene.settle(500);

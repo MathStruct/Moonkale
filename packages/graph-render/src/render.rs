@@ -2,7 +2,7 @@
 //! arrowheads, nodes). Written against wgpu 30.
 
 use crate::camera::Camera;
-use crate::frame::{self, ArrowAttr, ArrowPos, SegAttr, SegPos, Selection};
+use crate::frame::{self, ArrowAttr, ArrowPos, DrawInput, SegAttr, SegPos};
 use crate::graph::Graph;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -436,15 +436,16 @@ impl Renderer {
     /// draw one frame. The scene (`frame::build_frame`) is cached until a
     /// revision moves, so a camera pan or zoom re-draws it without
     /// rebuilding the segments.
-    pub fn draw(
-        &mut self,
-        graph: &Graph,
-        camera: &Camera,
-        hovered: Option<usize>,
-        selected: &Selection,
-        pos_rev: u64,
-        attr_rev: u64,
-    ) {
+    pub fn draw(&mut self, graph: &Graph, input: &DrawInput) {
+        let DrawInput {
+            camera,
+            hovered,
+            selected,
+            edit,
+            pending,
+            pos_rev,
+            attr_rev,
+        } = *input;
         if pos_rev != self.built_pos_rev || attr_rev != self.built_attr_rev {
             self.frame = frame::build_frame(graph, camera.three_d);
             self.built_pos_rev = pos_rev;
@@ -456,15 +457,20 @@ impl Renderer {
         let seg_attr_stride = std::mem::size_of::<SegAttr>() as u64;
         let arrow_stride = std::mem::size_of::<ArrowPos>() as u64;
         let arrow_attr_stride = std::mem::size_of::<ArrowAttr>() as u64;
+        // Ports draw as small circles on the node pipeline (edit mode only,
+        // spec 031 §2); the pending wire draws as one extra segment.
+        let port_count = if edit { self.frame.port_pos.len() } else { 0 };
+        let node_count = graph.nodes.len() + port_count;
+        let pending_count = pending.map_or(0, |_| 1);
         self.node_bufs.ensure(
             &self.device,
-            graph.nodes.len() as u64,
+            node_count as u64,
             node_stride,
             node_attr_stride,
         );
         self.seg_bufs.ensure(
             &self.device,
-            self.frame.segs.len() as u64,
+            (self.frame.segs.len() + pending_count) as u64,
             seg_stride,
             seg_attr_stride,
         );
@@ -476,19 +482,22 @@ impl Renderer {
         );
 
         if pos_rev != self.node_bufs.pos_rev {
-            let pos: Vec<NodePos> = graph
+            let mut pos: Vec<NodePos> = graph
                 .nodes
                 .iter()
                 .map(|n| NodePos {
                     pos: [n.x, n.y, n.z],
                 })
                 .collect();
+            for p in self.frame.port_pos.iter().take(port_count) {
+                pos.push(NodePos { pos: *p });
+            }
             self.queue
                 .write_buffer(&self.node_bufs.pos, 0, bytemuck::cast_slice(&pos));
             self.node_bufs.pos_rev = pos_rev;
         }
         if attr_rev != self.node_bufs.attr_rev {
-            let attr: Vec<NodeAttr> = graph
+            let mut attr: Vec<NodeAttr> = graph
                 .nodes
                 .iter()
                 .enumerate()
@@ -508,22 +517,30 @@ impl Renderer {
                     }
                 })
                 .collect();
+            for p in graph.ports.iter().take(port_count) {
+                attr.push(NodeAttr {
+                    color: p.color,
+                    radius: frame::PORT_RADIUS,
+                    selected: 0.0,
+                });
+            }
             self.queue
                 .write_buffer(&self.node_bufs.attr, 0, bytemuck::cast_slice(&attr));
             self.node_bufs.attr_rev = attr_rev;
         }
         if pos_rev != self.seg_bufs.pos_rev {
-            self.queue.write_buffer(
-                &self.seg_bufs.pos,
-                0,
-                bytemuck::cast_slice(&self.frame.segs),
-            );
+            let mut segs = self.frame.segs.clone();
+            if let Some((a, b)) = pending {
+                segs.push(SegPos { a, b });
+            }
+            self.queue
+                .write_buffer(&self.seg_bufs.pos, 0, bytemuck::cast_slice(&segs));
             self.seg_bufs.pos_rev = pos_rev;
         }
         if attr_rev != self.seg_bufs.attr_rev {
             // Per segment, but the appearance is per edge: a selected edge
             // lifts its colour and thickens every segment it spans.
-            let attr: Vec<SegAttr> = self
+            let mut attr: Vec<SegAttr> = self
                 .frame
                 .seg_edge
                 .iter()
@@ -549,6 +566,14 @@ impl Renderer {
                     }
                 })
                 .collect();
+            if pending.is_some() {
+                // The wire being dragged: light, uncommitted, never dashed.
+                attr.push(SegAttr {
+                    color: [0.78, 0.82, 0.90, 0.9],
+                    width: 1.6,
+                    dash: 0.0,
+                });
+            }
             self.queue
                 .write_buffer(&self.seg_bufs.attr, 0, bytemuck::cast_slice(&attr));
             self.seg_bufs.attr_rev = attr_rev;
@@ -611,21 +636,17 @@ impl Renderer {
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_bind, &[]);
-            if !self.frame.segs.is_empty() {
+            let seg_total = self.frame.segs.len() + pending_count;
+            if seg_total > 0 {
                 pass.set_pipeline(&self.seg_pipe);
-                pass.set_vertex_buffer(
-                    0,
-                    self.seg_bufs
-                        .pos
-                        .slice(..self.frame.segs.len() as u64 * seg_stride),
-                );
+                pass.set_vertex_buffer(0, self.seg_bufs.pos.slice(..seg_total as u64 * seg_stride));
                 pass.set_vertex_buffer(
                     1,
                     self.seg_bufs
                         .attr
-                        .slice(..self.frame.segs.len() as u64 * seg_attr_stride),
+                        .slice(..seg_total as u64 * seg_attr_stride),
                 );
-                pass.draw(0..4, 0..self.frame.segs.len() as u32);
+                pass.draw(0..4, 0..seg_total as u32);
             }
             if !self.frame.arrows.is_empty() {
                 pass.set_pipeline(&self.arrow_pipe);
@@ -647,17 +668,15 @@ impl Renderer {
                 pass.set_pipeline(&self.node_pipe);
                 pass.set_vertex_buffer(
                     0,
-                    self.node_bufs
-                        .pos
-                        .slice(..graph.nodes.len() as u64 * node_stride),
+                    self.node_bufs.pos.slice(..node_count as u64 * node_stride),
                 );
                 pass.set_vertex_buffer(
                     1,
                     self.node_bufs
                         .attr
-                        .slice(..graph.nodes.len() as u64 * node_attr_stride),
+                        .slice(..node_count as u64 * node_attr_stride),
                 );
-                pass.draw(0..4, 0..graph.nodes.len() as u32);
+                pass.draw(0..4, 0..node_count as u32);
             }
         }
         self.queue.submit(Some(enc.finish()));

@@ -58,6 +58,12 @@ pub struct InEdge {
     /// flow editor, stage 7).
     #[serde(default)]
     pub route: Option<InRoute>,
+    /// Anchor at a port of `a`/`b` by name (spec 031 §2, stage 2); absent =
+    /// the node's centre.
+    #[serde(default)]
+    pub a_port: Option<String>,
+    #[serde(default)]
+    pub b_port: Option<String>,
 }
 
 /// Where arrowheads sit on an edge.
@@ -96,10 +102,75 @@ pub enum Route {
     Bezier { offset: f32 },
 }
 
+/// The internal port: the wire's [`InPort`] with the appearance resolved.
+#[derive(Clone, Debug)]
+pub struct Port {
+    pub node: usize,
+    pub name: String,
+    pub color: [f32; 4],
+    pub side: InSide,
+    pub offset: f32,
+    pub direction: InDirection,
+}
+
+impl Default for Port {
+    fn default() -> Self {
+        Self {
+            node: 0,
+            name: String::new(),
+            color: [0.55, 0.60, 0.72, 1.0],
+            side: InSide::Right,
+            offset: 0.5,
+            direction: InDirection::Both,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InGraph {
     pub nodes: Vec<InNode>,
     pub edges: Vec<InEdge>,
+    /// Boundary ports (spec 031 §2): mostly for port diagrams and the flow
+    /// editor's edit mode; absent in plain index graphs.
+    #[serde(default)]
+    pub ports: Vec<InPort>,
+}
+
+/// One port on a node's boundary. Placement is side-based — the flow
+/// editor's language (inputs left, outputs right) — with `offset` (0..1)
+/// spreading several ports along the side. `direction` is presentation and
+/// gesture affordance only; type checking stays with the host (spec §7).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InPort {
+    /// Index into `nodes`.
+    pub node: usize,
+    pub name: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub side: Option<InSide>,
+    /// 0..1 along the side's tangent; 0.5 (the default) is its centre.
+    #[serde(default)]
+    pub offset: Option<f32>,
+    #[serde(default)]
+    pub direction: Option<InDirection>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InSide {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InDirection {
+    In,
+    Out,
+    Both,
 }
 
 #[derive(Clone, Debug)]
@@ -134,12 +205,16 @@ pub struct Edge {
     pub label: String,
     /// Resolved route; parallel edges get their bow here (spec 031 §2).
     pub route: Route,
+    /// Port anchors by name, resolved in `frame` (stage 2).
+    pub a_port: Option<String>,
+    pub b_port: Option<String>,
 }
 
 #[derive(Clone, Default)]
 pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
+    pub ports: Vec<Port>,
 }
 
 pub fn color_for(kind: &str) -> [f32; 4] {
@@ -194,7 +269,7 @@ impl Graph {
             }
         }
         let spread = 12.0 * n.sqrt();
-        let nodes = input
+        let nodes: Vec<Node> = input
             .nodes
             .into_iter()
             .enumerate()
@@ -257,10 +332,38 @@ impl Graph {
                     arrow,
                     label: e.label.unwrap_or_default(),
                     route,
+                    a_port: e.a_port,
+                    b_port: e.b_port,
                 }
             })
             .collect();
-        Self { nodes, edges }.with_bows()
+        let ports = input
+            .ports
+            .into_iter()
+            .filter(|p| p.node < nodes.len())
+            .map(|p| {
+                let mut color = p
+                    .color
+                    .as_deref()
+                    .and_then(|c| parse_hex(c, 1.0))
+                    .unwrap_or([0.55, 0.60, 0.72, 1.0]);
+                color[3] = 1.0;
+                Port {
+                    node: p.node,
+                    name: p.name,
+                    color,
+                    side: p.side.unwrap_or(InSide::Right),
+                    offset: p.offset.unwrap_or(0.5).clamp(0.0, 1.0),
+                    direction: p.direction.unwrap_or(InDirection::Both),
+                }
+            })
+            .collect();
+        Self {
+            nodes,
+            edges,
+            ports,
+        }
+        .with_bows()
     }
 
     /// Parallel edges (same endpoint pair, either direction) bow away from

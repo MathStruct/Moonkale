@@ -49,7 +49,11 @@ fn main() {
         edge(6, 3),
     ];
 
-    let mut scene = Scene::new(InGraph { nodes, edges });
+    let mut scene = Scene::new(InGraph {
+        nodes,
+        edges,
+        ..Default::default()
+    });
     scene.resize(800.0, 600.0);
     let steps = scene.settle(2_000);
     scene.fit();

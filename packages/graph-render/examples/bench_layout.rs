@@ -38,7 +38,11 @@ fn synthetic(n: usize) -> Graph {
             });
         }
     }
-    Graph::from_input(InGraph { nodes, edges })
+    Graph::from_input(InGraph {
+        nodes,
+        edges,
+        ..Default::default()
+    })
 }
 
 fn main() {

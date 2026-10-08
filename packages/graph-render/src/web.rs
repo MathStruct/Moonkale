@@ -58,6 +58,14 @@ struct State {
     /// selects nothing (the pointer released a pan or a node move, not a
     /// pick).
     drag_moved: bool,
+    /// Explore or edit (spec 031 §5); `set_mode` stays the 2D/3D switch.
+    interaction: Interaction,
+    /// The wire being dragged: its source port and the current endpoint
+    /// (edit mode; the pending wire, not yet an edge).
+    wire_from: Option<usize>,
+    wire_to: Option<[f32; 3]>,
+    /// The last `connect` event, as JSON, for tests.
+    last_connect: Option<String>,
 }
 
 impl State {
@@ -108,6 +116,18 @@ enum Drag {
     Orbit {
         last: (f32, f32),
     },
+    /// Edit mode: dragging a wire out of a port (spec 031 §5, stage 2).
+    Wire {
+        port: usize,
+    },
+}
+
+/// The two interaction modes over one renderer (spec 031 §5): graph
+/// exploration, and flow/canvas editing — ports, wire gestures.
+#[derive(Clone, Copy, PartialEq)]
+enum Interaction {
+    Explore,
+    Edit,
 }
 
 #[wasm_bindgen]
@@ -183,7 +203,11 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             });
         }
     }
-    let mut g = crate::graph::Graph::from_input(InGraph { nodes, edges });
+    let mut g = crate::graph::Graph::from_input(InGraph {
+        nodes,
+        edges,
+        ..Default::default()
+    });
     let mut layout = crate::layout::Layout::new(&g);
     let perf = web_sys::window().and_then(|w| w.performance());
     let t0 = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
@@ -251,6 +275,10 @@ pub async fn create(
         attr_rev: 1,
         selected: frame::Selection::default(),
         drag_moved: false,
+        interaction: Interaction::Explore,
+        wire_from: None,
+        wire_to: None,
+        last_connect: None,
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -491,6 +519,29 @@ impl GraphView {
         self.state.borrow().renderer.backend.clone()
     }
 
+    /// `"explore"` or `"edit"` (spec 031 §5): the same renderer, two
+    /// interaction modes — edit draws the ports and lets a wire be dragged
+    /// between them; the camera is never touched. `set_mode` stays the
+    /// 2D/3D switch.
+    pub fn set_interaction(&self, mode: &str) {
+        let mut s = self.state.borrow_mut();
+        let edit = mode == "edit";
+        let next = if edit {
+            Interaction::Edit
+        } else {
+            Interaction::Explore
+        };
+        if s.interaction == next {
+            return;
+        }
+        s.interaction = next;
+        s.wire_from = None;
+        s.wire_to = None;
+        s.pos_rev += 1; // ports join or leave the node instances
+        s.attr_rev += 1;
+        s.dirty = true;
+    }
+
     /// `"2d"` or `"3d"` (Milestone 8): the same graph, a perspective camera
     /// orbiting the layout with one plane per node kind.
     pub fn set_mode(&self, mode: &str) {
@@ -551,12 +602,56 @@ impl GraphView {
         serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
     }
 
-    /// `[segments, arrows]` — the built frame's instance counts, for tests
-    /// (spec 031 §2: curves tessellate, directed edges grow heads).
+    /// `[segments, arrows, ports]` — instance counts; ports count only in
+    /// edit mode (they are drawn then) — for tests (spec 031 §2).
     pub fn frame_state(&self) -> Vec<f64> {
         let s = self.state.borrow();
         let f = s.renderer.frame();
-        vec![f.segs.len() as f64, f.arrows.len() as f64]
+        let ports = if s.interaction == Interaction::Edit {
+            f.port_pos.len()
+        } else {
+            0
+        };
+        vec![f.segs.len() as f64, f.arrows.len() as f64, ports as f64]
+    }
+
+    /// `"explore"` or `"edit"` — the interaction mode (spec 031 §5), for
+    /// tests. `set_mode` stays the 2D/3D switch (Milestone 8).
+    pub fn interaction(&self) -> String {
+        match self.state.borrow().interaction {
+            Interaction::Edit => "edit".into(),
+            Interaction::Explore => "explore".into(),
+        }
+    }
+
+    /// The last `connect` event's JSON (`{"from":null}` before any) — for
+    /// tests.
+    pub fn connect_state(&self) -> String {
+        self.state
+            .borrow()
+            .last_connect
+            .clone()
+            .unwrap_or_else(|| r#"{"from":null}"#.into())
+    }
+
+    /// A port's screen position by node id and port name — for tests and
+    /// for the host's port popups.
+    pub fn port_screen_position(&self, node: &str, port: &str) -> Option<Vec<f32>> {
+        let s = self.state.borrow();
+        let n = s.graph.nodes.iter().position(|n| n.id == node)?;
+        let p = s
+            .graph
+            .ports
+            .iter()
+            .position(|p| p.node == n && p.name == port)?;
+        let pw = frame::port_world(&s.graph, &s.graph.ports[p]);
+        if s.camera.three_d {
+            let (x, y, _) = s.camera.project(pw[0], pw[1], pw[2])?;
+            Some(vec![x, y])
+        } else {
+            let (x, y) = s.camera.world_to_screen(pw[0], pw[1]);
+            Some(vec![x, y])
+        }
     }
 
     /// Screen position of a node by id (for tests and for the host's popup).
@@ -621,6 +716,11 @@ fn start_loop(state: Rc<RefCell<State>>) {
             let t0 = web_sys::window()
                 .and_then(|w| w.performance())
                 .map(|p| p.now());
+            let pending = match (s.wire_from, s.wire_to) {
+                (Some(p), Some(t)) => Some((frame::port_world(&s.graph, &s.graph.ports[p]), t)),
+                _ => None,
+            };
+            let edit = s.interaction == Interaction::Edit;
             let State {
                 graph,
                 camera,
@@ -631,7 +731,16 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 attr_rev,
                 ..
             } = &mut *s;
-            renderer.draw(graph, camera, *hovered, selected, *pos_rev, *attr_rev);
+            let input = frame::DrawInput {
+                camera,
+                hovered: *hovered,
+                selected,
+                edit,
+                pending,
+                pos_rev: *pos_rev,
+                attr_rev: *attr_rev,
+            };
+            renderer.draw(graph, &input);
             if let Some(t0) = t0 {
                 let t1 = web_sys::window()
                     .and_then(|w| w.performance())
@@ -774,6 +883,22 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             last_angle: (b.2 - a.2).atan2(b.1 - a.1),
                             last_mid: ((a.1 + b.1) / 2.0, (a.2 + b.2) / 2.0),
                         };
+                        s.wire_from = None;
+                        s.wire_to = None;
+                        return;
+                    }
+                }
+                // Edit mode: a port grab starts a wire (spec 031 §5,
+                // stage 2) — ports are checked before nodes.
+                if s.interaction == Interaction::Edit {
+                    let fr = frame::build_frame(&s.graph, s.camera.three_d);
+                    if let Some(p) = frame::port_at(&fr, &s.camera, x, y) {
+                        s.dragging = Drag::Wire { port: p };
+                        s.auto_fit = false;
+                        s.wire_from = Some(p);
+                        s.wire_to = None;
+                        s.pos_rev += 1; // the pending wire appears
+                        s.dirty = true;
                         return;
                     }
                 }
@@ -897,6 +1022,29 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         s.pos_rev += 1;
                         s.dirty = true;
                     }
+                    Drag::Wire { port } => {
+                        s.auto_fit = false;
+                        // The wire follows the pointer at its source port's
+                        // depth (the same plane rule as a dragged node).
+                        let from = frame::port_world(&s.graph, &s.graph.ports[port]);
+                        let end = if s.camera.three_d {
+                            s.camera
+                                .project(from[0], from[1], from[2])
+                                .map(|(_, _, w)| {
+                                    let (wx, wy, wz) = s.camera.unproject(x, y, w);
+                                    [wx, wy, wz]
+                                })
+                        } else {
+                            let (wx, wy) = s.camera.screen_to_world(x, y);
+                            Some([wx, wy, from[2]])
+                        };
+                        if let Some(end) = end {
+                            s.wire_to = Some(end);
+                            s.drag_moved = true;
+                            s.pos_rev += 1;
+                            s.dirty = true;
+                        }
+                    }
                     Drag::Pinch { .. } => {}
                     Drag::None => {
                         let hit = s.camera.hit(&s.graph, x, y);
@@ -938,6 +1086,32 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         };
                         return;
                     }
+                }
+                // A released wire completes or cancels (spec 031 §5):
+                // dropped on another port it emits `connect` — the host
+                // validates types and adds the edge; the renderer never
+                // mutates topology.
+                if let Drag::Wire { port } = s.dragging {
+                    let fr = frame::build_frame(&s.graph, s.camera.three_d);
+                    let over = frame::port_at(&fr, &s.camera, x, y);
+                    if let (Some(from), Some(to)) = (s.wire_from, over.filter(|p| *p != port)) {
+                        let fp = &s.graph.ports[from];
+                        let tp = &s.graph.ports[to];
+                        let payload = serde_json::json!({
+                            "kind": "connect",
+                            "from": { "node": s.graph.nodes[fp.node].id, "port": fp.name },
+                            "to": { "node": s.graph.nodes[tp.node].id, "port": tp.name },
+                        });
+                        s.last_connect = Some(payload.to_string());
+                        emit(&s, payload);
+                    }
+                    s.wire_from = None;
+                    s.wire_to = None;
+                    s.dragging = Drag::None;
+                    s.drag_moved = true; // a wire is a gesture, not a pick
+                    s.pos_rev += 1; // the pending wire goes
+                    s.dirty = true;
+                    return;
                 }
                 // A node the user placed stays put (pinned) until Relayout.
                 s.dragging = Drag::None;
@@ -1019,6 +1193,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 s.touches.retain(|t| t.0 != e.pointer_id());
                 if s.touches.len() < 2 {
                     s.dragging = Drag::None;
+                    s.wire_from = None;
+                    s.wire_to = None;
                 }
             });
         let _ =
@@ -1035,6 +1211,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     return; // captured pointers report leave while still down
                 }
                 s.dragging = Drag::None;
+                s.wire_from = None;
+                s.wire_to = None;
                 if s.hovered.take().is_some() {
                     s.attr_rev += 1;
                     s.dirty = true;

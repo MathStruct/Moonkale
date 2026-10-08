@@ -177,7 +177,11 @@ mod tests {
                 ..Default::default()
             });
         }
-        let mut g = Graph::from_input(InGraph { nodes, edges });
+        let mut g = Graph::from_input(InGraph {
+            nodes,
+            edges,
+            ..Default::default()
+        });
         let mut l = Layout::new(&g);
         let mut steps = 0;
         while l.running && steps < 1000 {
@@ -225,7 +229,11 @@ mod tests {
                 ..Default::default()
             })
             .collect();
-        Graph::from_input(InGraph { nodes, edges })
+        Graph::from_input(InGraph {
+            nodes,
+            edges,
+            ..Default::default()
+        })
     }
 
     #[test]
