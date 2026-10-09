@@ -7,7 +7,10 @@
 # Each PORT has its own pid/log file, so a token-mode server can run next to the normal one.
 # SERVE_FEATURES: the web crate's features for the build (default `julia`: flow.mjs drives the Lux
 # blocks, which come from MathStruct/moonkale-julia since Milestone 18 phase 6.4).
-# SERVE_WAIT: how many 5 s rounds to wait for the first build (default 240 = 20 min; CI sets more).
+# SERVE_WAIT: seconds to wait for the first build (default 1200 = 20 min; CI sets more).
+# SERVE_STALL: give up when the dx log has not grown for this many seconds (default 1200;
+#   a cold build of a bundled C++ library prints nothing for minutes): a hung
+#   build fails in minutes instead of using up SERVE_WAIT (CI, 2026-10-09: 80 minutes for nothing).
 set -uo pipefail
 E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 PORT="${PORT:-8090}"
@@ -26,13 +29,22 @@ case "${1:-start}" in
       nohup dx serve --port "$PORT" --features "$SERVE_FEATURES" > "$E/dx-$PORT.log" 2>&1 &
     echo $! > "$E/dx-$PORT.pid"
     # dx prints its banner before the build is done: wait until the server answers.
-    for _ in $(seq 1 "${SERVE_WAIT:-240}"); do
+    pid=$(cat "$E/dx-$PORT.pid")
+    deadline=$(( $(date +%s) + ${SERVE_WAIT:-1200} ))
+    last_size=-1; last_change=$(date +%s)
+    while [ "$(date +%s)" -lt "$deadline" ]; do
       sleep 5
       code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/login" 2>/dev/null)
-      if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "404" ]; then echo "serving $root on :$PORT (pid $(cat "$E/dx-$PORT.pid"))"; exit 0; fi
+      if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "404" ]; then echo "serving $root on :$PORT (pid $pid)"; exit 0; fi
       if grep -q "Build failed" "$E/dx-$PORT.log"; then echo "build failed — see $E/dx-$PORT.log"; exit 1; fi
+      if ! kill -0 "$pid" 2>/dev/null; then echo "dx exited — see $E/dx-$PORT.log"; exit 1; fi
+      size=$(wc -c < "$E/dx-$PORT.log")
+      if [ "$size" != "$last_size" ]; then last_size=$size; last_change=$(date +%s); fi
+      if [ $(( $(date +%s) - last_change )) -ge "${SERVE_STALL:-1200}" ]; then
+        echo "no progress for ${SERVE_STALL:-1200} s (the dx log stopped growing) — see $E/dx-$PORT.log"; exit 1
+      fi
     done
-    echo "timeout — see $E/dx-$PORT.log"; exit 1 ;;
+    echo "timeout after ${SERVE_WAIT:-1200} s — see $E/dx-$PORT.log"; exit 1 ;;
   stop)
     if [ -f "$E/dx-$PORT.pid" ]; then
       pid=$(cat "$E/dx-$PORT.pid")

@@ -89,8 +89,9 @@ jobs:
     name: browser smoke suites
     runs-on: ubuntu-24.04
     env:
-      # A cold debug build of server + client can take longer than serve.sh's default 20 minutes.
-      SERVE_WAIT: 600
+      # A cold debug build of server + client can take longer than serve.sh's default 20 minutes:
+      # 45 minutes in seconds. A build whose log stops growing fails after 20 (SERVE_STALL).
+      SERVE_WAIT: 2700
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
       SUITES: files rich stores palette shell wiki
     steps:
