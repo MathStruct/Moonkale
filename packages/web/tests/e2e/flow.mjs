@@ -1,10 +1,13 @@
-// Milestone 6 + spec 031 stage 7: the flow editor on the graph engine
-// (ADR-0018) — Chromium with SwiftShader, like the graph suites, because
-// the canvas is wgpu now. Covers: the extension toggle and New Flow, the
-// palette, wiring by dragging ports (typed: a mismatch is refused with a
-// notice), the parameter editor of the selected block (and spec 001's
-// keyboard guard), the layered Layout, Save and Lux codegen, unknown-kind
-// issues when the library is disabled, and the broken-file guard (#11).
+// Milestone 6 + spec 031 stages 7b/7c: the flow editor on the graph
+// engine (ADR-0018) — Chromium with SwiftShader, like the graph suites,
+// because the canvas is wgpu now. Covers: the extension toggle and New
+// Flow, the palette, wiring by dragging ports (typed: a mismatch is
+// refused with a notice), the parameter editor floating beside the
+// selected block (one HTML editor, spec 031 §7 — and spec 001's
+// keyboard guard), undo/redo of a wire, a drag, a parameter and a
+// delete (a pinned block moves back to the document's coordinates),
+// the layered Layout, Save and Lux codegen, unknown-kind issues when
+// the library is disabled, and the broken-file guard (#11).
 import { chromium } from "playwright";
 import fs from "node:fs";
 const S = process.env.M1_SHOTS ?? ".";
@@ -111,6 +114,10 @@ try {
     if (blocks !== "7") throw new Error("a block was deleted while editing a field");
     if (value !== "42") throw new Error(`out = ${value}`);
     if (after !== before) throw new Error(`the block moved while editing a field: ${before} → ${after}`);
+    // Deselect: the floating editor sits where the wire gestures go —
+    // an open editor over a port swallows the drop (it is a real panel).
+    await page.mouse.click(box.x + 6, box.y + 6);
+    await sleep(200);
   });
   await step("wiring by dragging ports (typed): 6 wires, no issues", async () => {
     const id = async (p) => idOfKind(p);
@@ -133,6 +140,99 @@ try {
     console.log("\n  status:", JSON.stringify(s), "notice:", notice.slice(0, 60));
     if (s.wires !== 6 || s.issues !== 0) throw new Error("mismatched wire was accepted: " + JSON.stringify(s));
     if (!/does not fit/.test(notice)) throw new Error("the refusal has no notice");
+  });
+  await step("the parameter editor floats beside its block (spec 031 §7)", async () => {
+    // Select the Dense block; the one HTML editor opens beside it — its
+    // position comes from the engine's screen report.
+    const dense = await idOfKind("Dense");
+    const box = await canvasRect();
+    const p = await screen(dense);
+    await page.mouse.click(box.x + p[0], box.y + p[1]);
+    await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
+    const rect = await page.$eval(".mk-flow-props", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top }; });
+    // The editor sits at the node's screen position + the panel's offset
+    // (60 right, 18 up) — canvas-relative engine coords against the page.
+    console.log(`\n  editor at ${rect.x.toFixed(0)},${rect.y.toFixed(0)} — node at ${(box.x + p[0] + 60).toFixed(0)},${(box.y + p[1] - 18).toFixed(0)}`);
+    if (Math.abs(rect.x - (box.x + p[0] + 60)) > 4 || Math.abs(rect.y - (box.y + p[1] - 18)) > 4) {
+      throw new Error("the editor does not sit beside its block");
+    }
+    await page.keyboard.press("Escape"); // nothing bound; deselect below
+    await page.mouse.click(box.x + 6, box.y + 6); // empty canvas: deselect    await sleep(200);
+    if (await page.$(".mk-flow-props")) throw new Error("the editor survived the deselection");
+  });
+  await step("undo and redo: a wire, a drag, a parameter, a delete (Ctrl+Z / Ctrl+Y)", async () => {
+    // A wire: the last wire goes, then comes back.
+    await page.keyboard.press("Control+z");
+    await sleep(250);
+    let s = await status();
+    if (s.wires !== 5) throw new Error("undo did not drop the wire: " + JSON.stringify(s));
+    await page.keyboard.press("Control+y");
+    await sleep(250);
+    s = await status();
+    if (s.wires !== 6) throw new Error("redo did not restore the wire: " + JSON.stringify(s));
+    // A drag: the block moved, undo puts it back — the engine moves a
+    // pinned block to its restored coordinates (the document owns them).
+    const dense = await idOfKind("Dense");
+    const box = await canvasRect();
+    const before = await worldPos(dense);
+    const p = await screen(dense);
+    await page.mouse.move(box.x + p[0], box.y + p[1]);
+    await page.mouse.down();
+    await page.mouse.move(box.x + p[0] + 120, box.y + p[1] + 40, { steps: 10 });
+    await sleep(150);
+    await page.mouse.up();
+    await sleep(300);
+    const after = await worldPos(dense);
+    console.log(`\n  dense ${before[0].toFixed(1)},${before[1].toFixed(1)} → ${after[0].toFixed(1)},${after[1].toFixed(1)}`);
+    if (Math.abs(after[0] - before[0]) < 20 || Math.abs(after[1] - before[1]) < 10) throw new Error("the drag did not move the block");
+    await page.keyboard.press("Control+z");
+    await sleep(300);
+    const undone = await worldPos(dense);
+    if (Math.abs(undone[0] - before[0]) > 1 || Math.abs(undone[1] - before[1]) > 1) {
+      throw new Error(`undo did not restore the position: ${undone} vs ${before}`);
+    }
+    await page.keyboard.press("Control+y");
+    await sleep(300);
+    const redone = await worldPos(dense);
+    if (Math.abs(redone[0] - after[0]) > 1 || Math.abs(redone[1] - after[1]) > 1) {
+      throw new Error(`redo did not restore the drag: ${redone} vs ${after}`);
+    }
+    // A parameter: Ctrl+Z in the field is the field's own text undo, not
+    // the flow's (spec 001); the flow's undo restores the last edit.
+    const pd = await screen(dense);
+    await page.mouse.click(box.x + pd[0], box.y + pd[1]);
+    await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
+    const field = page.locator(".mk-flow-props .mk-flow-param:has-text('out') input");
+    await field.click();
+    await page.keyboard.press("Control+z");
+    await sleep(200);
+    s = await status();
+    if (s.wires !== 6) throw new Error("a field's Ctrl+Z undid the flow: " + JSON.stringify(s));
+    await field.fill("24");
+    await page.keyboard.press("Enter");
+    await sleep(200);
+    await page.mouse.click(box.x + 6, box.y + 6); // deselect; the editor goes
+    await sleep(200);
+    await page.keyboard.press("Control+z"); // the flow's undo: out back to 42
+    await sleep(300);
+    s = await status();
+    if (s.wires !== 6 || s.blocks !== 7) throw new Error("the param undo broke the flow: " + JSON.stringify(s));
+    const pd2 = await screen(dense);
+    await page.mouse.click(box.x + pd2[0], box.y + pd2[1]);
+    await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
+    const value = await page.$eval(".mk-flow-props .mk-flow-param:has-text('out') input", (e) => e.value);
+    console.log("\n  out after undo:", value);
+    if (value !== "42") throw new Error(`undo did not restore the parameter: ${value}`);
+    // A delete: the block and its wires come back.
+    await page.keyboard.press("Delete");
+    await sleep(300);
+    s = await status();
+    if (s.blocks !== 6 || s.wires !== 4) throw new Error("delete removed the wrong things: " + JSON.stringify(s));
+    await page.keyboard.press("Control+z");
+    await sleep(300);
+    s = await status();
+    if (s.blocks !== 7 || s.wires !== 6 || s.issues !== 0) throw new Error("undo did not restore the deleted block: " + JSON.stringify(s));
+    await page.screenshot({ path: `${S}/s7c-undo.png` });
   });
   await step("Layout lines the flow up; Save writes the flow JSON with the coordinates", async () => {
     await page.click(".mk-flow button:has-text('Layout')");

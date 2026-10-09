@@ -160,9 +160,22 @@ fn emit_select(s: &State) {
     nodes.sort();
     let mut edges: Vec<&String> = s.selected.edges.iter().collect();
     edges.sort();
+    // The first selected node's screen position, so a host can open its
+    // editor beside the block (spec 031 §7). Computed here, under the
+    // borrow the event is emitted with — a host cannot call back into
+    // the view from inside an event (the RefCell is held).
+    let screen = nodes.first().and_then(|id| {
+        let n = s.graph.nodes.iter().find(|n| &n.id == *id)?;
+        if s.camera.three_d {
+            s.camera.project(n.x, n.y, n.z).map(|(x, y, _)| vec![x, y])
+        } else {
+            let (x, y) = s.camera.world_to_screen(n.x, n.y);
+            Some(vec![x, y])
+        }
+    });
     emit(
         s,
-        serde_json::json!({ "kind": "select", "nodes": nodes, "edges": edges }),
+        serde_json::json!({ "kind": "select", "nodes": nodes, "edges": edges, "screen": screen }),
     );
 }
 
@@ -442,6 +455,16 @@ impl GraphView {
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
         let dragged = s.dragged_id();
+        // A **pinned** node with an explicit position is the host's to move —
+        // the document owns a pinned block's coordinates (stage 7c: undo
+        // restores them); an unpinned one keeps its live position (the
+        // explorer's layout wins).
+        let host_moved: std::collections::HashSet<String> = input
+            .nodes
+            .iter()
+            .filter(|n| n.pinned && n.pos.is_some())
+            .map(|n| n.id.clone())
+            .collect();
         let mut next = Graph::from_input(input);
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
             .graph
@@ -458,12 +481,17 @@ impl GraphView {
         if incremental {
             // Known nodes stay put; new ones start at the mean of their known
             // neighbours (or where the spiral put them) with a nudge so two
-            // new siblings do not coincide.
+            // new siblings do not coincide — unless the host repositioned a
+            // pinned node (see `host_moved` above).
             let known: Vec<bool> = next.nodes.iter().map(|n| old.contains_key(&n.id)).collect();
             let mut placed: Vec<Option<(f32, f32, f32)>> = vec![None; next.nodes.len()];
             for (i, n) in next.nodes.iter().enumerate() {
                 if let Some(&(x, y, z, _)) = old.get(&n.id) {
-                    placed[i] = Some((x, y, z));
+                    placed[i] = if host_moved.contains(&n.id) {
+                        Some((n.x, n.y, n.z))
+                    } else {
+                        Some((x, y, z))
+                    };
                 }
             }
             for (i, n) in next.nodes.iter().enumerate() {
@@ -1379,15 +1407,41 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 }
                 // A node the user placed stays put (pinned) until Relayout.
                 let was_node = matches!(s.dragging, Drag::Node { .. });
+                let drag_id = if let Drag::Node { index } = s.dragging {
+                    s.graph.nodes.get(index).map(|n| n.id.clone())
+                } else {
+                    None
+                };
                 s.dragging = Drag::None;
                 let moved = s.drag_moved;
                 s.drag_moved = false;
                 if moved {
                     if was_node {
                         // A block finished moving (spec 031 §5, stage 7):
-                        // the host harvests the positions into its
-                        // document (`node_positions`).
-                        emit(&s, serde_json::json!({ "kind": "moved" }));
+                        // the host harvests the position into its document.
+                        // The payload is built here, under the borrow —
+                        // the host cannot call back into the view from
+                        // inside an event (the RefCell is held).
+                        if let Some(n) =
+                            drag_id.and_then(|id| s.graph.nodes.iter().find(|n| n.id == id))
+                        {
+                            let screen = if s.camera.three_d {
+                                s.camera.project(n.x, n.y, n.z).map(|(x, y, _)| vec![x, y])
+                            } else {
+                                let (x, y) = s.camera.world_to_screen(n.x, n.y);
+                                Some(vec![x, y])
+                            };
+                            let mut positions = serde_json::Map::new();
+                            positions.insert(n.id.clone(), serde_json::json!([n.x, n.y]));
+                            emit(
+                                &s,
+                                serde_json::json!({
+                                    "kind": "moved",
+                                    "positions": positions,
+                                    "screen": screen,
+                                }),
+                            );
+                        }
                     }
                     return; // a released pan or node move is not a pick
                 }

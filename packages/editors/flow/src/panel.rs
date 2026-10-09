@@ -224,13 +224,21 @@ enum FromJs {
     Select {
         nodes: Vec<String>,
         edges: Vec<String>,
+        /// The first selected node's canvas position (stage 7c): the
+        /// parameter editor follows its block.
+        screen: Option<Vec<f32>>,
     },
     Connect {
         from: End,
         to: End,
     },
     Moved {
+        /// The nodes that moved — a drag-end names the dragged block,
+        /// the Layout names every node.
         positions: BTreeMap<String, [f32; 2]>,
+        /// The dragged node's screen position, so the parameter editor
+        /// follows its block (stage 7c).
+        screen: Option<Vec<f32>>,
     },
     Settled,
 }
@@ -262,12 +270,11 @@ if (!probeGl && !navigator.gpu) {
 }
 try { probeGl && probeGl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
 let view;
-const onEvent = (ev) => {
-    // A block finished moving (stage 7): the host harvests the positions
-    // into its document.
-    if (ev && ev.kind === "moved") ev.positions = view.node_positions();
-    dioxus.send(ev);
-};
+// Events pass through untouched: the engine builds the whole payload
+// (a `moved` carries its positions, a `select` the first node's screen)
+// because the host cannot call back into the view from inside an event
+// — the engine holds its state borrow while emitting.
+const onEvent = (ev) => dioxus.send(ev);
 try {
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("renderer did not start within 15s")), 15000));
     const prefer = /\bAndroid\b/.test(navigator.userAgent) && /\bwv\b/.test(navigator.userAgent) ? "gl" : null;
@@ -276,6 +283,11 @@ try {
     return failed(String(e && e.message ? e.message : e));
 }
 view.set_interaction("edit"); // the flow surface is always an edit surface
+// Clicks land on the overlay, whose pointerdown prevents the default
+// (the browser's focus-on-mousedown) — take the focus in the capture
+// phase instead, so the panel's keys (Delete, Ctrl+Z, Ctrl+S) work
+// after a canvas click and not only from a field's Tab-out.
+overlay.addEventListener("pointerdown", () => overlay.focus(), true);
 const host = canvas.parentElement;
 const ro = new ResizeObserver(() => {
     const r = host.getBoundingClientRect();
@@ -327,6 +339,15 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let mut selected: Signal<(Vec<String>, Vec<String>)> = use_signal(|| (Vec::new(), Vec::new()));
     let mut eval: Signal<Option<Eval>> = use_signal(|| None);
     let mut loaded = use_signal(|| false);
+    // Undo (stage 7c, the parity list): the working copy before each
+    // mutation, newest last; a new mutation empties the redo stack.
+    // Snapshots are the document's own JSON — restoring one re-sends the
+    // scene and the engine moves the pinned blocks back (their
+    // coordinates are the document's).
+    let mut undo_stack: Signal<Vec<String>> = use_signal(Vec::new);
+    let mut redo_stack: Signal<Vec<String>> = use_signal(Vec::new);
+    // Where the selected block sits on the canvas (the editor follows).
+    let mut editor_pos: Signal<Option<(f32, f32)>> = use_signal(|| None);
     let id = use_hook(|| "mk-flow-panel".to_string());
 
     // Mount the renderer from the host element's `onmounted` event.
@@ -357,10 +378,19 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         Ok(FromJs::Loaded) => loaded.set(true),
                         Ok(FromJs::Ready) => {}
                         Ok(FromJs::Error { message }) => error.set(Some(message)),
-                        Ok(FromJs::Select { nodes, edges }) => selected.set((nodes, edges)),
+                        Ok(FromJs::Select {
+                            nodes,
+                            edges,
+                            screen,
+                        }) => {
+                            editor_pos.set(screen.filter(|s| s.len() == 2).map(|s| (s[0], s[1])));
+                            selected.set((nodes, edges))
+                        }
                         Ok(FromJs::Connect { from, to }) => {
+                            let before = flow.read().to_json();
                             let (ok, why) = wire(&mut flow, &libs, &from, &to);
                             if ok {
+                                push_undo(undo_stack, redo_stack, before);
                                 notice.set(None);
                                 sync(&flow, &libs, &mut last_text, &mut doc);
                                 push_graph(&eval, &flow, &libs);
@@ -371,7 +401,8 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 push_graph(&eval, &flow, &libs);
                             }
                         }
-                        Ok(FromJs::Moved { positions }) => {
+                        Ok(FromJs::Moved { positions, screen }) => {
+                            let before = flow.read().to_json();
                             flow.with_mut(|f| {
                                 for b in &mut f.blocks {
                                     if let Some(p) = positions.get(&b.id) {
@@ -380,6 +411,14 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     }
                                 }
                             });
+                            push_undo(undo_stack, redo_stack, before);
+                            // The editor follows a dragged selected block.
+                            let sel = selected.read().0.first().cloned();
+                            if let (Some(sel), Some(p)) = (sel, screen) {
+                                if positions.contains_key(&sel) && p.len() == 2 {
+                                    editor_pos.set(Some((p[0], p[1])));
+                                }
+                            }
                             sync(&flow, &libs, &mut last_text, &mut doc);
                         }
                         Ok(FromJs::Settled) => {}
@@ -435,7 +474,8 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         }
     });
 
-    // Document replaced from outside (reload): rebuild the flow.
+    // Document replaced from outside (reload): rebuild the flow. The
+    // snapshots describe the previous document — both stacks empty.
     {
         use_effect(move || {
             let text = doc.read().text.clone();
@@ -443,6 +483,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 return;
             }
             last_text.set(text.clone());
+            undo_stack.write().clear();
+            redo_stack.write().clear();
+            editor_pos.set(None);
             match Flow::parse(&text) {
                 Ok(f) => {
                     broken.set(None);
@@ -565,6 +608,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 .iter()
                 .map(|p| (p.name.clone(), p.default.clone()))
                 .collect();
+            let before = flow.read().to_json();
             flow.with_mut(|f| {
                 f.blocks.push(Block {
                     id: format!(
@@ -578,21 +622,24 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     params,
                 });
             });
+            push_undo(undo_stack, redo_stack, before);
             notice.set(None);
             sync(&flow, &libs, &mut last_text, &mut doc);
             push_graph(&eval, &flow, &libs);
         }
     };
 
-    // The side editor writes one parameter of the selected block.
+    // The parameter editor writes one parameter of the selected block.
     let set_param = {
         let libs = libs.clone();
         move |(bid, name, value): (String, String, String)| {
+            let before = flow.read().to_json();
             flow.with_mut(|f| {
                 if let Some(b) = f.blocks.iter_mut().find(|b| b.id == bid) {
                     b.params.insert(name, value);
                 }
             });
+            push_undo(undo_stack, redo_stack, before);
             sync(&flow, &libs, &mut last_text, &mut doc);
         }
     };
@@ -606,6 +653,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             if nodes.is_empty() && wires.is_empty() {
                 return;
             }
+            let before = flow.read().to_json();
             flow.with_mut(|f| {
                 f.blocks.retain(|b| !nodes.contains(&b.id));
                 f.wires.retain(|w| {
@@ -614,7 +662,57 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         && !nodes.contains(&w.to_block)
                 });
             });
+            push_undo(undo_stack, redo_stack, before);
             selected.set((Vec::new(), Vec::new()));
+            editor_pos.set(None);
+            notice.set(None);
+            sync(&flow, &libs, &mut last_text, &mut doc);
+            push_graph(&eval, &flow, &libs);
+        }
+    };
+
+    // Undo restores the last snapshot (Ctrl+Z), redo the one undone
+    // (Ctrl+Y / Ctrl+Shift+Z). A restore re-sends the scene; the engine
+    // moves the pinned blocks to the restored coordinates.
+    let mut undo = {
+        let libs = libs.clone();
+        move |_| {
+            let Some(prev) = undo_stack.read().last().cloned() else {
+                return;
+            };
+            let cur = flow.read().to_json();
+            let Ok(f) = Flow::parse(&prev) else {
+                return;
+            };
+            undo_stack.with_mut(|u| {
+                u.pop();
+            });
+            redo_stack.with_mut(|r| r.push(cur));
+            flow.set(f);
+            selected.set((Vec::new(), Vec::new()));
+            editor_pos.set(None);
+            notice.set(None);
+            sync(&flow, &libs, &mut last_text, &mut doc);
+            push_graph(&eval, &flow, &libs);
+        }
+    };
+    let mut redo = {
+        let libs = libs.clone();
+        move |_| {
+            let Some(next) = redo_stack.read().last().cloned() else {
+                return;
+            };
+            let cur = flow.read().to_json();
+            let Ok(f) = Flow::parse(&next) else {
+                return;
+            };
+            redo_stack.with_mut(|r| {
+                r.pop();
+            });
+            undo_stack.with_mut(|u| u.push(cur));
+            flow.set(f);
+            selected.set((Vec::new(), Vec::new()));
+            editor_pos.set(None);
             notice.set(None);
             sync(&flow, &libs, &mut last_text, &mut doc);
             push_graph(&eval, &flow, &libs);
@@ -637,13 +735,32 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             class: "mk-flow",
             // Delete/Backspace remove the selection — never while a field
             // has the focus (spec 001); Ctrl/Meta combos bubble (Ctrl+S).
+            // Undo (Ctrl+Z) and redo (Ctrl+Y, Ctrl+Shift+Z) restore the
+            // last snapshot; the field editor stops its own Z/Y (below).
             onkeydown: move |e| {
-                if moonkale_ext_api::keys::primary(&e.modifiers()) && e.key() == Key::Character("s".into()) {
+                if moonkale_ext_api::keys::primary(&e.modifiers())
+                    && e.key() == Key::Character("s".into())
+                {
                     e.prevent_default();
                     e.stop_propagation();
                     save(());
+                } else if moonkale_ext_api::keys::primary(&e.modifiers()) {
+                    let shift = e.modifiers().shift();
+                    match e.key() {
+                        Key::Character(c) if c.eq_ignore_ascii_case("z") => {
+                            e.prevent_default();
+                            e.stop_propagation();
+                            if shift { redo(()) } else { undo(()) }
+                        }
+                        Key::Character(c) if c.eq_ignore_ascii_case("y") => {
+                            e.prevent_default();
+                            e.stop_propagation();
+                            redo(());
+                        }
+                        _ => {}
+                    }
                 } else if matches!(e.key(), Key::Delete | Key::Backspace) {
-                    // The side editor stops its own keys (below), so a key
+                    // The editor stops its own keys (below), so a key
                     // that reaches the root is aimed at the canvas.
                     e.prevent_default();
                     delete_selected(());
@@ -731,45 +848,66 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             }
                         }
                     }
-                    div { class: "mk-flow-canvas", onmounted: { let mut mount = mount; move |e| mount(e) },
+                    div {
+                        class: "mk-flow-canvas",
+                        onmounted: { let mut mount = mount; move |e| mount(e) },
                         canvas { id: "{id}-gl", class: "mk-flow-gl" }
-                        canvas { id: "{id}-ov", class: "mk-flow-ov" }
-                    }
-                    if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
-                        div {
-                            class: "mk-flow-props",
-                            // Keys typed into a parameter field must not reach
-                            // the panel (Delete/Backspace remove the selection);
-                            // Ctrl/Meta combos (Ctrl+S) still bubble (spec 001).
-                            onkeydown: move |e| {
-                                if !moonkale_ext_api::keys::primary(&e.modifiers()) {
-                                    e.stop_propagation();
-                                }
-                            },
-                            div { class: "mk-flow-props-title", "{b.id}" }
-                            for p in k.params.iter() {
-                                {
-                                    let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
-                                    let (bid, name) = (b.id.clone(), p.name.clone());
-                                    let mut set_param = set_param.clone();
-                                    rsx! {
-                                        label { key: "{p.name}", class: "mk-flow-param",
-                                            span { "{p.name}" }
-                                            match &p.kind {
-                                                ParamKind::Choice { options } => rsx! {
-                                                    select { value: "{value}",
-                                                        onchange: move |e| set_param((bid.clone(), name.clone(), e.value())),
-                                                        for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
-                                                    }
-                                                },
-                                                ParamKind::Bool => rsx! {
-                                                    input { r#type: "checkbox", checked: value == "true",
-                                                        onchange: move |e| set_param((bid.clone(), name.clone(), e.checked().to_string())) }
-                                                },
-                                                _ => rsx! {
-                                                    input { value: "{value}", size: 6,
-                                                        onchange: move |e| set_param((bid.clone(), name.clone(), e.value())) }
-                                                },
+                        // The overlay is where clicks land (it sits on
+                        // top) and takes the focus for the panel's keys.
+                        canvas { id: "{id}-ov", class: "mk-flow-ov", tabindex: "0" }
+                        // One HTML editor for the selected node (spec 031
+                        // §7), floating beside its block on the canvas —
+                        // positioned from the engine's screen report, so it
+                        // follows the block (select, drag; a pan or zoom
+                        // while it is open waits for the next event).
+                        if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
+                            div {
+                                class: "mk-flow-props",
+                                style: match editor_pos() {
+                                    Some((x, y)) => {
+                                        format!("left: {:.0}px; top: {:.0}px;", (x + 60.0).max(6.0), (y - 18.0).max(6.0))
+                                    }
+                                    None => "display: none;".to_string(),
+                                },
+                                // Keys typed into a parameter field must not
+                                // reach the panel (Delete/Backspace remove the
+                                // selection); nor do the field's own Z/Y — a
+                                // field's Ctrl+Z is its text undo. Ctrl/Meta
+                                // combos (Ctrl+S) still bubble (spec 001).
+                                onkeydown: move |e| {
+                                    let primary = moonkale_ext_api::keys::primary(&e.modifiers());
+                                    let field_undo = primary
+                                        && matches!(e.key(), Key::Character(ref c)
+                                            if c.eq_ignore_ascii_case("z") || c.eq_ignore_ascii_case("y"));
+                                    if !primary || field_undo {
+                                        e.stop_propagation();
+                                    }
+                                },
+                                div { class: "mk-flow-props-title", "{b.id}" }
+                                for p in k.params.iter() {
+                                    {
+                                        let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
+                                        let (bid, name) = (b.id.clone(), p.name.clone());
+                                        let mut set_param = set_param.clone();
+                                        rsx! {
+                                            label { key: "{p.name}", class: "mk-flow-param",
+                                                span { "{p.name}" }
+                                                match &p.kind {
+                                                    ParamKind::Choice { options } => rsx! {
+                                                        select { value: "{value}",
+                                                            onchange: move |e| set_param((bid.clone(), name.clone(), e.value())),
+                                                            for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
+                                                        }
+                                                    },
+                                                    ParamKind::Bool => rsx! {
+                                                        input { r#type: "checkbox", checked: value == "true",
+                                                            onchange: move |e| set_param((bid.clone(), name.clone(), e.checked().to_string())) }
+                                                    },
+                                                    _ => rsx! {
+                                                        input { value: "{value}", size: 6,
+                                                            onchange: move |e| set_param((bid.clone(), name.clone(), e.value())) }
+                                                    },
+                                                }
                                             }
                                         }
                                     }
@@ -781,6 +919,23 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             }
         }
     }
+}
+
+/// Remember the pre-mutation copy on the undo stack (capped; a new action
+/// empties the redo stack) — stage 7c's parity item.
+fn push_undo(
+    mut undo_stack: Signal<Vec<String>>,
+    mut redo_stack: Signal<Vec<String>>,
+    before: String,
+) {
+    undo_stack.with_mut(|u| {
+        u.push(before);
+        let len = u.len();
+        if len > 100 {
+            u.drain(..len - 100);
+        }
+    });
+    redo_stack.write().clear();
 }
 
 /// Serialise the working copy into the document (dirty → Save).

@@ -5,28 +5,14 @@
 .mk-flow-palette-cat { color: var(--mk-muted); text-transform: uppercase; font-size: 10px; letter-spacing: .05em; margin-top: 6px; }
 .mk-flow-palette-block { text-align: left; background: var(--mk-raised-2); color: var(--mk-ink); border: 1px solid var(--mk-line-strong); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
 .mk-flow-palette-block:hover { background: var(--mk-raised-2); }
-.mk-flow-canvas { flex: 1; min-width: 0; position: relative; }
+.mk-flow-canvas { flex: 1; min-width: 0; position: relative; outline: none; }
 .mk-flow-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.mk-flow-props { width: 210px; overflow: auto; border-left: 1px solid var(--mk-line); padding: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+/* One editor for the selected block (spec 031 §7), floating beside it on
+   the canvas — the panel positions it from the engine's screen report. */
+.mk-flow-props { position: absolute; z-index: 5; width: 220px; max-height: calc(100% - 12px); overflow: auto; background: var(--mk-surface); border: 1px solid var(--mk-line-strong); border-radius: 6px; box-shadow: var(--mk-shadow); padding: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .mk-flow-props-title { font-weight: 600; color: var(--mk-ink-2); word-break: break-all; }
-.mk-flow-canvas .dioxus-flow { width: 100%; height: 100%;
-  --df-bg: var(--mk-flow-bg); --df-grid: var(--mk-line); --df-edge: var(--mk-flow-edge); --df-edge-selected: var(--mk-link); --df-accent: var(--mk-link);
-  --df-node-bg: var(--mk-raised); --df-node-border: var(--mk-line-strong); --df-node-color: var(--mk-ink);
-  --df-handle-bg: var(--mk-link); --df-handle-border: var(--mk-flow-bg);
-  --df-panel-bg: var(--mk-raised); --df-panel-border: var(--mk-line-strong); --df-panel-color: var(--mk-ink); }
-.mk-flow-block { background: var(--mk-raised); border: 1px solid var(--mk-line-strong); border-radius: 6px; min-width: 150px; font-size: 12px; color: var(--mk-ink); }
-.mk-flow-block-bad { border-color: var(--mk-error-ink); }
-.mk-flow-block-title { padding: 4px 8px; font-weight: 600; background: var(--mk-raised-2); border-radius: 6px 6px 0 0; }
-.mk-flow-ports { display: flex; justify-content: space-between; padding: 4px 6px; gap: 8px; color: var(--mk-muted); font-size: 11px; }
-.mk-flow-ports-out { text-align: right; }
-.mk-flow-params { padding: 2px 6px 6px; display: grid; gap: 3px; }
 .mk-flow-param { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; font-size: 11px; color: var(--mk-ink-2); }
 .mk-flow-param input, .mk-flow-param select { background: var(--mk-raised); color: inherit; border: 1px solid var(--mk-line-strong); border-radius: 3px; padding: 1px 4px; font: inherit; width: 70px; }
-.mk-flow-block-missing { padding: 6px 8px; color: var(--mk-error-ink); }
 .mk-flow-status { color: var(--mk-muted); font-size: 12px; }
 .mk-flow-issues { color: var(--mk-error-ink); }
 .mk-flow-notice { color: var(--mk-error-ink); }
-.mk-flow-wire-bad path { stroke: var(--mk-error-ink) !important; }
-.mk-flow-handle-in { background: var(--mk-flow-port-in) !important; }
-.mk-flow-handle-out { background: var(--mk-flow-port-out) !important; }
-.mk-flow-block .df-handle { z-index: 5; width: 12px; height: 12px; }
