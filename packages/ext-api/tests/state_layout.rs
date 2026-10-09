@@ -115,6 +115,14 @@ async fn layouts_live_in_the_store_and_the_folder_file_keeps_what_it_shares() {
         record(&store).and_then(|r| r.layout).as_deref(),
         Some("NEW")
     );
+    // The folder file is written after the store row; on a slow machine
+    // that takes longer than one settle (CI, 2026-10-09).
+    for _ in 0..50 {
+        if on_disk(&path).get("layout").is_none() {
+            break;
+        }
+        settle(&mut dom).await;
+    }
     let file = on_disk(&path);
     assert!(
         file.get("layout").is_none() && file.get("open_documents").is_none(),
