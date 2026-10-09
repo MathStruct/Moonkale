@@ -33,6 +33,8 @@ pub struct LayoutFixture {
     pub proportional_line: Option<usize>,
     /// Synthetic replacement and anchored-widget acceptance provider.
     pub presentation: bool,
+    /// View-local controls and content inside the anchored block.
+    pub interactive_widget: bool,
 }
 
 /// Sparse prefix-sum index: uniform documents allocate no row entries.

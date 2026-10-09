@@ -58,6 +58,8 @@ mod native_proportional_navigation;
 #[cfg(feature = "layout-fixture")]
 mod native_proportional_run;
 #[cfg(feature = "layout-fixture")]
+mod native_widgets;
+#[cfg(feature = "layout-fixture")]
 pub use native_proportional::ProportionalGeometryProbe;
 mod native_rename;
 mod native_search;

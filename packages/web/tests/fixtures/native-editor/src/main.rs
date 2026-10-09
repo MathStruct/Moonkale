@@ -417,7 +417,9 @@ fn DesktopApp() -> Element {
                     desktop.window.set_visible(true);
                     desktop.window.set_focus();
                     spawn(async move {
-                        let script = if std::env::var_os("MOONKALE_ISOLATION_PROBE").is_some() {
+                        let script = if std::env::var_os("MOONKALE_WIDGET_PROBE").is_some() {
+                            include_str!("widgets-probe.js")
+                        } else if std::env::var_os("MOONKALE_ISOLATION_PROBE").is_some() {
                             include_str!("isolation-probe.js")
                         } else { include_str!("renderer-probe.js") };
                         let mut eval = document::eval(script);
@@ -991,6 +993,9 @@ fn App() -> Element {
         button { id: "integration-reload", onclick: move |_| { spawn(async move { ws.reload(node).await.unwrap(); }); }, "Workspace reload" }
         button { id: "integration-dock", onclick: move |_| dock_right.toggle(), "Move dock" }
         button { id: "layout-navigation-document", onclick: move |_| { let mut doc = doc; doc.write().text = format!("{}\nnext row\n", "Wi 😀 é 中\tTabs ".repeat(24)); }, "Measured navigation document" }
+        button { id: "layout-widget", onclick: move |_| {
+            layout_fixture.set(moonkale_code_view::LayoutFixture { line: 1, block_height: 56.0, interactive_widget: true, ..Default::default() });
+        }, "Interactive widget" }
         button { id: "layout-presentation", onclick: move |_| {
             let mut doc=doc; doc.write().text=format!("Wi {} [[hidden]] [[chip]] {}\nnext row\n", "x".repeat(42), "é 👩🏽‍💻 中 tail ".repeat(3));
             layout_fixture.set(moonkale_code_view::LayoutFixture {proportional_line:Some(0),block_height:72.0,presentation:true,..Default::default()});

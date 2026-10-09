@@ -1065,6 +1065,14 @@ pub(crate) fn RustEditorSurface(
                                     #[cfg(not(feature = "layout-fixture"))]
                                     { 0.0 }
                                 };
+                                let interactive_widget = {
+                                    #[cfg(feature = "layout-fixture")]
+                                    { fixture.is_some_and(|value| value().interactive_widget) }
+                                    #[cfg(not(feature = "layout-fixture"))]
+                                    { false }
+                                };
+                                #[cfg(feature = "layout-fixture")]
+                                let widget_revision = model.peek().revision;
                                 rsx! {
                                     if text_height > 0.0 || block_height > 0.0 {
                                     if block_height > 0.0 {
@@ -1072,7 +1080,7 @@ pub(crate) fn RustEditorSurface(
                                             class: "mk-layout-fixture-block mk-native-block-widget",
                                             "data-source-anchor": "{line.char_offset_start}",
                                             contenteditable: "false",
-                                            style: "height: {block_css_height}px; overflow: hidden; background: #345; color: white;",
+                                            style: if interactive_widget { format!("min-height: {block_css_height}px; white-space: normal;") } else { format!("height: {block_css_height}px; overflow: hidden; background: #345; color: white;") },
                                             onmounted: move |_event: MountedEvent| {
                                                 #[cfg(feature = "layout-fixture")]
                                                 { *block_on_mount.borrow_mut() = Some(_event.data.clone()); block_measure.call(()); }
@@ -1087,7 +1095,32 @@ pub(crate) fn RustEditorSurface(
                                             },
                                             {
                                                 #[cfg(feature = "layout-fixture")]
-                                                { decorations.block(line.char_offset_start).unwrap_or("Fixture block (view only)") }
+                                                {
+                                                    if interactive_widget {
+                                                        rsx! {
+                                                            crate::native_widgets::PreviewBlock {
+                                                                key: "fixture-block-{line.char_offset_start}-{widget_revision.0}",
+                                                                identity: format!("{completion_id}-fixture-block-{}", line.char_offset_start),
+                                                                title: decorations.block(line.char_offset_start).unwrap_or("Preview").to_string(),
+                                                                show_label: "Show details".to_string(),
+                                                                hide_label: "Hide details".to_string(),
+                                                                source_label: "Edit source".to_string(),
+                                                                onsource: move |_| {
+                                                                    if model.peek().revision != widget_revision || composing() { return; }
+                                                                    onprepare.call(());
+                                                                    if model.peek().revision != widget_revision { return; }
+                                                                    mutate(model, onchange, |editor| place_caret_at(editor, Position::new(logical_line, 0)));
+                                                                    let mut request = focus_request;
+                                                                    request.with_mut(|value| *value = value.wrapping_add(1));
+                                                                },
+                                                                crate::native_widgets::FixtureWidgetBody {}
+                                                            }
+                                                        }
+                                                    } else {
+                                                        let title = decorations.block(line.char_offset_start).unwrap_or("Fixture block (view only)");
+                                                        rsx! { "{title}" }
+                                                    }
+                                                }
                                                 #[cfg(not(feature = "layout-fixture"))]
                                                 { "Fixture block (view only)" }
                                             }

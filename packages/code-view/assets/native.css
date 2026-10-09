@@ -47,3 +47,10 @@
 
 /* Caret context must not move the viewport while selecting with the pointer. */
 .mk-crust > .mk-editor-cursor-word { height: 22px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mk-preview-widget { padding: 8px; background: var(--mk-code-bg); color: var(--mk-code-ink); user-select: text; }
+.mk-preview-widget-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mk-preview-widget-body { padding-top: 8px; }
+.mk-preview-widget-body[hidden] { display: none; }
+.mk-preview-widget-body p { margin: 8px 0; overflow-wrap: anywhere; }
+.mk-preview-widget-note { max-width: 100%; min-width: 0; }
