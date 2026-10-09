@@ -165,7 +165,7 @@ pub struct Trace {
 /// The internal group (spec 031 §4): members as node indices, re-resolved
 /// whenever a delta moves them. The colour's alpha is the hull tint's
 /// strength cap; the shader fades tiny boxes out (LOD, spec §6).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Group {
     pub id: String,
     pub label: String,
@@ -177,7 +177,7 @@ pub struct Group {
 
 /// The internal hyperedge (spec 031 §2): members as node indices; the
 /// frame derives the junction and its spokes every build.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Hyperedge {
     pub id: String,
     pub nodes: Vec<usize>,
@@ -189,7 +189,7 @@ pub struct Hyperedge {
 
 /// The internal simplex (spec 031 §2): members as node indices; the frame
 /// fans them into filled triangles.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Simplex {
     pub id: String,
     pub nodes: Vec<usize>,
@@ -357,7 +357,7 @@ pub struct InDelta {
 
 /// A node arriving through a delta (spec 031 §4: a collapsed group's
 /// aggregate sits where the group was).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InDeltaNode {
     pub id: String,
     pub label: String,
@@ -463,7 +463,7 @@ pub enum InDirection {
     Both,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     pub id: String,
     pub label: String,
@@ -483,7 +483,7 @@ pub struct Node {
     pub layers: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Edge {
     pub id: String,
     pub a: usize,
@@ -556,12 +556,8 @@ pub fn parse_hex(s: &str, alpha: f32) -> Option<[f32; 4]> {
 /// A wire group with its members resolved to indices; ids that name no
 /// node are skipped (a group is re-addable through a later delta, like an
 /// edge whose endpoint is missing). Neutral tint: a soft blue-grey.
-fn resolve_group(g: InGroup, nodes: &[Node]) -> Group {
-    let members = g
-        .members
-        .iter()
-        .filter_map(|id| nodes.iter().position(|n| &n.id == id))
-        .collect();
+fn resolve_group(g: InGroup, ids: &std::collections::HashMap<String, usize>) -> Group {
+    let members = distinct_members(&g.members, ids);
     Group {
         id: g.id,
         label: g.label,
@@ -579,7 +575,7 @@ fn resolve_group(g: InGroup, nodes: &[Node]) -> Group {
 /// A wire hyperedge with its members resolved to indices (missing ids
 /// skip, like a group's; a repeated id counts once — two ids, one node
 /// is not a connection). Purple is the neutral spoke colour.
-fn resolve_hyperedge(h: InHyperedge, nodes: &[Node]) -> Hyperedge {
+fn resolve_hyperedge(h: InHyperedge, ids: &std::collections::HashMap<String, usize>) -> Hyperedge {
     let mut color = h
         .color
         .as_deref()
@@ -590,7 +586,7 @@ fn resolve_hyperedge(h: InHyperedge, nodes: &[Node]) -> Hyperedge {
     }
     Hyperedge {
         id: h.id,
-        nodes: distinct_members(&h.nodes, nodes),
+        nodes: distinct_members(&h.nodes, ids),
         color,
         width: h.width.unwrap_or(1.4).clamp(0.5, 12.0),
         dash: h.dash.unwrap_or(0.0).clamp(0.0, 64.0),
@@ -601,7 +597,7 @@ fn resolve_hyperedge(h: InHyperedge, nodes: &[Node]) -> Hyperedge {
 /// A wire simplex with its members resolved to indices (missing ids and
 /// repeats skip — three corners, three *distinct* nodes, or no face).
 /// Orange is the neutral fill.
-fn resolve_simplex(s: InSimplex, nodes: &[Node]) -> Simplex {
+fn resolve_simplex(s: InSimplex, ids: &std::collections::HashMap<String, usize>) -> Simplex {
     let mut color = s
         .color
         .as_deref()
@@ -612,7 +608,7 @@ fn resolve_simplex(s: InSimplex, nodes: &[Node]) -> Simplex {
     }
     Simplex {
         id: s.id,
-        nodes: distinct_members(&s.nodes, nodes),
+        nodes: distinct_members(&s.nodes, ids),
         color,
         visible: s.visible,
     }
@@ -621,10 +617,10 @@ fn resolve_simplex(s: InSimplex, nodes: &[Node]) -> Simplex {
 /// Wire ids → first-occurrence node indices: a missing id skips (re-
 /// addable through a later delta), a repeated id counts once — the same
 /// rule an edge's endpoints follow.
-fn distinct_members(ids: &[String], nodes: &[Node]) -> Vec<usize> {
+fn distinct_members(ids: &[String], map: &std::collections::HashMap<String, usize>) -> Vec<usize> {
     let mut out: Vec<usize> = Vec::new();
     for id in ids {
-        if let Some(i) = nodes.iter().position(|n| &n.id == id) {
+        if let Some(&i) = map.get(id) {
             if !out.contains(&i) {
                 out.push(i);
             }
@@ -771,20 +767,27 @@ impl Graph {
                 }
             })
             .collect();
+        // One id → index map for the groups, hyperedges and simplices
+        // (the P-163 review's #8: a linear scan per member is O(m·n)).
+        let ids: std::collections::HashMap<String, usize> = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.id.clone(), i))
+            .collect();
         let groups = input
             .groups
             .into_iter()
-            .map(|g| resolve_group(g, &nodes))
+            .map(|g| resolve_group(g, &ids))
             .collect();
         let hyperedges = input
             .hyperedges
             .into_iter()
-            .map(|h| resolve_hyperedge(h, &nodes))
+            .map(|h| resolve_hyperedge(h, &ids))
             .collect();
         let simplexes = input
             .simplexes
             .into_iter()
-            .map(|s| resolve_simplex(s, &nodes))
+            .map(|s| resolve_simplex(s, &ids))
             .collect();
         let mut g = Self {
             nodes,
@@ -815,6 +818,11 @@ impl Graph {
         for idx in groups.values() {
             let n = idx.len();
             if n < 2 {
+                // A lone edge carries no parallel offset — its partner
+                // may have gone with a delta (the P-163 review's #3).
+                if let Some(&i) = idx.first() {
+                    self.edges[i].bow = 0.0;
+                }
                 continue;
             }
             for (rank, &i) in idx.iter().enumerate() {
@@ -844,7 +852,12 @@ impl Graph {
     /// and re-assign the bows of every parallel group a touched pair
     /// belongs to. Positions of survivors and their pins are untouched —
     /// the host's view (camera, selection by id) is stable across a delta.
-    pub fn apply_delta(&mut self, d: InDelta) {
+    /// Apply an incremental change (spec 031 §4, stage 4a). Returns
+    /// whether anything actually changed — a delta naming nothing that
+    /// exists (or re-sending identical instances) must not redraw or warm
+    /// the layout; a count-preserving collapse must (the P-163 review's
+    /// #1: five equal counts used to skip the redraw entirely).
+    pub fn apply_delta(&mut self, d: InDelta) -> bool {
         if d.remove_edges.is_empty()
             && d.remove_nodes.is_empty()
             && d.add_nodes.is_empty()
@@ -856,8 +869,9 @@ impl Graph {
             && d.add_simplexes.is_empty()
             && d.remove_simplexes.is_empty()
         {
-            return;
+            return false;
         }
+        let mut changed = false;
         let remove_edges: std::collections::HashSet<&String> = d.remove_edges.iter().collect();
         let remove_nodes: std::collections::HashSet<&String> = d.remove_nodes.iter().collect();
         // Removal first: indices shift, so the survivors get a remap.
@@ -866,12 +880,14 @@ impl Graph {
         for n in self.nodes.iter() {
             if remove_nodes.contains(&n.id) {
                 remap.push(None);
+                changed = true;
             } else {
                 remap.push(Some(nodes.len()));
                 nodes.push(n.clone());
             }
         }
         self.nodes = nodes;
+        let before = self.edges.len();
         self.edges.retain_mut(|e| {
             if remove_edges.contains(&e.id) {
                 return false;
@@ -883,6 +899,7 @@ impl Graph {
             e.b = b;
             true
         });
+        changed |= self.edges.len() != before;
         // A port whose node went with the delta dangles; drop it.
         self.ports
             .retain_mut(|p| match remap.get(p.node).copied().flatten() {
@@ -895,51 +912,77 @@ impl Graph {
         // A group's members are indices; the survivors follow the remap,
         // and a removed member simply leaves its group.
         for g in self.groups.iter_mut() {
+            let before = g.members.len();
             g.members = g.members.iter().filter_map(|&i| remap[i]).collect();
+            changed |= g.members.len() != before;
         }
         // Hyperedges and simplices (spec 031 §2): the survivors follow the
         // remap too; a hyperedge under two members, a simplex under three,
         // has no shape to draw and is dropped (the host can re-send it).
+        let before = self.hyperedges.len();
         for h in self.hyperedges.iter_mut() {
             h.nodes = h.nodes.iter().filter_map(|&i| remap[i]).collect();
         }
         self.hyperedges.retain(|h| h.nodes.len() >= 2);
+        changed |= self.hyperedges.len() != before;
+        let before = self.simplexes.len();
         for s in self.simplexes.iter_mut() {
             s.nodes = s.nodes.iter().filter_map(|&i| remap[i]).collect();
         }
         self.simplexes.retain(|s| s.nodes.len() >= 3);
-        // Additions. A node id that already exists replaces its node —
-        // a re-expand puts the members back where the aggregate was.
-        fn index_of(nodes: &[Node], id: &str) -> Option<usize> {
-            nodes.iter().position(|n| n.id == id)
-        }
+        changed |= self.simplexes.len() != before;
+        // One id → index map for the whole delta (the P-163 review's #8:
+        // a linear scan per id is O(k·n) — a 2 000-edge delta at 100 k
+        // nodes was ~4·10⁸ string comparisons). Owned, so it stays alive
+        // across the mutations below; new ids join as they arrive.
+        let mut ids: std::collections::HashMap<String, usize> = self
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.id.clone(), i))
+            .collect();
+        // Additions. A node id that already exists replaces its node; a
+        // replace without `pos` keeps the old position — a relabel must
+        // not teleport to a fresh spiral slot (the review's #7).
         for n in d.add_nodes {
             let color = n
                 .color
                 .as_deref()
                 .and_then(|c| parse_hex(c, 1.0))
                 .unwrap_or_else(|| color_for(&n.kind));
-            let (x, y) = match n.pos {
-                Some([x, y]) => (x, y),
-                None => {
-                    let t = self.nodes.len() as f32 * 2.399_963;
-                    let r = 12.0 * (self.nodes.len() as f32 + 1.0).sqrt();
-                    (r * t.cos(), r * t.sin())
+            if let Some(&i) = ids.get(&n.id) {
+                let old = &self.nodes[i];
+                let (x, y, z, pinned) = match n.pos {
+                    Some([x, y]) => (x, y, layer_z(&n.kind, i), n.pinned),
+                    None => (old.x, old.y, old.z, old.pinned),
+                };
+                let new = Node {
+                    id: n.id,
+                    label: n.label,
+                    kind: n.kind,
+                    key: n.key,
+                    x,
+                    y,
+                    z,
+                    radius: old.radius,
+                    color,
+                    degree: old.degree,
+                    pinned,
+                    layers: n.layers,
+                };
+                if self.nodes[i] != new {
+                    self.nodes[i] = new;
+                    changed = true;
                 }
-            };
-            let z = layer_z(&n.kind, self.nodes.len());
-            if let Some(i) = index_of(&self.nodes, &n.id) {
-                let old = &mut self.nodes[i];
-                old.label = n.label;
-                old.kind = n.kind;
-                old.key = n.key;
-                old.color = color;
-                old.layers = n.layers;
-                old.x = x;
-                old.y = y;
-                old.z = z;
-                old.pinned = n.pinned;
             } else {
+                let t = self.nodes.len() as f32 * 2.399_963;
+                let r = 12.0 * (self.nodes.len() as f32 + 1.0).sqrt();
+                let (x, y) = match n.pos {
+                    Some([x, y]) => (x, y),
+                    None => (r * t.cos(), r * t.sin()),
+                };
+                let z = layer_z(&n.kind, self.nodes.len());
+                ids.insert(n.id.clone(), self.nodes.len());
                 self.nodes.push(Node {
                     id: n.id,
                     label: n.label,
@@ -954,81 +997,148 @@ impl Graph {
                     pinned: n.pinned,
                     layers: n.layers,
                 });
+                changed = true;
             }
         }
-        for e in d.add_edges {
-            let (Some(a), Some(b)) = (index_of(&self.nodes, &e.a), index_of(&self.nodes, &e.b))
-            else {
-                continue; // a missing endpoint skips; re-addable later
+        // Edges: resolve the whole batch against the id map first, so the
+        // edge-id map (for replace) borrows nothing while we mutate.
+        if !d.add_edges.is_empty() {
+            let resolved: Vec<Option<(Edge, Option<usize>)>> = {
+                let edge_ids: std::collections::HashMap<&str, usize> = self
+                    .edges
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| (e.id.as_str(), i))
+                    .collect();
+                d.add_edges
+                    .into_iter()
+                    .map(|e| {
+                        let (Some(&a), Some(&b)) = (ids.get(&e.a), ids.get(&e.b)) else {
+                            return None; // a missing endpoint skips; re-addable later
+                        };
+                        if a == b && e.a != e.b {
+                            return None; // two ids, one node — nothing to draw
+                        }
+                        let arrow = match (e.arrow, e.directed) {
+                            (Some(InArrow::Source), _) => Arrow::Source,
+                            (Some(InArrow::Target), _) => Arrow::Target,
+                            (Some(InArrow::Both), _) => Arrow::Both,
+                            (None, true) => Arrow::Target,
+                            (None, false) => Arrow::None,
+                        };
+                        let route = match e.route {
+                            Some(InRoute::Bezier { offset }) => Route::Bezier { offset },
+                            _ => Route::Straight,
+                        };
+                        let mut color = e
+                            .color
+                            .as_deref()
+                            .and_then(|c| parse_hex(c, 0.55))
+                            .unwrap_or_else(|| edge_color(&e.kind));
+                        if let Some(o) = e.opacity {
+                            color[3] *= o.clamp(0.0, 1.0);
+                        }
+                        // Look the id up before the struct takes it.
+                        let existing = edge_ids.get(e.id.as_str()).copied();
+                        Some((
+                            Edge {
+                                id: e.id,
+                                a,
+                                b,
+                                color,
+                                width: e.width.unwrap_or(1.2).clamp(0.5, 12.0),
+                                dash: e.dash.unwrap_or(0.0).clamp(0.0, 64.0),
+                                arrow,
+                                label: e.label.unwrap_or_default(),
+                                route,
+                                a_port: e.a_port,
+                                b_port: e.b_port,
+                                layers: e.layers,
+                                bow: 0.0,
+                                pulse_speed: e.pulse_speed.unwrap_or(0.0).clamp(0.0, 2000.0),
+                            },
+                            // The existing index through the map — the
+                            // replace lookup is O(1), not a scan per edge
+                            // (the review's #8 again).
+                            existing,
+                        ))
+                    })
+                    .collect()
             };
-            if a == b && e.a != e.b {
-                continue; // two ids, one node — nothing to draw
-            }
-            let arrow = match (e.arrow, e.directed) {
-                (Some(InArrow::Source), _) => Arrow::Source,
-                (Some(InArrow::Target), _) => Arrow::Target,
-                (Some(InArrow::Both), _) => Arrow::Both,
-                (None, true) => Arrow::Target,
-                (None, false) => Arrow::None,
-            };
-            let route = match e.route {
-                Some(InRoute::Bezier { offset }) => Route::Bezier { offset },
-                _ => Route::Straight,
-            };
-            let mut color = e
-                .color
-                .as_deref()
-                .and_then(|c| parse_hex(c, 0.55))
-                .unwrap_or_else(|| edge_color(&e.kind));
-            if let Some(o) = e.opacity {
-                color[3] *= o.clamp(0.0, 1.0);
-            }
-            let edge = Edge {
-                id: e.id,
-                a,
-                b,
-                color,
-                width: e.width.unwrap_or(1.2).clamp(0.5, 12.0),
-                dash: e.dash.unwrap_or(0.0).clamp(0.0, 64.0),
-                arrow,
-                label: e.label.unwrap_or_default(),
-                route,
-                a_port: e.a_port,
-                b_port: e.b_port,
-                layers: e.layers,
-                bow: 0.0,
-                pulse_speed: e.pulse_speed.unwrap_or(0.0).clamp(0.0, 2000.0),
-            };
-            match self.edges.iter().position(|x| x.id == edge.id) {
-                Some(i) => self.edges[i] = edge, // re-add: replace
-                None => self.edges.push(edge),
+            for (edge, existing) in resolved.into_iter().flatten() {
+                match existing {
+                    Some(i) => {
+                        // The bow is re-assigned by `with_bows` below; it is
+                        // not part of "did this edge change".
+                        let mut cmp = edge.clone();
+                        cmp.bow = self.edges[i].bow;
+                        if self.edges[i] != cmp {
+                            self.edges[i] = edge;
+                            changed = true;
+                        }
+                    }
+                    None => {
+                        self.edges.push(edge);
+                        changed = true;
+                    }
+                }
             }
         }
         let remove_groups: std::collections::HashSet<&String> = d.remove_groups.iter().collect();
+        let before = self.groups.len();
         self.groups.retain(|g| !remove_groups.contains(&g.id));
+        changed |= self.groups.len() != before;
         for g in d.add_groups {
-            let group = resolve_group(g, &self.nodes);
+            let group = resolve_group(g, &ids);
             match self.groups.iter().position(|x| x.id == group.id) {
-                Some(i) => self.groups[i] = group, // re-add: replace
-                None => self.groups.push(group),
+                Some(i) => {
+                    if self.groups[i] != group {
+                        self.groups[i] = group;
+                        changed = true;
+                    }
+                }
+                None => {
+                    self.groups.push(group);
+                    changed = true;
+                }
             }
         }
         let remove_hyper: std::collections::HashSet<&String> = d.remove_hyperedges.iter().collect();
+        let before = self.hyperedges.len();
         self.hyperedges.retain(|h| !remove_hyper.contains(&h.id));
+        changed |= self.hyperedges.len() != before;
         for h in d.add_hyperedges {
-            let hyper = resolve_hyperedge(h, &self.nodes);
+            let hyper = resolve_hyperedge(h, &ids);
             match self.hyperedges.iter().position(|x| x.id == hyper.id) {
-                Some(i) => self.hyperedges[i] = hyper,
-                None => self.hyperedges.push(hyper),
+                Some(i) => {
+                    if self.hyperedges[i] != hyper {
+                        self.hyperedges[i] = hyper;
+                        changed = true;
+                    }
+                }
+                None => {
+                    self.hyperedges.push(hyper);
+                    changed = true;
+                }
             }
         }
         let remove_simp: std::collections::HashSet<&String> = d.remove_simplexes.iter().collect();
+        let before = self.simplexes.len();
         self.simplexes.retain(|s| !remove_simp.contains(&s.id));
+        changed |= self.simplexes.len() != before;
         for s in d.add_simplexes {
-            let simp = resolve_simplex(s, &self.nodes);
+            let simp = resolve_simplex(s, &ids);
             match self.simplexes.iter().position(|x| x.id == simp.id) {
-                Some(i) => self.simplexes[i] = simp,
-                None => self.simplexes.push(simp),
+                Some(i) => {
+                    if self.simplexes[i] != simp {
+                        self.simplexes[i] = simp;
+                        changed = true;
+                    }
+                }
+                None => {
+                    self.simplexes.push(simp);
+                    changed = true;
+                }
             }
         }
         // Canonical shape: a hyperedge under two members, a simplex under
@@ -1037,6 +1147,7 @@ impl Graph {
         self.simplexes.retain(|s| s.nodes.len() >= 3);
         self.recompute_degrees();
         self.with_bows();
+        changed
     }
 
     /// Degree drives the radius; a delta changes it for the touched
@@ -1376,5 +1487,141 @@ mod delta_tests {
         assert!(g.hyperedges.is_empty());
         // Two ids, one node: not a face (the same rule as an edge's).
         assert!(g.simplexes.is_empty());
+    }
+
+    #[test]
+    fn a_delta_reports_whether_it_changed_anything() {
+        // The P-163 review's #1: a count-preserving collapse must report
+        // a change (five equal counts used to skip the redraw), and a
+        // delta re-sending identical instances must not (it would warm
+        // the layout and jiggle a settled graph for nothing).
+        let mut g = Graph::from_input(input());
+        let id_of = |g: &Graph, id: &str| g.nodes.iter().position(|n| n.id == id).unwrap();
+        // Nothing named exists: no change.
+        assert!(!g.apply_delta(InDelta {
+            remove_nodes: vec!["ghost".into()],
+            ..Default::default()
+        }));
+        // Re-sending an identical edge and node: no change.
+        let (a, b) = (id_of(&g, "a"), id_of(&g, "b"));
+        assert!(
+            !g.apply_delta(InDelta {
+                add_edges: vec![InDeltaEdge {
+                    id: "0:1:0".into(),
+                    a: "a".into(),
+                    b: "b".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            "the identical edge re-sent"
+        );
+        let old = g.nodes[a].clone();
+        assert!(
+            !g.apply_delta(InDelta {
+                add_nodes: vec![InDeltaNode {
+                    id: "a".into(),
+                    label: "a".into(),
+                    kind: "file".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            "the identical node re-sent"
+        );
+        assert_eq!(g.nodes[a], old);
+        // A relabel changes; a pulse_speed change changes; a collapse
+        // with equal counts changes.
+        assert!(g.apply_delta(InDelta {
+            add_nodes: vec![InDeltaNode {
+                id: "a".into(),
+                label: "renamed".into(),
+                kind: "file".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }));
+        assert!(g.apply_delta(InDelta {
+            add_edges: vec![InDeltaEdge {
+                id: "0:1:0".into(),
+                a: "a".into(),
+                b: "b".into(),
+                pulse_speed: Some(10.0),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }));
+        let before = (g.nodes.len(), g.edges.len());
+        assert!(
+            g.apply_delta(InDelta {
+                remove_nodes: vec!["b".into()],
+                add_nodes: vec![delta_node("agg", [10.0, 0.0])],
+                add_edges: vec![delta_edge("p1", "a", "agg"), delta_edge("p2", "agg", "c")],
+                ..Default::default()
+            }),
+            "the collapse kept the counts — it still redraws"
+        );
+        assert_eq!(g.nodes.len(), before.0);
+        assert_eq!(g.edges.len(), before.1);
+        // with_bows keeps the indices honest (a longer edge id list).
+        let _ = b;
+    }
+
+    #[test]
+    fn a_lone_edge_keeps_no_bow() {
+        // The review's #3: an edge whose parallel partner a delta removed
+        // must not stay curved for good.
+        let mut g = Graph::from_input(InGraph {
+            edges: vec![
+                InEdge {
+                    a: 0,
+                    b: 1,
+                    ..Default::default()
+                },
+                InEdge {
+                    a: 0,
+                    b: 1,
+                    ..Default::default()
+                },
+            ],
+            ..input()
+        });
+        assert!(g.edges.iter().any(|e| e.bow != 0.0), "the pair bows apart");
+        g.apply_delta(InDelta {
+            remove_edges: vec!["0:1:0".into()],
+            ..Default::default()
+        });
+        assert!(
+            g.edges.iter().all(|e| e.bow == 0.0),
+            "the survivor straightened: {:?}",
+            g.edges.iter().map(|e| e.bow).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_replacement_without_pos_keeps_the_old_position() {
+        // The review's #7: a relabel must not teleport the node to a
+        // fresh spiral slot (nor reset its depth).
+        let mut g = Graph::from_input(input());
+        let old = g.nodes[0].clone();
+        assert!(g.apply_delta(InDelta {
+            add_nodes: vec![InDeltaNode {
+                id: "a".into(),
+                label: "renamed".into(),
+                kind: "file".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }));
+        let n = &g.nodes[0];
+        assert_eq!(n.label, "renamed");
+        assert_eq!((n.x, n.y, n.z), (old.x, old.y, old.z), "the position held");
+        assert_eq!(n.pinned, old.pinned);
+        // An explicit pos still moves it (an expand places its members).
+        assert!(g.apply_delta(InDelta {
+            add_nodes: vec![delta_node("a", [99.0, -7.0])],
+            ..Default::default()
+        }));
+        assert_eq!((g.nodes[0].x, g.nodes[0].y), (99.0, -7.0));
     }
 }

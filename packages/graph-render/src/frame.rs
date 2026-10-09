@@ -256,13 +256,22 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
                 .get(rank.min(visible.len().saturating_sub(1)))
                 .copied();
             polyline_into(graph, e, stroke_offset(rank, strokes), scratch);
-            // The stroke's total length — the pulse wraps over it (the
-            // glow is positioned in world units, so it crosses the
-            // sub-segments of a curve as one continuous stroke).
-            let edge_len: f32 = scratch
-                .windows(2)
-                .map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt())
-                .sum();
+            // The stroke's total length — the pulse wraps over it, and the
+            // dash LOD gates on it (the glow and the gaps are positioned in
+            // world units / screen pixels over the whole stroke, crossing a
+            // curve's sub-segments as one line). Plain strokes skip the
+            // pass (the stage 4–6 review's #10: every edge ran it on every
+            // layout step) — a layer may dash a stroke whose edge isn't.
+            let needs_len =
+                e.pulse_speed > 0.0 || e.dash > 0.0 || visible.iter().any(|l| l.dash.is_some());
+            let edge_len: f32 = if needs_len {
+                scratch
+                    .windows(2)
+                    .map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt())
+                    .sum()
+            } else {
+                0.0
+            };
             let mut attr = SegAttr {
                 color: e.color,
                 width: e.width,
@@ -407,21 +416,33 @@ fn build_hulls(graph: &Graph, f: &mut Frame) {
 /// ride the node pipeline behind this builder's back.
 fn build_hyperedges(graph: &Graph, f: &mut Frame) {
     for h in &graph.hyperedges {
-        if !h.visible || h.nodes.len() < 2 {
+        if !h.visible {
+            continue;
+        }
+        // An invisible member (a hidden layer) draws nothing — its spoke
+        // and the centroid must not reach for it (the stage 4–6 review's
+        // #6, unlike a hull whose box only shrinks).
+        let members: Vec<usize> = h
+            .nodes
+            .iter()
+            .copied()
+            .filter(|&i| f.node_visible.get(i).copied().unwrap_or(true))
+            .collect();
+        if members.len() < 2 {
             continue;
         }
         let mut center = [0.0f32; 3];
-        for &i in &h.nodes {
+        for &i in &members {
             let n = &graph.nodes[i];
             center[0] += n.x;
             center[1] += n.y;
             center[2] += n.z;
         }
-        let k = h.nodes.len() as f32;
+        let k = members.len() as f32;
         center[0] /= k;
         center[1] /= k;
         center[2] /= k;
-        for &i in &h.nodes {
+        for &i in &members {
             f.segs.push(SegPos {
                 a: center,
                 b: node_pos(graph, i),
@@ -447,10 +468,20 @@ fn build_hyperedges(graph: &Graph, f: &mut Frame) {
 /// nodes; a face over more is fanned from its centroid into triangles.
 fn build_simplexes(graph: &Graph, f: &mut Frame) {
     for s in &graph.simplexes {
-        if !s.visible || s.nodes.len() < 3 {
+        if !s.visible {
             continue;
         }
-        let pts: Vec<[f32; 3]> = s.nodes.iter().map(|&i| node_pos(graph, i)).collect();
+        // Invisible members (hidden layers) leave the face — it must not
+        // stretch to a node that draws nothing (the review's #6).
+        let pts: Vec<[f32; 3]> = s
+            .nodes
+            .iter()
+            .filter(|&&i| f.node_visible.get(i).copied().unwrap_or(true))
+            .map(|&i| node_pos(graph, i))
+            .collect();
+        if pts.len() < 3 {
+            continue;
+        }
         if pts.len() == 3 {
             f.simplex_tris.push(SimplexPos {
                 a: pts[0],
@@ -1546,15 +1577,67 @@ mod tests {
             assert_eq!(a.pulse, 30.0);
             assert!(a.edge_len > 40.0, "a bowed stroke is longer than its chord");
         }
-        // The straight stroke: the chord exactly, no pulse without one.
+        // The straight stroke: the chord exactly. A plain edge carries no
+        // length at all — the pass is gated to pulsed and dashed strokes
+        // (the review's #10).
+        let mut plain = edge(0, 1);
+        plain.pulse_speed = 20.0;
         let f2 = build_frame(
+            &graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![plain]),
+            false,
+        );
+        assert!((f2.seg_attrs[0].edge_len - 40.0).abs() < 1e-4);
+        let f3 = build_frame(
             &graph(
                 vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
                 vec![edge(0, 1)],
             ),
             false,
         );
-        assert!((f2.seg_attrs[0].edge_len - 40.0).abs() < 1e-4);
-        assert_eq!(f2.seg_attrs[0].pulse, 0.0);
+        assert_eq!(f3.seg_attrs[0].pulse, 0.0);
+        assert_eq!(
+            f3.seg_attrs[0].edge_len, 0.0,
+            "a plain stroke skips the pass"
+        );
+    }
+
+    #[test]
+    fn hyperedges_and_simplices_do_not_reach_hidden_nodes() {
+        // The P-163 review's #6: an invisible member (a hidden layer)
+        // draws nothing — its spoke must not point at it, the junction
+        // must not lean toward it, and no face may stretch to it.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 40.0, 0.0),
+                node("c", 0.0, 40.0),
+            ],
+            vec![],
+        );
+        g.nodes[2].layers = vec!["ghost".into()];
+        g.layers = vec![layer("ghost", [0.9, 0.2, 0.2, 0.9], false)];
+        g.hyperedges = vec![crate::graph::Hyperedge {
+            id: "h".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.75, 0.55, 0.95, 0.85],
+            width: 1.4,
+            dash: 0.0,
+            visible: true,
+        }];
+        g.simplexes = vec![crate::graph::Simplex {
+            id: "s".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.95, 0.6, 0.3, 0.9],
+            visible: true,
+        }];
+        let f = build_frame(&g, false);
+        // Two visible members: one spoke each, the centroid over them
+        // (20, 0) — the hidden member pulled neither.
+        assert_eq!(f.junctions.len(), 1);
+        assert_eq!(f.segs.len(), 2, "no spoke to the hidden node");
+        assert!((f.junctions[0].pos[0] - 20.0).abs() < 1e-4);
+        assert!((f.junctions[0].pos[1] - 0.0).abs() < 1e-4);
+        // Two visible corners: no face.
+        assert!(f.simplex_tris.is_empty());
     }
 }

@@ -254,14 +254,24 @@ impl Camera {
         let Some((x0, y0, x1, y1)) = graph.fit_bounds() else {
             return;
         };
-        let w = (x1 - x0).max(1.0);
-        let h = (y1 - y0).max(1.0);
-        self.cx = (x0 + x1) / 2.0;
-        self.cy = (y0 + y1) / 2.0;
         let (z0, z1) = graph
             .nodes
             .iter()
             .fold((f32::MAX, f32::MIN), |(a, b), n| (a.min(n.z), b.max(n.z)));
+        self.fit_rect((x0, y0, x1, y1), (z0, z1), padding);
+    }
+
+    /// The shared fitting core (the stage 4–6 review's #9: `focus` had
+    /// re-derived it, without the 3D fields and with a world-unit pad
+    /// mixed into a pixel margin). `padding` is in pixels; the caller
+    /// includes whatever margins it wants in the rect.
+    pub fn fit_rect(&mut self, rect: (f32, f32, f32, f32), z: (f32, f32), padding: f32) {
+        let (x0, y0, x1, y1) = rect;
+        let (z0, z1) = z;
+        let w = (x1 - x0).max(1.0);
+        let h = (y1 - y0).max(1.0);
+        self.cx = (x0 + x1) / 2.0;
+        self.cy = (y0 + y1) / 2.0;
         self.cz = if z0 <= z1 { (z0 + z1) / 2.0 } else { 0.0 };
         self.scale = ((self.width - 2.0 * padding) / w)
             .min((self.height - 2.0 * padding) / h)
@@ -313,6 +323,31 @@ impl Camera {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fit_rect_centres_and_sets_the_3d_fields() {
+        // The shared fitting core (the P-163 review's #9): `focus` used to
+        // re-derive the 2D half only — nothing set the orbit, so a focus in
+        // 3D did nothing.
+        let mut c = Camera {
+            width: 800.0,
+            height: 600.0,
+            ..Default::default()
+        };
+        c.fit_rect((10.0, 20.0, 110.0, 120.0), (-140.0, 140.0), 40.0);
+        assert!((c.cx - 60.0).abs() < 1e-4 && (c.cy - 70.0).abs() < 1e-4);
+        assert_eq!(c.cz, 0.0, "the orbit target is the rect's depth centre");
+        // 100 wide, padding 40 → scale 720/100 = 7.2 (height-bound: 520/100).
+        assert!((c.scale - 5.2).abs() < 1e-4, "scale {}", c.scale);
+        let radius = (100.0f32 * 100.0 + 100.0 * 100.0 + 280.0 * 280.0).sqrt() / 2.0;
+        let want = (radius / 25f32.to_radians().sin() * 1.1).clamp(200.0, 60_000.0);
+        assert!(
+            (c.dist - want).abs() < 1e-2,
+            "dist {} want {}",
+            c.dist,
+            want
+        );
+    }
 
     #[test]
     fn zoom_keeps_the_point_under_the_cursor() {

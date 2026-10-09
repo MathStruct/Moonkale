@@ -153,8 +153,15 @@ fn edge_vs(@builtin(vertex_index) vi: u32, inst: EdgeInst) -> EdgeOut {
     // the camera scale converts (2D; in 3D it is an approximation).
     out.coord = t * length(seg) + inst.phase * camera.scale;
     out.dash = inst.dash;
-    out.seglen = length(seg);
-    out.wcoord = inst.phase + t * length(inst.b.xyz - inst.a.xyz);
+    // LOD gates read the STROKE's screen length, not the sub-segment's
+    // (the review's #5: a bowed dashed edge 40 px wide has 5 px
+    // sub-segments and drew solid while its straight twin stayed
+    // dashed). Plain strokes carry no edge_len — the segment itself.
+    out.seglen = select(length(seg), inst.edge_len * camera.scale, inst.edge_len > 0.0);
+    // The phase and the stroke's length are 2D — nodes carry kind-plane z
+    // (±140–280) even in the 2D view, and a 3D length over a 2D phase
+    // left the glow covering only part of the stroke (the review's #4).
+    out.wcoord = inst.phase + t * length(inst.b.xy - inst.a.xy);
     out.pulse = inst.pulse;
     // The glow's position is the clock's over the stroke's length —
     // constant across the segment, so the fragment interpolates it

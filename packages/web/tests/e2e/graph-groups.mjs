@@ -210,7 +210,7 @@ try {
     await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].set_interaction("explore"));
     await sleep(200);
   });
-  await step("a dashed curve draws its gaps zoomed in and goes solid when its sub-segments shrink", async () => {
+  await step("a dashed curve keeps its gaps while it reads — even when its sub-segments shrink", async () => {
     // The curve ab's apex sits half its control offset (7.5 world) off the
     // endpoints' line; a clip there sees the stroke and nothing else.
     const apexClip = async () => {
@@ -240,19 +240,31 @@ try {
       for (const x of xs) { run = x === prev + 1 ? run + 1 : 1; prev = x; best = Math.max(best, run); }
       return best;
     };
+    // A dedicated two-node graph: nothing else draws near the curve (at
+    // low zoom the group hulls' rims are lit and sit in the apex clip).
+    await page.evaluate((json) => Object.values(window.moonkale.graphViews)[0].set_graph(json), JSON.stringify({
+      nodes: ["a", "b"].map((id) => ({ id, label: id, kind: "file" })),
+      edges: [{ id: "ab", a: 0, b: 1, dash: 6, route: { kind: "bezier", offset: 15 } }],
+    }));
+    await page.waitForFunction(() => Object.values(window.moonkale.graphViews)[0].layout_state()[0] === 0, null, { timeout: 20000 });
+    await sleep(700); // settle + auto-fit
     const dashed = await coverage();
     // Zoom out until the curve's sub-segments (≈ its screen length / 8)
-    // fall under 6 px — the curve still crosses the clip, but as one
-    // solid stroke.
+    // fall under 6 px — exactly where the LOD used to gate per sub-segment
+    // and the curve drew solid while its straight twin stayed dashed
+    // (the P-163 review's #5). The whole stroke still spans ~40 px, so
+    // the gaps must keep reading: the longest lit run stays a dash long,
+    // it does not become the whole curve.
     await zoomTo(async () => {
       const [pa, pb] = await Promise.all([pos("a"), pos("b")]);
-      return Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) < 40;
+      return Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) < 45;
     });
-    const solid = await coverage();
-    console.log(`\n  longest lit run: dashed ${dashed}px, solid ${solid}px`);
+    const stillDashed = await coverage();
+    const [pa, pb] = await Promise.all([pos("a"), pos("b")]);
+    console.log(`\n  longest lit run: ${dashed}px at fit, ${stillDashed}px at a ${Math.hypot(pb[0] - pa[0], pb[1] - pa[1]).toFixed(0)}px curve`);
     if (dashed > 12) throw new Error(`the dash pattern does not read at fit (run ${dashed}px)`);
-    if (solid < dashed * 2.5 || solid < 24) throw new Error(`the curve did not go solid zoomed out (run ${solid}px)`);
-    await page.screenshot({ path: `${S}/s4b-dash-solid.png` });
+    if (stillDashed > 14) throw new Error(`the curve drew solid while its stroke spans ${(Math.hypot(pb[0] - pa[0], pb[1] - pa[1])).toFixed(0)}px (run ${stillDashed}px)`);
+    await page.screenshot({ path: `${S}/s4b-dash-kept.png` });
   });
   console.log("\nGRAPH-GROUPS E2E: PASS");
 } catch (e) {

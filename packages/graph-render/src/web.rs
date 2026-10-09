@@ -379,24 +379,14 @@ impl GraphView {
         let d: InDelta =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
-        let before = (
-            s.graph.nodes.len(),
-            s.graph.edges.len(),
-            s.graph.groups.len(),
-            s.graph.hyperedges.len(),
-            s.graph.simplexes.len(),
-        );
-        s.graph.apply_delta(d);
-        if (
-            s.graph.nodes.len(),
-            s.graph.edges.len(),
-            s.graph.groups.len(),
-            s.graph.hyperedges.len(),
-            s.graph.simplexes.len(),
-        ) == before
-        {
+        // A node drag follows its node to its new index, or ends when the
+        // node is gone — a stale index panicked every pointer move (#12,
+        // P-155; the stage 4–6 review's #2).
+        let dragged = s.dragged_id();
+        if !s.graph.apply_delta(d) {
             return Ok(()); // nothing named existed; nothing to redraw
         }
+        s.keep_drag(dragged);
         // Warm, not restart: newcomers settle next to where they were put.
         let mut l = Layout::new(&s.graph);
         l.temperature = 3.0;
@@ -596,25 +586,24 @@ impl GraphView {
         let mut s = self.state.borrow_mut();
         let (mut x0, mut y0) = (f32::MAX, f32::MAX);
         let (mut x1, mut y1) = (f32::MIN, f32::MIN);
-        let mut pad = 0.0f32;
+        let (mut z0, mut z1) = (f32::MAX, f32::MIN);
         let mut any = false;
         for n in s.graph.nodes.iter().filter(|n| ids.contains(&n.id)) {
             x0 = x0.min(n.x - n.radius);
             y0 = y0.min(n.y - n.radius);
             x1 = x1.max(n.x + n.radius);
             y1 = y1.max(n.y + n.radius);
-            pad = pad.max(n.radius);
+            z0 = z0.min(n.z);
+            z1 = z1.max(n.z);
             any = true;
         }
         if !any {
             return;
         }
-        let pad = pad + 40.0;
-        s.camera.cx = (x0 + x1) / 2.0;
-        s.camera.cy = (y0 + y1) / 2.0;
-        s.camera.scale = ((s.camera.width - pad) / (x1 - x0).max(1.0))
-            .min((s.camera.height - pad) / (y1 - y0).max(1.0))
-            .clamp(crate::camera::MIN_SCALE, 12.0);
+        // The rect carries the nodes' rims; the pad is pixels, like `fit`
+        // — and 3D fits too, via the shared `fit_rect` (the stage 4–6
+        // review's #9: this re-derived the 2D half only, in world units).
+        s.camera.fit_rect((x0, y0, x1, y1), (z0, z1), 40.0);
         s.auto_fit = false;
         s.dirty = true;
     }
