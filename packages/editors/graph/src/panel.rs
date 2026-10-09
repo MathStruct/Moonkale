@@ -147,6 +147,16 @@ enum FromJs {
     Dblclick {
         id: String,
     },
+    /// The engine's selection (spec 031, stage 10) — announced through
+    /// the aria-live line.
+    Select {
+        nodes: Vec<String>,
+        edges: Vec<String>,
+    },
+    /// The keyboard focus moved (spec 031, stage 10): announced too.
+    Focus {
+        id: String,
+    },
     Settled,
 }
 
@@ -277,6 +287,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         phantoms: true,
     });
     let mut hover: Signal<Option<FromJs>> = use_signal(|| None);
+    // The selection and the keyboard focus, for the aria-live line
+    // (spec 031, stage 10): a canvas graph is invisible to screen
+    // readers — the events the engine already carries become text.
+    let mut selected: Signal<(Vec<String>, Vec<String>)> = use_signal(|| (Vec::new(), Vec::new()));
+    let mut focused: Signal<Option<String>> = use_signal(|| None);
     // What to draw: the index (default), a database's schema, or the last
     // "Show in Graph" query. `None` = index.
     let mut picked: Signal<Option<SourceId>> = use_signal(|| None);
@@ -326,6 +341,8 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                 spawn(open_node(ws, node));
                             }
                         }
+                        Ok(FromJs::Select { nodes, edges }) => selected.set((nodes, edges)),
+                        Ok(FromJs::Focus { id }) => focused.set(Some(id)),
                         Ok(FromJs::Click { .. }) | Ok(FromJs::Settled) => {}
                         Err(dioxus::document::EvalError::Serialization(_)) => continue,
                         Err(_) => break,
@@ -770,6 +787,20 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } {t!(ws, L, "graph-unresolved")} }
                 }
                 span { class: "mk-graph-spacer" }
+                span {
+                    class: "mk-graph-live",
+                    role: "status",
+                    "aria-live": "polite",
+                    {
+                        let (sel_nodes, sel_edges) = selected.read().clone();
+                        if sel_nodes.is_empty() && sel_edges.is_empty() {
+                            t!(ws, L, "graph-selection-none")
+                        } else {
+                            t!(ws, L, "graph-selection", nodes = sel_nodes.len(), edges = sel_edges.len())
+                        }
+                    }
+                    if let Some(id) = focused.read().clone() { " · {id}" }
+                }
                 span { class: "mk-graph-info", "data-nodes": "{n_nodes}", "data-mode": if three_d() { "3d" } else { "2d" }, "data-backend": backend().unwrap_or_default(), "data-module": if loaded() { "loaded" } else { "" },
                     {t!(ws, L, "graph-counts", nodes = n_nodes, edges = n_edges)}
                     if truncated { {t!(ws, L, "graph-truncated")} }

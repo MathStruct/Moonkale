@@ -1390,6 +1390,52 @@ impl Graph {
     /// include the nodes' rims (spec 031 §2: sizes vary) — a wide rect's
     /// ports sit on its rim, and a centre-only fit left them off the
     /// canvas (stage 7's flow blocks).
+    /// A node with layers draws (and answers hits, and takes keyboard
+    /// focus) only while one of its layers is visible (spec 031 §3).
+    pub fn visible(&self, i: usize) -> bool {
+        let n = &self.nodes[i];
+        n.layers.is_empty()
+            || n.layers
+                .iter()
+                .any(|id| self.layers.iter().any(|l| &l.id == id && l.visible))
+    }
+
+    /// Keyboard spatial navigation (spec 031, stage 10): the nearest node
+    /// within a 45° cone of `dir` from node `from`, weighting distance
+    /// against angular offset so a slightly-off near node beats a far
+    /// straight one. `None` at the map's edge in that direction.
+    pub fn nearest_in_direction(&self, from: usize, dir: [f32; 2]) -> Option<usize> {
+        let origin = self.nodes.get(from)?;
+        let (dx, dy) = (dir[0], dir[1]);
+        let len = (dx * dx + dy * dy).sqrt();
+        if len < 1e-6 {
+            return None;
+        }
+        let (ux, uy) = (dx / len, dy / len);
+        let mut best: Option<(f32, usize)> = None;
+        for (j, n) in self.nodes.iter().enumerate() {
+            if j == from || !self.visible(j) {
+                continue;
+            }
+            let (vx, vy) = (n.x - origin.x, n.y - origin.y);
+            let d = (vx * vx + vy * vy).sqrt();
+            if d < 1e-6 {
+                continue;
+            }
+            let forward = (vx * ux + vy * uy) / d;
+            if forward < std::f32::consts::FRAC_1_SQRT_2 {
+                continue; // outside the cone
+            }
+            // A near node slightly off-axis wins over a far straight one;
+            // the penalty is bounded so the walk never stalls.
+            let score = d * (1.0 + (1.0 - forward) * 2.0);
+            if best.is_none_or(|(s, _)| score < s) {
+                best = Some((score, j));
+            }
+        }
+        best.map(|(_, j)| j)
+    }
+
     pub fn fit_bounds(&self) -> Option<(f32, f32, f32, f32)> {
         let connected = self.nodes.iter().filter(|n| n.degree > 0).count();
         if connected * 2 >= self.nodes.len() && connected > 0 {
@@ -1873,6 +1919,67 @@ mod delta_tests {
         assert!((x1 - 364.0).abs() < 1e-4, "the circle's radius rides along");
         assert!((y0 - 8.0).abs() < 1e-4, "the rect's half-height counts");
         assert!((y1 - 374.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_arrows_walk_to_the_nearest_node_in_their_cone() {
+        // Stage 10 (spec 031, the accessibility minimums): keyboard
+        // spatial navigation — the nearest node inside a 45° cone,
+        // with a slightly-off near node beating a far straight one.
+        let g = Graph::from_input(InGraph {
+            nodes: vec![
+                InNode {
+                    id: "a".into(),
+                    label: "a".into(),
+                    kind: "file".into(),
+                    pos: Some([0.0, 0.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+                InNode {
+                    id: "right".into(),
+                    label: "r".into(),
+                    kind: "file".into(),
+                    pos: Some([40.0, 0.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+                InNode {
+                    id: "near-off".into(),
+                    label: "n".into(),
+                    kind: "file".into(),
+                    pos: Some([30.0, 12.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+                InNode {
+                    id: "behind".into(),
+                    label: "b".into(),
+                    kind: "file".into(),
+                    pos: Some([-40.0, 0.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+                InNode {
+                    id: "far-straight".into(),
+                    label: "f".into(),
+                    kind: "file".into(),
+                    pos: Some([200.0, 1.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+            ],
+            edges: vec![],
+            ..Default::default()
+        });
+        // Right: the near slightly-off node beats the far straight one.
+        assert_eq!(g.nearest_in_direction(0, [1.0, 0.0]), Some(2));
+        // Left: only "behind" is in the cone.
+        assert_eq!(g.nearest_in_direction(0, [-1.0, 0.0]), Some(3));
+        // Up: nothing above — the walk stalls at the map's edge.
+        assert_eq!(g.nearest_in_direction(0, [0.0, -1.0]), None);
+        // From "behind", right reaches "a".
+        assert_eq!(g.nearest_in_direction(3, [1.0, 0.0]), Some(0));
     }
 
     #[test]

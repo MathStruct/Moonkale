@@ -90,4 +90,6 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 
 - **Stage 9 — edge labels on hover**: `InEdge.label` (on the wire since stage 1) now renders — hovering a stroke (no node hovered) draws the edge's label beside the pointer, inked in the edge's colour; the per-move scan is gated on graphs that carry labels. Also fixed the asset pipeline (P-168): dx served the engine one build behind because the asset URL hash never recompiled — `build.rs` now keys the asset crate on the wasm's bytes.
 
+- **Stage 10 — the accessibility minimums**: the overlay is keyboard-focusable (the engine sets the tabindex and focuses the canvas on click — its own pointerdown prevents the default); the arrows walk spatially (nearest node in a 45° cone), Enter selects the focused node, Escape clears, Tab stays the browser's. The focus is id-keyed, wears a ring on the overlay and emits `focus { id }`; the panel narrates the selection and focus through an `aria-live` line. `graph-a11y.mjs` covers it.
+
 `dioxus-flow` is retired (ADR-0018): typed ports, auto-layout, undo, parameter editing, the Lux blocks unchanged, the broken-file guard — all on the one engine.

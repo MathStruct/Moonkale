@@ -49,6 +49,11 @@ struct State {
     /// Any edge carries a label: gates the per-move edge scan, one
     /// pass over every drawn segment.
     has_edge_labels: bool,
+    /// The keyboard focus node's id (spec 031, stage 10): Tab and the
+    /// arrows walk the map, Enter clicks — a canvas graph is invisible
+    /// to keyboards without it. Id-keyed, so it survives graph swaps
+    /// like the selection.
+    focus_id: Option<String>,
     /// The pulse clock's zero (`performance.now` at create); `camera.time`
     /// is the elapsed seconds since.
     t0_ms: f64,
@@ -215,11 +220,7 @@ fn end_wire(s: &mut State) {
 }
 
 fn node_visible(graph: &Graph, i: usize) -> bool {
-    let n = &graph.nodes[i];
-    n.layers.is_empty()
-        || n.layers
-            .iter()
-            .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
+    graph.visible(i)
 }
 
 fn emit(state: &State, value: serde_json::Value) {
@@ -349,6 +350,7 @@ pub async fn create(
         pointer: (0.0, 0.0),
         hovered_edge: None,
         has_edge_labels,
+        focus_id: None,
         t0_ms: web_sys::window()
             .and_then(|w| w.performance())
             .map(|p| p.now())
@@ -377,8 +379,100 @@ pub async fn create(
         serde_json::json!({ "kind": "ready", "backend": backend }),
     );
     install_pointer_handlers(&overlay, state.clone());
+    install_keyboard(&overlay, state.clone());
     start_loop(state.clone());
     Ok(GraphView { state })
+}
+
+/// The overlay becomes keyboard-focusable (spec 031, stage 10): the
+/// canvas takes a tabindex — its pointerdown prevents the default, which
+/// would otherwise stop the browser's focus-on-mousedown, so a
+/// capture-phase listener focuses it first — and the arrow keys walk the
+/// map spatially, Enter clicks the focused node and Escape clears the
+/// selection. The walk emits `focus { id }` and wears a ring on the
+/// label overlay, so hosts and keyboard users can both see it. Tab
+/// stays the browser's: a canvas widget must not trap it.
+fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<State>>) {
+    let _ = overlay.set_attribute("tabindex", "0");
+    {
+        let el = overlay.clone();
+        let cb = Closure::<dyn FnMut(web_sys::PointerEvent)>::new(move |_| {
+            let _ = el.focus();
+        });
+        let target: &web_sys::EventTarget = overlay.as_ref();
+        let _ = target.add_event_listener_with_callback_and_bool(
+            "pointerdown",
+            cb.as_ref().unchecked_ref(),
+            true,
+        );
+        cb.forget();
+    }
+    let st = state.clone();
+    let cb = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
+        let mut s = st.borrow_mut();
+        let n = s.graph.nodes.len();
+        if n == 0 {
+            return;
+        }
+        // The focused node's index — the focus is id-keyed, so a swapped
+        // graph keeps it like the selection does.
+        let idx = s
+            .focus_id
+            .as_deref()
+            .and_then(|id| s.graph.nodes.iter().position(|nd| nd.id == id))
+            .filter(|i| node_visible(&s.graph, *i));
+        match e.key().as_str() {
+            "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" => {
+                e.prevent_default(); // the page must not scroll
+                let dir = match e.key().as_str() {
+                    // Screen up is world −y in the 2D view.
+                    "ArrowLeft" => [-1.0, 0.0],
+                    "ArrowRight" => [1.0, 0.0],
+                    "ArrowUp" => [0.0, -1.0],
+                    _ => [0.0, 1.0],
+                };
+                // Nothing focused yet: walk from the map's first node —
+                // the very first arrow already moves, it does not land
+                // on node 0 itself.
+                let target = match idx {
+                    Some(i) => s.graph.nearest_in_direction(i, dir).or(Some(i)),
+                    None => s.graph.nearest_in_direction(0, dir).or(Some(0)),
+                };
+                let Some(target) = target else { return };
+                let id = s.graph.nodes[target].id.clone();
+                if s.focus_id.as_deref() != Some(id.as_str()) {
+                    s.focus_id = Some(id.clone());
+                    s.dirty = true; // the focus ring redraws
+                    emit(&s, serde_json::json!({ "kind": "focus", "id": id }));
+                }
+            }
+            "Enter" => {
+                if let Some(i) = idx {
+                    e.prevent_default();
+                    let id = s.graph.nodes[i].id.clone();
+                    s.selected = frame::Selection {
+                        nodes: [id.clone()].into_iter().collect(),
+                        edges: Default::default(),
+                    };
+                    s.sel_rev += 1;
+                    emit_select(&s);
+                    emit(&s, serde_json::json!({ "kind": "click", "id": id }));
+                }
+            }
+            "Escape" => {
+                if !s.selected.is_empty() {
+                    e.prevent_default();
+                    s.selected = frame::Selection::default();
+                    s.sel_rev += 1;
+                    emit_select(&s);
+                }
+            }
+            _ => {}
+        }
+    });
+    let target: &web_sys::EventTarget = overlay.as_ref();
+    let _ = target.add_event_listener_with_callback("keydown", cb.as_ref().unchecked_ref());
+    cb.forget();
 }
 
 #[wasm_bindgen]
@@ -1129,6 +1223,31 @@ fn draw_labels(s: &State) {
                     (s.pointer.0 + 12.0) as f64,
                     (s.pointer.1 - 10.0) as f64,
                 );
+            }
+        }
+    }
+    // The keyboard focus wears a ring (spec 031, stage 10): without it a
+    // keyboard user cannot see where Tab or the arrows landed.
+    if let Some(id) = &s.focus_id {
+        if let Some(i) = s.graph.nodes.iter().position(|n| &n.id == id) {
+            if node_visible(&s.graph, i) {
+                let n = &s.graph.nodes[i];
+                let (x, y, r) = if s.camera.three_d {
+                    match s.camera.project(n.x, n.y, n.z) {
+                        Some((x, y, w)) => (x, y, n.radius * s.camera.size_factor(w)),
+                        None => (0.0, 0.0, 0.0),
+                    }
+                } else {
+                    let (x, y) = s.camera.world_to_screen(n.x, n.y);
+                    (x, y, n.radius * s.camera.scale.max(0.6))
+                };
+                if r > 0.0 {
+                    ctx.set_stroke_style_str(&s.label_hover);
+                    ctx.set_line_width(1.5);
+                    ctx.begin_path();
+                    let _ = ctx.arc(x as f64, y as f64, (r + 5.0) as f64, 0.0, 6.2832);
+                    let _ = ctx.stroke();
+                }
             }
         }
     }
