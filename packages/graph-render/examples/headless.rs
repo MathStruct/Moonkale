@@ -16,6 +16,7 @@ fn main() {
         kind: "variable".into(),
         key: id.into(),
         color: Some("#6ea8fe".into()),
+        layers: Vec::new(),
     };
     let factor = |id: &str| InNode {
         id: id.into(),
@@ -23,6 +24,7 @@ fn main() {
         kind: "factor".into(),
         key: id.into(),
         color: Some("#c9a75f".into()),
+        layers: Vec::new(),
     };
     let nodes = vec![
         var("x1"),
@@ -38,6 +40,7 @@ fn main() {
         b,
         kind: "connects".into(),
         color: None,
+        ..Default::default()
     };
     let edges = vec![
         edge(4, 0),
@@ -48,7 +51,11 @@ fn main() {
         edge(6, 3),
     ];
 
-    let mut scene = Scene::new(InGraph { nodes, edges });
+    let mut scene = Scene::new(InGraph {
+        nodes,
+        edges,
+        ..Default::default()
+    });
     scene.resize(800.0, 600.0);
     let steps = scene.settle(2_000);
     scene.fit();

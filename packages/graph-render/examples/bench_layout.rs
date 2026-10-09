@@ -17,6 +17,7 @@ fn synthetic(n: usize) -> Graph {
             },
             key: String::new(),
             color: None,
+            layers: Vec::new(),
         })
         .collect();
     let mut edges = Vec::new();
@@ -26,6 +27,7 @@ fn synthetic(n: usize) -> Graph {
             b: i / 7,
             kind: "contains".into(),
             color: None,
+            ..Default::default()
         });
         if i % 5 == 0 {
             edges.push(InEdge {
@@ -33,10 +35,15 @@ fn synthetic(n: usize) -> Graph {
                 b: (i * 7919) % n,
                 kind: "links".into(),
                 color: None,
+                ..Default::default()
             });
         }
     }
-    Graph::from_input(InGraph { nodes, edges })
+    Graph::from_input(InGraph {
+        nodes,
+        edges,
+        ..Default::default()
+    })
 }
 
 fn main() {

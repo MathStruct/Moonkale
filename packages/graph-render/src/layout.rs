@@ -156,6 +156,7 @@ mod tests {
                 kind: "file".into(),
                 key: String::new(),
                 color: None,
+                layers: Vec::new(),
             })
             .collect();
         nodes[0].id = "home".into();
@@ -167,15 +168,21 @@ mod tests {
                 b: l,
                 kind: String::new(),
                 color: None,
+                ..Default::default()
             });
             edges.push(InEdge {
                 a: 1,
                 b: l,
                 kind: String::new(),
                 color: None,
+                ..Default::default()
             });
         }
-        let mut g = Graph::from_input(InGraph { nodes, edges });
+        let mut g = Graph::from_input(InGraph {
+            nodes,
+            edges,
+            ..Default::default()
+        });
         let mut l = Layout::new(&g);
         let mut steps = 0;
         while l.running && steps < 1000 {
@@ -212,6 +219,7 @@ mod tests {
                 kind: "file".into(),
                 key: String::new(),
                 color: None,
+                layers: Vec::new(),
             })
             .collect();
         let edges = (1..n)
@@ -220,9 +228,14 @@ mod tests {
                 b: i,
                 kind: "links".into(),
                 color: None,
+                ..Default::default()
             })
             .collect();
-        Graph::from_input(InGraph { nodes, edges })
+        Graph::from_input(InGraph {
+            nodes,
+            edges,
+            ..Default::default()
+        })
     }
 
     #[test]
