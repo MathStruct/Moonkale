@@ -425,7 +425,7 @@ fn DesktopApp() -> Element {
                             include_str!("isolation-probe.js")
                         } else { include_str!("renderer-probe.js") };
                         let mut eval = document::eval(script);
-                        eval.send(serde_json::json!({"proportional": std::env::var_os("MOONKALE_OS_PROPORTIONAL").is_some(), "presentation": std::env::var_os("MOONKALE_OS_PRESENTATION").is_some(), "consumed": std::env::var_os("MOONKALE_OS_CONSUMED_RUNS").is_some(), "multiline": std::env::var_os("MOONKALE_OS_MULTILINE").is_some()})).expect("send renderer mode");
+                        eval.send(serde_json::json!({"nested": std::env::var_os("MOONKALE_MARKDOWN_NESTED").is_some(), "proportional": std::env::var_os("MOONKALE_OS_PROPORTIONAL").is_some(), "presentation": std::env::var_os("MOONKALE_OS_PRESENTATION").is_some(), "consumed": std::env::var_os("MOONKALE_OS_CONSUMED_RUNS").is_some(), "multiline": std::env::var_os("MOONKALE_OS_MULTILINE").is_some()})).expect("send renderer mode");
                         let result: serde_json::Value = eval.recv().await.expect("native renderer probe");
                         std::fs::write(&path, result.to_string()).expect("write renderer probe");
                         let events_path = format!("{}.events.json", std::path::Path::new(&path).display());
@@ -998,12 +998,21 @@ fn App() -> Element {
         button { id: "markdown-preview", onclick: move |_| {
             let id = NodeId::derive(&doc.peek().node.source, "nested.md");
             if let Some(mut markdown) = ws.document(id) {
-                markdown.write().text = "# Preview\r\nstart *猫 &amp; dog* and **bold 😀** then `code <safe>` end.\r\nescaped \\*literal* and a_b_c and ***nested***.\r\n```\r\n*literal code* `raw`\r\n```\r\nlast row\r\n".into();
+                markdown.write().text = "# Preview\r\nstart *猫 &amp; dog* and **bold 😀** then `code <safe>` end.\r\nescaped \\*literal* and a_b_c and [**link**](url).\r\n```\r\n*literal code* `raw`\r\n```\r\nlast row\r\n".into();
             }
             show_language.set(Some(id));
             let mut ws = ws; ws.docs.active.set(Some(id));
             layout_fixture.set(moonkale_code_view::LayoutFixture { proportional_line: Some(0), markdown_preview: true, ..Default::default() });
         }, "Markdown inline preview" }
+        button { id: "markdown-nested", onclick: move |_| {
+            let id = NodeId::derive(&doc.peek().node.source, "nested.md");
+            if let Some(mut markdown) = ws.document(id) {
+                markdown.write().text = "# Nested\r\nbefore ***both 猫*** after\r\n**bold *italic &amp; 猫* and `code <safe>` tail**\r\n*plain **strong** then `x * y` end*\r\nunsupported *a [**link**](url) b*\r\n```\r\n***literal*** `raw`\r\n```\r\nlast row\r\n".into();
+            }
+            show_language.set(Some(id));
+            let mut ws = ws; ws.docs.active.set(Some(id));
+            layout_fixture.set(Default::default());
+        }, "Nested Markdown source" }
         button { id: "layout-widget", onclick: move |_| {
             layout_fixture.set(moonkale_code_view::LayoutFixture { line: 1, block_height: 56.0, interactive_widget: true, ..Default::default() });
         }, "Interactive widget" }

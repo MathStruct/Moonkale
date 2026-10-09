@@ -1,5 +1,5 @@
 //! Conservative CommonMark inline presentation over the bounded source prefix.
-use crate::native_decorations::{Batch, Decoration, InlineStyle, Kind, Provider};
+use crate::native_decorations::{Batch, Decoration, InlineFragment, InlineStyle, Kind, Provider};
 use moonkale_ext_api::editor::DocumentRevision;
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use std::ops::Range;
@@ -7,8 +7,34 @@ use std::ops::Range;
 struct Frame {
     range: Range<usize>,
     style: InlineStyle,
-    label: String,
+    fragments: Vec<InlineFragment>,
+    nested: bool,
     unsupported: bool,
+}
+
+fn fragment(frames: &[Frame], text: String, code: bool) -> InlineFragment {
+    InlineFragment {
+        text,
+        emphasis: frames
+            .iter()
+            .any(|frame| frame.style == InlineStyle::Emphasis),
+        strong: frames
+            .iter()
+            .any(|frame| frame.style == InlineStyle::Strong),
+        code,
+    }
+}
+
+fn append(fragments: &mut Vec<InlineFragment>, fragment: InlineFragment) {
+    if let Some(previous) = fragments.last_mut().filter(|previous| {
+        previous.emphasis == fragment.emphasis
+            && previous.strong == fragment.strong
+            && previous.code == fragment.code
+    }) {
+        previous.text.push_str(&fragment.text);
+    } else if !fragment.text.is_empty() {
+        fragments.push(fragment);
+    }
 }
 
 pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
@@ -16,7 +42,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
     let mut values = Vec::new();
     let mut blocked = 0usize;
     let mut emit = |range: Range<usize>, label: String, style| {
-        // Multiline/nested inlines remain source in this initial provider.
+        // Multiline inlines retain source in this bounded provider.
         if range.is_empty() || label.is_empty() || source[range.clone()].contains('\n') {
             return;
         }
@@ -35,9 +61,8 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
     for (event, range) in Parser::new(source).into_offset_iter() {
         match event {
             Event::Start(Tag::Emphasis | Tag::Strong) => {
-                let nested = !frames.is_empty();
                 if let Some(parent) = frames.last_mut() {
-                    parent.unsupported = true;
+                    parent.nested = true;
                 }
                 let style = if matches!(event, Event::Start(Tag::Strong)) {
                     InlineStyle::Strong
@@ -47,27 +72,48 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
                 frames.push(Frame {
                     range,
                     style,
-                    label: String::new(),
-                    unsupported: nested || blocked > 0,
+                    fragments: Vec::new(),
+                    nested: false,
+                    unsupported: blocked > 0,
                 });
             }
             Event::End(TagEnd::Emphasis | TagEnd::Strong) => {
                 if let Some(frame) = frames.pop() {
-                    if !frame.unsupported {
-                        emit(frame.range, frame.label, frame.style);
+                    if let Some(parent) = frames.last_mut() {
+                        parent.unsupported |= frame.unsupported;
+                        for fragment in frame.fragments {
+                            append(&mut parent.fragments, fragment);
+                        }
+                    } else if !frame.unsupported {
+                        let label = frame
+                            .fragments
+                            .iter()
+                            .map(|fragment| fragment.text.as_str())
+                            .collect();
+                        let style = if frame.nested {
+                            InlineStyle::Nested(frame.fragments)
+                        } else {
+                            frame.style
+                        };
+                        emit(frame.range, label, style);
                     }
                 }
             }
             Event::Code(text) => {
-                if let Some(frame) = frames.last_mut() {
-                    frame.unsupported = true;
+                if !frames.is_empty() {
+                    let fragment = fragment(&frames, text.into_string(), true);
+                    let frame = frames.last_mut().unwrap();
+                    frame.nested = true;
+                    frame.unsupported |= source[range].contains('\n');
+                    append(&mut frame.fragments, fragment);
                 } else if blocked == 0 {
                     emit(range, text.into_string(), InlineStyle::Code);
                 }
             }
             Event::Text(text) => {
+                let fragment = fragment(&frames, text.into_string(), false);
                 if let Some(frame) = frames.last_mut() {
-                    frame.label.push_str(&text);
+                    append(&mut frame.fragments, fragment);
                 }
             }
             Event::Start(
@@ -142,14 +188,11 @@ mod tests {
         );
     }
     #[test]
-    fn incomplete_nested_multiline_links_html_and_fenced_code_keep_source() {
+    fn incomplete_multiline_links_html_and_fenced_code_keep_source() {
         for source in [
             "*unfinished",
             "a_b_c",
             "\\*literal*",
-            "***nested***",
-            "*with **nested** text*",
-            "**with `code`**",
             "*a\nb*",
             "`a\nb`",
             "[**link**](url)",
@@ -160,6 +203,52 @@ mod tests {
         ] {
             assert!(previews(source).is_empty(), "{source}");
         }
+    }
+    #[test]
+    fn nested_styles_keep_one_outer_range_and_combine_fragment_styles() {
+        let fragment = |text: &str, emphasis, strong, code| InlineFragment {
+            text: text.into(),
+            emphasis,
+            strong,
+            code,
+        };
+        assert_eq!(
+            previews("😀 ***猫 &amp; dog***"),
+            vec![(
+                "***猫 &amp; dog***".into(),
+                "猫 & dog".into(),
+                InlineStyle::Nested(vec![fragment("猫 & dog", true, true, false)]),
+            )]
+        );
+        assert_eq!(
+            previews("**bold *italic* and `x * y` tail**"),
+            vec![(
+                "**bold *italic* and `x * y` tail**".into(),
+                "bold italic and x * y tail".into(),
+                InlineStyle::Nested(vec![
+                    fragment("bold ", false, true, false),
+                    fragment("italic", true, true, false),
+                    fragment(" and ", false, true, false),
+                    fragment("x * y", false, true, true),
+                    fragment(" tail", false, true, false),
+                ]),
+            )]
+        );
+        assert_eq!(previews("*plain **strong** then `code` end*").len(), 1);
+        for source in [
+            "*before **a <b>b</b>** after*",
+            "**before *a\nb* after**",
+            "*before [**link**](url) after*",
+            "*before `a\nb` after*",
+        ] {
+            assert!(previews(source).is_empty(), "{source}");
+        }
+        let result = batch(DocumentRevision(9), &"***x*** ".repeat(100));
+        assert_eq!(
+            result.values.len(),
+            63,
+            "Nested children do not consume reveal bits"
+        );
     }
     #[test]
     fn reveal_budget_is_deterministic_and_revision_bound() {

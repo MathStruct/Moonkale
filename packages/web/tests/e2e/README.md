@@ -253,3 +253,6 @@ Multiline coverage: `native-editor-multiline.mjs` tests canonical newline owners
 
 
 The Markdown browser suite also resets all layout fixture flags and uses the production Preview toolbar/settings path, verifies pressed state and wrap behavior, remount persistence, source retention and non-Markdown isolation. The code-view crate defaults to the `markdown-preview` compile-time feature, while runtime `editor.markdown_preview` defaults off. `layout-fixture` is needed only for the fixture controls/probe exports. Default-build unit coverage explicitly supplies no fixture context.
+
+
+`native-editor-markdown-nested.mjs` verifies combined/nested emphasis, strong and inline-code fragments through the production Preview toggle: correct per-fragment CSS inheritance, one outer source target, local reveal, pointer endpoints at three widths, canonical copy, CRLF edit/undo and composition. Native `native-editor-renderer.py target/debug/moonkale-native-editor-host --x11 --markdown --nested --os-input` exercises the same nested source with real pointer/typing/undo. `--nested` requires `--markdown`; the ordinary Markdown mode remains available.

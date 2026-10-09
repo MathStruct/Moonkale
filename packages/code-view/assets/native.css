@@ -58,3 +58,7 @@
 .mk-native-inline-widget.mk-markdown-emphasis { font-style: italic; }
 .mk-native-inline-widget.mk-markdown-strong { font-weight: bold; }
 .mk-native-inline-widget.mk-markdown-code { font-family: var(--mk-code-font, monospace); background: var(--mk-code-selection); border-radius: 3px; }
+
+.mk-markdown-fragment[data-emphasis="true"] { font-style: italic; }
+.mk-markdown-fragment[data-strong="true"] { font-weight: bold; }
+.mk-markdown-fragment[data-code="true"] { font-family: var(--mk-code-font, monospace); background: var(--mk-code-selection); border-radius: 3px; }

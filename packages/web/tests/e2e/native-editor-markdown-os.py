@@ -34,16 +34,20 @@ def xdo(*commands):
 
 geometry = json.loads(pathlib.Path(str(args.report) + ".geometry.json").read_text())
 assert int(subprocess.check_output(["xdotool", "getwindowpid", args.window], text=True)) == geometry["pid"]
-original = json.loads(args.result.read_text())["text"]
+result = json.loads(args.result.read_text())
+original = result["text"]
+token = result["token"]
 state = wait(lambda value: value["ready"] and value["count"] == 3, "Markdown geometry")
-rect = state["rect"]
 xdo("windowactivate", "--sync", args.window, "windowfocus", "--sync", args.window)
+time.sleep(.2)
+state = wait(lambda value: value["ready"] and value["count"] == 3, "focused Markdown geometry")
+rect = state["rect"]
 xdo("mousemove", "--window", args.window, str(round(rect["x"] + 2)),
     str(round(rect["y"] + rect["height"] / 2 + 27)), "click", "1")
-start = len(original.replace("\r\n", "\n").split("*猫")[0])
+start = len(original.replace("\r\n", "\n").split(token)[0])
 wait(lambda value: value["offset"] == start and value["count"] == 2, "local source reveal")
 xdo("type", "--clearmodifiers", "Q")
-wait(lambda value: value["text"] == original.replace("*猫", "Q*猫", 1), "canonical Markdown typing")
+wait(lambda value: value["text"] == original.replace(token, "Q" + token, 1), "canonical Markdown typing")
 xdo("key", "--clearmodifiers", "ctrl+z")
 wait(lambda value: value["text"] == original, "Markdown undo")
 xdo("key", "--clearmodifiers", "ctrl+End")

@@ -23,20 +23,33 @@ pub(crate) enum Mark {
     Wiki(native_wiki::Mark),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub(crate) enum InlineStyle {
     Emphasis,
     Strong,
     Code,
+    #[cfg(feature = "markdown-preview")]
+    Nested(Vec<InlineFragment>),
 }
+
+#[cfg(feature = "markdown-preview")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct InlineFragment {
+    pub text: String,
+    pub emphasis: bool,
+    pub strong: bool,
+    pub code: bool,
+}
+
 impl InlineStyle {
     #[cfg(feature = "markdown-preview")]
-    pub(crate) fn class(self) -> &'static str {
+    pub(crate) fn class(&self) -> &'static str {
         match self {
             Self::Emphasis => "mk-markdown-emphasis",
             Self::Strong => "mk-markdown-strong",
             Self::Code => "mk-markdown-code",
+            Self::Nested(_) => "mk-markdown-nested",
         }
     }
 }
@@ -220,7 +233,7 @@ impl Decorations {
                 start: range.start - run.start,
                 end: range.end - run.start,
                 widget: widget.clone(),
-                style: *style,
+                style: style.clone(),
             });
         }
         accepted.sort_by_key(|value| value.start);

@@ -189,7 +189,7 @@ pub(crate) fn in_run(
             start: value.start - run.start,
             end: value.end - run.start,
             widget: value.widget.clone(),
-            style: value.style,
+            style: value.style.clone(),
         })
         .collect()
 }
