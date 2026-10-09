@@ -4,7 +4,7 @@ struct Camera {
     mode: f32,          // 0 = 2D, 1 = 3D (Milestone 8)
     viewport: vec2<f32>,
     dist: f32,          // 3D: orbit distance, for size attenuation
-    _pad: f32,
+    time: f32,          // seconds since the view was created — the pulses' clock (§2)
     view_proj: mat4x4<f32>,
 };
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -107,6 +107,8 @@ struct EdgeInst {
     @location(3) width: f32,
     @location(4) dash: f32,
     @location(5) phase: f32,   // arc length at the segment's start (world)
+    @location(6) pulse: f32,   // world units per second, 0 = none (§2)
+    @location(7) edge_len: f32, // the whole stroke's world length
 };
 struct EdgeOut {
     @builtin(position) clip: vec4<f32>,
@@ -115,6 +117,11 @@ struct EdgeOut {
     @location(2) coord: f32,    // distance along the stroke, screen pixels
     @location(3) dash: f32,
     @location(4) seglen: f32,   // this segment's screen length (LOD, §6)
+    @location(5) wcoord: f32,   // distance along the stroke, world units
+    @location(6) pulse: f32,    // world units per second, 0 = none (§2)
+    @location(7) pulse_pos: f32, // the glow's world position — the clock lives
+                                // in the vertex (the fragment cannot read the
+                                // camera uniform; it is vertex-visibility)
 };
 
 @vertex
@@ -147,6 +154,15 @@ fn edge_vs(@builtin(vertex_index) vi: u32, inst: EdgeInst) -> EdgeOut {
     out.coord = t * length(seg) + inst.phase * camera.scale;
     out.dash = inst.dash;
     out.seglen = length(seg);
+    out.wcoord = inst.phase + t * length(inst.b.xyz - inst.a.xyz);
+    out.pulse = inst.pulse;
+    // The glow's position is the clock's over the stroke's length —
+    // constant across the segment, so the fragment interpolates it
+    // unchanged.
+    out.pulse_pos = 0.0;
+    if (inst.pulse > 0.0) {
+        out.pulse_pos = fract(camera.time * inst.pulse / max(inst.edge_len, 1e-3)) * inst.edge_len;
+    }
     return out;
 }
 
@@ -159,8 +175,21 @@ fn edge_fs(in: EdgeOut) -> @location(0) vec4<f32> {
         // 50 % duty cycle along the stroke, in screen pixels.
         if (fract(in.coord / in.dash) < 0.5) { discard; }
     }
+    var rgb = in.color.rgb;
+    var alpha = in.color.a;
+    // A pulse travels the whole stroke in world units (spec 031 §2): the
+    // position arrives from the vertex, the distance is interpolated per
+    // fragment, so the glow crosses a curve's sub-segments as one
+    // continuous line. Barely visible animations stop (§6): a segment
+    // under 8 screen px does not glow.
+    if (in.pulse > 0.0 && in.seglen > 8.0) {
+        let d = abs(in.wcoord - in.pulse_pos);
+        let glow = exp(-(d * d) / 128.0);  // sigma = 8 world units
+        rgb = mix(rgb, vec3<f32>(1.0), glow * 0.85);
+        alpha = clamp(alpha + glow * 0.6, 0.0, 1.0);
+    }
     let bg = vec3<f32>(0.047, 0.055, 0.075);
-    return vec4<f32>(mix(in.color.rgb, bg, in.fog), in.color.a);
+    return vec4<f32>(mix(rgb, bg, in.fog), alpha);
 }
 
 // ---------------- arrowheads: rotated triangle billboards ----------------

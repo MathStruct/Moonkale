@@ -144,6 +144,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | P-161 The draw bench reads 40–200 % high on a loaded machine | Two `bench-draw.mjs` runs during stage 5 read settle 6.57 / hover 2.79 ms/frame and 5.01 / 1.22 — a phantom regression hunt; the machine's load average was ≈ 12 (background builds). Rerun on the settled machine: settle 4.20, hover 0.92 — the stage-5 code costs nothing on the empty path, as designed. Rule: read the bench gate only when the load average is near idle, and rerun before hunting a renderer regression | resolved | spec 031 |
 
+| P-162 A fragment shader may not read the camera uniform — the bind group is vertex-visibility | Stage 6's pulse first computed `fract(camera.time · …)` in `edge_fs`; wgpu panicked at pipeline creation ("Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline"), killing every graph panel — the camera bind group's layout declares `ShaderStages::VERTEX` only. naga's module validation cannot catch this (it is a pipeline-interface rule, not a module one), so `shader_tests::shaders_validate` stayed green. Fix: the glow's position is computed in the vertex (where the uniform lives) and passed as a varying — constant across the segment, so the fragment interpolates it unchanged | resolved | spec 031 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

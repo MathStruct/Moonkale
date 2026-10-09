@@ -33,6 +33,13 @@ struct State {
     on_event: js_sys::Function,
     dirty: bool,
     alive: bool,
+    /// Any edge carries a pulse (spec 031 §2, stage 6): the view redraws
+    /// every frame while true — the clock moves even when nothing is
+    /// dirty. Recomputed wherever the graph changes.
+    animates: bool,
+    /// The pulse clock's zero (`performance.now` at create); `camera.time`
+    /// is the elapsed seconds since.
+    t0_ms: f64,
     last_click_ms: f64,
     /// Fit the view when the layout settles — only until the user has moved
     /// the camera or a node; after that, their view is theirs.
@@ -292,6 +299,7 @@ pub async fn create(
         .ok_or_else(|| JsValue::from_str("no 2d context for the label overlay"))?;
     let graph = Graph::default();
     let layout = Layout::new(&graph);
+    let animates_at_create = animates(&graph);
     let state = Rc::new(RefCell::new(State {
         camera: Camera {
             width: w,
@@ -308,6 +316,11 @@ pub async fn create(
         on_event,
         dirty: true,
         alive: true,
+        animates: animates_at_create,
+        t0_ms: web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now())
+            .unwrap_or(0.0),
         last_click_ms: 0.0,
         auto_fit: true,
         touches: Vec::new(),
@@ -394,6 +407,7 @@ impl GraphView {
         end_wire(&mut s);
         s.pos_rev += 1;
         s.attr_rev += 1;
+        s.animates = animates(&s.graph);
         s.dirty = true;
         Ok(())
     }
@@ -427,6 +441,7 @@ impl GraphView {
         s.hovered = None;
         s.pos_rev += 1;
         s.attr_rev += 1;
+        s.animates = animates(&s.graph);
         s.dirty = true;
         true
     }
@@ -525,6 +540,7 @@ impl GraphView {
             s.hovered = None;
             s.pos_rev += 1;
             s.attr_rev += 1;
+            s.animates = animates(&s.graph);
             s.dirty = true;
             return Ok(());
         }
@@ -535,6 +551,7 @@ impl GraphView {
         s.auto_fit = true;
         s.pos_rev += 1;
         s.attr_rev += 1;
+        s.animates = animates(&s.graph);
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -838,6 +855,12 @@ impl GraphView {
     }
 }
 
+/// Does any edge carry a pulse (spec 031 §2, stage 6)? The view redraws
+/// every frame while true — the clock moves even when nothing is dirty.
+fn animates(g: &Graph) -> bool {
+    g.edges.iter().any(|e| e.pulse_speed > 0.0)
+}
+
 fn start_loop(state: Rc<RefCell<State>>) {
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -876,7 +899,15 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 emit(&s, serde_json::json!({ "kind": "settled" }));
             }
         }
-        if s.dirty {
+        // The pulse clock (spec 031 §2, stage 6): seconds since the view
+        // was created. A pulsed view redraws every frame — the animation
+        // is presentation in the shader, nothing on the CPU moves.
+        let now_ms = web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now())
+            .unwrap_or(s.t0_ms);
+        s.camera.time = ((now_ms - s.t0_ms) / 1000.0) as f32;
+        if s.dirty || s.animates {
             s.dirty = false;
             let t0 = web_sys::window()
                 .and_then(|w| w.performance())

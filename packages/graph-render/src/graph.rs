@@ -73,6 +73,11 @@ pub struct InEdge {
     /// as offset parallel strokes.
     #[serde(default)]
     pub layers: Vec<String>,
+    /// A moving pulse along the stroke (spec 031 §2, stage 6): world
+    /// units per second, presentation only — the phase is the clock's,
+    /// but a host may drive one through deltas (speed 0 = off).
+    #[serde(default)]
+    pub pulse_speed: Option<f32>,
 }
 
 /// Where arrowheads sit on an edge.
@@ -402,6 +407,8 @@ pub struct InDeltaEdge {
     pub a_port: Option<String>,
     #[serde(default)]
     pub b_port: Option<String>,
+    #[serde(default)]
+    pub pulse_speed: Option<f32>,
 }
 
 /// An ordered walk over node instance ids (spec 031 §3).
@@ -499,6 +506,9 @@ pub struct Edge {
     /// [`Graph::with_bows`] on top of the host's route — an own field, so
     /// re-running the assignment never accumulates.
     pub bow: f32,
+    /// A moving pulse along the stroke (spec 031 §2, stage 6): world
+    /// units per second, 0 = none. Presentation only.
+    pub pulse_speed: f32,
 }
 
 #[derive(Clone, Default)]
@@ -713,6 +723,7 @@ impl Graph {
                     b_port: e.b_port,
                     layers: e.layers,
                     bow: 0.0,
+                    pulse_speed: e.pulse_speed.unwrap_or(0.0).clamp(0.0, 2000.0),
                 }
             })
             .collect();
@@ -986,6 +997,7 @@ impl Graph {
                 b_port: e.b_port,
                 layers: e.layers,
                 bow: 0.0,
+                pulse_speed: e.pulse_speed.unwrap_or(0.0).clamp(0.0, 2000.0),
             };
             match self.edges.iter().position(|x| x.id == edge.id) {
                 Some(i) => self.edges[i] = edge, // re-add: replace

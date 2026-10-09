@@ -29,6 +29,9 @@ pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
     pub dist: f32,
+    /// Elapsed seconds since the view was created — the clock the edge
+    /// pulses run on (spec 031 §2, stage 6). Presentation only.
+    pub time: f32,
 }
 
 impl Default for Camera {
@@ -44,6 +47,7 @@ impl Default for Camera {
             yaw: 0.6,
             pitch: 0.8,
             dist: 1200.0,
+            time: 0.0,
         }
     }
 }
@@ -299,7 +303,8 @@ impl Camera {
         u[4] = self.width;
         u[5] = self.height;
         u[6] = self.dist;
-        u[7] = 0.0;
+        // The clock the pulses run on (spec 031 §2, stage 6).
+        u[7] = self.time;
         u[8..24].copy_from_slice(&self.view_proj());
         u
     }

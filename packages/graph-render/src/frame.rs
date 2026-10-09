@@ -30,6 +30,11 @@ pub struct SegAttr {
     /// Arc length (world units) at this segment's start: the dash pattern
     /// continues across a curve's sub-segments instead of restarting.
     pub phase: f32,
+    /// A moving pulse along the whole stroke (spec 031 §2, stage 6):
+    /// world units per second, 0 = none.
+    pub pulse: f32,
+    /// The stroke's total world length — the pulse wraps over it.
+    pub edge_len: f32,
 }
 
 /// An arrowhead: a billboard at `pos`, rotated to point along `angle`.
@@ -111,6 +116,8 @@ pub const HULL_RIM: f32 = 1.5;
 pub const JUNCTION_RADIUS: f32 = 3.0;
 /// A highlight clique's hull tints twice as strong as a group's wash.
 pub const HULL_HIGHLIGHT_FILL: f32 = 0.32;
+/// The pulse's glow radius in world units (spec 031 §2, stage 6).
+pub const PULSE_SIZE: f32 = 8.0;
 
 /// A group hull: one rounded-rect instance (instance slot 0 — the box
 /// follows its members' positions every layout step).
@@ -249,11 +256,20 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
                 .get(rank.min(visible.len().saturating_sub(1)))
                 .copied();
             polyline_into(graph, e, stroke_offset(rank, strokes), scratch);
+            // The stroke's total length — the pulse wraps over it (the
+            // glow is positioned in world units, so it crosses the
+            // sub-segments of a curve as one continuous stroke).
+            let edge_len: f32 = scratch
+                .windows(2)
+                .map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt())
+                .sum();
             let mut attr = SegAttr {
                 color: e.color,
                 width: e.width,
                 dash: e.dash,
                 phase: 0.0,
+                pulse: e.pulse_speed,
+                edge_len,
             };
             if let Some(l) = layer {
                 if let Some(c) = l.color {
@@ -416,6 +432,8 @@ fn build_hyperedges(graph: &Graph, f: &mut Frame) {
                 width: h.width,
                 dash: h.dash,
                 phase: 0.0,
+                pulse: 0.0, // no pulse knob on a hyperedge (yet, §2)
+                edge_len: 0.0,
             });
         }
         f.junctions.push(Junction {
@@ -511,6 +529,8 @@ fn build_traces(graph: &Graph, three_d: bool, f: &mut Frame) {
                     width: 2.2,
                     dash: 0.0,
                     phase: 0.0,
+                    pulse: 0.0, // traces are ordered, not flowing (§3)
+                    edge_len: 0.0,
                 });
                 if !three_d {
                     let into = normalize2([pos[0] - a[0], pos[1] - a[1]]);
@@ -787,6 +807,7 @@ mod tests {
             b_port: None,
             layers: Vec::new(),
             bow: 0.0,
+            pulse_speed: 0.0,
         }
     }
 
@@ -1507,5 +1528,33 @@ mod tests {
         );
         assert_eq!(plain.highlight, 0.0);
         assert_eq!(lit.highlight, 1.0);
+    }
+
+    #[test]
+    fn a_pulsed_edge_carries_speed_and_its_full_length() {
+        // Spec 031 §2, stage 6: the glow is positioned in world units over
+        // the whole stroke, so every sub-segment of a curve carries the
+        // speed and the stroke's total length — it crosses them as one
+        // continuous line, and each sub-segment's phase finds it.
+        let mut e = edge(0, 1);
+        e.route = Route::Bezier { offset: 15.0 };
+        e.pulse_speed = 30.0;
+        let g = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![e]);
+        let f = build_frame(&g, false);
+        assert_eq!(f.seg_attrs.len(), CURVE_SEGS);
+        for a in &f.seg_attrs {
+            assert_eq!(a.pulse, 30.0);
+            assert!(a.edge_len > 40.0, "a bowed stroke is longer than its chord");
+        }
+        // The straight stroke: the chord exactly, no pulse without one.
+        let f2 = build_frame(
+            &graph(
+                vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
+                vec![edge(0, 1)],
+            ),
+            false,
+        );
+        assert!((f2.seg_attrs[0].edge_len - 40.0).abs() < 1e-4);
+        assert_eq!(f2.seg_attrs[0].pulse, 0.0);
     }
 }

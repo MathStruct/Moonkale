@@ -361,6 +361,16 @@ impl Renderer {
                     offset: 24,
                     shader_location: 5,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 28,
+                    shader_location: 6,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 32,
+                    shader_location: 7,
+                },
             ],
         );
         let arrow_pos_layout = inst(
@@ -745,12 +755,15 @@ impl Renderer {
                 }
             }
             if pending.is_some() {
-                // The wire being dragged: light, uncommitted, never dashed.
+                // The wire being dragged: light, uncommitted, never dashed,
+                // never pulsing.
                 attr.push(SegAttr {
                     color: [0.78, 0.82, 0.90, 0.9],
                     width: 1.6,
                     dash: 0.0,
                     phase: 0.0,
+                    pulse: 0.0,
+                    edge_len: 0.0,
                 });
             }
             self.queue
