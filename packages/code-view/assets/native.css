@@ -54,3 +54,7 @@
 .mk-preview-widget-body[hidden] { display: none; }
 .mk-preview-widget-body p { margin: 8px 0; overflow-wrap: anywhere; }
 .mk-preview-widget-note { max-width: 100%; min-width: 0; }
+
+.mk-native-inline-widget.mk-markdown-emphasis { font-style: italic; }
+.mk-native-inline-widget.mk-markdown-strong { font-weight: bold; }
+.mk-native-inline-widget.mk-markdown-code { font-family: var(--mk-code-font, monospace); background: var(--mk-code-selection); border-radius: 3px; }

@@ -12,6 +12,8 @@ pub(crate) enum Provider {
     Wiki,
     #[cfg(feature = "layout-fixture")]
     Fixture,
+    #[cfg(feature = "layout-fixture")]
+    Markdown,
 }
 
 #[derive(Clone, PartialEq)]
@@ -19,6 +21,24 @@ pub(crate) enum Mark {
     Search { current: bool },
     Diagnostic(Diagnostic),
     Wiki(native_wiki::Mark),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub(crate) enum InlineStyle {
+    Emphasis,
+    Strong,
+    Code,
+}
+impl InlineStyle {
+    #[cfg(feature = "layout-fixture")]
+    pub(crate) fn class(self) -> &'static str {
+        match self {
+            Self::Emphasis => "mk-markdown-emphasis",
+            Self::Strong => "mk-markdown-strong",
+            Self::Code => "mk-markdown-code",
+        }
+    }
 }
 
 /// Source-owned presentation. The bounded fixture renders replacement and
@@ -38,6 +58,7 @@ pub(crate) enum Kind {
         range: Range<usize>,
         /// None hides source; Some supplies the bounded inline widget label.
         widget: Option<String>,
+        style: Option<InlineStyle>,
     },
     #[allow(dead_code)]
     BlockWidget {
@@ -176,7 +197,12 @@ impl Decorations {
     ) -> Vec<crate::native_presentation::Replacement> {
         let mut accepted: Vec<crate::native_presentation::Replacement> = Vec::new();
         for value in &self.values {
-            let Kind::Replace { range, widget } = &value.kind else {
+            let Kind::Replace {
+                range,
+                widget,
+                style,
+            } = &value.kind
+            else {
                 continue;
             };
             // Cross-run replacements are deliberately not clipped: clipping
@@ -194,6 +220,7 @@ impl Decorations {
                 start: range.start - run.start,
                 end: range.end - run.start,
                 widget: widget.clone(),
+                style: *style,
             });
         }
         accepted.sort_by_key(|value| value.start);
@@ -484,6 +511,7 @@ mod tests {
                     kind: Kind::Replace {
                         range: 2..7,
                         widget: None,
+                        style: None,
                     },
                 },
                 Decoration {

@@ -35,6 +35,8 @@ pub struct LayoutFixture {
     pub presentation: bool,
     /// View-local controls and content inside the anchored block.
     pub interactive_widget: bool,
+    /// Bounded CommonMark emphasis/code preview for Markdown documents.
+    pub markdown_preview: bool,
 }
 
 /// Sparse prefix-sum index: uniform documents allocate no row entries.

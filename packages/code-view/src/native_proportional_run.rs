@@ -262,10 +262,10 @@ pub(crate) fn ProportionalRun(
                 for (index, ch) in text.chars().enumerate() {
                     if let Some(replacement) = replacements.iter().find(|value| value.start==index) {
                         span {
-                            class: "mk-native-inline-widget",
+                            class: "mk-native-inline-widget {replacement.style.map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() { "display:inline; background:#dce8fa; border-radius:4px;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             {replacement.widget.clone().unwrap_or_default()}
                         }
                     } else if !replacements.iter().any(|value| value.start<=index && index<value.end) {

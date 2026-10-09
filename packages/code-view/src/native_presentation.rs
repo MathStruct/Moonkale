@@ -1,14 +1,29 @@
 //! Bounded synthetic presentation provider and explicit scalar source mapping.
-use crate::native_decorations::{Batch, Decoration, Kind, Provider};
+use crate::native_decorations::{Batch, Decoration, InlineStyle, Kind, Provider};
 use moonkale_ext_api::editor::DocumentRevision;
 use serde::Serialize;
 use unicode_segmentation::UnicodeSegmentation;
+
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum Mode {
+    Fixture,
+    Markdown,
+}
+
+pub(crate) fn provider(mode: Mode, revision: DocumentRevision, source: &str) -> Batch {
+    match mode {
+        Mode::Fixture => fixture(revision, source),
+        Mode::Markdown => crate::native_markdown::batch(revision, source),
+    }
+}
 
 #[derive(Clone, PartialEq, Serialize)]
 pub(crate) struct Replacement {
     pub start: usize,
     pub end: usize,
     pub widget: Option<String>,
+    #[serde(skip)]
+    pub style: Option<InlineStyle>,
 }
 
 pub(crate) fn valid_replacements(text: &str, values: Vec<Replacement>) -> Vec<Replacement> {
@@ -63,17 +78,21 @@ pub(crate) fn preview_mask(
     caret: usize,
     selection: Option<std::ops::Range<usize>>,
 ) -> u64 {
-    values.iter().enumerate().fold(0, |mask, (index, value)| {
-        let active = value.start <= caret && caret <= value.end
-            || selection
-                .as_ref()
-                .is_some_and(|range| range.start < value.end && value.start < range.end);
-        if active {
-            mask
-        } else {
-            mask | (1 << index)
-        }
-    })
+    values
+        .iter()
+        .take(63)
+        .enumerate()
+        .fold(0, |mask, (index, value)| {
+            let active = value.start <= caret && caret <= value.end
+                || selection
+                    .as_ref()
+                    .is_some_and(|range| range.start < value.end && value.start < range.end);
+            if active {
+                mask
+            } else {
+                mask | (1 << index)
+            }
+        })
 }
 
 /// Complete source lines within the bounded prefix. Never cut a token or
@@ -89,10 +108,11 @@ pub(crate) fn source_length(editor: &editor_core::EditorStateManager) -> usize {
 }
 
 pub(crate) fn last_line(
+    mode: Mode,
     editor: &editor_core::EditorStateManager,
     revision: DocumentRevision,
 ) -> usize {
-    fixture_replacements(editor, revision)
+    replacements(mode, editor, revision)
         .iter()
         .map(|value| {
             editor
@@ -105,7 +125,8 @@ pub(crate) fn last_line(
         .unwrap_or(0)
 }
 
-pub(crate) fn fixture_replacements(
+pub(crate) fn replacements(
+    mode: Mode,
     editor: &editor_core::EditorStateManager,
     revision: DocumentRevision,
 ) -> Vec<Replacement> {
@@ -124,12 +145,16 @@ pub(crate) fn fixture_replacements(
                 .char_offset_to_position(length)
                 .0,
         },
-        vec![fixture(revision, &source)],
+        vec![provider(mode, revision, &source)],
     );
     valid_replacements(&source, values.replacements(0..length))
 }
 
-pub(crate) fn state(editor: &editor_core::EditorStateManager, revision: DocumentRevision) -> u64 {
+pub(crate) fn state(
+    mode: Mode,
+    editor: &editor_core::EditorStateManager,
+    revision: DocumentRevision,
+) -> u64 {
     let cursor = editor.get_cursor_state();
     let index = editor.editor().line_index();
     let selection = cursor.selection.map(|selection| {
@@ -137,11 +162,16 @@ pub(crate) fn state(editor: &editor_core::EditorStateManager, revision: Document
         let b = index.position_to_char_offset(selection.end.line, selection.end.column);
         a.min(b)..a.max(b)
     });
-    preview_mask(
-        &fixture_replacements(editor, revision),
+    let mask = preview_mask(
+        &replacements(mode, editor, revision),
         cursor.offset,
         selection,
-    )
+    );
+    if mode == Mode::Markdown {
+        mask | (1 << 63)
+    } else {
+        mask
+    }
 }
 
 pub(crate) fn in_run(
@@ -159,6 +189,7 @@ pub(crate) fn in_run(
             start: value.start - run.start,
             end: value.end - run.start,
             widget: value.widget.clone(),
+            style: value.style,
         })
         .collect()
 }
@@ -169,18 +200,19 @@ pub(crate) struct MappedRuns {
 }
 
 /// Complete bounded mapping shared by rendering and the height index.
-pub(crate) fn fixture_runs(
+pub(crate) fn mapped_runs(
+    mode: Mode,
     editor: &editor_core::EditorStateManager,
     revision: DocumentRevision,
     mask: u64,
 ) -> Option<MappedRuns> {
     let index = editor.editor().line_index();
-    let last = last_line(editor, revision);
+    let last = last_line(mode, editor, revision);
     let end = index.position_to_char_offset(last, index.get_line(last)?.char_count);
     if end > source_length(editor) {
         return None;
     }
-    let values = fixture_replacements(editor, revision);
+    let values = replacements(mode, editor, revision);
     let replacements = in_run(&values, mask, 0..end);
     let count = editor
         .logical_position_to_visual(last, index.get_line(last)?.char_count)?
@@ -239,6 +271,7 @@ pub(crate) fn fixture(revision: DocumentRevision, source: &str) -> Batch {
                 kind: Kind::Replace {
                     range: start..start + source[byte..byte + bytes].chars().count(),
                     widget,
+                    style: None,
                 },
             });
         }
@@ -267,6 +300,7 @@ mod tests {
             provider: Provider::Fixture,
             id: 99,
             kind: Kind::Replace {
+                style: None,
                 range: 5..18,
                 widget: Some("overlap".into()),
             },
@@ -301,6 +335,7 @@ mod tests {
         use editor_core::{Cell, HeadlessLine};
         let source: Vec<Cell> = "ab[[chip]]xy".chars().map(|ch| Cell::new(ch, 1)).collect();
         let replacement = Replacement {
+            style: None,
             start: 2,
             end: 10,
             widget: Some("Chip".into()),
@@ -349,13 +384,13 @@ mod tests {
     fn complete_mapping_identifies_consumed_rows_but_keeps_empty_source_lines() {
         let source = format!("ab[[hidden:{}]] tail\nnext\n", "x".repeat(60));
         let editor = editor_core::EditorStateManager::new(&source, 10);
-        let mapped = fixture_runs(&editor, DocumentRevision(0), 3).unwrap();
+        let mapped = mapped_runs(Mode::Fixture, &editor, DocumentRevision(0), 3).unwrap();
         assert!(mapped.collapsed.len() >= 3);
         for row in &mapped.collapsed {
             assert!(mapped.lines[*row].cells.is_empty());
         }
         let empty = editor_core::EditorStateManager::new("\nnext", 10);
-        assert!(fixture_runs(&empty, DocumentRevision(0), 3)
+        assert!(mapped_runs(Mode::Fixture, &empty, DocumentRevision(0), 3)
             .unwrap()
             .collapsed
             .is_empty());
@@ -365,11 +400,13 @@ mod tests {
     fn reveal_is_local_to_caret_boundaries_and_overlapping_selection() {
         let values = vec![
             Replacement {
+                style: None,
                 start: 3,
                 end: 13,
                 widget: None,
             },
             Replacement {
+                style: None,
                 start: 14,
                 end: 22,
                 widget: Some("Chip".into()),
@@ -392,10 +429,10 @@ mod tests {
         let source = "Wi [[hidden:a\n\nb]] gap\n[[chip:c\nd]] tail\nnext\n";
         let editor = editor_core::EditorStateManager::new(source, 12);
         let revision = DocumentRevision(0);
-        let values = fixture_replacements(&editor, revision);
+        let values = replacements(Mode::Fixture, &editor, revision);
         assert_eq!(values.len(), 2);
-        assert_eq!(last_line(&editor, revision), 4);
-        let mapped = fixture_runs(&editor, revision, 3).unwrap();
+        assert_eq!(last_line(Mode::Fixture, &editor, revision), 4);
+        let mapped = mapped_runs(Mode::Fixture, &editor, revision, 3).unwrap();
         assert!(!mapped.collapsed.is_empty());
         for replacement in &values {
             let owners = mapped
@@ -417,7 +454,7 @@ mod tests {
             );
             assert!(text.contains('\n'));
         }
-        let hidden_only = fixture_runs(&editor, revision, 1).unwrap();
+        let hidden_only = mapped_runs(Mode::Fixture, &editor, revision, 1).unwrap();
         assert!(hidden_only
             .lines
             .iter()
@@ -443,13 +480,13 @@ mod tests {
                 },
             ))
             .unwrap();
-        assert!(fixture_runs(&editor, DocumentRevision(0), 1).is_none());
+        assert!(mapped_runs(Mode::Fixture, &editor, DocumentRevision(0), 1).is_none());
         editor
             .execute(editor_core::Command::Style(
                 editor_core::StyleCommand::UnfoldAll,
             ))
             .unwrap();
-        assert!(fixture_runs(&editor, DocumentRevision(0), 1).is_some());
+        assert!(mapped_runs(Mode::Fixture, &editor, DocumentRevision(0), 1).is_some());
     }
 
     #[test]
@@ -457,13 +494,45 @@ mod tests {
         let source = format!("before\n[[chip:{}]] tail\n", "x".repeat(4100));
         let editor = editor_core::EditorStateManager::new(&source, 80);
         assert_eq!(source_length(&editor), 7);
-        assert!(fixture_replacements(&editor, DocumentRevision(0)).is_empty());
+        assert!(replacements(Mode::Fixture, &editor, DocumentRevision(0)).is_empty());
+    }
+
+    #[test]
+    fn markdown_ownership_and_provider_identity_survive_engine_wraps() {
+        let editor = editor_core::EditorStateManager::new(
+            "before\n*猫 &amp; dog* **bold** `code`\nafter",
+            7,
+        );
+        let revision = DocumentRevision(0);
+        let mask = state(Mode::Markdown, &editor, revision);
+        assert_eq!(mask, (1 << 63) | 7);
+        assert_ne!(mask, state(Mode::Fixture, &editor, revision));
+        let mapped = mapped_runs(Mode::Markdown, &editor, revision, mask).unwrap();
+        let values = replacements(Mode::Markdown, &editor, revision);
+        assert_eq!(values.len(), 3);
+        for value in values {
+            assert_eq!(
+                mapped
+                    .lines
+                    .iter()
+                    .filter(|line| line.char_offset_start <= value.start
+                        && value.end <= line.char_offset_end)
+                    .count(),
+                1
+            );
+            assert!(value.style.is_some());
+        }
+        let long = format!("before\n*{}*\n", "x".repeat(4100));
+        let editor = editor_core::EditorStateManager::new(&long, 80);
+        assert!(replacements(Mode::Markdown, &editor, revision).is_empty());
+        assert_eq!(state(Mode::Markdown, &editor, revision), 1 << 63);
     }
 
     #[test]
     fn replacements_reject_ranges_inside_extended_graphemes() {
         let text = "a👩🏽‍💻é";
         let make = |start, end| Replacement {
+            style: None,
             start,
             end,
             widget: None,

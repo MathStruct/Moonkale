@@ -417,7 +417,9 @@ fn DesktopApp() -> Element {
                     desktop.window.set_visible(true);
                     desktop.window.set_focus();
                     spawn(async move {
-                        let script = if std::env::var_os("MOONKALE_WIDGET_PROBE").is_some() {
+                        let script = if std::env::var_os("MOONKALE_MARKDOWN_PROBE").is_some() {
+                            include_str!("markdown-probe.js")
+                        } else if std::env::var_os("MOONKALE_WIDGET_PROBE").is_some() {
                             include_str!("widgets-probe.js")
                         } else if std::env::var_os("MOONKALE_ISOLATION_PROBE").is_some() {
                             include_str!("isolation-probe.js")
@@ -993,6 +995,15 @@ fn App() -> Element {
         button { id: "integration-reload", onclick: move |_| { spawn(async move { ws.reload(node).await.unwrap(); }); }, "Workspace reload" }
         button { id: "integration-dock", onclick: move |_| dock_right.toggle(), "Move dock" }
         button { id: "layout-navigation-document", onclick: move |_| { let mut doc = doc; doc.write().text = format!("{}\nnext row\n", "Wi 😀 é 中\tTabs ".repeat(24)); }, "Measured navigation document" }
+        button { id: "markdown-preview", onclick: move |_| {
+            let id = NodeId::derive(&doc.peek().node.source, "nested.md");
+            if let Some(mut markdown) = ws.document(id) {
+                markdown.write().text = "# Preview\r\nstart *猫 &amp; dog* and **bold 😀** then `code <safe>` end.\r\nescaped \\*literal* and a_b_c and ***nested***.\r\n```\r\n*literal code* `raw`\r\n```\r\nlast row\r\n".into();
+            }
+            show_language.set(Some(id));
+            let mut ws = ws; ws.docs.active.set(Some(id));
+            layout_fixture.set(moonkale_code_view::LayoutFixture { proportional_line: Some(0), markdown_preview: true, ..Default::default() });
+        }, "Markdown inline preview" }
         button { id: "layout-widget", onclick: move |_| {
             layout_fixture.set(moonkale_code_view::LayoutFixture { line: 1, block_height: 56.0, interactive_widget: true, ..Default::default() });
         }, "Interactive widget" }

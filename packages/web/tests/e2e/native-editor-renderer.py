@@ -16,6 +16,7 @@ import time
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("binary", type=pathlib.Path)
 parser.add_argument("--os-input", action="store_true")
+parser.add_argument("--markdown", action="store_true", help="test bounded Markdown preview and canonical editing")
 parser.add_argument("--widgets", action="store_true", help="test interactive block widget focus, input isolation and source return")
 parser.add_argument("--proportional", action="store_true", help="use measured wraps for OS-input acceptance")
 parser.add_argument("--presentation", action="store_true", help="test synthetic replacement/widget source mapping with OS input")
@@ -27,6 +28,8 @@ parser.add_argument("--x11", action="store_true",
 parser.add_argument("--screenshot", type=pathlib.Path)
 parser.add_argument("--isolate", action="store_true", help="compare visible textarea/editor IME and inspect unready geometry")
 args = parser.parse_args()
+if args.markdown and (args.widgets or args.presentation or args.proportional or args.isolate or args.ime):
+    parser.error("--markdown runs separately from other presentation modes")
 if args.widgets and (args.presentation or args.proportional or args.isolate or args.ime):
     parser.error("--widgets runs separately from proportional, presentation, isolation and IME probes")
 if args.multiline and (not args.presentation or args.consumed_runs):
@@ -69,6 +72,9 @@ with tempfile.TemporaryDirectory(prefix="moonkale-renderer-") as directory:
     env.pop("MOONKALE_WIDGET_PROBE", None)
     if args.widgets:
         env["MOONKALE_WIDGET_PROBE"] = "1"
+    env.pop("MOONKALE_MARKDOWN_PROBE", None)
+    if args.markdown:
+        env["MOONKALE_MARKDOWN_PROBE"] = "1"
     previous_ime = None
     if args.ime or args.isolate:
         env["GTK_IM_MODULE"] = "fcitx"
@@ -96,7 +102,7 @@ with tempfile.TemporaryDirectory(prefix="moonkale-renderer-") as directory:
                 geometry["pid"] = process.pid
                 pathlib.Path(str(report_path) + ".geometry.json").write_text(json.dumps(geometry))
             backend = "explicit GTK X11" if args.x11 else "default Dioxus"
-            checks = "interactive widget focus/input, resize and source return (DOM probe)" if args.widgets else "isolation fixture initialized" if args.isolate else "focus, editing, selection, undo and resize (DOM probe)"
+            checks = "Markdown styles/source mapping (DOM probe)" if args.markdown else "interactive widget focus/input, resize and source return (DOM probe)" if args.widgets else "isolation fixture initialized" if args.isolate else "focus, editing, selection, undo and resize (DOM probe)"
             print(f"PASS: {backend} native {checks}", flush=True)
             if args.os_input or args.screenshot:
                 # Titles are insufficient: a stale/different fixture can share them.
@@ -119,9 +125,9 @@ with tempfile.TemporaryDirectory(prefix="moonkale-renderer-") as directory:
                                        "xdotool; use --x11 for separate XWayland acceptance.")
                 if args.os_input:
                     try:
-                        script = "native-editor-widgets-os.py" if args.widgets else "native-editor-isolation.py" if args.isolate else "native-editor-presentation-os.py" if args.presentation else "native-editor-proportional-os.py" if args.proportional else "native-editor-desktop.py"
+                        script = "native-editor-markdown-os.py" if args.markdown else "native-editor-widgets-os.py" if args.widgets else "native-editor-isolation.py" if args.isolate else "native-editor-presentation-os.py" if args.presentation else "native-editor-proportional-os.py" if args.proportional else "native-editor-desktop.py"
                         command = ["python3", str(pathlib.Path(__file__).with_name(script)), window, str(report_path)]
-                        if args.proportional or args.presentation or args.isolate or args.widgets:
+                        if args.proportional or args.presentation or args.isolate or args.widgets or args.markdown:
                             command.extend([str(result_path), str(result_path) + ".state.json"])
                             if args.ime:
                                 command.append("--ime")

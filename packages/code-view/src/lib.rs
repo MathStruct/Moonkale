@@ -47,6 +47,8 @@ pub use native_layout::LayoutFixture;
 mod native_browser_geometry;
 mod native_lean_folding;
 mod native_lsp_tools;
+#[cfg(feature = "layout-fixture")]
+mod native_markdown;
 mod native_model;
 mod native_panel;
 #[cfg(feature = "layout-fixture")]

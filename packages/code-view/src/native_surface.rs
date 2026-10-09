@@ -124,7 +124,8 @@ pub(crate) fn RustEditorSurface(
         #[cfg(feature = "layout-fixture")]
         let mapped = (presentation != 0 && proportional_enabled(fixture, model, 0, false))
             .then(|| {
-                crate::native_presentation::fixture_runs(
+                crate::native_presentation::mapped_runs(
+                    presentation_mode(fixture, model),
                     &state.engine,
                     state.revision,
                     presentation,
@@ -170,9 +171,14 @@ pub(crate) fn RustEditorSurface(
                     .filter(|(row, _)| state.engine.visual_to_logical_line(*row).0 == line)
                 {
                     let last_line = if fixture.is_some_and(|value| {
-                        value().presentation && value().proportional_line == Some(0)
+                        (value().presentation || markdown_enabled(fixture, model))
+                            && value().proportional_line == Some(0)
                     }) {
-                        crate::native_presentation::last_line(&state.engine, state.revision)
+                        crate::native_presentation::last_line(
+                            presentation_mode(fixture, model),
+                            &state.engine,
+                            state.revision,
+                        )
                     } else {
                         line
                     };
@@ -530,7 +536,8 @@ pub(crate) fn RustEditorSurface(
             && presentation_state(fixture, model) != 0
             && proportional_enabled(fixture, model, 0, false)
         {
-            if let Some(mapped) = crate::native_presentation::fixture_runs(
+            if let Some(mapped) = crate::native_presentation::mapped_runs(
+                presentation_mode(fixture, model),
                 editor,
                 state.revision,
                 presentation_state(fixture, model),
@@ -635,9 +642,10 @@ pub(crate) fn RustEditorSurface(
             native_decorations::wiki(state.revision, window, &wiki_marks),
         ];
         #[cfg(feature = "layout-fixture")]
-        if fixture.is_some_and(|value| value().presentation) {
+        if fixture.is_some_and(|value| value().presentation) || markdown_enabled(fixture, model) {
             let length = crate::native_presentation::source_length(&state.engine);
-            batches.push(crate::native_presentation::fixture(
+            batches.push(crate::native_presentation::provider(
+                presentation_mode(fixture, model),
                 state.revision,
                 &state.engine.editor().text_range(0, length),
             ));
@@ -648,7 +656,11 @@ pub(crate) fn RustEditorSurface(
     let show_presentation = presentation_state(fixture, model);
     #[cfg(feature = "layout-fixture")]
     let presentation_values = model.with(|state| {
-        crate::native_presentation::fixture_replacements(&state.engine, state.revision)
+        crate::native_presentation::replacements(
+            presentation_mode(fixture, model),
+            &state.engine,
+            state.revision,
+        )
     });
     let bracket_pair = model.with(|state| state.structure.at_caret(cursor.offset));
     let selection = cursor.selection.clone();
@@ -1556,14 +1568,41 @@ pub(crate) fn mutate<R>(
 }
 
 #[cfg(feature = "layout-fixture")]
+fn markdown_enabled(
+    fixture: Option<Signal<crate::LayoutFixture>>,
+    model: Signal<NativeModel>,
+) -> bool {
+    fixture.is_some_and(|value| value().markdown_preview)
+        && model.peek().language == Some(dioxus_code::Language::Markdown)
+}
+
+#[cfg(feature = "layout-fixture")]
+fn presentation_mode(
+    fixture: Option<Signal<crate::LayoutFixture>>,
+    model: Signal<NativeModel>,
+) -> crate::native_presentation::Mode {
+    if markdown_enabled(fixture, model) {
+        crate::native_presentation::Mode::Markdown
+    } else {
+        crate::native_presentation::Mode::Fixture
+    }
+}
+
+#[cfg(feature = "layout-fixture")]
 fn presentation_state(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
 ) -> u64 {
-    if !fixture.is_some_and(|value| value().presentation) {
+    if !fixture.is_some_and(|value| value().presentation) && !markdown_enabled(fixture, model) {
         return 0;
     }
-    model.with(|state| crate::native_presentation::state(&state.engine, state.revision))
+    model.with(|state| {
+        crate::native_presentation::state(
+            presentation_mode(fixture, model),
+            &state.engine,
+            state.revision,
+        )
+    })
 }
 
 #[cfg(feature = "layout-fixture")]
@@ -1578,9 +1617,14 @@ fn proportional_enabled(
         && state.preferences.wrap
         && fixture.is_some_and(|value| {
             value().proportional_line == Some(line)
-                || value().presentation
+                || (value().presentation || markdown_enabled(fixture, model))
                     && value().proportional_line == Some(0)
-                    && line <= crate::native_presentation::last_line(&state.engine, state.revision)
+                    && line
+                        <= crate::native_presentation::last_line(
+                            presentation_mode(fixture, model),
+                            &state.engine,
+                            state.revision,
+                        )
         })
         && state
             .engine
