@@ -107,6 +107,10 @@ pub const HULL_CORNER: f32 = 12.0;
 pub const HULL_FILL: f32 = 0.16;
 /// A stroke of the group's colour traces the hull's rim, this many px.
 pub const HULL_RIM: f32 = 1.5;
+/// Junction marker radius in world units (spec 031 §2: hyperedges).
+pub const JUNCTION_RADIUS: f32 = 3.0;
+/// A highlight clique's hull tints twice as strong as a group's wash.
+pub const HULL_HIGHLIGHT_FILL: f32 = 0.32;
 
 /// A group hull: one rounded-rect instance (instance slot 0 — the box
 /// follows its members' positions every layout step).
@@ -125,6 +129,35 @@ pub struct HullAttr {
     pub color: [f32; 4],
     /// Corner radius in world units.
     pub corner: f32,
+    /// 1.0 = a highlighted clique's rim (spec 031 §2): stronger than a
+    /// group's wash, so the two read apart over the same nodes.
+    pub highlight: f32,
+}
+
+/// One filled triangle of a simplicial face (spec 031 §2) — instance
+/// slot 0; a face over more than three nodes is fanned into triangles.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct SimplexPos {
+    pub a: [f32; 3],
+    pub b: [f32; 3],
+    pub c: [f32; 3],
+}
+
+/// Simplex appearance (instance slot 1).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct SimplexAttr {
+    pub color: [f32; 4],
+}
+
+/// A hyperedge's junction marker (spec 031 §2) — a small circle riding
+/// the node pipeline at the members' centroid; the spokes ride the
+/// segment pipeline. A distinct class from a group hull and a simplex.
+#[derive(Clone, Copy)]
+pub struct Junction {
+    pub pos: [f32; 3],
+    pub color: [f32; 4],
 }
 
 #[derive(Default)]
@@ -148,6 +181,13 @@ pub struct Frame {
     /// members — 2D only; 3D keeps plain nodes and edges.
     pub hulls: Vec<HullPos>,
     pub hull_attrs: Vec<HullAttr>,
+    /// Simplicial faces (spec 031 §2, stage 5), fanned into triangles —
+    /// 2D only, drawn with the hulls behind everything.
+    pub simplex_tris: Vec<SimplexPos>,
+    pub simplex_attrs: Vec<SimplexAttr>,
+    /// Hyperedge junctions (spec 031 §2, stage 5): the markers ride the
+    /// node pipeline; the spokes are already among the segments.
+    pub junctions: Vec<Junction>,
 }
 
 /// The scene → instance lists for one frame.
@@ -171,6 +211,9 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
     f.node_visible.clear();
     f.hulls.clear();
     f.hull_attrs.clear();
+    f.simplex_tris.clear();
+    f.simplex_attrs.clear();
+    f.junctions.clear();
     f.port_pos
         .extend(graph.ports.iter().map(|p| port_world(graph, p)));
     f.node_visible.extend(graph.nodes.iter().map(|n| {
@@ -283,8 +326,10 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
         }
     }
     build_traces(graph, three_d, f);
+    build_hyperedges(graph, f);
     if !three_d {
         build_hulls(graph, f);
+        build_simplexes(graph, f);
     }
 }
 
@@ -324,11 +369,105 @@ fn build_hulls(graph: &Graph, f: &mut Frame) {
             half: [(x1 - x0) / 2.0 + pad, (y1 - y0) / 2.0 + pad],
         });
         let mut color = g.color;
-        color[3] *= HULL_FILL;
+        // A highlighted clique tints twice as strong as a group's wash
+        // and wears the brighter rim (spec 031 §2: three classes apart).
+        color[3] *= if g.highlight {
+            HULL_HIGHLIGHT_FILL
+        } else {
+            HULL_FILL
+        };
         f.hull_attrs.push(HullAttr {
             color,
             corner: HULL_CORNER,
+            highlight: g.highlight as u32 as f32,
         });
+    }
+}
+
+/// Hyperedges (spec 031 §2, stage 5): one junction per hyperedge — a
+/// marker at the members' centroid, a spoke to each member. The spokes
+/// are segments owned by `None` (never picked as an edge — a hyperedge
+/// is presentation over the same nodes, never new topology), the markers
+/// ride the node pipeline behind this builder's back.
+fn build_hyperedges(graph: &Graph, f: &mut Frame) {
+    for h in &graph.hyperedges {
+        if !h.visible || h.nodes.len() < 2 {
+            continue;
+        }
+        let mut center = [0.0f32; 3];
+        for &i in &h.nodes {
+            let n = &graph.nodes[i];
+            center[0] += n.x;
+            center[1] += n.y;
+            center[2] += n.z;
+        }
+        let k = h.nodes.len() as f32;
+        center[0] /= k;
+        center[1] /= k;
+        center[2] /= k;
+        for &i in &h.nodes {
+            f.segs.push(SegPos {
+                a: center,
+                b: node_pos(graph, i),
+            });
+            f.seg_edge.push(None); // never picked as an edge (§2, §3)
+            f.seg_attrs.push(SegAttr {
+                color: h.color,
+                width: h.width,
+                dash: h.dash,
+                phase: 0.0,
+            });
+        }
+        f.junctions.push(Junction {
+            pos: center,
+            color: h.color,
+        });
+    }
+}
+
+/// Simplicial faces (spec 031 §2, stage 5): a filled triangle over three
+/// nodes; a face over more is fanned from its centroid into triangles.
+fn build_simplexes(graph: &Graph, f: &mut Frame) {
+    for s in &graph.simplexes {
+        if !s.visible || s.nodes.len() < 3 {
+            continue;
+        }
+        let pts: Vec<[f32; 3]> = s.nodes.iter().map(|&i| node_pos(graph, i)).collect();
+        if pts.len() == 3 {
+            f.simplex_tris.push(SimplexPos {
+                a: pts[0],
+                b: pts[1],
+                c: pts[2],
+            });
+            f.simplex_attrs.push(SimplexAttr { color: s.color });
+            continue;
+        }
+        let mut center = [0.0f32; 3];
+        for p in &pts {
+            center[0] += p[0];
+            center[1] += p[1];
+            center[2] += p[2];
+        }
+        let k = pts.len() as f32;
+        center[0] /= k;
+        center[1] /= k;
+        center[2] /= k;
+        for w in pts.windows(2) {
+            f.simplex_tris.push(SimplexPos {
+                a: center,
+                b: w[0],
+                c: w[1],
+            });
+            f.simplex_attrs.push(SimplexAttr { color: s.color });
+        }
+        // Close the fan: last → first.
+        let n = pts.len();
+        f.simplex_tris.push(SimplexPos {
+            a: center,
+            b: pts[n - 1],
+            c: pts[0],
+        });
+        f.simplex_attrs.push(SimplexAttr { color: s.color });
     }
 }
 
@@ -659,6 +798,8 @@ mod tests {
             layers: Vec::new(),
             traces: Vec::new(),
             groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         }
     }
 
@@ -835,6 +976,8 @@ mod tests {
             layers: Vec::new(),
             traces: Vec::new(),
             groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
             ports: vec![
                 port(0, "out", InSide::Right, 0.5),
                 port(0, "in", InSide::Left, 0.5),
@@ -872,6 +1015,8 @@ mod tests {
             layers: Vec::new(),
             traces: Vec::new(),
             groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.segs.len(), 1);
@@ -894,6 +1039,8 @@ mod tests {
             layers: Vec::new(),
             traces: Vec::new(),
             groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let f = build_frame(&g, false);
         let c = cam(100.0, 100.0);
@@ -1097,6 +1244,8 @@ mod tests {
             layers: Vec::new(),
             traces: Vec::new(),
             groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.arrows.len(), 1);
@@ -1118,6 +1267,8 @@ mod tests {
             layers: Vec::new(),
             traces: Vec::new(),
             groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let mut f = Frame::default();
         let mut scratch = Vec::new();
@@ -1153,6 +1304,7 @@ mod tests {
             members: members.to_vec(),
             color: crate::graph::parse_hex(color, 1.0).unwrap(),
             visible: true,
+            highlight: false,
         }
     }
 
@@ -1246,5 +1398,114 @@ mod tests {
         for h in &f.hulls {
             assert!(h.half[0] >= 30.0 && h.center[0] - h.half[0] < 0.0 + 1e-4);
         }
+    }
+
+    #[test]
+    fn a_hyperedge_draws_a_junction_with_spokes_never_picked() {
+        // Spec 031 §2: a hyperedge is a junction — a marker at the
+        // members' centroid, a spoke to each — and never new topology:
+        // no spoke picks as an edge.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 30.0, 0.0),
+                node("c", 0.0, 30.0),
+            ],
+            vec![],
+        );
+        g.hyperedges = vec![crate::graph::Hyperedge {
+            id: "h".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.75, 0.55, 0.95, 0.85],
+            width: 1.4,
+            dash: 0.0,
+            visible: true,
+        }];
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 3, "one spoke per member");
+        assert!(f.seg_edge.iter().all(|o| o.is_none()), "never an edge");
+        assert_eq!(f.junctions.len(), 1);
+        let j = f.junctions[0];
+        assert!((j.pos[0] - 10.0).abs() < 1e-4 && (j.pos[1] - 10.0).abs() < 1e-4);
+        assert_eq!(j.color, [0.75, 0.55, 0.95, 0.85]);
+        // A spoke midpoint never picks (presentation, not topology — §2).
+        let c = cam(100.0, 100.0);
+        let mid = [
+            (f.segs[0].a[0] + f.segs[0].b[0]) / 2.0,
+            (f.segs[0].a[1] + f.segs[0].b[1]) / 2.0,
+        ];
+        let s = c.world_to_screen(mid[0], mid[1]);
+        assert_eq!(edge_at(&f, &c, s.0, s.1), None);
+        // Hidden: no spokes, no marker. 3D keeps the junction and spokes.
+        g.hyperedges[0].visible = false;
+        let f2 = build_frame(&g, false);
+        assert!(f2.segs.is_empty() && f2.junctions.is_empty());
+        g.hyperedges[0].visible = true;
+        let f3 = build_frame(&g, true);
+        assert_eq!(f3.junctions.len(), 1, "3D keeps the junction");
+    }
+
+    #[test]
+    fn a_simplex_fills_one_triangle_or_a_fan() {
+        // Spec 031 §2: three members → one filled triangle; more → a fan
+        // from the centroid, closing the loop; 2D only.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 40.0, 0.0),
+                node("c", 0.0, 40.0),
+                node("d", 40.0, 40.0),
+            ],
+            vec![],
+        );
+        g.simplexes = vec![crate::graph::Simplex {
+            id: "s".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.95, 0.60, 0.30, 0.9],
+            visible: true,
+        }];
+        let f = build_frame(&g, false);
+        assert_eq!(f.simplex_tris.len(), 1);
+        let t = f.simplex_tris[0];
+        assert_eq!(t.a, [0.0, 0.0, 0.0]);
+        assert_eq!(t.b, [40.0, 0.0, 0.0]);
+        assert_eq!(t.c, [0.0, 40.0, 0.0]);
+        assert_eq!(f.simplex_attrs[0].color, [0.95, 0.60, 0.30, 0.9]);
+        // 3D draws no faces (like the hulls).
+        assert!(build_frame(&g, true).simplex_tris.is_empty());
+        // Four members fan into four triangles around the centroid (20, 20).
+        g.simplexes[0].nodes = vec![0, 1, 3, 2];
+        let f2 = build_frame(&g, false);
+        assert_eq!(f2.simplex_tris.len(), 4, "a fan of n triangles");
+        for t in &f2.simplex_tris {
+            assert_eq!(
+                t.a,
+                [20.0, 20.0, 0.0],
+                "each fan triangle starts at the centroid"
+            );
+        }
+    }
+
+    #[test]
+    fn a_highlighted_clique_wears_a_stronger_tint_than_a_group() {
+        // Spec 031 §2: a highlighted clique is not a group — same hull
+        // mechanism, twice the tint and the highlight rim flag.
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 30.0, 0.0)], vec![]);
+        g.groups = vec![group("plain", &[0, 1], "#59ff8c")];
+        let plain = build_frame(&g, false).hull_attrs[0];
+        g.groups[0].highlight = true;
+        let lit = build_frame(&g, false).hull_attrs[0];
+        assert!(
+            (plain.color[3] - crate::graph::parse_hex("#59ff8c", HULL_FILL).unwrap()[3]).abs()
+                < 1e-4
+        );
+        assert!(
+            (lit.color[3] - crate::graph::parse_hex("#59ff8c", HULL_HIGHLIGHT_FILL).unwrap()[3])
+                .abs()
+                < 1e-4,
+            "the highlight tints twice as strong"
+        );
+        assert_eq!(plain.highlight, 0.0);
+        assert_eq!(lit.highlight, 1.0);
     }
 }

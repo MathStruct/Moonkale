@@ -167,6 +167,29 @@ pub struct Group {
     pub members: Vec<usize>,
     pub color: [f32; 4],
     pub visible: bool,
+    pub highlight: bool,
+}
+
+/// The internal hyperedge (spec 031 §2): members as node indices; the
+/// frame derives the junction and its spokes every build.
+#[derive(Clone, Debug)]
+pub struct Hyperedge {
+    pub id: String,
+    pub nodes: Vec<usize>,
+    pub color: [f32; 4],
+    pub width: f32,
+    pub dash: f32,
+    pub visible: bool,
+}
+
+/// The internal simplex (spec 031 §2): members as node indices; the frame
+/// fans them into filled triangles.
+#[derive(Clone, Debug)]
+pub struct Simplex {
+    pub id: String,
+    pub nodes: Vec<usize>,
+    pub color: [f32; 4],
+    pub visible: bool,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -190,6 +213,16 @@ pub struct InGraph {
     /// changes what the edges connect.
     #[serde(default)]
     pub groups: Vec<InGroup>,
+    /// Hyperedges (spec 031 §2, stage 5): connections over three or more
+    /// nodes, drawn as a junction — a marker at the members' centroid
+    /// with a spoke to each. A distinct class from groups and simplices.
+    #[serde(default)]
+    pub hyperedges: Vec<InHyperedge>,
+    /// Simplicial faces (spec 031 §2, stage 5): filled triangles (and
+    /// higher faces, fanned from their centroid) behind everything that
+    /// draws over them.
+    #[serde(default)]
+    pub simplexes: Vec<InSimplex>,
 }
 
 /// A group: which nodes it gathers, by id — the host's collapse/expand
@@ -204,6 +237,51 @@ pub struct InGroup {
     /// Tint `#rrggbb`; absent = the theme's neutral group colour.
     #[serde(default)]
     pub color: Option<String>,
+    /// Drawn while true (default).
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    /// A highlighted clique/community (spec 031 §2, §4): still a visual
+    /// membership over the same nodes — the hull wears the highlight
+    /// style (a stronger tint and rim) instead of the group's wash.
+    #[serde(default)]
+    pub highlight: bool,
+}
+
+/// A hyperedge (spec 031 §2): one connection over three or more nodes,
+/// drawn as a junction — members by id, a marker at their centroid, a
+/// spoke to each. Not a group (a region of members) and not a simplex
+/// (a filled face): three distinct classes.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct InHyperedge {
+    pub id: String,
+    #[serde(default)]
+    pub nodes: Vec<String>,
+    /// Spoke and marker colour `#rrggbb`.
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub width: Option<f32>,
+    #[serde(default)]
+    pub dash: Option<f32>,
+    #[serde(default)]
+    pub opacity: Option<f32>,
+    /// Drawn while true (default).
+    #[serde(default = "default_true")]
+    pub visible: bool,
+}
+
+/// A simplicial face (spec 031 §2): a filled triangle over three nodes
+/// (more than three: fanned from the centroid into triangles), by id.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct InSimplex {
+    pub id: String,
+    #[serde(default)]
+    pub nodes: Vec<String>,
+    /// Fill colour `#rrggbb`.
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub opacity: Option<f32>,
     /// Drawn while true (default).
     #[serde(default = "default_true")]
     pub visible: bool,
@@ -260,6 +338,16 @@ pub struct InDelta {
     pub add_groups: Vec<InGroup>,
     #[serde(default)]
     pub remove_groups: Vec<String>,
+    /// Hyperedges and simplices by id, same replace-on-re-add contract as
+    /// groups (spec 031 §2, stage 5); their members follow the remap.
+    #[serde(default)]
+    pub add_hyperedges: Vec<InHyperedge>,
+    #[serde(default)]
+    pub remove_hyperedges: Vec<String>,
+    #[serde(default)]
+    pub add_simplexes: Vec<InSimplex>,
+    #[serde(default)]
+    pub remove_simplexes: Vec<String>,
 }
 
 /// A node arriving through a delta (spec 031 §4: a collapsed group's
@@ -421,6 +509,8 @@ pub struct Graph {
     pub layers: Vec<Layer>,
     pub traces: Vec<Trace>,
     pub groups: Vec<Group>,
+    pub hyperedges: Vec<Hyperedge>,
+    pub simplexes: Vec<Simplex>,
 }
 
 pub fn color_for(kind: &str) -> [f32; 4] {
@@ -472,7 +562,65 @@ fn resolve_group(g: InGroup, nodes: &[Node]) -> Group {
             .and_then(|c| parse_hex(c, 1.0))
             .unwrap_or([0.35, 0.55, 0.85, 1.0]),
         visible: g.visible,
+        highlight: g.highlight,
     }
+}
+
+/// A wire hyperedge with its members resolved to indices (missing ids
+/// skip, like a group's; a repeated id counts once — two ids, one node
+/// is not a connection). Purple is the neutral spoke colour.
+fn resolve_hyperedge(h: InHyperedge, nodes: &[Node]) -> Hyperedge {
+    let mut color = h
+        .color
+        .as_deref()
+        .and_then(|c| parse_hex(c, 0.85))
+        .unwrap_or([0.75, 0.55, 0.95, 0.85]);
+    if let Some(o) = h.opacity {
+        color[3] *= o.clamp(0.0, 1.0);
+    }
+    Hyperedge {
+        id: h.id,
+        nodes: distinct_members(&h.nodes, nodes),
+        color,
+        width: h.width.unwrap_or(1.4).clamp(0.5, 12.0),
+        dash: h.dash.unwrap_or(0.0).clamp(0.0, 64.0),
+        visible: h.visible,
+    }
+}
+
+/// A wire simplex with its members resolved to indices (missing ids and
+/// repeats skip — three corners, three *distinct* nodes, or no face).
+/// Orange is the neutral fill.
+fn resolve_simplex(s: InSimplex, nodes: &[Node]) -> Simplex {
+    let mut color = s
+        .color
+        .as_deref()
+        .and_then(|c| parse_hex(c, 0.9))
+        .unwrap_or([0.95, 0.60, 0.30, 0.9]);
+    if let Some(o) = s.opacity {
+        color[3] *= o.clamp(0.0, 1.0);
+    }
+    Simplex {
+        id: s.id,
+        nodes: distinct_members(&s.nodes, nodes),
+        color,
+        visible: s.visible,
+    }
+}
+
+/// Wire ids → first-occurrence node indices: a missing id skips (re-
+/// addable through a later delta), a repeated id counts once — the same
+/// rule an edge's endpoints follow.
+fn distinct_members(ids: &[String], nodes: &[Node]) -> Vec<usize> {
+    let mut out: Vec<usize> = Vec::new();
+    for id in ids {
+        if let Some(i) = nodes.iter().position(|n| &n.id == id) {
+            if !out.contains(&i) {
+                out.push(i);
+            }
+        }
+    }
+    out
 }
 
 pub fn edge_color(kind: &str) -> [f32; 4] {
@@ -617,6 +765,16 @@ impl Graph {
             .into_iter()
             .map(|g| resolve_group(g, &nodes))
             .collect();
+        let hyperedges = input
+            .hyperedges
+            .into_iter()
+            .map(|h| resolve_hyperedge(h, &nodes))
+            .collect();
+        let simplexes = input
+            .simplexes
+            .into_iter()
+            .map(|s| resolve_simplex(s, &nodes))
+            .collect();
         let mut g = Self {
             nodes,
             edges,
@@ -624,6 +782,8 @@ impl Graph {
             layers,
             traces,
             groups,
+            hyperedges,
+            simplexes,
         };
         g.with_bows();
         g
@@ -680,6 +840,10 @@ impl Graph {
             && d.add_edges.is_empty()
             && d.add_groups.is_empty()
             && d.remove_groups.is_empty()
+            && d.add_hyperedges.is_empty()
+            && d.remove_hyperedges.is_empty()
+            && d.add_simplexes.is_empty()
+            && d.remove_simplexes.is_empty()
         {
             return;
         }
@@ -722,6 +886,17 @@ impl Graph {
         for g in self.groups.iter_mut() {
             g.members = g.members.iter().filter_map(|&i| remap[i]).collect();
         }
+        // Hyperedges and simplices (spec 031 §2): the survivors follow the
+        // remap too; a hyperedge under two members, a simplex under three,
+        // has no shape to draw and is dropped (the host can re-send it).
+        for h in self.hyperedges.iter_mut() {
+            h.nodes = h.nodes.iter().filter_map(|&i| remap[i]).collect();
+        }
+        self.hyperedges.retain(|h| h.nodes.len() >= 2);
+        for s in self.simplexes.iter_mut() {
+            s.nodes = s.nodes.iter().filter_map(|&i| remap[i]).collect();
+        }
+        self.simplexes.retain(|s| s.nodes.len() >= 3);
         // Additions. A node id that already exists replaces its node —
         // a re-expand puts the members back where the aggregate was.
         fn index_of(nodes: &[Node], id: &str) -> Option<usize> {
@@ -826,6 +1001,28 @@ impl Graph {
                 None => self.groups.push(group),
             }
         }
+        let remove_hyper: std::collections::HashSet<&String> = d.remove_hyperedges.iter().collect();
+        self.hyperedges.retain(|h| !remove_hyper.contains(&h.id));
+        for h in d.add_hyperedges {
+            let hyper = resolve_hyperedge(h, &self.nodes);
+            match self.hyperedges.iter().position(|x| x.id == hyper.id) {
+                Some(i) => self.hyperedges[i] = hyper,
+                None => self.hyperedges.push(hyper),
+            }
+        }
+        let remove_simp: std::collections::HashSet<&String> = d.remove_simplexes.iter().collect();
+        self.simplexes.retain(|s| !remove_simp.contains(&s.id));
+        for s in d.add_simplexes {
+            let simp = resolve_simplex(s, &self.nodes);
+            match self.simplexes.iter().position(|x| x.id == simp.id) {
+                Some(i) => self.simplexes[i] = simp,
+                None => self.simplexes.push(simp),
+            }
+        }
+        // Canonical shape: a hyperedge under two members, a simplex under
+        // three, has nothing to draw — kept out of the state entirely.
+        self.hyperedges.retain(|h| h.nodes.len() >= 2);
+        self.simplexes.retain(|s| s.nodes.len() >= 3);
         self.recompute_degrees();
         self.with_bows();
     }
@@ -1080,6 +1277,7 @@ mod delta_tests {
                 members: vec!["a".into(), "b".into()],
                 color: Some("#596cff".into()),
                 visible: true,
+                highlight: false,
             }],
             ..Default::default()
         });
@@ -1095,6 +1293,7 @@ mod delta_tests {
                 members: vec!["a".into(), "agg".into()],
                 color: Some("#596cff".into()),
                 visible: true,
+                highlight: false,
             }],
             ..Default::default()
         });
@@ -1117,5 +1316,53 @@ mod delta_tests {
             ..Default::default()
         });
         assert!(g.groups.is_empty());
+    }
+
+    #[test]
+    fn deltas_carry_hyperedges_and_simplexes_by_id() {
+        // Spec 031 §2, stage 5: the same replace-on-re-add contract as
+        // groups; members follow the survivor remap, and a hyperedge under
+        // two members or a simplex under three has no shape and drops.
+        let mut g = Graph::from_input(input());
+        g.apply_delta(InDelta {
+            add_hyperedges: vec![InHyperedge {
+                id: "h".into(),
+                nodes: vec!["a".into(), "b".into(), "c".into()],
+                color: Some("#bb77ee".into()),
+                ..Default::default()
+            }],
+            add_simplexes: vec![InSimplex {
+                id: "s".into(),
+                nodes: vec!["a".into(), "b".into(), "c".into()],
+                color: Some("#ff9933".into()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert_eq!(g.hyperedges.len(), 1);
+        assert_eq!(g.simplexes.len(), 1);
+        assert_eq!(g.hyperedges[0].nodes.len(), 3);
+        // Collapse b: its departure leaves both with two members — the
+        // simplex drops, the hyperedge keeps its spoke pair (≥ 2 draws).
+        g.apply_delta(InDelta {
+            remove_nodes: vec!["b".into()],
+            ..Default::default()
+        });
+        assert_eq!(g.hyperedges[0].nodes.len(), 2, "a spoke pair still draws");
+        assert!(g.simplexes.is_empty(), "a face under three corners drops");
+        // Removal by id; re-add replaces.
+        g.apply_delta(InDelta {
+            remove_hyperedges: vec!["h".into()],
+            add_simplexes: vec![InSimplex {
+                id: "s".into(),
+                nodes: vec!["a".into(), "c".into(), "a".into()],
+                color: None,
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert!(g.hyperedges.is_empty());
+        // Two ids, one node: not a face (the same rule as an edge's).
+        assert!(g.simplexes.is_empty());
     }
 }

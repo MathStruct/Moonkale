@@ -370,12 +370,16 @@ impl GraphView {
             s.graph.nodes.len(),
             s.graph.edges.len(),
             s.graph.groups.len(),
+            s.graph.hyperedges.len(),
+            s.graph.simplexes.len(),
         );
         s.graph.apply_delta(d);
         if (
             s.graph.nodes.len(),
             s.graph.edges.len(),
             s.graph.groups.len(),
+            s.graph.hyperedges.len(),
+            s.graph.simplexes.len(),
         ) == before
         {
             return Ok(()); // nothing named existed; nothing to redraw
@@ -754,9 +758,10 @@ impl GraphView {
         serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
     }
 
-    /// `[segments, arrows, ports, hulls]` — instance counts; ports count
-    /// only in edit mode (they are drawn then), hulls are 2D-only — for
-    /// tests (spec 031 §2, §4).
+    /// `[segments, arrows, ports, hulls, simplexes, junctions]` — instance
+    /// counts; ports count only in edit mode (they are drawn then), hulls
+    /// and simplexes are 2D-only, junctions ride the node pipeline — for
+    /// tests (spec 031 §2, §4, stage 5).
     pub fn frame_state(&self) -> Vec<f64> {
         let s = self.state.borrow();
         let f = s.renderer.frame();
@@ -770,6 +775,8 @@ impl GraphView {
             f.arrows.len() as f64,
             ports as f64,
             f.hulls.len() as f64,
+            f.simplex_tris.len() as f64,
+            f.junctions.len() as f64,
         ]
     }
 

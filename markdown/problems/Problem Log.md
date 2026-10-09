@@ -142,6 +142,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | P-160 Stage 4's e2e traps: apply_delta's camera contract and the dash-LOD threshold | Two traps found while writing `graph-groups.mjs`. (1) "the camera survives a delta" (stage 4a) holds only for a **navigated** view: while `auto_fit` is still set (P-100), `apply_delta`'s warm layout re-fits the camera every frame while it runs — a collapse on a fresh view legitimately moves the picture. The suite pans once before collapsing, which is what a real user has done too. (2) The dash→solid LOD (§6) compares the **screen length of one sub-segment** against 6 px, not the camera scale: after an expand's warm layout the edge is far longer than the ideal length, so a "scale < 1.2" condition still leaves dashed sub-segments. The suite zooms until the edge's measured screen length < 40 px (≈ 8 × 5 px sub-segments) instead | resolved | spec 031 |
 
+| P-161 The draw bench reads 40–200 % high on a loaded machine | Two `bench-draw.mjs` runs during stage 5 read settle 6.57 / hover 2.79 ms/frame and 5.01 / 1.22 — a phantom regression hunt; the machine's load average was ≈ 12 (background builds). Rerun on the settled machine: settle 4.20, hover 0.92 — the stage-5 code costs nothing on the empty path, as designed. Rule: read the bench gate only when the load average is near idle, and rerun before hunting a renderer regression | resolved | spec 031 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

@@ -1,9 +1,12 @@
-//! wgpu: surface on a `<canvas>`, four instanced pipelines (group hulls,
-//! segments, arrowheads, nodes — the hulls first, behind everything).
-//! Written against wgpu 30.
+//! wgpu: surface on a `<canvas>`, five instanced pipelines (group hulls,
+//! simplicial faces, segments, arrowheads, nodes — the faces and hulls
+//! first, behind everything). Written against wgpu 30.
 
 use crate::camera::Camera;
-use crate::frame::{self, ArrowAttr, ArrowPos, DrawInput, HullAttr, HullPos, SegAttr, SegPos};
+use crate::frame::{
+    self, ArrowAttr, ArrowPos, DrawInput, HullAttr, HullPos, SegAttr, SegPos, SimplexAttr,
+    SimplexPos, JUNCTION_RADIUS,
+};
 use crate::graph::Graph;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -101,10 +104,12 @@ pub struct Renderer {
     seg_pipe: wgpu::RenderPipeline,
     arrow_pipe: wgpu::RenderPipeline,
     hull_pipe: wgpu::RenderPipeline,
+    simplex_pipe: wgpu::RenderPipeline,
     node_bufs: InstBufs,
     seg_bufs: InstBufs,
     arrow_bufs: InstBufs,
     hull_bufs: InstBufs,
+    simplex_bufs: InstBufs,
     /// The built scene (`frame::build_frame`), cached until a revision
     /// moves — a camera pan or zoom re-draws it without rebuilding.
     frame: frame::Frame,
@@ -230,39 +235,46 @@ impl Renderer {
             write_mask: wgpu::ColorWrites::ALL,
         })];
 
-        let make =
-            |name: &str, vs: &str, fs: &str, buffers: &[Option<wgpu::VertexBufferLayout>]| {
-                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(name),
-                    layout: Some(&pipe_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some(vs),
-                        compilation_options: Default::default(),
-                        buffers,
+        let make = |name: &str,
+                    vs: &str,
+                    fs: &str,
+                    buffers: &[Option<wgpu::VertexBufferLayout>],
+                    strip: bool| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(name),
+                layout: Some(&pipe_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some(vs),
+                    compilation_options: Default::default(),
+                    buffers,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some(fs),
+                    compilation_options: Default::default(),
+                    targets: &targets,
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: if strip {
+                        wgpu::PrimitiveTopology::TriangleStrip
+                    } else {
+                        wgpu::PrimitiveTopology::TriangleList
                     },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(fs),
-                        compilation_options: Default::default(),
-                        targets: &targets,
-                    }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleStrip,
-                        ..Default::default()
-                    },
-                    depth_stencil: Some(wgpu::DepthStencilState {
-                        format: wgpu::TextureFormat::Depth24Plus,
-                        depth_write_enabled: Some(true),
-                        depth_compare: Some(wgpu::CompareFunction::LessEqual),
-                        stencil: Default::default(),
-                        bias: Default::default(),
-                    }),
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
-            };
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth24Plus,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
         fn inst<'a>(
             stride: u64,
             attrs: &'a [wgpu::VertexAttribute],
@@ -409,31 +421,76 @@ impl Renderer {
                     offset: 16,
                     shader_location: 3,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 20,
+                    shader_location: 4,
+                },
             ],
+        );
+        let simplex_pos_layout = inst(
+            std::mem::size_of::<SimplexPos>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 12,
+                    shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 24,
+                    shader_location: 2,
+                },
+            ],
+        );
+        let simplex_attr_layout = inst(
+            std::mem::size_of::<SimplexAttr>() as u64,
+            &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 0,
+                shader_location: 3,
+            }],
         );
         let node_pipe = make(
             "nodes",
             "node_vs",
             "node_fs",
             &[Some(node_pos_layout), Some(node_attr_layout)],
+            true,
         );
         let seg_pipe = make(
             "segments",
             "edge_vs",
             "edge_fs",
             &[Some(seg_pos_layout), Some(seg_attr_layout)],
+            true,
         );
         let arrow_pipe = make(
             "arrowheads",
             "arrow_vs",
             "arrow_fs",
             &[Some(arrow_pos_layout), Some(arrow_attr_layout)],
+            true,
         );
         let hull_pipe = make(
             "group hulls",
             "hull_vs",
             "hull_fs",
             &[Some(hull_pos_layout), Some(hull_attr_layout)],
+            true,
+        );
+        // One filled triangle per instance: three vertices, not a strip.
+        let simplex_pipe = make(
+            "simplicial faces",
+            "simplex_vs",
+            "simplex_fs",
+            &[Some(simplex_pos_layout), Some(simplex_attr_layout)],
+            false,
         );
         let depth = depth_view(&device, config.width, config.height);
         let node_bufs = InstBufs::new(
@@ -456,6 +513,11 @@ impl Renderer {
             std::mem::size_of::<HullPos>() as u64,
             std::mem::size_of::<HullAttr>() as u64,
         );
+        let simplex_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<SimplexPos>() as u64,
+            std::mem::size_of::<SimplexAttr>() as u64,
+        );
 
         Ok(Self {
             surface,
@@ -468,10 +530,12 @@ impl Renderer {
             seg_pipe,
             arrow_pipe,
             hull_pipe,
+            simplex_pipe,
             node_bufs,
             seg_bufs,
             arrow_bufs,
             hull_bufs,
+            simplex_bufs,
             frame: frame::Frame::default(),
             scratch: Vec::new(),
             built_pos_rev: 0,
@@ -530,10 +594,14 @@ impl Renderer {
         let arrow_attr_stride = std::mem::size_of::<ArrowAttr>() as u64;
         let hull_stride = std::mem::size_of::<HullPos>() as u64;
         let hull_attr_stride = std::mem::size_of::<HullAttr>() as u64;
+        let simplex_stride = std::mem::size_of::<SimplexPos>() as u64;
+        let simplex_attr_stride = std::mem::size_of::<SimplexAttr>() as u64;
         // Ports draw as small circles on the node pipeline (edit mode only,
-        // spec 031 §2); the pending wire draws as one extra segment.
+        // spec 031 §2); the pending wire draws as one extra segment; the
+        // hyperedge junctions ride the node pipeline too (stage 5).
         let port_count = if edit { self.frame.port_pos.len() } else { 0 };
-        let node_count = graph.nodes.len() + port_count;
+        let junction_count = self.frame.junctions.len();
+        let node_count = graph.nodes.len() + port_count + junction_count;
         let pending_count = pending.map_or(0, |_| 1);
         self.node_bufs.ensure(
             &self.device,
@@ -559,6 +627,12 @@ impl Renderer {
             hull_stride,
             hull_attr_stride,
         );
+        self.simplex_bufs.ensure(
+            &self.device,
+            self.frame.simplex_tris.len() as u64,
+            simplex_stride,
+            simplex_attr_stride,
+        );
 
         if pos_rev != self.node_bufs.pos_rev {
             let mut pos: Vec<NodePos> = graph
@@ -570,6 +644,9 @@ impl Renderer {
                 .collect();
             for p in self.frame.port_pos.iter().take(port_count) {
                 pos.push(NodePos { pos: *p });
+            }
+            for j in self.frame.junctions.iter().take(junction_count) {
+                pos.push(NodePos { pos: j.pos });
             }
             self.queue
                 .write_buffer(&self.node_bufs.pos, 0, bytemuck::cast_slice(&pos));
@@ -613,6 +690,14 @@ impl Renderer {
                     radius: frame::PORT_RADIUS,
                     selected: 0.0,
                     kind: 1.0,
+                });
+            }
+            for j in self.frame.junctions.iter().take(junction_count) {
+                attr.push(NodeAttr {
+                    color: j.color,
+                    radius: JUNCTION_RADIUS,
+                    selected: 0.0,
+                    kind: 3.0, // a junction: no port LOD suppression
                 });
             }
             self.queue
@@ -708,6 +793,24 @@ impl Renderer {
             );
             self.hull_bufs.attr_rev = attr_rev;
         }
+        // Simplicial faces (spec 031 §2, stage 5): corners with the
+        // members (pos_rev), tint with the faces (attr_rev).
+        if pos_rev != self.simplex_bufs.pos_rev {
+            self.queue.write_buffer(
+                &self.simplex_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.simplex_tris),
+            );
+            self.simplex_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.simplex_bufs.attr_rev {
+            self.queue.write_buffer(
+                &self.simplex_bufs.attr,
+                0,
+                bytemuck::cast_slice(&self.frame.simplex_attrs),
+            );
+            self.simplex_bufs.attr_rev = attr_rev;
+        }
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
 
@@ -768,6 +871,24 @@ impl Renderer {
                         .slice(..self.frame.hulls.len() as u64 * hull_attr_stride),
                 );
                 pass.draw(0..4, 0..self.frame.hulls.len() as u32);
+            }
+            // Simplicial faces next (spec 031 §2): behind the edges and
+            // nodes, above the group tints. Three vertices per instance.
+            if !self.frame.simplex_tris.is_empty() {
+                pass.set_pipeline(&self.simplex_pipe);
+                pass.set_vertex_buffer(
+                    0,
+                    self.simplex_bufs
+                        .pos
+                        .slice(..self.frame.simplex_tris.len() as u64 * simplex_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.simplex_bufs
+                        .attr
+                        .slice(..self.frame.simplex_tris.len() as u64 * simplex_attr_stride),
+                );
+                pass.draw(0..3, 0..self.frame.simplex_tris.len() as u32);
             }
             let seg_total = self.frame.segs.len() + pending_count;
             if seg_total > 0 {

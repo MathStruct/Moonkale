@@ -72,8 +72,9 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
     out.selected = inst.selected;
     // Port LOD (spec 031 §6): once a port's projected size falls under a
     // couple of pixels it stops drawing — the scale lives here, not in the
-    // fragment. kind becomes 2 = a suppressed port.
-    if (inst.kind > 0.5 && inst.radius * camera.scale < 2.5) {
+    // fragment. kind becomes 2 = a suppressed port. kind 3 (a hyperedge
+    // junction) is structural and always draws.
+    if (inst.kind == 1.0 && inst.radius * camera.scale < 2.5) {
         out.kind = 2.0;
     } else {
         out.kind = inst.kind;
@@ -83,7 +84,7 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
 
 @fragment
 fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
-    if (in.kind > 1.5) { discard; } // a port under the pixel threshold
+    if (in.kind > 1.5 && in.kind < 2.5) { discard; } // a port under the pixel threshold
     let d = length(in.uv);
     let edge = fwidth(d) * 1.5;
     let alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
@@ -226,6 +227,7 @@ struct HullInst {
     @location(1) half: vec2<f32>,   // world, padding included
     @location(2) color: vec4<f32>,
     @location(3) corner: f32,       // world
+    @location(4) highlight: f32,    // 1 = a clique's rim (spec 031 §2)
 };
 struct HullOut {
     @builtin(position) clip: vec4<f32>,
@@ -233,6 +235,7 @@ struct HullOut {
     @location(1) color: vec4<f32>,
     @location(2) extent: vec2<f32>, // half-extents in screen pixels
     @location(3) corner: f32,       // corner radius in screen pixels
+    @location(4) highlight: f32,
 };
 
 @vertex
@@ -254,6 +257,7 @@ fn hull_vs(@builtin(vertex_index) vi: u32, inst: HullInst) -> HullOut {
     out.color = inst.color;
     out.extent = ew;
     out.corner = corner_px;
+    out.highlight = inst.highlight;
     return out;
 }
 
@@ -269,9 +273,55 @@ fn hull_fs(in: HullOut) -> @location(0) vec4<f32> {
     // region — it fades out between 6 and 14 px of its smaller half-extent.
     let lod = smoothstep(6.0, 14.0, min(in.extent.x, in.extent.y));
     if (lod < 0.02) { discard; }
-    // The fill tints; a thin band of the group's colour traces the rim.
+    // The fill tints; a thin band of the group's colour traces the rim —
+    // twice as strong for a highlighted clique (spec 031 §2).
     let rim_w = fwidth(d) * 1.5 + 1.5;
     let inner = 1.0 - smoothstep(-edge, edge, d + rim_w);
-    let rim = clamp(cov - inner, 0.0, 1.0) * 0.45 * lod;
-    return vec4<f32>(in.color.rgb, max(cov * in.color.a * lod, rim));
+    let rim_a = clamp(cov - inner, 0.0, 1.0) * select(0.45, 0.9, in.highlight > 0.5) * lod;
+    return vec4<f32>(in.color.rgb, max(cov * in.color.a * lod, rim_a));
+}
+
+// ---------------- simplicial faces: instanced filled triangles ----------------
+// Spec 031 §2: a 2-simplex is a filled triangle over three nodes (a face
+// over more is fanned into triangles); drawn behind the edges and nodes.
+// Not a group hull, not a hyperedge junction — a third class.
+struct SimpInst {
+    @location(0) a: vec3<f32>,
+    @location(1) b: vec3<f32>,
+    @location(2) c: vec3<f32>,
+    @location(3) color: vec4<f32>,
+};
+struct SimpOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) color: vec4<f32>,
+    @location(1) min_edge: f32,   // the triangle's smallest edge, screen px
+};
+
+@vertex
+fn simplex_vs(@builtin(vertex_index) vi: u32, inst: SimpInst) -> SimpOut {
+    let pa = project(inst.a);
+    let pb = project(inst.b);
+    let pc = project(inst.c);
+    var corner = array<vec4<f32>, 3>(pa, pb, pc);
+    let sx = camera.viewport * 0.5;
+    let sa = vec2<f32>(pa.x * sx.x, -pa.y * sx.y);
+    let sb = vec2<f32>(pb.x * sx.x, -pb.y * sx.y);
+    let sc = vec2<f32>(pc.x * sx.x, -pc.y * sx.y);
+    let e0 = distance(sa, sb);
+    let e1 = distance(sb, sc);
+    let e2 = distance(sc, sa);
+    var out: SimpOut;
+    out.clip = corner[vi];
+    out.color = inst.color;
+    out.min_edge = min(e0, min(e1, e2));
+    return out;
+}
+
+@fragment
+fn simplex_fs(in: SimpOut) -> @location(0) vec4<f32> {
+    // LOD (spec 031 §6), same ladder as the hulls: a face a few pixels
+    // across fades out instead of smudging.
+    let lod = smoothstep(6.0, 14.0, in.min_edge);
+    if (lod < 0.02) { discard; }
+    return vec4<f32>(in.color.rgb, in.color.a * lod);
 }
