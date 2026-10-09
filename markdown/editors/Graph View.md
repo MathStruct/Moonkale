@@ -65,3 +65,14 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 2. Labels with LOD, styles, subgraph ops, saved views.
 3. GPU compute layout; 100k target; desktop surface decision.
 4. 3D.
+
+## Spec 031 — the frontend graph engine (2026-10-08)
+[[031]] turns this view into the **one** frontend graph engine — layered, port- and route-aware, shared by graph exploration and flow editing (ADR-0018). The requirements are mapped onto this crate with a staged plan in [[Frontend Graph Engine Mapping]]; implementation notes per stage live in the crate note (`packages/graph-render/graph-render.md`). Built so far:
+
+- **Stage 0 — persistent instance buffers**: geometry/appearance split per pipeline, revision-gated uploads; 100 k nodes settle at 1.14 ms per drawn frame (`bench-draw.mjs`).
+- **Stage 1 — edges and selection**: `frame.rs` tessellates edges into segments (parallel fan-out, self-loop rings, dashes, widths), arrowheads for directed edges, `edge_at` picking; selection by instance id with `select` events — a plain click picks a node, then an edge, then clears; Ctrl toggles; a released drag selects nothing. `graph-edges.mjs` covers it; the shader is validated natively (naga, P-158).
+- **Stage 2 — ports and edit mode**: `InPort` on the wire format (side/offset/direction), edges anchor at their ports, ports draw in edit mode only, and a wire dragged between ports emits `connect` — the host validates and adds the edge. `set_interaction("explore"|"edit")` switches modes on the same renderer without touching the camera (`set_mode` stays 2D/3D). `graph-edit.mjs` covers it.
+
+- **Stage 3 — layers and traces**: `InLayer` (visibility + style) and `InTrace` (ordered node-id walks) on the wire format; a shared edge draws one offset stroke per visible layer, traces carry a head per hop and keep recursion order, hidden layers remove their strokes and answer no hits — never touching topology. `graph-layers.mjs` covers the blue-calls + yellow-trace acceptance.
+
+Next: groups and LOD (stage 4), higher-order edges (5), pulses (6), the flow editor's move onto this engine (7, ADR-0018).

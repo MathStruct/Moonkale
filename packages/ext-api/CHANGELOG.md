@@ -22,11 +22,17 @@ Rules:
 - **Source compatibility:** `EditorFile` and `EditorSettings` gain `insert_spaces` and `indent_width`. Update explicit struct literals with these fields or use `..Default::default()` where supported. New public `DocsState` fields also affect explicit literals.
 - **Behavior change:** `word_at` columns count UTF-16 code units rather than Unicode scalar values. Update callers that calculate columns after non-BMP characters.
 
+**moonkale-ext-api** (spec 030)
+
 - `i18n`: `tr`, `lookup`, `check`, `system_language`, `LANGUAGES`, the `t!(ws, L, "id", var = x)` macro, and `FluentArgs`/`FluentValue` re-exported.
 - `Settings.language` (empty = the system's) and `Workspace::lang()`; `SettingsState.system_language`.
 - `workspace::untracked(f)`: inside it `lang()` peeks instead of subscribing — for code run from untracked effects (P-151).
 - `Extension::themes()` (theme files as JSON; default none) and `ShellState.theme_light`.
 - The status bar message starts empty; the shell shows its own translated *Ready*.
+
+**moonkale-core** (audit fixes, 2026-10-04 — a stricter gate)
+- `source::risk::statements(text)`: how many statements a text holds. `classify_sql` and `classify_cypher` return `Risk::Unknown` for more than one (a read-only source refuses them; the agent asks).
+- `classify_cypher` ignores string literals and counts `LOAD`, `EXPORT`, `IMPORT`, `INSTALL`, `ATTACH`, `USE`, transactions and `CALL name = value` as writes.
 
 ## lib-v1 — 2026-10-03 (Milestone 18)
 

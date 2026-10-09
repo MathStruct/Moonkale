@@ -49,6 +49,20 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                     return;
                 }
                 match ws.fetch_bytes(&node).await {
+                    Ok(bytes)
+                        if crate::dimensions(&bytes)
+                            .is_some_and(|(w, h)| w as u64 * h as u64 > crate::MAX_PIXELS) =>
+                    {
+                        let (w, h) = crate::dimensions(&bytes).unwrap_or_default();
+                        state.set(Loaded::Failed(t!(
+                            ws,
+                            L,
+                            "image-too-many-pixels",
+                            name = node.label.clone(),
+                            width = w,
+                            height = h
+                        )));
+                    }
                     Ok(bytes) => {
                         let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
                         state.set(Loaded::Ready {

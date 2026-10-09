@@ -19,8 +19,14 @@ impl Host for Reg {
 
 fn wasm_path() -> Option<PathBuf> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let p = root.join("target/wasm32-unknown-unknown/release/moonkale_ext_wordcount.wasm");
-    if !p.exists() {
+    // Where the build below puts it: CARGO_TARGET_DIR when set (relative to
+    // the workspace root), else <root>/target.
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(|t| root.join(t))
+        .unwrap_or_else(|| root.join("target"));
+    let p = target.join("wasm32-unknown-unknown/release/moonkale_ext_wordcount.wasm");
+    // Always build: cheap when up to date, and a stale module would test old code.
+    {
         let ok = std::process::Command::new("cargo")
             .args([
                 "build",
@@ -35,8 +41,12 @@ fn wasm_path() -> Option<PathBuf> {
             .map(|s| s.success())
             .unwrap_or(false);
         if !ok {
-            eprintln!("wasm32 target unavailable; skipping");
-            return None;
+            if p.exists() {
+                eprintln!("wasm32 build failed; testing the module built earlier");
+            } else {
+                eprintln!("wasm32 target unavailable; skipping");
+                return None;
+            }
         }
     }
     Some(p)
@@ -59,7 +69,7 @@ async fn example_extension_runs_and_permissions_are_enforced() {
 
     let mut rt = Runtime::new().unwrap();
     let loaded = rt.load(&wasm).unwrap();
-    assert_eq!(loaded.manifest.id, "dev.moonkale.example-wordcount");
+    assert_eq!(loaded.manifest.id, "org.example.wordcount");
     assert_eq!(loaded.manifest.commands.len(), 2);
     assert!(loaded
         .manifest
@@ -74,7 +84,7 @@ async fn example_extension_runs_and_permissions_are_enforced() {
     let (rt2, host2, args2, h2) = (rt.clone(), host.clone(), args.clone(), handle.clone());
     let out = tokio::task::spawn_blocking(move || {
         rt2.run(
-            "dev.moonkale.example-wordcount",
+            "org.example.wordcount",
             "wordcount.count",
             args2,
             vec!["read-sources".into()],
@@ -89,7 +99,7 @@ async fn example_extension_runs_and_permissions_are_enforced() {
     let (rt2, host2, args2, h2) = (rt.clone(), host.clone(), args.clone(), handle.clone());
     let top = tokio::task::spawn_blocking(move || {
         rt2.run(
-            "dev.moonkale.example-wordcount",
+            "org.example.wordcount",
             "wordcount.top",
             args2,
             vec!["read-sources".into()],
@@ -105,7 +115,7 @@ async fn example_extension_runs_and_permissions_are_enforced() {
     let (rt2, host2, args2, h2) = (rt.clone(), host.clone(), args.clone(), handle.clone());
     let err = tokio::task::spawn_blocking(move || {
         rt2.run(
-            "dev.moonkale.example-wordcount",
+            "org.example.wordcount",
             "wordcount.count",
             args2,
             vec![],
@@ -121,7 +131,7 @@ async fn example_extension_runs_and_permissions_are_enforced() {
     let (rt2, host2, h2) = (rt.clone(), host.clone(), handle.clone());
     let err = tokio::task::spawn_blocking(move || {
         rt2.run(
-            "dev.moonkale.example-wordcount",
+            "org.example.wordcount",
             "wordcount.nope",
             serde_json::json!({}),
             vec![],

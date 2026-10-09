@@ -82,4 +82,22 @@ async fn schema_and_cypher() {
         })
         .await;
     assert!(err.is_err());
+    // The gate refuses writes and side effects before the engine (#9).
+    for text in [
+        "CREATE (:Person {name:'Eve', age:1})",
+        "MATCH (n) DETACH DELETE n",
+        "LOAD FROM '/etc/passwd' RETURN *",
+        "MATCH (n) RETURN n; MATCH (m) DELETE m",
+    ] {
+        let refused = src
+            .query(Query::Text {
+                dialect: "cypher".into(),
+                text: text.into(),
+            })
+            .await;
+        assert!(
+            matches!(refused, Err(moonkale_core::SourceError::Unsupported(_))),
+            "{text}: {refused:?}"
+        );
+    }
 }

@@ -8,7 +8,7 @@ use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::t;
-use moonkale_terminal::{links, Output, Session, SessionId, TerminalBackend};
+use moonkale_terminal::{links, Session, SessionId, TerminalBackend};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -22,8 +22,6 @@ pub struct NativeSession {
     pub title: String,
     pub backend: Box<dyn TerminalBackend>,
     pub parser: vt100::Parser,
-    /// Output stream, taken by the pump once.
-    output: Option<Output>,
     /// Bumped per output chunk: the view re-renders.
     pub frame: Signal<u64>,
 }
@@ -45,9 +43,42 @@ impl NativeSession {
             title,
             backend,
             parser: vt100::Parser::new(24, 80, SCROLLBACK),
-            output: None,
             frame: Signal::new_in_scope(0, ScopeId::ROOT),
         }
+    }
+
+    /// Share the session and pump its output into the screen for as long
+    /// as the session lives — not for as long as a view of it is mounted
+    /// (#12: docking the panel elsewhere ended the output for good). The
+    /// pump holds the session weakly, so closing it still drops the backend,
+    /// which ends the stream.
+    pub fn start(self) -> Rc<RefCell<NativeSession>> {
+        let session = Rc::new(RefCell::new(self));
+        let output = session.borrow_mut().backend.take_output();
+        if let Some(mut output) = output {
+            let weak = Rc::downgrade(&session);
+            dioxus::core::spawn_forever(async move {
+                use futures_util::StreamExt;
+                let feed = |bytes: &[u8]| {
+                    let Some(s) = weak.upgrade() else {
+                        return false;
+                    };
+                    let mut s = s.borrow_mut();
+                    s.parser.process(bytes);
+                    let mut f = s.frame;
+                    drop(s);
+                    f += 1;
+                    true
+                };
+                while let Some(chunk) = output.next().await {
+                    if !feed(&chunk) {
+                        return;
+                    }
+                }
+                feed(b"\r\n[process ended]\r\n");
+            });
+        }
+        session
     }
 }
 
@@ -56,6 +87,9 @@ impl NativeSession {
 pub struct Sessions {
     pub list: Signal<Vec<Rc<RefCell<NativeSession>>>>,
     pub active: Signal<Option<SessionId>>,
+    /// The last command handled: a remounted panel must not start the last
+    /// New Terminal again (#12).
+    pub handled: Signal<u64>,
 }
 
 impl PartialEq for Sessions {
@@ -80,6 +114,7 @@ impl NativeTerminalExtension {
             sessions: Sessions {
                 list: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
                 active: Signal::new_in_scope(None, ScopeId::ROOT),
+                handled: Signal::new_in_scope(0, ScopeId::ROOT),
             },
         }
     }
@@ -132,10 +167,9 @@ async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<St
                 title,
                 cwd,
                 backend,
-            });
-            sessions
-                .list
-                .with_mut(|l| l.push(Rc::new(RefCell::new(session))));
+            })
+            .start();
+            sessions.list.with_mut(|l| l.push(session));
             sessions.active.set(Some(id));
         }
         Err(e) => ws.set_status(t!(ws, L, "terminal-failed", error = e.to_string())),
@@ -147,7 +181,12 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let mut sessions = sessions;
     // View → New Terminal, routed to this implementation (Milestone 12).
     use_effect(move || {
-        let (_, cmd) = *ws.shell.commands.read();
+        let (seq, cmd) = *ws.shell.commands.read();
+        let mut handled = sessions.handled;
+        if seq <= *handled.peek() {
+            return;
+        }
+        handled.set(seq);
         if cmd == Some(Command::NewTerminalIn("native")) {
             let cwd = ws.processes.terminal_cwd.peek().clone();
             spawn(start_session(ws, sessions, cwd));
@@ -325,37 +364,6 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
     let mut probe: Signal<Option<Rc<MountedData>>> = use_signal(|| None);
     let mut focused = use_signal(|| false);
 
-    // Output → screen; started once per session from `onmounted` (P-047).
-    let pump = {
-        let session = session.clone();
-        move || {
-            let taken = session.borrow_mut().output.take();
-            let output = match taken {
-                Some(o) => Some(o),
-                None => session.borrow_mut().backend.take_output(),
-            };
-            let Some(mut output) = output else {
-                return;
-            };
-            let session = session.clone();
-            spawn(async move {
-                use futures_util::StreamExt;
-                while let Some(chunk) = output.next().await {
-                    let mut s = session.borrow_mut();
-                    s.parser.process(&chunk);
-                    let mut f = s.frame;
-                    drop(s);
-                    f += 1;
-                }
-                let mut s = session.borrow_mut();
-                s.parser.process(b"\r\n[process ended]\r\n");
-                let mut f = s.frame;
-                drop(s);
-                f += 1;
-            });
-        }
-    };
-
     // Measure the container and the cell probe → rows × cols.
     let measure = {
         let session = session.clone();
@@ -369,6 +377,11 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                 else {
                     return;
                 };
+                // A hidden view (another tile's or layout's copy, display: none)
+                // measures 0 × 0 and must not shrink the shared screen.
+                if rect.size.width < 1.0 || rect.size.height < 1.0 || pr.size.width < 1.0 {
+                    return;
+                }
                 let cw = (pr.size.width / 10.0).max(1.0);
                 let ch = pr.size.height.max(1.0);
                 cell_size.set((cw, ch));
@@ -410,7 +423,6 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
             tabindex: 0,
             onmounted: move |e| {
                 mounted.set(Some(e.data()));
-                pump();
                 measure_mount();
                 // The webview does not always deliver `onresize` for a tile
                 // that grows or shrinks later (P-112): measure on a timer too.

@@ -54,3 +54,5 @@ agent-profile-next = Which saved agent the next turn runs (Settings → Agents)
 agent-server-hint = Ask about the open folder. The turn runs on the server and finishes even if you close this window; come back (or connect from another device) to see where it stands.
 agent-waiting =  ({ $class }) — waiting for anyone connected to answer
 agent-ask-server = Ask the agent… (runs on the server; Enter to send)
+agent-approval-waiting = The agent waits for your approval (Agent panel)
+agent-approval-timeout = No answer for 10 minutes: the agent's request was declined

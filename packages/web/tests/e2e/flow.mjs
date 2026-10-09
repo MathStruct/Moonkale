@@ -124,5 +124,22 @@ try {
     await page.click(".wb-tab:has-text('untitled.flow.json')");
     await page.waitForFunction(() => +document.querySelector(".mk-flow-status")?.dataset.issues >= 7, null, { timeout: 10000 });
   });
+  await step("an unparseable .flow.json shows an error and is never written (#11); fixed on disk, Reload loads it", async () => {
+    const bad = '{"version": 1, "blocks": [ {"id": "b1", "kind": "lux/Dense", "x": 0, "y": 0, "params": {} } ';
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, bad);
+    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer");
+    await page.click(".mk-explorer-open button[type=submit]");
+    await page.waitForSelector(".mk-tree-file >> text=broken.flow.json", { timeout: 15000 });
+    await page.click(".mk-tree-file >> text=broken.flow.json");
+    await page.waitForSelector(".mk-flow-broken:visible", { timeout: 15000 });
+    if (await page.$(".mk-flow:has(.mk-flow-broken) .mk-flow-body")) throw new Error("canvas shown for a broken file");
+    await page.keyboard.press("Control+s");
+    await page.waitForTimeout(1500);
+    if (fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8") !== bad) throw new Error("broken file was rewritten");
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, JSON.stringify({ version: 1, blocks: [], wires: [] }));
+    await page.click(".mk-flow-reload:visible");
+    await page.waitForSelector(".mk-flow:has(.mk-flow-body) .mk-flow-status:visible", { timeout: 20000 });
+    if (await page.$(".mk-flow-broken:visible")) throw new Error("error banner stayed after the fix");
+  });
   console.log("\nFLOW E2E: PASS");
 } catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m6-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

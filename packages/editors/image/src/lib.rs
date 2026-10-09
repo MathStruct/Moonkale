@@ -39,6 +39,69 @@ pub fn is_image(node: &moonkale_core::Node) -> bool {
             .unwrap_or(false)
 }
 
+/// The most pixels the viewer decodes (#19): a small file can declare
+/// 50000 × 50000 and freeze the tab while the browser decodes it.
+pub const MAX_PIXELS: u64 = 100_000_000;
+
+/// Width and height from the header of a PNG, GIF, JPEG, WebP or BMP, or
+/// `None` for other formats (SVG is vector: drawn at the size shown).
+pub fn dimensions(b: &[u8]) -> Option<(u32, u32)> {
+    let be32 = |i: usize| {
+        b.get(i..i + 4)
+            .map(|s| u32::from_be_bytes([s[0], s[1], s[2], s[3]]))
+    };
+    let le16 = |i: usize| {
+        b.get(i..i + 2)
+            .map(|s| u16::from_le_bytes([s[0], s[1]]) as u32)
+    };
+    let le24 = |i: usize| {
+        b.get(i..i + 3)
+            .map(|s| s[0] as u32 | (s[1] as u32) << 8 | (s[2] as u32) << 16)
+    };
+    let le32 = |i: usize| {
+        b.get(i..i + 4)
+            .map(|s| i32::from_le_bytes([s[0], s[1], s[2], s[3]]).unsigned_abs())
+    };
+    if b.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some((be32(16)?, be32(20)?));
+    }
+    if b.starts_with(b"GIF8") {
+        return Some((le16(6)?, le16(8)?));
+    }
+    if b.starts_with(b"BM") {
+        return Some((le32(18)?, le32(22)?));
+    }
+    if b.len() > 30 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        return match &b[12..16] {
+            b"VP8X" => Some((le24(24)? + 1, le24(27)? + 1)),
+            b"VP8L" => {
+                let v = le32(21)?;
+                Some(((v & 0x3fff) + 1, ((v >> 14) & 0x3fff) + 1))
+            }
+            b"VP8 " => Some((le16(26)? & 0x3fff, le16(28)? & 0x3fff)),
+            _ => None,
+        };
+    }
+    if b.starts_with(&[0xff, 0xd8]) {
+        // Walk the segments to a start-of-frame marker.
+        let mut i = 2;
+        while i + 9 < b.len() {
+            if b[i] != 0xff {
+                return None;
+            }
+            let marker = b[i + 1];
+            let len = u16::from_be_bytes([b[i + 2], b[i + 3]]) as usize;
+            if matches!(marker, 0xc0..=0xcf) && !matches!(marker, 0xc4 | 0xc8 | 0xcc) {
+                let h = u16::from_be_bytes([b[i + 5], b[i + 6]]) as u32;
+                let w = u16::from_be_bytes([b[i + 7], b[i + 8]]) as u32;
+                return Some((w, h));
+            }
+            i += 2 + len;
+        }
+    }
+    None
+}
+
 pub fn mime_of(key: &str) -> &'static str {
     match key
         .rsplit('.')
@@ -60,6 +123,22 @@ pub fn mime_of(key: &str) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn header_dimensions() {
+        let mut png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+        png.extend(50_000u32.to_be_bytes());
+        png.extend(40_000u32.to_be_bytes());
+        assert_eq!(super::dimensions(&png), Some((50_000, 40_000)));
+        let gif = b"GIF89a\x10\x00\x20\x00rest".to_vec();
+        assert_eq!(super::dimensions(&gif), Some((16, 32)));
+        let jpeg = [
+            0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 11, 8, 0, 30, 0, 40, 3, 0, 0,
+        ];
+        assert_eq!(super::dimensions(&jpeg), Some((40, 30)));
+        assert_eq!(super::dimensions(b"<svg/>"), None);
+        const { assert!(50_000u64 * 40_000 > super::MAX_PIXELS) };
+    }
+
     use super::*;
     use moonkale_core::{Node, NodeId, NodeKind, SourceId, Version};
 

@@ -29,6 +29,17 @@ try {
     console.log("\n  cwd line:", (t.split("\n").find((l) => l.includes("m2root")) || "?").trim());
     await page.screenshot({ path: `${S}/m3-terminal.png` });
   });
+  await step("the view is mounted again (phone width and back): the output is repainted and stays live (#12)", async () => {
+    // Narrow swaps in the phone workbench, which unmounts the terminal view; wide mounts a new one.
+    await page.setViewportSize({ width: 420, height: 900 });
+    await page.waitForSelector(".mk-phone-bar", { timeout: 10000 });
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.waitForSelector(".xterm-rows", { timeout: 15000 });
+    await page.waitForFunction(() => /moon_23/.test(document.querySelector(".xterm-rows")?.textContent || ""), null, { timeout: 15000 });
+    await page.click(".mk-term-session");
+    await page.keyboard.type("echo again_$((40+2))\n");
+    await page.waitForFunction(() => /again_42/.test(document.querySelector(".xterm-rows")?.textContent || ""), null, { timeout: 15000 });
+  });
   await step("second terminal via +, tabs switch, close works", async () => {
     await page.click(".mk-term-new");
     await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new):not(.mk-term-trace)").length === 2, null, { timeout: 15000 });

@@ -12,6 +12,7 @@
 //! `{kind:"settled"}`.
 
 use crate::camera::Camera;
+use crate::frame;
 use crate::graph::{Graph, InGraph};
 use crate::layout::Layout;
 use crate::render::Renderer;
@@ -45,6 +46,55 @@ struct State {
     /// Label colours (spec 030: `--mk-graph-label`, `--mk-graph-label-hover`).
     label: String,
     label_hover: String,
+    /// Instance-data revisions (spec 031, stage 0): positions move with
+    /// every layout step and drag; styles on a graph swap, a layer toggle
+    /// or a wire start/end; hover recolours nodes only; selection rings
+    /// nodes and brightens edges. Each half uploads when its revision
+    /// moves — hover no longer rebuilds segment styles (the stage 0–3
+    /// review's perf note).
+    pos_rev: u64,
+    attr_rev: u64,
+    hover_rev: u64,
+    sel_rev: u64,
+    /// The selection, by instance id (spec 031 §5) — ids survive an
+    /// incremental `set_graph`; a fresh graph's stale ids match nothing.
+    selected: frame::Selection,
+    /// Whether the current drag moved anything: a click after a drag
+    /// selects nothing (the pointer released a pan or a node move, not a
+    /// pick).
+    drag_moved: bool,
+    /// Explore or edit (spec 031 §5); `set_mode` stays the 2D/3D switch.
+    interaction: Interaction,
+    /// The wire being dragged: its source port (node id, port name) and
+    /// the current endpoint (edit mode; the pending wire, not yet an edge).
+    wire_from: Option<(String, String)>,
+    wire_to: Option<[f32; 3]>,
+    /// Where the current press started: a release within ~4 px is a click,
+    /// not a drag — a touch tap jitters 1–2 px (the stage 0–3 review).
+    press: (f32, f32),
+    /// The last `connect` event, as JSON, for tests.
+    last_connect: Option<String>,
+}
+
+impl State {
+    /// The id of the node being dragged, if any.
+    fn dragged_id(&self) -> Option<String> {
+        match self.dragging {
+            Drag::Node { index } => self.graph.nodes.get(index).map(|n| n.id.clone()),
+            _ => None,
+        }
+    }
+
+    /// After the graph was replaced: a node drag follows its node to its new
+    /// index, or ends when the node is gone (#12 — a stale index panicked
+    /// every pointer move).
+    fn keep_drag(&mut self, id: Option<String>) {
+        if let Drag::Node { .. } = self.dragging {
+            self.dragging = id
+                .and_then(|id| self.graph.nodes.iter().position(|n| n.id == id))
+                .map_or(Drag::None, |index| Drag::Node { index });
+        }
+    }
 }
 
 struct Stashed {
@@ -54,7 +104,7 @@ struct Stashed {
     auto_fit: bool,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 enum Drag {
     None,
     Pan {
@@ -74,6 +124,21 @@ enum Drag {
     Orbit {
         last: (f32, f32),
     },
+    /// Edit mode: dragging a wire out of a port (spec 031 §5, stage 2),
+    /// held by node id + port name — the graph may be swapped under the
+    /// gesture (P-155's lesson, again).
+    Wire {
+        node: String,
+        name: String,
+    },
+}
+
+/// The two interaction modes over one renderer (spec 031 §5): graph
+/// exploration, and flow/canvas editing — ports, wire gestures.
+#[derive(Clone, Copy, PartialEq)]
+enum Interaction {
+    Explore,
+    Edit,
 }
 
 #[wasm_bindgen]
@@ -81,9 +146,69 @@ pub struct GraphView {
     state: Rc<RefCell<State>>,
 }
 
+/// The selection changed (spec 031 §5): the ids, sorted for a stable
+/// payload.
+fn emit_select(s: &State) {
+    let mut nodes: Vec<&String> = s.selected.nodes.iter().collect();
+    nodes.sort();
+    let mut edges: Vec<&String> = s.selected.edges.iter().collect();
+    edges.sort();
+    emit(
+        s,
+        serde_json::json!({ "kind": "select", "nodes": nodes, "edges": edges }),
+    );
+}
+
+/// A node with layers draws (and answers hits) only while one of them is
+/// visible (spec 031 §3).
+/// Resolve a (node id, port name) to its port index; `None` when the
+/// graph no longer has it — a swap ends the gesture instead of panicking.
+fn port_index(graph: &Graph, node: &str, name: &str) -> Option<usize> {
+    let n = graph.nodes.iter().position(|n| n.id == node)?;
+    graph
+        .ports
+        .iter()
+        .position(|p| p.node == n && p.name == name)
+}
+
+/// End the pending wire, if any — its segment and its style leave the
+/// buffers together (B4 of the stage 0–3 review).
+fn end_wire(s: &mut State) {
+    if s.wire_from.take().is_some() {
+        s.wire_to = None;
+        s.pos_rev += 1;
+        s.attr_rev += 1;
+        s.dirty = true;
+    }
+}
+
+fn node_visible(graph: &Graph, i: usize) -> bool {
+    let n = &graph.nodes[i];
+    n.layers.is_empty()
+        || n.layers
+            .iter()
+            .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
+}
+
 fn emit(state: &State, value: serde_json::Value) {
     let js = js_sys::JSON::parse(&value.to_string()).unwrap_or(JsValue::NULL);
     let _ = state.on_event.call1(&JsValue::NULL, &js);
+}
+
+/// Draw-time instrumentation (spec 031, stage 0): total milliseconds spent
+/// in `Renderer::draw` and frames drawn, since module load. Read before and
+/// after a workload to isolate the draw cost (`bench-draw.mjs`).
+static DRAW_MICROS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static DRAW_FRAMES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// `[draw_ms_total, frames_drawn]` — deltas are the measurement.
+#[wasm_bindgen]
+pub fn draw_stats() -> Vec<f64> {
+    use std::sync::atomic::Ordering;
+    vec![
+        DRAW_MICROS.load(Ordering::Relaxed) as f64 / 1000.0,
+        DRAW_FRAMES.load(Ordering::Relaxed) as f64,
+    ]
 }
 
 /// Layout-only benchmark for the wasm build (no GPU needed): milliseconds
@@ -99,6 +224,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             kind: "file".into(),
             key: String::new(),
             color: None,
+            layers: Vec::new(),
         })
         .collect();
     let mut edges = Vec::new();
@@ -108,6 +234,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             b: i / 7,
             kind: "contains".into(),
             color: None,
+            ..Default::default()
         });
         if i % 5 == 0 {
             edges.push(InEdge {
@@ -115,10 +242,15 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
                 b: (i * 7919) % n,
                 kind: "links".into(),
                 color: None,
+                ..Default::default()
             });
         }
     }
-    let mut g = crate::graph::Graph::from_input(InGraph { nodes, edges });
+    let mut g = crate::graph::Graph::from_input(InGraph {
+        nodes,
+        edges,
+        ..Default::default()
+    });
     let mut layout = crate::layout::Layout::new(&g);
     let perf = web_sys::window().and_then(|w| w.performance());
     let t0 = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
@@ -182,6 +314,17 @@ pub async fn create(
         stashed: std::collections::HashMap::new(),
         label: "rgba(230,232,238,0.85)".into(),
         label_hover: "#ffffff".into(),
+        pos_rev: 1,
+        attr_rev: 1,
+        hover_rev: 1,
+        sel_rev: 1,
+        selected: frame::Selection::default(),
+        drag_moved: false,
+        interaction: Interaction::Explore,
+        wire_from: None,
+        wire_to: None,
+        press: (0.0, 0.0),
+        last_connect: None,
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -233,11 +376,15 @@ impl GraphView {
         let Some(saved) = s.stashed.remove(name) else {
             return false;
         };
+        let dragged = s.dragged_id();
         s.graph = saved.graph;
+        s.keep_drag(dragged);
         s.layout = saved.layout;
         s.camera = saved.camera;
         s.auto_fit = saved.auto_fit;
         s.hovered = None;
+        s.pos_rev += 1;
+        s.attr_rev += 1;
         s.dirty = true;
         true
     }
@@ -246,6 +393,7 @@ impl GraphView {
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
+        let dragged = s.dragged_id();
         let mut next = Graph::from_input(input);
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
             .graph
@@ -321,6 +469,7 @@ impl GraphView {
             let new_count = known.iter().filter(|k| !**k).count();
             let total = next.nodes.len().max(1);
             s.graph = next;
+            s.keep_drag(dragged);
             if changed || !same_edges {
                 // A few newcomers: warm, so known nodes only drift. Many (an
                 // index still filling up): a full reheat from the kept
@@ -332,13 +481,18 @@ impl GraphView {
                 s.layout = l;
             }
             s.hovered = None;
+            s.pos_rev += 1;
+            s.attr_rev += 1;
             s.dirty = true;
             return Ok(());
         }
         s.graph = next;
+        s.keep_drag(dragged);
         s.layout = Layout::new(&s.graph);
         s.hovered = None;
         s.auto_fit = true;
+        s.pos_rev += 1;
+        s.attr_rev += 1;
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -411,6 +565,56 @@ impl GraphView {
         self.state.borrow().renderer.backend.clone()
     }
 
+    /// `"explore"` or `"edit"` (spec 031 §5): the same renderer, two
+    /// interaction modes — edit draws the ports and lets a wire be dragged
+    /// between them; the camera is never touched. `set_mode` stays the
+    /// 2D/3D switch.
+    pub fn set_interaction(&self, mode: &str) {
+        let mut s = self.state.borrow_mut();
+        let edit = mode == "edit";
+        let next = if edit {
+            Interaction::Edit
+        } else {
+            Interaction::Explore
+        };
+        if s.interaction == next {
+            return;
+        }
+        s.interaction = next;
+        s.wire_from = None;
+        s.wire_to = None;
+        s.pos_rev += 1; // ports join or leave the node instances
+        s.attr_rev += 1;
+        s.dirty = true;
+    }
+
+    /// Show or hide a layer by id (spec 031 §3): presentation only — the
+    /// graph's topology is never touched, and selection by id survives.
+    pub fn set_layer_visibility(&self, id: &str, visible: bool) {
+        let mut s = self.state.borrow_mut();
+        if let Some(l) = s.graph.layers.iter_mut().find(|l| l.id == id) {
+            if l.visible != visible {
+                l.visible = visible;
+                s.pos_rev += 1; // segments and nodes appear or fade
+                s.attr_rev += 1;
+                s.dirty = true;
+            }
+        }
+    }
+
+    /// `[{"id":…,"visible":…}, …]` — the layers and their visibility, for
+    /// tests.
+    pub fn layer_state(&self) -> String {
+        let s = self.state.borrow();
+        let layers: Vec<serde_json::Value> = s
+            .graph
+            .layers
+            .iter()
+            .map(|l| serde_json::json!({ "id": l.id, "visible": l.visible, "overlay": l.overlay }))
+            .collect();
+        serde_json::json!(layers).to_string()
+    }
+
     /// `"2d"` or `"3d"` (Milestone 8): the same graph, a perspective camera
     /// orbiting the layout with one plane per node kind.
     pub fn set_mode(&self, mode: &str) {
@@ -419,6 +623,9 @@ impl GraphView {
         if s.camera.three_d != three_d {
             s.camera.three_d = three_d;
             s.hovered = None;
+            s.attr_rev += 1;
+            s.hover_rev += 1;
+            s.pos_rev += 1; // arrow and segment positions re-upload (B6)
             let g = std::mem::take(&mut s.graph);
             s.camera.fit(&g, 40.0);
             s.graph = g;
@@ -457,6 +664,69 @@ impl GraphView {
     pub fn camera_state(&self) -> Vec<f32> {
         let c = &self.state.borrow().camera;
         vec![c.scale, c.cx, c.cy, c.yaw, c.pitch, c.dist]
+    }
+
+    /// The current selection as `{"nodes":[…],"edges":[…]}` — for tests
+    /// (spec 031 §5).
+    pub fn selection_state(&self) -> String {
+        let s = self.state.borrow();
+        let mut nodes: Vec<&String> = s.selected.nodes.iter().collect();
+        nodes.sort();
+        let mut edges: Vec<&String> = s.selected.edges.iter().collect();
+        edges.sort();
+        serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
+    }
+
+    /// `[segments, arrows, ports]` — instance counts; ports count only in
+    /// edit mode (they are drawn then) — for tests (spec 031 §2).
+    pub fn frame_state(&self) -> Vec<f64> {
+        let s = self.state.borrow();
+        let f = s.renderer.frame();
+        let ports = if s.interaction == Interaction::Edit {
+            f.port_pos.len()
+        } else {
+            0
+        };
+        vec![f.segs.len() as f64, f.arrows.len() as f64, ports as f64]
+    }
+
+    /// `"explore"` or `"edit"` — the interaction mode (spec 031 §5), for
+    /// tests. `set_mode` stays the 2D/3D switch (Milestone 8).
+    pub fn interaction(&self) -> String {
+        match self.state.borrow().interaction {
+            Interaction::Edit => "edit".into(),
+            Interaction::Explore => "explore".into(),
+        }
+    }
+
+    /// The last `connect` event's JSON (`{"from":null}` before any) — for
+    /// tests.
+    pub fn connect_state(&self) -> String {
+        self.state
+            .borrow()
+            .last_connect
+            .clone()
+            .unwrap_or_else(|| r#"{"from":null}"#.into())
+    }
+
+    /// A port's screen position by node id and port name — for tests and
+    /// for the host's port popups.
+    pub fn port_screen_position(&self, node: &str, port: &str) -> Option<Vec<f32>> {
+        let s = self.state.borrow();
+        let n = s.graph.nodes.iter().position(|n| n.id == node)?;
+        let p = s
+            .graph
+            .ports
+            .iter()
+            .position(|p| p.node == n && p.name == port)?;
+        let pw = frame::port_world(&s.graph, &s.graph.ports[p]);
+        if s.camera.three_d {
+            let (x, y, _) = s.camera.project(pw[0], pw[1], pw[2])?;
+            Some(vec![x, y])
+        } else {
+            let (x, y) = s.camera.world_to_screen(pw[0], pw[1]);
+            Some(vec![x, y])
+        }
     }
 
     /// Screen position of a node by id (for tests and for the host's popup).
@@ -502,6 +772,7 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 s.layout.step(&mut g);
             }
             s.graph = g;
+            s.pos_rev += 1;
             s.dirty = true;
             // An untouched view follows the layout while it spreads (O(n)
             // per frame, nothing next to a layout step), so a big graph is
@@ -517,14 +788,50 @@ fn start_loop(state: Rc<RefCell<State>>) {
         }
         if s.dirty {
             s.dirty = false;
+            let t0 = web_sys::window()
+                .and_then(|w| w.performance())
+                .map(|p| p.now());
+            let pending = match (&s.wire_from, s.wire_to) {
+                (Some((node, name)), Some(t)) => port_index(&s.graph, node, name)
+                    .map(|p| (frame::port_world(&s.graph, &s.graph.ports[p]), t)),
+                _ => None,
+            };
+            let edit = s.interaction == Interaction::Edit;
             let State {
                 graph,
                 camera,
                 renderer,
                 hovered,
+                selected,
+                pos_rev,
+                attr_rev,
+                hover_rev,
+                sel_rev,
                 ..
             } = &mut *s;
-            renderer.draw(graph, camera, *hovered);
+            let input = frame::DrawInput {
+                camera,
+                hovered: *hovered,
+                selected,
+                edit,
+                pending,
+                pos_rev: *pos_rev,
+                attr_rev: *attr_rev,
+                hover_rev: *hover_rev,
+                sel_rev: *sel_rev,
+            };
+            renderer.draw(graph, &input);
+            if let Some(t0) = t0 {
+                let t1 = web_sys::window()
+                    .and_then(|w| w.performance())
+                    .map(|p| p.now())
+                    .unwrap_or(t0);
+                DRAW_MICROS.fetch_add(
+                    ((t1 - t0) * 1000.0) as u64,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            }
+            DRAW_FRAMES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             draw_labels(&s);
         }
         drop(s);
@@ -563,6 +870,9 @@ fn draw_labels(s: &State) {
         let hovered = Some(i) == s.hovered;
         if !show_all && !hovered && (huge || n.degree < 3) {
             continue;
+        }
+        if !node_visible(&s.graph, i) {
+            continue; // a layer-hidden node keeps its label off too
         }
         let (x, y, r) = if s.camera.three_d {
             let Some((x, y, w)) = s.camera.project(n.x, n.y, n.z) else {
@@ -637,6 +947,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 e.prevent_default();
                 let (x, y) = local(&e);
                 let mut s = st.borrow_mut();
+                s.drag_moved = false;
+                s.press = (x, y);
                 if e.pointer_type() == "touch" {
                     // Keep receiving moves after the finger leaves the canvas.
                     let _ = el.set_pointer_capture(e.pointer_id());
@@ -646,13 +958,36 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         let (a, b) = (s.touches[0], s.touches[1]);
                         // A node picked up by the first finger stays where it is.
                         if let Drag::Node { index } = s.dragging {
-                            s.graph.nodes[index].pinned = true;
+                            if let Some(n) = s.graph.nodes.get_mut(index) {
+                                n.pinned = true;
+                            }
                         }
                         s.dragging = Drag::Pinch {
                             last_dist: ((a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt().max(1.0),
                             last_angle: (b.2 - a.2).atan2(b.1 - a.1),
                             last_mid: ((a.1 + b.1) / 2.0, (a.2 + b.2) / 2.0),
                         };
+                        end_wire(&mut s);
+                        return;
+                    }
+                }
+                // Edit mode: a port grab starts a wire (spec 031 §5,
+                // stage 2) — ports are checked before nodes.
+                if s.interaction == Interaction::Edit {
+                    let fr = frame::build_frame(&s.graph, s.camera.three_d);
+                    if let Some(p) = frame::port_at(&fr, &s.camera, x, y) {
+                        let port = &s.graph.ports[p];
+                        let key = (s.graph.nodes[port.node].id.clone(), port.name.clone());
+                        s.dragging = Drag::Wire {
+                            node: key.0.clone(),
+                            name: key.1.clone(),
+                        };
+                        s.auto_fit = false;
+                        s.wire_from = Some(key);
+                        s.wire_to = None;
+                        s.pos_rev += 1; // the pending wire appears…
+                        s.attr_rev += 1; // …and its style with it
+                        s.dirty = true;
                         return;
                     }
                 }
@@ -662,7 +997,11 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         return;
                     }
                     // A node under the pointer drags in its own depth plane (Milestone 9).
-                    if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                    if let Some(i) = s
+                        .camera
+                        .hit(&s.graph, x, y)
+                        .filter(|i| node_visible(&s.graph, *i))
+                    {
                         s.graph.nodes[i].pinned = true;
                         s.dragging = Drag::Node { index: i };
                     } else {
@@ -670,7 +1009,10 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     }
                     return;
                 }
-                let hit = s.camera.hit(&s.graph, x, y);
+                let hit = s
+                    .camera
+                    .hit(&s.graph, x, y)
+                    .filter(|i| node_visible(&s.graph, *i));
                 s.dragging = match hit {
                     Some(i) => {
                         s.graph.nodes[i].pinned = true;
@@ -727,21 +1069,34 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         last_angle: angle,
                         last_mid: mid,
                     };
+                    s.drag_moved = true; // two fingers are never a tap
                     s.dirty = true;
                     return;
                 }
-                match s.dragging {
+                // A release within ~4 px of the press is a tap, not a drag
+                // — a touch tap jitters this much (B8 of the review).
+                let far = {
+                    let (dx, dy) = (x - s.press.0, y - s.press.1);
+                    dx * dx + dy * dy > 16.0
+                };
+                let drag = s.dragging.clone();
+                match drag {
                     Drag::Pan { last } => {
                         s.auto_fit = false;
                         s.camera.pan(x - last.0, y - last.1);
                         s.dragging = Drag::Pan { last: (x, y) };
+                        s.drag_moved |= far;
                         s.dirty = true;
                     }
                     Drag::Orbit { last } => {
                         s.auto_fit = false;
                         s.camera.orbit(x - last.0, y - last.1);
                         s.dragging = Drag::Orbit { last: (x, y) };
+                        s.drag_moved |= far;
                         s.dirty = true;
+                    }
+                    Drag::Node { index } if index >= s.graph.nodes.len() => {
+                        s.dragging = Drag::None;
                     }
                     Drag::Node { index } => {
                         s.auto_fit = false;
@@ -754,6 +1109,8 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                                 n.y = wy;
                                 n.z = wz;
                             }
+                            s.drag_moved |= far;
+                            s.pos_rev += 1;
                             s.dirty = true;
                             return;
                         }
@@ -764,13 +1121,50 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             s.layout.temperature = 2.0;
                             s.layout.running = true;
                         }
+                        s.drag_moved |= far;
+                        s.pos_rev += 1;
                         s.dirty = true;
+                    }
+                    Drag::Wire { node, name } => {
+                        s.auto_fit = false;
+                        // Resolved by id on every move: a set_graph under the
+                        // gesture ends it instead of indexing a stale port
+                        // (B3 of the review).
+                        let Some(p) = port_index(&s.graph, &node, &name) else {
+                            s.dragging = Drag::None;
+                            end_wire(&mut s);
+                            return;
+                        };
+                        // The wire follows the pointer at its source port's
+                        // depth (the same plane rule as a dragged node).
+                        let from = frame::port_world(&s.graph, &s.graph.ports[p]);
+                        let end = if s.camera.three_d {
+                            s.camera
+                                .project(from[0], from[1], from[2])
+                                .map(|(_, _, w)| {
+                                    let (wx, wy, wz) = s.camera.unproject(x, y, w);
+                                    [wx, wy, wz]
+                                })
+                        } else {
+                            let (wx, wy) = s.camera.screen_to_world(x, y);
+                            Some([wx, wy, from[2]])
+                        };
+                        if let Some(end) = end {
+                            s.wire_to = Some(end);
+                            s.drag_moved |= far;
+                            s.pos_rev += 1;
+                            s.dirty = true;
+                        }
                     }
                     Drag::Pinch { .. } => {}
                     Drag::None => {
-                        let hit = s.camera.hit(&s.graph, x, y);
+                        let hit = s
+                            .camera
+                            .hit(&s.graph, x, y)
+                            .filter(|i| node_visible(&s.graph, *i));
                         if hit != s.hovered {
                             s.hovered = hit;
+                            s.hover_rev += 1;
                             s.dirty = true;
                             let payload = match hit {
                                 Some(i) => {
@@ -807,17 +1201,105 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         return;
                     }
                 }
+                // A released wire completes or cancels (spec 031 §5):
+                // dropped on another port it emits `connect` — the host
+                // validates types and adds the edge; the renderer never
+                // mutates topology.
+                if let Drag::Wire { node, name } = s.dragging.clone() {
+                    // The wire's segment and its style leave the buffers
+                    // together (B4): `end_wire` bumps both revisions.
+                    s.dragging = Drag::None;
+                    s.drag_moved = true; // a wire is a gesture, not a pick
+                    let fr = frame::build_frame(&s.graph, s.camera.three_d);
+                    let over = frame::port_at(&fr, &s.camera, x, y);
+                    let from = port_index(&s.graph, &node, &name);
+                    let to = over.and_then(|p| {
+                        let port = &s.graph.ports[p];
+                        (port.name != name || s.graph.nodes[port.node].id != node).then_some(p)
+                    });
+                    if let (Some(from), Some(to)) = (from, to) {
+                        let fp = &s.graph.ports[from];
+                        let tp = &s.graph.ports[to];
+                        let payload = serde_json::json!({
+                            "kind": "connect",
+                            "from": { "node": s.graph.nodes[fp.node].id, "port": fp.name },
+                            "to": { "node": s.graph.nodes[tp.node].id, "port": tp.name },
+                        });
+                        s.last_connect = Some(payload.to_string());
+                        emit(&s, payload);
+                    }
+                    end_wire(&mut s);
+                    return;
+                }
                 // A node the user placed stays put (pinned) until Relayout.
                 s.dragging = Drag::None;
-                if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                let moved = s.drag_moved;
+                s.drag_moved = false;
+                if moved {
+                    return; // a released pan or node move is not a pick
+                }
+                if let Some(i) = s
+                    .camera
+                    .hit(&s.graph, x, y)
+                    .filter(|i| node_visible(&s.graph, *i))
+                {
                     let now = js_sys::Date::now();
                     let dbl = now - s.last_click_ms < 350.0;
                     s.last_click_ms = if dbl { 0.0 } else { now };
+                    // Selecting (spec 031 §5): a plain click replaces the
+                    // selection, Ctrl/Meta toggles one instance.
                     let id = s.graph.nodes[i].id.clone();
+                    let toggle = e.ctrl_key() || e.meta_key();
+                    let before = s.selected.clone();
+                    if toggle {
+                        if !s.selected.nodes.remove(&id) {
+                            s.selected.nodes.insert(id.clone());
+                        }
+                    } else {
+                        s.selected = frame::Selection {
+                            nodes: [id.clone()].into_iter().collect(),
+                            edges: Default::default(),
+                        };
+                    }
+                    if before != s.selected {
+                        s.sel_rev += 1;
+                        emit_select(&s);
+                    }
                     emit(
                         &s,
                         serde_json::json!({ "kind": if dbl { "dblclick" } else { "click" }, "id": id }),
                     );
+                    return;
+                }
+                // No node under the pointer: an edge, or empty space.
+                let fr = frame::build_frame(&s.graph, s.camera.three_d);
+                match frame::edge_at(&fr, &s.camera, x, y) {
+                    Some(i) => {
+                        let id = s.graph.edges[i].id.clone();
+                        let toggle = e.ctrl_key() || e.meta_key();
+                        let before = s.selected.clone();
+                        if toggle {
+                            if !s.selected.edges.remove(&id) {
+                                s.selected.edges.insert(id);
+                            }
+                        } else {
+                            s.selected = frame::Selection {
+                                nodes: Default::default(),
+                                edges: [id].into_iter().collect(),
+                            };
+                        }
+                        if before != s.selected {
+                            s.sel_rev += 1;
+                            emit_select(&s);
+                        }
+                    }
+                    None => {
+                        if !s.selected.is_empty() {
+                            s.selected = frame::Selection::default();
+                            s.sel_rev += 1;
+                            emit_select(&s);
+                        }
+                    }
                 }
             },
         );
@@ -833,6 +1315,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 s.touches.retain(|t| t.0 != e.pointer_id());
                 if s.touches.len() < 2 {
                     s.dragging = Drag::None;
+                    end_wire(&mut s);
                 }
             });
         let _ =
@@ -849,7 +1332,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     return; // captured pointers report leave while still down
                 }
                 s.dragging = Drag::None;
+                end_wire(&mut s);
                 if s.hovered.take().is_some() {
+                    s.hover_rev += 1;
                     s.dirty = true;
                     emit(&s, serde_json::json!({ "kind": "hover", "id": null }));
                 }

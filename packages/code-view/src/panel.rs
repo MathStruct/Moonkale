@@ -470,6 +470,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     };
 
     // Application commands aimed at the active editor (menus, keybindings).
+    // Ignore commands sent before this view mounted, including remounts.
     let mut seen_command = use_signal(|| ws.shell.commands.peek().0);
     use_effect(move || {
         let (seq, cmd) = *ws.shell.commands.read();
@@ -477,6 +478,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             return;
         }
         seen_command.set(seq);
+
         if ws.docs.active.peek().as_ref() != Some(&node) {
             return;
         }

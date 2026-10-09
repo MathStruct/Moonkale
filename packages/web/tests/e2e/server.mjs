@@ -6,9 +6,9 @@
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 const REPO = process.env.MOONKALE_REPO ?? join(process.env.HOME, "Code/Moonkale");
-const BIN = process.env.MOONKALE_SERVER_BINARY ?? join(REPO, "target/dx/web/debug/web/server");
+const BIN = process.env.MOONKALE_SERVER_BINARY ?? join(process.env.CARGO_TARGET_DIR ? resolve(REPO, process.env.CARGO_TARGET_DIR) : join(REPO, "target"), "dx/web/debug/web/server");
 const ROOT = process.env.M1_ROOT;
 const TOKEN = "e2e-stdin-token-" + Math.random().toString(16).slice(2);
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };

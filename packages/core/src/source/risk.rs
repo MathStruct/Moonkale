@@ -26,6 +26,11 @@ pub enum Risk {
 
 /// The default classification by dialect name (`Query::Text { dialect }`).
 /// `kv` (`scan`/`get`) and `helix` (`nodes`/`edges`) only have reading verbs.
+///
+/// SQL and Cypher text must be **one statement** (a trailing `;` is fine):
+/// the drivers run only the first, so a second one would be dropped
+/// silently — or, if a driver ran it, slip past the gate (#9). Several
+/// statements classify as [`Risk::Unknown`].
 pub fn classify(dialect: &str, text: &str) -> Risk {
     match dialect {
         "sql" => classify_sql(text),
@@ -38,6 +43,9 @@ pub fn classify(dialect: &str, text: &str) -> Risk {
 /// SQL: by the first keyword after comments/whitespace. Conservative:
 /// anything not recognised as a read is refused by read-only sources.
 pub fn classify_sql(sql: &str) -> Risk {
+    if statements(sql) > 1 {
+        return Risk::Unknown;
+    }
     let s = strip_comments(sql.trim_start());
     let word: String = s
         .chars()
@@ -161,14 +169,15 @@ fn contains_write_keyword(s: &str) -> bool {
     )
 }
 
-/// Cypher: a keyword scan (LadybugDB, later FalkorDB).
+/// Cypher: a keyword scan (LadybugDB, later FalkorDB), outside string
+/// literals. Conservative: anything that loads, exports, installs, attaches
+/// or configures is not a read (#9).
 pub fn classify_cypher(text: &str) -> Risk {
-    let upper = text.to_ascii_uppercase();
-    let has = |k: &str| {
-        upper
-            .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
-            .any(|w| w == k)
-    };
+    if statements(text) > 1 {
+        return Risk::Unknown;
+    }
+    let words = words_outside_literals(text);
+    let has = |k: &str| words.iter().any(|w| w == k);
     if has("DROP") || (has("DELETE") && !has("WHERE")) || has("DETACH") || has("ALTER") {
         Risk::Destructive
     } else if has("CREATE")
@@ -177,11 +186,119 @@ pub fn classify_cypher(text: &str) -> Risk {
         || has("DELETE")
         || has("REMOVE")
         || has("COPY")
+        || has("LOAD")
+        || has("EXPORT")
+        || has("IMPORT")
+        || has("INSTALL")
+        || has("ATTACH")
+        || has("USE")
+        || has("BEGIN")
+        || has("COMMIT")
+        || has("ROLLBACK")
+        || has("CHECKPOINT")
+        || calls_setting(text)
     {
         Risk::Write
     } else {
         Risk::Read
     }
+}
+
+/// `CALL name = value` sets an option (Kùzu/Ladybug); `CALL name(…)` is a
+/// table function.
+fn calls_setting(text: &str) -> bool {
+    let upper = text.to_ascii_uppercase();
+    upper.match_indices("CALL").any(|(i, _)| {
+        let before_ok = upper[..i]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !c.is_ascii_alphanumeric() && c != '_');
+        let rest = upper[i + 4..].trim_start();
+        let name_len = rest
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .count();
+        before_ok && name_len > 0 && rest[name_len..].trim_start().starts_with('=')
+    })
+}
+
+/// Upper-cased words, skipping string literals (`'…'`, `"…"`, `` `…` ``).
+fn words_outside_literals(text: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if matches!(c, '\'' | '"' | '`') {
+            if !word.is_empty() {
+                words.push(std::mem::take(&mut word));
+            }
+            while let Some(q) = chars.next() {
+                if q == '\\' {
+                    chars.next();
+                } else if q == c {
+                    break;
+                }
+            }
+        } else if c.is_ascii_alphanumeric() || c == '_' {
+            word.push(c.to_ascii_uppercase());
+        } else if !word.is_empty() {
+            words.push(std::mem::take(&mut word));
+        }
+    }
+    if !word.is_empty() {
+        words.push(word);
+    }
+    words
+}
+
+/// How many non-empty statements `text` holds: `;` outside string
+/// literals, quoted identifiers and comments separates them.
+pub fn statements(text: &str) -> usize {
+    let mut count = 0;
+    let mut current = false; // the current statement has content
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' | '"' | '`' => {
+                current = true;
+                while let Some(q) = chars.next() {
+                    if q == c {
+                        if chars.peek() == Some(&c) {
+                            chars.next(); // doubled quote: an escape
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            '-' if chars.peek() == Some(&'-') => {
+                for q in chars.by_ref() {
+                    if q == '\n' {
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut prev = ' ';
+                for q in chars.by_ref() {
+                    if prev == '*' && q == '/' {
+                        break;
+                    }
+                    prev = q;
+                }
+            }
+            ';' => {
+                if current {
+                    count += 1;
+                }
+                current = false;
+            }
+            c if c.is_whitespace() => {}
+            _ => current = true,
+        }
+    }
+    count + usize::from(current)
 }
 
 #[cfg(test)]
@@ -225,6 +342,38 @@ mod tests {
         assert_eq!(classify_sql("PRAGMA table_info(t)"), Risk::Read);
         assert_eq!(classify_sql("PRAGMA writable_schema=1"), Risk::Unknown);
         assert_eq!(classify_sql("PRAGMA journal_mode=WAL"), Risk::Unknown);
+    }
+
+    #[test]
+    fn one_statement_only() {
+        assert_eq!(statements("SELECT 1"), 1);
+        assert_eq!(statements("SELECT 1;  "), 1);
+        assert_eq!(statements("SELECT ';' ; -- x; y\n"), 1);
+        assert_eq!(statements("SELECT 1 /* ; */"), 1);
+        assert_eq!(classify_sql("SELECT 1; DROP TABLE users;"), Risk::Unknown);
+        assert_eq!(classify_sql("SELECT 1; SELECT 2"), Risk::Unknown);
+        assert_eq!(classify_sql("SELECT 1;"), Risk::Read);
+        assert_eq!(
+            classify_cypher("MATCH (n) RETURN n; MATCH (m) DELETE m"),
+            Risk::Unknown
+        );
+    }
+
+    #[test]
+    fn cypher_side_effects_are_not_reads() {
+        assert_eq!(classify_cypher("LOAD EXTENSION httpfs"), Risk::Write);
+        assert_eq!(classify_cypher("INSTALL json"), Risk::Write);
+        assert_eq!(classify_cypher("EXPORT DATABASE '/tmp/x'"), Risk::Write);
+        assert_eq!(
+            classify_cypher("LOAD FROM '/etc/passwd' RETURN *"),
+            Risk::Write
+        );
+        assert_eq!(classify_cypher("CALL threads = 4"), Risk::Write);
+        assert_eq!(classify_cypher("CALL show_tables() RETURN *"), Risk::Read);
+        assert_eq!(
+            classify_cypher("MATCH (n) WHERE n.name = 'set me' RETURN n"),
+            Risk::Read
+        );
     }
 
     #[test]

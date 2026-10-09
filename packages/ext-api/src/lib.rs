@@ -41,6 +41,10 @@ pub mod contrib;
 pub mod document;
 pub mod editor;
 pub mod extension;
+
+/// The namespace of the built-in extensions' ids; third-party (wasm)
+/// extensions may not use it (audit #4).
+pub const BUILTIN_ID_PREFIX: &str = "dev.moonkale.";
 pub mod i18n;
 
 /// `ext-api`'s own strings (spec 030): the workspace's status messages.

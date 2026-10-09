@@ -10,8 +10,8 @@
 //! host futures are not `Send`) with a **server tool host**: the read-only
 //! tools the MCP endpoint already implements over the registry; anything
 //! mutating waits for an approval from *some* client (`agent_approve`),
-//! `policy.allow_writes` auto-approves, and ten minutes without an answer
-//! is a decline. Claude Code as the provider brings its own tools, so for
+//! `policy.allow_writes` allows mutating calls (never destructive ones —
+//! those always wait), and ten minutes without an answer is a decline. Claude Code as the provider brings its own tools, so for
 //! it the host is never asked.
 
 use dioxus::prelude::*;
@@ -332,7 +332,6 @@ mod server {
     /// need an approval from a client.
     struct ServerHost {
         rec: Arc<Mutex<Record>>,
-        allow_writes: bool,
     }
 
     impl ToolHost for ServerHost {
@@ -364,11 +363,10 @@ mod server {
 
         fn approve(&self, call: ToolCall, class: Class) -> moonkale_llm::agent::HostFuture<bool> {
             let rec = self.rec.clone();
-            let allow = self.allow_writes;
+            // Only calls the policy did not allow get here: with
+            // `allow_writes` that is the destructive ones, which a client
+            // must approve every time (#9) — never this setting.
             Box::pin(async move {
-                if allow {
-                    return true;
-                }
                 let (tx, rx) = std_mpsc::channel::<bool>();
                 rec.lock().unwrap().pending = Some((
                     PendingApproval {
@@ -445,10 +443,7 @@ mod server {
             Decision::Ask
         };
         agent.policy.denied_tools = settings.denied_tools.clone();
-        let host = ServerHost {
-            rec: rec.clone(),
-            allow_writes: settings.allow_writes,
-        };
+        let host = ServerHost { rec: rec.clone() };
         let rec2 = rec.clone();
         let mut on_event = |ev: AgentEvent| match ev {
             AgentEvent::TextDelta(t) => {

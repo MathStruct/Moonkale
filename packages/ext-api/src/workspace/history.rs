@@ -64,12 +64,60 @@ impl Workspace {
         match self.node_at_path(folder, HISTORY_FILE).await {
             Some(node) => match self.source(folder) {
                 Some(src) => match src.fetch_text(node.id).await {
-                    Ok((text, _)) => moonkale_core::EntityLog::from_jsonl(&text),
+                    Ok((text, _)) => {
+                        let (log, bad) = moonkale_core::EntityLog::from_jsonl_lossy(&text);
+                        if !bad.is_empty() {
+                            self.quarantine(&src, bad).await;
+                        }
+                        log
+                    }
                     Err(_) => moonkale_core::EntityLog::new(),
                 },
                 None => moonkale_core::EntityLog::new(),
             },
             None => moonkale_core::EntityLog::new(),
+        }
+    }
+
+    /// Lines of the history file that could not be read: the file is
+    /// rewritten on every save, so they are moved to a file of their own
+    /// instead of disappearing (#17).
+    async fn quarantine(
+        &self,
+        src: &std::sync::Arc<dyn moonkale_core::Source>,
+        lines: Vec<String>,
+    ) {
+        tracing::warn!(
+            "history: {} unreadable lines of {HISTORY_FILE} kept in {QUARANTINE_FILE}",
+            lines.len()
+        );
+        let mut more = lines.join("\n");
+        more.push('\n');
+        let folder = src.descriptor().id.clone();
+        let result = match self.node_at_path(&folder, QUARANTINE_FILE).await {
+            Some(node) => match src.fetch_text(node.id).await {
+                Ok((old, version)) => {
+                    let chars = old.chars().count();
+                    src.apply(Transaction::write_text(
+                        node.id,
+                        version,
+                        TextPatch::whole(format!("{old}{more}"), chars),
+                    ))
+                    .await
+                }
+                Err(e) => Err(e),
+            },
+            None => {
+                src.apply(Transaction::create_text(
+                    src.descriptor().root,
+                    QUARANTINE_FILE,
+                    more,
+                ))
+                .await
+            }
+        };
+        if let Err(e) = result {
+            tracing::warn!("history: could not write {QUARANTINE_FILE}: {e}");
         }
     }
 

@@ -11,7 +11,7 @@ Where things stand today is [[Status]]; the anticipated hard problems and their 
 |---|---|---|---|
 | 1 | **[[Milestone 18 - Library Refactor]]** phases 0–4: CI, pruning, layering, the `Workspace` as services, the catalogue out of the shell, server contributions | every later feature is cheaper and safer after it; CI first (R-39) | — |
 | 2 | **State interface (stable for redb) → internal-store comparison** → [[ADR-0014 One store for internal state]] accepted → refactor phase 5 | announced by Daniel after Milestone 17; settings, history, sessions, projects and a persisted index all wait for it (R-36) | 1 (phase 3 makes the services it plugs into) |
-| — | **Local fixes from the audit** (#2, #5, #10, #11, #14, #15, close #6) | small, independent, some are data loss | nothing; any time |
+| — | **Local fixes from the audit**: #2, #6, #9, #11, #12, #15 done on `dev-claude` (2026-10-04, [[Audit 2026-09-23]]); left: #5, #10, #14, close #16 | small, independent | nothing; any time |
 | 3 | **Writes to database sources** (R-41) | every source is read-only today; announced after Milestone 17 | 1 (openers, classifier on the source) |
 | 4 | **Projects** (R-40, [[Projects and Sources]], spec [[003]]) | cross-source links (R-16), per-source colour and read-only, sync | 2 (projects live in the store) |
 | 5 | **The Lenticulum path** ([[Julia and Lenticulum]]): flow editor with undirected ports and nested subgraphs → MTK library → a live graph source and the factor-graph viewer | the reason Moonkale exists | 1 (graph renderer as a library, `moonkale-julia` repo) |
