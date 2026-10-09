@@ -1,6 +1,6 @@
 //! Web and desktop fixture exercising the production Rust panel with real Workspace state.
 use dioxus::prelude::*;
-use moonkale_code_view::RustCodeEditorPanel;
+use moonkale_code_view::{panel::CodeEditorPanel, RustCodeEditorPanel};
 use moonkale_core::*;
 use moonkale_ext_api::{
     document::Document, AttachFuture, Command, EditorAction, FolderAccess, OpenFolderFuture,
@@ -188,7 +188,8 @@ fn respond_tools(
                 {"title":"Partial command","edit":edit("bad"),"command":{"command":"run"}}
             ]),
             5|6 => serde_json::json!([{"title":"Fix two files","kind":"quickfix","edit":{"documentChanges":[{"textDocument":{"uri":origin,"version":null},"edits":[text_edit(0,2,5,"fixed"),text_edit(0,6,9,"fixed")]},{"textDocument":{"uri":target,"version":null},"edits":[text_edit(1,2,if mode==6 {99} else {7},"fixed")]}]}}]),
-            7 => serde_json::json!([{"title":"Broken","edit":{"changes":{origin:[text_edit(0,2,5,"bad"),{"newText":"bad"}]}}}]),
+            7 => serde_json::json!([{"title":"Broken","edit":{"changes":{origin:[text_edit(0,2,5,"bad"),{"newText":"bad"}]}}},{"title":"Valid survivor","edit":edit("fixed")}]),
+            9 => serde_json::json!([{"title":"Stale version","edit":{"documentChanges":[{"textDocument":{"uri":origin,"version":999},"edits":[text_edit(0,2,5,"bad")]}]}}]),
             8 => serde_json::json!((0..30).map(|index| serde_json::json!({"title":format!("Choice {index}"),"edit":edit(&format!("fixed{index}"))})).collect::<Vec<_>>()),
             _ => serde_json::Value::Null,
         }
@@ -714,9 +715,11 @@ fn App() -> Element {
         }
         ws
     });
+    use_context_provider(|| ws);
     let node = use_hook(|| ws.docs.open.peek()[0].0);
     let doc = use_hook(|| ws.document(node).unwrap());
     let mut mounted = use_signal(|| true);
+    let mut codemirror = use_signal(|| false);
     let mut dock_right = use_signal(|| false);
     let mut duplicate = use_signal(|| false);
     let mut show_python = use_signal(|| false);
@@ -831,7 +834,7 @@ fn App() -> Element {
             }, "Close {name}" }
         }
         pre { class: "lsp-log", hidden: true, "{serde_json::to_string(&*lsp_log.read()).unwrap()}" }
-        for (mode,name) in [(1u8,"normal"),(2,"slow"),(3,"empty"),(4,"error"),(5,"cross"),(6,"invalid"),(7,"malformed"),(8,"many")] {
+        for (mode,name) in [(1u8,"normal"),(2,"slow"),(3,"empty"),(4,"error"),(5,"cross"),(6,"invalid"),(7,"malformed"),(8,"many"),(9,"stale-version")] {
             button { "data-actions-mode":name, onclick:move |_| ACTIONS_MODE.with(|value| value.set(mode)), "Actions {name}" }
         }
         for (mode,name) in [(1u8,"normal"),(2,"slow"),(3,"empty"),(4,"error"),(5,"cross"),(6,"fold"),(7,"missing"),(8,"malformed")] {
@@ -841,7 +844,10 @@ fn App() -> Element {
             button { "data-resolve-mode":name, onclick:move |_| RESOLVE_MODE.with(|value| value.set(mode)), "Resolve {name}" }
         }
         button { id:"tools-release", onclick:move |_| TOOLS_DELAYED.with(|pending| { for (sender,request) in pending.borrow_mut().drain(..) { respond_tools(&sender,&request,1); } }), "Release tools replies" }
-        button { id:"tools-diagnostics", onclick:move |_| LSP_SEND.with(|sender| { if let Some(sender)=sender.borrow().as_ref() { sender.unbounded_send(serde_json::json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///tmp/native-fixture/main.rs","diagnostics":[{"range":{"start":{"line":0,"character":2},"end":{"line":0,"character":5}},"severity":1,"message":"Fix old"}]}}).to_string()).unwrap(); } }), "Tool diagnostics" }
+        button { id:"review-actions", onclick:move |_| { let mut ws=ws; ws.dispatch(Command::Editor(EditorAction::CodeActions)); }, "Review actions" }
+        button { id:"editor-backend", onclick:move |_| codemirror.toggle(), "Switch editor backend" }
+        button { id:"lsp-crash", onclick:move |_| LSP_SEND.with(|sender| { if let Some(sender) = sender.borrow().as_ref() { sender.close_channel(); } }), "Restart language server" }
+        button { id:"tools-diagnostics", onclick:move |_| LSP_SEND.with(|sender| { if let Some(sender)=sender.borrow().as_ref() { sender.unbounded_send(serde_json::json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///tmp/native-fixture/%6dain.rs","diagnostics":[{"range":{"start":{"line":0,"character":2},"end":{"line":0,"character":5}},"severity":1,"message":"Fix old","code":"E42","source":"fake","data":{"token":99},"customField":"preserved"}]}}).to_string()).unwrap(); } }), "Tool diagnostics" }
         for (mode, name) in [(1u8,"normal"),(2,"slow"),(3,"empty"),(4,"error"),(5,"cross"),(6,"invalid"),(7,"overlap"),(8,"outside"),(9,"malformed"),(10,"stale-version"),(11,"versioned"),(12,"missing")] {
             button { "data-rename-mode": name, onclick: move |_| RENAME_MODE.with(|value| value.set(mode)), "Rename {name}" }
         }
@@ -1015,8 +1021,8 @@ fn App() -> Element {
         div { class: "canonical", "{text}" }
         div { class: "saved", "{saved}" }
         if show_python() { div { class: "harness-editor python", RustCodeEditorPanel { ws, node: python, lsp } } }
-        div { class: "dock-left", if mounted() && !dock_right() && ws.docs.open.read().iter().any(|(id, _)| *id == node) { div { class: "harness-editor primary", RustCodeEditorPanel { ws, node, lsp } } } }
-        div { class: "dock-right", if mounted() && dock_right() && ws.docs.open.read().iter().any(|(id, _)| *id == node) { div { class: "harness-editor primary", RustCodeEditorPanel { ws, node, lsp } } } }
+        div { class: "dock-left", if mounted() && !dock_right() && ws.docs.open.read().iter().any(|(id, _)| *id == node) { div { class: "harness-editor primary", if codemirror() { CodeEditorPanel { ws, node, lsp } } else { RustCodeEditorPanel { ws, node, lsp } } } } }
+        div { class: "dock-right", if mounted() && dock_right() && ws.docs.open.read().iter().any(|(id, _)| *id == node) { div { class: "harness-editor primary", if codemirror() { CodeEditorPanel { ws, node, lsp } } else { RustCodeEditorPanel { ws, node, lsp } } } } }
         if duplicate() { div { class: "harness-editor duplicate", RustCodeEditorPanel { ws, node, lsp } } }
     }
 }

@@ -40,6 +40,7 @@ mod native_hover;
 mod native_indent;
 mod native_language;
 mod native_layout;
+mod uri;
 #[cfg(feature = "layout-fixture")]
 pub use native_layout::LayoutFixture;
 #[cfg(feature = "layout-fixture")]

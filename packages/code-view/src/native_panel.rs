@@ -1,7 +1,7 @@
 //! Workspace host for the Rust-owned editor engine and virtualized view.
 use crate::{
     native_language::{comments, language_for_hint},
-    native_model::{delta_batch_with_length, utf16_position, NativeModel, Preferences},
+    native_model::{utf16_position, NativeModel, Preferences},
     native_search::SearchHighlights,
     native_surface::RustEditorSurface,
     L,
@@ -235,8 +235,10 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             publish_selection(ws, node, model, session);
             return;
         }
-        let base = session.peek().snapshot().clone();
+        let base_state = session.peek();
+        let base = base_state.snapshot();
         if model.peek().revision != base.revision || doc.peek().text != base.text {
+            drop(base_state);
             let canonical = doc.peek().text.clone();
             let _ = session.with_mut(|state| state.replace_from_workspace(canonical));
             model.with_mut(|state| state.replace(session.peek().snapshot()));
@@ -245,21 +247,18 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             return;
         }
         if let Some(delta) = delta {
-            let result = delta_batch_with_length(
-                &base,
-                &delta,
-                moonkale_ext_api::editor::Utf16Selection { anchor: 0, head: 0 },
-                model.peek().normalized_chars,
-            );
+            let result = model.peek().delta_batch(base, &delta);
+            drop(base_state);
             match result {
                 Ok(mut batch) => {
                     batch.selection = None;
-                    match session.with_mut(|state| state.apply(&batch)) {
-                        Ok(snapshot) => {
+                    match session.with_mut(|state| state.apply_in_place(&batch)) {
+                        Ok(_) => {
+                            let snapshot = session.peek();
                             model.with_mut(|state| {
-                                state.update_highlight_deferred(&snapshot, &batch)
+                                state.update_highlight_deferred(snapshot.snapshot(), &batch)
                             });
-                            doc.write().text = snapshot.text;
+                            doc.write().text = snapshot.snapshot().text.clone();
                         }
                         Err(error) => {
                             tracing::warn!(?error, "Rust editor rejected an engine delta");
@@ -269,7 +268,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 }
                 Err(reason) => {
                     tracing::warn!(reason, "Rust editor delta conversion failed");
-                    model.with_mut(|state| state.replace(&base));
+                    model.with_mut(|state| state.replace(session.peek().snapshot()));
                 }
             }
         }
@@ -652,14 +651,16 @@ fn publish_selection(
     mut session: Signal<RevisionedDocument>,
 ) {
     let snapshot = session.peek();
-    let selection = model.with(|state| state.selection(&snapshot.snapshot().text));
+    let selection = model.peek().selection(&snapshot.snapshot().text);
     let revision = snapshot.snapshot().revision;
-    let (line, column) = model.with(|state| state.cursor_line_col(&snapshot.snapshot().text));
+    let (line, column) = model.peek().cursor_line_col(&snapshot.snapshot().text);
     drop(snapshot);
-    if session.with_mut(|state| state.set_selection(revision, selection)) {
-        ws.set_editor_selection(node, revision, selection.anchor, selection.head);
-        ws.set_cursor(node, line, column);
+    if session.peek().snapshot().selection != Some(selection) {
+        session.with_mut(|state| state.set_selection(revision, selection));
     }
+    // Workspace state also needs publication when switching between retained tabs.
+    ws.set_editor_selection(node, revision, selection.anchor, selection.head);
+    ws.set_cursor(node, line, column);
 }
 
 #[cfg(test)]

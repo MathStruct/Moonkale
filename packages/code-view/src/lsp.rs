@@ -27,6 +27,7 @@ pub struct LspManager {
     sessions: Signal<HashMap<String, LspSession>>,
     starting: Signal<Vec<String>>,
     documents: Signal<HashMap<String, OpenDocument>>,
+    connections: Signal<HashMap<String, LspSession>>,
     pub diagnostics: Signal<HashMap<String, Vec<Diagnostic>>>,
     diagnostic_versions: Signal<HashMap<String, Option<i32>>>,
 }
@@ -85,19 +86,42 @@ impl LspManager {
             sessions: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             starting: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             documents: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
+            connections: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             diagnostics: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             diagnostic_versions: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
         }
     }
 
+    fn publish_diagnostics(
+        mut self,
+        uri: &str,
+        version: Option<i32>,
+        diagnostics: Vec<Diagnostic>,
+    ) {
+        let uri = crate::uri::key(uri);
+        if self
+            .documents
+            .peek()
+            .get(&uri)
+            .is_some_and(|document| version.is_some_and(|version| version != document.version))
+        {
+            return;
+        }
+        self.diagnostic_versions.with_mut(|versions| {
+            versions.insert(uri.clone(), version);
+        });
+        self.diagnostics.with_mut(|values| {
+            values.insert(uri, diagnostics);
+        });
+    }
+
     pub(crate) fn document_session(&self, uri: &str) -> Option<LspSession> {
-        self.documents
-            .read()
-            .get(uri)
-            .map(|document| document.session.clone())
+        self.connections.read().get(&crate::uri::key(uri)).cloned()
     }
 
     pub(crate) fn peek_document_version(&self, uri: &str) -> Option<i32> {
+        let normalized = crate::uri::key(uri);
+        let uri = normalized.as_str();
         self.documents
             .peek()
             .get(uri)
@@ -105,6 +129,8 @@ impl LspManager {
     }
 
     pub(crate) fn peek_document_session(&self, uri: &str) -> Option<LspSession> {
+        let normalized = crate::uri::key(uri);
+        let uri = normalized.as_str();
         self.documents
             .peek()
             .get(uri)
@@ -120,7 +146,12 @@ impl LspManager {
         text: String,
         saved: String,
     ) {
+        let normalized = crate::uri::key(uri);
+        let uri = normalized.as_str();
         if !self.documents.peek().contains_key(uri) {
+            self.connections.with_mut(|values| {
+                values.remove(uri);
+            });
             self.diagnostic_versions.with_mut(|values| {
                 values.remove(uri);
             });
@@ -134,6 +165,9 @@ impl LspManager {
                 return;
             }
             session.did_open(uri, language, 1, &text);
+            self.connections.with_mut(|connections| {
+                connections.insert(uri.to_string(), session.clone());
+            });
             documents.insert(
                 uri.to_string(),
                 OpenDocument {
@@ -150,26 +184,29 @@ impl LspManager {
     }
 
     pub(crate) fn update_document(mut self, uri: &str, text: &str, saved: &str) {
-        if self
+        let normalized = crate::uri::key(uri);
+        let uri = normalized.as_str();
+        let Some((changed, saved_changed)) = self
             .documents
             .peek()
             .get(uri)
-            .is_none_or(|document| document.text == text && document.saved == saved)
-        {
+            .map(|document| (document.text != text, document.saved != saved))
+        else {
+            return;
+        };
+        if !changed && !saved_changed {
             return;
         }
-        let mut changed = false;
         self.documents.with_mut(|documents| {
             let Some(document) = documents.get_mut(uri) else {
                 return;
             };
-            if document.text != text {
-                changed = true;
+            if changed {
                 document.version += 1;
                 document.text = text.to_string();
                 document.session.did_change(uri, document.version, text);
             }
-            if document.saved != saved {
+            if saved_changed {
                 document.saved = saved.to_string();
                 document.session.did_save(uri);
             }
@@ -246,39 +283,57 @@ impl LspManager {
         let source = node.source.clone();
         let node = node.id;
         dioxus::core::spawn_forever(async move {
+            let (context, mut changed) = dioxus::core::ReactiveContext::new();
             loop {
-                if !self.documents.peek().get(&uri).is_some_and(|document| {
-                    document
-                        .retained
-                        .as_ref()
-                        .is_some_and(|active| Rc::ptr_eq(active, &lease))
-                }) {
-                    return; // The server exited or a new session owns this URI.
-                }
-                if !ws
-                    .sources
-                    .open
-                    .peek()
-                    .iter()
-                    .any(|open| open.descriptor.id == source)
-                {
+                let keep = context.reset_and_run_in(|| {
+                    let _ = self.connections.read();
+                    if !self.documents.peek().get(&uri).is_some_and(|document| {
+                        document
+                            .retained
+                            .as_ref()
+                            .is_some_and(|active| Rc::ptr_eq(active, &lease))
+                    }) {
+                        return false; // The server exited or a new session owns this URI.
+                    }
+                    if !ws
+                        .sources
+                        .open
+                        .read()
+                        .iter()
+                        .any(|open| open.descriptor.id == source)
+                    {
+                        return false;
+                    }
+                    let doc = ws
+                        .docs
+                        .open
+                        .read()
+                        .iter()
+                        .find(|(id, _)| *id == node)
+                        .map(|(_, doc)| *doc);
+                    let Some(doc) = doc else {
+                        return false;
+                    };
+                    {
+                        let doc = doc.read();
+                        self.update_document(&uri, &doc.text, &doc.saved);
+                    }
+                    true
+                });
+                if !keep {
                     break;
                 }
-                let doc = ws
-                    .docs
-                    .open
-                    .peek()
-                    .iter()
-                    .find(|(id, _)| *id == node)
-                    .map(|(_, doc)| *doc);
-                let Some(doc) = doc else {
+                if changed.next().await.is_none() {
                     break;
-                };
-                {
-                    let doc = doc.peek();
-                    self.update_document(&uri, &doc.text, &doc.saved);
                 }
-                futures_timer::Delay::new(std::time::Duration::from_millis(100)).await;
+            }
+            if !self.documents.peek().get(&uri).is_some_and(|document| {
+                document
+                    .retained
+                    .as_ref()
+                    .is_some_and(|active| Rc::ptr_eq(active, &lease))
+            }) {
+                return;
             }
             self.documents.with_mut(|documents| {
                 if let Some(document) = documents.get_mut(&uri) {
@@ -301,10 +356,21 @@ impl LspManager {
         }
     }
 
+    pub(crate) fn close_connection(self, uri: &str, session: &LspSession) {
+        if self
+            .peek_document_session(uri)
+            .is_some_and(|current| current.same_connection(session))
+        {
+            self.close_document(uri);
+        }
+    }
+
     pub(crate) fn close_document(mut self, uri: &str) {
+        let normalized = crate::uri::key(uri);
+        let uri = normalized.as_str();
         self.documents.with_mut(|documents| {
             if let Some(document) = documents.get_mut(uri) {
-                document.clients -= 1;
+                document.clients = document.clients.saturating_sub(1);
                 if document.clients == 0 {
                     document.session.did_close(uri);
                     documents.remove(uri);
@@ -312,6 +378,9 @@ impl LspManager {
             }
         });
         if !self.documents.peek().contains_key(uri) {
+            self.connections.with_mut(|values| {
+                values.remove(uri);
+            });
             self.diagnostic_versions.with_mut(|values| {
                 values.remove(uri);
             });
@@ -392,8 +461,17 @@ impl LspManager {
             .push(dioxus::core::spawn_forever(session.clone().pump()));
         let lang = language.to_string();
         let event_key = key.clone();
+        let event_session = session.clone();
         startup.tasks.push(dioxus::core::spawn_forever(async move {
             while let Some(ev) = events.next().await {
+                if this
+                    .sessions
+                    .peek()
+                    .get(&event_key)
+                    .is_some_and(|current| !current.same_connection(&event_session))
+                {
+                    continue;
+                }
                 match ev {
                     LspEvent::Initialized { server } => ws.processes.lsp_status.set(Some(t!(
                         ws,
@@ -409,17 +487,7 @@ impl LspManager {
                         version,
                         diagnostics,
                     } => {
-                        if let Some(document) = this.documents.peek().get(&uri) {
-                            if version.is_some_and(|v| v != document.version) {
-                                continue;
-                            }
-                        }
-                        this.diagnostic_versions.with_mut(|versions| {
-                            versions.insert(uri.clone(), version);
-                        });
-                        this.diagnostics.with_mut(|m| {
-                            m.insert(uri, diagnostics);
-                        });
+                        this.publish_diagnostics(&uri, version, diagnostics);
                     }
                     LspEvent::Closed => {
                         this.sessions.with_mut(|sessions| {
@@ -432,6 +500,11 @@ impl LspManager {
                             .filter(|(_, doc)| doc.key == event_key)
                             .map(|(uri, _)| uri.clone())
                             .collect();
+                        this.connections.with_mut(|connections| {
+                            for uri in &uris {
+                                connections.remove(uri);
+                            }
+                        });
                         this.documents.with_mut(|documents| {
                             for uri in &uris {
                                 documents.remove(uri);
@@ -483,87 +556,115 @@ impl LspManager {
     }
 }
 
-/// Apply a server-provided edit to the workspace (Milestone 7: rename, code
-/// actions). Files under `root` only. Open documents take the change as an
-/// unsaved edit (the editor view follows through the document signal);
-/// closed files are written through the folder source with a version check.
-/// Returns how many files changed.
+pub(crate) fn use_document(
+    ws: Workspace,
+    doc: Signal<moonkale_ext_api::Document>,
+    manager: LspManager,
+    identity: Option<(String, String, String)>,
+) -> Signal<Option<LspSession>> {
+    let mut output = use_signal(|| None::<LspSession>);
+    let lease = use_hook(|| Rc::new(std::cell::RefCell::new(None::<(String, LspSession)>)));
+    let pending = use_hook(|| Rc::new(std::cell::Cell::new(false)));
+    let mut retry = use_signal(|| 0u64);
+    let alive = use_hook(|| Rc::new(std::cell::Cell::new(true)));
+    let release = lease.clone();
+    let drop_alive = alive.clone();
+    use_drop(move || {
+        drop_alive.set(false);
+        if let Some((uri, session)) = release.borrow_mut().take() {
+            manager.close_connection(&uri, &session);
+        }
+    });
+    use_effect(move || {
+        let _ = retry();
+        let Some((language, root, uri)) = identity.clone() else {
+            return;
+        };
+        let current = manager
+            .sessions
+            .read()
+            .get(&LspManager::key(&language, &root))
+            .cloned();
+        if lease.borrow().as_ref().is_some_and(|(_, old)| {
+            current
+                .as_ref()
+                .is_some_and(|current| old.same_connection(current))
+        }) || pending.get()
+        {
+            return;
+        }
+        if let Some((old_uri, old)) = lease.borrow_mut().take() {
+            manager.close_connection(&old_uri, &old);
+        }
+        output.set(None);
+        pending.set(true);
+        let lease = lease.clone();
+        let pending = pending.clone();
+        let alive = alive.clone();
+        spawn(async move {
+            let session = manager.ensure(ws, &language, &root).await;
+            pending.set(false);
+            if !alive.get() {
+                return;
+            }
+            let obsolete = session.as_ref().is_some_and(|session| {
+                !manager
+                    .session(&language, &root)
+                    .is_some_and(|current| session.same_connection(&current))
+            });
+            if obsolete {
+                retry.with_mut(|value| *value = value.wrapping_add(1));
+                return;
+            }
+            if let Some(session) = session.filter(|session| {
+                manager
+                    .session(&language, &root)
+                    .is_some_and(|current| session.same_connection(&current))
+            }) {
+                let document = doc.peek();
+                manager.open_document(
+                    session.clone(),
+                    &uri,
+                    &language,
+                    &root,
+                    document.text.clone(),
+                    document.saved.clone(),
+                );
+                *lease.borrow_mut() = Some((uri, session.clone()));
+                output.set(Some(session));
+            }
+        });
+    });
+    output
+}
+
+/// Apply checked, unsaved, undoable edits through the shared Workspace path.
 pub async fn apply_workspace_edit(
-    mut ws: Workspace,
+    ws: Workspace,
     root: &str,
     edit: &moonkale_lsp::WorkspaceEdit,
 ) -> Result<usize, String> {
-    use moonkale_core::{Query, TextPatch, Transaction};
-    let prefix = format!("file://{root}/");
-    let mut changed = 0;
-    for (uri, edits) in &edit.changes {
-        let Some(rel) = uri.strip_prefix(&prefix) else {
-            return Err(format!("{uri} is outside the folder"));
-        };
-        let folder = ws
-            .sources
-            .open
-            .peek()
-            .iter()
-            .find(|s| s.descriptor.id.as_str() == format!("folder:{root}"))
-            .map(|s| s.source.clone())
-            .ok_or("folder not open")?;
-        let node_id = moonkale_core::NodeId::derive(
-            &moonkale_core::SourceId::new(format!("folder:{root}")),
-            rel,
-        );
-        if let Some(mut doc) = ws.document(node_id) {
-            let next = moonkale_lsp::WorkspaceEdit::apply_to_text(&doc.peek().text, edits);
-            doc.with_mut(|d| d.text = next);
-            changed += 1;
-            continue;
-        }
-        // Not open: the node must exist (this also registers its id with the source).
-        let node = folder
-            .query(Query::Node(node_id))
-            .await
-            .map_err(|e| e.to_string())?
-            .nodes
-            .into_iter()
-            .next()
-            .ok_or_else(|| format!("{rel} not found"))?;
-        let (text, version) = folder
-            .fetch_text(node.id)
-            .await
-            .map_err(|e| e.to_string())?;
-        let next = moonkale_lsp::WorkspaceEdit::apply_to_text(&text, edits);
-        if next == text {
-            continue;
-        }
-        let applied = folder
-            .apply(Transaction::write_text(
-                node.id,
-                version,
-                TextPatch::whole(next, text.chars().count()),
-            ))
-            .await
-            .map_err(|e| e.to_string())?;
-        if let Some(e) = applied.first_error() {
-            return Err(format!("{rel}: {e}"));
-        }
-        changed += 1;
-        // Re-index and let the server know the file changed on disk.
-        let others: Vec<_> = ws
-            .sources
-            .open
-            .peek()
-            .iter()
-            .filter(|s| s.descriptor.id.as_str() != format!("folder:{root}"))
-            .map(|s| s.source.clone())
-            .collect();
-        for o in others {
-            let _ = o.refresh(node.id).await;
-        }
-    }
-    if changed > 0 {
-        ws.sources.graph_epoch.with_mut(|e| *e += 1);
-    }
-    Ok(changed)
+    let active = *ws.docs.active.peek();
+    let origin = ws
+        .docs
+        .open
+        .peek()
+        .iter()
+        .filter_map(|(id, doc)| {
+            let doc = doc.peek();
+            (doc.node.source.as_str() == format!("folder:{root}")).then(|| (*id, doc.node.clone()))
+        })
+        .min_by_key(|(id, _)| Some(*id) != active)
+        .map(|(_, node)| node)
+        .ok_or("origin document is not open")?;
+    crate::native_workspace_edit::apply_guarded(
+        ws,
+        &origin,
+        LspManager::for_workspace(ws),
+        edit,
+        || true,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -667,6 +768,102 @@ mod ownership_tests {
     }
 
     #[test]
+    fn encoded_aliases_and_old_connection_releases_preserve_current_lease() {
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dom.in_scope(ScopeId::ROOT, || {
+            let manager = LspManager::for_workspace(workspace());
+            let (old, _) = LspSession::new(Box::new(Transport(Rc::new(RefCell::new(Vec::new())))));
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let (current, _) = LspSession::new(Box::new(Transport(sent.clone())));
+            let uri = "file:///tmp/project/foo+bar.rs";
+            manager.open_document(
+                current.clone(),
+                uri,
+                "rust",
+                "/tmp/project",
+                "old".into(),
+                "old".into(),
+            );
+            assert_eq!(
+                manager.peek_document_version("file:///tmp/project/foo%2Bbar.rs"),
+                Some(1)
+            );
+            manager.close_connection(uri, &old);
+            assert!(manager
+                .peek_document_session(uri)
+                .unwrap()
+                .same_connection(&current));
+            manager.update_document("file:///tmp/project/foo%2bbar.rs", "new", "old");
+            assert_eq!(manager.peek_document_version(uri), Some(2));
+            assert_eq!(sent.borrow().len(), 2);
+            manager.close_connection(uri, &current);
+            assert!(manager.peek_document_session(uri).is_none());
+            assert_eq!(
+                sent.borrow().last().unwrap()["method"],
+                "textDocument/didClose"
+            );
+        });
+    }
+    #[test]
+    fn alias_diagnostics_use_current_version_and_other_edits_do_not_notify_connections() {
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dom.in_scope(ScopeId::ROOT, || {
+            let manager = LspManager::for_workspace(workspace());
+            let (session, _) =
+                LspSession::new(Box::new(Transport(Rc::new(RefCell::new(Vec::new())))));
+            let uri = "file:///tmp/project/foo%2Bbar.rs";
+            manager.open_document(
+                session.clone(),
+                uri,
+                "rust",
+                "/tmp/project",
+                "old".into(),
+                "old".into(),
+            );
+            manager.open_document(
+                session,
+                "file:///tmp/project/other.rs",
+                "rust",
+                "/tmp/project",
+                "old".into(),
+                "old".into(),
+            );
+            let (context, mut changed) = dioxus::core::ReactiveContext::new();
+            context.reset_and_run_in(|| {
+                assert!(manager.document_session(uri).is_some());
+            });
+            manager.update_document("file:///tmp/project/other.rs", "new", "old");
+            use futures_util::FutureExt;
+            assert!(changed.next().now_or_never().is_none());
+            let diagnostic = Diagnostic {
+                raw: None,
+                line: 0,
+                col: 0,
+                end_line: 0,
+                end_col: 1,
+                severity: "error",
+                message: "alias".into(),
+            };
+            manager.publish_diagnostics(
+                "file:///tmp/project/foo+bar.rs",
+                Some(99),
+                vec![diagnostic.clone()],
+            );
+            assert!(!manager.diagnostics.peek().contains_key(uri));
+            manager.publish_diagnostics(
+                "file:///tmp/project/foo+bar.rs",
+                Some(1),
+                vec![diagnostic.clone()],
+            );
+            assert_eq!(manager.diagnostics.peek()[uri], vec![diagnostic]);
+            manager.update_document(uri, "new", "old");
+            assert!(!manager.diagnostics.peek().contains_key(uri));
+        });
+    }
+
+    #[test]
     fn typing_retains_unversioned_diagnostics_but_invalidates_versioned_ranges() {
         let mut dom = VirtualDom::new(app);
         dom.rebuild_in_place();
@@ -684,6 +881,7 @@ mod ownership_tests {
                 "old".into(),
             );
             let diagnostic = Diagnostic {
+                raw: None,
                 line: 0,
                 col: 0,
                 end_line: 0,

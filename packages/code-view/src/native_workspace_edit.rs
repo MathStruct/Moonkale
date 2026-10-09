@@ -14,13 +14,40 @@ use moonkale_lsp::{TextEdit, WorkspaceEdit};
 
 pub(crate) fn edit_batch(base: &EditorSnapshot, edits: &[TextEdit]) -> Result<EditBatch, String> {
     let mut changes = Vec::new();
+    let has_crlf = base.text.contains("\r\n");
+    let starts = std::iter::once(0)
+        .chain(base.text.match_indices('\n').map(|(byte, _)| byte + 1))
+        .collect::<Vec<_>>();
+    // Resolve sorted endpoints by advancing within each line, rather than
+    // rescanning a long line for every occurrence of a renamed symbol.
+    let mut positions = std::collections::BTreeMap::new();
     for edit in edits {
-        let start = byte_position(&base.text, edit.line, edit.col)?;
-        let end = byte_position(&base.text, edit.end_line, edit.end_col)?;
+        positions.insert((edit.line, edit.col), 0);
+        positions.insert((edit.end_line, edit.end_col), 0);
+    }
+    let (mut previous_line, mut previous_col, mut previous_byte) = (None, 0, 0);
+    for (&(line, col), byte) in &mut positions {
+        let start = *starts.get(line as usize).ok_or("line outside document")?;
+        let end = starts
+            .get(line as usize + 1)
+            .map(|end| end - 1)
+            .unwrap_or(base.text.len());
+        if previous_line != Some(line) {
+            previous_byte = start;
+            previous_col = 0;
+        }
+        previous_byte += byte_position(&base.text[previous_byte..end], 0, col - previous_col)?;
+        *byte = previous_byte;
+        previous_line = Some(line);
+        previous_col = col;
+    }
+    for edit in edits {
+        let start = positions[&(edit.line, edit.col)];
+        let end = positions[&(edit.end_line, edit.end_col)];
         if start > end {
             return Err("reversed edit".into());
         }
-        let inserted_text = if base.text.contains("\r\n") {
+        let inserted_text = if has_crlf {
             edit.new_text.replace("\r\n", "\n").replace('\n', "\r\n")
         } else {
             edit.new_text.clone()
@@ -42,12 +69,26 @@ pub(crate) fn edit_batch(base: &EditorSnapshot, edits: &[TextEdit]) -> Result<Ed
         }
     }
     changes.retain(|change| change.removed_text != change.inserted_text);
+    let (mut previous_byte, mut units) = (0, 0u32);
+    let positions = changes
+        .iter()
+        .map(|change| {
+            units += base.text[previous_byte..change.range.start]
+                .encode_utf16()
+                .count() as u32;
+            let start = units;
+            units += change.removed_text.encode_utf16().count() as u32;
+            previous_byte = change.range.end;
+            (
+                start,
+                units,
+                change.inserted_text.encode_utf16().count() as u32,
+            )
+        })
+        .collect::<Vec<_>>();
     let rebase = |point: u32| {
         let mut shift = 0i64;
-        for change in &changes {
-            let start = base.text[..change.range.start].encode_utf16().count() as u32;
-            let end = start + change.removed_text.encode_utf16().count() as u32;
-            let inserted = change.inserted_text.encode_utf16().count() as u32;
+        for &(start, end, inserted) in &positions {
             if point < start {
                 break;
             }
@@ -151,7 +192,8 @@ pub(crate) async fn apply_guarded(
             continue;
         }
         let mut next = base.clone();
-        next.apply(&batch).map_err(|error| format!("{error:?}"))?;
+        next.apply_in_place(&batch)
+            .map_err(|error| format!("{error:?}"))?;
         staged.push(Staged {
             node,
             version,
@@ -277,6 +319,58 @@ mod tests {
         assert_eq!(doc.redo().unwrap().unwrap().text, next.text);
         let batch = edit_batch(doc.snapshot(), &[edit(2, 8, "a\nb")]).unwrap();
         assert_eq!(batch.changes[0].inserted_text, "a\r\nb");
+    }
+
+    #[test]
+    fn many_unicode_edits_rebase_selection_in_canonical_crlf_text() {
+        let node = NodeId::derive(&SourceId::new("test"), "test.rs");
+        let text = "😀old\r\n".repeat(1000);
+        let mut doc = RevisionedDocument::new(node, text);
+        let end = doc.utf16_len();
+        doc.set_selection(
+            doc.snapshot().revision,
+            Utf16Selection {
+                anchor: end,
+                head: 2,
+            },
+        );
+        let edits: Vec<_> = (0..1000)
+            .map(|line| TextEdit {
+                line,
+                col: 2,
+                end_line: line,
+                end_col: 5,
+                new_text: "λ".into(),
+            })
+            .collect();
+        let batch = edit_batch(doc.snapshot(), &edits).unwrap();
+        doc.apply_in_place(&batch).unwrap();
+        assert_eq!(doc.snapshot().text, "😀λ\r\n".repeat(1000));
+        assert_eq!(
+            doc.snapshot().selection,
+            Some(Utf16Selection {
+                anchor: 5000,
+                head: 3
+            })
+        );
+        assert_eq!(doc.undo().unwrap().unwrap().text, "😀old\r\n".repeat(1000));
+    }
+    #[test]
+    fn many_occurrences_in_one_long_line_map_without_prefix_rescans() {
+        let node = NodeId::derive(&SourceId::new("test"), "test.rs");
+        let mut doc = RevisionedDocument::new(
+            node,
+            format!("{}{}", "x".repeat(3_000_000), "😀old ".repeat(1000)),
+        );
+        let edits: Vec<_> = (0..1000)
+            .map(|index| edit(3_000_002 + index * 6, 3_000_005 + index * 6, "λ"))
+            .collect();
+        let batch = edit_batch(doc.snapshot(), &edits).unwrap();
+        doc.apply_in_place(&batch).unwrap();
+        assert_eq!(
+            doc.snapshot().text,
+            format!("{}{}", "x".repeat(3_000_000), "😀λ ".repeat(1000))
+        );
     }
     #[test]
     fn rejects_surrogate_splits_out_of_bounds_reversed_and_overlapping_edits() {

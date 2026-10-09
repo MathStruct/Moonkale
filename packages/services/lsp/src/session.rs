@@ -19,6 +19,8 @@ pub struct Diagnostic {
     /// `"error" | "warning" | "info" | "hint"`.
     pub severity: &'static str,
     pub message: String,
+    /// Original server payload, including fix identifiers and opaque data.
+    pub raw: Option<Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -353,7 +355,19 @@ impl LspSession {
                     if let Ok(p) = serde_json::from_value::<lsp::PublishDiagnosticsParams>(
                         msg.get("params").cloned().unwrap_or(Value::Null),
                     ) {
-                        let diagnostics = p.diagnostics.into_iter().map(convert_diag).collect();
+                        let originals =
+                            msg.pointer("/params/diagnostics").and_then(Value::as_array);
+                        let diagnostics = p
+                            .diagnostics
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, value)| {
+                                let mut diagnostic = convert_diag(value);
+                                diagnostic.raw =
+                                    originals.and_then(|values| values.get(index)).cloned();
+                                diagnostic
+                            })
+                            .collect();
                         let _ = self.events.unbounded_send(LspEvent::Diagnostics {
                             uri: p.uri.to_string(),
                             version: p.version,
@@ -447,6 +461,11 @@ impl LspSession {
             server: server.clone(),
         });
         Ok(server)
+    }
+
+    /// True only for handles to the same server connection.
+    pub fn same_connection(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.inner, &other.inner)
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -631,11 +650,11 @@ impl LspSession {
         end_col: u32,
         diagnostics: &[Diagnostic],
     ) -> Result<Vec<CodeAction>, String> {
-        let diagnostics: Vec<_> = diagnostics.iter().map(|diagnostic| json!({
+        let diagnostics: Vec<_> = diagnostics.iter().map(|diagnostic| diagnostic.raw.clone().unwrap_or_else(|| json!({
             "range": {"start":{"line":diagnostic.line,"character":diagnostic.col},"end":{"line":diagnostic.end_line,"character":diagnostic.end_col}},
             "severity": match diagnostic.severity { "error"=>1,"warning"=>2,"hint"=>4,_=>3 },
             "message": diagnostic.message,
-        })).collect();
+        }))).collect();
         let response = self.request("textDocument/codeAction", json!({
             "textDocument":{"uri":uri},
             "range":{"start":{"line":line,"character":col},"end":{"line":end_line,"character":end_col}},
@@ -646,7 +665,7 @@ impl LspSession {
         }
         let mut actions = Vec::new();
         for value in response.as_array().ok_or("invalid code action response")? {
-            if let Some(action) = parse_code_action(value)? {
+            if let Ok(Some(action)) = parse_code_action(value) {
                 actions.push(action);
             }
         }
@@ -814,7 +833,9 @@ pub fn strip_snippet(t: &str) -> String {
 }
 
 fn convert_diag(d: lsp::Diagnostic) -> Diagnostic {
+    let raw = serde_json::to_value(&d).ok();
     Diagnostic {
+        raw,
         line: d.range.start.line,
         col: d.range.start.character,
         end_line: d.range.end.line,
@@ -1069,6 +1090,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn code_actions_keep_raw_diagnostics_and_valid_siblings() {
+        let sent = Rc::new(RefCell::new(Vec::new()));
+        let (sender, incoming) = mpsc::unbounded();
+        let (session, _) = LspSession::new(Box::new(Fake {
+            sent: sent.clone(),
+            incoming: Some(incoming),
+        }));
+        session.inner.borrow_mut().initialized = true;
+        let local = tokio::task::LocalSet::new();
+        local.spawn_local(session.clone().pump());
+        local.run_until(async move {
+            let raw = json!({"range":{"start":{"line":0,"character":0},"end":{"line":0,"character":1}},"message":"fix","code":"E42","source":"server","data":{"token":9},"custom":"retained"});
+            let diagnostic = Diagnostic { line: 0, col: 0, end_line: 0, end_col: 1, severity: "error", message: "fix".into(), raw: Some(raw.clone()) };
+            let copy = session.clone();
+            let request = tokio::task::spawn_local(async move { copy.code_actions_with_diagnostics("file:///a.rs", 0, 0, 0, 1, &[diagnostic]).await });
+            tokio::task::yield_now().await;
+            let message = sent.borrow()[0].clone();
+            assert_eq!(message["params"]["context"]["diagnostics"][0], raw);
+            sender.unbounded_send(json!({"jsonrpc":"2.0","id":message["id"],"result":[
+                {"title":"Malformed","edit":{"changes":{"file:///a.rs":[{"newText":"x"}]}}},
+                {"title":"Unsupported","edit":{"documentChanges":[{"kind":"create","uri":"file:///new.rs"}]}},
+                {"title":"Valid","edit":{}},
+                {"title":"Preferred","data":{"id":1},"isPreferred":true}
+            ]}).to_string()).unwrap();
+            let actions = request.await.unwrap().unwrap();
+            assert_eq!(actions.iter().map(|action| action.title.as_str()).collect::<Vec<_>>(), ["Preferred", "Valid"]);
+        }).await;
+    }
+    #[tokio::test]
     async fn initialize_handshake_and_diagnostics() {
         let sent = Rc::new(RefCell::new(Vec::new()));
         let (server_tx, server_rx) = mpsc::unbounded::<String>();
@@ -1100,7 +1150,7 @@ mod tests {
                     Some(LspEvent::Diagnostics { uri, version, diagnostics }) => {
                         assert!(uri.ends_with("main.rs"));
                         assert_eq!(version, Some(7));
-                        assert_eq!(diagnostics[0], Diagnostic { line: 2, col: 4, end_line: 2, end_col: 9, severity: "error", message: "boom".into() });
+                        assert_eq!(diagnostics[0], Diagnostic { line: 2, col: 4, end_line: 2, end_col: 9, severity: "error", message: "boom".into(), raw: Some(json!({"range":{"start":{"line":2,"character":4},"end":{"line":2,"character":9}},"severity":1,"message":"boom"})) });
                     }
                     other => panic!("{other:?}"),
                 }

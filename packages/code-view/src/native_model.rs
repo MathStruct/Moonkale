@@ -26,6 +26,7 @@ impl Default for Preferences {
 #[derive(Clone)]
 struct LineMetrics {
     byte: usize,
+    normalized_start: usize,
     utf16: u32,
     bytes: usize,
     units: u32,
@@ -120,7 +121,7 @@ impl NativeModel {
         // SourceEdit uses bytes of normalized text, while Workspace preserves CRLF.
         // CRLF replacements use a reparse; ordinary edits update the existing tree.
         if let Some(buffer) = &mut self.highlight {
-            let result = if !snapshot.text.contains("\r\n") && batch.changes.len() == 1 {
+            let result = if self.crlf_lines == 0 && batch.changes.len() == 1 {
                 let change = &batch.changes[0];
                 buffer.edit(
                     SourceEdit {
@@ -148,6 +149,35 @@ impl NativeModel {
         self.structure.pairs.clear(); // Old byte offsets must never highlight unrelated brackets.
         self.update_metrics(&snapshot.text, batch);
     }
+    pub(crate) fn delta_batch(
+        &self,
+        snapshot: &EditorSnapshot,
+        delta: &TextDelta,
+    ) -> Result<EditBatch, &'static str> {
+        delta_batch_with_mapping(
+            snapshot,
+            delta,
+            Utf16Selection { anchor: 0, head: 0 },
+            self.normalized_chars,
+            self.crlf_lines > 0,
+            |offset| {
+                if offset > self.normalized_chars {
+                    return None;
+                }
+                let line = self
+                    .lines
+                    .partition_point(|line| line.normalized_start <= offset)
+                    .checked_sub(1)?;
+                let metrics = &self.lines[line];
+                canonical_char_offset(
+                    &snapshot.text[metrics.byte..metrics.byte + metrics.bytes],
+                    offset - metrics.normalized_start,
+                )
+                .map(|byte| byte + metrics.byte)
+            },
+        )
+    }
+
     pub fn set_preferences(&mut self, preferences: Preferences) {
         if self.preferences == preferences {
             return;
@@ -183,6 +213,7 @@ impl NativeModel {
             .split_inclusive('\n')
             .map(|line| LineMetrics {
                 byte: 0,
+                normalized_start: 0,
                 utf16: 0,
                 bytes: line.len(),
                 units: line.encode_utf16().count() as u32,
@@ -197,6 +228,7 @@ impl NativeModel {
         if terminal && (text.is_empty() || text.ends_with('\n')) {
             lines.push(LineMetrics {
                 byte: 0,
+                normalized_start: 0,
                 utf16: 0,
                 bytes: 0,
                 units: 0,
@@ -211,6 +243,7 @@ impl NativeModel {
         let (mut byte, mut units, mut chars, mut crlf) = (0, 0, 0, 0);
         for line in &mut self.lines {
             line.byte = byte;
+            line.normalized_start = chars;
             line.utf16 = units;
             byte += line.bytes;
             units += line.units;
@@ -436,11 +469,45 @@ pub(crate) fn delta_batch(
     )
 }
 
+#[cfg(test)]
 pub(crate) fn delta_batch_with_length(
     snapshot: &EditorSnapshot,
     delta: &TextDelta,
     selection: Utf16Selection,
     normalized_chars: usize,
+) -> Result<EditBatch, &'static str> {
+    delta_batch_with_mapping(
+        snapshot,
+        delta,
+        selection,
+        normalized_chars,
+        snapshot.text.contains("\r\n"),
+        |offset| canonical_char_offset(&snapshot.text, offset),
+    )
+}
+
+fn canonical_char_offset(text: &str, offset: usize) -> Option<usize> {
+    let mut chars = text.char_indices().peekable();
+    let mut normalized = 0;
+    while let Some((byte, ch)) = chars.next() {
+        if normalized == offset {
+            return Some(byte);
+        }
+        if ch == '\r' && chars.peek().is_some_and(|(_, next)| *next == '\n') {
+            chars.next();
+        }
+        normalized += 1;
+    }
+    (normalized == offset).then_some(text.len())
+}
+
+fn delta_batch_with_mapping(
+    snapshot: &EditorSnapshot,
+    delta: &TextDelta,
+    selection: Utf16Selection,
+    normalized_chars: usize,
+    has_crlf: bool,
+    canonical_offset: impl Fn(usize) -> Option<usize>,
 ) -> Result<EditBatch, &'static str> {
     if normalized_chars != delta.before_char_count {
         return Err("delta base length mismatch");
@@ -454,27 +521,13 @@ pub(crate) fn delta_batch_with_length(
         {
             return Err("delta result length mismatch");
         }
-        let canonical_offset = |offset: usize| {
-            let mut chars = snapshot.text.char_indices().peekable();
-            let mut normalized = 0;
-            while let Some((byte, ch)) = chars.next() {
-                if normalized == offset {
-                    return Some(byte);
-                }
-                if ch == '\r' && chars.peek().is_some_and(|(_, next)| *next == '\n') {
-                    chars.next();
-                }
-                normalized += 1;
-            }
-            (normalized == offset).then_some(snapshot.text.len())
-        };
         let start = canonical_offset(edit.start).ok_or("delta start out of range")?;
         let end = canonical_offset(edit.end()).ok_or("delta end out of range")?;
         let removed = &snapshot.text[start..end];
         if removed.replace("\r\n", "\n") != edit.deleted_text {
             return Err("delta removed text mismatch");
         }
-        let inserted = if snapshot.text.contains("\r\n") {
+        let inserted = if has_crlf {
             edit.inserted_text.replace('\n', "\r\n")
         } else {
             edit.inserted_text.clone()
@@ -698,6 +751,35 @@ mod tests {
         assert_eq!(model.selection(&base.text), base.selection.unwrap());
         assert_eq!(utf16_position(&base.text, 1), Position::new(0, 0));
         assert_eq!(utf16_position(&base.text, 5), Position::new(1, 0));
+    }
+
+    #[test]
+    fn metrics_map_tail_edits_through_unicode_and_crlf() {
+        let base = snapshot(&format!("{}😀old\r\n", "中x\r\n".repeat(10000)));
+        let model = NativeModel::new(&base, None);
+        let offset = 30001;
+        let delta = TextDelta {
+            before_char_count: 30005,
+            after_char_count: 30003,
+            edits: vec![edit(offset, "old", "λ")],
+            undo_group_id: None,
+        };
+        let batch = model.delta_batch(&base, &delta).unwrap();
+        assert_eq!(batch.changes[0].range, 60004..60007);
+        let mut document = RevisionedDocument::new(base.node, base.text.clone());
+        document.apply_in_place(&batch).unwrap();
+        assert_eq!(
+            document.snapshot().text,
+            format!("{}😀λ\r\n", "中x\r\n".repeat(10000))
+        );
+        let delta = TextDelta {
+            before_char_count: 30005,
+            after_char_count: 30006,
+            edits: vec![edit(30005, "", "z")],
+            undo_group_id: None,
+        };
+        let batch = model.delta_batch(&base, &delta).unwrap();
+        assert_eq!(batch.changes[0].range, base.text.len()..base.text.len());
     }
     #[test]
     fn localized_change_does_not_include_an_unchanged_large_document() {

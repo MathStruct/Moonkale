@@ -415,6 +415,7 @@ mod tests {
     fn diagnostic_points_gutter_and_overlap_precedence() {
         let revision = DocumentRevision(3);
         let first = Diagnostic {
+            raw: None,
             line: 0,
             col: 2,
             end_line: 0,
@@ -423,6 +424,7 @@ mod tests {
             message: "first".into(),
         };
         let second = Diagnostic {
+            raw: None,
             message: "second".into(),
             ..first.clone()
         };

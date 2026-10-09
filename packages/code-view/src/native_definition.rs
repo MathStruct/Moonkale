@@ -240,32 +240,7 @@ pub(crate) async fn resolve_target(
 }
 
 pub(crate) fn relative_file(root: &str, uri: &str) -> Option<String> {
-    let encoded = uri.strip_prefix("file://")?;
-    let encoded = encoded.strip_prefix("localhost").unwrap_or(encoded);
-    if !encoded.starts_with('/') || encoded.contains(['?', '#']) {
-        return None;
-    }
-    let mut bytes = Vec::new();
-    let mut input = encoded.as_bytes().iter().copied();
-    while let Some(byte) = input.next() {
-        if byte == b'%' {
-            let high = (input.next()? as char).to_digit(16)?;
-            let low = (input.next()? as char).to_digit(16)?;
-            bytes.push((high * 16 + low) as u8);
-        } else {
-            bytes.push(byte);
-        }
-    }
-    let path = String::from_utf8(bytes).ok()?;
-    let prefix = format!("{}/", root.trim_end_matches('/'));
-    let relative = path.strip_prefix(&prefix)?;
-    if relative
-        .split('/')
-        .any(|part| part.is_empty() || part == "." || part == ".." || part.contains(['\\', '\0']))
-    {
-        return None;
-    }
-    Some(relative.to_string())
+    crate::uri::relative_file(root, uri)
 }
 
 #[cfg(test)]

@@ -4,7 +4,6 @@ use dioxus::prelude::*;
 use moonkale_core::NodeId;
 use moonkale_ext_api::Workspace;
 use moonkale_lsp::Diagnostic;
-use std::{cell::Cell, rc::Rc};
 
 pub(crate) fn use_diagnostics(
     ws: Workspace,
@@ -28,45 +27,18 @@ pub(crate) fn use_diagnostics(
     let uri = identity
         .as_ref()
         .map(|(_, root, path)| file_uri(root, path));
-    let active = use_hook(|| Rc::new(Cell::new(true)));
-    let attached = use_hook(|| Rc::new(Cell::new(false)));
-    let start_active = active.clone();
-    let start_attached = attached.clone();
-    let start_uri = uri.clone();
-    use_hook(move || {
-        if let Some((language, root, _)) = identity {
-            dioxus::core::spawn_forever(async move {
-                if let Some(session) = manager.ensure(ws, &language, &root).await {
-                    if start_active.get() {
-                        let document = doc.peek();
-                        manager.open_document(
-                            session,
-                            start_uri.as_deref().unwrap(),
-                            &language,
-                            &root,
-                            document.text.clone(),
-                            document.saved.clone(),
-                        );
-                        start_attached.set(true);
-                    }
-                }
-            });
-        }
-    });
+    let attached = crate::lsp::use_document(
+        ws,
+        doc,
+        manager,
+        identity.map(|(language, root, _)| (language, root, uri.clone().unwrap())),
+    );
     let update_uri = uri.clone();
     use_effect(move || {
         let document = doc.read();
+        let _ = attached.read();
         if let Some(uri) = &update_uri {
             manager.update_document(uri, &document.text, &document.saved);
-        }
-    });
-    let close_uri = uri.clone();
-    use_drop(move || {
-        active.set(false);
-        if attached.get() {
-            if let Some(uri) = close_uri {
-                manager.close_document(&uri);
-            }
         }
     });
     use_memo(move || {
@@ -77,16 +49,7 @@ pub(crate) fn use_diagnostics(
 }
 
 pub(crate) fn file_uri(root: &str, path: &str) -> String {
-    let path = format!("{}/{path}", root.trim_end_matches('/'));
-    let mut uri = String::from("file://");
-    for byte in path.bytes() {
-        if byte.is_ascii_alphanumeric() || b"/-._~:".contains(&byte) {
-            uri.push(byte as char);
-        } else {
-            uri.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    uri
+    crate::uri::file_uri(root, path)
 }
 
 /// Scalar column for a UTF-16 column, clamped to the actual line.
@@ -142,6 +105,7 @@ mod tests {
         assert_eq!(scalar_column(text, 0, 2), 1);
         assert_eq!(scalar_column(text, 0, 99), 3);
         let mut diagnostic = Diagnostic {
+            raw: None,
             line: 0,
             col: 1,
             end_line: 1,

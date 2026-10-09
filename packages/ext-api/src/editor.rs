@@ -185,6 +185,12 @@ impl RevisionedDocument {
     /// Apply one atomic edit batch. All changes are validated against the same
     /// base text, then applied from right to left so offsets remain stable.
     pub fn apply(&mut self, batch: &EditBatch) -> Result<EditorSnapshot, BatchRejected> {
+        self.apply_in_place(batch)?;
+        Ok(self.snapshot.clone())
+    }
+
+    /// Apply without cloning the resulting text; borrow `snapshot()` afterward.
+    pub fn apply_in_place(&mut self, batch: &EditBatch) -> Result<DocumentRevision, BatchRejected> {
         if batch.node != self.snapshot.node || batch.base_revision != self.snapshot.revision {
             return Err(BatchRejected::Stale(self.snapshot.clone()));
         }
@@ -219,11 +225,6 @@ impl RevisionedDocument {
             }
         }
 
-        let mut next_text = self.snapshot.text.clone();
-        for change in ordered.iter().rev() {
-            next_text.replace_range(change.range.clone(), &change.inserted_text);
-        }
-
         let next_length = ordered
             .iter()
             .fold(self.utf16_len as i64, |length, change| {
@@ -240,9 +241,24 @@ impl RevisionedDocument {
             });
         }
 
-        if next_text == self.snapshot.text {
+        let changed = if let [change] = ordered.as_slice() {
+            change.removed_text != change.inserted_text
+        } else if let (Some(first), Some(last)) = (ordered.first(), ordered.last()) {
+            let range = first.range.start..last.range.end;
+            let mut local = self.snapshot.text[range.clone()].to_string();
+            for change in ordered.iter().rev() {
+                local.replace_range(
+                    change.range.start - range.start..change.range.end - range.start,
+                    &change.inserted_text,
+                );
+            }
+            local != self.snapshot.text[range]
+        } else {
+            false
+        };
+        if !changed {
             self.snapshot.selection = batch.selection;
-            return Ok(self.snapshot.clone());
+            return Ok(self.snapshot.revision);
         }
         let Some(next_revision) = self.snapshot.revision.0.checked_add(1) else {
             return Err(BatchRejected::RevisionExhausted(self.snapshot.clone()));
@@ -261,21 +277,22 @@ impl RevisionedDocument {
             })
             .collect();
         self.undo.push_back(HistoryEntry {
-            forward: ordered.into_iter().cloned().collect(),
+            forward: ordered.iter().map(|change| (*change).clone()).collect(),
             inverse,
             before: self.snapshot.selection,
             after: batch.selection,
         });
         self.redo.clear();
         self.trim_history();
+        for change in ordered.iter().rev() {
+            self.snapshot
+                .text
+                .replace_range(change.range.clone(), &change.inserted_text);
+        }
         self.utf16_len = next_length;
-        self.snapshot = EditorSnapshot {
-            node: self.snapshot.node,
-            revision: DocumentRevision(next_revision),
-            text: next_text,
-            selection: batch.selection,
-        };
-        Ok(self.snapshot.clone())
+        self.snapshot.revision = DocumentRevision(next_revision);
+        self.snapshot.selection = batch.selection;
+        Ok(self.snapshot.revision)
     }
 
     /// Record a selection-only update if it belongs to the current revision.
@@ -401,6 +418,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn in_place_noops_and_invalid_batches_preserve_revision_and_undo() {
+        let mut doc = document("😀old\r\n");
+        let original = doc.snapshot().clone();
+        let noop = batch(&doc, vec![change(4..7, "old", "old")]);
+        assert_eq!(doc.apply_in_place(&noop).unwrap(), original.revision);
+        assert!(doc.undo().unwrap().is_none());
+        let invalid = batch(
+            &doc,
+            vec![change(4..7, "old", "new"), change(0..1, "x", "y")],
+        );
+        assert!(doc.apply_in_place(&invalid).is_err());
+        assert_eq!(doc.snapshot(), &original);
+        assert!(doc.undo().unwrap().is_none());
+        let valid = batch(&doc, vec![change(4..7, "old", "λ")]);
+        doc.apply_in_place(&valid).unwrap();
+        assert_eq!(doc.snapshot().text, "😀λ\r\n");
+        assert_eq!(doc.undo().unwrap().unwrap().text, original.text);
+    }
     #[test]
     fn unsorted_unicode_changes_share_one_base_and_one_undo_transaction() {
         let mut doc = document("a😀中z");

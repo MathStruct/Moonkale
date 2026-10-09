@@ -33,6 +33,7 @@ try{
   const request=(await requests(method("actions"))).at(-1);
   const {start,end}=request.params.range; if(start.line!==0||start.character!==2||end.line!==0||end.character!==9)throw Error(`Selection was not normalized UTF-16: ${JSON.stringify(request.params.range)}`);
   if(request.params.context.diagnostics.length!==1||request.params.context.diagnostics[0].message!=="Fix old")throw Error("Diagnostic context missing");
+  const diagnostic=request.params.context.diagnostics[0];if(diagnostic.code!=="E42"||diagnostic.source!=="fake"||diagnostic.data?.token!==99||diagnostic.customField!=="preserved")throw Error("Original diagnostic metadata lost");
   const labels=await rows().allTextContents();if(!labels[0].includes("Preferred")||!labels[2].includes("<safe>"))throw Error("Preference ordering or escaped labels failed");
   if(!await rows().nth(1).isDisabled())throw Error("Disabled action allowed");
   await rows().nth(0).evaluate(button=>{if(document.activeElement!==button)throw Error("Actions did not receive focus");});
@@ -88,7 +89,7 @@ try{
    await fixture();await mode(kind,"empty");await trigger(kind);await loaded(0);await dismiss();
    await mode(kind,"error");await trigger(kind);await status("tools error");await menu().waitFor({state:"detached"});
   }
-  await mode("actions","malformed");await trigger("actions");await status("invalid text edit");if(await text()!=="😀old old\r\n")throw Error("Malformed action edited text");
+  await mode("actions","malformed");await trigger("actions");await loaded(1);if(await rows().first().innerText()!=="Valid survivor")throw Error("Valid action lost with malformed sibling");if(await text()!=="😀old old\r\n")throw Error("Malformed action edited text");await dismiss();
   await mode("references","missing");await trigger("references");await loaded(1);await rows().first().click();await status("not found");
   await mode("references","malformed");await trigger("references");await loaded(1);if(!await rows().first().isDisabled())throw Error("Malformed URI navigable");await dismiss();
  });
