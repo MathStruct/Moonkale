@@ -80,4 +80,6 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 - **Stage 5 — higher-order edges**: `InHyperedge` (a junction marker at the members' centroid with spokes — presentation, never picked as edges), `InSimplex` (a filled face, fanned for more than three members), and `InGroup.highlight` (a clique: a visual membership wearing twice the tint and a bright rim) — three distinct classes over the same nodes, all carried by deltas. `graph-higher.mjs` shows them side by side.
 - **Stage 6 — pulses**: `InEdge.pulse_speed` (world units per second) moves a glow along the stroke entirely in the shader — the view redraws continuously while any edge pulses, and segments under 8 screen px stop glowing (§6). `graph-pulse.mjs` measures the motion at two speeds.
 
-Next: the flow editor's move onto this engine (7, ADR-0018).
+- **Stage 7a — the flow shapes**: rect block nodes (`shape: "rect"`, `width`/`height` half-extents) with ports riding the sides, `Route::Ortho` step wires, `hier_layout` (longest-path columns, rows stacked, everything pinned — the flow document owns positions) and `node_positions()` to harvest them back. `graph-flow.mjs` covers it.
+
+Next: the flow panel moves onto the engine (7b+, ADR-0018) — parity with dioxus-flow before anything is deleted.

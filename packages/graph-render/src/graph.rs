@@ -6,6 +6,25 @@ use serde::{Deserialize, Serialize};
 /// (spec 031 §2; the ideal edge length is ~28, so a pair sits visibly apart).
 pub const BOW_SPACING: f32 = 9.0;
 
+/// A node's silhouette (spec 031 §2): a circle everywhere, a rectangle for
+/// a flow block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shape {
+    Circle,
+    Rect,
+}
+
+/// A rect block's default half-height (world units); the host sizes it up
+/// for many ports.
+pub const RECT_HEIGHT: f32 = 22.0;
+/// A rect block's default half-width (world units).
+pub const RECT_WIDTH: f32 = 46.0;
+/// The layered layout's column gap (world units) — a block's width plus
+/// its wires' stubs (spec 031 §5, stage 7).
+pub const HIER_COL: f32 = 160.0;
+/// The layered layout's row gap (world units).
+pub const HIER_ROW: f32 = 70.0;
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InNode {
     pub id: String,
@@ -22,6 +41,16 @@ pub struct InNode {
     /// draws only while one of them is visible.
     #[serde(default)]
     pub layers: Vec<String>,
+    /// `"circle"` (default) or `"rect"` — a flow block (spec 031 §2).
+    #[serde(default)]
+    pub shape: Option<String>,
+    /// A rect's half-width in world units (absent: the degree-derived
+    /// radius, like a circle).
+    #[serde(default)]
+    pub width: Option<f32>,
+    /// A rect's half-height in world units; absent = `RECT_HEIGHT`.
+    #[serde(default)]
+    pub height: Option<f32>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -99,6 +128,14 @@ pub enum InRoute {
     Bezier {
         offset: f32,
     },
+    /// Steps between the endpoints (flow diagrams, spec 031 SS2): out of
+    /// the source's side, across, into the target's.
+    Ortho {
+        /// The first and last leg's length in world units; absent = half
+        /// the gap.
+        #[serde(default)]
+        stub: Option<f32>,
+    },
 }
 
 /// The resolved form of [`InArrow`] plus the "none" case.
@@ -113,7 +150,14 @@ pub enum Arrow {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Route {
     Straight,
-    Bezier { offset: f32 },
+    Bezier {
+        offset: f32,
+    },
+    /// Left/right-then-over steps between the endpoints (flow diagrams,
+    /// spec 031 SS2): the port sides decide the stubs, `stub` overrides.
+    Ortho {
+        stub: Option<f32>,
+    },
 }
 
 /// The internal port: the wire's [`InPort`] with the appearance resolved.
@@ -374,6 +418,14 @@ pub struct InDeltaNode {
     /// Start pinned (a placed aggregate stays put).
     #[serde(default)]
     pub pinned: bool,
+    /// `"rect"` for a flow block; absent keeps the old silhouette on a
+    /// replace (spec 031 §2, stage 7).
+    #[serde(default)]
+    pub shape: Option<String>,
+    #[serde(default)]
+    pub width: Option<f32>,
+    #[serde(default)]
+    pub height: Option<f32>,
 }
 
 /// An edge arriving through a delta: endpoints by **node id**, not index —
@@ -481,6 +533,12 @@ pub struct Node {
     pub pinned: bool,
     /// Layer membership (spec 031 §3): an empty list is the base scene.
     pub layers: Vec<String>,
+    /// A rect's half-height; a circle ignores it (spec 031 §2, stage 7).
+    pub height: f32,
+    /// The silhouette (spec 031 §2): circles everywhere, rects for flow
+    /// blocks — a rect's `radius` is its half-width, and the degree
+    /// recompute leaves it alone.
+    pub shape: Shape,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -660,8 +718,19 @@ impl Graph {
                 let r = spread * ((i as f32 + 1.0) / (degree.len() as f32 + 1.0)).sqrt();
                 let deg = degree[i];
                 let n_kind = n.kind.clone();
+                let shape = if n.shape.as_deref() == Some("rect") {
+                    Shape::Rect
+                } else {
+                    Shape::Circle
+                };
                 Node {
-                    radius: 4.0 + (deg as f32).sqrt().min(6.0),
+                    radius: if shape == Shape::Rect {
+                        n.width.unwrap_or(RECT_WIDTH)
+                    } else {
+                        4.0 + (deg as f32).sqrt().min(6.0)
+                    },
+                    height: n.height.unwrap_or(RECT_HEIGHT),
+                    shape,
                     color: n
                         .color
                         .as_deref()
@@ -695,6 +764,7 @@ impl Graph {
                 };
                 let route = match e.route {
                     Some(InRoute::Bezier { offset }) => Route::Bezier { offset },
+                    Some(InRoute::Ortho { stub }) => Route::Ortho { stub },
                     _ => Route::Straight,
                 };
                 let mut color = e
@@ -956,6 +1026,11 @@ impl Graph {
                     Some([x, y]) => (x, y, layer_z(&n.kind, i), n.pinned),
                     None => (old.x, old.y, old.z, old.pinned),
                 };
+                let shape = match n.shape.as_deref() {
+                    Some("rect") => Shape::Rect,
+                    Some("circle") => Shape::Circle,
+                    _ => old.shape, // absent keeps the silhouette
+                };
                 let new = Node {
                     id: n.id,
                     label: n.label,
@@ -964,7 +1039,19 @@ impl Graph {
                     x,
                     y,
                     z,
-                    radius: old.radius,
+                    radius: match (shape, n.width) {
+                        (Shape::Rect, Some(w)) => w,
+                        _ if shape != old.shape => {
+                            if shape == Shape::Rect {
+                                RECT_WIDTH
+                            } else {
+                                4.0 + (old.degree as f32).sqrt().min(6.0)
+                            }
+                        }
+                        _ => old.radius,
+                    },
+                    height: n.height.unwrap_or(old.height),
+                    shape,
                     color,
                     degree: old.degree,
                     pinned,
@@ -983,6 +1070,11 @@ impl Graph {
                 };
                 let z = layer_z(&n.kind, self.nodes.len());
                 ids.insert(n.id.clone(), self.nodes.len());
+                let shape = if n.shape.as_deref() == Some("rect") {
+                    Shape::Rect
+                } else {
+                    Shape::Circle
+                };
                 self.nodes.push(Node {
                     id: n.id,
                     label: n.label,
@@ -991,7 +1083,13 @@ impl Graph {
                     x,
                     y,
                     z,
-                    radius: 4.0,
+                    radius: if shape == Shape::Rect {
+                        n.width.unwrap_or(RECT_WIDTH)
+                    } else {
+                        4.0
+                    },
+                    height: n.height.unwrap_or(RECT_HEIGHT),
+                    shape,
                     color,
                     degree: 0,
                     pinned: n.pinned,
@@ -1028,6 +1126,7 @@ impl Graph {
                         };
                         let route = match e.route {
                             Some(InRoute::Bezier { offset }) => Route::Bezier { offset },
+                            Some(InRoute::Ortho { stub }) => Route::Ortho { stub },
                             _ => Route::Straight,
                         };
                         let mut color = e
@@ -1163,13 +1262,71 @@ impl Graph {
         }
         for (n, deg) in self.nodes.iter_mut().zip(degree) {
             n.degree = deg;
-            n.radius = 4.0 + (deg as f32).sqrt().min(6.0);
+            if n.shape == Shape::Circle {
+                n.radius = 4.0 + (deg as f32).sqrt().min(6.0);
+            } // a rect's width is the host's (stage 7)
         }
     }
 
     /// Axis-aligned bounds of all nodes (world units).
     pub fn bounds(&self) -> Option<(f32, f32, f32, f32)> {
         Self::bounds_of(self.nodes.iter())
+    }
+
+    /// The layered arrangement (spec 031 §5, stage 7): every wire goes
+    /// from an earlier column to a later one — longest-path ranks, then
+    /// columns left-to-right (`HIER_COL` apart) with each rank's rows
+    /// stacked (`HIER_ROW` apart), keeping the nodes' vertical order so
+    /// an arrangement survives a re-run. Every node lands **pinned**:
+    /// a flow's positions are the host's document, not the physics'.
+    /// Cycles cap at one pass per node — `validate` reports them; this
+    /// still spreads the members apart instead of tangling them.
+    pub fn hierarchize(&mut self) -> bool {
+        // Longest-path ranks: rank(b) ≥ rank(a) + 1 per wire; enough
+        // passes to settle any acyclic graph.
+        let mut rank = vec![0u32; self.nodes.len()];
+        for _ in 0..self.nodes.len() {
+            let mut moved = false;
+            for e in &self.edges {
+                if e.a < rank.len() && e.b < rank.len() && rank[e.b] < rank[e.a] + 1 {
+                    rank[e.b] = rank[e.a] + 1;
+                    moved = true;
+                }
+            }
+            if !moved {
+                break;
+            }
+        }
+        // Columns stack by rank; rows by the nodes' current order.
+        let mut by_rank: std::collections::BTreeMap<u32, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, r) in rank.iter().enumerate() {
+            by_rank.entry(*r).or_default().push(i);
+        }
+        let mut moved = false;
+        let cols = *by_rank.keys().next_back().unwrap_or(&0) as f32 + 1.0;
+        for (r, members) in &by_rank {
+            let mut members = members.clone();
+            members.sort_by(|&a, &b| {
+                self.nodes[a]
+                    .y
+                    .partial_cmp(&self.nodes[b].y)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let rows = members.len() as f32;
+            for (row, &i) in members.iter().enumerate() {
+                let x = (*r as f32 - (cols - 1.0) / 2.0) * HIER_COL;
+                let y = (row as f32 - (rows - 1.0) / 2.0) * HIER_ROW;
+                let n = &mut self.nodes[i];
+                if !n.pinned || n.x != x || n.y != y {
+                    moved = true;
+                }
+                n.x = x;
+                n.y = y;
+                n.pinned = true;
+            }
+        }
+        moved
     }
 
     /// Bounds for fitting: isolated nodes (degree 0) sit far out on the
@@ -1281,7 +1438,7 @@ mod delta_tests {
             color: None,
             layers: Vec::new(),
             pos: Some(pos),
-            pinned: false,
+            ..Default::default()
         }
     }
 
@@ -1596,6 +1753,73 @@ mod delta_tests {
             "the survivor straightened: {:?}",
             g.edges.iter().map(|e| e.bow).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn hierarchize_lines_the_wires_up_left_to_right() {
+        // The flow arrangement (spec 031 SS5, stage 7): longest-path ranks
+        // become columns, the rows stack, and every node lands pinned —
+        // the host's document owns the positions, not the physics.
+        let mut g = Graph::from_input(InGraph {
+            nodes: vec![
+                InNode {
+                    id: "a".into(),
+                    label: "a".into(),
+                    kind: "file".into(),
+                    ..Default::default()
+                },
+                InNode {
+                    id: "d".into(),
+                    label: "d".into(),
+                    kind: "file".into(),
+                    ..Default::default()
+                },
+                InNode {
+                    id: "b".into(),
+                    label: "b".into(),
+                    kind: "file".into(),
+                    ..Default::default()
+                },
+                InNode {
+                    id: "c".into(),
+                    label: "c".into(),
+                    kind: "file".into(),
+                    ..Default::default()
+                },
+            ],
+            edges: vec![
+                InEdge {
+                    a: 0,
+                    b: 2,
+                    ..Default::default()
+                },
+                InEdge {
+                    a: 1,
+                    b: 2,
+                    ..Default::default()
+                },
+                InEdge {
+                    a: 2,
+                    b: 3,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        });
+        assert!(g.hierarchize());
+        let at = |id: &str| g.nodes.iter().find(|n| n.id == id).unwrap();
+        // Ranks: a,d = 0; b = 1; c = 2 — three columns centred on zero.
+        assert_eq!(at("a").x, -HIER_COL, "column 0");
+        assert_eq!(at("b").x, 0.0, "column 1");
+        assert_eq!(at("c").x, HIER_COL, "column 2");
+        assert_eq!(at("d").x, -HIER_COL);
+        // The first column's two rows stack around its centre, keeping
+        // the nodes' prior vertical order; everything is pinned.
+        assert!((at("a").y + at("d").y).abs() < 1e-4, "rows centred");
+        assert_eq!((at("a").y - at("d").y).abs() as u32, HIER_ROW as u32);
+        assert!(g.nodes.iter().all(|n| n.pinned), "pinned for the host");
+        // Idempotent: a re-run keeps the arrangement.
+        assert!(!g.hierarchize());
     }
 
     #[test]

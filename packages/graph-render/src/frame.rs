@@ -611,7 +611,7 @@ fn polyline_into(graph: &Graph, e: &Edge, extra: f32, out: &mut Vec<[f32; 3]>) {
         // its centre so it reads as attached; the bow widens the ring.
         let offset = match e.route {
             Route::Bezier { offset } => offset,
-            Route::Straight => 0.0,
+            Route::Straight | Route::Ortho { .. } => 0.0,
         } + e.bow;
         let side = if offset < 0.0 { -1.0 } else { 1.0 };
         let r = na.radius + 6.0 + offset.abs() * 0.35;
@@ -636,10 +636,29 @@ fn polyline_into(graph: &Graph, e: &Edge, extra: f32, out: &mut Vec<[f32; 3]>) {
             (Route::Straight, s) if s.abs() > 1e-6 => Route::Bezier { offset: s },
             (Route::Straight, _) => Route::Straight,
             (Route::Bezier { offset }, s) => Route::Bezier { offset: offset + s },
+            (Route::Ortho { stub }, s) => Route::Ortho {
+                stub: stub.map(|st| st + s * 0.5), // parallels step apart
+            },
         };
         match route {
             Route::Straight => {
                 out.push(a_end);
+                out.push(b_end);
+            }
+            Route::Ortho { stub } => {
+                // The flow route (spec 031 SS2): out of the source toward
+                // the target, across, in — three segments whose corners
+                // stay square (arrowheads ride the tangents naturally).
+                let gap = (b_end[0] - a_end[0]).abs();
+                let stub = stub.unwrap_or((gap * 0.5).max(8.0));
+                let corner = if b_end[0] >= a_end[0] {
+                    a_end[0] + stub
+                } else {
+                    a_end[0] - stub
+                };
+                out.push(a_end);
+                out.push([corner, a_end[1], a_end[2]]);
+                out.push([corner, b_end[1], b_end[2]]);
                 out.push(b_end);
             }
             Route::Bezier { offset } => {
@@ -682,6 +701,7 @@ fn bezier(a: [f32; 3], c: [f32; 3], b: [f32; 3], t: f32, s: f32) -> [f32; 3] {
 /// along the side by `offset` (0..1). Circles for now — stage 7's port
 /// diagrams on rectangles re-derives this from the node's shape.
 pub fn port_world(graph: &Graph, port: &Port) -> [f32; 3] {
+    use crate::graph::Shape;
     let n = &graph.nodes[port.node];
     let (dir, tangent) = match port.side {
         InSide::Right => ([1.0, 0.0], [0.0, 1.0]),
@@ -689,10 +709,20 @@ pub fn port_world(graph: &Graph, port: &Port) -> [f32; 3] {
         InSide::Top => ([0.0, -1.0], [1.0, 0.0]),
         InSide::Bottom => ([0.0, 1.0], [1.0, 0.0]),
     };
-    let along = (port.offset - 0.5) * n.radius * 2.0;
+    // A block's ports ride its rectangle: the side's own half-extent
+    // pushes out, the other axis spreads along it (spec 031 §2, stage 7).
+    let (out, along_half) = if n.shape == Shape::Rect {
+        match port.side {
+            InSide::Left | InSide::Right => (n.radius, n.height),
+            InSide::Top | InSide::Bottom => (n.height, n.radius),
+        }
+    } else {
+        (n.radius, n.radius)
+    };
+    let along = (port.offset - 0.5) * along_half * 2.0;
     [
-        n.x + dir[0] * (n.radius + PORT_STANDOFF) + tangent[0] * along,
-        n.y + dir[1] * (n.radius + PORT_STANDOFF) + tangent[1] * along,
+        n.x + dir[0] * (out + PORT_STANDOFF) + tangent[0] * along,
+        n.y + dir[1] * (out + PORT_STANDOFF) + tangent[1] * along,
         n.z,
     ]
 }
@@ -820,6 +850,8 @@ mod tests {
             degree: 1,
             pinned: false,
             layers: Vec::new(),
+            height: crate::graph::RECT_HEIGHT,
+            shape: crate::graph::Shape::Circle,
         }
     }
 
@@ -1598,6 +1630,85 @@ mod tests {
         assert_eq!(
             f3.seg_attrs[0].edge_len, 0.0,
             "a plain stroke skips the pass"
+        );
+    }
+
+    #[test]
+    fn an_ortho_route_steps_between_the_ports() {
+        // The flow route (spec 031 SS2, stage 7): out of the source's
+        // port, across, into the target's — three square-cornered
+        // segments, and the head rides the last tangent.
+        let mut e = edge(0, 1);
+        e.route = Route::Ortho { stub: None };
+        e.a_port = Some("out".into());
+        e.b_port = Some("in".into());
+        e.arrow = Arrow::Target;
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 60.0, 40.0)], vec![e]);
+        g.ports = vec![
+            port(0, "out", InSide::Right, 0.5),
+            port(1, "in", InSide::Left, 0.5),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 3, "out, across, in");
+        let a_end = f.segs[0].a;
+        let b_end = f.segs[2].b;
+        // The stub is half the gap: 7.5 world off a's port (x 7.5).
+        assert!((a_end[0] - 7.5).abs() < 1e-4, "starts at a's port");
+        // The middle segment is the vertical leg: one column of corners.
+        assert_eq!(f.segs[0].b[0], f.segs[1].a[0], "square corners");
+        // The stub is half the gap: a's port at 7.5, b's at 52.5 → 22.5.
+        assert!(
+            (f.segs[1].a[0] - (a_end[0] + 22.5)).abs() < 1e-4,
+            "half-way across"
+        );
+        assert!(
+            (f.segs[1].a[1] - a_end[1]).abs() < 1e-4,
+            "across at a's height"
+        );
+        assert!(
+            (f.segs[1].b[1] - b_end[1]).abs() < 1e-4,
+            "down to b's height"
+        );
+        assert!(
+            (b_end[0] - 52.5).abs() < 1e-4 && (b_end[1] - 40.0).abs() < 1e-4,
+            "ends at b's port"
+        );
+        // The head points into the target along the last tangent (+x:
+        // b's left port faces the corner from the left).
+        assert_eq!(f.arrows.len(), 1);
+        assert!(
+            f.arrows[0].angle.abs() < 1e-4,
+            "angle {}",
+            f.arrows[0].angle
+        );
+    }
+
+    #[test]
+    fn a_rect_node_puts_its_ports_on_its_sides() {
+        // A flow block (spec 031 SS2, stage 7): the port rides the
+        // rectangle — pushed out by the side's half-extent, spread along
+        // the other axis.
+        let mut n = node("blk", 0.0, 0.0);
+        n.shape = crate::graph::Shape::Rect;
+        n.radius = 46.0; // its half-width
+        n.height = 22.0;
+        let mut g = graph(vec![n], vec![]);
+        g.ports = vec![
+            port(0, "in", InSide::Left, 0.25),
+            port(0, "out", InSide::Right, 0.75),
+        ];
+        let f = build_frame(&g, false);
+        let near = |a: [f32; 3], x: f32, y: f32| (a[0] - x).abs() < 1e-4 && (a[1] - y).abs() < 1e-4;
+        // Left: x −(46 + 2.5), y at a quarter of the height's span.
+        assert!(
+            near(f.port_pos[0], -(46.0 + PORT_STANDOFF), (0.25 - 0.5) * 44.0),
+            "in: {:?}",
+            f.port_pos[0]
+        );
+        assert!(
+            near(f.port_pos[1], 46.0 + PORT_STANDOFF, (0.75 - 0.5) * 44.0),
+            "out: {:?}",
+            f.port_pos[1]
         );
     }
 

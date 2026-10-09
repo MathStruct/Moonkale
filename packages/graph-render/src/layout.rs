@@ -157,6 +157,7 @@ mod tests {
                 key: String::new(),
                 color: None,
                 layers: Vec::new(),
+                ..Default::default()
             })
             .collect();
         nodes[0].id = "home".into();
@@ -220,6 +221,7 @@ mod tests {
                 key: String::new(),
                 color: None,
                 layers: Vec::new(),
+                ..Default::default()
             })
             .collect();
         let edges = (1..n)

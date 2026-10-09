@@ -30,6 +30,11 @@ struct NodeAttr {
     /// 0 = a node, 1 = a port: the shader's port LOD needs to tell them
     /// apart (spec 031 §6) — the port rides this pipeline (stage 2).
     kind: f32,
+    /// 0 = a circle, 1 = a rect (a flow block, spec 031 §2, stage 7);
+    /// `radius` is then its half-width.
+    shape: f32,
+    /// A rect's half-height in world units.
+    height: f32,
 }
 
 /// One primitive class's persistent instance buffers. Geometry and
@@ -320,6 +325,16 @@ impl Renderer {
                     format: wgpu::VertexFormat::Float32,
                     offset: 24,
                     shader_location: 4,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 28,
+                    shader_location: 5,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 32,
+                    shader_location: 6,
                 },
             ],
         );
@@ -691,6 +706,8 @@ impl Renderer {
                         },
                         selected: sel as u32 as f32,
                         kind: 0.0,
+                        shape: (n.shape == crate::graph::Shape::Rect) as u32 as f32,
+                        height: n.height,
                     }
                 })
                 .collect();
@@ -700,6 +717,8 @@ impl Renderer {
                     radius: frame::PORT_RADIUS,
                     selected: 0.0,
                     kind: 1.0,
+                    shape: 0.0,
+                    height: 0.0,
                 });
             }
             for j in self.frame.junctions.iter().take(junction_count) {
@@ -708,6 +727,8 @@ impl Renderer {
                     radius: JUNCTION_RADIUS,
                     selected: 0.0,
                     kind: 3.0, // a junction: no port LOD suppression
+                    shape: 0.0,
+                    height: 0.0,
                 });
             }
             self.queue

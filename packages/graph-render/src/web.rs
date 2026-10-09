@@ -232,6 +232,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             key: String::new(),
             color: None,
             layers: Vec::new(),
+            ..Default::default()
         })
         .collect();
     let mut edges = Vec::new();
@@ -606,6 +607,39 @@ impl GraphView {
         s.camera.fit_rect((x0, y0, x1, y1), (z0, z1), 40.0);
         s.auto_fit = false;
         s.dirty = true;
+    }
+
+    /// The layered arrangement (spec 031 SS5, stage 7): every wire left
+    /// to right, columns and rows — the flow editor's Layout button. The
+    /// nodes land pinned (a flow's positions are the host's document);
+    /// the host harvests them with [`node_positions`](Self::node_positions).
+    pub fn hier_layout(&self) {
+        let mut s = self.state.borrow_mut();
+        s.graph.hierarchize();
+        s.layout.running = false; // the arrangement is final, not settling
+        s.auto_fit = true;
+        let g = std::mem::take(&mut s.graph);
+        s.camera.fit(&g, 40.0); // the whole arrangement on screen
+        s.graph = g;
+        s.pos_rev += 1;
+        s.dirty = true;
+    }
+
+    /// Every node's world position as `{"id":[x,y],...}` — the host's
+    /// harvest after a drag or a layout (stage 7: the flow document owns
+    /// the positions, the renderer only holds them between gestures).
+    pub fn node_positions(&self) -> String {
+        let s = self.state.borrow();
+        let mut out = String::from("{");
+        for (i, n) in s.graph.nodes.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&serde_json::to_string(&n.id).unwrap_or_default());
+            out.push_str(&format!(":[{:.3},{:.3}]", n.x, n.y));
+        }
+        out.push('}');
+        out
     }
 
     pub fn relayout(&self) {

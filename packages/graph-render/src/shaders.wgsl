@@ -40,14 +40,18 @@ struct NodeInst {
     @location(2) radius: f32,
     @location(3) selected: f32,
     @location(4) kind: f32,      // 0 = node, 1 = port (spec 031 §6: port LOD)
+    @location(5) shape: f32,     // 0 = circle, 1 = a rect block (§2, stage 7)
+    @location(6) height: f32,    // a rect's half-height, world
 };
 struct NodeOut {
     @builtin(position) clip: vec4<f32>,
-    @location(0) uv: vec2<f32>,
+    @location(0) uv: vec2<f32>,     // ±1 across the instance
     @location(1) color: vec4<f32>,
     @location(2) fog: f32,
     @location(3) selected: f32,
     @location(4) kind: f32,
+    @location(5) shape: f32,
+    @location(6) extent: vec2<f32>, // the instance's half-extents, screen px
 };
 
 @vertex
@@ -56,20 +60,33 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
     let c = corners[vi];
     let pr = project(inst.pos);
     // Radius in pixels, never smaller than 2px when zoomed far out; in 3D
-    // nearer nodes are bigger.
-    var r: f32;
-    if (camera.mode > 0.5) {
-        r = max(inst.radius * clamp(camera.dist / pr.w, 0.2, 4.0), 2.0) + 1.0;
+    // nearer nodes are bigger. A rect (a flow block, stage 7) spans its
+    // half-width and half-height instead of one radius.
+    var ext: vec2<f32>;
+    if (inst.shape < 0.5) {
+        // A circle has one radius; its (unused) rect height must not
+        // balloon it — every node defaults to height 22.
+        let r = inst.radius
+            * select(camera.scale, clamp(camera.dist / pr.w, 0.2, 4.0), camera.mode > 0.5);
+        ext = vec2<f32>(max(r, 2.0) + 1.0);
+    } else if (camera.mode > 0.5) {
+        let a = clamp(camera.dist / pr.w, 0.2, 4.0);
+        ext = vec2<f32>(max(inst.radius * a, 2.0), max(inst.height * a, 2.0)) + vec2<f32>(1.0, 1.0);
     } else {
-        r = max(inst.radius * camera.scale, 2.0) + 1.0;
+        ext = vec2<f32>(
+            max(inst.radius * camera.scale, 2.0),
+            max(inst.height * camera.scale, 2.0),
+        ) + vec2<f32>(1.0, 1.0);
     }
-    let off = vec2<f32>(c.x * r / (camera.viewport.x * 0.5), c.y * r / (camera.viewport.y * 0.5));
+    let off = vec2<f32>(c.x * ext.x / (camera.viewport.x * 0.5), c.y * ext.y / (camera.viewport.y * 0.5));
     var out: NodeOut;
     out.clip = vec4<f32>(pr.x + off.x, pr.y + off.y, pr.z, 1.0);
     out.uv = c;
     out.color = inst.color;
     out.fog = fog(pr.w);
     out.selected = inst.selected;
+    out.shape = inst.shape;
+    out.extent = ext;
     // Port LOD (spec 031 §6): once a port's projected size falls under a
     // couple of pixels it stops drawing — the scale lives here, not in the
     // fragment. kind becomes 2 = a suppressed port. kind 3 (a hyperedge
@@ -85,9 +102,20 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
 @fragment
 fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
     if (in.kind > 1.5 && in.kind < 2.5) { discard; } // a port under the pixel threshold
-    let d = length(in.uv);
-    let edge = fwidth(d) * 1.5;
-    let alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
+    // A rect block (spec 031 §2, stage 7): a rounded box in screen pixels;
+    // a circle: the uv distance as before.
+    var alpha: f32;
+    var d: f32 = length(in.uv);  // the rim band below reads it in both shapes
+    if (in.shape > 0.5) {
+        let corner = min(in.extent.x, in.extent.y) * 0.25;
+        let q = abs(in.uv * in.extent) - (in.extent - vec2<f32>(corner, corner));
+        d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - corner;
+        let edge = fwidth(d) * 1.5;
+        alpha = 1.0 - smoothstep(-edge, edge, d);
+    } else {
+        let edge = fwidth(d) * 1.5;
+        alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
+    }
     if (alpha < 0.02) { discard; }
     // A selected node wears a light ring; an unselected one a darker rim.
     let rim = smoothstep(0.7, 1.0, d) * 0.35;
