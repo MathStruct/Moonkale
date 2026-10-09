@@ -40,8 +40,9 @@ struct NodeInst {
     @location(2) radius: f32,
     @location(3) selected: f32,
     @location(4) kind: f32,      // 0 = node, 1 = port (spec 031 §6: port LOD)
-    @location(5) shape: f32,     // 0 = circle, 1 = a rect block (§2, stage 7)
-    @location(6) height: f32,    // a rect's half-height, world
+    @location(5) shape: f32,     // 0 = circle, 1 = rect, 2 = diamond (§2)
+    @location(6) height: f32,    // a block's half-height, world
+    @location(7) stroke: vec4<f32>, // a host rim colour (§2, stage 8)
 };
 struct NodeOut {
     @builtin(position) clip: vec4<f32>,
@@ -52,6 +53,7 @@ struct NodeOut {
     @location(4) kind: f32,
     @location(5) shape: f32,
     @location(6) extent: vec2<f32>, // the instance's half-extents, screen px
+    @location(7) stroke: vec4<f32>,
 };
 
 @vertex
@@ -87,6 +89,7 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
     out.selected = inst.selected;
     out.shape = inst.shape;
     out.extent = ext;
+    out.stroke = inst.stroke;
     // Port LOD (spec 031 §6): once a port's projected size falls under a
     // couple of pixels it stops drawing — the scale lives here, not in the
     // fragment. kind becomes 2 = a suppressed port. kind 3 (a hyperedge
@@ -102,17 +105,24 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
 @fragment
 fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
     if (in.kind > 1.5 && in.kind < 2.5) { discard; } // a port under the pixel threshold
-    // A rect block (spec 031 §2, stage 7): a rounded box in screen pixels;
-    // a circle: the uv distance as before.
+    // Shapes (spec 031 §2): a rect block and a diamond are SDFs in screen
+    // pixels; a circle is the uv distance as before. A diamond inscribes
+    // its extent box — the box's corners stay dark.
     var alpha: f32;
-    var d: f32 = length(in.uv);  // the rim band below reads it in both shapes
-    if (in.shape > 0.5) {
+    var d: f32;  // screen px inside the shape (negative), 0 at the rim
+    if (in.shape > 1.5) {
+        let p = abs(in.uv) * in.extent;
+        d = (p.x / in.extent.x + p.y / in.extent.y - 1.0) * min(in.extent.x, in.extent.y);
+        let edge = fwidth(d) * 1.5;
+        alpha = 1.0 - smoothstep(-edge, edge, d);
+    } else if (in.shape > 0.5) {
         let corner = min(in.extent.x, in.extent.y) * 0.25;
         let q = abs(in.uv * in.extent) - (in.extent - vec2<f32>(corner, corner));
         d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - corner;
         let edge = fwidth(d) * 1.5;
         alpha = 1.0 - smoothstep(-edge, edge, d);
     } else {
+        d = length(in.uv);
         let edge = fwidth(d) * 1.5;
         alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
     }
@@ -121,9 +131,17 @@ fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
     let rim = smoothstep(0.7, 1.0, d) * 0.35;
     let ring = mix(in.color.rgb * (1.0 - rim), vec3<f32>(1.0), rim * 0.9);
     let bg = vec3<f32>(0.047, 0.055, 0.075);
-    let rgb = select(mix(in.color.rgb * (1.0 - rim), bg, in.fog),
+    var rgb = select(mix(in.color.rgb * (1.0 - rim), bg, in.fog),
                      mix(ring, bg, in.fog),
                      in.selected > 0.5);
+    // A host stroke (spec 031 §2, stage 8): a ~2 px band in the host's
+    // colour just inside the rim (the rim itself is where the fill's
+    // alpha fades into the background — a band there would blend dark).
+    // Selection wins over styling — the light ring reads louder.
+    if (in.stroke.a > 0.5 && in.selected < 0.5) {
+        let band = select(smoothstep(0.72, 0.95, d), smoothstep(-3.5, -1.5, d), in.shape > 0.5);
+        rgb = mix(rgb, in.stroke.rgb, band);
+    }
     return vec4<f32>(rgb, in.color.a * alpha);
 }
 

@@ -12,6 +12,10 @@ pub const BOW_SPACING: f32 = 9.0;
 pub enum Shape {
     Circle,
     Rect,
+    /// A decision/branch block (spec 031 §2): same half-extents as a
+    /// rect, its lit area the inscribed rhombus — the bounding box's
+    /// corners stay dark, which a pixel check can tell apart.
+    Diamond,
 }
 
 /// A rect block's default half-height (world units); the host sizes it up
@@ -58,6 +62,15 @@ pub struct InNode {
     /// A rect's half-height in world units; absent = `RECT_HEIGHT`.
     #[serde(default)]
     pub height: Option<f32>,
+    /// A rim colour `#rrggbb` (spec 031 §2, stage 8) — a ~2 px band along
+    /// the shape's edge; absent = no stroke.
+    #[serde(default)]
+    pub stroke: Option<String>,
+    /// A short glyph (spec 031 §2, stage 8) drawn on the label overlay,
+    /// centered on the node — only while hovered or selected (§6 keeps
+    /// per-node ink for the few).
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -433,6 +446,12 @@ pub struct InDeltaNode {
     pub width: Option<f32>,
     #[serde(default)]
     pub height: Option<f32>,
+    /// A rim colour; absent keeps the old one on a replace.
+    #[serde(default)]
+    pub stroke: Option<String>,
+    /// An overlay glyph; absent keeps the old one on a replace.
+    #[serde(default)]
+    pub icon: Option<String>,
 }
 
 /// An edge arriving through a delta: endpoints by **node id**, not index —
@@ -543,9 +562,14 @@ pub struct Node {
     /// A rect's half-height; a circle ignores it (spec 031 §2, stage 7).
     pub height: f32,
     /// The silhouette (spec 031 §2): circles everywhere, rects for flow
-    /// blocks — a rect's `radius` is its half-width, and the degree
-    /// recompute leaves it alone.
+    /// blocks, diamonds for decision blocks — a rect's `radius` is its
+    /// half-width, and the degree recompute leaves it alone.
     pub shape: Shape,
+    /// A rim colour (spec 031 §2, stage 8): alpha 0 = none.
+    pub stroke: [f32; 4],
+    /// An overlay glyph (spec 031 §2, stage 8): drawn only while hovered
+    /// or selected.
+    pub icon: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -725,17 +749,17 @@ impl Graph {
                 let r = spread * ((i as f32 + 1.0) / (degree.len() as f32 + 1.0)).sqrt();
                 let deg = degree[i];
                 let n_kind = n.kind.clone();
-                let shape = if n.shape.as_deref() == Some("rect") {
-                    Shape::Rect
-                } else {
-                    Shape::Circle
+                let shape = match n.shape.as_deref() {
+                    Some("rect") => Shape::Rect,
+                    Some("diamond") => Shape::Diamond,
+                    _ => Shape::Circle,
                 };
                 let (x, y) = match n.pos {
                     Some([x, y]) => (x, y),
                     None => (r * t.cos(), r * t.sin()),
                 };
                 Node {
-                    radius: if shape == Shape::Rect {
+                    radius: if matches!(shape, Shape::Rect | Shape::Diamond) {
                         n.width.unwrap_or(RECT_WIDTH)
                     } else {
                         4.0 + (deg as f32).sqrt().min(6.0)
@@ -747,6 +771,12 @@ impl Graph {
                         .as_deref()
                         .and_then(|c| parse_hex(c, 1.0))
                         .unwrap_or_else(|| color_for(&n.kind)),
+                    stroke: n
+                        .stroke
+                        .as_deref()
+                        .and_then(|c| parse_hex(c, 1.0))
+                        .unwrap_or([0.0, 0.0, 0.0, 0.0]),
+                    icon: n.icon,
                     id: n.id,
                     label: n.label,
                     kind: n.kind,
@@ -1040,6 +1070,7 @@ impl Graph {
                 let shape = match n.shape.as_deref() {
                     Some("rect") => Shape::Rect,
                     Some("circle") => Shape::Circle,
+                    Some("diamond") => Shape::Diamond,
                     _ => old.shape, // absent keeps the silhouette
                 };
                 let new = Node {
@@ -1052,8 +1083,9 @@ impl Graph {
                     z,
                     radius: match (shape, n.width) {
                         (Shape::Rect, Some(w)) => w,
+                        (Shape::Diamond, Some(w)) => w,
                         _ if shape != old.shape => {
-                            if shape == Shape::Rect {
+                            if matches!(shape, Shape::Rect | Shape::Diamond) {
                                 RECT_WIDTH
                             } else {
                                 4.0 + (old.degree as f32).sqrt().min(6.0)
@@ -1064,6 +1096,12 @@ impl Graph {
                     height: n.height.unwrap_or(old.height),
                     shape,
                     color,
+                    stroke: n
+                        .stroke
+                        .as_deref()
+                        .and_then(|c| parse_hex(c, 1.0))
+                        .unwrap_or(old.stroke),
+                    icon: n.icon.or(old.icon.clone()),
                     degree: old.degree,
                     pinned,
                     layers: n.layers,
@@ -1081,10 +1119,10 @@ impl Graph {
                 };
                 let z = layer_z(&n.kind, self.nodes.len());
                 ids.insert(n.id.clone(), self.nodes.len());
-                let shape = if n.shape.as_deref() == Some("rect") {
-                    Shape::Rect
-                } else {
-                    Shape::Circle
+                let shape = match n.shape.as_deref() {
+                    Some("rect") => Shape::Rect,
+                    Some("diamond") => Shape::Diamond,
+                    _ => Shape::Circle,
                 };
                 self.nodes.push(Node {
                     id: n.id,
@@ -1094,7 +1132,7 @@ impl Graph {
                     x,
                     y,
                     z,
-                    radius: if shape == Shape::Rect {
+                    radius: if matches!(shape, Shape::Rect | Shape::Diamond) {
                         n.width.unwrap_or(RECT_WIDTH)
                     } else {
                         4.0
@@ -1102,6 +1140,12 @@ impl Graph {
                     height: n.height.unwrap_or(RECT_HEIGHT),
                     shape,
                     color,
+                    stroke: n
+                        .stroke
+                        .as_deref()
+                        .and_then(|c| parse_hex(c, 1.0))
+                        .unwrap_or([0.0, 0.0, 0.0, 0.0]),
+                    icon: n.icon,
                     degree: 0,
                     pinned: n.pinned,
                     layers: n.layers,
@@ -1362,7 +1406,7 @@ impl Graph {
     ) -> Option<(f32, f32, f32, f32)> {
         let first = it.next()?;
         let extent = |n: &Node| {
-            let y = if n.shape == Shape::Rect {
+            let y = if matches!(n.shape, Shape::Rect | Shape::Diamond) {
                 n.height
             } else {
                 n.radius
@@ -1859,6 +1903,51 @@ mod delta_tests {
         assert!((blk.x - 123.0).abs() < 1e-4 && (blk.y + 45.0).abs() < 1e-4);
         assert!(blk.pinned, "the host placed it; the physics leave it");
         assert!(!g.nodes[1].pinned, "the spiral one is free to settle");
+    }
+
+    #[test]
+    fn diamonds_carry_a_stroke_and_an_icon() {
+        // Stage 8 (spec 031 §2): a third shape parses and sizes like a
+        // block (half-extents, not the degree radius), a rim colour rides
+        // along, and the icon survives a replace that names neither.
+        let mut g = Graph::from_input(InGraph {
+            nodes: vec![InNode {
+                id: "dec".into(),
+                label: "Decision".into(),
+                kind: "file".into(),
+                shape: Some("diamond".into()),
+                width: Some(50.0),
+                height: Some(24.0),
+                stroke: Some("#ff8800".into()),
+                icon: Some("◆".into()),
+                pos: Some([10.0, 10.0]),
+                pinned: true,
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let n = &g.nodes[0];
+        assert_eq!(n.shape, Shape::Diamond);
+        assert!((n.radius - 50.0).abs() < 1e-4, "a block's half-width");
+        assert_eq!(n.icon.as_deref(), Some("◆"));
+        let stroke = n.stroke;
+        assert!((stroke[0] - 1.0).abs() < 0.01 && stroke[3] > 0.99, "parsed");
+
+        // A replace without stroke/icon keeps them (like the silhouette).
+        g.apply_delta(InDelta {
+            add_nodes: vec![InDeltaNode {
+                id: "dec".into(),
+                label: "Decision".into(),
+                kind: "file".into(),
+                pos: Some([30.0, 10.0]),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        let n = &g.nodes[0];
+        assert_eq!(n.shape, Shape::Diamond, "the silhouette survives");
+        assert_eq!(n.stroke, stroke, "the stroke survives");
+        assert_eq!(n.icon.as_deref(), Some("◆"), "the icon survives");
     }
 
     #[test]

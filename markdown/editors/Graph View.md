@@ -86,4 +86,6 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 
 - **Stage 7c — parity closed**: undo/redo (document-JSON snapshots, Ctrl+Z/Y — a field's Ctrl+Z stays its native text undo, spec 001), the parameter editor floating beside its block (positioned from the engine's `select`/`moved` screen reports), and the dioxus-flow remnants deleted. Engine-side: a pinned node with `pos` is the host's to move (undo restores coordinates on the canvas), and events carry their payloads (`select`/`moved` include screen positions) because a host cannot call back into the view from inside an event — the state borrow is held.
 
+- **Stage 8 — the §2 presentation gaps**: a third shape (`shape: "diamond"` — half-extents and side ports like a rect, the lit area the inscribed rhombus), a host stroke (`stroke: "#rrggbb"` — a ~2 px band inside the rim; selection's ring wins), and node icons (`icon` — a glyph on the label overlay, hovered/selected nodes only, ink contrasting the node's fill). Hovers now patch two instance slots instead of re-uploading the whole appearance buffer (§6's partial buffer updates — hover at 100 k: 0.97 → 0.29 ms/frame). `graph-shapes.mjs` covers it.
+
 `dioxus-flow` is retired (ADR-0018): typed ports, auto-layout, undo, parameter editing, the Lux blocks unchanged, the broken-file guard — all on the one engine.

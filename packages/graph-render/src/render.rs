@@ -30,11 +30,13 @@ struct NodeAttr {
     /// 0 = a node, 1 = a port: the shader's port LOD needs to tell them
     /// apart (spec 031 §6) — the port rides this pipeline (stage 2).
     kind: f32,
-    /// 0 = a circle, 1 = a rect (a flow block, spec 031 §2, stage 7);
-    /// `radius` is then its half-width.
+    /// 0 = a circle, 1 = a rect (a flow block, spec 031 §2, stage 7),
+    /// 2 = a diamond (stage 8); `radius` is then its half-width.
     shape: f32,
     /// A rect's half-height in world units.
     height: f32,
+    /// A host rim colour (spec 031 §2, stage 8); alpha 0 = none.
+    stroke: [f32; 4],
 }
 
 /// One primitive class's persistent instance buffers. Geometry and
@@ -50,6 +52,10 @@ struct InstBufs {
     attr_rev: u64,
     hover_rev: u64,
     sel_rev: u64,
+    /// The hovered node whose styling is baked into the attr buffer —
+    /// the next hover patches two slots instead of re-uploading the
+    /// whole appearance buffer (spec 031 §6, partial buffer updates).
+    hovered: Option<usize>,
 }
 
 impl InstBufs {
@@ -70,6 +76,7 @@ impl InstBufs {
             attr_rev: u64::MAX,
             hover_rev: u64::MAX,
             sel_rev: u64::MAX,
+            hovered: None,
         }
     }
 
@@ -335,6 +342,11 @@ impl Renderer {
                     format: wgpu::VertexFormat::Float32,
                     offset: 32,
                     shader_location: 6,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 36,
+                    shader_location: 7,
                 },
             ],
         );
@@ -677,39 +689,44 @@ impl Renderer {
                 .write_buffer(&self.node_bufs.pos, 0, bytemuck::cast_slice(&pos));
             self.node_bufs.pos_rev = pos_rev;
         }
-        if attr_rev != self.node_bufs.attr_rev
-            || hover_rev != self.node_bufs.hover_rev
-            || sel_rev != self.node_bufs.sel_rev
-        {
+        // One node's appearance — shared by the full rebuild and the
+        // two-slot hover patch below.
+        let node_attr = |i: usize, h: bool| -> NodeAttr {
+            let n = &graph.nodes[i];
+            let sel = selected.nodes.contains(&n.id);
+            // A node in only-hidden layers keeps its slot (indices stay
+            // aligned) but draws nothing (spec 031 §3).
+            let hidden = !self.frame.node_visible.get(i).copied().unwrap_or(true);
+            let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
+            if hidden {
+                color[3] = 0.0;
+            }
+            NodeAttr {
+                color,
+                radius: if h {
+                    n.radius * 1.4
+                } else if sel {
+                    n.radius * 1.15
+                } else {
+                    n.radius
+                },
+                selected: sel as u32 as f32,
+                kind: 0.0,
+                shape: match n.shape {
+                    crate::graph::Shape::Circle => 0.0,
+                    crate::graph::Shape::Rect => 1.0,
+                    crate::graph::Shape::Diamond => 2.0,
+                },
+                height: n.height,
+                stroke: if sel { [0.0; 4] } else { n.stroke },
+            }
+        };
+        if attr_rev != self.node_bufs.attr_rev || sel_rev != self.node_bufs.sel_rev {
             let mut attr: Vec<NodeAttr> = graph
                 .nodes
                 .iter()
                 .enumerate()
-                .map(|(i, n)| {
-                    let h = Some(i) == hovered;
-                    let sel = selected.nodes.contains(&n.id);
-                    // A node in only-hidden layers keeps its slot (indices
-                    // stay aligned) but draws nothing (spec 031 §3).
-                    let hidden = !self.frame.node_visible.get(i).copied().unwrap_or(true);
-                    let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
-                    if hidden {
-                        color[3] = 0.0;
-                    }
-                    NodeAttr {
-                        color,
-                        radius: if h {
-                            n.radius * 1.4
-                        } else if sel {
-                            n.radius * 1.15
-                        } else {
-                            n.radius
-                        },
-                        selected: sel as u32 as f32,
-                        kind: 0.0,
-                        shape: (n.shape == crate::graph::Shape::Rect) as u32 as f32,
-                        height: n.height,
-                    }
-                })
+                .map(|(i, _)| node_attr(i, Some(i) == hovered))
                 .collect();
             for p in graph.ports.iter().take(port_count) {
                 attr.push(NodeAttr {
@@ -719,6 +736,7 @@ impl Renderer {
                     kind: 1.0,
                     shape: 0.0,
                     height: 0.0,
+                    stroke: [0.0; 4],
                 });
             }
             for j in self.frame.junctions.iter().take(junction_count) {
@@ -729,6 +747,7 @@ impl Renderer {
                     kind: 3.0, // a junction: no port LOD suppression
                     shape: 0.0,
                     height: 0.0,
+                    stroke: [0.0; 4],
                 });
             }
             self.queue
@@ -736,6 +755,29 @@ impl Renderer {
             self.node_bufs.attr_rev = attr_rev;
             self.node_bufs.hover_rev = hover_rev;
             self.node_bufs.sel_rev = sel_rev;
+            self.node_bufs.hovered = hovered; // baked into the rebuild
+        } else if hover_rev != self.node_bufs.hover_rev {
+            // A hover restyles exactly two nodes (spec 031 §6: partial
+            // buffer updates) — patch their slots, not 5 MB of instances.
+            let slot = std::mem::size_of::<NodeAttr>() as u64;
+            if let Some(old) = self.node_bufs.hovered.filter(|i| *i < graph.nodes.len()) {
+                let a = [node_attr(old, false)];
+                self.queue.write_buffer(
+                    &self.node_bufs.attr,
+                    old as u64 * slot,
+                    bytemuck::cast_slice(&a),
+                );
+            }
+            if let Some(new) = hovered.filter(|i| *i < graph.nodes.len()) {
+                let a = [node_attr(new, true)];
+                self.queue.write_buffer(
+                    &self.node_bufs.attr,
+                    new as u64 * slot,
+                    bytemuck::cast_slice(&a),
+                );
+            }
+            self.node_bufs.hover_rev = hover_rev;
+            self.node_bufs.hovered = hovered;
         }
         if pos_rev != self.seg_bufs.pos_rev {
             // The frame's segments upload as they are; the pending wire, if

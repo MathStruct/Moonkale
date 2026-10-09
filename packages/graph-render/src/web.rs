@@ -37,6 +37,10 @@ struct State {
     /// every frame while true — the clock moves even when nothing is
     /// dirty. Recomputed wherever the graph changes.
     animates: bool,
+    /// Any node carries an icon (spec 031 §2, stage 8): gates the
+    /// overlay's icon scan — a second pass over every node per frame
+    /// that a 100 k-node graph must not pay for nothing.
+    has_icons: bool,
     /// The pulse clock's zero (`performance.now` at create); `camera.time`
     /// is the elapsed seconds since.
     t0_ms: f64,
@@ -312,6 +316,7 @@ pub async fn create(
         .and_then(|c| c.dyn_into::<web_sys::CanvasRenderingContext2d>().ok())
         .ok_or_else(|| JsValue::from_str("no 2d context for the label overlay"))?;
     let graph = Graph::default();
+    let has_icons = false;
     let layout = Layout::new(&graph);
     let animates_at_create = animates(&graph);
     let state = Rc::new(RefCell::new(State {
@@ -331,6 +336,7 @@ pub async fn create(
         dirty: true,
         alive: true,
         animates: animates_at_create,
+        has_icons,
         t0_ms: web_sys::window()
             .and_then(|w| w.performance())
             .map(|p| p.now())
@@ -397,10 +403,12 @@ impl GraphView {
         // node is gone — a stale index panicked every pointer move (#12,
         // P-155; the stage 4–6 review's #2).
         let dragged = s.dragged_id();
+        let delta_icons = d.add_nodes.iter().any(|n| n.icon.is_some());
         if !s.graph.apply_delta(d) {
             return Ok(()); // nothing named existed; nothing to redraw
         }
         s.keep_drag(dragged);
+        s.has_icons |= delta_icons;
         // Warm, not restart: newcomers settle next to where they were put.
         let mut l = Layout::new(&s.graph);
         l.temperature = 3.0;
@@ -412,6 +420,7 @@ impl GraphView {
         s.pos_rev += 1;
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
+        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
         s.dirty = true;
         Ok(())
     }
@@ -446,6 +455,7 @@ impl GraphView {
         s.pos_rev += 1;
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
+        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
         s.dirty = true;
         true
     }
@@ -562,6 +572,7 @@ impl GraphView {
             s.pos_rev += 1;
             s.attr_rev += 1;
             s.animates = animates(&s.graph);
+            s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
             s.dirty = true;
             return Ok(());
         }
@@ -573,6 +584,7 @@ impl GraphView {
         s.pos_rev += 1;
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
+        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -1036,6 +1048,52 @@ fn draw_labels(s: &State) {
     let show_all = !huge && ((!s.camera.three_d && scale >= 0.9) || s.graph.nodes.len() <= 60);
     ctx.set_font("12px 'Segoe UI', sans-serif");
     ctx.set_text_baseline("middle");
+    // Icons (spec 031 §2, stage 8): a glyph centered on the node — but
+    // only while hovered or selected (§6 reserves per-node ink for the
+    // few), and only when the projected size can hold it. The scan is a
+    // second pass over every node per frame, so it waits until some node
+    // actually carries an icon.
+    if s.has_icons {
+        for (i, n) in s.graph.nodes.iter().enumerate() {
+            let Some(icon) = n.icon.as_deref() else {
+                continue;
+            };
+            let hovered = Some(i) == s.hovered;
+            if !hovered && !s.selected.nodes.contains(&n.id) {
+                continue;
+            }
+            if !node_visible(&s.graph, i) {
+                continue; // a layer-hidden node keeps its ink off too
+            }
+            let (x, y, r) = if s.camera.three_d {
+                let Some((x, y, w)) = s.camera.project(n.x, n.y, n.z) else {
+                    continue;
+                };
+                (x, y, n.radius * s.camera.size_factor(w))
+            } else {
+                let (x, y) = s.camera.world_to_screen(n.x, n.y);
+                (x, y, n.radius * scale.max(0.6))
+            };
+            if r < 7.0 {
+                continue; // LOD: a speck of ink is noise
+            }
+            // The ink contrasts with the node's own fill: a bright fill (the
+            // hovered node is white) wears the background's ink, a dark one
+            // the theme's label ink.
+            let lum = 0.2126 * n.color[0] + 0.7152 * n.color[1] + 0.0722 * n.color[2];
+            let bg_ink = format!(
+                "rgb({:.0},{:.0},{:.0})",
+                s.renderer.clear[0] * 255.0,
+                s.renderer.clear[1] * 255.0,
+                s.renderer.clear[2] * 255.0
+            );
+            let ink = if lum > 0.5 { bg_ink } else { s.label.clone() };
+            ctx.set_text_align("center");
+            ctx.set_fill_style_str(&ink);
+            let _ = ctx.fill_text(icon, x as f64, y as f64);
+            ctx.set_text_align("start");
+        }
+    }
     // Candidates by importance (hovered first, then degree), placed with a
     // screen-space collision test so labels never pile onto each other in a
     // dense cluster (spec 017 follow-up): the important ones win the space.

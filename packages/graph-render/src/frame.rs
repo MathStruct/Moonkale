@@ -709,9 +709,10 @@ pub fn port_world(graph: &Graph, port: &Port) -> [f32; 3] {
         InSide::Top => ([0.0, -1.0], [1.0, 0.0]),
         InSide::Bottom => ([0.0, 1.0], [1.0, 0.0]),
     };
-    // A block's ports ride its rectangle: the side's own half-extent
-    // pushes out, the other axis spreads along it (spec 031 §2, stage 7).
-    let (out, along_half) = if n.shape == Shape::Rect {
+    // A block's ports ride its rectangle — a diamond block too (spec 031
+    // §2, stage 8): the side's own half-extent pushes out, the other axis
+    // spreads along it (spec 031 §2, stage 7).
+    let (out, along_half) = if n.shape == Shape::Rect || n.shape == Shape::Diamond {
         match port.side {
             InSide::Left | InSide::Right => (n.radius, n.height),
             InSide::Top | InSide::Bottom => (n.height, n.radius),
@@ -852,6 +853,8 @@ mod tests {
             layers: Vec::new(),
             height: crate::graph::RECT_HEIGHT,
             shape: crate::graph::Shape::Circle,
+            stroke: [0.0, 0.0, 0.0, 0.0],
+            icon: None,
         }
     }
 
@@ -1707,6 +1710,33 @@ mod tests {
         );
         assert!(
             near(f.port_pos[1], 46.0 + PORT_STANDOFF, (0.75 - 0.5) * 44.0),
+            "out: {:?}",
+            f.port_pos[1]
+        );
+    }
+
+    #[test]
+    fn a_diamond_node_puts_its_ports_on_its_sides() {
+        // Stage 8 (spec 031 §2): a decision block's ports ride the same
+        // half-extents as a rect's.
+        let mut n = node("dec", 0.0, 0.0);
+        n.shape = crate::graph::Shape::Diamond;
+        n.radius = 50.0;
+        n.height = 24.0;
+        let mut g = graph(vec![n], vec![]);
+        g.ports = vec![
+            port(0, "in", InSide::Left, 0.5),
+            port(0, "out", InSide::Right, 0.5),
+        ];
+        let f = build_frame(&g, false);
+        let near = |a: [f32; 3], x: f32, y: f32| (a[0] - x).abs() < 1e-4 && (a[1] - y).abs() < 1e-4;
+        assert!(
+            near(f.port_pos[0], -(50.0 + PORT_STANDOFF), 0.0),
+            "in: {:?}",
+            f.port_pos[0]
+        );
+        assert!(
+            near(f.port_pos[1], 50.0 + PORT_STANDOFF, 0.0),
             "out: {:?}",
             f.port_pos[1]
         );
