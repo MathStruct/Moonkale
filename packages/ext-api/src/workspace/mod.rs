@@ -78,6 +78,7 @@ pub struct Workspace {
     /// LSP status and terminal requests.
     pub processes: ProcessesState,
     config: WorkspaceConfig,
+    shared: Signal<std::collections::HashMap<std::any::TypeId, Box<dyn std::any::Any>>>,
 }
 
 impl PartialEq for Workspace {
@@ -103,7 +104,28 @@ impl Workspace {
             remote: RemoteLinks::new(),
             processes: ProcessesState::new(),
             config,
+            shared: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
         }
+    }
+
+    /// Lazily create one runtime-owned service value per workspace and type.
+    /// Unlike platform services, this can contain reactive state created in the runtime.
+    pub fn shared_state<T: Clone + 'static>(&self, create: impl FnOnce() -> T) -> T {
+        let kind = std::any::TypeId::of::<T>();
+        if let Some(value) = self
+            .shared
+            .peek()
+            .get(&kind)
+            .and_then(|value| value.downcast_ref::<T>())
+        {
+            return value.clone();
+        }
+        let value = create();
+        let mut shared = self.shared;
+        shared.with_mut(|values| {
+            values.insert(kind, Box::new(value.clone()));
+        });
+        value
     }
 
     /// Focus an element by id once the next frame has rendered (commands
@@ -213,18 +235,31 @@ fn intern_panel_id(id: &str) -> &'static str {
     leaked
 }
 
-/// The identifier (letters, digits, `_`) around column `col` of line `line`
-/// (both 0-based, `col` in characters), or `None` on whitespace/punctuation.
+/// The identifier (letters, digits, `_`) around UTF-16 column `col` of line
+/// `line` (both 0-based), or `None` on whitespace/punctuation. UTF-16 columns
+/// match LSP and browser textarea offsets, including lines with non-BMP text.
 pub fn word_at(text: &str, line: u32, col: u32) -> Option<String> {
     let l = text.lines().nth(line as usize)?;
     let chars: Vec<char> = l.chars().collect();
     let is_word = |c: char| c.is_alphanumeric() || c == '_';
-    let col = (col as usize).min(chars.len());
+    let col = col as usize;
+    let mut units = 0usize;
+    let mut at = None;
+    for (i, ch) in chars.iter().enumerate() {
+        let width = ch.len_utf16();
+        if col < units + width {
+            at = Some(i);
+            break;
+        }
+        units += width;
+    }
     // Prefer the character under the caret, else the one before it.
-    let anchor = if col < chars.len() && is_word(chars[col]) {
-        col
-    } else if col > 0 && is_word(chars[col - 1]) {
-        col - 1
+    let anchor = if let Some(i) = at.filter(|&i| is_word(chars[i])) {
+        i
+    } else if let Some(i) = at.filter(|&i| i > 0 && is_word(chars[i - 1])) {
+        i - 1
+    } else if at.is_none() && units == col && !chars.is_empty() && is_word(*chars.last()?) {
+        chars.len() - 1
     } else {
         return None;
     };
@@ -253,6 +288,15 @@ mod word_tests {
         assert_eq!(word_at(t, 1, 24).as_deref(), Some("1"));
         assert_eq!(word_at(t, 0, 10), None); // between `)` and `{`
         assert_eq!(word_at(t, 9, 0), None);
+    }
+
+    #[test]
+    fn word_columns_follow_utf16_after_non_bmp_text() {
+        let t = "😀total_sum";
+        assert_eq!(word_at(t, 0, 2).as_deref(), Some("total_sum"));
+        assert_eq!(word_at(t, 0, 8).as_deref(), Some("total_sum"));
+        assert_eq!(word_at(t, 0, 11).as_deref(), Some("total_sum"));
+        assert_eq!(word_at(t, 0, 12), None);
     }
 }
 

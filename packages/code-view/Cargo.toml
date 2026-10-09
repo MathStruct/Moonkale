@@ -7,6 +7,15 @@ description = "The code editing component (CodeMirror 6 behind a swappable backe
 
 [dependencies]
 dioxus = { workspace = true }
+regex = "1"
+unicode-segmentation = { version = "1", optional = true }
+arborium = { version = "2.18.2", default-features = false }
+arborium-tree-sitter = "2.18.2"
+arborium-html = "2.18.2"
+arborium-markdown = "2.18.2"
+arborium-julia = "2.18.2"
+editor-core = { path = "vendor/editor-core" }
+dioxus-code = { version = "0.1.2", default-features = false, features = ["runtime", "lang-julia", "lang-python", "lang-c", "lang-cpp", "lang-javascript", "lang-typescript", "lang-tsx", "lang-go", "lang-lean", "lang-nix", "lang-toml", "lang-json", "lang-yaml", "lang-markdown", "lang-typst", "lang-sql", "lang-graphql", "lang-html", "lang-css", "lang-bash"] }
 moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
 moonkale-lsp = { workspace = true }
@@ -15,3 +24,22 @@ serde_json = "1"
 futures-timer = { version = "3", features = ["wasm-bindgen"] }
 futures-util = { version = "0.3", default-features = false }
 tracing = "0.1"
+
+[build-dependencies]
+cc = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["ClipboardEvent", "DataTransfer", "Event"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+arboard = { version = "3.6.1", optional = true, default-features = false, features = ["wayland-data-control"] }
+
+[features]
+layout-fixture = ["dep:unicode-segmentation"]
+native-desktop = ["dep:arboard"]
+spike-desktop = ["dioxus/desktop", "native-desktop"]
+spike-web = ["dioxus/web"]
+
+[dev-dependencies]
+futures-channel = "0.3"

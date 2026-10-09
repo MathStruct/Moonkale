@@ -196,14 +196,34 @@ impl Workspace {
     /// resolve and `create` is set — create `Target.md` next to `from`
     /// (path-like targets under the folder root) and open it.
     pub async fn follow_wiki(
-        mut self,
+        self,
         from: &Node,
         target: &str,
         create: bool,
     ) -> Result<Node, SourceError> {
-        if let Some(page) = self.resolve_wiki(from, target).await {
-            let node = self.open_relative_path(&page.native_key).await?;
-            return Ok(node);
+        self.follow_wiki_guarded(from, target, create, || true)
+            .await?
+            .ok_or(SourceError::NotFound)
+    }
+
+    /// Follow a link only while the originating editor request is current.
+    /// Resolved pages retain their source identity across folders.
+    pub async fn follow_wiki_guarded(
+        mut self,
+        from: &Node,
+        target: &str,
+        create: bool,
+        current: impl Fn() -> bool,
+    ) -> Result<Option<Node>, SourceError> {
+        let page = self.resolve_wiki(from, target).await;
+        if !current() {
+            return Ok(None);
+        }
+        if let Some(page) = page {
+            return self
+                .open_node_when(page.clone(), &current)
+                .await
+                .map(|opened| opened.then_some(page));
         }
         if !create {
             self.set_status(t!(self, L, "wiki-unresolved", target = target.to_string()));
@@ -230,13 +250,18 @@ impl Workspace {
                 .map(|n| n.id)
                 .ok_or_else(|| SourceError::Unsupported(format!("{dir}: no such folder")))?
         };
+        if !current() {
+            return Ok(None);
+        }
         let title = stem_of(&name).to_string();
         let node = self
             .create_text(&source_id, parent, &name, &format!("# {title}\n\n"))
             .await?;
-        self.open_node(node.clone()).await?;
+        if !self.open_node_when(node.clone(), &current).await? {
+            return Ok(None);
+        }
         self.set_status(t!(self, L, "created", name = rel.clone()));
-        Ok(node)
+        Ok(Some(node))
     }
 
     /// The files the index says link to `node` (asked *before* a rename:

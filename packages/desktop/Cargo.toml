@@ -21,6 +21,7 @@ moonkale-shell = { workspace = true }
 moonkale-distribution = { workspace = true }
 moonkale-editor-markdown = { workspace = true }
 moonkale-core = { workspace = true }
+moonkale-code-view = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-sources = { workspace = true }
 moonkale-index = { workspace = true }
@@ -49,7 +50,7 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 
 [features]
 default = []
-desktop = ["dioxus/desktop"]
+desktop = ["dioxus/desktop", "moonkale-code-view/native-desktop"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
 # Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
 julia = ["moonkale-distribution/julia"]

@@ -4,25 +4,59 @@
 use super::*;
 use crate::{t, L};
 
+#[derive(Clone, Copy)]
+struct RevealCounter(Signal<u64>);
+
 impl Workspace {
+    pub(super) fn set_active_document(&mut self, node: Option<NodeId>) {
+        if *self.docs.active.peek() != node {
+            self.docs.active.set(node);
+            self.docs.selection.set(None);
+            self.docs.cursor.set(None);
+            self.docs.cursor_line.set(None);
+            self.publish_presence();
+        }
+    }
+
     /// Open `node` (if not already) and ask its editor to place the cursor.
-    pub async fn reveal(mut self, node: Node, line: u32, col: u32) -> Result<(), SourceError> {
+    pub async fn reveal(self, node: Node, line: u32, col: u32) -> Result<(), SourceError> {
+        self.reveal_guarded(node, line, col, || true)
+            .await
+            .map(|_| ())
+    }
+
+    /// Reveal only while the originating asynchronous request is current.
+    /// The predicate is checked again after loading and before opening a tab.
+    /// Returns false when navigation was superseded, without changing views.
+    pub async fn reveal_guarded(
+        mut self,
+        node: Node,
+        line: u32,
+        col: u32,
+        current: impl Fn() -> bool,
+    ) -> Result<bool, SourceError> {
         let id = node.id;
-        self.open_node(node).await?;
-        let seq = self
+        if !self.open_node_when(node, current).await? {
+            return Ok(false);
+        }
+        let mut counter = self
+            .shared_state(|| RevealCounter(Signal::new_in_scope(0, ScopeId::ROOT)))
+            .0;
+        let last = self
             .docs
             .reveal
             .peek()
             .as_ref()
-            .map(|r| r.seq + 1)
-            .unwrap_or(1);
+            .map_or(0, |reveal| reveal.seq);
+        let seq = (*counter.peek()).max(last).saturating_add(1);
+        counter.set(seq);
         self.docs.reveal.set(Some(Reveal {
             node: id,
             line,
             col,
             seq,
         }));
-        Ok(())
+        Ok(true)
     }
 
     /// Open a file by path relative to any open folder (used by terminal
@@ -79,8 +113,8 @@ impl Workspace {
         }
     }
 
-    /// The editor reports the caret of `node` (line, column; 0-based).
-    /// Keeps `cursor_line` (presence) in step (Milestone 14).
+    /// The editor reports the caret of `node` (line and UTF-16 column; both
+    /// 0-based, matching LSP). Keeps `cursor_line` (presence) in step.
     pub fn set_cursor(&mut self, node: NodeId, line: u32, col: u32) {
         if *self.docs.active.peek() != Some(node) {
             return;
@@ -89,6 +123,68 @@ impl Workspace {
             self.docs.cursor.set(Some((line, col)));
         }
         self.set_cursor_line(node, line);
+    }
+
+    /// Record the active selection of `node` as absolute UTF-16 offsets into
+    /// the document. `anchor` is where the selection began and `head` is its
+    /// active end (the caret); equal offsets represent a caret with no range.
+    pub fn set_selection(&mut self, node: NodeId, anchor: u32, head: u32) {
+        if *self.docs.active.peek() != Some(node) {
+            return;
+        }
+        let Some(doc) = self.document(node) else {
+            return;
+        };
+        let length = self
+            .docs
+            .editor_sessions
+            .peek()
+            .get(&node)
+            .filter(|session| session.peek().snapshot().text == doc.peek().text)
+            .map(|session| session.peek().utf16_len())
+            .unwrap_or_else(|| doc.peek().text.encode_utf16().count() as u32);
+        if anchor > length || head > length {
+            return;
+        }
+        if *self.docs.selection.peek() != Some((anchor, head)) {
+            self.docs.selection.set(Some((anchor, head)));
+        }
+    }
+
+    /// Publish a selection already validated against the canonical editor session.
+    /// Used by Rust editors to avoid rescanning text on caret-only movement.
+    pub fn set_editor_selection(
+        &mut self,
+        node: NodeId,
+        revision: crate::editor::DocumentRevision,
+        anchor: u32,
+        head: u32,
+    ) {
+        if *self.docs.active.peek() != Some(node) {
+            return;
+        }
+        let valid = self
+            .docs
+            .editor_sessions
+            .peek()
+            .get(&node)
+            .is_some_and(|session| {
+                let state = session.peek();
+                state.snapshot().revision == revision
+                    && anchor <= state.utf16_len()
+                    && head <= state.utf16_len()
+            });
+        if valid && *self.docs.selection.peek() != Some((anchor, head)) {
+            self.docs.selection.set(Some((anchor, head)));
+        }
+    }
+
+    /// Clear the active selection for `node`, typically when its text is
+    /// replaced by a reload or another editor.
+    pub fn clear_selection(&mut self, node: NodeId) {
+        if *self.docs.active.peek() == Some(node) && self.docs.selection.peek().is_some() {
+            self.docs.selection.set(None);
+        }
     }
 
     /// The identifier under the active document's caret, if any.
@@ -177,6 +273,9 @@ impl Workspace {
         self.docs.editor_choice.with_mut(|m| {
             m.insert(node, which);
         });
+        if *self.docs.active.peek() == Some(node) {
+            self.docs.selection.set(None);
+        }
     }
 
     /// The active document, if any.
@@ -195,9 +294,88 @@ impl Workspace {
             .map(|(_, d)| *d)
     }
 
+    /// Get the root-scoped editor session for an open document, creating it
+    /// from the canonical Workspace text on first access. The map is keyed by
+    /// `NodeId`, so panel remounts and editor switching keep the same revision.
+    pub fn editor_session(
+        &self,
+        node: NodeId,
+    ) -> Option<Signal<crate::editor::RevisionedDocument>> {
+        let document = self.document(node)?;
+        if let Some(session) = self.docs.editor_sessions.peek().get(&node).copied() {
+            return Some(session);
+        }
+        let session = Signal::new_in_scope(
+            crate::editor::RevisionedDocument::new(node, document.peek().text.clone()),
+            ScopeId::ROOT,
+        );
+        let mut sessions = self.docs.editor_sessions;
+        sessions.with_mut(|sessions| sessions.insert(node, session));
+        Some(session)
+    }
+
+    /// Keep an implementation-specific editor model for an open document.
+    /// The model lives in the root scope and is removed from the registry on
+    /// close/rename. Different editor implementations use different types.
+    pub fn editor_view_state<T: 'static>(
+        &self,
+        node: NodeId,
+        create: impl FnOnce() -> T,
+    ) -> Option<Signal<T>> {
+        self.editor_view_state_with_cleanup(node, create, |_| {})
+    }
+
+    /// Retain a view model, disposing nested resources when its document closes.
+    pub fn editor_view_state_with_cleanup<T: 'static>(
+        &self,
+        node: NodeId,
+        create: impl FnOnce() -> T,
+        cleanup: impl FnOnce(&T) + 'static,
+    ) -> Option<Signal<T>> {
+        self.document(node)?;
+        let kind = std::any::TypeId::of::<T>();
+        if let Some(state) = self
+            .docs
+            .editor_views
+            .peek()
+            .get(&node)
+            .and_then(|states| states.get(&kind))
+            .and_then(|state| state.value.downcast_ref::<Signal<T>>())
+            .copied()
+        {
+            return Some(state);
+        }
+        let state = Signal::new_in_scope(create(), ScopeId::ROOT);
+        let mut views = self.docs.editor_views;
+        views.with_mut(|views| {
+            views.entry(node).or_default().insert(
+                kind,
+                EditorViewState {
+                    value: Box::new(state),
+                    dispose: Some(Box::new(move || {
+                        cleanup(&state.peek());
+                        state.manually_drop();
+                    })),
+                },
+            );
+        });
+        Some(state)
+    }
+
     /// Load a node's text (if not already open) and make it the active
     /// document.
-    pub async fn open_node(mut self, node: Node) -> Result<(), SourceError> {
+    pub async fn open_node(self, node: Node) -> Result<(), SourceError> {
+        self.open_node_when(node, || true).await.map(|_| ())
+    }
+
+    pub(crate) async fn open_node_when(
+        mut self,
+        node: Node,
+        current: impl Fn() -> bool,
+    ) -> Result<bool, SourceError> {
+        if !current() {
+            return Ok(false);
+        }
         // Nodes without a text body (tables, images and other blobs) open as
         // views, not documents (spec 008).
         if matches!(node.kind, NodeKind::Table)
@@ -206,20 +384,35 @@ impl Workspace {
             if !self.docs.views.peek().iter().any(|n| n.id == node.id) {
                 self.docs.views.with_mut(|v| v.push(node.clone()));
             }
-            self.docs.active.set(Some(node.id));
+            self.set_active_document(Some(node.id));
             self.set_status(t!(self, L, "opened", name = node.label.clone()));
-            return Ok(());
+            return Ok(true);
         }
         if self.document(node.id).is_none() {
-            let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
+            // Opening is an imperative command. Do not subscribe a caller's
+            // async resource to unrelated source-list changes during loading.
+            let source = self
+                .sources
+                .open
+                .peek()
+                .iter()
+                .find(|source| source.descriptor.id == node.source)
+                .map(|source| source.source.clone())
+                .ok_or(SourceError::NotFound)?;
             let (text, version) = source.fetch_text(node.id).await?;
-            let doc =
-                Signal::new_in_scope(Document::new(node.clone(), text, version), ScopeId::ROOT);
-            self.docs.open.with_mut(|v| v.push((node.id, doc)));
+            if !current() {
+                return Ok(false);
+            }
+            // Another view may have opened this document during the load.
+            if self.document(node.id).is_none() {
+                let doc =
+                    Signal::new_in_scope(Document::new(node.clone(), text, version), ScopeId::ROOT);
+                self.docs.open.with_mut(|v| v.push((node.id, doc)));
+            }
         }
-        self.docs.active.set(Some(node.id));
+        self.set_active_document(Some(node.id));
         self.set_status(t!(self, L, "opened", name = node.native_key.clone()));
-        Ok(())
+        Ok(true)
     }
 
     /// Open a blob as a text document anyway (an SVG's source, spec 008).
@@ -232,17 +425,36 @@ impl Workspace {
             self.docs.open.with_mut(|v| v.push((node.id, doc)));
         }
         self.docs.views.with_mut(|v| v.retain(|n| n.id != node.id));
-        self.docs.active.set(Some(node.id));
+        self.set_active_document(Some(node.id));
         Ok(())
     }
 
     /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
+        let pending_reveal = *self.docs.reveal.peek();
+        if let Some(reveal) = pending_reveal {
+            if reveal.node == node {
+                let mut counter = self
+                    .shared_state(|| RevealCounter(Signal::new_in_scope(0, ScopeId::ROOT)))
+                    .0;
+                let last = (*counter.peek()).max(reveal.seq);
+                counter.set(last);
+                self.docs.reveal.set(None);
+            }
+        }
         self.docs.open.with_mut(|v| v.retain(|(id, _)| *id != node));
+        self.docs.editor_sessions.with_mut(|sessions| {
+            if let Some(session) = sessions.remove(&node) {
+                session.manually_drop();
+            }
+        });
+        self.docs.editor_views.with_mut(|views| {
+            views.remove(&node);
+        });
         self.docs.views.with_mut(|v| v.retain(|n| n.id != node));
         if self.docs.active.read().as_ref() == Some(&node) {
             let next = self.docs.open.read().last().map(|(id, _)| *id);
-            self.docs.active.set(next);
+            self.set_active_document(next);
         }
     }
 
@@ -457,6 +669,15 @@ impl Workspace {
             };
             let Some(fresh) = fresh else { continue };
             let fresh_id = fresh.id;
+            let mut editor_sessions = self.docs.editor_sessions;
+            editor_sessions.with_mut(|sessions| {
+                if let Some(session) = sessions.remove(&old_id) {
+                    session.manually_drop();
+                }
+            });
+            self.docs.editor_views.with_mut(|views| {
+                views.remove(&old_id);
+            });
             doc.with_mut(|d| {
                 d.node = fresh;
             });
@@ -476,7 +697,7 @@ impl Workspace {
                 }
             });
             if was_active == Some(old_id) {
-                self.docs.active.set(Some(fresh_id));
+                self.set_active_document(Some(fresh_id));
             }
         }
         self.after_fs_change(&source_id, &[node.id, new_id]).await;
@@ -608,11 +829,34 @@ impl Workspace {
     }
 }
 
+/// An erased root-owned editor view and its document-close cleanup.
+pub struct EditorViewState {
+    value: Box<dyn std::any::Any>,
+    dispose: Option<Box<dyn FnOnce()>>,
+}
+
+impl Drop for EditorViewState {
+    fn drop(&mut self) {
+        if let Some(dispose) = self.dispose.take() {
+            dispose();
+        }
+    }
+}
+
+/// Implementation-specific editor models indexed by document and model type.
+pub type EditorViews =
+    std::collections::HashMap<NodeId, std::collections::HashMap<std::any::TypeId, EditorViewState>>;
+
 /// Open documents and views, the active one, the cursor. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
 #[derive(Clone, Copy)]
 pub struct DocsState {
     /// Open documents in opening order (this is the tab order).
     pub open: Signal<Vec<(NodeId, Signal<Document>)>>,
+    /// Root-scoped revisioned editor models, retained across panel remounts.
+    pub editor_sessions:
+        Signal<std::collections::HashMap<NodeId, Signal<crate::editor::RevisionedDocument>>>,
+    /// Implementation-specific root-scoped models keyed by document and type.
+    pub editor_views: Signal<EditorViews>,
     /// Open non-text nodes (tables, later graphs/rows): shown by the editor
     /// extension that claims their kind.
     pub views: Signal<Vec<Node>>,
@@ -621,9 +865,12 @@ pub struct DocsState {
     /// Which code editor shows a document, when chosen by hand
     /// (Milestone 14): `"codemirror"` | `"native"`.
     pub editor_choice: Signal<std::collections::HashMap<NodeId, &'static str>>,
-    /// The caret of the active document: (line, column), 0-based, from
-    /// whichever editor shows it (Milestone 14).
+    /// The caret of the active document: (line, UTF-16 column), 0-based,
+    /// from whichever editor shows it (Milestone 14).
     pub cursor: Signal<Option<(u32, u32)>>,
+    /// Selection of the active document as absolute UTF-16 offsets
+    /// `(anchor, head)`; equal values mean no range is selected.
+    pub selection: Signal<Option<(u32, u32)>>,
     /// Cursor line of the active document, for presence (Milestone 9).
     pub cursor_line: Signal<Option<u32>>,
     /// Bumped by the frame once the webview is up so `Stylesheet`s re-assert
@@ -639,10 +886,13 @@ impl DocsState {
     pub(super) fn new() -> Self {
         Self {
             open: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            editor_sessions: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
+            editor_views: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             views: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             active: Signal::new_in_scope(None, ScopeId::ROOT),
             editor_choice: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             cursor: Signal::new_in_scope(None, ScopeId::ROOT),
+            selection: Signal::new_in_scope(None, ScopeId::ROOT),
             cursor_line: Signal::new_in_scope(None, ScopeId::ROOT),
             assets_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             reveal: Signal::new_in_scope(None, ScopeId::ROOT),

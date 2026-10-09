@@ -11,6 +11,7 @@ the same messages.
 |---|---|
 | `mount(el, text, onChange, features?)` | create an editor inside `el` showing `text`; `onChange(fullText)` after every document change. `features.onHover(id, line, col)` and `features.onDefinition(line, col)` are optional LSP hooks (0-based line, UTF-16 column) |
 | `setText(el, text)` | replace the whole document (reload / revert); fires `onChange` |
+| `setIndentation(el, spaces, width)` | apply optional indentation overrides; both null restore backend defaults; no document edit |
 | `getText(el)` | current document text |
 | `focus(el)` | focus the editor |
 | `undo(el)` / `redo(el)` | step the editor's history (menu Edit → Undo/Redo; Ctrl+Z/Y work inside the view already) |
@@ -23,6 +24,7 @@ the same messages.
 
 ```json
 { "kind": "setText", "text": "…" }
+{ "kind": "setIndentation", "insert_spaces": true, "width": 2 }
 { "kind": "focus" }
 { "kind": "undo" }
 { "kind": "redo" }
@@ -49,6 +51,11 @@ language server and replies with `hoverResult` carrying the same `id`.
 `definition` is sent on F12 at the cursor; Rust either sends `setCursor`
 (same file) or opens the target document.
 
+`onCursor(line, col, anchor, head)` is throttled to 4 reports per second and
+fires when the main selection changes. `line`/`col` are the caret's zero-based
+LSP position; `anchor`/`head` are absolute UTF-16 document offsets. Rust stores
+the ordered endpoints as the Workspace selection for the active document.
+
 `change` carries the **whole document** in Milestone 1. Splices
 (`{start,end,text}` in char offsets) are the planned replacement; the Rust
 `TextPatch` type already accepts them.
@@ -69,3 +76,5 @@ language server and replies with `hoverResult` carrying the same `id`.
 - `features.wrap` at mount and `setWrap(el, bool)` later: soft wrap through a compartment (spec 014).
 - `run(el, action)` (spec 009): `find | replace | rename | codeActions | definition | references | toggleComment | foldAll | unfoldAll`.
 - `onChange(changes, length)` (spec 018): `changes` are `{from, to, insert}` splices in UTF-16 offsets of the text before the transaction, in document order; `length` is the new document length. The whole text is never sent on a change.
+
+- `setIndentation(el, spaces, width)` uses a compartment for `indentUnit` and `EditorState.tabSize`. Rust resolves language defaults for partial user overrides; null/null removes the override. `editor.insert_spaces` and `editor.indent_width` are optional settings, with width clamped to 1–8.

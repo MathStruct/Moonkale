@@ -1,0 +1,10 @@
+[package]
+name = "moonkale-editor-core-spike-host"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+dioxus = { version = "0.7.10", features = ["web"] }
+moonkale-code-view = { path = "../../../../code-view" }

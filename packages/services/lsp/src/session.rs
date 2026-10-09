@@ -41,6 +41,12 @@ pub struct CompletionItem {
     pub insert: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sort: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_edit: Option<TextEdit>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub additional_edits: Vec<TextEdit>,
 }
 
 /// One text edit in LSP coordinates (0-based line, UTF-16 column).
@@ -57,9 +63,59 @@ pub struct TextEdit {
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct WorkspaceEdit {
     pub changes: Vec<(String, Vec<TextEdit>)>,
+    /// Non-null server document versions to validate before applying edits.
+    #[serde(default)]
+    pub versions: Vec<(String, i32)>,
 }
 
 impl WorkspaceEdit {
+    /// Parse a rename edit without silently dropping malformed or resource edits.
+    pub fn from_lsp_checked(v: &Value) -> Result<Self, String> {
+        if v.is_null() {
+            return Ok(Self::default());
+        }
+        if !v.is_object() {
+            return Err("invalid workspace edit".into());
+        }
+        let mut versions = Vec::new();
+        let validate = |edits: &Value| -> Result<(), String> {
+            let edits = edits.as_array().ok_or("invalid text edits")?;
+            if edits.iter().any(|edit| text_edit(edit).is_none()) {
+                return Err("invalid text edit".into());
+            }
+            Ok(())
+        };
+        if let Some(changes) = v.get("changes") {
+            for edits in changes.as_object().ok_or("invalid changes")?.values() {
+                validate(edits)?;
+            }
+        }
+        if let Some(docs) = v.get("documentChanges") {
+            for doc in docs.as_array().ok_or("invalid documentChanges")? {
+                if doc.get("kind").is_some() {
+                    return Err("rename resource operations are unsupported".into());
+                }
+                let uri = doc
+                    .pointer("/textDocument/uri")
+                    .and_then(Value::as_str)
+                    .ok_or("invalid document URI")?;
+                validate(doc.get("edits").ok_or("missing edits")?)?;
+                if let Some(version) = doc
+                    .pointer("/textDocument/version")
+                    .filter(|v| !v.is_null())
+                {
+                    let version =
+                        i32::try_from(version.as_i64().ok_or("invalid document version")?)
+                            .map_err(|_| "invalid document version")?;
+                    versions.push((uri.to_string(), version));
+                }
+            }
+        }
+        let mut edit = Self::from_lsp(v);
+        edit.versions = versions;
+        Ok(edit)
+    }
+
     /// Parse the LSP shape: `changes` and/or `documentChanges` (text
     /// document edits only; file create/rename/delete are ignored).
     pub fn from_lsp(v: &Value) -> Self {
@@ -133,10 +189,10 @@ pub fn char_offset(chars: &[char], line: u32, col: u32) -> usize {
 fn text_edit(v: &Value) -> Option<TextEdit> {
     let r = v.get("range")?;
     Some(TextEdit {
-        line: r.pointer("/start/line")?.as_u64()? as u32,
-        col: r.pointer("/start/character")?.as_u64()? as u32,
-        end_line: r.pointer("/end/line")?.as_u64()? as u32,
-        end_col: r.pointer("/end/character")?.as_u64()? as u32,
+        line: u32::try_from(r.pointer("/start/line")?.as_u64()?).ok()?,
+        col: u32::try_from(r.pointer("/start/character")?.as_u64()?).ok()?,
+        end_line: u32::try_from(r.pointer("/end/line")?.as_u64()?).ok()?,
+        end_col: u32::try_from(r.pointer("/end/character")?.as_u64()?).ok()?,
         new_text: v.get("newText")?.as_str()?.to_string(),
     })
 }
@@ -147,6 +203,12 @@ fn text_edit(v: &Value) -> Option<TextEdit> {
 pub struct CodeAction {
     pub title: String,
     pub kind: String,
+    /// Reason supplied by the server when the action cannot be applied.
+    #[serde(default)]
+    pub disabled: Option<String>,
+    /// Preferred quick fix/refactoring from the server.
+    #[serde(default)]
+    pub preferred: bool,
     pub edit: Option<WorkspaceEdit>,
     /// The action as the server sent it (for `codeAction/resolve`).
     pub raw: Value,
@@ -160,6 +222,7 @@ pub enum LspEvent {
     },
     Diagnostics {
         uri: String,
+        version: Option<i32>,
         diagnostics: Vec<Diagnostic>,
     },
     /// `$/progress` / `window/showMessage`, for the status bar.
@@ -178,6 +241,26 @@ struct Inner {
 pub struct LspSession {
     inner: Rc<RefCell<Inner>>,
     events: mpsc::UnboundedSender<LspEvent>,
+}
+
+struct PendingRequest<'a> {
+    session: &'a LspSession,
+    id: i64,
+}
+impl Drop for PendingRequest<'_> {
+    fn drop(&mut self) {
+        let pending = self
+            .session
+            .inner
+            .borrow_mut()
+            .pending
+            .remove(&self.id)
+            .is_some();
+        if pending {
+            self.session
+                .notify("$/cancelRequest", json!({"id": self.id}));
+        }
+    }
 }
 
 impl LspSession {
@@ -211,6 +294,11 @@ impl LspSession {
                 continue;
             };
             self.handle(msg);
+        }
+        {
+            let mut inner = self.inner.borrow_mut();
+            inner.initialized = false;
+            inner.pending.clear();
         }
         let _ = self.events.unbounded_send(LspEvent::Closed);
     }
@@ -268,6 +356,7 @@ impl LspSession {
                         let diagnostics = p.diagnostics.into_iter().map(convert_diag).collect();
                         let _ = self.events.unbounded_send(LspEvent::Diagnostics {
                             uri: p.uri.to_string(),
+                            version: p.version,
                             diagnostics,
                         });
                     }
@@ -319,6 +408,7 @@ impl LspSession {
             id
         };
         self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+        let _pending = PendingRequest { session: self, id };
         rx.await.unwrap_or_else(|_| Err("session closed".into()))
     }
 
@@ -334,7 +424,7 @@ impl LspSession {
                     "synchronization": { "didSave": true },
                     "publishDiagnostics": { "relatedInformation": false },
                     "hover": { "contentFormat": ["markdown", "plaintext"] },
-                    "definition": {},
+                    "definition": { "linkSupport": true },
                     "completion": { "completionItem": { "snippetSupport": false, "insertReplaceSupport": false }, "contextSupport": false },
                     "rename": { "prepareSupport": false },
                     "codeAction": { "codeActionLiteralSupport": { "codeActionKind": { "valueSet": ["quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite", "source"] } }, "resolveSupport": { "properties": ["edit"] }, "dataSupport": true },
@@ -442,17 +532,55 @@ impl LspSession {
                     .map(kind_name)
                     .unwrap_or("text")
                     .to_string();
+                let snippet = it.get("insertTextFormat").and_then(Value::as_u64) == Some(2);
+                let insertion = |text: &str| {
+                    if snippet {
+                        strip_snippet(text)
+                    } else {
+                        text.to_string()
+                    }
+                };
+                let mut edit = it.get("textEdit").and_then(text_edit).or_else(|| {
+                    let edit = it.get("textEdit")?;
+                    text_edit(
+                        &json!({"range":edit.get("replace")?, "newText":edit.get("newText")?}),
+                    )
+                });
+                if it.get("textEdit").is_some_and(|value| !value.is_null()) && edit.is_none() {
+                    return None;
+                }
+                let additional_edits = if let Some(edits) = it
+                    .get("additionalTextEdits")
+                    .filter(|value| !value.is_null())
+                {
+                    edits
+                        .as_array()?
+                        .iter()
+                        .map(text_edit)
+                        .collect::<Option<Vec<_>>>()?
+                } else {
+                    Vec::new()
+                };
+                if let Some(edit) = &mut edit {
+                    edit.new_text = insertion(&edit.new_text);
+                }
                 let insert = it
                     .pointer("/textEdit/newText")
                     .or_else(|| it.get("insertText"))
                     .and_then(Value::as_str)
-                    .map(strip_snippet)
+                    .map(insertion)
                     .filter(|t| t != &label);
                 Some(CompletionItem {
                     label,
                     kind,
                     detail: it.get("detail").and_then(Value::as_str).map(str::to_string),
                     insert,
+                    filter: it
+                        .get("filterText")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    text_edit: edit,
+                    additional_edits,
                     sort: it
                         .get("sortText")
                         .and_then(Value::as_str)
@@ -477,7 +605,7 @@ impl LspSession {
                 json!({ "textDocument": { "uri": uri }, "position": { "line": line, "character": col }, "newName": new_name }),
             )
             .await?;
-        Ok(WorkspaceEdit::from_lsp(&r))
+        WorkspaceEdit::from_lsp_checked(&r)
     }
 
     /// Code actions for a range (quick fixes and refactors with an edit).
@@ -489,52 +617,60 @@ impl LspSession {
         end_line: u32,
         end_col: u32,
     ) -> Result<Vec<CodeAction>, String> {
-        let r = self
-            .request(
-                "textDocument/codeAction",
-                json!({
-                    "textDocument": { "uri": uri },
-                    "range": { "start": { "line": line, "character": col }, "end": { "line": end_line, "character": end_col } },
-                    "context": { "diagnostics": [] }
-                }),
-            )
-            .await?;
-        Ok(r.as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|v| {
-                        let title = v.get("title")?.as_str()?.to_string();
-                        // Bare `Command`s (no edit, no data) cannot be applied here.
-                        if v.get("edit").is_none() && v.get("data").is_none() {
-                            return None;
-                        }
-                        Some(CodeAction {
-                            title,
-                            kind: v
-                                .get("kind")
-                                .and_then(Value::as_str)
-                                .unwrap_or("")
-                                .to_string(),
-                            edit: v.get("edit").map(WorkspaceEdit::from_lsp),
-                            raw: v.clone(),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default())
+        self.code_actions_with_diagnostics(uri, line, col, end_line, end_col, &[])
+            .await
+    }
+
+    /// Code actions with the published diagnostics intersecting the range.
+    pub async fn code_actions_with_diagnostics(
+        &self,
+        uri: &str,
+        line: u32,
+        col: u32,
+        end_line: u32,
+        end_col: u32,
+        diagnostics: &[Diagnostic],
+    ) -> Result<Vec<CodeAction>, String> {
+        let diagnostics: Vec<_> = diagnostics.iter().map(|diagnostic| json!({
+            "range": {"start":{"line":diagnostic.line,"character":diagnostic.col},"end":{"line":diagnostic.end_line,"character":diagnostic.end_col}},
+            "severity": match diagnostic.severity { "error"=>1,"warning"=>2,"hint"=>4,_=>3 },
+            "message": diagnostic.message,
+        })).collect();
+        let response = self.request("textDocument/codeAction", json!({
+            "textDocument":{"uri":uri},
+            "range":{"start":{"line":line,"character":col},"end":{"line":end_line,"character":end_col}},
+            "context":{"diagnostics":diagnostics},
+        })).await?;
+        if response.is_null() {
+            return Ok(Vec::new());
+        }
+        let mut actions = Vec::new();
+        for value in response.as_array().ok_or("invalid code action response")? {
+            if let Some(action) = parse_code_action(value)? {
+                actions.push(action);
+            }
+        }
+        actions.sort_by_key(|action| !action.preferred);
+        Ok(actions)
     }
 
     /// The edit of a code action, resolving it with the server when it was
     /// sent without one.
     pub async fn resolve_code_action(&self, action: &CodeAction) -> Result<WorkspaceEdit, String> {
+        if let Some(reason) = &action.disabled {
+            return Err(reason.clone());
+        }
         if let Some(e) = &action.edit {
             return Ok(e.clone());
         }
         let r = self
             .request("codeAction/resolve", action.raw.clone())
             .await?;
+        if let Some(reason) = r.pointer("/disabled/reason").and_then(Value::as_str) {
+            return Err(reason.into());
+        }
         match r.get("edit") {
-            Some(e) => Ok(WorkspaceEdit::from_lsp(e)),
+            Some(e) => WorkspaceEdit::from_lsp_checked(e),
             None => Err("the server returned no edit".into()),
         }
     }
@@ -556,6 +692,49 @@ impl LspSession {
             .map(|a| a.iter().filter_map(|l| first_location(l.clone())).collect())
             .unwrap_or_default())
     }
+}
+
+fn parse_code_action(value: &Value) -> Result<Option<CodeAction>, String> {
+    // Command-only actions remain unsupported. For edit+command actions,
+    // preserve the declared edit (legacy behavior); never execute server commands.
+    if value
+        .get("command")
+        .is_some_and(|command| !command.is_null())
+        && value.get("edit").is_none_or(Value::is_null)
+        && value.get("data").is_none_or(Value::is_null)
+    {
+        return Ok(None);
+    }
+    let disabled = value
+        .pointer("/disabled/reason")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if value.get("edit").is_none() && value.get("data").is_none() && disabled.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(CodeAction {
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .ok_or("invalid action title")?
+            .into(),
+        kind: value
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .into(),
+        disabled,
+        preferred: value
+            .get("isPreferred")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        edit: value
+            .get("edit")
+            .filter(|edit| !edit.is_null())
+            .map(WorkspaceEdit::from_lsp_checked)
+            .transpose()?,
+        raw: value.clone(),
+    }))
 }
 
 fn kind_name(k: u64) -> &'static str {
@@ -696,8 +875,8 @@ fn first_location(v: Value) -> Option<Location> {
             .or_else(|| l.get("targetRange"))?;
         Some(Location {
             uri,
-            line: range.pointer("/start/line")?.as_u64()? as u32,
-            col: range.pointer("/start/character")?.as_u64()? as u32,
+            line: u32::try_from(range.pointer("/start/line")?.as_u64()?).ok()?,
+            col: u32::try_from(range.pointer("/start/character")?.as_u64()?).ok()?,
         })
     };
     match &v {
@@ -728,6 +907,167 @@ mod tests {
         }
     }
 
+    #[test]
+    fn code_actions_preserve_resolve_metadata_disabled_and_preferred() {
+        let action = parse_code_action(
+            &json!({"title":"Fix <safe>","kind":"quickfix","data":{"id":9},"isPreferred":true}),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(action.edit.is_none());
+        assert!(action.preferred);
+        assert_eq!(action.raw["data"]["id"], 9);
+        let disabled =
+            parse_code_action(&json!({"title":"Unavailable","disabled":{"reason":"Cannot fix"}}))
+                .unwrap()
+                .unwrap();
+        assert_eq!(disabled.disabled.as_deref(), Some("Cannot fix"));
+        assert!(
+            parse_code_action(&json!({"title":"Command","command":"run"}))
+                .unwrap()
+                .is_none()
+        );
+        assert!(parse_code_action(
+            &json!({"title":"Partial command","command":{"command":"run"},"edit":{}})
+        )
+        .unwrap()
+        .is_some());
+        assert!(parse_code_action(
+            &json!({"title":"Broken","edit":{"changes":{"file:///a.rs":[{"newText":"x"}]}}})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn rename_parser_rejects_partial_edits_and_preserves_versions() {
+        let edit = json!({"range":{"start":{"line":0,"character":2},"end":{"line":0,"character":5}},"newText":"name"});
+        let parsed = WorkspaceEdit::from_lsp_checked(&json!({"documentChanges":[{"textDocument":{"uri":"file:///a.rs","version":7},"edits":[edit.clone()]}]})).unwrap();
+        assert_eq!(parsed.versions, vec![("file:///a.rs".into(), 7)]);
+        assert_eq!(parsed.changes[0].1.len(), 1);
+        for invalid in [
+            json!({"changes":{"file:///a.rs":[edit.clone(),{"newText":"broken"}]}}),
+            json!({"documentChanges":[{"kind":"rename","oldUri":"a","newUri":"b"}]}),
+            json!({"changes":{"file:///a.rs":[{"range":{"start":{"line":4294967296u64,"character":0},"end":{"line":0,"character":0}},"newText":"x"}]}}),
+            json!({"changes":[]}),
+        ] {
+            assert!(WorkspaceEdit::from_lsp_checked(&invalid).is_err());
+        }
+        assert!(WorkspaceEdit::from_lsp_checked(&Value::Null)
+            .unwrap()
+            .changes
+            .is_empty());
+    }
+
+    #[test]
+    fn definition_locations_and_links_use_the_selection_range() {
+        let location = json!({"uri":"file:///a.rs","range":{"start":{"line":2,"character":7},"end":{"line":2,"character":10}}});
+        assert_eq!(first_location(location.clone()).unwrap().col, 7);
+        assert_eq!(first_location(json!([location])).unwrap().line, 2);
+        let link = json!({"targetUri":"file:///b.rs","targetRange":{"start":{"line":0,"character":0}},"targetSelectionRange":{"start":{"line":3,"character":4}}});
+        assert_eq!(
+            first_location(json!([link])).unwrap(),
+            Location {
+                uri: "file:///b.rs".into(),
+                line: 3,
+                col: 4
+            }
+        );
+        assert_eq!(first_location(Value::Null), None);
+        assert_eq!(first_location(json!([])), None);
+        assert_eq!(
+            first_location(
+                json!({"uri":"file:///bad.rs","range":{"start":{"line":4294967296u64,"character":0}}})
+            ),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn completion_preserves_edits_and_only_strips_declared_snippets() {
+        tokio::task::LocalSet::new().run_until(async {
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let (sender, receiver) = mpsc::unbounded();
+            let (session, _) = LspSession::new(Box::new(Fake { sent: sent.clone(), incoming: Some(receiver) }));
+            let pump = tokio::task::spawn_local(session.clone().pump());
+            let copy = session.clone();
+            let request = tokio::task::spawn_local(async move { copy.completion("file:///test.rs", 1, 7).await });
+            tokio::task::yield_now().await;
+            let id = sent.borrow()[0]["id"].clone();
+            sender.unbounded_send(json!({"jsonrpc":"2.0","id":id,"result":{"items":[
+                {"label":"plain", "insertText":"$literal", "textEdit":{"range":{"start":{"line":1,"character":4},"end":{"line":1,"character":7}},"newText":"$literal"}, "filterText":"prefix", "additionalTextEdits":[{"range":{"start":{"line":0,"character":0},"end":{"line":0,"character":0}},"newText":"import\n"}]},
+                {"label":"snippet", "insertTextFormat":2, "insertText":"call(${1:value})$0"},
+                {"label":"replace", "textEdit":{"insert":{"start":{"line":1,"character":4},"end":{"line":1,"character":7}}, "replace":{"start":{"line":1,"character":4},"end":{"line":1,"character":9}},"newText":"new"}},
+                {"label":"bad additional", "additionalTextEdits":[{"newText":"missing range"}]},
+                {"label":"bad primary", "textEdit":{"newText":"missing range"}},
+                {"label":"nullable", "textEdit":null,"additionalTextEdits":null}
+            ]}}).to_string()).unwrap();
+            let items = request.await.unwrap().unwrap();
+            assert_eq!(items.len(), 4);
+            assert_eq!(items[0].insert.as_deref(), Some("$literal"));
+            assert_eq!(items[0].text_edit.as_ref().unwrap().col, 4);
+            assert_eq!(items[0].additional_edits.len(), 1);
+            assert_eq!(items[0].filter.as_deref(), Some("prefix"));
+            assert_eq!(items[1].insert.as_deref(), Some("call(value)"));
+            assert_eq!(items[2].text_edit.as_ref().unwrap().end_col, 9);
+            assert_eq!(items[3].label, "nullable");
+            assert!(items[3].text_edit.is_none());
+            assert!(items[3].additional_edits.is_empty());
+            drop(sender);
+            pump.await.unwrap();
+        }).await;
+    }
+
+    #[tokio::test]
+    async fn canceled_hover_is_removed_and_server_close_finishes_requests() {
+        tokio::task::LocalSet::new()
+            .run_until(async {
+                let sent = Rc::new(RefCell::new(Vec::new()));
+                let (sender, receiver) = mpsc::unbounded();
+                let (session, mut events) = LspSession::new(Box::new(Fake {
+                    sent: sent.clone(),
+                    incoming: Some(receiver),
+                }));
+                session.inner.borrow_mut().initialized = true;
+                let pump = tokio::task::spawn_local(session.clone().pump());
+                let copy = session.clone();
+                let hover =
+                    tokio::task::spawn_local(
+                        async move { copy.hover("file:///test.rs", 1, 7).await },
+                    );
+                tokio::task::yield_now().await;
+                let id = sent.borrow()[0]["id"].clone();
+                hover.abort();
+                assert!(hover.await.unwrap_err().is_cancelled());
+                assert!(session.inner.borrow().pending.is_empty());
+                assert_eq!(sent.borrow()[1]["method"], "$/cancelRequest");
+                assert_eq!(sent.borrow()[1]["params"]["id"], id);
+                sender
+                    .unbounded_send(
+                        json!({"jsonrpc":"2.0", "id":id, "result":{"contents":"late"}}).to_string(),
+                    )
+                    .unwrap();
+                let copy = session.clone();
+                let hover =
+                    tokio::task::spawn_local(
+                        async move { copy.hover("file:///test.rs", 2, 0).await },
+                    );
+                tokio::task::yield_now().await;
+                drop(sender);
+                pump.await.unwrap();
+                assert!(
+                    tokio::time::timeout(std::time::Duration::from_secs(1), hover)
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .is_err()
+                );
+                assert!(!session.is_initialized());
+                assert!(session.inner.borrow().pending.is_empty());
+                assert_eq!(events.next().await, Some(LspEvent::Closed));
+            })
+            .await;
+    }
+
     #[tokio::test]
     async fn initialize_handshake_and_diagnostics() {
         let sent = Rc::new(RefCell::new(Vec::new()));
@@ -754,11 +1094,12 @@ mod tests {
 
                 // A diagnostics notification becomes an event.
                 server_tx
-                    .unbounded_send(json!({ "jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": { "uri": "file:///tmp/proj/src/main.rs", "diagnostics": [{ "range": { "start": { "line": 2, "character": 4 }, "end": { "line": 2, "character": 9 } }, "severity": 1, "message": "boom" }] } }).to_string())
+                    .unbounded_send(json!({ "jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": { "uri": "file:///tmp/proj/src/main.rs", "version": 7, "diagnostics": [{ "range": { "start": { "line": 2, "character": 4 }, "end": { "line": 2, "character": 9 } }, "severity": 1, "message": "boom" }] } }).to_string())
                     .unwrap();
                 match events.next().await {
-                    Some(LspEvent::Diagnostics { uri, diagnostics }) => {
+                    Some(LspEvent::Diagnostics { uri, version, diagnostics }) => {
                         assert!(uri.ends_with("main.rs"));
+                        assert_eq!(version, Some(7));
                         assert_eq!(diagnostics[0], Diagnostic { line: 2, col: 4, end_line: 2, end_col: 9, severity: "error", message: "boom".into() });
                     }
                     other => panic!("{other:?}"),

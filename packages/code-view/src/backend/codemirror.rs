@@ -54,6 +54,10 @@ enum ToJs<'a> {
     SetWrap {
         wrap: bool,
     },
+    SetIndentation {
+        insert_spaces: Option<bool>,
+        width: Option<u8>,
+    },
     Run {
         action: &'a str,
     },
@@ -117,6 +121,8 @@ enum FromJs {
     Cursor {
         line: u32,
         col: u32,
+        anchor: u32,
+        head: u32,
     },
     WikiQuery {
         id: u32,
@@ -146,7 +152,7 @@ cm.mount(el, init.text, (changes, length) => dioxus.send({ kind: "splice", chang
     onRename: (line, col, word) => dioxus.send({ kind: "rename", line, col, word }),
     onCodeActions: (line, col, endLine, endCol) => dioxus.send({ kind: "codeActions", line, col, endLine, endCol }),
     onReferences: (line, col) => dioxus.send({ kind: "references", line, col }),
-    onCursor: (line, col) => dioxus.send({ kind: "cursor", line, col }),
+    onCursor: (line, col, anchor, head) => dioxus.send({ kind: "cursor", line, col, anchor, head }),
     onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }),
     onWikiLink: (target) => dioxus.send({ kind: "wikiLink", target }),
     language: init.language || null,
@@ -171,6 +177,7 @@ for (;;) {
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
     else if (msg.kind === "setWikiLinks") cm.setWikiLinks(el, msg.marks);
     else if (msg.kind === "setWrap") cm.setWrap(el, msg.wrap);
+    else if (msg.kind === "setIndentation") cm.setIndentation(el, msg.insert_spaces, msg.width);
     else if (msg.kind === "run") cm.run(el, msg.action);
     else if (msg.kind === "destroy") { cm.destroy(el); break; }
 }
@@ -231,9 +238,17 @@ impl CodeMirrorBackend {
                     Ok(FromJs::References { line, col }) => {
                         on_event.call(BackendEvent::References { line, col })
                     }
-                    Ok(FromJs::Cursor { line, col }) => {
-                        on_event.call(BackendEvent::Cursor { line, col })
-                    }
+                    Ok(FromJs::Cursor {
+                        line,
+                        col,
+                        anchor,
+                        head,
+                    }) => on_event.call(BackendEvent::Cursor {
+                        line,
+                        col,
+                        anchor,
+                        head,
+                    }),
                     Ok(FromJs::WikiQuery { id, query }) => {
                         on_event.call(BackendEvent::WikiQuery { id, query })
                     }
@@ -313,6 +328,13 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn set_wrap(&self, wrap: bool) {
         let _ = self.eval.send(ToJs::SetWrap { wrap });
+    }
+
+    fn set_indentation(&self, insert_spaces: Option<bool>, width: Option<u8>) {
+        let _ = self.eval.send(ToJs::SetIndentation {
+            insert_spaces,
+            width,
+        });
     }
 
     fn run(&self, action: moonkale_ext_api::EditorAction) {

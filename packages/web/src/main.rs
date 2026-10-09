@@ -177,7 +177,11 @@ fn main() {
                 .route(
                     "/api/ext/module/{id}",
                     axum::routing::get(moonkale_server::module_bytes),
-                );
+                )
+                // Source saves still send a whole-text patch. Axum's default
+                // 2 MiB body cap rejects the editor's 3 MB acceptance fixture
+                // before the source sees it (Dioxus reports a server error).
+                .layer(axum::extract::DefaultBodyLimit::max(16 * 1024 * 1024));
             moonkale_server::auth::protect(router)
         }
         if let Some((cert, key)) = moonkale_server::auth::tls_files() {

@@ -233,6 +233,12 @@ pub struct EditorFile {
     /// Soft-wrap long lines at the view's edge.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wrap: Option<bool>,
+    /// Override language indentation: spaces (`true`) or tabs (`false`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insert_spaces: Option<bool>,
+    /// Override indentation/tab width (1–8); absent uses the language default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indent_width: Option<u8>,
     /// Open markdown in Rich mode (spec 021).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub markdown_rich: Option<bool>,
@@ -355,6 +361,8 @@ impl SettingsFile {
             .clone()
             .or(self.terminal.implementation.take());
         self.editor.wrap = other.editor.wrap.or(self.editor.wrap);
+        self.editor.insert_spaces = other.editor.insert_spaces.or(self.editor.insert_spaces);
+        self.editor.indent_width = other.editor.indent_width.or(self.editor.indent_width);
         self.editor.markdown_rich = other.editor.markdown_rich.or(self.editor.markdown_rich);
         self.editor.implementation = other
             .editor
@@ -523,6 +531,10 @@ pub struct TerminalSettings {
 pub struct EditorSettings {
     /// Soft-wrap long lines (default off, like most code editors).
     pub wrap: bool,
+    /// Optional language-default override: spaces (`true`) or tabs (`false`).
+    pub insert_spaces: Option<bool>,
+    /// Optional indentation/tab width override, clamped to 1–8.
+    pub indent_width: Option<u8>,
     /// Open markdown documents in Rich (WYSIWYG) mode rather than Source
     /// (default on, spec 021); the Source | Rich buttons still switch.
     pub markdown_rich: bool,
@@ -730,6 +742,8 @@ impl Settings {
             },
             editor: EditorSettings {
                 wrap: merged.editor.wrap.unwrap_or(false),
+                insert_spaces: merged.editor.insert_spaces,
+                indent_width: merged.editor.indent_width.map(|width| width.clamp(1, 8)),
                 markdown_rich: merged.editor.markdown_rich.unwrap_or(true),
                 implementation: merged
                     .editor
@@ -1102,5 +1116,25 @@ mod layout_record_tests {
         assert!(LayoutRecord::of(&shared).is_empty());
         rec.apply_to(&mut shared);
         assert_eq!(shared, f);
+    }
+    #[test]
+    fn indentation_overrides_merge_clamp_and_keep_language_defaults() {
+        let user =
+            SettingsFile::parse(r#"{"editor":{"insert_spaces":false,"indent_width":4}}"#).unwrap();
+        let workspace = SettingsFile::parse(r#"{"editor":{"indent_width":20}}"#).unwrap();
+        let settings = Settings::resolve(&user, &workspace, &SettingsFile::new());
+        assert_eq!(settings.editor.insert_spaces, Some(false));
+        assert_eq!(settings.editor.indent_width, Some(8));
+        let defaults = Settings::resolve(
+            &SettingsFile::new(),
+            &SettingsFile::new(),
+            &SettingsFile::new(),
+        );
+        assert_eq!(defaults.editor.insert_spaces, None);
+        assert_eq!(defaults.editor.indent_width, None);
+        assert_eq!(
+            SettingsFile::parse(&serde_json::to_string(&user).unwrap()).unwrap(),
+            user
+        );
     }
 }

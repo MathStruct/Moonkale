@@ -1,0 +1,22 @@
+[package]
+name = "editor-core"
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.91"
+license = "MIT OR Apache-2.0"
+description = "Headless Rust editor kernel, with Moonkale's WebAssembly clock portability patch"
+repository = "https://github.com/windoze/editor-core"
+readme = "README.md"
+
+[dependencies]
+unicode-segmentation = "1.12"
+unicode-width = "0.2"
+ropey = "1.6"
+regex = "1.11"
+editor-core-lang = "=0.5.0"
+web-time = "1.1"
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[features]
+default = []
+serde = ["dep:serde"]

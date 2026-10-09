@@ -9,9 +9,7 @@ use moonkale_ext_api::{i18n::Locales, t};
 
 pub const PANEL_PREFIX: &str = "editor:";
 
-pub struct CodeEditorExtension {
-    lsp: moonkale_code_view::lsp::LspManager,
-}
+pub struct CodeEditorExtension;
 
 impl Default for CodeEditorExtension {
     fn default() -> Self {
@@ -21,9 +19,7 @@ impl Default for CodeEditorExtension {
 
 impl CodeEditorExtension {
     pub fn new() -> Self {
-        Self {
-            lsp: moonkale_code_view::lsp::LspManager::new(),
-        }
+        Self
     }
 
     pub fn panel_id(node: NodeId) -> String {
@@ -73,7 +69,9 @@ impl Extension for CodeEditorExtension {
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id) {
-            Some(node) => rsx! { CodeEditorPanel { ws, node, lsp: self.lsp } },
+            Some(node) => {
+                rsx! { CodeEditorPanel { ws, node, lsp: moonkale_code_view::lsp::LspManager::for_workspace(ws) } }
+            }
             None => rsx! { "unknown panel {panel_id}" },
         }
     }

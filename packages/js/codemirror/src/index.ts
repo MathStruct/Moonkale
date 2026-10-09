@@ -5,7 +5,7 @@
 // file only shows it and reports edits.
 
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search"
-import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from "@codemirror/language"
+import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language"
 import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
 import { EditorState, StateEffect, StateField, RangeSet, Compartment } from "@codemirror/state"
@@ -49,8 +49,9 @@ type Features = {
   onRename?: (line: number, col: number, word: string) => void
   onCodeActions?: (line: number, col: number, endLine: number, endCol: number) => void
   onReferences?: (line: number, col: number) => void
-  /** Milestone 9: the cursor moved (throttled to 4/s); presence. */
-  onCursor?: (line: number, col: number) => void
+  /** The main selection changed (throttled to 4/s): LSP caret position and
+   *  absolute UTF-16 anchor/head offsets for Workspace selection state. */
+  onCursor?: (line: number, col: number, anchor: number, head: number) => void
   /** Spec 012: `[[query` typed → Rust answers with `completionResult(el, id, items)`
    *  (items insert `[[target]]`); Ctrl/Cmd+click on a decorated link. */
   onWikiQuery?: (id: number, query: string) => void
@@ -67,6 +68,7 @@ export type CompletionItem = { label: string; kind?: string; detail?: string; in
 type Entry = {
   view: EditorView
   wrap: Compartment
+  indentation: Compartment
   features: Features
   pendingHover: Map<number, (text: string | null) => void>
   nextHover: number
@@ -148,7 +150,7 @@ function cmPos(view: EditorView, line: number, col: number): number {
 
 function mount(el: HTMLElement, text: string, onChange: OnChange, features: Features = {}): void {
   destroy(el)
-  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment(), features }
+  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment(), indentation: new Compartment(), features }
   const hover = hoverTooltip(async (v, pos) => {
     if (!features.onHover) return null
     const { line, col } = lspPos(v, pos)
@@ -246,11 +248,12 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
     if (cursorTimer !== null) return
     cursorTimer = window.setTimeout(() => {
       cursorTimer = null
-      const { line, col } = lspPos(u.view, u.view.state.selection.main.head)
-      const key = `${line}:${col}`
+      const { anchor, head } = u.view.state.selection.main
+      const { line, col } = lspPos(u.view, head)
+      const key = `${line}:${col}:${anchor}:${head}`
       if (key === lastCursor) return
       lastCursor = key
-      features.onCursor!(line, col)
+      features.onCursor!(line, col, anchor, head)
     }, 250)
   })
   const view = new EditorView({
@@ -260,6 +263,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         presenceGutter,
         cursorWatch,
         entry.wrap!.of(features.wrap ? EditorView.lineWrapping : []),
+        entry.indentation!.of([]),
         ...(languageExtension(features.language) ? [languageExtension(features.language)!, foldGutter(), bracketMatching(), indentOnInput(), keymap.of([...foldKeymap, { key: "Mod-/", run: toggleComment }])] : []),
         lineNumbers(),
         highlightActiveLineGutter(),
@@ -337,6 +341,17 @@ function run(el: HTMLElement, action: string): void {
 function setWrap(el: HTMLElement, wrap: boolean): void {
   const e = views.get(el)
   if (e) e.view.dispatch({ effects: e.wrap.reconfigure(wrap ? EditorView.lineWrapping : []) })
+}
+
+/** Optional user indentation overrides; null preserves the backend defaults. */
+function setIndentation(el: HTMLElement, spaces: boolean | null, width: number | null): void {
+  const e = views.get(el)
+  if (!e) return
+  const size = Math.max(1, Math.min(8, width ?? 4))
+  const extensions = []
+  if (spaces !== null || width !== null) extensions.push(indentUnit.of(spaces === false ? "\t" : " ".repeat(size)))
+  if (width !== null) extensions.push(EditorState.tabSize.of(size))
+  e.view.dispatch({ effects: e.indentation.reconfigure(extensions) })
 }
 
 /** `[[link]]` spans and whether they resolve (spec 012). */
@@ -424,4 +439,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, run }
+window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }

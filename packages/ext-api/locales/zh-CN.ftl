@@ -42,3 +42,5 @@ wiki-unresolved = [[{ $target }]] 没有对应的页面
 wiki-renamed = 已将 { $from } 重命名为 { $to }：已更新 { $n } 个文件中的链接
 moved-to-window = 已移到窗口 { $window }
 dragging = 正在拖动 { $name }——将其拖放到另一个 Moonkale 窗口即可移过去
+
+move-unsaved = 未保存的文档保留在此窗口中，请先保存再移至其他窗口。

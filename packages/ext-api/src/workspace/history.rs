@@ -215,7 +215,7 @@ impl Workspace {
         self.history.pending_cause.with_mut(|m| {
             m.insert(node, event);
         });
-        self.docs.active.set(Some(node));
+        self.set_active_document(Some(node));
         self.set_status(t!(self, L, "restored"));
         Ok(())
     }

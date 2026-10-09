@@ -15,7 +15,7 @@ editor-wrap = 换行
 editor-save = 保存
 editor-reload-title = 放弃修改并从来源重新加载
 editor-reload = 重新加载
-editor-to-rust = 在 Rust 编辑器中显示此文件（dioxus-code-editor）
+editor-to-rust = 在 Rust 编辑器中显示此文件
 editor-rename-prompt = 将 “{ $word }” 重命名为：
 editor-rename = 重命名
 editor-cancel = 取消
@@ -27,3 +27,48 @@ editor-save-failed = 保存失败：{ $error }
 editor-failed = 编辑器无法启动。
 editor-failed-hint =  这是一个缺陷——请附上下面的信息报告（文件本身没有问题；点击“重新加载”可重试）。
 editor-loading = 正在加载编辑器…
+
+editor-to-codemirror = 在 CodeMirror 中显示此文件
+editor-document-closed = 此文档已关闭。
+editor-rust-meta = { $language } · v{ $version } · Rust 编辑器
+editor-rust-label = 代码编辑器
+editor-find = 查找
+editor-match-case = 区分大小写
+editor-whole-word = 全字匹配
+editor-find-previous = 上一个
+editor-find-next = 下一个
+editor-replace = 替换
+editor-replace-all = 全部替换
+editor-toggle-comment = 切换注释
+editor-fold = 折叠
+editor-unfold = 展开
+editor-fold-all = 全部折叠
+editor-unfold-all = 全部展开
+editor-indent-style = 缩进
+editor-indent-width = 宽度
+editor-language-default = 语言默认值
+editor-indent-spaces = 空格
+editor-indent-tabs = 制表符
+
+editor-search-regex = 正则表达式
+editor-search-count = { $current } / { $total }
+editor-search-captures-help = 使用 $1 或 $name 引用捕获组；$$ 插入美元符号。
+editor-search-invalid = 无效的正则表达式：{ $error }
+
+editor-diagnostics = 诊断
+editor-hover = 显示悬停信息
+editor-completion = 补全（Ctrl+空格）
+editor-definition = 转到定义（F12）
+editor-definition-needs-lsp = 转到定义需要此文件的语言服务器
+editor-definition-failed = 转到定义失败：{ $error }
+editor-definition-timeout = 转到定义超时
+
+editor-rename-shortcut = 重命名符号（F2）
+editor-rename-timeout = 重命名请求超时
+
+editor-actions-shortcut = 代码操作（Mod-.）
+editor-references-shortcut = 查找引用（Shift-F12）
+editor-tools-needs-lsp = 此操作需要此文件的语言服务器
+editor-tools-timeout = 语言服务器请求超时
+editor-tools-loading = 正在加载…
+editor-reference-outside = 此引用位于文件夹之外

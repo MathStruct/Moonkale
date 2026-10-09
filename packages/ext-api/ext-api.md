@@ -74,7 +74,7 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 `Extension::settings(&self, ws, target: SettingsTarget) -> Option<Element>` — an extension's own settings section, rendered under its row in the Extensions panel (`shell/extensions_panel.rs`); `Workspace::update_settings_in(target, f)` writes the chosen scope. Implemented by code (wrap), markdown (Rich by default), terminal + terminal-native (shell, implementation), agent (on the server).
 
 ## Milestone 14
-`Workspace::{editor_choice, editor_for, choose_editor}` (which code editor shows a document), `cursor` + `set_cursor(node, line, col)` + `cursor_word()` with `word_at(text, line, col)` (unit-tested); `editor.implementation` setting.
+`Workspace::{editor_choice, editor_for, choose_editor}` (which code editor shows a document), `cursor` + `set_cursor(node, line, utf16_col)` + `cursor_word()` with UTF-16-aware `word_at(text, line, utf16_col)` (unit-tested, including non-BMP text); `selection` + `set_selection(node, anchor, head)` for absolute UTF-16 document offsets; `editor.implementation` setting.
 
 ## Milestone 15
 - `settings.rs`: `AgentProfileFile` (`name` + flattened `LlmFile`) in `SettingsFile::agents`, `agent.default`, `RemoteFile { saved: Vec<SavedConnection> }`; resolved `Settings::agents` (Default = the flat `llm`, first), `Settings::llm` = the default agent's, `Settings::agent(name)`, `remote_saved`; same-name profiles overlay field-wise (`overlay_llm`); `DEFAULT_AGENT`.

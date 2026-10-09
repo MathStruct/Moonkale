@@ -30,12 +30,11 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             (Some(lang), Some(root)) => Some((
                 lang.to_string(),
                 root.to_string(),
-                format!("file://{root}/{}", d.node.native_key),
+                crate::native_diagnostics::file_uri(root, &d.node.native_key),
             )),
             _ => None,
         }
     };
-    let mut lsp_version = use_signal(|| 1i32);
     let mut lsp_session: Signal<Option<moonkale_lsp::LspSession>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut last_error: Signal<Option<SourceError>> = use_signal(|| None);
@@ -48,6 +47,11 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // What the view currently shows (its own edits, or text we pushed), so
     // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
     let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
+    let selection = if *ws.docs.active.read() == Some(node) {
+        *ws.docs.selection.read()
+    } else {
+        None
+    };
 
     // Mount the backend from the host element's `onmounted` — not an effect:
     // on desktop the DOM mutation reaches the webview asynchronously, so an
@@ -89,12 +93,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     if doc.peek().text != text {
                         doc.with_mut(|d| d.text = text.clone());
                     }
-                    if let (Some(s), Some((_, _, uri))) =
-                        (lsp_session.peek().clone(), ident.as_ref())
-                    {
-                        let v = *lsp_version.peek() + 1;
-                        lsp_version.set(v);
-                        s.did_change(uri, v, &text);
+                    if let Some((_, _, uri)) = ident.as_ref() {
+                        lsp.update_document(uri, &text, &doc.peek().saved);
                     }
                 }
                 BackendEvent::Hover { id, line, col } => {
@@ -111,8 +111,14 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         b.hover_result(id, None);
                     }
                 }
-                BackendEvent::Cursor { line, col } => {
+                BackendEvent::Cursor {
+                    line,
+                    col,
+                    anchor,
+                    head,
+                } => {
                     let mut ws = ws;
+                    ws.set_selection(node, anchor, head);
                     ws.set_cursor(node, line, col);
                 }
                 // Spec 012: `[[` completion and Ctrl+click in markdown sources.
@@ -128,6 +134,9 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                                 detail: Some(c.key),
                                 insert: None,
                                 sort: None,
+                                filter: None,
+                                text_edit: None,
+                                additional_edits: Vec::new(),
                             })
                             .collect();
                         if let Some(b) = backend.peek().as_ref() {
@@ -255,8 +264,15 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             if let Some((lang, root, uri)) = lsp_ident.clone() {
                 spawn(async move {
                     if let Some(s) = lsp.ensure(ws, &lang, &root).await {
-                        let text = doc.peek().text.clone();
-                        s.did_open(&uri, &lang, 1, &text);
+                        let document = doc.peek();
+                        lsp.open_document(
+                            s.clone(),
+                            &uri,
+                            &lang,
+                            &root,
+                            document.text.clone(),
+                            document.saved.clone(),
+                        );
                         lsp_session.set(Some(s));
                     }
                 });
@@ -281,10 +297,25 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         if !ready() || *view_text.peek() == text {
             return;
         }
+        let mut ws = ws;
+        ws.clear_selection(node);
         if let Some(b) = backend.peek().as_ref() {
             b.set_text(&text);
         }
     });
+
+    {
+        let uri = lsp_ident.as_ref().map(|(_, _, uri)| uri.clone());
+        use_effect(move || {
+            let document = doc.read();
+            // The attachment signal makes this run again after an async open.
+            if lsp_session.read().is_some() {
+                if let Some(uri) = &uri {
+                    lsp.update_document(uri, &document.text, &document.saved);
+                }
+            }
+        });
+    }
 
     // A pending `Workspace::reveal` for this document: place the cursor once
     // the view is ready (search hits, trace frames, go-to-definition).
@@ -307,12 +338,23 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // Word wrap follows the user setting (spec 014).
     {
         use_effect(move || {
-            let wrap = ws.settings.resolved.read().editor.wrap;
+            let editor = ws.settings.resolved.read().editor.clone();
             if !ready() {
                 return;
             }
             if let Some(b) = backend.peek().as_ref() {
-                b.set_wrap(wrap);
+                b.set_wrap(editor.wrap);
+                let (default_spaces, default_width) = crate::native_language::indent_defaults(
+                    crate::native_language::language_for_hint(doc.peek().node.language_hint()),
+                );
+                if editor.insert_spaces.is_some() || editor.indent_width.is_some() {
+                    b.set_indentation(
+                        Some(editor.insert_spaces.unwrap_or(default_spaces)),
+                        Some(editor.indent_width.unwrap_or(default_width)),
+                    );
+                } else {
+                    b.set_indentation(None, None);
+                }
             }
         });
     }
@@ -398,8 +440,10 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     {
         let uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());
         use_drop(move || {
-            if let (Some(s), Some(uri)) = (lsp_session.peek().clone(), uri.as_ref()) {
-                s.did_close(uri);
+            if lsp_session.peek().is_some() {
+                if let Some(uri) = uri.as_ref() {
+                    lsp.close_document(uri);
+                }
             }
         });
     }
@@ -414,8 +458,9 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 match ws.save(node).await {
                     Ok(()) => {
                         last_error.set(None);
-                        if let (Some(s), Some(uri)) = (lsp_session.peek().clone(), uri) {
-                            s.did_save(&uri);
+                        if let Some(uri) = uri {
+                            let document = doc.peek();
+                            lsp.update_document(&uri, &document.text, &document.saved);
                         }
                     }
                     Err(e) => last_error.set(Some(e)),
@@ -425,8 +470,13 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     };
 
     // Application commands aimed at the active editor (menus, keybindings).
+    let mut seen_command = use_signal(|| ws.shell.commands.peek().0);
     use_effect(move || {
-        let (_, cmd) = *ws.shell.commands.read();
+        let (seq, cmd) = *ws.shell.commands.read();
+        if seq <= *seen_command.peek() {
+            return;
+        }
+        seen_command.set(seq);
         if ws.docs.active.peek().as_ref() != Some(&node) {
             return;
         }
@@ -637,7 +687,12 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     }
                 }
             }
-            div { id: "{element_id}", class: "mk-editor-host", onmounted: mount,
+            div {
+                id: "{element_id}",
+                class: "mk-editor-host",
+                "data-selection-anchor": selection.map(|(anchor, _)| anchor.to_string()),
+                "data-selection-head": selection.map(|(_, head)| head.to_string()),
+                onmounted: mount,
                 if let Some(err) = mount_error() {
                     div { class: "mk-editor-failed",
                         p { b { {t!(ws, L, "editor-failed")} } {t!(ws, L, "editor-failed-hint")} }

@@ -1,11 +1,9 @@
 //! # moonkale-editor-code-native
 //!
-//! The second code editor ([[Code Editor Implementations]], Milestone 14):
-//! `dioxus-code-editor` — a textarea over a tree-sitter-highlighted layer,
-//! all Rust (the grammars are `arborium`, tree-sitter compiled to Rust and
-//! wasm), so it runs on desktop, web and phone without a JavaScript
-//! bundle — behind the same `Document` the CodeMirror panel edits. Opt-in;
-//! `editor.implementation` and the toolbar switch pick per document.
+//! Opt-in adapter to `moonkale-code-view`: editor-core owns caret/selection,
+//! Dioxus renders viewport rows, and Rust tree-sitter supplies highlighting.
+//! Workspace owns canonical text and revisioned history. Desktop clipboard
+//! is enabled by the desktop app; browser input uses Dioxus events.
 
 mod panel;
 

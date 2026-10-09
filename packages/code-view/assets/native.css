@@ -1,0 +1,49 @@
+.mk-crust { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.mk-native-surface { flex: 1 1 auto; display: flex; min-height: 0; flex-direction: column; position: relative; font: 14px/22px var(--mk-code-font, monospace); }
+.mk-native-surface .mk-editor-core-viewport { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--mk-code-bg); color: var(--mk-code-ink); font: 14px/22px var(--mk-code-font, monospace); white-space: pre; user-select: none; outline: none; }
+.mk-native-surface .mk-editor-core-gutter { color: var(--mk-muted); }
+.mk-native-surface .mk-editor-core-selected { background: var(--mk-code-selection); }
+.mk-native-surface .mk-editor-core-preedit { text-decoration: underline; }
+
+.mk-native-cell-measure { position: absolute; width: 1ch; height: 1lh; overflow: hidden; pointer-events: none; }
+.mk-native-search { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mk-native-search input { min-width: 0; }
+.mk-native-search label { display: flex; align-items: center; gap: 4px; }
+.mk-native-fold-toggle, .mk-native-fold-slot { display: inline-block; width: 1ch; padding: 0; border: 0; background: transparent; color: var(--mk-muted); font: inherit; line-height: inherit; cursor: pointer; }
+.mk-native-fold-placeholder { color: var(--mk-muted); cursor: pointer; }
+.mk-native-bracket-match { background: var(--mk-code-selection); outline: 1px solid currentColor; outline-offset: -1px; }
+.mk-native-indent-control { display: inline-flex; align-items: center; gap: 4px; }
+.mk-crust .mk-editor-toolbar { flex-wrap: wrap; }
+
+.mk-native-search-match { background: var(--mk-code-selection); text-decoration: underline; }
+.mk-native-search-current { outline: 2px solid currentColor; outline-offset: -2px; }
+.mk-native-search-zero { display: inline-block; width: 0; height: 22px; border-left: 1px solid currentColor; vertical-align: top; pointer-events: none; }
+.mk-search-error { color: var(--mk-muted); white-space: pre-wrap; }
+
+.mk-native-diagnostics { max-height: 110px; overflow: auto; flex-shrink: 0; border-bottom: 1px solid var(--mk-muted); }
+.mk-native-diagnostic-message { display: block; background: transparent; color: var(--mk-code-ink); border: 0; cursor: pointer; text-align: start; font: inherit; padding: 3px 8px; }
+.mk-native-diagnostic-marker { color: var(--mk-danger); }
+.mk-editor-core-cell.mk-native-diagnostic-error { text-decoration: underline wavy var(--mk-danger); text-underline-offset: 3px; }
+.mk-editor-core-cell.mk-native-diagnostic-warning { text-decoration: underline wavy currentColor; text-underline-offset: 3px; }
+.mk-editor-core-cell.mk-native-diagnostic-info, .mk-editor-core-cell.mk-native-diagnostic-hint { text-decoration: underline dotted var(--mk-muted); text-underline-offset: 3px; }
+
+.mk-native-hover { position: absolute; z-index: 10; bottom: 8px; right: 16px; max-width: min(60ch, calc(100% - 32px)); max-height: min(240px, 60%); overflow: auto; background: var(--mk-input-bg, var(--mk-code-bg)); border: 1px solid var(--mk-line-strong, var(--mk-muted)); border-radius: 4px; user-select: text; }
+
+.mk-native-completions { position: absolute; z-index: 11; bottom: 8px; right: 16px; max-width: min(70ch, calc(100% - 32px)); max-height: min(260px, 65%); overflow: auto; background: var(--mk-input-bg, var(--mk-code-bg)); border: 1px solid var(--mk-line-strong, var(--mk-muted)); }
+.mk-native-completion { display: flex; gap: 8px; width: 100%; padding: 4px 8px; border: 0; background: transparent; color: var(--mk-code-ink); font: inherit; text-align: start; cursor: pointer; }
+.mk-native-completion-selected { background: var(--mk-code-selection); }
+.mk-native-completion-kind, .mk-native-completion-detail { color: var(--mk-muted); }
+
+.mk-native-tools { display: block; flex-shrink: 0; max-height: 180px; overflow: auto; }
+.mk-native-presence-slot { display: inline-block; width: 3ch; height: 1lh; vertical-align: top; }
+.mk-native-presence { display: flex; align-items: center; justify-content: start; gap: 2px; height: 100%; overflow: hidden; color: var(--mk-code-ink); }
+.mk-native-presence-member { font-size: 0.75em; }
+.mk-native-wiki-resolved { text-decoration: underline; cursor: pointer; }
+.mk-native-wiki-unresolved { text-decoration: underline dotted; color: var(--mk-muted); cursor: pointer; }
+.mk-native-tools-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.mk-native-tool-item { display: block; width: 100%; text-align: start; font: inherit; color: var(--mk-code-ink); background: transparent; border: 0; padding: 4px 8px; cursor: pointer; }
+.mk-native-tool-selected { background: var(--mk-code-selection); }
+.mk-native-tool-item:disabled { color: var(--mk-muted); cursor: default; }
+
+/* Caret context must not move the viewport while selecting with the pointer. */
+.mk-crust > .mk-editor-cursor-word { height: 22px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

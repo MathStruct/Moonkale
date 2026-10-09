@@ -39,6 +39,7 @@ mod assets;
 mod command;
 pub mod contrib;
 pub mod document;
+pub mod editor;
 pub mod extension;
 pub mod i18n;
 

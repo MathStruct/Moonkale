@@ -3,7 +3,7 @@ use crate::rich::RichPanel;
 use crate::typst_preview::TypstPreviewPanel;
 use crate::L;
 use dioxus::prelude::*;
-use moonkale_code_view::{lsp::LspManager, CodeEditorPanel};
+use moonkale_code_view::{lsp::LspManager, CodeEditorPanel, RustCodeEditorPanel};
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::{i18n::Locales, t};
 use std::collections::HashMap;
@@ -20,7 +20,6 @@ pub fn is_markdown(node: &Node) -> bool {
 }
 
 pub struct LinksExtension {
-    lsp: LspManager,
     /// Documents whose mode the user chose by hand (per window): `true` =
     /// Rich, `false` = Source; the rest follow `editor.markdown_rich`.
     rich: Signal<HashMap<NodeId, bool>>,
@@ -35,7 +34,6 @@ impl Default for LinksExtension {
 impl LinksExtension {
     pub fn new() -> Self {
         Self {
-            lsp: LspManager::new(),
             rich: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
         }
     }
@@ -108,7 +106,7 @@ impl Extension for LinksExtension {
             .strip_prefix(EDITOR_PREFIX)
             .and_then(|s| s.parse::<NodeId>().ok())
         {
-            return rsx! { MarkdownPanel { ws, node, lsp: self.lsp, rich: self.rich } };
+            return rsx! { MarkdownPanel { ws, node, lsp: LspManager::for_workspace(ws), rich: self.rich } };
         }
         rsx! { LinksPanel { ws } }
     }
@@ -179,6 +177,8 @@ fn MarkdownPanel(
             div { class: "mk-md-body",
                 if is_rich {
                     RichPanel { ws, node }
+                } else if ws.editor_for(node) == "native" {
+                    RustCodeEditorPanel { ws, node, lsp }
                 } else {
                     CodeEditorPanel { ws, node, lsp }
                 }

@@ -3,16 +3,63 @@
 
 use crate::L;
 use dioxus::prelude::*;
-use futures_util::StreamExt;
+use futures_util::{
+    future::{select, Either},
+    StreamExt,
+};
 use moonkale_ext_api::{t, Workspace};
 use moonkale_lsp::{Diagnostic, LspEvent, LspSession};
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
+
+#[derive(Clone)]
+struct OpenDocument {
+    session: LspSession,
+    clients: usize,
+    retained: Option<Rc<()>>,
+    version: i32,
+    text: String,
+    saved: String,
+    key: String,
+}
 
 #[derive(Clone, Copy)]
 pub struct LspManager {
     sessions: Signal<HashMap<String, LspSession>>,
     starting: Signal<Vec<String>>,
+    documents: Signal<HashMap<String, OpenDocument>>,
     pub diagnostics: Signal<HashMap<String, Vec<Diagnostic>>>,
+    diagnostic_versions: Signal<HashMap<String, Option<i32>>>,
+}
+
+// Cancellation and startup timeout must release both the starting marker and
+// any root-owned pumps created before initialization completed.
+struct StartingSession {
+    starting: Signal<Vec<String>>,
+    key: String,
+    tasks: Vec<dioxus::core::Task>,
+}
+impl Drop for StartingSession {
+    fn drop(&mut self) {
+        self.starting
+            .with_mut(|keys| keys.retain(|key| key != &self.key));
+        for task in self.tasks.drain(..) {
+            task.cancel();
+        }
+    }
+}
+
+async fn startup_timeout<T>(future: impl std::future::Future<Output = T>) -> Option<T> {
+    match select(
+        Box::pin(future),
+        Box::pin(futures_timer::Delay::new(std::time::Duration::from_secs(
+            30,
+        ))),
+    )
+    .await
+    {
+        Either::Left((value, _)) => Some(value),
+        Either::Right(_) => None,
+    }
 }
 
 impl PartialEq for LspManager {
@@ -28,11 +75,249 @@ impl Default for LspManager {
 }
 
 impl LspManager {
+    /// All editor implementations in a workspace share servers and URI versions.
+    pub fn for_workspace(ws: Workspace) -> Self {
+        ws.shared_state(Self::new)
+    }
+
     pub fn new() -> Self {
         Self {
             sessions: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             starting: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            documents: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             diagnostics: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
+            diagnostic_versions: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
+        }
+    }
+
+    pub(crate) fn document_session(&self, uri: &str) -> Option<LspSession> {
+        self.documents
+            .read()
+            .get(uri)
+            .map(|document| document.session.clone())
+    }
+
+    pub(crate) fn peek_document_version(&self, uri: &str) -> Option<i32> {
+        self.documents
+            .peek()
+            .get(uri)
+            .map(|document| document.version)
+    }
+
+    pub(crate) fn peek_document_session(&self, uri: &str) -> Option<LspSession> {
+        self.documents
+            .peek()
+            .get(uri)
+            .map(|document| document.session.clone())
+    }
+
+    pub(crate) fn open_document(
+        mut self,
+        session: LspSession,
+        uri: &str,
+        language: &str,
+        root: &str,
+        text: String,
+        saved: String,
+    ) {
+        if !self.documents.peek().contains_key(uri) {
+            self.diagnostic_versions.with_mut(|values| {
+                values.remove(uri);
+            });
+            self.diagnostics.with_mut(|values| {
+                values.remove(uri);
+            });
+        }
+        self.documents.with_mut(|documents| {
+            if let Some(document) = documents.get_mut(uri) {
+                document.clients += 1;
+                return;
+            }
+            session.did_open(uri, language, 1, &text);
+            documents.insert(
+                uri.to_string(),
+                OpenDocument {
+                    session,
+                    clients: 1,
+                    retained: None,
+                    version: 1,
+                    text,
+                    saved,
+                    key: Self::key(language, root),
+                },
+            );
+        });
+    }
+
+    pub(crate) fn update_document(mut self, uri: &str, text: &str, saved: &str) {
+        if self
+            .documents
+            .peek()
+            .get(uri)
+            .is_none_or(|document| document.text == text && document.saved == saved)
+        {
+            return;
+        }
+        let mut changed = false;
+        self.documents.with_mut(|documents| {
+            let Some(document) = documents.get_mut(uri) else {
+                return;
+            };
+            if document.text != text {
+                changed = true;
+                document.version += 1;
+                document.text = text.to_string();
+                document.session.did_change(uri, document.version, text);
+            }
+            if document.saved != saved {
+                document.saved = saved.to_string();
+                document.session.did_save(uri);
+            }
+        });
+        // Versioned ranges are stale after an edit; save-time reports without
+        // a version remain visible until the server publishes a replacement.
+        if changed
+            && self
+                .diagnostic_versions
+                .peek()
+                .get(uri)
+                .is_some_and(Option::is_some)
+        {
+            self.diagnostics.with_mut(|values| {
+                values.remove(uri);
+            });
+            self.diagnostic_versions.with_mut(|values| {
+                values.remove(uri);
+            });
+        }
+    }
+
+    // Rename creates unsaved documents even when no view is mounted. Keep a
+    // Workspace lease for edited files so later requests see their current text.
+    pub(crate) fn retain_workspace_document(
+        mut self,
+        ws: Workspace,
+        node: &moonkale_core::Node,
+        session: LspSession,
+        root: &str,
+        server_language: &str,
+    ) {
+        let uri = crate::native_diagnostics::file_uri(root, &node.native_key);
+        let Some(doc) = ws
+            .docs
+            .open
+            .peek()
+            .iter()
+            .find(|(id, _)| *id == node.id)
+            .map(|(_, doc)| *doc)
+        else {
+            return;
+        };
+        if self
+            .documents
+            .peek()
+            .get(&uri)
+            .is_some_and(|document| document.retained.is_some())
+        {
+            let doc = doc.peek();
+            self.update_document(&uri, &doc.text, &doc.saved);
+            return;
+        }
+        let already_open = self.documents.peek().contains_key(&uri);
+        let document = doc.peek();
+        self.open_document(
+            session,
+            &uri,
+            node.language_hint().unwrap_or("plaintext"),
+            root,
+            document.text.clone(),
+            document.saved.clone(),
+        );
+        drop(document);
+        let lease = Rc::new(());
+        self.documents.with_mut(|documents| {
+            if let Some(document) = documents.get_mut(&uri) {
+                document.retained = Some(lease.clone());
+                if !already_open {
+                    document.key = Self::key(server_language, root);
+                }
+            }
+        });
+        let source = node.source.clone();
+        let node = node.id;
+        dioxus::core::spawn_forever(async move {
+            loop {
+                if !self.documents.peek().get(&uri).is_some_and(|document| {
+                    document
+                        .retained
+                        .as_ref()
+                        .is_some_and(|active| Rc::ptr_eq(active, &lease))
+                }) {
+                    return; // The server exited or a new session owns this URI.
+                }
+                if !ws
+                    .sources
+                    .open
+                    .peek()
+                    .iter()
+                    .any(|open| open.descriptor.id == source)
+                {
+                    break;
+                }
+                let doc = ws
+                    .docs
+                    .open
+                    .peek()
+                    .iter()
+                    .find(|(id, _)| *id == node)
+                    .map(|(_, doc)| *doc);
+                let Some(doc) = doc else {
+                    break;
+                };
+                {
+                    let doc = doc.peek();
+                    self.update_document(&uri, &doc.text, &doc.saved);
+                }
+                futures_timer::Delay::new(std::time::Duration::from_millis(100)).await;
+            }
+            self.documents.with_mut(|documents| {
+                if let Some(document) = documents.get_mut(&uri) {
+                    document.retained = None;
+                }
+            });
+            self.close_document(&uri);
+        });
+    }
+
+    pub(crate) fn sync_workspace_documents(self, ws: Workspace) {
+        for (_, doc) in ws.docs.open.peek().iter() {
+            let doc = doc.peek();
+            if let Some(root) = doc.node.source.as_str().strip_prefix("folder:") {
+                let uri = crate::native_diagnostics::file_uri(root, &doc.node.native_key);
+                if self.documents.peek().contains_key(&uri) {
+                    self.update_document(&uri, &doc.text, &doc.saved);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn close_document(mut self, uri: &str) {
+        self.documents.with_mut(|documents| {
+            if let Some(document) = documents.get_mut(uri) {
+                document.clients -= 1;
+                if document.clients == 0 {
+                    document.session.did_close(uri);
+                    documents.remove(uri);
+                }
+            }
+        });
+        if !self.documents.peek().contains_key(uri) {
+            self.diagnostic_versions.with_mut(|values| {
+                values.remove(uri);
+            });
+            self.diagnostics.with_mut(|values| {
+                values.remove(uri);
+            });
         }
     }
 
@@ -50,38 +335,64 @@ impl LspManager {
     }
 
     /// Start a session unless one exists or is starting. Returns once the
-    /// server is initialized (or immediately if unavailable).
+    /// server is initialized, including when another caller started it (or
+    /// immediately if unavailable).
     pub async fn ensure(self, mut ws: Workspace, language: &str, root: &str) -> Option<LspSession> {
         let key = Self::key(language, root);
         if let Some(s) = self.sessions.peek().get(&key) {
             return s.is_initialized().then(|| s.clone());
         }
-        if self.starting.peek().contains(&key) {
-            return None;
+        startup_timeout(async {
+            while self.starting.peek().contains(&key) {
+                futures_timer::Delay::new(std::time::Duration::from_millis(25)).await;
+            }
+        })
+        .await?;
+        if let Some(session) = self.session(language, root) {
+            return Some(session);
         }
         let spawn_lsp = ws.spawn_lsp()?;
         let mut this = self;
         this.starting.with_mut(|v| v.push(key.clone()));
+        let mut startup = StartingSession {
+            starting: this.starting,
+            key: key.clone(),
+            tasks: Vec::new(),
+        };
         ws.processes.lsp_status.set(Some(t!(
             ws,
             L,
             "lsp-starting",
             language = language.to_string()
         )));
-        let transport = match spawn_lsp(language.to_string(), root.to_string()).await {
-            Ok(t) => t,
-            Err(e) => {
-                ws.processes
-                    .lsp_status
-                    .set(Some(format!("{language}: {e}")));
-                this.starting.with_mut(|v| v.retain(|k| k != &key));
-                return None;
-            }
-        };
+        let transport =
+            match startup_timeout(spawn_lsp(language.to_string(), root.to_string())).await {
+                Some(Ok(t)) => t,
+                Some(Err(e)) => {
+                    ws.processes
+                        .lsp_status
+                        .set(Some(format!("{language}: {e}")));
+                    this.starting.with_mut(|v| v.retain(|k| k != &key));
+                    return None;
+                }
+                None => {
+                    ws.processes.lsp_status.set(Some(t!(
+                        ws,
+                        L,
+                        "lsp-init-failed",
+                        language = language.to_string(),
+                        error = "startup timeout".to_string()
+                    )));
+                    return None;
+                }
+            };
         let (session, mut events) = LspSession::new(transport);
-        spawn(session.clone().pump());
+        startup
+            .tasks
+            .push(dioxus::core::spawn_forever(session.clone().pump()));
         let lang = language.to_string();
-        spawn(async move {
+        let event_key = key.clone();
+        startup.tasks.push(dioxus::core::spawn_forever(async move {
             while let Some(ev) = events.next().await {
                 match ev {
                     LspEvent::Initialized { server } => ws.processes.lsp_status.set(Some(t!(
@@ -93,12 +404,47 @@ impl LspManager {
                     LspEvent::Status(s) => {
                         ws.processes.lsp_status.set(Some(format!("{lang}: {s}")))
                     }
-                    LspEvent::Diagnostics { uri, diagnostics } => {
+                    LspEvent::Diagnostics {
+                        uri,
+                        version,
+                        diagnostics,
+                    } => {
+                        if let Some(document) = this.documents.peek().get(&uri) {
+                            if version.is_some_and(|v| v != document.version) {
+                                continue;
+                            }
+                        }
+                        this.diagnostic_versions.with_mut(|versions| {
+                            versions.insert(uri.clone(), version);
+                        });
                         this.diagnostics.with_mut(|m| {
                             m.insert(uri, diagnostics);
                         });
                     }
                     LspEvent::Closed => {
+                        this.sessions.with_mut(|sessions| {
+                            sessions.remove(&event_key);
+                        });
+                        let uris: Vec<_> = this
+                            .documents
+                            .peek()
+                            .iter()
+                            .filter(|(_, doc)| doc.key == event_key)
+                            .map(|(uri, _)| uri.clone())
+                            .collect();
+                        this.documents.with_mut(|documents| {
+                            for uri in &uris {
+                                documents.remove(uri);
+                            }
+                        });
+                        this.diagnostics.with_mut(|values| {
+                            for uri in uris {
+                                values.remove(&uri);
+                            }
+                        });
+                        this.diagnostic_versions.with_mut(|versions| {
+                            versions.retain(|uri, _| this.diagnostics.peek().contains_key(uri));
+                        });
                         ws.processes.lsp_status.set(Some(t!(
                             ws,
                             L,
@@ -109,16 +455,20 @@ impl LspManager {
                     }
                 }
             }
-        });
-        match session.initialize(root).await {
-            Ok(_) => {
+        }));
+        match startup_timeout(session.initialize(root)).await {
+            Some(Ok(_)) => {
+                startup.tasks.clear();
                 this.sessions.with_mut(|m| {
                     m.insert(key.clone(), session.clone());
                 });
                 this.starting.with_mut(|v| v.retain(|k| k != &key));
                 Some(session)
             }
-            Err(e) => {
+            result => {
+                let e = result
+                    .and_then(Result::err)
+                    .unwrap_or_else(|| "initialization timeout".into());
                 ws.processes.lsp_status.set(Some(t!(
                     ws,
                     L,
@@ -214,4 +564,146 @@ pub async fn apply_workspace_edit(
         ws.sources.graph_epoch.with_mut(|e| *e += 1);
     }
     Ok(changed)
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::*;
+    use moonkale_core::SourceError;
+    use moonkale_ext_api::{
+        AttachFuture, FolderAccess, OpenFolderFuture, OpenOptions, WorkspaceConfig,
+    };
+    use std::cell::RefCell;
+
+    fn open(_: String, _: OpenOptions) -> OpenFolderFuture {
+        Box::pin(async { Err(SourceError::NotFound) })
+    }
+    fn attach(_: moonkale_core::SourceDescriptor) -> AttachFuture {
+        Box::pin(async { Err(SourceError::NotFound) })
+    }
+    fn workspace() -> Workspace {
+        Workspace::new(WorkspaceConfig {
+            folders: FolderAccess {
+                open,
+                pick: None,
+                attach,
+                reopen_last: false,
+                openers: &moonkale_core::source::opener::NO_OPENERS,
+            },
+            processes: Default::default(),
+            persistence: Default::default(),
+            network: Default::default(),
+            runtimes: Default::default(),
+            services: &[],
+        })
+    }
+    struct Transport(Rc<RefCell<Vec<serde_json::Value>>>);
+    impl moonkale_lsp::LspTransport for Transport {
+        fn send(&self, message: String) {
+            self.0
+                .borrow_mut()
+                .push(serde_json::from_str(&message).unwrap());
+        }
+        fn take_incoming(&mut self) -> Option<futures_channel::mpsc::UnboundedReceiver<String>> {
+            None
+        }
+    }
+    fn app() -> Element {
+        rsx! { div {} }
+    }
+
+    #[test]
+    fn editor_implementations_share_uri_lifecycle_and_monotonic_versions() {
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dom.in_scope(ScopeId::ROOT, || {
+            let ws = workspace();
+            let native = LspManager::for_workspace(ws);
+            let codemirror = LspManager::for_workspace(ws);
+            assert!(native == codemirror);
+            assert!(native != LspManager::for_workspace(workspace()));
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let (session, _) = LspSession::new(Box::new(Transport(sent.clone())));
+            let uri = "file:///tmp/project/main.rs";
+            native.open_document(
+                session.clone(),
+                uri,
+                "rust",
+                "/tmp/project",
+                "old".into(),
+                "old".into(),
+            );
+            codemirror.open_document(
+                session,
+                uri,
+                "rust",
+                "/tmp/project",
+                "old".into(),
+                "old".into(),
+            );
+            codemirror.update_document(uri, "first", "old");
+            native.update_document(uri, "second", "old");
+            native.close_document(uri);
+            assert_eq!(codemirror.peek_document_version(uri), Some(3));
+            codemirror.close_document(uri);
+            assert!(native.peek_document_version(uri).is_none());
+            let sent = sent.borrow();
+            let methods: Vec<_> = sent
+                .iter()
+                .map(|message| message["method"].as_str().unwrap())
+                .collect();
+            assert_eq!(
+                methods,
+                [
+                    "textDocument/didOpen",
+                    "textDocument/didChange",
+                    "textDocument/didChange",
+                    "textDocument/didClose"
+                ]
+            );
+            assert_eq!(sent[1]["params"]["textDocument"]["version"], 2);
+            assert_eq!(sent[2]["params"]["textDocument"]["version"], 3);
+        });
+    }
+
+    #[test]
+    fn typing_retains_unversioned_diagnostics_but_invalidates_versioned_ranges() {
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dom.in_scope(ScopeId::ROOT, || {
+            let mut manager = LspManager::for_workspace(workspace());
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let (session, _) = LspSession::new(Box::new(Transport(sent)));
+            let uri = "file:///tmp/project/main.rs";
+            manager.open_document(
+                session,
+                uri,
+                "rust",
+                "/tmp/project",
+                "old".into(),
+                "old".into(),
+            );
+            let diagnostic = Diagnostic {
+                line: 0,
+                col: 0,
+                end_line: 0,
+                end_col: 3,
+                severity: "error",
+                message: "cargo check".into(),
+            };
+            manager.diagnostics.with_mut(|values| {
+                values.insert(uri.into(), vec![diagnostic.clone()]);
+            });
+            manager.diagnostic_versions.with_mut(|values| {
+                values.insert(uri.into(), None);
+            });
+            manager.update_document(uri, "first", "old");
+            assert_eq!(manager.diagnostics.peek()[uri], vec![diagnostic]);
+            manager.diagnostic_versions.with_mut(|values| {
+                values.insert(uri.into(), Some(2));
+            });
+            manager.update_document(uri, "second", "old");
+            assert!(!manager.diagnostics.peek().contains_key(uri));
+        });
+    }
 }

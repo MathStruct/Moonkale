@@ -12,9 +12,16 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a new `Extension` method with a default) go into the next tag without a version bump of their own.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
-## Unreleased (spec 030) — additions, nothing breaks
+## Unreleased — editor API changes and spec 030 additions
 
 **moonkale-ext-api**
+- Document activation clears stale cursor/selection/presence context. Closing a document clears its pending reveal without resetting workspace reveal ordering. Cross-window moves refuse dirty offers and retain an origin edited after the offer; save before moving an unsaved document.
+- Added `Workspace::follow_wiki_guarded` to cancel stale editor navigation after lookup/loading. `follow_wiki` now opens the resolved node in its original source instead of searching other folders for the same relative path.
+- New public `editor` module: UTF-8 byte edit batches, UTF-16 selections, revisioned document sessions and bounded transaction undo/redo.
+- `DocsState.editor_sessions`, `editor_views` and editor choice/reveal state; `Workspace::editor_session`, `editor_view_state`, `editor_view_state_with_cleanup`, `shared_state`, `set_editor_selection` and guarded reveal. Editor sessions survive remounts; close/rename disposes their resources.
+- **Source compatibility:** `EditorFile` and `EditorSettings` gain `insert_spaces` and `indent_width`. Update explicit struct literals with these fields or use `..Default::default()` where supported. New public `DocsState` fields also affect explicit literals.
+- **Behavior change:** `word_at` columns count UTF-16 code units rather than Unicode scalar values. Update callers that calculate columns after non-BMP characters.
+
 - `i18n`: `tr`, `lookup`, `check`, `system_language`, `LANGUAGES`, the `t!(ws, L, "id", var = x)` macro, and `FluentArgs`/`FluentValue` re-exported.
 - `Settings.language` (empty = the system's) and `Workspace::lang()`; `SettingsState.system_language`.
 - `workspace::untracked(f)`: inside it `lang()` peeks instead of subscribing — for code run from untracked effects (P-151).
