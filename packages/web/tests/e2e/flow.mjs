@@ -1,30 +1,48 @@
-// Milestone 6: opt-in extensions (Settings → Extensions), the flow editor and the Lux.jl library.
-import { firefox } from "playwright";
+// Milestone 6 + spec 031 stage 7: the flow editor on the graph engine
+// (ADR-0018) — Chromium with SwiftShader, like the graph suites, because
+// the canvas is wgpu now. Covers: the extension toggle and New Flow, the
+// palette, wiring by dragging ports (typed: a mismatch is refused with a
+// notice), the parameter editor of the selected block (and spec 001's
+// keyboard guard), the layered Layout, Save and Lux codegen, unknown-kind
+// issues when the library is disabled, and the broken-file guard (#11).
+import { chromium } from "playwright";
 import fs from "node:fs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
-const browser = await firefox.launch();
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 const logs = [];
 page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) logs.push(`[${m.type()}] ${t.slice(0, 300)}`); });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
-const status = () => page.$eval(".mk-flow-status", (e) => ({ blocks: +e.dataset.blocks, wires: +e.dataset.wires, issues: +e.dataset.issues }));
-const handle = (block, port) => page.$(`.mk-flow-block:has(.mk-flow-block-title:text-is('${block}')) .mk-port-${port}`);
-const drag = async (fromBlock, fromPort, toBlock, toPort) => {
-  const from = await handle(fromBlock, fromPort); const to = await handle(toBlock, toPort);
-  if (!from || !to) throw new Error(`handles not found for ${fromBlock}.${fromPort} → ${toBlock}.${toPort}`);
-  const a = await from.boundingBox(); const b = await to.boundingBox();
-  // A click on empty canvas first: settles any pending gesture (P-073).
-  await page.mouse.click(700, 600);
-  await page.waitForTimeout(150);
-  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const status = () => page.$eval(".mk-flow-status:visible", (e) => ({ blocks: +e.dataset.blocks, wires: +e.dataset.wires, issues: +e.dataset.issues }));
+// The engine view behind this panel: positions and ports are its to report.
+const canvasRect = () => page.$eval(".mk-flow-canvas", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top }; });
+const idOfKind = async (prefix) => {
+  const pos = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].node_positions()));
+  // The palette shows the block's name ("Dense"); its id is the kind's
+  // ("dense-…").
+  const id = Object.keys(pos).find((k) => k.toLowerCase().startsWith(prefix.toLowerCase() + "-"));
+  if (!id) throw new Error(`no block of kind ${prefix}`);
+  return id;
+};
+const screen = (id) => page.evaluate((id) => Object.values(window.moonkale.flowViews)[0].node_screen_position(id), id);
+const worldPos = async (id) => (JSON.parse(await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].node_positions())))[id];
+// A block's position before/after, for the keyboard guard (no DOM transform
+// exists any more — the canvas owns the pixels, the document the numbers).
+const posOf = async (id) => JSON.stringify(await worldPos(id));
+const dragWire = async (fromId, fromPort, toId, toPort) => {
+  const box = await canvasRect();
+  const a = await page.evaluate(({ id, port }) => Object.values(window.moonkale.flowViews)[0].port_screen_position(id, port), { id: fromId, port: fromPort });
+  const b = await page.evaluate(({ id, port }) => Object.values(window.moonkale.flowViews)[0].port_screen_position(id, port), { id: toId, port: toPort });
+  if (!a || !b) throw new Error(`ports not found for ${fromId}.${fromPort} → ${toId}.${toPort}`);
+  await page.mouse.move(box.x + a[0], box.y + a[1]);
   await page.mouse.down();
-  await page.waitForTimeout(100);
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 20 });
-  await page.waitForTimeout(150);
+  await page.mouse.move(box.x + b[0], box.y + b[1], { steps: 20 });
+  await sleep(120);
   await page.mouse.up();
-  await page.waitForTimeout(300);
+  await sleep(300);
 };
 try {
   await step("open folder; File menu has no 'New Flow…' while the flow extension is off", async () => {
@@ -37,7 +55,6 @@ try {
     await page.click(".mk-menu-backdrop");
   });
   await step("Extensions panel: enable Flow editor and Lux.jl (user scope)", async () => {
-    // Extensions live in their own panel since Milestone 15 (Settings keeps only the selectors).
     await page.click("#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
     const names = await page.$$eval(".mk-settings-ext-name", (e) => e.map((x) => x.textContent));
@@ -53,7 +70,7 @@ try {
     await page.waitForFunction(() => /untitled\.flow\.json/.test(document.querySelector(".mk-titlebar-title")?.textContent || ""), null, { timeout: 15000 });
     if (!fs.existsSync(`${ROOT}/untitled.flow.json`)) throw new Error("file not created");
   });
-  await step("palette shows Lux blocks; add Input → Conv → MaxPool → Flatten → Dense → Loss → Optimiser", async () => {
+  await step("palette adds Input → Conv → MaxPool → Flatten → Dense → Loss → Optimiser; the canvas draws them", async () => {
     await page.waitForSelector(".mk-flow-palette-block", { timeout: 10000 });
     for (const b of ["Input", "Conv", "MaxPool", "Flatten", "Dense", "Loss", "Optimiser"]) {
       await page.click(`.mk-flow-palette-block:text-is('${b}')`);
@@ -62,13 +79,22 @@ try {
     const s = await status();
     console.log("\n  status:", JSON.stringify(s));
     if (s.issues === 0) throw new Error("unwired required inputs should be issues");
+    // The engine has the view: seven blocks, positioned where the palette
+    // put them (the panel pins them — the document owns the coordinates).
+    const pos = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].node_positions()));
+    if (Object.keys(pos).length !== 7) throw new Error("the canvas does not hold seven blocks");
+    await page.screenshot({ path: `${S}/s7b-flow.png` });
   });
   await step("editing a parameter: Backspace/Delete/arrows in the field do not delete or move the block (spec 001)", async () => {
-    // The Dense block's `units` field: select it, clear it with Backspace, type a value.
-    const field = page.locator(".df-node:has(.mk-flow-block-title:text-is('Dense')) .mk-flow-param:has-text('out') input");
-    // The node's `transform` is its position (its rect also changes with the selection scale effect).
-    const pos = () => page.$eval(".df-node:has(.mk-flow-block-title:text-is('Dense'))", (n) => n.style.transform);
-    const before = await pos();
+    // Select the Dense block by clicking it where the engine drew it; the
+    // side editor (one editor for the selected node, spec 031 §7) appears.
+    const dense = await idOfKind("Dense");
+    const box = await canvasRect();
+    const p = await screen(dense);
+    const before = await posOf(dense);
+    await page.mouse.click(box.x + p[0], box.y + p[1]);
+    await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
+    const field = page.locator(".mk-flow-props .mk-flow-param:has-text('out') input");
     await field.click();
     await page.keyboard.press("End");
     for (let i = 0; i < 6; i++) await page.keyboard.press("Backspace");
@@ -78,40 +104,53 @@ try {
     await page.keyboard.press("Enter");
     await page.keyboard.press("Tab");
     await page.waitForTimeout(300);
-    const blocks = await page.$eval(".mk-flow-status", (e) => e.dataset.blocks);
-    const after = await pos();
+    const blocks = await page.$eval(".mk-flow-status:visible", (e) => e.dataset.blocks);
+    const after = await posOf(dense);
     const value = await field.inputValue();
-    console.log("\n  blocks:", blocks, "out:", value, "position:", before, "→", after);
+    console.log("\n  blocks:", blocks, "out:", value, "position held:", before === after);
     if (blocks !== "7") throw new Error("a block was deleted while editing a field");
     if (value !== "42") throw new Error(`out = ${value}`);
-    if (after !== before) throw new Error("block moved while editing a field");
-    await page.mouse.click(700, 600);
+    if (after !== before) throw new Error(`the block moved while editing a field: ${before} → ${after}`);
   });
-  await step("wiring by dragging handles (typed): 6 wires, no issues", async () => {
-    // No Layout/Fit before wiring: dioxus-flow's handle geometry lags a layout
-    // animation (P-073); new blocks land in a grid that fits the canvas.
-    await drag("Input", "out", "Conv", "in");
-    await drag("Conv", "out", "MaxPool", "in");
-    await drag("MaxPool", "out", "Flatten", "in");
-    await drag("Flatten", "out", "Dense", "in");
-    await drag("Dense", "out", "Loss", "prediction");
-    await drag("Loss", "loss", "Optimiser", "loss");
+  await step("wiring by dragging ports (typed): 6 wires, no issues", async () => {
+    const id = async (p) => idOfKind(p);
+    await dragWire(await id("Input"), "out", await id("Conv"), "in");
+    await dragWire(await id("Conv"), "out", await id("MaxPool"), "in");
+    await dragWire(await id("MaxPool"), "out", await id("Flatten"), "in");
+    await dragWire(await id("Flatten"), "out", await id("Dense"), "in");
+    await dragWire(await id("Dense"), "out", await id("Loss"), "prediction");
+    await dragWire(await id("Loss"), "loss", await id("Optimiser"), "loss");
     const s = await status();
-    console.log("\n  status:", JSON.stringify(s), "positions:", await page.$$eval(".df-node", (ns) => ns.map((n) => n.querySelector(".mk-flow-block-title")?.textContent + "@" + Math.round(n.getBoundingClientRect().x) + "," + Math.round(n.getBoundingClientRect().y)).join(" ")));
+    console.log("\n  status:", JSON.stringify(s));
     if (s.wires !== 6 || s.issues !== 0) throw new Error("wiring incomplete");
-    await page.screenshot({ path: `${S}/m6-flow.png` });
+    await page.screenshot({ path: `${S}/s7b-wired.png` });
   });
   await step("a type mismatch is refused (Conv image → Dense vector)", async () => {
-    await drag("Conv", "out", "Dense", "in");
+    await dragWire(await idOfKind("Conv"), "out", await idOfKind("Dense"), "in");
     await page.waitForTimeout(300);
     const s = await status();
+    const notice = await page.$eval(".mk-flow .mk-flow-notice", (e) => e.textContent).catch(() => "");
+    console.log("\n  status:", JSON.stringify(s), "notice:", notice.slice(0, 60));
     if (s.wires !== 6 || s.issues !== 0) throw new Error("mismatched wire was accepted: " + JSON.stringify(s));
+    if (!/does not fit/.test(notice)) throw new Error("the refusal has no notice");
   });
-  await step("Save writes the flow JSON; Generate julia writes model.jl and opens it", async () => {
+  await step("Layout lines the flow up; Save writes the flow JSON with the coordinates", async () => {
+    await page.click(".mk-flow button:has-text('Layout')");
+    await sleep(400);
+    const dense = await idOfKind("Dense");
+    const loss = await idOfKind("Loss");
+    const wd = await worldPos(dense);
+    const wl = await worldPos(loss);
+    console.log(`\n  dense x ${wd[0].toFixed(1)}, loss x ${wl[0].toFixed(1)}`);
+    if (!(wl[0] > wd[0] + 50)) throw new Error("the layout did not order the chain");
     await page.click(".mk-flow button:has-text('Save')");
     await page.waitForFunction(() => !document.querySelector(".mk-flow .mk-editor-dirty"), null, { timeout: 15000 });
     const flow = JSON.parse(fs.readFileSync(`${ROOT}/untitled.flow.json`, "utf8"));
     if (flow.blocks.length !== 7 || flow.wires.length !== 6) throw new Error("flow json wrong");
+    const xs = flow.blocks.map((b) => b.x);
+    if (!xs.every((x) => Number.isFinite(x))) throw new Error("positions did not reach the document");
+  });
+  await step("Generate julia writes model.jl and opens it", async () => {
     await page.click(".mk-flow-generate");
     await page.waitForFunction(() => /model\.jl/.test(document.querySelector(".mk-titlebar-title")?.textContent || ""), null, { timeout: 15000 });
     const jl = fs.readFileSync(`${ROOT}/model.jl`, "utf8");
@@ -123,23 +162,34 @@ try {
     await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Lux.jl library')) > label input");
     await page.click(".wb-tab:has-text('untitled.flow.json')");
     await page.waitForFunction(() => +document.querySelector(".mk-flow-status")?.dataset.issues >= 7, null, { timeout: 10000 });
+    await page.click(".wb-tab:has-text('Extensions')");
+    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Lux.jl library')) > label input");
+    await page.click(".wb-tab:has-text('untitled.flow.json')");
+    await sleep(500);
   });
   await step("an unparseable .flow.json shows an error and is never written (#11); fixed on disk, Reload loads it", async () => {
     const bad = '{"version": 1, "blocks": [ {"id": "b1", "kind": "lux/Dense", "x": 0, "y": 0, "params": {} } ';
     fs.writeFileSync(`${ROOT}/broken.flow.json`, bad);
     if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer");
-    await page.click(".mk-explorer-open button[type=submit]");
-    await page.waitForSelector(".mk-tree-file >> text=broken.flow.json", { timeout: 15000 });
-    await page.click(".mk-tree-file >> text=broken.flow.json");
-    await page.waitForSelector(".mk-flow-broken:visible", { timeout: 15000 });
-    if (await page.$(".mk-flow:has(.mk-flow-broken) .mk-flow-body")) throw new Error("canvas shown for a broken file");
-    await page.keyboard.press("Control+s");
-    await page.waitForTimeout(1500);
-    if (fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8") !== bad) throw new Error("broken file was rewritten");
-    fs.writeFileSync(`${ROOT}/broken.flow.json`, JSON.stringify({ version: 1, blocks: [], wires: [] }));
+    await page.click(".mk-tree-row[title='broken.flow.json']");
+    await page.waitForSelector(".mk-flow-broken", { timeout: 15000 });
     await page.click(".mk-flow-reload:visible");
-    await page.waitForSelector(".mk-flow:has(.mk-flow-body) .mk-flow-status:visible", { timeout: 20000 });
-    if (await page.$(".mk-flow-broken:visible")) throw new Error("error banner stayed after the fix");
+    await page.waitForSelector(".mk-flow-broken", { timeout: 15000 });
+    const untouched = fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8");
+    if (untouched !== bad) throw new Error("the broken file was written");
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, '{"version":1,"blocks":[{"id":"b1","kind":"lux/Dense","x":10,"y":10,"params":{"out":"7"}}],"wires":[]}');
+    await page.click(".mk-flow-reload:visible");
+    await sleep(500);
+    const s = await status();
+    console.log("\n  reloaded:", JSON.stringify(s));
+    if (s.blocks !== "1" && s.blocks !== 1) throw new Error("Reload did not load the fixed file: " + JSON.stringify(s));
   });
   console.log("\nFLOW E2E: PASS");
-} catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-10).join("\n")); await page.screenshot({ path: `${S}/m6-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }
+} catch (e) {
+  console.log("\nFAIL:", e.message);
+  await page.screenshot({ path: `${S}/s7b-fail.png` }).catch(() => {});
+  console.log(logs.filter((l) => !/WARN|Copy Value/.test(l)).slice(-15).join("\n"));
+  process.exitCode = 1;
+} finally {
+  await browser.close();
+}

@@ -1,108 +1,312 @@
-//! The flow editor panel: a dioxus-flow canvas over one `*.flow.json`
-//! document, a palette of the enabled libraries' blocks, typed wiring,
-//! per-block parameters, validation and codegen.
+//! The flow editor panel: the graph engine's edit mode over one
+//! `*.flow.json` document — a palette of the enabled libraries' blocks,
+//! typed wiring (the engine emits `connect`; this panel validates with
+//! `unify` and adds the wire — the renderer never mutates the model,
+//! ADR-0018), per-block parameters in the side editor of the selected
+//! block (one HTML editor, spec 031 §7 — no per-node DOM), validation and
+//! codegen.
 //!
-//! State: the canvas' `nodes`/`edges` signals are the working copy; every
-//! change is serialised back into the `Document` (dirty → Save, like any
-//! editor). The document is re-read into the canvas only when its text is
-//! replaced from outside (reload).
+//! State: the `Flow` signal is the working copy; every change is
+//! serialised back into the `Document` (dirty → Save, like any editor)
+//! and re-sent to the canvas, which matches by id and keeps the live
+//! positions. The document is re-read only when its text is replaced from
+//! outside (reload). A block's position is the document's — the canvas
+//! reports `moved` and the panel harvests the coordinates back.
 
 use crate::L;
+use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
-use dioxus_flow::prelude::*;
-use dioxus_flow::Id;
 use moonkale_core::NodeId as CoreNodeId;
-use moonkale_ext_api::flow::{find_kind, validate, Block, Flow, FlowLibrary, ParamKind, Wire};
+use moonkale_ext_api::flow::{
+    find_kind, validate, Block, Flow, FlowLibrary, ParamKind, PortType, Wire,
+};
 use moonkale_ext_api::{t, Workspace};
+use moonkale_graph_assets::{RENDER_JS, RENDER_WASM};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use web_sys::wasm_bindgen::JsCast;
 
 const CSS: Asset = asset!("/assets/flow.css");
 
-/// Per-node payload: which block kind, its parameters, and any issues.
-#[derive(Clone, Debug, PartialEq)]
-pub struct BlockData {
-    pub kind: String,
-    pub params: BTreeMap<String, String>,
-    pub issues: Vec<String>,
+/// The engine's block half-width (world units; `RECT_WIDTH` there).
+const BLOCK_W: f32 = 46.0;
+
+/// A hue per block kind, so two libraries' blocks read apart at a glance
+/// (the label-colour trick from the graph panel).
+const PALETTE: [&str; 12] = [
+    "#f2a03d", "#4fb3e8", "#8ccf6a", "#e86b8a", "#b48cf0", "#f0d55a", "#4fd6c2", "#f07c4f",
+    "#9ab7ff", "#d69bd6", "#a8d86b", "#ff9fb3",
+];
+
+fn kind_color(kind: &str) -> &'static str {
+    let h = kind
+        .bytes()
+        .fold(5381u32, |h, b| h.wrapping_mul(33).wrapping_add(b as u32));
+    PALETTE[(h % PALETTE.len() as u32) as usize]
 }
 
-fn to_canvas(flow: &Flow, libs: &[FlowLibrary]) -> (Vec<Node<BlockData>>, Vec<Edge>) {
-    let issues = validate(flow, libs);
-    let nodes = flow
+/// A port's colour by what it carries — the types read at a glance while
+/// wiring (spec 031 §2: typed-looking boundary markers).
+fn port_color(ty: &PortType) -> &'static str {
+    match ty {
+        PortType::Any => "#8b93a5",
+        PortType::Scalar => "#8ccf6a",
+        PortType::Tensor { .. } => "#ffe459",
+        PortType::Named { .. } => "#e86b8a",
+    }
+}
+
+// ---- the engine's wire format (one conversion site, ADR-0018 §2) --------
+
+#[derive(Serialize)]
+struct OutNode<'a> {
+    id: &'a str,
+    label: &'a str,
+    /// The block's `library/kind` (the engine's own `kind` field); the
+    /// explicit `color` decides how it draws.
+    kind: &'a str,
+    color: &'static str,
+    shape: &'static str,
+    width: f32,
+    height: f32,
+    pos: [f32; 2],
+    pinned: bool,
+}
+
+#[derive(Serialize)]
+struct OutEdge<'a> {
+    id: &'a str,
+    a: usize,
+    b: usize,
+    directed: bool,
+    a_port: &'a str,
+    b_port: &'a str,
+    route: OutRoute,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color: Option<&'static str>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+enum OutRoute {
+    Ortho {},
+}
+
+#[derive(Serialize)]
+struct OutPort {
+    node: usize,
+    name: String,
+    side: &'static str,
+    offset: f32,
+    direction: &'static str,
+    color: &'static str,
+}
+
+#[derive(Serialize)]
+struct OutScene<'a> {
+    nodes: Vec<OutNode<'a>>,
+    edges: Vec<OutEdge<'a>>,
+    ports: Vec<OutPort>,
+}
+
+/// `Flow` → the engine's scene. The ids are the blocks' and wires' ids, so
+/// the engine's incremental `set_graph` keeps the live positions and the
+/// selection across every sync.
+fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> OutScene<'a> {
+    let index: BTreeMap<&str, usize> = flow
         .blocks
         .iter()
-        .map(|b| {
-            let name = find_kind(libs, &b.kind)
-                .map(|(_, k)| k.name.clone())
-                .unwrap_or_else(|| b.kind.clone());
-            let mut n = Node::with_data(
-                b.id.clone(),
-                name,
-                (b.x, b.y),
-                BlockData {
-                    kind: b.kind.clone(),
-                    params: b.params.clone(),
-                    issues: issues
-                        .iter()
-                        .filter(|i| i.about == b.id)
-                        .map(|i| i.message.clone())
-                        .collect(),
-                },
-            );
-            n.source_side = Side::Right;
-            n.target_side = Side::Left;
-            n
-        })
+        .enumerate()
+        .map(|(i, b)| (b.id.as_str(), i))
         .collect();
+    let mut nodes = Vec::new();
+    let mut ports = Vec::new();
+    for (i, b) in flow.blocks.iter().enumerate() {
+        let resolved = find_kind(libs, &b.kind);
+        let (name, kind_ports) = match &resolved {
+            Some((_, k)) => (k.name.as_str(), Some(k)),
+            None => (b.kind.as_str(), None),
+        };
+        let bad = issues.iter().any(|x| x.about == b.id);
+        let (n_in, n_out) = kind_ports
+            .map(|k| (k.inputs.len(), k.outputs.len()))
+            .unwrap_or((0, 0));
+        // Tall enough for its ports; a little room for the label.
+        let height = (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0);
+        let width = BLOCK_W.max(name.len() as f32 * 1.9);
+        nodes.push(OutNode {
+            id: &b.id,
+            label: name,
+            kind: &b.kind,
+            color: if bad { "#e86b6a" } else { kind_color(&b.kind) },
+            shape: "rect",
+            width,
+            height,
+            pos: [b.x as f32, b.y as f32],
+            pinned: true, // the document owns the positions
+        });
+        if let Some((_, k)) = resolved {
+            for (j, p) in k.inputs.iter().enumerate() {
+                ports.push(OutPort {
+                    node: i,
+                    name: p.name.clone(),
+                    side: "left",
+                    offset: (j + 1) as f32 / (n_in + 1) as f32,
+                    direction: "in",
+                    color: port_color(&p.ty),
+                });
+            }
+            for (j, p) in k.outputs.iter().enumerate() {
+                ports.push(OutPort {
+                    node: i,
+                    name: p.name.clone(),
+                    side: "right",
+                    offset: (j + 1) as f32 / (n_out + 1) as f32,
+                    direction: "out",
+                    color: port_color(&p.ty),
+                });
+            }
+        }
+    }
     let edges = flow
         .wires
         .iter()
-        .map(|w| {
-            let mut e = Edge::new(w.from_block.clone(), w.to_block.clone());
-            e.id = w.id.clone();
-            e.source_handle = Some(w.from_port.clone());
-            e.target_handle = Some(w.to_port.clone());
-            if issues.iter().any(|i| i.about == w.id) {
-                e.class = Some("mk-flow-wire-bad".into());
-            }
-            e
+        .map(|w| OutEdge {
+            id: &w.id,
+            a: index[w.from_block.as_str()],
+            b: index[w.to_block.as_str()],
+            directed: true,
+            a_port: &w.from_port,
+            b_port: &w.to_port,
+            route: OutRoute::Ortho {},
+            color: issues.iter().any(|x| x.about == w.id).then_some("#e86b6a"),
         })
         .collect();
-    (nodes, edges)
+    OutScene {
+        nodes,
+        edges,
+        ports,
+    }
 }
 
-fn to_flow(nodes: &[Node<BlockData>], edges: &[Edge]) -> Flow {
-    let mut f = Flow::new();
-    f.blocks = nodes
-        .iter()
-        .map(|n| Block {
-            id: n.id.to_string(),
-            kind: n.data.kind.clone(),
-            x: n.position.x,
-            y: n.position.y,
-            params: n.data.params.clone(),
-        })
-        .collect();
-    f.wires = edges
-        .iter()
-        .map(|e| Wire {
-            id: e.id.to_string(),
-            from_block: e.source.to_string(),
-            from_port: e
-                .source_handle
-                .as_ref()
-                .map(|h| h.to_string())
-                .unwrap_or_default(),
-            to_block: e.target.to_string(),
-            to_port: e
-                .target_handle
-                .as_ref()
-                .map(|h| h.to_string())
-                .unwrap_or_default(),
-        })
-        .collect();
-    f
+use moonkale_ext_api::flow::Issue;
+
+// ---- the eval channel ----------------------------------------------------
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum ToJs<'a> {
+    SetGraph {
+        scene: OutScene<'a>,
+    },
+    Fit,
+    /// The layered arrangement (the Layout button); the script answers
+    /// with the harvested positions, like a drag's `moved`.
+    HierLayout,
+    Destroy,
 }
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct End {
+    node: String,
+    port: String,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum FromJs {
+    Loaded,
+    Ready,
+    Error {
+        message: String,
+    },
+    Select {
+        nodes: Vec<String>,
+        edges: Vec<String>,
+    },
+    Connect {
+        from: End,
+        to: End,
+    },
+    Moved {
+        positions: BTreeMap<String, [f32; 2]>,
+    },
+    Settled,
+}
+
+const SCRIPT: &str = r#"
+// Handshake: messages sent before the host awaits are lost, so wait for
+// the host's first message before sending anything.
+await dioxus.recv();
+const canvas = document.getElementById(ID + "-gl");
+const overlay = document.getElementById(ID + "-ov");
+if (!canvas || !overlay) { return; }
+const failed = async (message) => {
+    dioxus.send({ kind: "error", message });
+    for (;;) { const m = await dioxus.recv(); if (m.kind === "destroy") return; }
+};
+let mod;
+try {
+    const abs = (u) => new URL(u, document.baseURI || location.href).href;
+    mod = await import(abs(JS_URL));
+    await mod.default({ module_or_path: abs(WASM_URL) });
+    dioxus.send({ kind: "loaded" });
+} catch (e) {
+    return failed("could not load the renderer module: " + String(e && e.message ? e.message : e));
+}
+const probe = document.createElement("canvas");
+const probeGl = probe.getContext("webgl2");
+if (!probeGl && !navigator.gpu) {
+    return failed("this browser/webview offers neither WebGPU nor WebGL2");
+}
+try { probeGl && probeGl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
+let view;
+const onEvent = (ev) => {
+    // A block finished moving (stage 7): the host harvests the positions
+    // into its document.
+    if (ev && ev.kind === "moved") ev.positions = view.node_positions();
+    dioxus.send(ev);
+};
+try {
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("renderer did not start within 15s")), 15000));
+    const prefer = /\bAndroid\b/.test(navigator.userAgent) && /\bwv\b/.test(navigator.userAgent) ? "gl" : null;
+    view = await Promise.race([mod.create(canvas, overlay, onEvent, prefer), timeout]);
+} catch (e) {
+    return failed(String(e && e.message ? e.message : e));
+}
+view.set_interaction("edit"); // the flow surface is always an edit surface
+const host = canvas.parentElement;
+const ro = new ResizeObserver(() => {
+    const r = host.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) view.resize(r.width, r.height, window.devicePixelRatio || 1);
+});
+ro.observe(host);
+window.moonkale = window.moonkale || {};
+(window.moonkale.flowViews = window.moonkale.flowViews || {})[ID] = view;
+const retheme = () => {
+    const css = getComputedStyle(host);
+    const v = (n) => css.getPropertyValue(n).trim();
+    try { view.set_theme(v("--mk-graph-bg"), v("--mk-graph-label"), v("--mk-graph-label-hover")); } catch (_) {}
+};
+retheme();
+const themeObserver = new MutationObserver(retheme);
+themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+window.addEventListener("moonkale-theme", retheme);
+for (;;) {
+    const msg = await dioxus.recv();
+    if (msg.kind === "setGraph") view.set_graph(JSON.stringify(msg.scene));
+    else if (msg.kind === "fit") view.fit();
+    else if (msg.kind === "hierLayout") {
+        view.hier_layout();
+        dioxus.send({ kind: "moved", positions: view.node_positions() });
+    }
+    else if (msg.kind === "destroy") {
+        ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme);
+        view.destroy(); delete window.moonkale.flowViews[ID]; break;
+    }
+}
+"#;
 
 #[component]
 pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
@@ -115,248 +319,142 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let parsed = Flow::parse(&doc.peek().text);
     let mut broken: Signal<Option<String>> = use_signal(|| parsed.as_ref().err().cloned());
     let initial = parsed.unwrap_or_default();
-    let (n0, e0) = to_canvas(&initial, &libs);
-    let mut nodes: Signal<Vec<Node<BlockData>>> = use_signal(|| n0);
-    let mut edges: Signal<Vec<Edge>> = use_signal(|| e0);
+    let mut flow: Signal<Flow> = use_signal(|| initial);
     let mut last_text = use_signal(|| doc.peek().text.clone());
     let mut error: Signal<Option<String>> = use_signal(|| None);
+    let mut notice: Signal<Option<String>> = use_signal(|| None);
     let mut selected_lib = use_signal(|| 0usize);
-    let handle: FlowHandle<BlockData> = use_flow_handle();
+    let mut selected: Signal<(Vec<String>, Vec<String>)> = use_signal(|| (Vec::new(), Vec::new()));
+    let mut eval: Signal<Option<Eval>> = use_signal(|| None);
+    let mut loaded = use_signal(|| false);
+    let id = use_hook(|| "mk-flow-panel".to_string());
 
-    // Canvas → document (dirty), and re-validate.
-    let libs_for_sync = libs.clone();
-    let sync = move || {
-        if broken.peek().is_some() {
-            return;
-        }
-        let flow = to_flow(&nodes.peek(), &edges.peek());
-        let issues = validate(&flow, &libs_for_sync);
-        nodes.with_mut(|ns| {
-            for n in ns.iter_mut() {
-                n.data.issues = issues
-                    .iter()
-                    .filter(|i| i.about == n.id)
-                    .map(|i| i.message.clone())
-                    .collect();
-            }
-        });
-        edges.with_mut(|es| {
-            for e in es.iter_mut() {
-                e.class = issues
-                    .iter()
-                    .any(|i| i.about == e.id)
-                    .then(|| "mk-flow-wire-bad".to_string());
-            }
-        });
-        let text = flow.to_json();
-        last_text.set(text.clone());
-        doc.with_mut(|d| d.text = text);
-    };
-
-    // Document replaced from outside (reload): rebuild the canvas.
-    {
+    // Mount the renderer from the host element's `onmounted` event.
+    let mount = {
+        let id = id.clone();
         let libs = libs.clone();
+        move |_| {
+            if eval.peek().is_some() {
+                return;
+            }
+            let script = SCRIPT
+                .replace("ID", &serde_json::to_string(&id).unwrap())
+                .replace(
+                    "JS_URL",
+                    &serde_json::to_string(&RENDER_JS.to_string()).unwrap(),
+                )
+                .replace(
+                    "WASM_URL",
+                    &serde_json::to_string(&RENDER_WASM.to_string()).unwrap(),
+                );
+            let ev = document::eval(&script);
+            let mut rx = ev;
+            // The event loop owns its copy; the mount closure stays FnMut.
+            let libs = libs.clone();
+            spawn(async move {
+                loop {
+                    match rx.recv::<FromJs>().await {
+                        Ok(FromJs::Loaded) => loaded.set(true),
+                        Ok(FromJs::Ready) => {}
+                        Ok(FromJs::Error { message }) => error.set(Some(message)),
+                        Ok(FromJs::Select { nodes, edges }) => selected.set((nodes, edges)),
+                        Ok(FromJs::Connect { from, to }) => {
+                            let (ok, why) = wire(&mut flow, &libs, &from, &to);
+                            if ok {
+                                notice.set(None);
+                                sync(&flow, &libs, &mut last_text, &mut doc);
+                                push_graph(&eval, &flow, &libs);
+                            } else {
+                                // The gesture drew a wire; the model did not
+                                // take it. The next sync redraws without it.
+                                notice.set(Some(why));
+                                push_graph(&eval, &flow, &libs);
+                            }
+                        }
+                        Ok(FromJs::Moved { positions }) => {
+                            flow.with_mut(|f| {
+                                for b in &mut f.blocks {
+                                    if let Some(p) = positions.get(&b.id) {
+                                        b.x = p[0] as f64;
+                                        b.y = p[1] as f64;
+                                    }
+                                }
+                            });
+                            sync(&flow, &libs, &mut last_text, &mut doc);
+                        }
+                        Ok(FromJs::Settled) => {}
+                        Err(dioxus::document::EvalError::Serialization(_)) => continue,
+                        Err(_) => break,
+                    }
+                }
+            });
+            let _ = ev.send(serde_json::json!({ "kind": "init" }));
+            eval.set(Some(ev));
+        }
+    };
+    use_drop(move || {
+        if let Some(ev) = eval.peek().as_ref() {
+            let _ = ev.send(ToJs::Destroy);
+        }
+    });
+
+    // The first scene goes out when the canvas is up; every mutation
+    // below pushes its own (the engine matches by id and keeps the live
+    // positions, so nothing else is re-sent). A scene that has grown
+    // beyond the fitted box refits — the palette's grid and the Layout
+    // both reach past the default camera — but wires and drags that stay
+    // inside never move the viewport under the user.
+    let eval_for_scene = eval;
+    let loaded_for_scene = loaded;
+    let libs_for_scene = libs.clone();
+    let mut fitted: Signal<Option<[f64; 4]>> = use_signal(|| None);
+    use_effect(move || {
+        if loaded_for_scene() {
+            push_graph(&eval_for_scene, &flow, &libs_for_scene);
+            let bounds = flow
+                .read()
+                .blocks
+                .iter()
+                .fold(None::<[f64; 4]>, |a, b| match a {
+                    None => Some([b.x, b.y, b.x, b.y]),
+                    Some([x0, y0, x1, y1]) => {
+                        Some([x0.min(b.x), y0.min(b.y), x1.max(b.x), y1.max(b.y)])
+                    }
+                });
+            let refit = match (bounds, fitted()) {
+                (Some(b), Some(f)) => b[0] < f[0] || b[1] < f[1] || b[2] > f[2] || b[3] > f[3],
+                (Some(_), None) => true,
+                _ => false,
+            };
+            if refit {
+                fitted.set(bounds);
+                if let Some(ev) = eval_for_scene.peek().as_ref() {
+                    let _ = ev.send(ToJs::Fit);
+                }
+            }
+        }
+    });
+
+    // Document replaced from outside (reload): rebuild the flow.
+    {
         use_effect(move || {
             let text = doc.read().text.clone();
             if text == *last_text.peek() {
                 return;
             }
             last_text.set(text.clone());
-            let flow = match Flow::parse(&text) {
+            match Flow::parse(&text) {
                 Ok(f) => {
                     broken.set(None);
-                    f
+                    flow.set(f);
                 }
-                Err(e) => {
-                    broken.set(Some(e));
-                    return;
-                }
-            };
-            let (n, e) = to_canvas(&flow, &libs);
-            nodes.set(n);
-            edges.set(e);
+                Err(e) => broken.set(Some(e)),
+            }
         });
     }
 
-    let libs_valid = libs.clone();
-    let is_valid = move |c: Connection| -> bool {
-        let ns = nodes.peek();
-        let kind_of = |id: &Id| ns.iter().find(|n| &n.id == id).map(|n| n.data.kind.clone());
-        let (Some(fk), Some(tk)) = (kind_of(&c.source), kind_of(&c.target)) else {
-            return false;
-        };
-        let (Some((_, fkind)), Some((_, tkind))) =
-            (find_kind(&libs_valid, &fk), find_kind(&libs_valid, &tk))
-        else {
-            return false;
-        };
-        let out = fkind
-            .outputs
-            .iter()
-            .find(|p| Some(p.name.as_str()) == c.source_handle.as_deref());
-        let inp = tkind
-            .inputs
-            .iter()
-            .find(|p| Some(p.name.as_str()) == c.target_handle.as_deref());
-        match (out, inp) {
-            (Some(o), Some(i)) => o.ty.unify(&i.ty).is_some(),
-            _ => false,
-        }
-    };
-
-    let on_connect = {
-        let mut sync = sync.clone();
-        move |c: Connection| {
-            // One wire per input port: a new one replaces the old.
-            edges.with_mut(|es| {
-                es.retain(|e| !(e.target == c.target && e.target_handle == c.target_handle));
-                let mut e = c.into_edge();
-                e.id = format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
-                es.push(e);
-            });
-            sync();
-        }
-    };
-    let on_drag_stop = {
-        let mut sync = sync.clone();
-        move |_ids: Vec<Id>| sync()
-    };
-    let on_delete = {
-        let mut sync = sync.clone();
-        move |req: DeleteRequest| {
-            nodes.with_mut(|ns| ns.retain(|n| !req.nodes.contains(&n.id)));
-            edges.with_mut(|es| {
-                es.retain(|e| {
-                    !req.edges.contains(&e.id)
-                        && !req.nodes.contains(&e.source)
-                        && !req.nodes.contains(&e.target)
-                })
-            });
-            sync();
-        }
-    };
-
-    let add_block = {
-        let libs = libs.clone();
-        let mut sync = sync.clone();
-        move |kind: String| {
-            let Some((lib, k)) = find_kind(&libs, &kind) else {
-                return;
-            };
-            // New blocks go into a 3-column grid so they never pile up.
-            let n = nodes.peek().len();
-            let (col, row) = ((n % 3) as f64, (n / 3) as f64);
-            let params = k
-                .params
-                .iter()
-                .map(|p| (p.name.clone(), p.default.clone()))
-                .collect();
-            let mut node = Node::with_data(
-                format!(
-                    "{}-{}",
-                    k.id,
-                    &uuid::Uuid::new_v4().simple().to_string()[..6]
-                ),
-                k.name.clone(),
-                (30.0 + col * 165.0, 30.0 + row * 170.0),
-                BlockData {
-                    kind: format!("{}/{}", lib.id, k.id),
-                    params,
-                    issues: Vec::new(),
-                },
-            );
-            node.source_side = Side::Right;
-            node.target_side = Side::Left;
-            nodes.with_mut(|ns| ns.push(node));
-            sync();
-        }
-    };
-
-    let set_param = {
-        let mut sync = sync.clone();
-        move |(id, name, value): (Id, String, String)| {
-            nodes.with_mut(|ns| {
-                if let Some(n) = ns.iter_mut().find(|n| n.id == id) {
-                    n.data.params.insert(name, value);
-                }
-            });
-            sync();
-        }
-    };
-
-    let libs_view = libs.clone();
-    let node_view = Callback::new(move |ctx: NodeViewCtx<BlockData>| {
-        let n = ctx.node.clone();
-        let kind = find_kind(&libs_view, &n.data.kind).map(|(_, k)| k.clone());
-        let bad = !n.data.issues.is_empty();
-        let id = n.id.clone();
-        rsx! {
-            div { class: if bad { "mk-flow-block mk-flow-block-bad" } else { "mk-flow-block" }, title: "{n.data.issues.join(\"\\n\")}",
-                div { class: "mk-flow-block-title", "{n.label}" }
-                if let Some(k) = kind {
-                    for (i, p) in k.inputs.iter().enumerate() {
-                        Handle { kind: HandleKind::Target, position: Side::Left, id: p.name.clone(), offset: (i as f64 + 1.0) / (k.inputs.len() as f64 + 1.0), class: format!("mk-flow-handle-in mk-port-{}", p.name) }
-                    }
-                    for (i, p) in k.outputs.iter().enumerate() {
-                        Handle { kind: HandleKind::Source, position: Side::Right, id: p.name.clone(), offset: (i as f64 + 1.0) / (k.outputs.len() as f64 + 1.0), class: format!("mk-flow-handle-out mk-port-{}", p.name) }
-                    }
-                    div { class: "mk-flow-ports",
-                        div { class: "mk-flow-ports-in", for p in k.inputs.iter() { div { key: "{p.name}", title: "{p.ty.describe()}", "◂ {p.name}" } } }
-                        div { class: "mk-flow-ports-out", for p in k.outputs.iter() { div { key: "{p.name}", title: "{p.ty.describe()}", "{p.name} ▸" } } }
-                    }
-                    if !k.params.is_empty() {
-                        // Keys typed into a parameter field must not reach the
-                        // node/canvas handlers (Delete/Backspace remove the block,
-                        // arrows nudge it, Enter/Space toggle selection); Ctrl/Meta
-                        // combos (Ctrl+S) still bubble. Pointer-down likewise, or a
-                        // click into the field starts a drag (spec 001).
-                        div { class: "mk-flow-params",
-                            onkeydown: move |e| {
-                                if !moonkale_ext_api::keys::primary(&e.modifiers()) {
-                                    e.stop_propagation();
-                                }
-                            },
-                            onpointerdown: |e| e.stop_propagation(),
-                            for p in k.params.iter() {
-                                {
-                                    let value = n.data.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
-                                    let (id2, name) = (id.clone(), p.name.clone());
-                                    let mut set_param = set_param.clone();
-                                    rsx! {
-                                        label { key: "{p.name}", class: "mk-flow-param",
-                                            span { "{p.name}" }
-                                            match &p.kind {
-                                                ParamKind::Choice { options } => rsx! {
-                                                    select { value: "{value}", onmousedown: |e| e.stop_propagation(),
-                                                        onchange: move |e| set_param((id2.clone(), name.clone(), e.value())),
-                                                        for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
-                                                    }
-                                                },
-                                                ParamKind::Bool => rsx! {
-                                                    input { r#type: "checkbox", checked: value == "true", onmousedown: |e| e.stop_propagation(),
-                                                        onchange: move |e| set_param((id2.clone(), name.clone(), e.checked().to_string())) }
-                                                },
-                                                _ => rsx! {
-                                                    input { value: "{value}", size: 6, onmousedown: |e| e.stop_propagation(),
-                                                        onchange: move |e| set_param((id2.clone(), name.clone(), e.value())) }
-                                                },
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    div { class: "mk-flow-block-missing", "unknown kind {n.data.kind}" }
-                }
-            }
-        }
-    });
-
+    let issues_now = validate(&flow.read(), &libs);
     let dirty = doc.read().dirty();
-    let flow_now = to_flow(&nodes.read(), &edges.read());
-    let issues = validate(&flow_now, &libs);
     let save = move |_| {
         spawn(async move {
             match ws.save(node).await {
@@ -365,13 +463,15 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             }
         });
     };
+
     // Codegen: every library with a generator and at least one block in use.
+    let flow_for_gen = flow.read().clone();
     let generators: Vec<FlowLibrary> = libs
         .iter()
         .filter(|_| broken.read().is_none())
         .filter(|l| {
             l.codegen.is_some()
-                && flow_now
+                && flow_for_gen
                     .blocks
                     .iter()
                     .any(|b| b.kind.starts_with(&format!("{}/", l.id)))
@@ -379,7 +479,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         .cloned()
         .collect();
     let generate = move |lib: FlowLibrary| {
-        let flow = to_flow(&nodes.peek(), &edges.peek());
+        let flow = flow.read().clone();
         spawn(async move {
             let Some(gen) = lib.codegen else { return };
             match gen(&flow, &lib) {
@@ -451,30 +551,118 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
     };
 
+    // A palette pick adds a block on a 3-column grid, as before.
+    let add_block = {
+        let libs = libs.clone();
+        move |kind: String| {
+            let Some((lib, k)) = find_kind(&libs, &kind) else {
+                return;
+            };
+            let n = flow.read().blocks.len();
+            let (col, row) = ((n % 3) as f64, (n / 3) as f64);
+            let params = k
+                .params
+                .iter()
+                .map(|p| (p.name.clone(), p.default.clone()))
+                .collect();
+            flow.with_mut(|f| {
+                f.blocks.push(Block {
+                    id: format!(
+                        "{}-{}",
+                        k.id,
+                        &uuid::Uuid::new_v4().simple().to_string()[..6]
+                    ),
+                    kind: format!("{}/{}", lib.id, k.id),
+                    x: 30.0 + col * 165.0,
+                    y: 30.0 + row * 170.0,
+                    params,
+                });
+            });
+            notice.set(None);
+            sync(&flow, &libs, &mut last_text, &mut doc);
+            push_graph(&eval, &flow, &libs);
+        }
+    };
+
+    // The side editor writes one parameter of the selected block.
+    let set_param = {
+        let libs = libs.clone();
+        move |(bid, name, value): (String, String, String)| {
+            flow.with_mut(|f| {
+                if let Some(b) = f.blocks.iter_mut().find(|b| b.id == bid) {
+                    b.params.insert(name, value);
+                }
+            });
+            sync(&flow, &libs, &mut last_text, &mut doc);
+        }
+    };
+
+    // Delete removes the selected blocks and wires (the engine only
+    // reports the selection; the model is the panel's to mutate).
+    let mut delete_selected = {
+        let libs = libs.clone();
+        move |_| {
+            let (nodes, wires) = selected.read().clone();
+            if nodes.is_empty() && wires.is_empty() {
+                return;
+            }
+            flow.with_mut(|f| {
+                f.blocks.retain(|b| !nodes.contains(&b.id));
+                f.wires.retain(|w| {
+                    !wires.contains(&w.id)
+                        && !nodes.contains(&w.from_block)
+                        && !nodes.contains(&w.to_block)
+                });
+            });
+            selected.set((Vec::new(), Vec::new()));
+            notice.set(None);
+            sync(&flow, &libs, &mut last_text, &mut doc);
+            push_graph(&eval, &flow, &libs);
+        }
+    };
+
+    // The selected block's parameters (spec 031 §7: one editor for the
+    // selected node, not a component per block).
+    let (sel_blocks, _sel_wires) = selected.read().clone();
+    let sel_block = sel_blocks
+        .first()
+        .and_then(|id| flow.read().block(id).cloned());
+    let sel_kind = sel_block
+        .as_ref()
+        .and_then(|b| find_kind(&libs, &b.kind).map(|(_, k)| k.clone()));
+
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
         div {
             class: "mk-flow",
+            // Delete/Backspace remove the selection — never while a field
+            // has the focus (spec 001); Ctrl/Meta combos bubble (Ctrl+S).
             onkeydown: move |e| {
                 if moonkale_ext_api::keys::primary(&e.modifiers()) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
-                    e.stop_propagation(); // the frame would dispatch Save again
+                    e.stop_propagation();
                     save(());
+                } else if matches!(e.key(), Key::Delete | Key::Backspace) {
+                    // The side editor stops its own keys (below), so a key
+                    // that reaches the root is aimed at the canvas.
+                    e.prevent_default();
+                    delete_selected(());
                 }
             },
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{doc.read().node.native_key}" }
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "flow-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
-                span { class: "mk-flow-status", "data-blocks": "{flow_now.blocks.len()}", "data-wires": "{flow_now.wires.len()}", "data-issues": "{issues.len()}",
-                    {t!(ws, L, "flow-counts", blocks = flow_now.blocks.len(), wires = flow_now.wires.len())}
-                    if !issues.is_empty() { span { class: "mk-flow-issues", title: "{issues.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues.len())} } }
+                if let Some(n) = notice() { span { class: "mk-flow-notice", "{n}" } }
+                span { class: "mk-flow-status", "data-blocks": "{flow.read().blocks.len()}", "data-wires": "{flow.read().wires.len()}", "data-issues": "{issues_now.len()}",
+                    {t!(ws, L, "flow-counts", blocks = flow.read().blocks.len(), wires = flow.read().wires.len())}
+                    if !issues_now.is_empty() { span { class: "mk-flow-issues", title: "{issues_now.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues_now.len())} } }
                 }
                 for lib in generators {
                     button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: t!(ws, L, "flow-generate-title", language = lib.language), {t!(ws, L, "flow-generate", language = lib.language)} }
                 }
-                button { class: "mk-btn", onclick: move |_| handle.auto_layout(&LayoutOptions { direction: LayoutDirection::LeftToRight, node_gap: 40.0, rank_gap: 90.0, update_handle_sides: false }), {t!(ws, L, "flow-layout")} }
-                button { class: "mk-btn", onclick: move |_| handle.fit_view(200), {t!(ws, L, "flow-fit")} }
+                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }, {t!(ws, L, "flow-layout")} }
+                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, {t!(ws, L, "flow-fit")} }
                 button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), {t!(ws, L, "flow-save")} }
                 button { class: "mk-btn mk-flow-reload", title: t!(ws, L, "flow-reload-title"),
                     onclick: move |_| { spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); },
@@ -486,7 +674,31 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 div { class: "mk-editor-error mk-flow-broken", role: "alert", {t!(ws, L, "flow-broken", error = why)} }
             } else {
                 div { class: "mk-flow-body",
-                    div { class: "mk-flow-palette",
+                    // One click handler for the whole palette (the clicked
+                    // button names its kind): per-button handlers hit a
+                    // dioxus delegated-event quirk on this panel's first
+                    // click — the first button's handler fired alongside
+                    // the clicked one's, adding a stray block.
+                    div {
+                        class: "mk-flow-palette",
+                        onclick: {
+                            let mut add_block = add_block.clone();
+                            move |e| {
+                                let kind = web_sys::window()
+                                    .and_then(|w| w.event().dyn_into::<web_sys::Event>().ok())
+                                    .and_then(|ev| ev.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()))
+                                    .and_then(|el| {
+                                        el.closest("[data-kind]").ok().flatten()
+                                    })
+                                    .and_then(|b| {
+                                        b.get_attribute("data-kind")
+                                    });
+                                if let Some(kind) = kind {
+                                    e.stop_propagation();
+                                    add_block(kind);
+                                }
+                            }
+                        },
                         if libs.is_empty() {
                             p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
                         } else {
@@ -505,10 +717,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                             cats.dedup();
                                             rsx! {
                                                 for cat in cats {
-                                                    div { key: "{cat}", class: "mk-flow-palette-cat", "{cat}" }
+                                                    div { class: "mk-flow-palette-cat", "{cat}" }
                                                     for b in lib.blocks.iter().filter(|b| b.category == cat) {
-                                                        button { key: "{b.id}", class: "mk-flow-palette-block", title: "{b.description}",
-                                                            onclick: { let mut add = add_block.clone(); let kind = format!("{}/{}", lib.id, b.id); move |_| add(kind.clone()) },
+                                                        button { "data-kind": "{lib.id}/{b.id}", class: "mk-flow-palette-block", title: "{b.description}",
                                                             "{b.name}"
                                                         }
                                                     }
@@ -520,24 +731,128 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             }
                         }
                     }
-                    div { class: "mk-flow-canvas",
-                        Flow {
-                            nodes,
-                            edges,
-                            handle,
-                            node_view,
-                            is_valid_connection: is_valid,
-                            on_connect,
-                            on_node_drag_stop: on_drag_stop,
-                            on_delete,
-                            drag_threshold: 4.0,
-                            pan_on_scroll: false,
-                            Background {}
-                            Controls {}
+                    div { class: "mk-flow-canvas", onmounted: { let mut mount = mount; move |e| mount(e) },
+                        canvas { id: "{id}-gl", class: "mk-flow-gl" }
+                        canvas { id: "{id}-ov", class: "mk-flow-ov" }
+                    }
+                    if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
+                        div {
+                            class: "mk-flow-props",
+                            // Keys typed into a parameter field must not reach
+                            // the panel (Delete/Backspace remove the selection);
+                            // Ctrl/Meta combos (Ctrl+S) still bubble (spec 001).
+                            onkeydown: move |e| {
+                                if !moonkale_ext_api::keys::primary(&e.modifiers()) {
+                                    e.stop_propagation();
+                                }
+                            },
+                            div { class: "mk-flow-props-title", "{b.id}" }
+                            for p in k.params.iter() {
+                                {
+                                    let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
+                                    let (bid, name) = (b.id.clone(), p.name.clone());
+                                    let mut set_param = set_param.clone();
+                                    rsx! {
+                                        label { key: "{p.name}", class: "mk-flow-param",
+                                            span { "{p.name}" }
+                                            match &p.kind {
+                                                ParamKind::Choice { options } => rsx! {
+                                                    select { value: "{value}",
+                                                        onchange: move |e| set_param((bid.clone(), name.clone(), e.value())),
+                                                        for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
+                                                    }
+                                                },
+                                                ParamKind::Bool => rsx! {
+                                                    input { r#type: "checkbox", checked: value == "true",
+                                                        onchange: move |e| set_param((bid.clone(), name.clone(), e.checked().to_string())) }
+                                                },
+                                                _ => rsx! {
+                                                    input { value: "{value}", size: 6,
+                                                        onchange: move |e| set_param((bid.clone(), name.clone(), e.value())) }
+                                                },
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/// Serialise the working copy into the document (dirty → Save).
+fn sync(
+    flow: &Signal<Flow>,
+    libs: &[FlowLibrary],
+    last_text: &mut Signal<String>,
+    doc: &mut Signal<moonkale_ext_api::Document>,
+) {
+    let f = flow.read();
+    let _ = validate(&f, libs);
+    let text = f.to_json();
+    last_text.set(text.clone());
+    doc.with_mut(|d| d.text = text);
+}
+
+/// Re-send the scene after a mutation (the engine matches by id).
+fn push_graph(eval: &Signal<Option<Eval>>, flow: &Signal<Flow>, libs: &[FlowLibrary]) {
+    if let Some(ev) = eval.peek().as_ref() {
+        let f = flow.read();
+        let scene = to_scene(&f, libs, &validate(&f, libs));
+        let _ = ev.send(ToJs::SetGraph { scene });
+    }
+}
+
+/// One wire per input port (a new one replaces the old), and only when
+/// the types unify — the panel owns the model; the renderer never does.
+fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> (bool, String) {
+    // The type check reads; the write mutates — the two must not overlap.
+    let checked = {
+        let f = flow.read();
+        let kind_of = |id: &str| f.block(id).map(|b| b.kind.clone());
+        let (Some(fk), Some(tk)) = (kind_of(&from.node), kind_of(&to.node)) else {
+            return (false, "wire: unknown block".into());
+        };
+        let (Some((_, fkind)), Some((_, tkind))) = (find_kind(libs, &fk), find_kind(libs, &tk))
+        else {
+            return (false, "wire: unknown block kind".into());
+        };
+        let out = fkind.outputs.iter().find(|p| p.name == from.port);
+        let inp = tkind.inputs.iter().find(|p| p.name == to.port);
+        let (Some(o), Some(i)) = (out, inp) else {
+            return (false, "wire: the port does not exist".into());
+        };
+        match o.ty.unify(&i.ty) {
+            Some(_) => Ok(()),
+            None => Err(format!(
+                "{}.{} ({}) does not fit {}.{} ({})",
+                from.node,
+                from.port,
+                o.ty.describe(),
+                to.node,
+                to.port,
+                i.ty.describe()
+            )),
+        }
+    };
+    match checked {
+        Ok(()) => {
+            flow.with_mut(|f| {
+                f.wires
+                    .retain(|w| !(w.to_block == to.node && w.to_port == to.port));
+                f.wires.push(Wire {
+                    id: format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]),
+                    from_block: from.node.clone(),
+                    from_port: from.port.clone(),
+                    to_block: to.node.clone(),
+                    to_port: to.port.clone(),
+                });
+            });
+            (true, String::new())
+        }
+        Err(why) => (false, why),
     }
 }

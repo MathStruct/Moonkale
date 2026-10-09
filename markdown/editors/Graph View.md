@@ -82,4 +82,6 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 
 - **Stage 7a — the flow shapes**: rect block nodes (`shape: "rect"`, `width`/`height` half-extents) with ports riding the sides, `Route::Ortho` step wires, `hier_layout` (longest-path columns, rows stacked, everything pinned — the flow document owns positions) and `node_positions()` to harvest them back. `graph-flow.mjs` covers it.
 
-Next: the flow panel moves onto the engine (7b+, ADR-0018) — parity with dioxus-flow before anything is deleted.
+- **Stage 7b — the flow panel**: `packages/editors/flow` hosts this engine instead of `dioxus-flow` (ADR-0018) — blocks as pinned rect nodes, typed ports left/right, ortho wires, `connect` validated in the panel (`unify`, one wire per input), `moved` harvested back, one HTML parameter editor for the selected block (§7), the panel refits when the scene grows beyond the fitted box. The fit now carries node rims (`bounds_with_rims`) — a block's half-width dwarfs the fit pad and put the outer ports off the canvas. `flow.mjs` rewritten against the engine; `dioxus-flow` remains only for parity checks until 7c retires it.
+
+Next: 7c — undo and the parameter editor positioned from the canvas, then the dioxus-flow remnants go (ADR-0018).

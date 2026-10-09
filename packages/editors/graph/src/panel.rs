@@ -6,12 +6,11 @@ use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
 use moonkale_core::{Direction, Node, NodeKind, Query, SourceFamily, SourceId};
 use moonkale_ext_api::{t, GraphRequest, Workspace};
+use moonkale_graph_assets::{RENDER_JS, RENDER_WASM};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 const PANEL_CSS: Asset = asset!("/assets/panel.css");
-const RENDER_JS: Asset = asset!("/assets/graph_render.js");
-const RENDER_WASM: Asset = asset!("/assets/graph_render_bg.wasm");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {

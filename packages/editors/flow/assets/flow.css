@@ -6,6 +6,9 @@
 .mk-flow-palette-block { text-align: left; background: var(--mk-raised-2); color: var(--mk-ink); border: 1px solid var(--mk-line-strong); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
 .mk-flow-palette-block:hover { background: var(--mk-raised-2); }
 .mk-flow-canvas { flex: 1; min-width: 0; position: relative; }
+.mk-flow-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mk-flow-props { width: 210px; overflow: auto; border-left: 1px solid var(--mk-line); padding: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.mk-flow-props-title { font-weight: 600; color: var(--mk-ink-2); word-break: break-all; }
 .mk-flow-canvas .dioxus-flow { width: 100%; height: 100%;
   --df-bg: var(--mk-flow-bg); --df-grid: var(--mk-line); --df-edge: var(--mk-flow-edge); --df-edge-selected: var(--mk-link); --df-accent: var(--mk-link);
   --df-node-bg: var(--mk-raised); --df-node-border: var(--mk-line-strong); --df-node-color: var(--mk-ink);
@@ -22,6 +25,7 @@
 .mk-flow-block-missing { padding: 6px 8px; color: var(--mk-error-ink); }
 .mk-flow-status { color: var(--mk-muted); font-size: 12px; }
 .mk-flow-issues { color: var(--mk-error-ink); }
+.mk-flow-notice { color: var(--mk-error-ink); }
 .mk-flow-wire-bad path { stroke: var(--mk-error-ink) !important; }
 .mk-flow-handle-in { background: var(--mk-flow-port-in) !important; }
 .mk-flow-handle-out { background: var(--mk-flow-port-out) !important; }

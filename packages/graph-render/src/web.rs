@@ -467,7 +467,9 @@ impl GraphView {
                 }
             }
             for (i, n) in next.nodes.iter().enumerate() {
-                if known[i] {
+                // A pinned newcomer sits where the host put it (a flow
+                // block, stage 7) — the neighbour mean is for explorers.
+                if known[i] || n.pinned {
                     continue;
                 }
                 let mut acc = (0.0f32, 0.0f32, 0.0f32);
@@ -1376,10 +1378,17 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     return;
                 }
                 // A node the user placed stays put (pinned) until Relayout.
+                let was_node = matches!(s.dragging, Drag::Node { .. });
                 s.dragging = Drag::None;
                 let moved = s.drag_moved;
                 s.drag_moved = false;
                 if moved {
+                    if was_node {
+                        // A block finished moving (spec 031 §5, stage 7):
+                        // the host harvests the positions into its
+                        // document (`node_positions`).
+                        emit(&s, serde_json::json!({ "kind": "moved" }));
+                    }
                     return; // a released pan or node move is not a pick
                 }
                 if let Some(i) = s

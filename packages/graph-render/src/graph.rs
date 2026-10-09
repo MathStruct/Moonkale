@@ -44,6 +44,13 @@ pub struct InNode {
     /// `"circle"` (default) or `"rect"` — a flow block (spec 031 §2).
     #[serde(default)]
     pub shape: Option<String>,
+    /// Where the host wants it (world units) — a flow block's position is
+    /// the document's (stage 7); absent = the spiral, as always.
+    #[serde(default)]
+    pub pos: Option<[f32; 2]>,
+    /// Start pinned (a placed block does not drift).
+    #[serde(default)]
+    pub pinned: bool,
     /// A rect's half-width in world units (absent: the degree-derived
     /// radius, like a circle).
     #[serde(default)]
@@ -723,6 +730,10 @@ impl Graph {
                 } else {
                     Shape::Circle
                 };
+                let (x, y) = match n.pos {
+                    Some([x, y]) => (x, y),
+                    None => (r * t.cos(), r * t.sin()),
+                };
                 Node {
                     radius: if shape == Shape::Rect {
                         n.width.unwrap_or(RECT_WIDTH)
@@ -740,11 +751,11 @@ impl Graph {
                     label: n.label,
                     kind: n.kind,
                     key: n.key,
-                    x: r * t.cos(),
-                    y: r * t.sin(),
+                    x,
+                    y,
                     z: layer_z(&n_kind, i),
                     degree: deg,
-                    pinned: false,
+                    pinned: n.pinned,
                     layers: n.layers,
                 }
             })
@@ -1331,14 +1342,43 @@ impl Graph {
 
     /// Bounds for fitting: isolated nodes (degree 0) sit far out on the
     /// gravity ring and would shrink everything else, so when the connected
-    /// part is the majority the fit is taken over it alone.
+    /// part is the majority the fit is taken over it alone. The bounds
+    /// include the nodes' rims (spec 031 §2: sizes vary) — a wide rect's
+    /// ports sit on its rim, and a centre-only fit left them off the
+    /// canvas (stage 7's flow blocks).
     pub fn fit_bounds(&self) -> Option<(f32, f32, f32, f32)> {
         let connected = self.nodes.iter().filter(|n| n.degree > 0).count();
         if connected * 2 >= self.nodes.len() && connected > 0 {
-            Self::bounds_of(self.nodes.iter().filter(|n| n.degree > 0))
+            Self::bounds_with_rims(self.nodes.iter().filter(|n| n.degree > 0))
         } else {
-            self.bounds()
+            Self::bounds_with_rims(self.nodes.iter())
         }
+    }
+
+    /// The fit's bounds: each node's centre expanded by its extent — a
+    /// rect's half-width and half-height, a circle's radius.
+    fn bounds_with_rims<'a>(
+        mut it: impl Iterator<Item = &'a Node>,
+    ) -> Option<(f32, f32, f32, f32)> {
+        let first = it.next()?;
+        let extent = |n: &Node| {
+            let y = if n.shape == Shape::Rect {
+                n.height
+            } else {
+                n.radius
+            };
+            (n.radius, y)
+        };
+        let (ex, ey) = extent(first);
+        let mut b = (first.x - ex, first.y - ey, first.x + ex, first.y + ey);
+        for n in it {
+            let (ex, ey) = extent(n);
+            b.0 = b.0.min(n.x - ex);
+            b.1 = b.1.min(n.y - ey);
+            b.2 = b.2.max(n.x + ex);
+            b.3 = b.3.max(n.y + ey);
+        }
+        Some(b)
     }
 
     fn bounds_of<'a>(mut it: impl Iterator<Item = &'a Node>) -> Option<(f32, f32, f32, f32)> {
@@ -1753,6 +1793,72 @@ mod delta_tests {
             "the survivor straightened: {:?}",
             g.edges.iter().map(|e| e.bow).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn the_fit_bounds_carry_the_rects_rims() {
+        // Stage 7: a flow block's half-width dwarfs the fit's pad — the
+        // bounds must include the rims or the outermost ports land outside
+        // the canvas (a centre-only fit cut them off).
+        let g = Graph::from_input(InGraph {
+            nodes: vec![
+                InNode {
+                    id: "blk".into(),
+                    label: "Block".into(),
+                    kind: "file".into(),
+                    shape: Some("rect".into()),
+                    width: Some(46.0),
+                    height: Some(22.0),
+                    pos: Some([30.0, 30.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+                InNode {
+                    id: "dot".into(),
+                    label: "dot".into(),
+                    kind: "file".into(),
+                    pos: Some([360.0, 370.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        });
+        let (x0, y0, x1, y1) = g.fit_bounds().expect("two nodes have bounds");
+        assert!((x0 - -16.0).abs() < 1e-4, "the rim goes left of the centre");
+        assert!((x1 - 364.0).abs() < 1e-4, "the circle's radius rides along");
+        assert!((y0 - 8.0).abs() < 1e-4, "the rect's half-height counts");
+        assert!((y1 - 374.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_host_placed_node_stays_where_the_host_put_it() {
+        // Stage 7: a flow block's position is the document's — `pos` lands
+        // it there and `pinned` keeps it out of the physics.
+        let g = Graph::from_input(InGraph {
+            nodes: vec![
+                InNode {
+                    id: "blk".into(),
+                    label: "Block".into(),
+                    kind: "file".into(),
+                    shape: Some("rect".into()),
+                    pos: Some([123.0, -45.0]),
+                    pinned: true,
+                    ..Default::default()
+                },
+                InNode {
+                    id: "dot".into(),
+                    label: "dot".into(),
+                    kind: "file".into(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        });
+        let blk = &g.nodes[0];
+        assert!((blk.x - 123.0).abs() < 1e-4 && (blk.y + 45.0).abs() < 1e-4);
+        assert!(blk.pinned, "the host placed it; the physics leave it");
+        assert!(!g.nodes[1].pinned, "the spiral one is free to settle");
     }
 
     #[test]
