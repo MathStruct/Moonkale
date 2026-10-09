@@ -41,6 +41,14 @@ struct State {
     /// overlay's icon scan — a second pass over every node per frame
     /// that a 100 k-node graph must not pay for nothing.
     has_icons: bool,
+    /// The pointer's canvas position — the edge label rides it.
+    pointer: (f32, f32),
+    /// The edge under the pointer (spec 031 §2, stage 9) — its label
+    /// names the stroke while hovered; a node hover wins over it.
+    hovered_edge: Option<usize>,
+    /// Any edge carries a label: gates the per-move edge scan, one
+    /// pass over every drawn segment.
+    has_edge_labels: bool,
     /// The pulse clock's zero (`performance.now` at create); `camera.time`
     /// is the elapsed seconds since.
     t0_ms: f64,
@@ -317,6 +325,7 @@ pub async fn create(
         .ok_or_else(|| JsValue::from_str("no 2d context for the label overlay"))?;
     let graph = Graph::default();
     let has_icons = false;
+    let has_edge_labels = false;
     let layout = Layout::new(&graph);
     let animates_at_create = animates(&graph);
     let state = Rc::new(RefCell::new(State {
@@ -337,6 +346,9 @@ pub async fn create(
         alive: true,
         animates: animates_at_create,
         has_icons,
+        pointer: (0.0, 0.0),
+        hovered_edge: None,
+        has_edge_labels,
         t0_ms: web_sys::window()
             .and_then(|w| w.performance())
             .map(|p| p.now())
@@ -404,11 +416,13 @@ impl GraphView {
         // P-155; the stage 4–6 review's #2).
         let dragged = s.dragged_id();
         let delta_icons = d.add_nodes.iter().any(|n| n.icon.is_some());
+        let delta_labels = d.add_edges.iter().any(|e| e.label.is_some());
         if !s.graph.apply_delta(d) {
             return Ok(()); // nothing named existed; nothing to redraw
         }
         s.keep_drag(dragged);
         s.has_icons |= delta_icons;
+        s.has_edge_labels |= delta_labels;
         // Warm, not restart: newcomers settle next to where they were put.
         let mut l = Layout::new(&s.graph);
         l.temperature = 3.0;
@@ -421,6 +435,7 @@ impl GraphView {
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
         s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         s.dirty = true;
         Ok(())
     }
@@ -456,6 +471,7 @@ impl GraphView {
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
         s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         s.dirty = true;
         true
     }
@@ -573,6 +589,7 @@ impl GraphView {
             s.attr_rev += 1;
             s.animates = animates(&s.graph);
             s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+            s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
             s.dirty = true;
             return Ok(());
         }
@@ -585,6 +602,7 @@ impl GraphView {
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
         s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -1094,6 +1112,26 @@ fn draw_labels(s: &State) {
             ctx.set_text_align("start");
         }
     }
+    // An edge's label rides the pointer while its stroke is hovered
+    // (spec 031 §2, stage 9), inked in the edge's own colour so it
+    // names the thing it sits on.
+    if let Some(i) = s.hovered_edge {
+        if let Some(e) = s.graph.edges.get(i) {
+            if !e.label.is_empty() {
+                ctx.set_fill_style_str(&format!(
+                    "rgb({:.0},{:.0},{:.0})",
+                    e.color[0] * 255.0,
+                    e.color[1] * 255.0,
+                    e.color[2] * 255.0
+                ));
+                let _ = ctx.fill_text(
+                    &e.label,
+                    (s.pointer.0 + 12.0) as f64,
+                    (s.pointer.1 - 10.0) as f64,
+                );
+            }
+        }
+    }
     // Candidates by importance (hovered first, then degree), placed with a
     // screen-space collision test so labels never pile onto each other in a
     // dense cluster (spec 017 follow-up): the important ones win the space.
@@ -1264,6 +1302,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
             move |e: web_sys::PointerEvent| {
                 let (x, y) = local(&e);
                 let mut s = st.borrow_mut();
+                s.pointer = (x, y);
                 if e.pointer_type() == "touch" {
                     if let Some(t) = s.touches.iter_mut().find(|t| t.0 == e.pointer_id()) {
                         t.1 = x;
@@ -1406,6 +1445,19 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                                 None => serde_json::json!({ "kind": "hover", "id": null }),
                             };
                             emit(&s, payload);
+                        }
+                        // An edge's label names the stroke under the
+                        // pointer (spec 031 §2, stage 9). A node hover
+                        // wins; the scan is one pass over every drawn
+                        // segment, so it waits for a labelled graph.
+                        let eh = if hit.is_none() && s.has_edge_labels {
+                            frame::edge_at(&s.renderer.frame(), &s.camera, x, y)
+                        } else {
+                            None
+                        };
+                        if eh != s.hovered_edge {
+                            s.hovered_edge = eh;
+                            s.dirty = true;
                         }
                     }
                 }
