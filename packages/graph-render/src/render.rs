@@ -504,8 +504,15 @@ impl Renderer {
                 .map(|(i, n)| {
                     let h = Some(i) == hovered;
                     let sel = selected.nodes.contains(&n.id);
+                    // A node in only-hidden layers keeps its slot (indices
+                    // stay aligned) but draws nothing (spec 031 §3).
+                    let hidden = !self.frame.node_visible.get(i).copied().unwrap_or(true);
+                    let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
+                    if hidden {
+                        color[3] = 0.0;
+                    }
                     NodeAttr {
-                        color: if h { [1.0, 1.0, 1.0, 1.0] } else { n.color },
+                        color,
                         radius: if h {
                             n.radius * 1.4
                         } else if sel {
@@ -538,34 +545,24 @@ impl Renderer {
             self.seg_bufs.pos_rev = pos_rev;
         }
         if attr_rev != self.seg_bufs.attr_rev {
-            // Per segment, but the appearance is per edge: a selected edge
-            // lifts its colour and thickens every segment it spans.
-            let mut attr: Vec<SegAttr> = self
-                .frame
-                .seg_edge
-                .iter()
-                .map(|&e| {
-                    let edge = &graph.edges[e];
+            // The frame's attrs are the base (layer styling is baked there,
+            // spec 031 §3); selection only brightens the edges it spans.
+            let mut attr: Vec<SegAttr> = self.frame.seg_attrs.clone();
+            for (i, owner) in self.frame.seg_edge.iter().enumerate() {
+                if let Some(e) = owner {
+                    let edge = &graph.edges[*e];
                     if selected.edges.contains(&edge.id) {
-                        SegAttr {
-                            color: [
-                                edge.color[0] * 0.55 + 0.45,
-                                edge.color[1] * 0.55 + 0.45,
-                                edge.color[2] * 0.55 + 0.45,
-                                edge.color[3].max(0.9),
-                            ],
-                            width: edge.width * 1.6,
-                            dash: edge.dash,
-                        }
-                    } else {
-                        SegAttr {
-                            color: edge.color,
-                            width: edge.width,
-                            dash: edge.dash,
-                        }
+                        let base = &mut attr[i];
+                        base.color = [
+                            base.color[0] * 0.55 + 0.45,
+                            base.color[1] * 0.55 + 0.45,
+                            base.color[2] * 0.55 + 0.45,
+                            base.color[3].max(0.9),
+                        ];
+                        base.width *= 1.6;
                     }
-                })
-                .collect();
+                }
+            }
             if pending.is_some() {
                 // The wire being dragged: light, uncommitted, never dashed.
                 attr.push(SegAttr {

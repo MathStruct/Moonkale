@@ -16,6 +16,7 @@ fn main() {
         kind: "variable".into(),
         key: id.into(),
         color: Some("#6ea8fe".into()),
+        layers: Vec::new(),
     };
     let factor = |id: &str| InNode {
         id: id.into(),
@@ -23,6 +24,7 @@ fn main() {
         kind: "factor".into(),
         key: id.into(),
         color: Some("#c9a75f".into()),
+        layers: Vec::new(),
     };
     let nodes = vec![
         var("x1"),

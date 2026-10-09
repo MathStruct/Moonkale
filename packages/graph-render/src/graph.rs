@@ -18,6 +18,10 @@ pub struct InNode {
     /// back to [`color_for`]`(kind)`.
     #[serde(default)]
     pub color: Option<String>,
+    /// Visual layers this node belongs to (spec 031 §3); a node with layers
+    /// draws only while one of them is visible.
+    #[serde(default)]
+    pub layers: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -64,6 +68,11 @@ pub struct InEdge {
     pub a_port: Option<String>,
     #[serde(default)]
     pub b_port: Option<String>,
+    /// Visual layers this edge belongs to (spec 031 §3): the first visible
+    /// layer styles it; two or more visible layers draw it once per layer,
+    /// as offset parallel strokes.
+    #[serde(default)]
+    pub layers: Vec<String>,
 }
 
 /// Where arrowheads sit on an edge.
@@ -126,6 +135,28 @@ impl Default for Port {
     }
 }
 
+/// The internal layer: style resolved, visibility mutable at runtime
+/// (`set_layer_visibility`) — presentation only (spec 031 §3).
+#[derive(Clone, Debug)]
+pub struct Layer {
+    pub id: String,
+    pub color: Option<[f32; 4]>,
+    pub visible: bool,
+    pub overlay: bool,
+    pub width: Option<f32>,
+    pub dash: Option<f32>,
+    pub opacity: Option<f32>,
+}
+
+/// The internal trace (spec 031 §3): an ordered walk over node ids.
+#[derive(Clone, Debug)]
+pub struct Trace {
+    pub id: String,
+    pub layer: Option<String>,
+    pub steps: Vec<String>,
+    pub color: Option<[f32; 4]>,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InGraph {
     pub nodes: Vec<InNode>,
@@ -134,6 +165,56 @@ pub struct InGraph {
     /// editor's edit mode; absent in plain index graphs.
     #[serde(default)]
     pub ports: Vec<InPort>,
+    /// Toggleable visual layers (spec 031 §3); styling and visibility only —
+    /// a layer never mutates topology.
+    #[serde(default)]
+    pub layers: Vec<InLayer>,
+    /// Ordered occurrence walks (spec 031 §3): a stack trace is a sequence
+    /// of node instance ids, not a set of edges — recursion revisits ids.
+    #[serde(default)]
+    pub traces: Vec<InTrace>,
+}
+
+/// One visual layer: style knobs apply to its members; `overlay` marks a
+/// temporary layer (debugging, selection, search) — presentation state the
+/// host may drop by id.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InLayer {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
+    /// Drawn while true (default).
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    #[serde(default)]
+    pub overlay: bool,
+    #[serde(default)]
+    pub width: Option<f32>,
+    #[serde(default)]
+    pub dash: Option<f32>,
+    #[serde(default)]
+    pub opacity: Option<f32>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// An ordered walk over node instance ids (spec 031 §3).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InTrace {
+    pub id: String,
+    /// The layer the walk draws in (its visibility and colour); absent =
+    /// always drawn in its own colour.
+    #[serde(default)]
+    pub layer: Option<String>,
+    /// Node instance ids, in order — the same id may appear twice
+    /// (recursion); ids that do not resolve are skipped.
+    pub steps: Vec<String>,
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 /// One port on a node's boundary. Placement is side-based — the flow
@@ -189,6 +270,8 @@ pub struct Node {
     pub degree: u32,
     /// Pinned by the user (being dragged): the layout leaves it alone.
     pub pinned: bool,
+    /// Layer membership (spec 031 §3): an empty list is the base scene.
+    pub layers: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -208,6 +291,8 @@ pub struct Edge {
     /// Port anchors by name, resolved in `frame` (stage 2).
     pub a_port: Option<String>,
     pub b_port: Option<String>,
+    /// Layer membership (spec 031 §3): an empty list is the base scene.
+    pub layers: Vec<String>,
 }
 
 #[derive(Clone, Default)]
@@ -215,6 +300,8 @@ pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub ports: Vec<Port>,
+    pub layers: Vec<Layer>,
+    pub traces: Vec<Trace>,
 }
 
 pub fn color_for(kind: &str) -> [f32; 4] {
@@ -294,6 +381,7 @@ impl Graph {
                     z: layer_z(&n_kind, i),
                     degree: deg,
                     pinned: false,
+                    layers: n.layers,
                 }
             })
             .collect();
@@ -334,7 +422,31 @@ impl Graph {
                     route,
                     a_port: e.a_port,
                     b_port: e.b_port,
+                    layers: e.layers,
                 }
+            })
+            .collect();
+        let layers = input
+            .layers
+            .into_iter()
+            .map(|l| Layer {
+                id: l.id,
+                color: l.color.as_deref().and_then(|c| parse_hex(c, 0.9)),
+                visible: l.visible,
+                overlay: l.overlay,
+                width: l.width,
+                dash: l.dash,
+                opacity: l.opacity,
+            })
+            .collect();
+        let traces = input
+            .traces
+            .into_iter()
+            .map(|t| Trace {
+                id: t.id,
+                layer: t.layer,
+                steps: t.steps,
+                color: t.color.as_deref().and_then(|c| parse_hex(c, 0.95)),
             })
             .collect();
         let ports = input
@@ -362,6 +474,8 @@ impl Graph {
             nodes,
             edges,
             ports,
+            layers,
+            traces,
         }
         .with_bows()
     }

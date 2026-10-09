@@ -156,6 +156,7 @@ mod tests {
                 kind: "file".into(),
                 key: String::new(),
                 color: None,
+                layers: Vec::new(),
             })
             .collect();
         nodes[0].id = "home".into();
@@ -218,6 +219,7 @@ mod tests {
                 kind: "file".into(),
                 key: String::new(),
                 color: None,
+                layers: Vec::new(),
             })
             .collect();
         let edges = (1..n)

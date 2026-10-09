@@ -148,6 +148,16 @@ fn emit_select(s: &State) {
     );
 }
 
+/// A node with layers draws (and answers hits) only while one of them is
+/// visible (spec 031 §3).
+fn node_visible(graph: &Graph, i: usize) -> bool {
+    let n = &graph.nodes[i];
+    n.layers.is_empty()
+        || n.layers
+            .iter()
+            .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
+}
+
 fn emit(state: &State, value: serde_json::Value) {
     let js = js_sys::JSON::parse(&value.to_string()).unwrap_or(JsValue::NULL);
     let _ = state.on_event.call1(&JsValue::NULL, &js);
@@ -182,6 +192,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             kind: "file".into(),
             key: String::new(),
             color: None,
+            layers: Vec::new(),
         })
         .collect();
     let mut edges = Vec::new();
@@ -540,6 +551,33 @@ impl GraphView {
         s.pos_rev += 1; // ports join or leave the node instances
         s.attr_rev += 1;
         s.dirty = true;
+    }
+
+    /// Show or hide a layer by id (spec 031 §3): presentation only — the
+    /// graph's topology is never touched, and selection by id survives.
+    pub fn set_layer_visibility(&self, id: &str, visible: bool) {
+        let mut s = self.state.borrow_mut();
+        if let Some(l) = s.graph.layers.iter_mut().find(|l| l.id == id) {
+            if l.visible != visible {
+                l.visible = visible;
+                s.pos_rev += 1; // segments and nodes appear or fade
+                s.attr_rev += 1;
+                s.dirty = true;
+            }
+        }
+    }
+
+    /// `[{"id":…,"visible":…}, …]` — the layers and their visibility, for
+    /// tests.
+    pub fn layer_state(&self) -> String {
+        let s = self.state.borrow();
+        let layers: Vec<serde_json::Value> = s
+            .graph
+            .layers
+            .iter()
+            .map(|l| serde_json::json!({ "id": l.id, "visible": l.visible, "overlay": l.overlay }))
+            .collect();
+        serde_json::json!(layers).to_string()
     }
 
     /// `"2d"` or `"3d"` (Milestone 8): the same graph, a perspective camera
@@ -908,7 +946,11 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         return;
                     }
                     // A node under the pointer drags in its own depth plane (Milestone 9).
-                    if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                    if let Some(i) = s
+                        .camera
+                        .hit(&s.graph, x, y)
+                        .filter(|i| node_visible(&s.graph, *i))
+                    {
                         s.graph.nodes[i].pinned = true;
                         s.dragging = Drag::Node { index: i };
                     } else {
@@ -916,7 +958,10 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     }
                     return;
                 }
-                let hit = s.camera.hit(&s.graph, x, y);
+                let hit = s
+                    .camera
+                    .hit(&s.graph, x, y)
+                    .filter(|i| node_visible(&s.graph, *i));
                 s.dragging = match hit {
                     Some(i) => {
                         s.graph.nodes[i].pinned = true;
@@ -1047,7 +1092,10 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     }
                     Drag::Pinch { .. } => {}
                     Drag::None => {
-                        let hit = s.camera.hit(&s.graph, x, y);
+                        let hit = s
+                            .camera
+                            .hit(&s.graph, x, y)
+                            .filter(|i| node_visible(&s.graph, *i));
                         if hit != s.hovered {
                             s.hovered = hit;
                             s.attr_rev += 1;
@@ -1120,7 +1168,11 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 if moved {
                     return; // a released pan or node move is not a pick
                 }
-                if let Some(i) = s.camera.hit(&s.graph, x, y) {
+                if let Some(i) = s
+                    .camera
+                    .hit(&s.graph, x, y)
+                    .filter(|i| node_visible(&s.graph, *i))
+                {
                     let now = js_sys::Date::now();
                     let dbl = now - s.last_click_ms < 350.0;
                     s.last_click_ms = if dbl { 0.0 } else { now };

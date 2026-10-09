@@ -7,7 +7,7 @@
 //! same segments.
 
 use crate::camera::Camera;
-use crate::graph::{Arrow, Edge, Graph, InSide, Port, Route};
+use crate::graph::{Arrow, Edge, Graph, InSide, Layer, Port, Route};
 use bytemuck::{Pod, Zeroable};
 
 /// Segment endpoints (instance slot 0 — changes while the layout runs).
@@ -85,89 +85,221 @@ pub const ARROW_SIZE: f32 = 6.0;
 /// Port marker radius in world units; a port sits this far outside the rim.
 pub const PORT_STANDOFF: f32 = 2.5;
 pub const PORT_RADIUS: f32 = 2.5;
+/// An edge shared by two visible layers bows its strokes apart by this many
+/// world units per rank (spec 031 §3: offset parallel strokes).
+pub const LAYER_STROKE_SPACING: f32 = 3.0;
 
 #[derive(Default)]
 pub struct Frame {
     pub segs: Vec<SegPos>,
     pub seg_attrs: Vec<SegAttr>,
-    /// Which edge each segment belongs to (picking; not uploaded).
-    pub seg_edge: Vec<usize>,
+    /// Which edge each segment belongs to (picking); `None` marks a trace
+    /// hop — drawn like any stroke, but never picked as an edge: layers and
+    /// traces add presentation, not topology (spec 031 §3).
+    pub seg_edge: Vec<Option<usize>>,
     pub arrows: Vec<ArrowPos>,
     pub arrow_attrs: Vec<ArrowAttr>,
     /// World positions of the graph's ports, same order as `graph.ports`
     /// (drawn in edit mode, picked always — spec 031 §2, stage 2).
     pub port_pos: Vec<[f32; 3]>,
+    /// Node visibility by graph index (spec 031 §3): a node with layers
+    /// draws only while one is visible. The instance keeps its slot (hover
+    /// and selection stay index-aligned); the renderer fades it out.
+    pub node_visible: Vec<bool>,
 }
 
 /// The scene → instance lists for one frame.
 pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
     let mut f = Frame {
         port_pos: graph.ports.iter().map(|p| port_world(graph, p)).collect(),
+        node_visible: graph
+            .nodes
+            .iter()
+            .map(|n| {
+                n.layers.is_empty()
+                    || n.layers
+                        .iter()
+                        .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
+            })
+            .collect(),
         ..Default::default()
     };
     for (i, e) in graph.edges.iter().enumerate() {
-        let line = polyline(graph, e);
-        for w in line.windows(2) {
-            f.segs.push(SegPos { a: w[0], b: w[1] });
-            f.seg_edge.push(i);
-            f.seg_attrs.push(SegAttr {
+        // Layer visibility (spec 031 §3): an instance with layers draws
+        // only while one of them is visible; no layers = the base scene.
+        let visible: Vec<&Layer> = e
+            .layers
+            .iter()
+            .filter_map(|id| graph.layers.iter().find(|l| &l.id == id))
+            .filter(|l| l.visible)
+            .collect();
+        if !e.layers.is_empty() && visible.is_empty() {
+            continue;
+        }
+        // One stroke per visible layer — a shared edge shows both, as
+        // offset parallel strokes; a single (or no) layer draws once, in
+        // the first visible layer's style when there is one.
+        let strokes = visible.len().max(1);
+        for rank in 0..strokes {
+            let layer = visible
+                .get(rank.min(visible.len().saturating_sub(1)))
+                .copied();
+            let line = polyline(graph, e, stroke_offset(e, rank, strokes));
+            let mut attr = SegAttr {
                 color: e.color,
                 width: e.width,
                 dash: e.dash,
-            });
-        }
-        if three_d {
-            // 3D keeps plain edges (spec 031 mapping): no arrowheads there.
-            continue;
-        }
-        let n = line.len();
-        if n < 2 {
-            continue;
-        }
-        // The tangent each end travels along, from the tessellation, so
-        // straight, curved and loop edges place their heads the same way.
-        let into_b = normalize2(sub2(line[n - 1], line[n - 2]));
-        let out_of_a = normalize2(sub2(line[1], line[0]));
-        let a_pos = line[0];
-        let b_pos = line[n - 1];
-        let a_radius = graph.nodes[e.a].radius;
-        let b_radius = graph.nodes[e.b].radius;
-        // Arrowheads sit at their end's rim, pointing into its node; the
-        // head's colour is the edge's with the alpha lifted, so it reads
-        // over its own stroke.
-        let mut head_color = e.color;
-        head_color[3] = head_color[3].max(0.8);
-        let head = |tip_at: [f32; 3], dir: [f32; 2], radius: f32| -> (ArrowPos, ArrowAttr) {
-            let d = normalize2(dir);
-            let pull = radius + 1.0 + ARROW_SIZE * 0.5;
-            (
-                ArrowPos {
-                    pos: [tip_at[0] - d[0] * pull, tip_at[1] - d[1] * pull, tip_at[2]],
-                    angle: d[1].atan2(d[0]),
-                },
-                ArrowAttr {
-                    color: head_color,
-                    size: ARROW_SIZE,
-                },
-            )
-        };
-        if matches!(e.arrow, Arrow::Target | Arrow::Both) {
-            let (p, a) = head(b_pos, into_b, b_radius);
-            f.arrows.push(p);
-            f.arrow_attrs.push(a);
-        }
-        if matches!(e.arrow, Arrow::Source | Arrow::Both) {
-            // The head at the source points into `a` — against the travel.
-            let (p, a) = head(a_pos, [-out_of_a[0], -out_of_a[1]], a_radius);
-            f.arrows.push(p);
-            f.arrow_attrs.push(a);
+            };
+            if let Some(l) = layer {
+                if let Some(c) = l.color {
+                    attr.color = c;
+                }
+                if let Some(w) = l.width {
+                    attr.width = w;
+                }
+                if let Some(d) = l.dash {
+                    attr.dash = d;
+                }
+                if let Some(o) = l.opacity {
+                    attr.color[3] *= o.clamp(0.0, 1.0);
+                }
+            }
+            for w in line.windows(2) {
+                f.segs.push(SegPos { a: w[0], b: w[1] });
+                f.seg_edge.push(Some(i));
+                f.seg_attrs.push(attr);
+            }
+            if three_d {
+                // 3D keeps plain edges (spec 031 mapping): no arrowheads.
+                continue;
+            }
+            let n = line.len();
+            if n < 2 {
+                continue;
+            }
+            // The tangent each end travels along, from the tessellation, so
+            // straight, curved and loop edges place their heads the same
+            // way.
+            let into_b = normalize2(sub2(line[n - 1], line[n - 2]));
+            let out_of_a = normalize2(sub2(line[1], line[0]));
+            let a_pos = line[0];
+            let b_pos = line[n - 1];
+            let a_radius = graph.nodes[e.a].radius;
+            let b_radius = graph.nodes[e.b].radius;
+            let mut head_color = attr.color;
+            head_color[3] = head_color[3].max(0.8);
+            let head = |tip_at: [f32; 3], dir: [f32; 2], radius: f32| -> (ArrowPos, ArrowAttr) {
+                let d = normalize2(dir);
+                let pull = radius + 1.0 + ARROW_SIZE * 0.5;
+                (
+                    ArrowPos {
+                        pos: [tip_at[0] - d[0] * pull, tip_at[1] - d[1] * pull, tip_at[2]],
+                        angle: d[1].atan2(d[0]),
+                    },
+                    ArrowAttr {
+                        color: head_color,
+                        size: ARROW_SIZE,
+                    },
+                )
+            };
+            if matches!(e.arrow, Arrow::Target | Arrow::Both) {
+                let (p, a) = head(b_pos, into_b, b_radius);
+                f.arrows.push(p);
+                f.arrow_attrs.push(a);
+            }
+            if matches!(e.arrow, Arrow::Source | Arrow::Both) {
+                // The head at the source points into `a` — against the travel.
+                let (p, a) = head(a_pos, [-out_of_a[0], -out_of_a[1]], a_radius);
+                f.arrows.push(p);
+                f.arrow_attrs.push(a);
+            }
         }
     }
+    build_traces(graph, three_d, &mut f);
     f
 }
 
-/// The edge's world-space polyline (its tessellation): `[a, …, b]`.
-fn polyline(graph: &Graph, e: &Edge) -> Vec<[f32; 3]> {
+/// Traces (spec 031 §3): ordered walks over node ids — recursion revisits
+/// ids, and each hop carries a head at its end so the sequence reads as a
+/// directed walk. A trace in a hidden layer disappears with it.
+fn build_traces(graph: &Graph, three_d: bool, f: &mut Frame) {
+    for t in &graph.traces {
+        let layer = t
+            .layer
+            .as_ref()
+            .and_then(|id| graph.layers.iter().find(|l| &l.id == id));
+        if layer.is_some_and(|l| !l.visible) {
+            continue;
+        }
+        let color = t
+            .color
+            .or_else(|| layer.and_then(|l| l.color))
+            .unwrap_or([0.92, 0.70, 0.28, 0.95]);
+        let mut prev: Option<[f32; 3]> = None;
+        for step in &t.steps {
+            let Some(pos) = graph
+                .nodes
+                .iter()
+                .find(|n| &n.id == step)
+                .map(|n| [n.x, n.y, n.z])
+            else {
+                continue; // a stale id never breaks the walk
+            };
+            if let Some(a) = prev {
+                // A degenerate hop (a frame recurring into itself) draws
+                // nothing — its order is the walk's, not a stroke's.
+                if (a[0] - pos[0]).abs() < 1e-3 && (a[1] - pos[1]).abs() < 1e-3 {
+                    prev = Some(pos);
+                    continue;
+                }
+                f.segs.push(SegPos { a, b: pos });
+                f.seg_edge.push(None); // never picked as an edge (§3)
+                f.seg_attrs.push(SegAttr {
+                    color,
+                    width: 2.2,
+                    dash: 0.0,
+                });
+                if !three_d {
+                    let into = normalize2([pos[0] - a[0], pos[1] - a[1]]);
+                    let radius = graph
+                        .nodes
+                        .iter()
+                        .find(|n| &n.id == step)
+                        .map(|n| n.radius)
+                        .unwrap_or(5.0);
+                    let pull = radius + 1.0 + ARROW_SIZE * 0.5;
+                    f.arrows.push(ArrowPos {
+                        pos: [pos[0] - into[0] * pull, pos[1] - into[1] * pull, pos[2]],
+                        angle: into[1].atan2(into[0]),
+                    });
+                    f.arrow_attrs.push(ArrowAttr {
+                        color,
+                        size: ARROW_SIZE,
+                    });
+                }
+            }
+            prev = Some(pos);
+        }
+    }
+}
+
+/// How far the `rank`th of `total` strokes bows off the edge's own route
+/// (spec 031 §3): shared edges keep their parallels apart.
+fn stroke_offset(e: &Edge, rank: usize, total: usize) -> f32 {
+    if total < 2 {
+        return 0.0;
+    }
+    let rank = (rank as f32 - (total as f32 - 1.0) / 2.0) * LAYER_STROKE_SPACING;
+    match e.route {
+        Route::Straight => rank,
+        Route::Bezier { offset } => offset + rank,
+    }
+}
+
+/// The edge's world-space polyline (its tessellation): `[a, …, b]`. The
+/// `stroke` bows a parallel copy off the route (spec 031 §3) — 0 is the
+/// edge's own line.
+fn polyline(graph: &Graph, e: &Edge, stroke: f32) -> Vec<[f32; 3]> {
     let na = &graph.nodes[e.a];
     let a_end = anchored(graph, e.a, &e.a_port);
     let b_end = anchored(graph, e.b, &e.b_port);
@@ -189,7 +321,14 @@ fn polyline(graph: &Graph, e: &Edge) -> Vec<[f32; 3]> {
             })
             .collect()
     } else {
-        match e.route {
+        // A bowed parallel of a straight line is a shallow Bézier; a
+        // curve's control point takes the stroke offset on top of its own.
+        let route = match (e.route, stroke) {
+            (Route::Straight, s) if s.abs() > 1e-6 => Route::Bezier { offset: s },
+            (Route::Straight, _) => Route::Straight,
+            (Route::Bezier { offset }, s) => Route::Bezier { offset: offset + s },
+        };
+        match route {
             Route::Straight => vec![a_end, b_end],
             Route::Bezier { offset } => {
                 let (dx, dy) = (b_end[0] - a_end[0], b_end[1] - a_end[1]);
@@ -307,13 +446,18 @@ pub fn edge_at(frame: &Frame, camera: &Camera, x: f32, y: f32) -> Option<usize> 
     };
     let mut best: Option<(f32, usize)> = None;
     for (i, seg) in frame.segs.iter().enumerate() {
+        // Trace hops are never picked (spec 031 §3: presentation, not
+        // topology).
+        let Some(owner) = frame.seg_edge[i] else {
+            continue;
+        };
         let (Some((ax, ay)), Some((bx, by))) = (project(seg.a), project(seg.b)) else {
             continue;
         };
         let d = dist_to_segment(x, y, ax, ay, bx, by);
         let reach = (frame.seg_attrs[i].width * 0.5 + 2.5).max(4.0);
         if d <= reach && best.is_none_or(|(bd, _)| d < bd) {
-            best = Some((d, frame.seg_edge[i]));
+            best = Some((d, owner));
         }
     }
     best.map(|(_, e)| e)
@@ -349,6 +493,7 @@ mod tests {
             color: [0.5, 0.5, 0.5, 1.0],
             degree: 1,
             pinned: false,
+            layers: Vec::new(),
         }
     }
 
@@ -365,6 +510,7 @@ mod tests {
             route: Route::Straight,
             a_port: None,
             b_port: None,
+            layers: Vec::new(),
         }
     }
 
@@ -373,6 +519,20 @@ mod tests {
             nodes,
             edges,
             ports: Vec::new(),
+            layers: Vec::new(),
+            traces: Vec::new(),
+        }
+    }
+
+    fn layer(id: &str, color: [f32; 4], visible: bool) -> Layer {
+        Layer {
+            id: id.into(),
+            color: Some(color),
+            visible,
+            overlay: false,
+            width: None,
+            dash: None,
+            opacity: None,
         }
     }
 
@@ -406,7 +566,7 @@ mod tests {
         assert!(f.arrows.is_empty());
         assert_eq!(f.segs[0].a, [0.0, 0.0, 0.0]);
         assert_eq!(f.segs[0].b, [40.0, 0.0, 0.0]);
-        assert_eq!(f.seg_edge, vec![0]);
+        assert_eq!(f.seg_edge, vec![Some(0)]);
     }
 
     #[test]
@@ -424,13 +584,13 @@ mod tests {
         let f = build_frame(&g, false);
         // Middle: 1 segment; the outer two: one per curve step.
         let counts: Vec<usize> = (0..3)
-            .map(|e| f.seg_edge.iter().filter(|&&x| x == e).count())
+            .map(|e| f.seg_edge.iter().filter(|&&x| x == Some(e)).count())
             .collect();
         assert_eq!(counts, vec![CURVE_SEGS, 1, CURVE_SEGS]);
         // The bows sit on opposite sides of the endpoints' line (y = 0):
         // the point at t = 0.5 of each curve is half its control offset out.
         let y_at_mid = |e: usize| {
-            let first = f.seg_edge.iter().position(|&x| x == e).unwrap();
+            let first = f.seg_edge.iter().position(|&x| x == Some(e)).unwrap();
             f.segs[first + counts[e] / 2].a[1]
         };
         assert!(y_at_mid(0) < 0.0, "rank 0 bows below");
@@ -534,6 +694,8 @@ mod tests {
         let g = Graph {
             nodes: vec![n],
             edges: Vec::new(),
+            layers: Vec::new(),
+            traces: Vec::new(),
             ports: vec![
                 port(0, "out", InSide::Right, 0.5),
                 port(0, "in", InSide::Left, 0.5),
@@ -568,6 +730,8 @@ mod tests {
                 port(0, "out", InSide::Right, 0.5),
                 port(1, "in", InSide::Left, 0.5),
             ],
+            layers: Vec::new(),
+            traces: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.segs.len(), 1);
@@ -587,6 +751,8 @@ mod tests {
             nodes: vec![node("a", 0.0, 0.0)],
             edges: Vec::new(),
             ports: vec![port(0, "out", InSide::Right, 0.5)],
+            layers: Vec::new(),
+            traces: Vec::new(),
         };
         let f = build_frame(&g, false);
         let c = cam(100.0, 100.0);
@@ -594,6 +760,91 @@ mod tests {
         assert_eq!(port_at(&f, &c, 57.5, 50.0), Some(0));
         assert_eq!(port_at(&f, &c, 57.5, 54.0), Some(0), "within the reach");
         assert_eq!(port_at(&f, &c, 57.5, 62.0), None, "too far");
+    }
+
+    #[test]
+    fn layers_style_and_hide_edges() {
+        let mut e = edge(0, 1);
+        e.layers = vec!["calls".into()];
+        let mut hidden = edge(0, 1);
+        hidden.id = "ghost".into();
+        hidden.layers = vec!["ghost".into()];
+        let mut g = graph(
+            vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
+            vec![e, hidden],
+        );
+        g.layers = vec![
+            layer("calls", [0.10, 0.20, 0.90, 0.9], true),
+            layer("ghost", [0.90, 0.20, 0.20, 0.9], false),
+        ];
+        g.layers[0].width = Some(2.0);
+        let f = build_frame(&g, false);
+        // The styled edge draws once in the layer's colour and width; the
+        // one in a hidden layer is gone.
+        assert_eq!(f.segs.len(), 1);
+        assert_eq!(f.seg_attrs[0].color, [0.10, 0.20, 0.90, 0.9]);
+        assert_eq!(f.seg_attrs[0].width, 2.0);
+        assert_eq!(f.seg_edge[0], Some(0));
+    }
+
+    #[test]
+    fn a_shared_edge_draws_one_stroke_per_visible_layer() {
+        let mut e = edge(0, 1);
+        e.layers = vec!["calls".into(), "trace".into()];
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![e]);
+        g.layers = vec![
+            layer("calls", [0.10, 0.20, 0.90, 0.9], true),
+            layer("trace", [0.90, 0.70, 0.20, 0.95], true),
+        ];
+        let f = build_frame(&g, false);
+        // Two strokes, one per layer, bowed apart (spec 031 §3).
+        assert_eq!(f.segs.len(), 2 * CURVE_SEGS);
+        let colors: Vec<[f32; 4]> = f.seg_attrs.iter().map(|a| a.color).collect();
+        assert!(colors.contains(&[0.10, 0.20, 0.90, 0.9]), "calls stroke");
+        assert!(colors.contains(&[0.90, 0.70, 0.20, 0.95]), "trace stroke");
+        // Every stroke picks as the same edge.
+        let c = cam(100.0, 100.0);
+        assert_eq!(edge_at(&f, &c, 70.0, 50.0), Some(0));
+        // Hiding one layer leaves the other's single, straight stroke.
+        g.layers[0].visible = false;
+        let f2 = build_frame(&g, false);
+        assert_eq!(f2.segs.len(), 1);
+        assert_eq!(f2.seg_attrs[0].color, [0.90, 0.70, 0.20, 0.95]);
+    }
+
+    #[test]
+    fn traces_walk_in_order_and_never_pick() {
+        let mut g = graph(
+            vec![
+                node("f", 0.0, 0.0),
+                node("g", 40.0, 10.0),
+                node("h", 10.0, 40.0),
+            ],
+            Vec::new(),
+        );
+        g.layers = vec![layer("trace", [0.90, 0.70, 0.20, 0.95], true)];
+        g.traces = vec![crate::graph::Trace {
+            id: "stack".into(),
+            layer: Some("trace".into()),
+            steps: vec!["f".into(), "g".into(), "h".into(), "g".into(), "f".into()],
+            color: None,
+        }];
+        let f = build_frame(&g, false);
+        // f→g→h→g→f: four hops with a head each, revisiting g and f — the
+        // walk's order is the emission's (spec 031 §3).
+        assert_eq!(f.segs.len(), 4);
+        assert_eq!(f.arrows.len(), 4);
+        assert_eq!(f.segs[0].a, [0.0, 0.0, 0.0], "starts at f");
+        assert_eq!(f.segs[0].b, [40.0, 10.0, 0.0], "then g");
+        assert_eq!(f.segs[3].b, [0.0, 0.0, 0.0], "returns to f");
+        assert_eq!(f.seg_attrs[0].color, [0.90, 0.70, 0.20, 0.95]);
+        // Trace hops are never picked as edges.
+        let c = cam(100.0, 100.0);
+        assert_eq!(edge_at(&f, &c, 70.0, 55.0), None, "the f→g midpoint");
+        // Hiding the layer hides the walk.
+        g.layers[0].visible = false;
+        let f2 = build_frame(&g, false);
+        assert!(f2.segs.is_empty() && f2.arrows.is_empty());
     }
 
     #[test]

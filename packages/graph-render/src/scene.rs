@@ -10,7 +10,7 @@
 //! use moonkale_graph_render::graph::{InEdge, InGraph, InNode};
 //! use moonkale_graph_render::scene::{Event, Scene};
 //!
-//! let node = |id: &str| InNode { id: id.into(), label: id.into(), kind: "file".into(), key: id.into(), color: None };
+//! let node = |id: &str| InNode { id: id.into(), label: id.into(), kind: "file".into(), key: id.into(), color: None, layers: Vec::new() };
 //! let mut scene = Scene::new(InGraph {
 //!     nodes: vec![node("a"), node("b"), node("c")],
 //!     edges: vec![InEdge { a: 0, b: 1, kind: "link".into(), color: None, ..Default::default() }],
