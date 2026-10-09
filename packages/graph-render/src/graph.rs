@@ -157,6 +157,18 @@ pub struct Trace {
     pub color: Option<[f32; 4]>,
 }
 
+/// The internal group (spec 031 §4): members as node indices, re-resolved
+/// whenever a delta moves them. The colour's alpha is the hull tint's
+/// strength cap; the shader fades tiny boxes out (LOD, spec §6).
+#[derive(Clone, Debug)]
+pub struct Group {
+    pub id: String,
+    pub label: String,
+    pub members: Vec<usize>,
+    pub color: [f32; 4],
+    pub visible: bool,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InGraph {
     pub nodes: Vec<InNode>,
@@ -173,6 +185,28 @@ pub struct InGraph {
     /// of node instance ids, not a set of edges — recursion revisits ids.
     #[serde(default)]
     pub traces: Vec<InTrace>,
+    /// Structural groups (spec 031 §4): a group tints the region its
+    /// members occupy — presentation over topology; membership never
+    /// changes what the edges connect.
+    #[serde(default)]
+    pub groups: Vec<InGroup>,
+}
+
+/// A group: which nodes it gathers, by id — the host's collapse/expand
+/// drives membership through deltas; the renderer only tints (spec 031 §4).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InGroup {
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub members: Vec<String>,
+    /// Tint `#rrggbb`; absent = the theme's neutral group colour.
+    #[serde(default)]
+    pub color: Option<String>,
+    /// Drawn while true (default).
+    #[serde(default = "default_true")]
+    pub visible: bool,
 }
 
 /// One visual layer: style knobs apply to its members; `overlay` marks a
@@ -218,6 +252,14 @@ pub struct InDelta {
     pub add_edges: Vec<InDeltaEdge>,
     #[serde(default)]
     pub remove_edges: Vec<String>,
+    /// Groups to add or replace by id (spec 031 §4): a collapse re-sends
+    /// the group with the aggregate among its members; an expand re-sends
+    /// it with the members back. Members name nodes by id; missing ones
+    /// skip, so the order of a delta's parts never matters.
+    #[serde(default)]
+    pub add_groups: Vec<InGroup>,
+    #[serde(default)]
+    pub remove_groups: Vec<String>,
 }
 
 /// A node arriving through a delta (spec 031 §4: a collapsed group's
@@ -378,6 +420,7 @@ pub struct Graph {
     pub ports: Vec<Port>,
     pub layers: Vec<Layer>,
     pub traces: Vec<Trace>,
+    pub groups: Vec<Group>,
 }
 
 pub fn color_for(kind: &str) -> [f32; 4] {
@@ -408,6 +451,28 @@ pub fn parse_hex(s: &str, alpha: f32) -> Option<[f32; 4]> {
             .map(|v| v as f32 / 255.0)
     };
     Some([c(0)?, c(2)?, c(4)?, alpha])
+}
+
+/// A wire group with its members resolved to indices; ids that name no
+/// node are skipped (a group is re-addable through a later delta, like an
+/// edge whose endpoint is missing). Neutral tint: a soft blue-grey.
+fn resolve_group(g: InGroup, nodes: &[Node]) -> Group {
+    let members = g
+        .members
+        .iter()
+        .filter_map(|id| nodes.iter().position(|n| &n.id == id))
+        .collect();
+    Group {
+        id: g.id,
+        label: g.label,
+        members,
+        color: g
+            .color
+            .as_deref()
+            .and_then(|c| parse_hex(c, 1.0))
+            .unwrap_or([0.35, 0.55, 0.85, 1.0]),
+        visible: g.visible,
+    }
 }
 
 pub fn edge_color(kind: &str) -> [f32; 4] {
@@ -547,12 +612,18 @@ impl Graph {
                 }
             })
             .collect();
+        let groups = input
+            .groups
+            .into_iter()
+            .map(|g| resolve_group(g, &nodes))
+            .collect();
         let mut g = Self {
             nodes,
             edges,
             ports,
             layers,
             traces,
+            groups,
         };
         g.with_bows();
         g
@@ -607,6 +678,8 @@ impl Graph {
             && d.remove_nodes.is_empty()
             && d.add_nodes.is_empty()
             && d.add_edges.is_empty()
+            && d.add_groups.is_empty()
+            && d.remove_groups.is_empty()
         {
             return;
         }
@@ -644,6 +717,11 @@ impl Graph {
                 }
                 None => false,
             });
+        // A group's members are indices; the survivors follow the remap,
+        // and a removed member simply leaves its group.
+        for g in self.groups.iter_mut() {
+            g.members = g.members.iter().filter_map(|&i| remap[i]).collect();
+        }
         // Additions. A node id that already exists replaces its node —
         // a re-expand puts the members back where the aggregate was.
         fn index_of(nodes: &[Node], id: &str) -> Option<usize> {
@@ -737,6 +815,15 @@ impl Graph {
             match self.edges.iter().position(|x| x.id == edge.id) {
                 Some(i) => self.edges[i] = edge, // re-add: replace
                 None => self.edges.push(edge),
+            }
+        }
+        let remove_groups: std::collections::HashSet<&String> = d.remove_groups.iter().collect();
+        self.groups.retain(|g| !remove_groups.contains(&g.id));
+        for g in d.add_groups {
+            let group = resolve_group(g, &self.nodes);
+            match self.groups.iter().position(|x| x.id == group.id) {
+                Some(i) => self.groups[i] = group, // re-add: replace
+                None => self.groups.push(group),
             }
         }
         self.recompute_degrees();
@@ -897,6 +984,7 @@ mod delta_tests {
             remove_edges: vec![],
             add_nodes: vec![delta_node("agg", [10.0, 0.0])],
             add_edges: vec![delta_edge("p1", "a", "agg"), delta_edge("p2", "agg", "c")],
+            ..Default::default()
         });
         assert_eq!(g.nodes.len(), 3, "b out, agg in");
         assert!(g.nodes.iter().all(|n| n.id != "b"));
@@ -977,5 +1065,57 @@ mod delta_tests {
         // equal bows on opposite perpendiculars land on opposite sides
         // (the frame test checks the rendered curve).
         assert!(first[0] != 0.0 && first[0] == first[1], "bows: {first:?}");
+    }
+
+    #[test]
+    fn a_delta_moves_groups_with_their_members() {
+        // Spec 031 §4: a collapse removes members (the group's hull shrinks
+        // with them), an expand re-sends the group with the members back;
+        // both directions are idempotent by group id.
+        let mut g = Graph::from_input(input());
+        g.apply_delta(InDelta {
+            add_groups: vec![InGroup {
+                id: "mod".into(),
+                label: "module".into(),
+                members: vec!["a".into(), "b".into()],
+                color: Some("#596cff".into()),
+                visible: true,
+            }],
+            ..Default::default()
+        });
+        assert_eq!(g.groups.len(), 1);
+        assert_eq!(g.groups[0].members.len(), 2);
+        // Collapse b: the re-sent group swaps it for the aggregate.
+        g.apply_delta(InDelta {
+            remove_nodes: vec!["b".into()],
+            add_nodes: vec![delta_node("agg", [10.0, 0.0])],
+            add_groups: vec![InGroup {
+                id: "mod".into(),
+                label: "module".into(),
+                members: vec!["a".into(), "agg".into()],
+                color: Some("#596cff".into()),
+                visible: true,
+            }],
+            ..Default::default()
+        });
+        let ids: Vec<&str> = g.groups[0]
+            .members
+            .iter()
+            .map(|&i| g.nodes[i].id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["a", "agg"], "the group followed the delta");
+        // A removal without a re-send drops the member that left; the
+        // group stays for the host to re-send.
+        g.apply_delta(InDelta {
+            remove_nodes: vec!["agg".into()],
+            ..Default::default()
+        });
+        assert_eq!(g.groups[0].members.len(), 1);
+        // remove_groups by id.
+        g.apply_delta(InDelta {
+            remove_groups: vec!["mod".into()],
+            ..Default::default()
+        });
+        assert!(g.groups.is_empty());
     }
 }

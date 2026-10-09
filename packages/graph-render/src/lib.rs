@@ -38,7 +38,8 @@ mod shader_tests {
         let src = include_str!("shaders.wgsl");
         let module = naga::front::wgsl::parse_str(src).expect("wgsl parses");
         for name in [
-            "node_vs", "node_fs", "edge_vs", "edge_fs", "arrow_vs", "arrow_fs",
+            "node_vs", "node_fs", "edge_vs", "edge_fs", "arrow_vs", "arrow_fs", "hull_vs",
+            "hull_fs",
         ] {
             assert!(
                 module.entry_points.iter().any(|ep| ep.name == name),

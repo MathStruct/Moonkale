@@ -366,9 +366,18 @@ impl GraphView {
         let d: InDelta =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
-        let before = (s.graph.nodes.len(), s.graph.edges.len());
+        let before = (
+            s.graph.nodes.len(),
+            s.graph.edges.len(),
+            s.graph.groups.len(),
+        );
         s.graph.apply_delta(d);
-        if (s.graph.nodes.len(), s.graph.edges.len()) == before {
+        if (
+            s.graph.nodes.len(),
+            s.graph.edges.len(),
+            s.graph.groups.len(),
+        ) == before
+        {
             return Ok(()); // nothing named existed; nothing to redraw
         }
         // Warm, not restart: newcomers settle next to where they were put.
@@ -555,6 +564,40 @@ impl GraphView {
         s.dirty = true;
     }
 
+    /// Fit to a subset (spec 031 §4: layouts centred on one or several
+    /// focal nodes) — a JSON array of node ids. An explicit focus is a
+    /// navigation act: it ends the auto-fit, unlike a whole-graph fit.
+    pub fn focus(&self, ids: &str) {
+        let ids: Vec<String> = match serde_json::from_str(ids) {
+            Ok(ids) => ids,
+            Err(_) => return,
+        };
+        let mut s = self.state.borrow_mut();
+        let (mut x0, mut y0) = (f32::MAX, f32::MAX);
+        let (mut x1, mut y1) = (f32::MIN, f32::MIN);
+        let mut pad = 0.0f32;
+        let mut any = false;
+        for n in s.graph.nodes.iter().filter(|n| ids.contains(&n.id)) {
+            x0 = x0.min(n.x - n.radius);
+            y0 = y0.min(n.y - n.radius);
+            x1 = x1.max(n.x + n.radius);
+            y1 = y1.max(n.y + n.radius);
+            pad = pad.max(n.radius);
+            any = true;
+        }
+        if !any {
+            return;
+        }
+        let pad = pad + 40.0;
+        s.camera.cx = (x0 + x1) / 2.0;
+        s.camera.cy = (y0 + y1) / 2.0;
+        s.camera.scale = ((s.camera.width - pad) / (x1 - x0).max(1.0))
+            .min((s.camera.height - pad) / (y1 - y0).max(1.0))
+            .clamp(crate::camera::MIN_SCALE, 12.0);
+        s.auto_fit = false;
+        s.dirty = true;
+    }
+
     pub fn relayout(&self) {
         let mut s = self.state.borrow_mut();
         s.auto_fit = true;
@@ -711,8 +754,9 @@ impl GraphView {
         serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
     }
 
-    /// `[segments, arrows, ports]` — instance counts; ports count only in
-    /// edit mode (they are drawn then) — for tests (spec 031 §2).
+    /// `[segments, arrows, ports, hulls]` — instance counts; ports count
+    /// only in edit mode (they are drawn then), hulls are 2D-only — for
+    /// tests (spec 031 §2, §4).
     pub fn frame_state(&self) -> Vec<f64> {
         let s = self.state.borrow();
         let f = s.renderer.frame();
@@ -721,7 +765,12 @@ impl GraphView {
         } else {
             0
         };
-        vec![f.segs.len() as f64, f.arrows.len() as f64, ports as f64]
+        vec![
+            f.segs.len() as f64,
+            f.arrows.len() as f64,
+            ports as f64,
+            f.hulls.len() as f64,
+        ]
     }
 
     /// `"explore"` or `"edit"` — the interaction mode (spec 031 §5), for

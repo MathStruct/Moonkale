@@ -98,6 +98,34 @@ pub const PORT_RADIUS: f32 = 2.5;
 /// An edge shared by two visible layers bows its strokes apart by this many
 /// world units per rank (spec 031 §3: offset parallel strokes).
 pub const LAYER_STROKE_SPACING: f32 = 3.0;
+/// A hull clears its outermost member's rim by this many world units
+/// (spec 031 §4: the tinted region reads as *around* the group).
+pub const HULL_PAD: f32 = 7.0;
+/// Hull corner radius in world units (rounded-rect SDF).
+pub const HULL_CORNER: f32 = 12.0;
+/// The hull tint's strength (spec 031 §4: a tinted region, not a block).
+pub const HULL_FILL: f32 = 0.16;
+/// A stroke of the group's colour traces the hull's rim, this many px.
+pub const HULL_RIM: f32 = 1.5;
+
+/// A group hull: one rounded-rect instance (instance slot 0 — the box
+/// follows its members' positions every layout step).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct HullPos {
+    pub center: [f32; 3],
+    /// World half-extents, padding included.
+    pub half: [f32; 2],
+}
+
+/// Hull appearance (instance slot 1 — the tint, set on a graph swap).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct HullAttr {
+    pub color: [f32; 4],
+    /// Corner radius in world units.
+    pub corner: f32,
+}
 
 #[derive(Default)]
 pub struct Frame {
@@ -116,6 +144,10 @@ pub struct Frame {
     /// draws only while one is visible. The instance keeps its slot (hover
     /// and selection stay index-aligned); the renderer fades it out.
     pub node_visible: Vec<bool>,
+    /// Group hulls (spec 031 §4), one per visible group with visible
+    /// members — 2D only; 3D keeps plain nodes and edges.
+    pub hulls: Vec<HullPos>,
+    pub hull_attrs: Vec<HullAttr>,
 }
 
 /// The scene → instance lists for one frame.
@@ -137,6 +169,8 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
     f.arrow_attrs.clear();
     f.port_pos.clear();
     f.node_visible.clear();
+    f.hulls.clear();
+    f.hull_attrs.clear();
     f.port_pos
         .extend(graph.ports.iter().map(|p| port_world(graph, p)));
     f.node_visible.extend(graph.nodes.iter().map(|n| {
@@ -249,6 +283,53 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
         }
     }
     build_traces(graph, three_d, f);
+    if !three_d {
+        build_hulls(graph, f);
+    }
+}
+
+/// One rounded-rect hull per visible group (spec 031 §4): the axis-aligned
+/// box of its visible members' rims, padded, tinted by the group's colour.
+/// A group may nest (a member of the inner is a member of the outer) or
+/// overlap (members shared) — each emits its own instance, drawn in
+/// declaration order; alpha blending stacks the tints.
+fn build_hulls(graph: &Graph, f: &mut Frame) {
+    for g in &graph.groups {
+        if !g.visible {
+            continue;
+        }
+        let (mut x0, mut y0) = (f32::MAX, f32::MAX);
+        let (mut x1, mut y1) = (f32::MIN, f32::MIN);
+        let mut rim = 0.0f32;
+        let mut any = false;
+        for &i in &g.members {
+            let visible = f.node_visible.get(i).copied().unwrap_or(true);
+            if !visible {
+                continue; // an invisible member does not stretch the tint
+            }
+            let n = &graph.nodes[i];
+            x0 = x0.min(n.x - n.radius);
+            y0 = y0.min(n.y - n.radius);
+            x1 = x1.max(n.x + n.radius);
+            y1 = y1.max(n.y + n.radius);
+            rim = rim.max(n.radius);
+            any = true;
+        }
+        if !any {
+            continue; // every member left with a collapse or a hidden layer
+        }
+        let pad = rim + HULL_PAD;
+        f.hulls.push(HullPos {
+            center: [(x0 + x1) / 2.0, (y0 + y1) / 2.0, 0.0],
+            half: [(x1 - x0) / 2.0 + pad, (y1 - y0) / 2.0 + pad],
+        });
+        let mut color = g.color;
+        color[3] *= HULL_FILL;
+        f.hull_attrs.push(HullAttr {
+            color,
+            corner: HULL_CORNER,
+        });
+    }
 }
 
 /// Traces (spec 031 §3): ordered walks over node ids — recursion revisits
@@ -577,6 +658,7 @@ mod tests {
             ports: Vec::new(),
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
         }
     }
 
@@ -752,6 +834,7 @@ mod tests {
             edges: Vec::new(),
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
             ports: vec![
                 port(0, "out", InSide::Right, 0.5),
                 port(0, "in", InSide::Left, 0.5),
@@ -788,6 +871,7 @@ mod tests {
             ],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.segs.len(), 1);
@@ -809,6 +893,7 @@ mod tests {
             ports: vec![port(0, "out", InSide::Right, 0.5)],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
         };
         let f = build_frame(&g, false);
         let c = cam(100.0, 100.0);
@@ -1011,6 +1096,7 @@ mod tests {
             ports: vec![port(1, "in", InSide::Left, 0.5)],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.arrows.len(), 1);
@@ -1031,6 +1117,7 @@ mod tests {
             ports: vec![port(0, "out", InSide::Right, 0.5)],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
         };
         let mut f = Frame::default();
         let mut scratch = Vec::new();
@@ -1057,5 +1144,107 @@ mod tests {
         // → screen (70, 41.7).
         let hit = edge_at(&f, &c, 70.0, 41.7);
         assert_eq!(hit, Some(0));
+    }
+
+    fn group(id: &str, members: &[usize], color: &str) -> crate::graph::Group {
+        crate::graph::Group {
+            id: id.into(),
+            label: id.into(),
+            members: members.to_vec(),
+            color: crate::graph::parse_hex(color, 1.0).unwrap(),
+            visible: true,
+        }
+    }
+
+    #[test]
+    fn a_group_tints_the_box_of_its_members() {
+        // Spec 031 §4: one hull per group — the axis-aligned box of the
+        // members' rims (radius 5 here), padded by rim + HULL_PAD (12).
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 40.0, 10.0),
+                node("c", -60.0, 50.0),
+            ],
+            vec![edge(0, 1)],
+        );
+        g.groups = vec![group("g", &[0, 1], "#596cff")];
+        let f = build_frame(&g, false);
+        assert_eq!(f.hulls.len(), 1);
+        let h = f.hulls[0];
+        assert!(
+            (h.center[0] - 20.0).abs() < 1e-4,
+            "centre x {}",
+            h.center[0]
+        );
+        assert!((h.center[1] - 5.0).abs() < 1e-4, "centre y {}", h.center[1]);
+        let pad = 5.0 + HULL_PAD;
+        assert!(
+            (h.half[0] - (25.0 + pad)).abs() < 1e-4,
+            "half x {}",
+            h.half[0]
+        );
+        assert!(
+            (h.half[1] - (10.0 + pad)).abs() < 1e-4,
+            "half y {}",
+            h.half[1]
+        );
+        // The tint: the group colour with HULL_FILL strength.
+        let c = crate::graph::parse_hex("#596cff", HULL_FILL).unwrap();
+        assert!((f.hull_attrs[0].color[0] - c[0]).abs() < 1e-4);
+        assert_eq!(f.hull_attrs[0].corner, HULL_CORNER);
+        // 3D keeps plain nodes and edges: no hulls (the mapping's rule).
+        assert!(build_frame(&g, true).hulls.is_empty());
+    }
+
+    #[test]
+    fn hidden_or_gone_members_do_not_stretch_the_tint() {
+        // An invisible member (a hidden layer) leaves no mark; a group with
+        // no visible member draws nothing at all.
+        let mut g = graph(
+            vec![node("a", 0.0, 0.0), node("b", 200.0, 0.0)],
+            vec![edge(0, 1)],
+        );
+        g.nodes[1].layers = vec!["ghost".into()];
+        g.layers = vec![layer("ghost", [0.9, 0.2, 0.2, 0.9], false)];
+        g.groups = vec![
+            group("near", &[0], "#596cff"),
+            group("far", &[1], "#596cff"),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.hulls.len(), 1, "only the visible member's hull");
+        assert!(
+            f.hulls[0].half[0] < 30.0,
+            "the hidden member did not stretch it"
+        );
+        // The group itself hidden: nothing.
+        g.groups[0].visible = false;
+        assert!(build_frame(&g, false).hulls.is_empty());
+    }
+
+    #[test]
+    fn nested_and_overlapping_groups_each_get_their_own_hull() {
+        // Spec 031 §4: nesting and overlapping visual memberships are not
+        // conflated — two groups sharing a member both tint.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 30.0, 0.0),
+                node("c", 60.0, 0.0),
+            ],
+            vec![edge(0, 1), edge(1, 2)],
+        );
+        g.groups = vec![
+            group("outer", &[0, 1, 2], "#596cff"),
+            group("pair", &[0, 1], "#ff5959"),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.hulls.len(), 2);
+        let widths: Vec<f32> = f.hulls.iter().map(|h| h.half[0]).collect();
+        assert!(widths[0] > widths[1], "the outer box is the wider one");
+        // The shared member sits in both boxes.
+        for h in &f.hulls {
+            assert!(h.half[0] >= 30.0 && h.center[0] - h.half[0] < 0.0 + 1e-4);
+        }
     }
 }

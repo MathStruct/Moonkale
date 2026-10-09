@@ -39,6 +39,7 @@ struct NodeInst {
     @location(1) color: vec4<f32>,
     @location(2) radius: f32,
     @location(3) selected: f32,
+    @location(4) kind: f32,      // 0 = node, 1 = port (spec 031 §6: port LOD)
 };
 struct NodeOut {
     @builtin(position) clip: vec4<f32>,
@@ -46,6 +47,7 @@ struct NodeOut {
     @location(1) color: vec4<f32>,
     @location(2) fog: f32,
     @location(3) selected: f32,
+    @location(4) kind: f32,
 };
 
 @vertex
@@ -68,11 +70,20 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
     out.color = inst.color;
     out.fog = fog(pr.w);
     out.selected = inst.selected;
+    // Port LOD (spec 031 §6): once a port's projected size falls under a
+    // couple of pixels it stops drawing — the scale lives here, not in the
+    // fragment. kind becomes 2 = a suppressed port.
+    if (inst.kind > 0.5 && inst.radius * camera.scale < 2.5) {
+        out.kind = 2.0;
+    } else {
+        out.kind = inst.kind;
+    }
     return out;
 }
 
 @fragment
 fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
+    if (in.kind > 1.5) { discard; } // a port under the pixel threshold
     let d = length(in.uv);
     let edge = fwidth(d) * 1.5;
     let alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
@@ -102,6 +113,7 @@ struct EdgeOut {
     @location(1) fog: f32,
     @location(2) coord: f32,    // distance along the stroke, screen pixels
     @location(3) dash: f32,
+    @location(4) seglen: f32,   // this segment's screen length (LOD, §6)
 };
 
 @vertex
@@ -133,12 +145,16 @@ fn edge_vs(@builtin(vertex_index) vi: u32, inst: EdgeInst) -> EdgeOut {
     // the camera scale converts (2D; in 3D it is an approximation).
     out.coord = t * length(seg) + inst.phase * camera.scale;
     out.dash = inst.dash;
+    out.seglen = length(seg);
     return out;
 }
 
 @fragment
 fn edge_fs(in: EdgeOut) -> @location(0) vec4<f32> {
-    if (in.dash > 0.5) {
+    // Dash LOD (spec 031 §6): a dash pattern needs several dash lengths
+    // to read. On a segment shorter than that the gaps would eat most of
+    // the stroke — it draws solid instead.
+    if (in.dash > 0.5 && in.seglen > 6.0) {
         // 50 % duty cycle along the stroke, in screen pixels.
         if (fract(in.coord / in.dash) < 0.5) { discard; }
     }
@@ -199,4 +215,63 @@ fn arrow_fs(in: ArrowOut) -> @location(0) vec4<f32> {
     if (alpha < 0.02) { discard; }
     let bg = vec3<f32>(0.047, 0.055, 0.075);
     return vec4<f32>(mix(in.color.rgb, bg, in.fog), in.color.a * alpha);
+}
+
+// ---------------- group hulls: rounded-rect SDF, drawn first ----------------
+// Spec 031 §4: a group tints the region its members occupy. One billboard
+// per hull, two instance slots like every pipeline (geometry on pos_rev,
+// tint on attr_rev); drawn before the edges and nodes so it sits behind.
+struct HullInst {
+    @location(0) center: vec3<f32>,
+    @location(1) half: vec2<f32>,   // world, padding included
+    @location(2) color: vec4<f32>,
+    @location(3) corner: f32,       // world
+};
+struct HullOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) uv: vec2<f32>,     // ±1 across the rect
+    @location(1) color: vec4<f32>,
+    @location(2) extent: vec2<f32>, // half-extents in screen pixels
+    @location(3) corner: f32,       // corner radius in screen pixels
+};
+
+@vertex
+fn hull_vs(@builtin(vertex_index) vi: u32, inst: HullInst) -> HullOut {
+    var corners = array<vec2<f32>, 4>(vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0));
+    let c = corners[vi];
+    let pr = project(inst.center);
+    // Screen half-extents shrink with the zoom; the corner keeps a 3 px
+    // minimum so the shape stays rounded, clamped to never exceed the
+    // box (a pill at most).
+    let ew = max(inst.half * camera.scale, vec2<f32>(1.0, 1.0));
+    let cr = clamp(inst.corner * camera.scale, 0.0, min(ew.x, ew.y));
+    let corner_px = max(cr, min(3.0, min(ew.x, ew.y)));
+    let off = vec2<f32>(c.x * ew.x / (camera.viewport.x * 0.5),
+                       c.y * ew.y / (camera.viewport.y * 0.5));
+    var out: HullOut;
+    out.clip = vec4<f32>(pr.x + off.x, pr.y + off.y, pr.z, 1.0);
+    out.uv = c;
+    out.color = inst.color;
+    out.extent = ew;
+    out.corner = corner_px;
+    return out;
+}
+
+@fragment
+fn hull_fs(in: HullOut) -> @location(0) vec4<f32> {
+    // Signed distance to the rounded rect, in screen pixels.
+    let q = abs(in.uv * in.extent) - (in.extent - vec2<f32>(in.corner, in.corner));
+    let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - in.corner;
+    let edge = fwidth(d) * 1.5;
+    let cov = 1.0 - smoothstep(-edge, edge, d);
+    if (cov < 0.02) { discard; }
+    // LOD (spec 031 §6): a hull a few pixels across is a smudge, not a
+    // region — it fades out between 6 and 14 px of its smaller half-extent.
+    let lod = smoothstep(6.0, 14.0, min(in.extent.x, in.extent.y));
+    if (lod < 0.02) { discard; }
+    // The fill tints; a thin band of the group's colour traces the rim.
+    let rim_w = fwidth(d) * 1.5 + 1.5;
+    let inner = 1.0 - smoothstep(-edge, edge, d + rim_w);
+    let rim = clamp(cov - inner, 0.0, 1.0) * 0.45 * lod;
+    return vec4<f32>(in.color.rgb, max(cov * in.color.a * lod, rim));
 }

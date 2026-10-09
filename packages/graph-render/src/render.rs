@@ -1,8 +1,9 @@
-//! wgpu: surface on a `<canvas>`, three instanced pipelines (segments,
-//! arrowheads, nodes). Written against wgpu 30.
+//! wgpu: surface on a `<canvas>`, four instanced pipelines (group hulls,
+//! segments, arrowheads, nodes — the hulls first, behind everything).
+//! Written against wgpu 30.
 
 use crate::camera::Camera;
-use crate::frame::{self, ArrowAttr, ArrowPos, DrawInput, SegAttr, SegPos};
+use crate::frame::{self, ArrowAttr, ArrowPos, DrawInput, HullAttr, HullPos, SegAttr, SegPos};
 use crate::graph::Graph;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -23,6 +24,9 @@ struct NodeAttr {
     color: [f32; 4],
     radius: f32,
     selected: f32,
+    /// 0 = a node, 1 = a port: the shader's port LOD needs to tell them
+    /// apart (spec 031 §6) — the port rides this pipeline (stage 2).
+    kind: f32,
 }
 
 /// One primitive class's persistent instance buffers. Geometry and
@@ -96,9 +100,11 @@ pub struct Renderer {
     node_pipe: wgpu::RenderPipeline,
     seg_pipe: wgpu::RenderPipeline,
     arrow_pipe: wgpu::RenderPipeline,
+    hull_pipe: wgpu::RenderPipeline,
     node_bufs: InstBufs,
     seg_bufs: InstBufs,
     arrow_bufs: InstBufs,
+    hull_bufs: InstBufs,
     /// The built scene (`frame::build_frame`), cached until a revision
     /// moves — a camera pan or zoom re-draws it without rebuilding.
     frame: frame::Frame,
@@ -298,6 +304,11 @@ impl Renderer {
                     offset: 20,
                     shader_location: 3,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 24,
+                    shader_location: 4,
+                },
             ],
         );
         let seg_pos_layout = inst(
@@ -370,6 +381,36 @@ impl Renderer {
                 },
             ],
         );
+        let hull_pos_layout = inst(
+            std::mem::size_of::<HullPos>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: 12,
+                    shader_location: 1,
+                },
+            ],
+        );
+        let hull_attr_layout = inst(
+            std::mem::size_of::<HullAttr>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 2,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 16,
+                    shader_location: 3,
+                },
+            ],
+        );
         let node_pipe = make(
             "nodes",
             "node_vs",
@@ -388,6 +429,12 @@ impl Renderer {
             "arrow_fs",
             &[Some(arrow_pos_layout), Some(arrow_attr_layout)],
         );
+        let hull_pipe = make(
+            "group hulls",
+            "hull_vs",
+            "hull_fs",
+            &[Some(hull_pos_layout), Some(hull_attr_layout)],
+        );
         let depth = depth_view(&device, config.width, config.height);
         let node_bufs = InstBufs::new(
             &device,
@@ -404,6 +451,11 @@ impl Renderer {
             std::mem::size_of::<ArrowPos>() as u64,
             std::mem::size_of::<ArrowAttr>() as u64,
         );
+        let hull_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<HullPos>() as u64,
+            std::mem::size_of::<HullAttr>() as u64,
+        );
 
         Ok(Self {
             surface,
@@ -415,9 +467,11 @@ impl Renderer {
             node_pipe,
             seg_pipe,
             arrow_pipe,
+            hull_pipe,
             node_bufs,
             seg_bufs,
             arrow_bufs,
+            hull_bufs,
             frame: frame::Frame::default(),
             scratch: Vec::new(),
             built_pos_rev: 0,
@@ -474,6 +528,8 @@ impl Renderer {
         let seg_attr_stride = std::mem::size_of::<SegAttr>() as u64;
         let arrow_stride = std::mem::size_of::<ArrowPos>() as u64;
         let arrow_attr_stride = std::mem::size_of::<ArrowAttr>() as u64;
+        let hull_stride = std::mem::size_of::<HullPos>() as u64;
+        let hull_attr_stride = std::mem::size_of::<HullAttr>() as u64;
         // Ports draw as small circles on the node pipeline (edit mode only,
         // spec 031 §2); the pending wire draws as one extra segment.
         let port_count = if edit { self.frame.port_pos.len() } else { 0 };
@@ -496,6 +552,12 @@ impl Renderer {
             self.frame.arrows.len() as u64,
             arrow_stride,
             arrow_attr_stride,
+        );
+        self.hull_bufs.ensure(
+            &self.device,
+            self.frame.hulls.len() as u64,
+            hull_stride,
+            hull_attr_stride,
         );
 
         if pos_rev != self.node_bufs.pos_rev {
@@ -541,6 +603,7 @@ impl Renderer {
                             n.radius
                         },
                         selected: sel as u32 as f32,
+                        kind: 0.0,
                     }
                 })
                 .collect();
@@ -549,6 +612,7 @@ impl Renderer {
                     color: p.color,
                     radius: frame::PORT_RADIUS,
                     selected: 0.0,
+                    kind: 1.0,
                 });
             }
             self.queue
@@ -626,6 +690,24 @@ impl Renderer {
             self.arrow_bufs.attr_rev = attr_rev;
             self.arrow_bufs.sel_rev = sel_rev;
         }
+        // Hulls (spec 031 §4): positions with the members (pos_rev), tint
+        // with the groups (attr_rev).
+        if pos_rev != self.hull_bufs.pos_rev {
+            self.queue.write_buffer(
+                &self.hull_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.hulls),
+            );
+            self.hull_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.hull_bufs.attr_rev {
+            self.queue.write_buffer(
+                &self.hull_bufs.attr,
+                0,
+                bytemuck::cast_slice(&self.frame.hull_attrs),
+            );
+            self.hull_bufs.attr_rev = attr_rev;
+        }
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
 
@@ -668,6 +750,25 @@ impl Renderer {
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_bind, &[]);
+            // Hulls first (spec 031 §4): the tint sits behind the nodes
+            // and edges its members draw over. In 2D every depth is 0.5,
+            // so the draw order is the layering.
+            if !self.frame.hulls.is_empty() {
+                pass.set_pipeline(&self.hull_pipe);
+                pass.set_vertex_buffer(
+                    0,
+                    self.hull_bufs
+                        .pos
+                        .slice(..self.frame.hulls.len() as u64 * hull_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.hull_bufs
+                        .attr
+                        .slice(..self.frame.hulls.len() as u64 * hull_attr_stride),
+                );
+                pass.draw(0..4, 0..self.frame.hulls.len() as u32);
+            }
             let seg_total = self.frame.segs.len() + pending_count;
             if seg_total > 0 {
                 pass.set_pipeline(&self.seg_pipe);
