@@ -13,7 +13,7 @@
 
 use crate::camera::Camera;
 use crate::frame;
-use crate::graph::{Graph, InGraph};
+use crate::graph::{Graph, InDelta, InGraph};
 use crate::layout::Layout;
 use crate::render::Renderer;
 use std::cell::RefCell;
@@ -356,6 +356,35 @@ impl GraphView {
         self.load(json, true)
     }
 
+    /// Apply an incremental change (spec 031 §4, stage 4a): add and remove
+    /// nodes and edges **by instance id** — a collapse/expand or a live
+    /// host sends this instead of re-serialising 100 k nodes through
+    /// `set_graph`. Survivors keep their positions and pins; the camera
+    /// and the id-keyed selection are untouched. The layout only warms
+    /// (temperature 3), so the view drifts rather than restarts.
+    pub fn apply_delta(&self, json: &str) -> Result<(), JsValue> {
+        let d: InDelta =
+            serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let mut s = self.state.borrow_mut();
+        let before = (s.graph.nodes.len(), s.graph.edges.len());
+        s.graph.apply_delta(d);
+        if (s.graph.nodes.len(), s.graph.edges.len()) == before {
+            return Ok(()); // nothing named existed; nothing to redraw
+        }
+        // Warm, not restart: newcomers settle next to where they were put.
+        let mut l = Layout::new(&s.graph);
+        l.temperature = 3.0;
+        s.layout = l;
+        // Indices shifted: the hover is an index, so it goes; the wire ends.
+        s.hovered = None;
+        s.hover_rev += 1;
+        end_wire(&mut s);
+        s.pos_rev += 1;
+        s.attr_rev += 1;
+        s.dirty = true;
+        Ok(())
+    }
+
     /// Put the current view aside under `name` (graph, positions, pins,
     /// layout state, camera).
     pub fn stash(&self, name: &str) {
@@ -643,6 +672,11 @@ impl GraphView {
 
     pub fn node_count(&self) -> usize {
         self.state.borrow().graph.nodes.len()
+    }
+
+    /// Edge count, for the delta tests (spec 031 §1).
+    pub fn edge_count(&self) -> usize {
+        self.state.borrow().graph.edges.len()
     }
 
     /// `[running, temperature, iterations, x0, y0, x1, y1]` — the layout, for tests.

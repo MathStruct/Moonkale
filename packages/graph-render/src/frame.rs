@@ -330,7 +330,7 @@ fn stroke_offset(rank: usize, total: usize) -> f32 {
 /// into `out` (cleared first — the renderer reuses one buffer across every
 /// frame of a layout). The `stroke` bows a parallel copy off the route
 /// (spec 031 §3) — 0 is the edge's own line.
-fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) {
+fn polyline_into(graph: &Graph, e: &Edge, extra: f32, out: &mut Vec<[f32; 3]>) {
     out.clear();
     let na = &graph.nodes[e.a];
     let a_end = anchored(graph, e.a, &e.a_port);
@@ -341,7 +341,7 @@ fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) 
         let offset = match e.route {
             Route::Bezier { offset } => offset,
             Route::Straight => 0.0,
-        };
+        } + e.bow;
         let side = if offset < 0.0 { -1.0 } else { 1.0 };
         let r = na.radius + 6.0 + offset.abs() * 0.35;
         let (cx, cy) = (na.x, na.y - side * r);
@@ -359,8 +359,9 @@ fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) 
         }
     } else {
         // A bowed parallel of a straight line is a shallow Bézier; a
-        // curve's control point takes the stroke offset on top of its own.
-        let route = match (e.route, stroke) {
+        // curve's control point takes the extra offset (the edge's own bow
+        // plus the layer rank) on top of its own.
+        let route = match (e.route, e.bow + extra) {
             (Route::Straight, s) if s.abs() > 1e-6 => Route::Bezier { offset: s },
             (Route::Straight, _) => Route::Straight,
             (Route::Bezier { offset }, s) => Route::Bezier { offset: offset + s },
@@ -565,6 +566,7 @@ mod tests {
             a_port: None,
             b_port: None,
             layers: Vec::new(),
+            bow: 0.0,
         }
     }
 
@@ -914,7 +916,7 @@ mod tests {
                 e
             }],
         );
-        g = g.with_bows();
+        g.with_bows();
         let f = build_frame(&g, false);
         assert_eq!(f.segs.len(), 2 * CURVE_SEGS);
         let y_at_mid = |e: usize| {
