@@ -11,6 +11,7 @@ use moonkale_ext_api::editor::{
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct Preferences {
     pub wrap: bool,
+    pub markdown_preview: bool,
     pub insert_spaces: Option<bool>,
     pub indent_width: Option<u8>,
 }
@@ -18,6 +19,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             wrap: true,
+            markdown_preview: false,
             insert_spaces: None,
             indent_width: None,
         }
@@ -879,6 +881,7 @@ mod tests {
         let mut model = NativeModel::new(&base, Some(Language::Rust));
         model.replace(&base);
         let preferences = Preferences {
+            markdown_preview: true,
             wrap: false,
             insert_spaces: Some(true),
             indent_width: Some(2),
@@ -916,6 +919,7 @@ mod tests {
         let base = snapshot(&format!("a\t😀中{}", "x".repeat(3_000_000)));
         let mut model = NativeModel::new(&base, None);
         model.set_preferences(Preferences {
+            markdown_preview: false,
             wrap: false,
             insert_spaces: None,
             indent_width: Some(4),

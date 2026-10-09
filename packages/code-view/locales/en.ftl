@@ -80,3 +80,6 @@ editor-tools-needs-lsp = This action needs a language server for the file
 editor-tools-timeout = Language server request timed out
 editor-tools-loading = Loading…
 editor-reference-outside = This reference is outside the folder
+
+editor-preview = Preview
+editor-preview-title = Preview Markdown formatting; wraps source while enabled.

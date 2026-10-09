@@ -242,6 +242,9 @@ pub struct EditorFile {
     /// Open markdown in Rich mode (spec 021).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub markdown_rich: Option<bool>,
+    /// Opt-in bounded inline preview in the Rust Markdown source editor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown_preview: Option<bool>,
     /// Which code editor opens a text document when both are enabled:
     /// `codemirror` (default) or `native` (Milestone 14).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -374,6 +377,10 @@ impl SettingsFile {
         self.editor.insert_spaces = other.editor.insert_spaces.or(self.editor.insert_spaces);
         self.editor.indent_width = other.editor.indent_width.or(self.editor.indent_width);
         self.editor.markdown_rich = other.editor.markdown_rich.or(self.editor.markdown_rich);
+        self.editor.markdown_preview = other
+            .editor
+            .markdown_preview
+            .or(self.editor.markdown_preview);
         self.editor.implementation = other
             .editor
             .implementation
@@ -548,6 +555,9 @@ pub struct EditorSettings {
     /// Open markdown documents in Rich (WYSIWYG) mode rather than Source
     /// (default on, spec 021); the Source | Rich buttons still switch.
     pub markdown_rich: bool,
+    /// Rust source inline preview (default off).
+    #[serde(default)]
+    pub markdown_preview: bool,
     /// `codemirror` | `native` (Milestone 14).
     pub implementation: String,
     /// Rich editor typography: size in px (default 16), body and code
@@ -755,6 +765,7 @@ impl Settings {
                 insert_spaces: merged.editor.insert_spaces,
                 indent_width: merged.editor.indent_width.map(|width| width.clamp(1, 8)),
                 markdown_rich: merged.editor.markdown_rich.unwrap_or(true),
+                markdown_preview: merged.editor.markdown_preview.unwrap_or(false),
                 implementation: merged
                     .editor
                     .implementation
@@ -1129,6 +1140,36 @@ mod layout_record_tests {
         assert!(LayoutRecord::of(&shared).is_empty());
         rec.apply_to(&mut shared);
         assert_eq!(shared, f);
+    }
+    #[test]
+    fn markdown_preview_defaults_merge_and_round_trip() {
+        let empty = SettingsFile::new();
+        assert!(
+            !Settings::resolve(&empty, &empty, &empty)
+                .editor
+                .markdown_preview
+        );
+        let user = SettingsFile::parse(r#"{"editor":{"markdown_preview":true}}"#).unwrap();
+        let workspace = SettingsFile::parse(r#"{"editor":{"markdown_preview":false}}"#).unwrap();
+        assert!(
+            Settings::resolve(&user, &empty, &empty)
+                .editor
+                .markdown_preview
+        );
+        assert!(
+            !Settings::resolve(&user, &workspace, &empty)
+                .editor
+                .markdown_preview
+        );
+        assert_eq!(
+            SettingsFile::parse(&serde_json::to_string(&user).unwrap()).unwrap(),
+            user
+        );
+        let resolved = Settings::resolve(&empty, &empty, &empty);
+        let mut json = serde_json::to_value(&resolved.editor).unwrap();
+        json.as_object_mut().unwrap().remove("markdown_preview");
+        let old: EditorSettings = serde_json::from_value(json).unwrap();
+        assert!(!old.markdown_preview);
     }
     #[test]
     fn indentation_overrides_merge_clamp_and_keep_language_defaults() {

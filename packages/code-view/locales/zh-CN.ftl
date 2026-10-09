@@ -72,3 +72,6 @@ editor-tools-needs-lsp = 此操作需要此文件的语言服务器
 editor-tools-timeout = 语言服务器请求超时
 editor-tools-loading = 正在加载…
 editor-reference-outside = 此引用位于文件夹之外
+
+editor-preview = 预览
+editor-preview-title = 预览 Markdown 格式；启用时自动换行。

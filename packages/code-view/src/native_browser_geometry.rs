@@ -95,10 +95,12 @@ impl Geometry {
     }
 }
 
+#[cfg(feature = "layout-fixture")]
 pub(crate) async fn measure(id: &str, text: &str) -> Option<Geometry> {
     measure_with_status(id, text).await.ok()
 }
 
+#[cfg(feature = "layout-fixture")]
 pub(crate) async fn measure_with_status(id: &str, text: &str) -> Result<Geometry, String> {
     measure_presented(id, text, &[]).await
 }

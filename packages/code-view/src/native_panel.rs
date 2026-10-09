@@ -120,7 +120,11 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         let settings = ws.settings.resolved.peek();
         model.with_mut(|state| {
             state.set_preferences(Preferences {
-                wrap: settings.editor.wrap,
+                wrap: settings.editor.wrap
+                    || (cfg!(feature = "markdown-preview")
+                        && settings.editor.markdown_preview
+                        && language == Some(dioxus_code::Language::Markdown)),
+                markdown_preview: settings.editor.markdown_preview,
                 insert_spaces: settings.editor.insert_spaces,
                 indent_width: settings.editor.indent_width,
             })
@@ -129,7 +133,11 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     use_effect(move || {
         let settings = ws.settings.resolved.read();
         let preferences = Preferences {
-            wrap: settings.editor.wrap,
+            wrap: settings.editor.wrap
+                || (cfg!(feature = "markdown-preview")
+                    && settings.editor.markdown_preview
+                    && language == Some(dioxus_code::Language::Markdown)),
+            markdown_preview: settings.editor.markdown_preview,
             insert_spaces: settings.editor.insert_spaces,
             indent_width: settings.editor.indent_width,
         };
@@ -437,7 +445,10 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         .is_enabled_id("dev.moonkale.editor-code", true);
     let cursor_word = ws.cursor_word();
     let editor_settings = ws.settings.resolved.read().editor.clone();
-    let wrap_on = editor_settings.wrap;
+    let preview_on = cfg!(feature = "markdown-preview")
+        && editor_settings.markdown_preview
+        && language == Some(dioxus_code::Language::Markdown);
+    let wrap_on = editor_settings.wrap || preview_on;
     let spaces_value = editor_settings
         .insert_spaces
         .map(|spaces| if spaces { "spaces" } else { "tabs" })
@@ -505,8 +516,23 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     class: if wrap_on { "mk-btn mk-btn-on mk-native-wrap" } else { "mk-btn mk-native-wrap" },
                     aria_pressed: wrap_on.to_string(),
                     title: t!(ws, L, "editor-wrap-title"),
+                    disabled: preview_on,
                     onclick: move |_| crate::panel::toggle_wrap(ws),
                     {t!(ws, L, "editor-wrap")}
+                }
+                if cfg!(feature = "markdown-preview") && language == Some(dioxus_code::Language::Markdown) {
+                    button {
+                        class: if preview_on { "mk-btn mk-btn-on mk-native-preview" } else { "mk-btn mk-native-preview" },
+                        aria_pressed: preview_on.to_string(),
+                        title: t!(ws, L, "editor-preview-title"),
+                        onclick: move |_| {
+                            let next = !ws.settings.resolved.peek().editor.markdown_preview;
+                            dioxus::core::spawn_forever(async move {
+                                ws.update_user_settings(|file| file.editor.markdown_preview = Some(next)).await;
+                            });
+                        },
+                        {t!(ws, L, "editor-preview")}
+                    }
                 }
                 label { class: "mk-native-indent-control",
                     {t!(ws, L, "editor-indent-style")}

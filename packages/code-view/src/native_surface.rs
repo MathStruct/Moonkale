@@ -75,37 +75,37 @@ pub(crate) fn RustEditorSurface(
     )));
     let mut cell_pixels = use_signal(|| 8.4f64);
     let mut row_pixels = use_signal(|| 22.0f64);
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let current_runs = use_memo(use_reactive!(|run_heights| run_heights));
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let measured_runs = use_hook(|| {
         Rc::new(RefCell::new(std::collections::BTreeMap::<
             usize,
             crate::native_proportional_run::RunHeight,
         >::new()))
     });
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let navigation_runs = measured_runs.clone();
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let mut vertical_intent = use_signal(|| None::<crate::native_proportional_run::VerticalIntent>);
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let mut caret_affinity =
         use_signal(|| None::<crate::native_proportional_navigation::CaretAffinity>);
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let mut font_epoch = use_signal(|| 0u64);
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let mut font_loading = use_signal(|| false);
     let viewport_id =
         use_hook(|| format!("mk-native-viewport-{}", dioxus::core::current_scope_id().0));
     let mut viewport_width_pixels = use_signal(|| 0.0f64);
     let mut viewport_pixels = use_signal(|| 880.0f64);
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let fixture = use_hook(try_consume_context::<Signal<crate::LayoutFixture>>);
-    #[cfg(not(feature = "layout-fixture"))]
+    #[cfg(not(feature = "markdown-preview"))]
     let fixture: Option<Signal<()>> = None;
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let current_scroll = use_memo(use_reactive!(|scroll_displacement| scroll_displacement));
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let mut measured_block = use_signal(|| {
         None::<(
             crate::LayoutFixture,
@@ -115,13 +115,13 @@ pub(crate) fn RustEditorSurface(
     });
     let mut composing = use_signal(|| false);
     let heights = use_memo(use_reactive!(|model, run_heights| {
-        #[cfg(not(feature = "layout-fixture"))]
+        #[cfg(not(feature = "markdown-preview"))]
         let _ = run_heights;
         let state = model.read();
         let rows = state.engine.get_viewport_state().total_visual_lines;
-        #[cfg(feature = "layout-fixture")]
+        #[cfg(feature = "markdown-preview")]
         let presentation = presentation_state(fixture, model);
-        #[cfg(feature = "layout-fixture")]
+        #[cfg(feature = "markdown-preview")]
         let mapped = (presentation != 0 && proportional_enabled(fixture, model, 0, false))
             .then(|| {
                 crate::native_presentation::mapped_runs(
@@ -132,7 +132,7 @@ pub(crate) fn RustEditorSurface(
                 )
             })
             .flatten();
-        #[cfg(feature = "layout-fixture")]
+        #[cfg(feature = "markdown-preview")]
         let mut overrides = fixture
             .map(|value| {
                 let config = value();
@@ -157,8 +157,11 @@ pub(crate) fn RustEditorSurface(
                     .unwrap_or_default()
             })
             .unwrap_or_default();
-        #[cfg(feature = "layout-fixture")]
-        if let Some(line) = fixture.and_then(|value| value().proportional_line) {
+        #[cfg(feature = "markdown-preview")]
+        if let Some(line) = markdown_enabled(fixture, model)
+            .then_some(0)
+            .or_else(|| fixture.and_then(|value| value().proportional_line))
+        {
             let index = state.engine.editor().line_index();
             let length = index
                 .get_line(line)
@@ -170,10 +173,11 @@ pub(crate) fn RustEditorSurface(
                     .logical_position_to_visual(line, 0)
                     .filter(|(row, _)| state.engine.visual_to_logical_line(*row).0 == line)
                 {
-                    let last_line = if fixture.is_some_and(|value| {
-                        (value().presentation || markdown_enabled(fixture, model))
-                            && value().proportional_line == Some(0)
-                    }) {
+                    let last_line = if markdown_enabled(fixture, model)
+                        || fixture.is_some_and(|value| {
+                            (value().presentation || markdown_enabled(fixture, model))
+                                && value().proportional_line == Some(0)
+                        }) {
                         crate::native_presentation::last_line(
                             presentation_mode(fixture, model),
                             &state.engine,
@@ -223,14 +227,14 @@ pub(crate) fn RustEditorSurface(
                 }
             }
         }
-        #[cfg(feature = "layout-fixture")]
+        #[cfg(feature = "markdown-preview")]
         if let Some(mapped) = mapped {
             for row in mapped.collapsed {
                 overrides.retain(|(index, _)| *index != row);
                 overrides.push((row, 0.0));
             }
         }
-        #[cfg(not(feature = "layout-fixture"))]
+        #[cfg(not(feature = "markdown-preview"))]
         let overrides = Vec::new();
         RowHeights::new(rows, row_pixels(), &overrides)
     }));
@@ -278,9 +282,9 @@ pub(crate) fn RustEditorSurface(
     let input_mounted = use_hook(|| Rc::new(RefCell::new(None::<Rc<MountedData>>)));
     let viewport_mounted = use_hook(|| Rc::new(RefCell::new(None::<Rc<MountedData>>)));
     let probe_mounted = use_hook(|| Rc::new(RefCell::new(None::<Rc<MountedData>>)));
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let block_mounted = use_hook(|| Rc::new(RefCell::new(None::<Rc<MountedData>>)));
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let block_measure = {
         let mounted = block_mounted.clone();
         let requests = use_hook(|| Rc::new(std::cell::Cell::new(0u64)));
@@ -348,7 +352,7 @@ pub(crate) fn RustEditorSurface(
             });
         })
     };
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     use_effect(move || {
         if let Some(value) = fixture {
             let _ = value();
@@ -531,7 +535,7 @@ pub(crate) fn RustEditorSurface(
                 editor.editor().viewport_width() + 6,
             )
         };
-        #[cfg(feature = "layout-fixture")]
+        #[cfg(feature = "markdown-preview")]
         if state.preferences.wrap
             && presentation_state(fixture, model) != 0
             && proportional_enabled(fixture, model, 0, false)
@@ -641,7 +645,7 @@ pub(crate) fn RustEditorSurface(
             }),
             native_decorations::wiki(state.revision, window, &wiki_marks),
         ];
-        #[cfg(feature = "layout-fixture")]
+        #[cfg(feature = "markdown-preview")]
         if fixture.is_some_and(|value| value().presentation) || markdown_enabled(fixture, model) {
             let length = crate::native_presentation::source_length(&state.engine);
             batches.push(crate::native_presentation::provider(
@@ -652,16 +656,20 @@ pub(crate) fn RustEditorSurface(
         }
         Decorations::compose(state.revision, window, batches)
     });
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     let show_presentation = presentation_state(fixture, model);
-    #[cfg(feature = "layout-fixture")]
-    let presentation_values = model.with(|state| {
-        crate::native_presentation::replacements(
-            presentation_mode(fixture, model),
-            &state.engine,
-            state.revision,
-        )
-    });
+    #[cfg(feature = "markdown-preview")]
+    let presentation_values = if show_presentation != 0 {
+        model.with(|state| {
+            crate::native_presentation::replacements(
+                presentation_mode(fixture, model),
+                &state.engine,
+                state.revision,
+            )
+        })
+    } else {
+        Vec::new()
+    };
     let bracket_pair = model.with(|state| state.structure.at_caret(cursor.offset));
     let selection = cursor.selection.clone();
     let hovered_position_text = hovered_position()
@@ -689,7 +697,7 @@ pub(crate) fn RustEditorSurface(
             tabindex: 0,
             onmouseleave: move |_| hovered_position.set(None),
             onmousedown: move |_| {
-                #[cfg(feature = "layout-fixture")]
+                #[cfg(feature = "markdown-preview")]
                 if !font_loading() { vertical_intent.set(None); caret_affinity.set(None); }
                 hovered_position.set(None);
                 if let Some(element) = focus_input_on_down.borrow().as_ref().cloned() {
@@ -775,7 +783,7 @@ pub(crate) fn RustEditorSurface(
                         }
                     }
                 }
-                #[cfg(feature = "layout-fixture")]
+                #[cfg(feature = "markdown-preview")]
                 {
                     use crate::native_proportional_navigation as navigation;
                     let plain = modifiers.is_empty() || modifiers == Modifiers::SHIFT;
@@ -1020,7 +1028,7 @@ pub(crate) fn RustEditorSurface(
 
                 onmounted: move |event: MountedEvent| {
                     *viewport_on_mount.borrow_mut() = Some(event.data.clone());
-                    #[cfg(feature = "layout-fixture")]
+                    #[cfg(feature = "markdown-preview")]
                     {
                         let id=viewport_id.clone();
                         spawn(async move {
@@ -1062,28 +1070,28 @@ pub(crate) fn RustEditorSurface(
                                 let logical_line = line.logical_line_index;
                                 let end_offset = line.char_offset_end;
                                 let visual_row = first_row() + row_index;
-                                #[cfg(feature = "layout-fixture")]
+                                #[cfg(feature = "markdown-preview")]
                                 let block_on_mount = block_mounted.clone();
                                 let block_height = {
-                                    #[cfg(feature = "layout-fixture")]
+                                    #[cfg(feature = "markdown-preview")]
                                     { fixture.map(|value| value()).filter(|config| config.line == logical_line && !line.is_wrapped_part).map(|config| measured_block().filter(|(key, revision, _)| *key == config && *revision == model.peek().revision).map(|(_, _, height)| height).unwrap_or(config.block_height.max(0.0))).unwrap_or(0.0) }
-                                    #[cfg(not(feature = "layout-fixture"))]
+                                    #[cfg(not(feature = "markdown-preview"))]
                                     { 0.0 }
                                 };
                                 let text_height = heights.read().row_height(visual_row) - block_height;
                                 let block_css_height = {
-                                    #[cfg(feature = "layout-fixture")]
+                                    #[cfg(feature = "markdown-preview")]
                                     { fixture.map(|value| value().block_height.max(0.0)).unwrap_or(0.0) }
-                                    #[cfg(not(feature = "layout-fixture"))]
+                                    #[cfg(not(feature = "markdown-preview"))]
                                     { 0.0 }
                                 };
                                 let interactive_widget = {
-                                    #[cfg(feature = "layout-fixture")]
+                                    #[cfg(feature = "markdown-preview")]
                                     { fixture.is_some_and(|value| value().interactive_widget) }
-                                    #[cfg(not(feature = "layout-fixture"))]
+                                    #[cfg(not(feature = "markdown-preview"))]
                                     { false }
                                 };
-                                #[cfg(feature = "layout-fixture")]
+                                #[cfg(feature = "markdown-preview")]
                                 let widget_revision = model.peek().revision;
                                 rsx! {
                                     if text_height > 0.0 || block_height > 0.0 {
@@ -1094,11 +1102,11 @@ pub(crate) fn RustEditorSurface(
                                             contenteditable: "false",
                                             style: if interactive_widget { format!("min-height: {block_css_height}px; white-space: normal;") } else { format!("height: {block_css_height}px; overflow: hidden; background: #345; color: white;") },
                                             onmounted: move |_event: MountedEvent| {
-                                                #[cfg(feature = "layout-fixture")]
+                                                #[cfg(feature = "markdown-preview")]
                                                 { *block_on_mount.borrow_mut() = Some(_event.data.clone()); block_measure.call(()); }
                                             },
                                             onresize: move |_| {
-                                                #[cfg(feature = "layout-fixture")]
+                                                #[cfg(feature = "markdown-preview")]
                                                 block_measure.call(());
                                             },
                                             onmousedown: move |event| {
@@ -1106,7 +1114,7 @@ pub(crate) fn RustEditorSurface(
                                                 mutate(model, onchange, |editor| place_caret_at(editor, Position::new(logical_line, 0)));
                                             },
                                             {
-                                                #[cfg(feature = "layout-fixture")]
+                                                #[cfg(feature = "markdown-preview")]
                                                 {
                                                     if interactive_widget {
                                                         rsx! {
@@ -1133,7 +1141,7 @@ pub(crate) fn RustEditorSurface(
                                                         rsx! { "{title}" }
                                                     }
                                                 }
-                                                #[cfg(not(feature = "layout-fixture"))]
+                                                #[cfg(not(feature = "markdown-preview"))]
                                                 { "Fixture block (view only)" }
                                             }
                                         }
@@ -1184,7 +1192,7 @@ pub(crate) fn RustEditorSurface(
                                         }
                                         if proportional_enabled(fixture, model, logical_line, line.is_fold_placeholder_appended) && !line.cells.is_empty() {
                                             {
-                                                #[cfg(feature = "layout-fixture")]
+                                                #[cfg(feature = "markdown-preview")]
                                                 {
                                                     let stamp = crate::native_proportional_run::RunKey { model, revision: model.read().revision, start: line.char_offset_start, row: visual_row, viewport_width: viewport_width_pixels(), font_epoch: font_epoch(), presentation: show_presentation };
                                                     let include_end = grid.lines.get(row_index + 1).is_none_or(|next| next.char_offset_start != line.char_offset_start + line.cells.len());
@@ -1238,7 +1246,7 @@ pub(crate) fn RustEditorSurface(
                                                         font_loading: font_loading(), preedit: preedit.clone(), delay_ms: fixture.map(|value| value().measurement_delay_ms).unwrap_or_default(),
                                                     } }
                                                 }
-                                                #[cfg(not(feature = "layout-fixture"))]
+                                                #[cfg(not(feature = "markdown-preview"))]
                                                 { rsx! {} }
                                             }
                                         } else {
@@ -1567,16 +1575,17 @@ pub(crate) fn mutate<R>(
     result
 }
 
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 fn markdown_enabled(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
 ) -> bool {
-    fixture.is_some_and(|value| value().markdown_preview)
+    (model.read().preferences.markdown_preview
+        || fixture.is_some_and(|value| value().markdown_preview))
         && model.peek().language == Some(dioxus_code::Language::Markdown)
 }
 
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 fn presentation_mode(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
@@ -1588,7 +1597,7 @@ fn presentation_mode(
     }
 }
 
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 fn presentation_state(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
@@ -1605,7 +1614,7 @@ fn presentation_state(
     })
 }
 
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 fn proportional_enabled(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
@@ -1615,17 +1624,24 @@ fn proportional_enabled(
     let state = model.read();
     !folded
         && state.preferences.wrap
-        && fixture.is_some_and(|value| {
-            value().proportional_line == Some(line)
-                || (value().presentation || markdown_enabled(fixture, model))
-                    && value().proportional_line == Some(0)
-                    && line
-                        <= crate::native_presentation::last_line(
-                            presentation_mode(fixture, model),
-                            &state.engine,
-                            state.revision,
-                        )
-        })
+        && (markdown_enabled(fixture, model)
+            && line
+                <= crate::native_presentation::last_line(
+                    crate::native_presentation::Mode::Markdown,
+                    &state.engine,
+                    state.revision,
+                )
+            || fixture.is_some_and(|value| {
+                value().proportional_line == Some(line)
+                    || (value().presentation || markdown_enabled(fixture, model))
+                        && value().proportional_line == Some(0)
+                        && line
+                            <= crate::native_presentation::last_line(
+                                presentation_mode(fixture, model),
+                                &state.engine,
+                                state.revision,
+                            )
+            }))
         && state
             .engine
             .editor()
@@ -1633,7 +1649,42 @@ fn proportional_enabled(
             .get_line(line)
             .is_some_and(|value| value.char_count <= 4096)
 }
-#[cfg(not(feature = "layout-fixture"))]
+#[cfg(not(feature = "markdown-preview"))]
 fn proportional_enabled(_: Option<Signal<()>>, _: Signal<NativeModel>, _: usize, _: bool) -> bool {
     false
+}
+
+#[cfg(all(test, feature = "markdown-preview"))]
+mod preview_tests {
+    use super::*;
+
+    #[test]
+    fn settings_enable_markdown_without_a_fixture_context() {
+        fn app() -> Element {
+            let mut model = use_signal(|| {
+                let snapshot = moonkale_ext_api::editor::EditorSnapshot {
+                    node: moonkale_core::NodeId::derive(
+                        &moonkale_core::SourceId::new("test:preview"),
+                        "a.md",
+                    ),
+                    revision: Default::default(),
+                    text: "before\n*emphasis*\nafter".into(),
+                    selection: None,
+                };
+                NativeModel::new(&snapshot, Some(dioxus_code::Language::Markdown))
+            });
+            assert!(!markdown_enabled(None, model));
+            model.with_mut(|state| state.preferences.markdown_preview = true);
+            assert!(markdown_enabled(None, model));
+            assert_eq!(presentation_state(None, model), (1 << 63) | 1);
+            assert!(proportional_enabled(None, model, 1, false));
+            assert!(!proportional_enabled(None, model, 1, true));
+            model.with_mut(|state| state.language = Some(dioxus_code::Language::Rust));
+            assert!(!markdown_enabled(None, model));
+            assert_eq!(presentation_state(None, model), 0);
+            assert!(!proportional_enabled(None, model, 1, false));
+            rsx! {}
+        }
+        VirtualDom::new(app).rebuild_in_place();
+    }
 }

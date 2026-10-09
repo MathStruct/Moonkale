@@ -79,6 +79,29 @@ try {
   await page.click('#layout-delay');await preview();await page.click('#layout-uniform');
   await page.waitForTimeout(650);assert.equal(await widgets.count(),0,'Late measurements cannot restore disabled provider');
   assert.equal(await canonical.textContent(),original);
+  // Exercise the production settings path with every layout fixture flag reset.
+  const toggle=panel.locator('.mk-native-preview');
+  assert.equal(await toggle.getAttribute('aria-pressed'),'false');
+  await panel.locator('.mk-native-wrap').click();
+  await page.waitForFunction(()=>document.querySelector('.language .mk-native-surface').dataset.wrap==='false');
+  await toggle.click();await preview();
+  assert.equal(await toggle.getAttribute('aria-pressed'),'true');
+  assert.equal(await widgets.count(),3,'Settings enable preview without fixture flags');
+  assert.equal(await panel.locator('.mk-native-wrap').isDisabled(),true);
+  assert.equal(await page.locator('.primary .mk-native-preview').count(),0);
+  assert.equal(await page.locator('.primary .mk-native-inline-widget').count(),0);
+  await page.click('[data-language-fixture="nested.md"]');
+  await page.waitForFunction(()=>!document.querySelector('.language'));
+  await page.click('[data-language-fixture="nested.md"]');await preview();
+  assert.equal(await toggle.getAttribute('aria-pressed'),'true','Preference survives remount');
+  assert.equal(await widgets.count(),3);
+  await toggle.click();
+  await page.waitForFunction(()=>document.querySelector('.language .mk-native-preview').getAttribute('aria-pressed')==='false');
+  assert.equal(await widgets.count(),0);
+  assert.equal(await panel.locator('.mk-native-wrap').isDisabled(),false);
+  await page.waitForFunction(()=>document.querySelector('.language .mk-native-surface').dataset.wrap==='false');
+  assert.equal(await panel.locator('.mk-native-wrap').getAttribute('aria-pressed'),'false','Disabling preview restores the saved wrap setting');
+  assert.equal(await canonical.textContent(),original);
   assert.deepEqual(errors,[]);
   console.log('PASS: Markdown styles, Unicode/entity source boundaries across wraps, canonical copy, CRLF editing/undo, composition and provider invalidation');
 } finally {await browser.close();}

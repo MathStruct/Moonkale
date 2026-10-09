@@ -37,7 +37,9 @@ web-sys = { version = "0.3", features = ["ClipboardEvent", "DataTransfer", "Even
 arboard = { version = "3.6.1", optional = true, default-features = false, features = ["wayland-data-control"] }
 
 [features]
-layout-fixture = ["dep:unicode-segmentation", "dep:pulldown-cmark"]
+default = ["markdown-preview"]
+markdown-preview = ["dep:unicode-segmentation", "dep:pulldown-cmark"]
+layout-fixture = ["markdown-preview"]
 native-desktop = ["dep:arboard"]
 spike-desktop = ["dioxus/desktop", "native-desktop"]
 spike-web = ["dioxus/web"]

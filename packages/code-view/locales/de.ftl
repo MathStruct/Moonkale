@@ -80,3 +80,6 @@ editor-tools-needs-lsp = Diese Aktion benötigt einen Sprachserver für die Date
 editor-tools-timeout = Zeitüberschreitung bei der Sprachserver-Anfrage
 editor-tools-loading = Wird geladen…
 editor-reference-outside = Diese Referenz liegt außerhalb des Ordners
+
+editor-preview = Vorschau
+editor-preview-title = Markdown-Formatierung anzeigen; aktiviert den Zeilenumbruch während der Vorschau.

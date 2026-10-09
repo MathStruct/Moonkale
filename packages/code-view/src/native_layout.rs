@@ -18,7 +18,7 @@ pub(crate) struct UniformLayout {
 }
 
 /// Fixture-only presentation settings; never enabled by production hosts.
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct LayoutFixture {
     /// Logical source line anchoring the taller row and block.
@@ -121,7 +121,7 @@ impl RowHeights {
         low.min(self.rows - 1)
     }
 
-    #[cfg(any(feature = "layout-fixture", test))]
+    #[cfg(any(feature = "markdown-preview", test))]
     pub(crate) fn adjacent_visible(&self, row: usize, down: bool) -> Option<usize> {
         let y = if down {
             self.row_top(row + 1)

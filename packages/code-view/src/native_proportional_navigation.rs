@@ -1,4 +1,4 @@
-//! View-only wrap affinity and pixel-column movement for the bounded fixture.
+//! View-only wrap affinity and pixel-column movement for bounded source presentation.
 use crate::{
     native_layout::RowHeights,
     native_proportional_run::{RunHeight, RunKey},

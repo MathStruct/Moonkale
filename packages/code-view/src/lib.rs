@@ -23,6 +23,9 @@
 //! Dioxus view over shared Workspace state. Both surfaces integrate with the
 //! shared LSP manager and Workspace navigation. Native Markdown Source supports
 //! wiki marks/completion/following, and the native gutter displays presence.
+//! `editor.markdown_preview` enables bounded inline preview in the Rust Markdown
+//! source view (off by default); the `markdown-preview` Cargo feature supplies
+//! its geometry/parser independently of the `layout-fixture` test controls.
 //! Live rust-analyzer protocol and native XWayland keyboard/clipboard/drag checks
 //! pass; renderer and remaining platform acceptance stay open.
 
@@ -43,23 +46,25 @@ mod native_layout;
 mod uri;
 #[cfg(feature = "layout-fixture")]
 pub use native_layout::LayoutFixture;
-#[cfg(feature = "layout-fixture")]
+#[cfg(all(feature = "markdown-preview", not(feature = "layout-fixture")))]
+pub(crate) use native_layout::LayoutFixture;
+#[cfg(feature = "markdown-preview")]
 mod native_browser_geometry;
 mod native_lean_folding;
 mod native_lsp_tools;
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 mod native_markdown;
 mod native_model;
 mod native_panel;
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 mod native_presentation;
 #[cfg(feature = "layout-fixture")]
 mod native_proportional;
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 mod native_proportional_navigation;
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 mod native_proportional_run;
-#[cfg(feature = "layout-fixture")]
+#[cfg(feature = "markdown-preview")]
 mod native_widgets;
 #[cfg(feature = "layout-fixture")]
 pub use native_proportional::ProportionalGeometryProbe;

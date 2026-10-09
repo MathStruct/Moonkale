@@ -19,7 +19,7 @@ pub(crate) struct RunKey {
     pub row: usize,
     pub viewport_width: f64,
     pub font_epoch: u64,
-    /// Bit mask of fixture constructs still in preview.
+    /// Bit mask of constructs still in preview, with provider identity.
     pub presentation: u64,
 }
 

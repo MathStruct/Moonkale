@@ -10,9 +10,9 @@ pub(crate) enum Provider {
     Search,
     Diagnostics,
     Wiki,
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     Fixture,
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     Markdown,
 }
 
@@ -31,7 +31,7 @@ pub(crate) enum InlineStyle {
     Code,
 }
 impl InlineStyle {
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     pub(crate) fn class(self) -> &'static str {
         match self {
             Self::Emphasis => "mk-markdown-emphasis",
@@ -190,7 +190,7 @@ impl Decorations {
         result
     }
 
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     pub(crate) fn replacements(
         &self,
         run: Range<usize>,
@@ -227,7 +227,7 @@ impl Decorations {
         accepted
     }
 
-    #[cfg(feature = "layout-fixture")]
+    #[cfg(feature = "markdown-preview")]
     pub(crate) fn block(&self, offset: usize) -> Option<&str> {
         self.values.iter().find_map(|value| match &value.kind {
             Kind::BlockWidget { anchor, widget } if *anchor == offset => Some(widget.as_str()),
