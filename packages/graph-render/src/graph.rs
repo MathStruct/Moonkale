@@ -484,7 +484,7 @@ impl Graph {
     /// the straight line so they do not overdraw each other: the middle one
     /// stays straight, the others curve by their rank (spec 031 §2). A
     /// self-loop is its own group — its bow widens the loop.
-    fn with_bows(mut self) -> Self {
+    pub(crate) fn with_bows(mut self) -> Self {
         use std::collections::HashMap;
         let mut groups: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
         for (i, e) in self.edges.iter().enumerate() {
@@ -507,10 +507,15 @@ impl Graph {
                     continue;
                 }
                 let e = &mut self.edges[i];
+                // The bow is measured on the perpendicular of a→b; an edge
+                // stored the other way round (b→a, the two-way-link case)
+                // has the opposite perpendicular, so its bow flips sign —
+                // otherwise both parallels land on the same curve.
+                let sign = if e.a > e.b { -1.0 } else { 1.0 };
                 e.route = match e.route {
-                    Route::Straight => Route::Bezier { offset: bow },
+                    Route::Straight => Route::Bezier { offset: bow * sign },
                     Route::Bezier { offset } => Route::Bezier {
-                        offset: offset + bow,
+                        offset: offset + bow * sign,
                     },
                 };
             }

@@ -5,6 +5,7 @@
 // built for directed/`both` edges, a click selects (plain) and toggles
 // (Ctrl), a drag does not select, and empty space clears.
 import { chromium } from "playwright";
+import { litPixels } from "./pnglit.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
@@ -120,6 +121,32 @@ try {
     console.log("\n  loop:", JSON.stringify(found));
     if (!found) throw new Error("no point on the ring selected the loop");
     await page.screenshot({ path: `${S}/s1-edges.png` });
+  });
+  await step("an arrowhead's lit mass points into its node, not screen-right (B1, pixels)", async () => {
+    // The "both" edge b→d carries a head at b pulled back along the edge;
+    // its triangle's lit centroid must sit toward b (against the travel),
+    // whatever the edge's direction — a head that always points +x on
+    // screen puts the centroid the other way.
+    const { p, scale } = await pos();
+    const d = [p.d[0] - p.b[0], p.d[1] - p.b[1]];
+    const len = Math.hypot(...d);
+    const u = [d[0] / len, d[1] / len];
+    // The head's centre: b pulled back along +u by (radius + 4) world
+    // units; the node radius here is 4 + sqrt(degree), ≈ 5.5.
+    const hc = at([p.b[0] + u[0] * 9.5 * scale, p.b[1] + u[1] * 9.5 * scale]);
+    const r = Math.max(24, Math.min(3.5 * scale, 90));
+    const png = await page.screenshot({ clip: { x: hc[0] - r, y: hc[1] - r, width: 2 * r, height: 2 * r } });
+    const { lit } = litPixels(png);
+    if (lit.length < 12) throw new Error(`no head lit around ${hc}: ${lit.length} px`);
+    const cx = lit.reduce((s, q) => s + q.x, 0) / lit.length - r;
+    const cy = lit.reduce((s, q) => s + q.y, 0) / lit.length - r;
+    // The apex (the heavy end) points into b: −u in screen space.
+    const into = [-u[0], -u[1]];
+    const dot = cx * into[0] + cy * into[1];
+    const mag = Math.hypot(cx, cy) || 1;
+    console.log(`\n  head centroid (${cx.toFixed(1)}, ${cy.toFixed(1)}) · into-b ${dot.toFixed(1)} of ${mag.toFixed(1)}`);
+    if (dot / mag < 0.25) throw new Error("the head's lit mass does not point into its node");
+    await page.screenshot({ path: `${S}/s1-arrow.png` });
   });
   console.log("\nGRAPH-EDGES E2E: PASS");
 } catch (e) {

@@ -36,6 +36,8 @@ struct InstBufs {
     cap: u64,
     pos_rev: u64,
     attr_rev: u64,
+    hover_rev: u64,
+    sel_rev: u64,
 }
 
 impl InstBufs {
@@ -54,6 +56,8 @@ impl InstBufs {
             cap: 0,
             pos_rev: u64::MAX,
             attr_rev: u64::MAX,
+            hover_rev: u64::MAX,
+            sel_rev: u64::MAX,
         }
     }
 
@@ -77,6 +81,8 @@ impl InstBufs {
         self.cap = cap;
         self.pos_rev = u64::MAX;
         self.attr_rev = u64::MAX;
+        self.hover_rev = u64::MAX;
+        self.sel_rev = u64::MAX;
     }
 }
 
@@ -96,8 +102,9 @@ pub struct Renderer {
     /// The built scene (`frame::build_frame`), cached until a revision
     /// moves — a camera pan or zoom re-draws it without rebuilding.
     frame: frame::Frame,
+    /// One polyline buffer reused across every frame of a layout.
+    scratch: Vec<[f32; 3]>,
     built_pos_rev: u64,
-    built_attr_rev: u64,
     /// Depth buffer (3D mode draws nodes over edges by depth; in 2D every
     /// depth is 0.5 and order wins).
     depth: wgpu::TextureView,
@@ -326,6 +333,11 @@ impl Renderer {
                     offset: 20,
                     shader_location: 4,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 24,
+                    shader_location: 5,
+                },
             ],
         );
         let arrow_pos_layout = inst(
@@ -407,8 +419,8 @@ impl Renderer {
             seg_bufs,
             arrow_bufs,
             frame: frame::Frame::default(),
+            scratch: Vec::new(),
             built_pos_rev: 0,
-            built_attr_rev: 0,
             depth,
             backend,
             // #0c0e13, the dark theme's until `set_theme` says otherwise.
@@ -445,11 +457,16 @@ impl Renderer {
             pending,
             pos_rev,
             attr_rev,
+            hover_rev,
+            sel_rev,
         } = *input;
-        if pos_rev != self.built_pos_rev || attr_rev != self.built_attr_rev {
-            self.frame = frame::build_frame(graph, camera.three_d);
+        // The frame holds geometry only — hover and selection live in the
+        // attr upload — so only `pos_rev` (a graph change) rebuilds it; a
+        // hover at 100k nodes no longer costs an O(edges) rebuild (the
+        // stage 0–3 review's perf note).
+        if pos_rev != self.built_pos_rev {
+            frame::build_frame_into(graph, camera.three_d, &mut self.frame, &mut self.scratch);
             self.built_pos_rev = pos_rev;
-            self.built_attr_rev = attr_rev;
         }
         let node_stride = std::mem::size_of::<NodePos>() as u64;
         let node_attr_stride = std::mem::size_of::<NodeAttr>() as u64;
@@ -496,7 +513,10 @@ impl Renderer {
                 .write_buffer(&self.node_bufs.pos, 0, bytemuck::cast_slice(&pos));
             self.node_bufs.pos_rev = pos_rev;
         }
-        if attr_rev != self.node_bufs.attr_rev {
+        if attr_rev != self.node_bufs.attr_rev
+            || hover_rev != self.node_bufs.hover_rev
+            || sel_rev != self.node_bufs.sel_rev
+        {
             let mut attr: Vec<NodeAttr> = graph
                 .nodes
                 .iter()
@@ -534,19 +554,31 @@ impl Renderer {
             self.queue
                 .write_buffer(&self.node_bufs.attr, 0, bytemuck::cast_slice(&attr));
             self.node_bufs.attr_rev = attr_rev;
+            self.node_bufs.hover_rev = hover_rev;
+            self.node_bufs.sel_rev = sel_rev;
         }
         if pos_rev != self.seg_bufs.pos_rev {
-            let mut segs = self.frame.segs.clone();
+            // The frame's segments upload as they are; the pending wire, if
+            // any, writes into the slot after them — no per-frame clone.
+            self.queue.write_buffer(
+                &self.seg_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.segs),
+            );
             if let Some((a, b)) = pending {
-                segs.push(SegPos { a, b });
+                let wire = [SegPos { a, b }];
+                self.queue.write_buffer(
+                    &self.seg_bufs.pos,
+                    (self.frame.segs.len() as u64) * seg_stride,
+                    bytemuck::cast_slice(&wire),
+                );
             }
-            self.queue
-                .write_buffer(&self.seg_bufs.pos, 0, bytemuck::cast_slice(&segs));
             self.seg_bufs.pos_rev = pos_rev;
         }
-        if attr_rev != self.seg_bufs.attr_rev {
+        if attr_rev != self.seg_bufs.attr_rev || sel_rev != self.seg_bufs.sel_rev {
             // The frame's attrs are the base (layer styling is baked there,
             // spec 031 §3); selection only brightens the edges it spans.
+            // Hover is not in the gate: segment styles do not depend on it.
             let mut attr: Vec<SegAttr> = self.frame.seg_attrs.clone();
             for (i, owner) in self.frame.seg_edge.iter().enumerate() {
                 if let Some(e) = owner {
@@ -569,11 +601,13 @@ impl Renderer {
                     color: [0.78, 0.82, 0.90, 0.9],
                     width: 1.6,
                     dash: 0.0,
+                    phase: 0.0,
                 });
             }
             self.queue
                 .write_buffer(&self.seg_bufs.attr, 0, bytemuck::cast_slice(&attr));
             self.seg_bufs.attr_rev = attr_rev;
+            self.seg_bufs.sel_rev = sel_rev;
         }
         if pos_rev != self.arrow_bufs.pos_rev {
             self.queue.write_buffer(
@@ -590,6 +624,7 @@ impl Renderer {
                 bytemuck::cast_slice(&self.frame.arrow_attrs),
             );
             self.arrow_bufs.attr_rev = attr_rev;
+            self.arrow_bufs.sel_rev = sel_rev;
         }
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));

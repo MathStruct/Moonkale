@@ -94,14 +94,14 @@ struct EdgeInst {
     @location(2) color: vec4<f32>,
     @location(3) width: f32,
     @location(4) dash: f32,
+    @location(5) phase: f32,   // arc length at the segment's start (world)
 };
 struct EdgeOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) color: vec4<f32>,
     @location(1) fog: f32,
-    @location(2) t: f32,        // 0 at `a`, 1 at `b` — the dash's coordinate
-    @location(3) len: f32,      // the segment's screen length in pixels
-    @location(4) dash: f32,
+    @location(2) coord: f32,    // distance along the stroke, screen pixels
+    @location(3) dash: f32,
 };
 
 @vertex
@@ -128,8 +128,10 @@ fn edge_vs(@builtin(vertex_index) vi: u32, inst: EdgeInst) -> EdgeOut {
     out.clip = vec4<f32>(px_to_ndc(p), depth, 1.0);
     out.color = inst.color;
     out.fog = fog(w);
-    out.t = t;
-    out.len = length(seg);
+    // The dash continues across a curve's sub-segments: each carries the
+    // arc length at its start. The phase is world; the length is screen —
+    // the camera scale converts (2D; in 3D it is an approximation).
+    out.coord = t * length(seg) + inst.phase * camera.scale;
     out.dash = inst.dash;
     return out;
 }
@@ -137,8 +139,8 @@ fn edge_vs(@builtin(vertex_index) vi: u32, inst: EdgeInst) -> EdgeOut {
 @fragment
 fn edge_fs(in: EdgeOut) -> @location(0) vec4<f32> {
     if (in.dash > 0.5) {
-        // 50 % duty cycle along the segment, in screen pixels.
-        if (fract(in.t * in.len / in.dash) < 0.5) { discard; }
+        // 50 % duty cycle along the stroke, in screen pixels.
+        if (fract(in.coord / in.dash) < 0.5) { discard; }
     }
     let bg = vec3<f32>(0.047, 0.055, 0.075);
     return vec4<f32>(mix(in.color.rgb, bg, in.fog), in.color.a);
@@ -169,14 +171,18 @@ fn arrow_vs(@builtin(vertex_index) vi: u32, inst: ArrowInst) -> ArrowOut {
     } else {
         s = max(inst.size * camera.scale, 3.0) + 1.0;
     }
-    // Rotate the billboard so its +x is the pointing direction.
-    let sn = sin(inst.angle);
+    // Rotate the billboard so its +x is the pointing direction. The angle
+    // is measured in the world plane (y down) while NDC y is up, so the
+    // sine flips — without it every head points screen-right. The shape
+    // keeps the *unrotated* corner as uv: the quad rotates, the triangle
+    // reads in it, and the apex lands along the direction.
+    let sn = -sin(inst.angle);
     let cs = cos(inst.angle);
     let rc = vec2<f32>(c.x * cs - c.y * sn, c.x * sn + c.y * cs);
     let off = vec2<f32>(rc.x * s / (camera.viewport.x * 0.5), rc.y * s / (camera.viewport.y * 0.5));
     var out: ArrowOut;
     out.clip = vec4<f32>(pr.x + off.x, pr.y + off.y, pr.z, 1.0);
-    out.uv = rc;
+    out.uv = c;
     out.color = inst.color;
     out.fog = fog(pr.w);
     return out;

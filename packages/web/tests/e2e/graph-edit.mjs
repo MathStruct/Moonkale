@@ -5,6 +5,7 @@
 // empty space cancels. The renderer never adds the edge — that is the host's
 // job (validation stays outside, spec 031 §7).
 import { chromium } from "playwright";
+import { litPixels } from "./pnglit.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
@@ -27,7 +28,14 @@ try {
   await step("a graph with ports settles; explore shows no ports", async () => {
     const graph = {
       nodes: ["a", "b", "c"].map((id) => ({ id, label: id, kind: "file" })),
-      edges: [{ id: "e0", a: 0, b: 1, directed: true, a_port: "out", b_port: "in" }],
+      // Three edges: the segment buffer's capacity (4) already holds the
+      // wire's extra segment, so a style that is not re-uploaded would
+      // leave the wire invisible (B4 of the stage 0–3 review).
+      edges: [
+        { id: "e0", a: 0, b: 1, directed: true, a_port: "out", b_port: "in" },
+        { id: "e1", a: 1, b: 2 },
+        { id: "e2", a: 2, b: 0 },
+      ],
       ports: [
         { node: 0, name: "out", side: "right", direction: "out", color: "#7aa2f7" },
         { node: 1, name: "in", side: "left", direction: "in", color: "#f7768e" },
@@ -71,11 +79,21 @@ try {
     const c = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].connect_state()));
     if (c.from !== null) throw new Error("a cancelled wire connected: " + JSON.stringify(c));
   });
-  await step("a wire from a:out to b:in emits connect with both endpoints", async () => {
+  await step("a wire from a:out to b:in is lit mid-drag, then emits connect", async () => {
     const out = await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].port_screen_position("a", "out"));
     const bin = await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].port_screen_position("b", "in"));
     await page.mouse.move(...at(out));
     await page.mouse.down();
+    // Halfway to b:in the pending wire must be visibly lit — its style
+    // uploads with its positions (B4), not left in a stale slot.
+    const half = [(out[0] + bin[0]) / 2, (out[1] + bin[1]) / 2];
+    const wq = [(out[0] + half[0]) / 2, (out[1] + half[1]) / 2];
+    await page.mouse.move(...at(half), { steps: 8 });
+    await sleep(250);
+    const png = await page.screenshot({ clip: { x: box.x + wq[0] - 14, y: box.y + wq[1] - 14, width: 28, height: 28 } });
+    const { lit } = litPixels(png);
+    console.log("\n  wire mid-drag lit px:", lit.length);
+    if (lit.length < 8) throw new Error("the pending wire is not drawn mid-drag (stale style slot)");
     await page.mouse.move(...at(bin), { steps: 15 });
     await sleep(150);
     await page.mouse.up();
@@ -84,10 +102,10 @@ try {
     console.log("\n  connect:", JSON.stringify(c));
     if (c.from?.node !== "a" || c.from?.port !== "out") throw new Error("wrong source: " + JSON.stringify(c));
     if (c.to?.node !== "b" || c.to?.port !== "in") throw new Error("wrong target: " + JSON.stringify(c));
-    // The pending wire is gone; the graph still has one edge — the renderer
-    // does not add connections itself.
+    // The pending wire is gone; the graph still has its three edges — the
+    // renderer does not add connections itself.
     const fr = await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].frame_state());
-    if (fr[0] !== 1) throw new Error("the renderer added the edge itself: " + JSON.stringify(fr));
+    if (fr[0] !== 3) throw new Error("the renderer changed the edge count: " + JSON.stringify(fr));
     await page.screenshot({ path: `${S}/s2-edit.png` });
   });
   await step("back to explore hides the ports again", async () => {

@@ -27,6 +27,9 @@ pub struct SegAttr {
     pub width: f32,
     /// Dash length in screen pixels; 0 = solid.
     pub dash: f32,
+    /// Arc length (world units) at this segment's start: the dash pattern
+    /// continues across a curve's sub-segments instead of restarting.
+    pub phase: f32,
 }
 
 /// An arrowhead: a billboard at `pos`, rotated to point along `angle`.
@@ -71,8 +74,15 @@ pub struct DrawInput<'a> {
     pub edit: bool,
     /// The wire being dragged, world endpoints — not yet an edge.
     pub pending: Option<([f32; 3], [f32; 3])>,
+    /// Geometry revision: a layout step, a drag, a graph swap.
     pub pos_rev: u64,
+    /// Style revision: a graph swap, a layer toggle, a wire start or end.
     pub attr_rev: u64,
+    /// Hover revision — hover recolours nodes only; segment styles must
+    /// not rebuild for it (the stage 0–3 review's perf note).
+    pub hover_rev: u64,
+    /// Selection revision — the ring on nodes, the brightening on edges.
+    pub sel_rev: u64,
 }
 
 /// Segments per curved edge (a parallel's bow is a shallow arc; stage 4's
@@ -110,29 +120,46 @@ pub struct Frame {
 
 /// The scene → instance lists for one frame.
 pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
-    let mut f = Frame {
-        port_pos: graph.ports.iter().map(|p| port_world(graph, p)).collect(),
-        node_visible: graph
-            .nodes
-            .iter()
-            .map(|n| {
-                n.layers.is_empty()
-                    || n.layers
-                        .iter()
-                        .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
-            })
-            .collect(),
-        ..Default::default()
-    };
+    let mut f = Frame::default();
+    let mut scratch = Vec::new();
+    build_frame_into(graph, three_d, &mut f, &mut scratch);
+    f
+}
+
+/// The reusing form the renderer drives: every frame of a running layout
+/// rebuilds the scene, so the buffers' capacities are kept instead of
+/// reallocating ~120k polylines per frame (the stage 0–3 review's bench).
+pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &mut Vec<[f32; 3]>) {
+    f.segs.clear();
+    f.seg_attrs.clear();
+    f.seg_edge.clear();
+    f.arrows.clear();
+    f.arrow_attrs.clear();
+    f.port_pos.clear();
+    f.node_visible.clear();
+    f.port_pos
+        .extend(graph.ports.iter().map(|p| port_world(graph, p)));
+    f.node_visible.extend(graph.nodes.iter().map(|n| {
+        n.layers.is_empty()
+            || n.layers
+                .iter()
+                .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
+    }));
     for (i, e) in graph.edges.iter().enumerate() {
+        // Fast path (the 100k-node case): no layers on the edge — the base
+        // scene, one stroke, no per-edge allocation. Layered edges (flows,
+        // traces) live in small graphs; the collect is for them.
+        let visible: Vec<&Layer> = if e.layers.is_empty() {
+            Vec::new()
+        } else {
+            e.layers
+                .iter()
+                .filter_map(|id| graph.layers.iter().find(|l| &l.id == id))
+                .filter(|l| l.visible)
+                .collect()
+        };
         // Layer visibility (spec 031 §3): an instance with layers draws
         // only while one of them is visible; no layers = the base scene.
-        let visible: Vec<&Layer> = e
-            .layers
-            .iter()
-            .filter_map(|id| graph.layers.iter().find(|l| &l.id == id))
-            .filter(|l| l.visible)
-            .collect();
         if !e.layers.is_empty() && visible.is_empty() {
             continue;
         }
@@ -144,11 +171,12 @@ pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
             let layer = visible
                 .get(rank.min(visible.len().saturating_sub(1)))
                 .copied();
-            let line = polyline(graph, e, stroke_offset(e, rank, strokes));
+            polyline_into(graph, e, stroke_offset(rank, strokes), scratch);
             let mut attr = SegAttr {
                 color: e.color,
                 width: e.width,
                 dash: e.dash,
+                phase: 0.0,
             };
             if let Some(l) = layer {
                 if let Some(c) = l.color {
@@ -164,33 +192,38 @@ pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
                     attr.color[3] *= o.clamp(0.0, 1.0);
                 }
             }
-            for w in line.windows(2) {
+            let mut arc = 0.0f32;
+            for w in scratch.windows(2) {
                 f.segs.push(SegPos { a: w[0], b: w[1] });
                 f.seg_edge.push(Some(i));
-                f.seg_attrs.push(attr);
+                f.seg_attrs.push(SegAttr { phase: arc, ..attr });
+                arc += ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt();
             }
             if three_d {
                 // 3D keeps plain edges (spec 031 mapping): no arrowheads.
                 continue;
             }
-            let n = line.len();
+            let n = scratch.len();
             if n < 2 {
                 continue;
             }
             // The tangent each end travels along, from the tessellation, so
             // straight, curved and loop edges place their heads the same
             // way.
-            let into_b = normalize2(sub2(line[n - 1], line[n - 2]));
-            let out_of_a = normalize2(sub2(line[1], line[0]));
-            let a_pos = line[0];
-            let b_pos = line[n - 1];
-            let a_radius = graph.nodes[e.a].radius;
-            let b_radius = graph.nodes[e.b].radius;
+            let into_b = normalize2(sub2(scratch[n - 1], scratch[n - 2]));
+            let out_of_a = normalize2(sub2(scratch[1], scratch[0]));
+            let a_pos = scratch[0];
+            let b_pos = scratch[n - 1];
+            // A head pulls back by its endpoint's own size: a port anchor
+            // sits outside the rim already, so pulling by the node's radius
+            // would bury the head inside the node (nodes draw on top).
+            let a_radius = anchor_pull(graph, e.a, &e.a_port);
+            let b_radius = anchor_pull(graph, e.b, &e.b_port);
             let mut head_color = attr.color;
             head_color[3] = head_color[3].max(0.8);
-            let head = |tip_at: [f32; 3], dir: [f32; 2], radius: f32| -> (ArrowPos, ArrowAttr) {
+            let head = |tip_at: [f32; 3], dir: [f32; 2], pull: f32| -> (ArrowPos, ArrowAttr) {
                 let d = normalize2(dir);
-                let pull = radius + 1.0 + ARROW_SIZE * 0.5;
+                let pull = pull + ARROW_SIZE * 0.5;
                 (
                     ArrowPos {
                         pos: [tip_at[0] - d[0] * pull, tip_at[1] - d[1] * pull, tip_at[2]],
@@ -215,8 +248,7 @@ pub fn build_frame(graph: &Graph, three_d: bool) -> Frame {
             }
         }
     }
-    build_traces(graph, three_d, &mut f);
-    f
+    build_traces(graph, three_d, f);
 }
 
 /// Traces (spec 031 §3): ordered walks over node ids — recursion revisits
@@ -258,6 +290,7 @@ fn build_traces(graph: &Graph, three_d: bool, f: &mut Frame) {
                     color,
                     width: 2.2,
                     dash: 0.0,
+                    phase: 0.0,
                 });
                 if !three_d {
                     let into = normalize2([pos[0] - a[0], pos[1] - a[1]]);
@@ -284,22 +317,21 @@ fn build_traces(graph: &Graph, three_d: bool, f: &mut Frame) {
 }
 
 /// How far the `rank`th of `total` strokes bows off the edge's own route
-/// (spec 031 §3): shared edges keep their parallels apart.
-fn stroke_offset(e: &Edge, rank: usize, total: usize) -> f32 {
+/// (spec 031 §3): shared edges keep their parallels apart. Only the layer
+/// rank — `polyline` adds the route's own offset on top, once.
+fn stroke_offset(rank: usize, total: usize) -> f32 {
     if total < 2 {
         return 0.0;
     }
-    let rank = (rank as f32 - (total as f32 - 1.0) / 2.0) * LAYER_STROKE_SPACING;
-    match e.route {
-        Route::Straight => rank,
-        Route::Bezier { offset } => offset + rank,
-    }
+    (rank as f32 - (total as f32 - 1.0) / 2.0) * LAYER_STROKE_SPACING
 }
 
-/// The edge's world-space polyline (its tessellation): `[a, …, b]`. The
-/// `stroke` bows a parallel copy off the route (spec 031 §3) — 0 is the
-/// edge's own line.
-fn polyline(graph: &Graph, e: &Edge, stroke: f32) -> Vec<[f32; 3]> {
+/// The edge's world-space polyline (its tessellation): `[a, …, b]`, written
+/// into `out` (cleared first — the renderer reuses one buffer across every
+/// frame of a layout). The `stroke` bows a parallel copy off the route
+/// (spec 031 §3) — 0 is the edge's own line.
+fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) {
+    out.clear();
     let na = &graph.nodes[e.a];
     let a_end = anchored(graph, e.a, &e.a_port);
     let b_end = anchored(graph, e.b, &e.b_port);
@@ -313,13 +345,18 @@ fn polyline(graph: &Graph, e: &Edge, stroke: f32) -> Vec<[f32; 3]> {
         let side = if offset < 0.0 { -1.0 } else { 1.0 };
         let r = na.radius + 6.0 + offset.abs() * 0.35;
         let (cx, cy) = (na.x, na.y - side * r);
-        (0..=LOOP_SEGS)
-            .map(|k| {
-                let t = std::f32::consts::FRAC_PI_2
-                    + k as f32 * std::f32::consts::TAU / LOOP_SEGS as f32;
-                [cx + r * t.cos(), cy + r * t.sin(), na.z]
-            })
-            .collect()
+        // The ring starts at its point nearest the node: π/2 for a ring
+        // above (side +), −π/2 for one below — otherwise the loop's ends
+        // sit two radii away from the node it belongs to.
+        let start = if side < 0.0 {
+            -std::f32::consts::FRAC_PI_2
+        } else {
+            std::f32::consts::FRAC_PI_2
+        };
+        for k in 0..=LOOP_SEGS {
+            let t = start + k as f32 * std::f32::consts::TAU / LOOP_SEGS as f32;
+            out.push([cx + r * t.cos(), cy + r * t.sin(), na.z]);
+        }
     } else {
         // A bowed parallel of a straight line is a shallow Bézier; a
         // curve's control point takes the stroke offset on top of its own.
@@ -329,7 +366,10 @@ fn polyline(graph: &Graph, e: &Edge, stroke: f32) -> Vec<[f32; 3]> {
             (Route::Bezier { offset }, s) => Route::Bezier { offset: offset + s },
         };
         match route {
-            Route::Straight => vec![a_end, b_end],
+            Route::Straight => {
+                out.push(a_end);
+                out.push(b_end);
+            }
             Route::Bezier { offset } => {
                 let (dx, dy) = (b_end[0] - a_end[0], b_end[1] - a_end[1]);
                 let len = (dx * dx + dy * dy).sqrt().max(1e-3);
@@ -339,13 +379,17 @@ fn polyline(graph: &Graph, e: &Edge, stroke: f32) -> Vec<[f32; 3]> {
                     (a_end[0] + b_end[0]) / 2.0 + px * offset,
                     (a_end[1] + b_end[1]) / 2.0 + py * offset,
                 );
-                (0..=CURVE_SEGS)
-                    .map(|k| {
-                        let t = k as f32 / CURVE_SEGS as f32;
-                        let s = 1.0 - t;
-                        bezier(a_end, [mx, my, (a_end[2] + b_end[2]) / 2.0], b_end, t, s)
-                    })
-                    .collect()
+                for k in 0..=CURVE_SEGS {
+                    let t = k as f32 / CURVE_SEGS as f32;
+                    let s = 1.0 - t;
+                    out.push(bezier(
+                        a_end,
+                        [mx, my, (a_end[2] + b_end[2]) / 2.0],
+                        b_end,
+                        t,
+                        s,
+                    ));
+                }
             }
         }
     }
@@ -398,6 +442,16 @@ fn anchored(graph: &Graph, node: usize, port: &Option<String>) -> [f32; 3] {
 fn node_pos(graph: &Graph, node: usize) -> [f32; 3] {
     let n = &graph.nodes[node];
     [n.x, n.y, n.z]
+}
+
+/// How far a head at this endpoint pulls back from its anchor: a port's own
+/// radius when the edge anchors there (the port already sits outside the
+/// rim), the node's radius plus one otherwise.
+fn anchor_pull(graph: &Graph, node: usize, port: &Option<String>) -> f32 {
+    match port.as_deref() {
+        Some(name) if graph.ports.iter().any(|p| p.node == node && p.name == name) => PORT_RADIUS,
+        _ => graph.nodes[node].radius + 1.0,
+    }
 }
 
 /// The port under a screen point, nearest within its marker's reach
@@ -845,6 +899,147 @@ mod tests {
         g.layers[0].visible = false;
         let f2 = build_frame(&g, false);
         assert!(f2.segs.is_empty() && f2.arrows.is_empty());
+    }
+
+    #[test]
+    fn two_way_links_bow_apart() {
+        // The vault's most common parallel: a→b and b→a. Their bows must
+        // land on opposite sides (the b→a edge's perpendicular flips), or
+        // they overdraw each other and only one is ever picked.
+        let mut g = graph(
+            vec![node("a", -20.0, 0.0), node("b", 20.0, 0.0)],
+            vec![edge(0, 1), {
+                let mut e = edge(1, 0);
+                e.id = "back".into();
+                e
+            }],
+        );
+        g = g.with_bows();
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 2 * CURVE_SEGS);
+        let y_at_mid = |e: usize| {
+            let first = f.seg_edge.iter().position(|&x| x == Some(e)).unwrap();
+            f.segs[first + CURVE_SEGS / 2].a[1]
+        };
+        let (y0, y1) = (y_at_mid(0), y_at_mid(1));
+        assert!(
+            y0 * y1 < 0.0,
+            "opposite sides, not the same curve: {y0} vs {y1}"
+        );
+        // Picking on the a→b curve finds the a→b edge, not the other.
+        let c = cam(100.0, 100.0);
+        let hit = edge_at(&f, &c, 50.0 + 0.0 + (y0 / 2.0), 50.0 + y0 / 2.0);
+        assert_eq!(hit, Some(0), "the a→b curve picks the a→b edge");
+    }
+
+    #[test]
+    fn a_shared_curved_edge_does_not_double_its_own_bow() {
+        // The layer rank adds to the route's offset exactly once (B5 of the
+        // review): control points at 9∓3, not 9∓3 plus the route's own 9.
+        let mut e = edge(0, 1);
+        e.route = Route::Bezier { offset: 9.0 };
+        e.layers = vec!["x".into(), "y".into()];
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![e]);
+        g.layers = vec![
+            layer("x", [0.1, 0.1, 0.9, 0.9], true),
+            layer("y", [0.9, 0.9, 0.1, 0.9], true),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 2 * CURVE_SEGS);
+        let y_at_mid = |stroke: usize| {
+            let first = stroke * CURVE_SEGS;
+            f.segs[first + CURVE_SEGS / 2].a[1]
+        };
+        let (y0, y1) = (y_at_mid(0), y_at_mid(1));
+        // Control points at 7.5 and 10.5 → apexes (half the control
+        // offset) at 3.75 and 5.25 — the route's own 9 counted once.
+        assert!((y0 - 3.75).abs() < 0.1, "stroke 0 apex {y0}, wanted 3.75");
+        assert!((y1 - 5.25).abs() < 0.1, "stroke 1 apex {y1}, wanted 5.25");
+    }
+
+    #[test]
+    fn dash_phases_accumulate_along_a_curve() {
+        // The pattern must continue across sub-segments (B7): each phase is
+        // the arc length before it, not zero.
+        let mut e = edge(0, 1);
+        e.route = Route::Bezier { offset: 9.0 };
+        e.dash = 8.0;
+        let g = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![e]);
+        let f = build_frame(&g, false);
+        assert_eq!(f.seg_attrs.len(), CURVE_SEGS);
+        for k in 1..CURVE_SEGS {
+            let prev = &f.segs[k - 1];
+            let len = ((prev.b[0] - prev.a[0]).powi(2) + (prev.b[1] - prev.a[1]).powi(2)).sqrt();
+            assert!(
+                (f.seg_attrs[k].phase - f.seg_attrs[k - 1].phase - len).abs() < 1e-3,
+                "phase {} does not continue the arc",
+                k
+            );
+        }
+        assert_eq!(f.seg_attrs[0].phase, 0.0);
+    }
+
+    #[test]
+    fn a_negative_bow_loop_still_touches_its_node() {
+        // The ring below the node (a negative bow) must start and end at the
+        // node itself, like the one above (B9).
+        let mut e = edge(0, 0);
+        e.route = Route::Bezier { offset: -9.0 };
+        let g = graph(vec![node("a", 0.0, 0.0)], vec![e]);
+        let f = build_frame(&g, false);
+        let near = |p: [f32; 3]| p.iter().all(|c| c.abs() < 1e-4);
+        assert!(near(f.segs[0].a), "starts at the node: {:?}", f.segs[0].a);
+        assert!(
+            near(f.segs[LOOP_SEGS - 1].b),
+            "ends at the node: {:?}",
+            f.segs[LOOP_SEGS - 1].b
+        );
+    }
+
+    #[test]
+    fn port_anchored_heads_pull_back_by_the_port() {
+        // A head at a port anchor sits outside it, not buried inside the
+        // node the port belongs to (B10).
+        let mut e = edge(0, 1);
+        e.arrow = Arrow::Target;
+        e.b_port = Some("in".into());
+        let g = Graph {
+            nodes: vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
+            edges: vec![e],
+            ports: vec![port(1, "in", InSide::Left, 0.5)],
+            layers: Vec::new(),
+            traces: Vec::new(),
+        };
+        let f = build_frame(&g, false);
+        assert_eq!(f.arrows.len(), 1);
+        let head = f.arrows[0];
+        // The port sits at x 32.5; the head pulls back PORT_RADIUS + half a
+        // head: 32.5 − 2.5 − 3 = 27.
+        assert!((head.pos[0] - 27.0).abs() < 1e-4, "x {}", head.pos[0]);
+    }
+
+    #[test]
+    fn build_frame_into_reuses_without_accumulating() {
+        // The renderer drives the reusing form every layout frame; a buffer
+        // that is not cleared first accumulates silently (the review found
+        // it as 63 ports for 3).
+        let g = Graph {
+            nodes: vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
+            edges: vec![edge(0, 1)],
+            ports: vec![port(0, "out", InSide::Right, 0.5)],
+            layers: Vec::new(),
+            traces: Vec::new(),
+        };
+        let mut f = Frame::default();
+        let mut scratch = Vec::new();
+        for _ in 0..5 {
+            build_frame_into(&g, false, &mut f, &mut scratch);
+        }
+        assert_eq!(f.port_pos.len(), 1, "ports accumulated");
+        assert_eq!(f.node_visible.len(), 2, "visibility accumulated");
+        assert_eq!(f.segs.len(), 1, "segments accumulated");
+        assert_eq!(f.seg_attrs.len(), 1);
+        assert_eq!(f.seg_edge.len(), 1);
     }
 
     #[test]

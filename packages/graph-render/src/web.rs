@@ -46,11 +46,16 @@ struct State {
     /// Label colours (spec 030: `--mk-graph-label`, `--mk-graph-label-hover`).
     label: String,
     label_hover: String,
-    /// Instance-data revisions (spec 031, stage 0): positions move with every
-    /// layout step and drag, appearance on a graph swap or a hover; the
-    /// renderer uploads only the half whose revision moved.
+    /// Instance-data revisions (spec 031, stage 0): positions move with
+    /// every layout step and drag; styles on a graph swap, a layer toggle
+    /// or a wire start/end; hover recolours nodes only; selection rings
+    /// nodes and brightens edges. Each half uploads when its revision
+    /// moves — hover no longer rebuilds segment styles (the stage 0–3
+    /// review's perf note).
     pos_rev: u64,
     attr_rev: u64,
+    hover_rev: u64,
+    sel_rev: u64,
     /// The selection, by instance id (spec 031 §5) — ids survive an
     /// incremental `set_graph`; a fresh graph's stale ids match nothing.
     selected: frame::Selection,
@@ -60,10 +65,13 @@ struct State {
     drag_moved: bool,
     /// Explore or edit (spec 031 §5); `set_mode` stays the 2D/3D switch.
     interaction: Interaction,
-    /// The wire being dragged: its source port and the current endpoint
-    /// (edit mode; the pending wire, not yet an edge).
-    wire_from: Option<usize>,
+    /// The wire being dragged: its source port (node id, port name) and
+    /// the current endpoint (edit mode; the pending wire, not yet an edge).
+    wire_from: Option<(String, String)>,
     wire_to: Option<[f32; 3]>,
+    /// Where the current press started: a release within ~4 px is a click,
+    /// not a drag — a touch tap jitters 1–2 px (the stage 0–3 review).
+    press: (f32, f32),
     /// The last `connect` event, as JSON, for tests.
     last_connect: Option<String>,
 }
@@ -96,7 +104,7 @@ struct Stashed {
     auto_fit: bool,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 enum Drag {
     None,
     Pan {
@@ -116,9 +124,12 @@ enum Drag {
     Orbit {
         last: (f32, f32),
     },
-    /// Edit mode: dragging a wire out of a port (spec 031 §5, stage 2).
+    /// Edit mode: dragging a wire out of a port (spec 031 §5, stage 2),
+    /// held by node id + port name — the graph may be swapped under the
+    /// gesture (P-155's lesson, again).
     Wire {
-        port: usize,
+        node: String,
+        name: String,
     },
 }
 
@@ -150,6 +161,27 @@ fn emit_select(s: &State) {
 
 /// A node with layers draws (and answers hits) only while one of them is
 /// visible (spec 031 §3).
+/// Resolve a (node id, port name) to its port index; `None` when the
+/// graph no longer has it — a swap ends the gesture instead of panicking.
+fn port_index(graph: &Graph, node: &str, name: &str) -> Option<usize> {
+    let n = graph.nodes.iter().position(|n| n.id == node)?;
+    graph
+        .ports
+        .iter()
+        .position(|p| p.node == n && p.name == name)
+}
+
+/// End the pending wire, if any — its segment and its style leave the
+/// buffers together (B4 of the stage 0–3 review).
+fn end_wire(s: &mut State) {
+    if s.wire_from.take().is_some() {
+        s.wire_to = None;
+        s.pos_rev += 1;
+        s.attr_rev += 1;
+        s.dirty = true;
+    }
+}
+
 fn node_visible(graph: &Graph, i: usize) -> bool {
     let n = &graph.nodes[i];
     n.layers.is_empty()
@@ -284,11 +316,14 @@ pub async fn create(
         label_hover: "#ffffff".into(),
         pos_rev: 1,
         attr_rev: 1,
+        hover_rev: 1,
+        sel_rev: 1,
         selected: frame::Selection::default(),
         drag_moved: false,
         interaction: Interaction::Explore,
         wire_from: None,
         wire_to: None,
+        press: (0.0, 0.0),
         last_connect: None,
     }));
     let backend = state.borrow().renderer.backend.clone();
@@ -589,6 +624,8 @@ impl GraphView {
             s.camera.three_d = three_d;
             s.hovered = None;
             s.attr_rev += 1;
+            s.hover_rev += 1;
+            s.pos_rev += 1; // arrow and segment positions re-upload (B6)
             let g = std::mem::take(&mut s.graph);
             s.camera.fit(&g, 40.0);
             s.graph = g;
@@ -754,8 +791,9 @@ fn start_loop(state: Rc<RefCell<State>>) {
             let t0 = web_sys::window()
                 .and_then(|w| w.performance())
                 .map(|p| p.now());
-            let pending = match (s.wire_from, s.wire_to) {
-                (Some(p), Some(t)) => Some((frame::port_world(&s.graph, &s.graph.ports[p]), t)),
+            let pending = match (&s.wire_from, s.wire_to) {
+                (Some((node, name)), Some(t)) => port_index(&s.graph, node, name)
+                    .map(|p| (frame::port_world(&s.graph, &s.graph.ports[p]), t)),
                 _ => None,
             };
             let edit = s.interaction == Interaction::Edit;
@@ -767,6 +805,8 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 selected,
                 pos_rev,
                 attr_rev,
+                hover_rev,
+                sel_rev,
                 ..
             } = &mut *s;
             let input = frame::DrawInput {
@@ -777,6 +817,8 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 pending,
                 pos_rev: *pos_rev,
                 attr_rev: *attr_rev,
+                hover_rev: *hover_rev,
+                sel_rev: *sel_rev,
             };
             renderer.draw(graph, &input);
             if let Some(t0) = t0 {
@@ -828,6 +870,9 @@ fn draw_labels(s: &State) {
         let hovered = Some(i) == s.hovered;
         if !show_all && !hovered && (huge || n.degree < 3) {
             continue;
+        }
+        if !node_visible(&s.graph, i) {
+            continue; // a layer-hidden node keeps its label off too
         }
         let (x, y, r) = if s.camera.three_d {
             let Some((x, y, w)) = s.camera.project(n.x, n.y, n.z) else {
@@ -903,6 +948,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 let (x, y) = local(&e);
                 let mut s = st.borrow_mut();
                 s.drag_moved = false;
+                s.press = (x, y);
                 if e.pointer_type() == "touch" {
                     // Keep receiving moves after the finger leaves the canvas.
                     let _ = el.set_pointer_capture(e.pointer_id());
@@ -921,8 +967,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             last_angle: (b.2 - a.2).atan2(b.1 - a.1),
                             last_mid: ((a.1 + b.1) / 2.0, (a.2 + b.2) / 2.0),
                         };
-                        s.wire_from = None;
-                        s.wire_to = None;
+                        end_wire(&mut s);
                         return;
                     }
                 }
@@ -931,11 +976,17 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 if s.interaction == Interaction::Edit {
                     let fr = frame::build_frame(&s.graph, s.camera.three_d);
                     if let Some(p) = frame::port_at(&fr, &s.camera, x, y) {
-                        s.dragging = Drag::Wire { port: p };
+                        let port = &s.graph.ports[p];
+                        let key = (s.graph.nodes[port.node].id.clone(), port.name.clone());
+                        s.dragging = Drag::Wire {
+                            node: key.0.clone(),
+                            name: key.1.clone(),
+                        };
                         s.auto_fit = false;
-                        s.wire_from = Some(p);
+                        s.wire_from = Some(key);
                         s.wire_to = None;
-                        s.pos_rev += 1; // the pending wire appears
+                        s.pos_rev += 1; // the pending wire appears…
+                        s.attr_rev += 1; // …and its style with it
                         s.dirty = true;
                         return;
                     }
@@ -1018,23 +1069,30 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         last_angle: angle,
                         last_mid: mid,
                     };
-                    s.drag_moved = true;
+                    s.drag_moved = true; // two fingers are never a tap
                     s.dirty = true;
                     return;
                 }
-                match s.dragging {
+                // A release within ~4 px of the press is a tap, not a drag
+                // — a touch tap jitters this much (B8 of the review).
+                let far = {
+                    let (dx, dy) = (x - s.press.0, y - s.press.1);
+                    dx * dx + dy * dy > 16.0
+                };
+                let drag = s.dragging.clone();
+                match drag {
                     Drag::Pan { last } => {
                         s.auto_fit = false;
                         s.camera.pan(x - last.0, y - last.1);
                         s.dragging = Drag::Pan { last: (x, y) };
-                        s.drag_moved = true;
+                        s.drag_moved |= far;
                         s.dirty = true;
                     }
                     Drag::Orbit { last } => {
                         s.auto_fit = false;
                         s.camera.orbit(x - last.0, y - last.1);
                         s.dragging = Drag::Orbit { last: (x, y) };
-                        s.drag_moved = true;
+                        s.drag_moved |= far;
                         s.dirty = true;
                     }
                     Drag::Node { index } if index >= s.graph.nodes.len() => {
@@ -1051,7 +1109,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                                 n.y = wy;
                                 n.z = wz;
                             }
-                            s.drag_moved = true;
+                            s.drag_moved |= far;
                             s.pos_rev += 1;
                             s.dirty = true;
                             return;
@@ -1063,15 +1121,23 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             s.layout.temperature = 2.0;
                             s.layout.running = true;
                         }
-                        s.drag_moved = true;
+                        s.drag_moved |= far;
                         s.pos_rev += 1;
                         s.dirty = true;
                     }
-                    Drag::Wire { port } => {
+                    Drag::Wire { node, name } => {
                         s.auto_fit = false;
+                        // Resolved by id on every move: a set_graph under the
+                        // gesture ends it instead of indexing a stale port
+                        // (B3 of the review).
+                        let Some(p) = port_index(&s.graph, &node, &name) else {
+                            s.dragging = Drag::None;
+                            end_wire(&mut s);
+                            return;
+                        };
                         // The wire follows the pointer at its source port's
                         // depth (the same plane rule as a dragged node).
-                        let from = frame::port_world(&s.graph, &s.graph.ports[port]);
+                        let from = frame::port_world(&s.graph, &s.graph.ports[p]);
                         let end = if s.camera.three_d {
                             s.camera
                                 .project(from[0], from[1], from[2])
@@ -1085,7 +1151,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         };
                         if let Some(end) = end {
                             s.wire_to = Some(end);
-                            s.drag_moved = true;
+                            s.drag_moved |= far;
                             s.pos_rev += 1;
                             s.dirty = true;
                         }
@@ -1098,7 +1164,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             .filter(|i| node_visible(&s.graph, *i));
                         if hit != s.hovered {
                             s.hovered = hit;
-                            s.attr_rev += 1;
+                            s.hover_rev += 1;
                             s.dirty = true;
                             let payload = match hit {
                                 Some(i) => {
@@ -1139,10 +1205,19 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 // dropped on another port it emits `connect` — the host
                 // validates types and adds the edge; the renderer never
                 // mutates topology.
-                if let Drag::Wire { port } = s.dragging {
+                if let Drag::Wire { node, name } = s.dragging.clone() {
+                    // The wire's segment and its style leave the buffers
+                    // together (B4): `end_wire` bumps both revisions.
+                    s.dragging = Drag::None;
+                    s.drag_moved = true; // a wire is a gesture, not a pick
                     let fr = frame::build_frame(&s.graph, s.camera.three_d);
                     let over = frame::port_at(&fr, &s.camera, x, y);
-                    if let (Some(from), Some(to)) = (s.wire_from, over.filter(|p| *p != port)) {
+                    let from = port_index(&s.graph, &node, &name);
+                    let to = over.and_then(|p| {
+                        let port = &s.graph.ports[p];
+                        (port.name != name || s.graph.nodes[port.node].id != node).then_some(p)
+                    });
+                    if let (Some(from), Some(to)) = (from, to) {
                         let fp = &s.graph.ports[from];
                         let tp = &s.graph.ports[to];
                         let payload = serde_json::json!({
@@ -1153,12 +1228,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         s.last_connect = Some(payload.to_string());
                         emit(&s, payload);
                     }
-                    s.wire_from = None;
-                    s.wire_to = None;
-                    s.dragging = Drag::None;
-                    s.drag_moved = true; // a wire is a gesture, not a pick
-                    s.pos_rev += 1; // the pending wire goes
-                    s.dirty = true;
+                    end_wire(&mut s);
                     return;
                 }
                 // A node the user placed stays put (pinned) until Relayout.
@@ -1192,7 +1262,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         };
                     }
                     if before != s.selected {
-                        s.attr_rev += 1;
+                        s.sel_rev += 1;
                         emit_select(&s);
                     }
                     emit(
@@ -1219,14 +1289,14 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             };
                         }
                         if before != s.selected {
-                            s.attr_rev += 1;
+                            s.sel_rev += 1;
                             emit_select(&s);
                         }
                     }
                     None => {
                         if !s.selected.is_empty() {
                             s.selected = frame::Selection::default();
-                            s.attr_rev += 1;
+                            s.sel_rev += 1;
                             emit_select(&s);
                         }
                     }
@@ -1245,8 +1315,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 s.touches.retain(|t| t.0 != e.pointer_id());
                 if s.touches.len() < 2 {
                     s.dragging = Drag::None;
-                    s.wire_from = None;
-                    s.wire_to = None;
+                    end_wire(&mut s);
                 }
             });
         let _ =
@@ -1263,10 +1332,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     return; // captured pointers report leave while still down
                 }
                 s.dragging = Drag::None;
-                s.wire_from = None;
-                s.wire_to = None;
+                end_wire(&mut s);
                 if s.hovered.take().is_some() {
-                    s.attr_rev += 1;
+                    s.hover_rev += 1;
                     s.dirty = true;
                     emit(&s, serde_json::json!({ "kind": "hover", "id": null }));
                 }
