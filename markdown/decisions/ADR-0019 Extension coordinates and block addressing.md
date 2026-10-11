@@ -10,9 +10,9 @@ date: 2026-10-11
 Two things every editor extension will bake in, and that are expensive to change once extensions exist: **which unit a text position is in**, and **how a piece of a document (a block) is named** when it is not a whole file.
 
 **Positions.** Moonkale already uses four units:
-- UTF-8 bytes: `core::Splice`, `ext-api::editor::EditBatch` (on `codex`), `wiki::WikiSpan`, and the byte ranges pulldown-cmark and tree-sitter return;
+- UTF-8 bytes: `ext-api::editor::EditBatch` (on `codex`), `wiki::WikiSpan`, and the byte ranges pulldown-cmark and tree-sitter return;
 - UTF-16 code units: LSP, CodeMirror's splices (`code-view/src/backend`), `Utf16Selection` and `Utf16Position` in `ext-api::editor`, DOM ranges;
-- Unicode scalars: editor-core's offsets and the native decorations (`native_decorations.rs`);
+- Unicode scalars (chars): `core::Splice` (the source-level patch), editor-core's offsets and the native decorations (`native_decorations.rs`);
 - graphemes: the boundaries a replacement must respect (`valid_replacements`).
 
 Each boundary converts. Extensions would add a fifth party, and an extension that guesses the wrong unit is correct on ASCII and wrong on `😀` or `猫`.
@@ -25,7 +25,7 @@ Each boundary converts. Extensions would add a fifth party, and an extension tha
 ### 1. One external unit: UTF-8 byte offsets into the text the extension was given
 - Every range an extension receives or returns is a half-open `start..end` of **UTF-8 byte offsets** into the snapshot text it received, tagged with that snapshot's **`DocumentRevision`**.
 - The host validates every incoming range: within the text, on `str::is_char_boundary`, and for replacements on a grapheme boundary. An invalid range is rejected with a diagnostic, never clamped.
-- UTF-16 stays where it is native: LSP, CodeMirror and the DOM. Scalars stay inside editor-core. Conversions live in one module per boundary (`code-view` owns UTF-16↔bytes and scalars↔bytes). Extensions never see either unit.
+- UTF-16 stays where it is native: LSP, CodeMirror and the DOM. Scalars stay inside editor-core and in `core::Splice`, which extensions never build (the host turns sessions into transactions, decision 2). Conversions live in one module per boundary (`code-view` owns UTF-16↔bytes and scalars↔bytes). Extensions never see either unit.
 - Lines and columns are for display only. When an extension needs one, the host gives a 0-based line and a byte column.
 
 Why bytes: they are what Rust `&str` slicing, tree-sitter, pulldown-cmark, `EditBatch` and `WikiSpan` already use. A wasm module receives UTF-8 JSON strings, so bytes are its native unit too. Validation is O(1). UTF-16 would favour only JavaScript, which is not an extension language here (ADR-0013). Scalars make every slice O(n).
