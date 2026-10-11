@@ -27,3 +27,4 @@ editor-save-failed = 保存失败：{ $error }
 editor-failed = 编辑器无法启动。
 editor-failed-hint =  这是一个缺陷——请附上下面的信息报告（文件本身没有问题；点击“重新加载”可重试）。
 editor-loading = 正在加载编辑器…
+editor-out-of-sync = 编辑器与文档不一致且无法重新同步，为保护文件已停止编辑。请关闭后重新打开；已保存的文件未改动。

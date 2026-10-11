@@ -4,7 +4,8 @@
 //   2. append " EDIT" to its "Sentinel paragraph." (in the middle of the file) and save:
 //      the file must equal the original with exactly that edit — every other byte kept.
 // A measurement first: it prints a table and writes $M1_SHOTS/e3-roundtrip.{json,md}. It fails
-// on harness errors, and on fidelity failures only in the modes named by E3_STRICT (e.g. "source").
+// on harness errors, and on fidelity failures in the modes named by E3_STRICT (default "source";
+// E3_STRICT= to only measure).
 // E3_MODES=source,rich (default) and E3_ONLY=<substring of a file name> narrow the run.
 import { firefox } from "playwright";
 import fs from "node:fs";
@@ -16,7 +17,7 @@ const ROOT = process.env.M1_ROOT;
 const REPO = process.env.MOONKALE_REPO ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CORPUS = `${REPO}/packages/web/tests/e2e/corpus`;
 const MODES = (process.env.E3_MODES ?? "source,rich").split(",").filter(Boolean);
-const STRICT = (process.env.E3_STRICT ?? "").split(",").filter(Boolean);
+const STRICT = (process.env.E3_STRICT ?? "source").split(",").filter(Boolean);
 const ONLY = process.env.E3_ONLY ?? "";
 const SENTINEL = "Sentinel paragraph.";
 const HANG_S = Number(process.env.E3_HANG_S ?? 90);
