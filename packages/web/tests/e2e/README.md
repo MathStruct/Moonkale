@@ -281,3 +281,6 @@ After the P-164 fix (same day): **Source 16/16**, now strict by default. P-165 f
 
 
 `native-editor-markdown-headings.mjs` checks all six ATX levels through the production Preview toggle: mixed inline fragments, full source-marker ownership, pointer boundaries at three widths, retained variable row heights without gaps, local reveal, canonical source copy, CRLF editing/undo and synthetic composition. Native `native-editor-renderer.py target/debug/moonkale-native-editor-host --x11 --markdown --headings --os-input` covers WebKit styles and real pointer/source input/undo. `--headings` requires `--markdown` and excludes `--nested`; its enlarged viewport keeps all heading targets mounted.
+
+
+`native-editor-markdown-setext.mjs` covers two-line Setext headings: levels one/two and inline formatting, collapsed underline rows versus retained blank rows, whole-source boundary hits at three widths, caret/selection on the underline, source copy, CRLF edits/undo, composition and delayed provider disable. Native `native-editor-renderer.py target/debug/moonkale-native-editor-host --x11 --markdown --setext --os-input` verifies the multiline canonical token through real pointer/source input/undo. `--setext` requires `--markdown` and excludes `--nested` and `--headings`.

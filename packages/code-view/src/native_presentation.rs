@@ -549,4 +549,36 @@ mod tests {
             vec![(1, 5), (5, 7)]
         );
     }
+
+    #[test]
+    fn setext_underline_collapses_and_reveals_with_its_heading() {
+        let source = "before\n\nTitle **猫**\n===\n\nafter";
+        let editor = editor_core::EditorStateManager::new(source, 80);
+        let revision = DocumentRevision(0);
+        let values = replacements(Mode::Markdown, &editor, revision);
+        assert_eq!(values.len(), 1);
+        let mask = state(Mode::Markdown, &editor, revision);
+        let mapped = mapped_runs(Mode::Markdown, &editor, revision, mask).unwrap();
+        assert!(mapped
+            .collapsed
+            .iter()
+            .any(|row| mapped.lines[*row].logical_line_index == 3));
+        assert!(
+            !mapped
+                .collapsed
+                .iter()
+                .any(|row| mapped.lines[*row].logical_line_index == 4),
+            "real blank row stays visible"
+        );
+        let underline = source[..source.find("===").unwrap()].chars().count();
+        assert_eq!(preview_mask(&values, underline, None), 0);
+        assert_eq!(preview_mask(&values, 0, Some(underline..underline + 1)), 0);
+        let revealed = mapped_runs(Mode::Markdown, &editor, revision, 1 << 63).unwrap();
+        assert!(revealed.collapsed.is_empty());
+        assert!(revealed
+            .lines
+            .iter()
+            .any(|line| line.logical_line_index == 3
+                && line.cells.iter().map(|cell| cell.ch).collect::<String>() == "==="));
+    }
 }

@@ -45,7 +45,7 @@ state = wait(lambda value: value["ready"] and value["count"] == count, "focused 
 rect = state["rect"]
 xdo("mousemove", "--window", args.window, str(round(rect["x"] + 2)),
     str(round(rect["y"] + rect["height"] / 2 + 27)), "click", "1")
-start = len(original.replace("\r\n", "\n").split(token)[0])
+start = len(original.split(token)[0].replace("\r\n", "\n"))
 wait(lambda value: value["offset"] == start and value["count"] == count - 1, "local source reveal")
 xdo("type", "--clearmodifiers", "Q")
 wait(lambda value: value["text"] == original.replace(token, "Q" + token, 1), "canonical Markdown typing")

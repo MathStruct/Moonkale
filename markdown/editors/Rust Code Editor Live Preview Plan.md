@@ -311,3 +311,14 @@ Setext headings, empty headings, non-headings, fenced code and headings containi
 Validation: 106 editor tests, including all ATX levels, marker/newline ownership, nested inline styles and fallback syntax; native-desktop/layout-fixture and feature-disabled Clippy with warnings denied; heading browser endpoints at 340/550/950px, retained variable heights/adjacent source rows, local reveal, canonical copy, CRLF edit/undo and composition; earlier nested browser regression; native WebKit heading styles and real XWayland pointer/source typing/undo/restored preview. Markdown-specific OS IME remains separate from synthetic composition and the previously verified shared native Pinyin pipeline.
 
 Next gates: Setext/block presentation, incremental parsing beyond the bounded prefix, typography preferences, and additional native IME/platform acceptance.
+
+
+### 2026-10-12 — Two-line Setext headings
+
+Preview now recognizes CommonMark Setext headings consisting of one content line followed by an `===` or `---` underline. They use the existing level-one/two heading typography and typed inline fragments. One replacement range owns the title, its canonical internal newline and the underline, while excluding the newline after the underline. The existing bounded multiline run mapping collapses the underline row without removing genuine blank rows. A caret or selection on either source line reveals the complete heading; unrelated headings stay previewed. Whole-document copy still contains both source lines and markers, using the existing LF clipboard convention, while canonical CRLF persists through edits and undo.
+
+The parser remains responsible for paragraph boundaries and distinguishing a Setext underline from a thematic break. Blank separators in the fixture keep preceding body paragraphs out of the heading. Multi-content-line headings, multiline inline constructs, unsupported links/HTML and code contexts retain source; this slice does not flatten multi-line paragraphs into a heading label. The complete-line 4096-scalar and 63-construct budget is unchanged.
+
+Validation: 108 editor tests, including exact Setext source/inline style ownership, underline collapse and caret/selection reveal, blank-row retention and unsupported syntax; native-desktop/layout-fixture and feature-disabled Clippy; browser two-level styling, source endpoints at 340/550/950px, underline keyboard entry/selection, adjacent variable-height rows, canonical copy, CRLF editing/undo, synthetic composition and delayed disable invalidation; ATX and multiline presentation regression suites; native WebKit plus real XWayland pointer/source typing/undo/restored preview. Native OS observations now derive normalized engine offsets from the canonical prefix of a multiline token, avoiding CRLF double counting.
+
+Next gates: additional Markdown blocks, incremental parsing beyond the bounded prefix, typography preferences and Markdown-specific native OS IME/platform acceptance.

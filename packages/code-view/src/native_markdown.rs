@@ -49,8 +49,16 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
                 range.end -= 1;
             }
         }
-        // Multiline constructs retain source in this bounded provider.
-        if range.is_empty() || label.is_empty() || source[range.clone()].contains('\n') {
+        // A Setext heading owns one content line and its underline. Other
+        // multiline constructs keep source; paragraph-spanning headings also
+        // fall back through their SoftBreak event.
+        let newlines = source[range.clone()]
+            .bytes()
+            .filter(|byte| *byte == b'\n')
+            .count();
+        let supported_lines =
+            newlines == 0 || (matches!(style, InlineStyle::Heading(..)) && newlines == 1);
+        if range.is_empty() || label.is_empty() || !supported_lines {
             return;
         }
         let start = source[..range.start].chars().count();
@@ -290,13 +298,42 @@ mod tests {
                 .any(|fragment| fragment.text == "x" && fragment.code));
         }
         for source in [
-            "Title *source*\n---\n",
+            "Title *source*\ncontinued\n---\n",
             "#No heading",
             "####### Too many",
             "# [**link**](url)",
             "# a <b>b</b>",
             "```\n# literal\n```",
             "#",
+        ] {
+            assert!(previews(source).is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn setext_headings_own_content_separator_and_underline() {
+        for (underline, level) in [("===", 1), ("---", 2)] {
+            let token = format!("Title **猫** &amp; `x`\n{underline}");
+            let result = previews(&format!("before\n\n{token}\n\nafter"));
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].0, token);
+            assert_eq!(result[0].1, "Title 猫 & x");
+            let InlineStyle::Heading(actual, fragments) = &result[0].2 else {
+                panic!("heading");
+            };
+            assert_eq!(*actual, level);
+            assert!(fragments
+                .iter()
+                .any(|fragment| fragment.text == "猫" && fragment.strong));
+            assert!(fragments.iter().any(|fragment| fragment.code));
+        }
+        for source in [
+            "first\nsecond\n===",
+            "Title [**link**](url)\n---",
+            "Title <b>html</b>\n===",
+            "    Title\n    ===",
+            "---\n",
+            "Title\n\n---",
         ] {
             assert!(previews(source).is_empty(), "{source}");
         }
