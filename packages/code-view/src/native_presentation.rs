@@ -581,4 +581,53 @@ mod tests {
             .any(|line| line.logical_line_index == 3
                 && line.cells.iter().map(|cell| cell.ch).collect::<String>() == "==="));
     }
+
+    #[test]
+    fn fenced_blocks_collapse_body_rows_keep_blank_after_and_fall_back_when_folded() {
+        let source = "before\n\n```rust\nfn main() {}\n\n```\n\nafter";
+        let mut editor = editor_core::EditorStateManager::new(source, 80);
+        let revision = DocumentRevision(0);
+        let values = replacements(Mode::Markdown, &editor, revision);
+        assert_eq!(values.len(), 1);
+        let mask = state(Mode::Markdown, &editor, revision);
+        let mapped = mapped_runs(Mode::Markdown, &editor, revision, mask).unwrap();
+        for line in [3, 4, 5] {
+            assert!(mapped
+                .collapsed
+                .iter()
+                .any(|row| mapped.lines[*row].logical_line_index == line));
+        }
+        assert!(!mapped
+            .collapsed
+            .iter()
+            .any(|row| mapped.lines[*row].logical_line_index == 6));
+        let body = source[..source.find("fn main").unwrap()].chars().count();
+        assert_eq!(preview_mask(&values, body, None), 0);
+        assert_eq!(preview_mask(&values, 0, Some(body..body + 1)), 0);
+        assert!(mapped_runs(Mode::Markdown, &editor, revision, 1 << 63)
+            .unwrap()
+            .collapsed
+            .is_empty());
+        editor
+            .execute(editor_core::Command::Style(
+                editor_core::StyleCommand::Fold {
+                    start_line: 2,
+                    end_line: 5,
+                },
+            ))
+            .unwrap();
+        assert!(mapped_runs(Mode::Markdown, &editor, revision, mask).is_none());
+        editor
+            .execute(editor_core::Command::Style(
+                editor_core::StyleCommand::UnfoldAll,
+            ))
+            .unwrap();
+        assert!(mapped_runs(Mode::Markdown, &editor, revision, mask).is_some());
+        let incomplete = format!("```rust\n{}\n```\n", "x".repeat(4100));
+        let editor = editor_core::EditorStateManager::new(&incomplete, 80);
+        assert!(
+            replacements(Mode::Markdown, &editor, revision).is_empty(),
+            "a fence cut off by the source budget stays source"
+        );
+    }
 }

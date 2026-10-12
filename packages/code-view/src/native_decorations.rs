@@ -33,6 +33,11 @@ pub(crate) enum InlineStyle {
     Nested(Vec<InlineFragment>),
     #[cfg(feature = "markdown-preview")]
     Heading(u8, Vec<InlineFragment>),
+    #[cfg(feature = "markdown-preview")]
+    Fenced {
+        language: String,
+        fragments: Vec<CodeFragment>,
+    },
 }
 
 #[cfg(feature = "markdown-preview")]
@@ -44,6 +49,13 @@ pub(crate) struct InlineFragment {
     pub code: bool,
 }
 
+#[cfg(feature = "markdown-preview")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CodeFragment {
+    pub text: String,
+    pub class: String,
+}
+
 impl InlineStyle {
     #[cfg(feature = "markdown-preview")]
     pub(crate) fn class(&self) -> &'static str {
@@ -53,6 +65,7 @@ impl InlineStyle {
             Self::Code => "mk-markdown-code",
             Self::Nested(_) => "mk-markdown-nested",
             Self::Heading(_, _) => "mk-markdown-heading",
+            Self::Fenced { .. } => "mk-markdown-fenced dxc",
         }
     }
 }

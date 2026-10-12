@@ -284,3 +284,16 @@ After the P-164 fix (same day): **Source 16/16**, now strict by default. P-165 f
 
 
 `native-editor-markdown-setext.mjs` covers two-line Setext headings: levels one/two and inline formatting, collapsed underline rows versus retained blank rows, whole-source boundary hits at three widths, caret/selection on the underline, source copy, CRLF edits/undo, composition and delayed provider disable. Native `native-editor-renderer.py target/debug/moonkale-native-editor-host --x11 --markdown --setext --os-input` verifies the multiline canonical token through real pointer/source input/undo. `--setext` requires `--markdown` and excludes `--nested` and `--headings`.
+
+
+`native-editor-markdown-fenced.mjs` checks closed code-block previews through the production Preview toggle: Rust syntax classes/theme colors, unknown-language plain text, literal Markdown/HTML safety, source endpoints at three widths, consumed fence/body rows, retained blank rows, code-body caret/selection, canonical copy, CRLF edits/undo, composition, partially clipped scrolling and stale disable. Native fenced acceptance also checks actual theme colors and therefore needs a fixture built with its assets using `dx build`, rather than a plain Cargo binary. It verifies the same full block source token with real pointer/keyboard input. `--fenced` requires `--markdown` and excludes other Markdown fixture modifiers. Earlier inline fixtures now use indented code as their unsupported literal-code example, since closed root fences are supported.
+
+
+Build and run the native fenced probe with bundled theme assets (Linux, default fixture target directory):
+
+```sh
+(cd packages/web/tests/fixtures/native-editor && CARGO_NET_OFFLINE=true dx build --platform desktop --no-default-features --features desktop)
+python3 packages/web/tests/e2e/native-editor-renderer.py packages/web/tests/fixtures/native-editor/target/dx/moonkale-native-editor-host/debug/linux/app/moonkale-native-editor-host --x11 --markdown --fenced --os-input
+```
+
+The standalone Cargo fixture inlines the production panel/native CSS for earlier geometry probes, but cannot supply hashed syntax theme assets. The Dioxus-built fixture bundles those styles; fenced acceptance fails with stylesheet-load diagnostics if theme colors are missing. The displayed binary path assumes no `CARGO_TARGET_DIR` override.

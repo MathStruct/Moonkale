@@ -30,7 +30,7 @@ if (request.replacements?.length) {
                 start = replacement.start; end = replacement.end;
                 const child = children.find(child => Number(child.dataset.sourceStart) === start);
                 const range = document.createRange(); range.selectNodeContents(child);
-                rect = replacement.widget ? range.getBoundingClientRect() : child.getBoundingClientRect();
+                rect = replacement.widget && child.dataset.blockPreview !== 'true' ? range.getBoundingClientRect() : child.getBoundingClientRect();
                 if (!replacement.widget) {
                     const neighbor = children.find(child => Number(child.dataset.sourceStart) === end && child.textContent)
                         ?? children.findLast(child => Number(child.dataset.sourceEnd) === start && child.textContent);

@@ -69,3 +69,5 @@
 .mk-markdown-heading[data-heading-level="3"] { font-size: 1.25em; }
 .mk-markdown-heading[data-heading-level="4"] { font-size: 1.1em; }
 .mk-markdown-heading[data-heading-level="5"], .mk-markdown-heading[data-heading-level="6"] { font-size: 1em; }
+
+.mk-native-inline-widget.mk-markdown-fenced { font-family: var(--mk-code-font, monospace); font-size: 16px; line-height: 24px; padding: 8px; box-sizing: border-box; border: 1px solid var(--mk-code-selection); border-radius: 4px; background: var(--mk-code-bg); white-space: pre-wrap; overflow-wrap: anywhere; }
