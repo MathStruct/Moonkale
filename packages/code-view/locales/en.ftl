@@ -83,3 +83,4 @@ editor-reference-outside = This reference is outside the folder
 
 editor-preview = Preview
 editor-preview-title = Preview Markdown formatting; wraps source while enabled.
+editor-out-of-sync = The editor and the document disagree and could not be brought back in step, so editing stopped here to protect the file. Close and reopen it; the saved file is unchanged.

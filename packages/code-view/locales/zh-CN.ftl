@@ -75,3 +75,4 @@ editor-reference-outside = 此引用位于文件夹之外
 
 editor-preview = 预览
 editor-preview-title = 预览 Markdown 格式；启用时自动换行。
+editor-out-of-sync = 编辑器与文档不一致且无法重新同步，为保护文件已停止编辑。请关闭后重新打开；已保存的文件未改动。

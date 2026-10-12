@@ -78,3 +78,6 @@ the ordered endpoints as the Workspace selection for the active document.
 - `onChange(changes, length)` (spec 018): `changes` are `{from, to, insert}` splices in UTF-16 offsets of the text before the transaction, in document order; `length` is the new document length. The whole text is never sent on a change.
 
 - `setIndentation(el, spaces, width)` uses a compartment for `indentUnit` and `EditorState.tabSize`. Rust resolves language defaults for partial user overrides; null/null removes the override. `editor.insert_spaces` and `editor.indent_width` are optional settings, with width clamped to 1–8.
+- Line breaks (P-164, 2026-10-11): the view keeps the text's own separator (`EditorState.lineSeparator`: `"\r\n"` when the initial text has one, else `"\n"`), so `getText` and every `insert` are byte-exact. All offsets crossing this boundary (`onChange` splices and `length`, `setWikiLinks`) are UTF-16 units **of the text**, where `"\r\n"` counts two; CodeMirror's own positions count one, and `index.ts` converts (`toText` / `fromText`). Line/column positions are unaffected.
+
+`onCursor(line, col, anchor, head)` also reports anchor/head in canonical UTF-16 text units, including both units of CRLF. Rust receives these offsets directly; it does not normalize or expand line breaks a second time.

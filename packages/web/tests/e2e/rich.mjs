@@ -161,6 +161,26 @@ try {
     if (!/first\n\n+second/.test(text) || !/third/.test(text)) throw new Error("text lost: " + JSON.stringify(text));
     if (/\n\n\n/.test(text)) throw new Error("blank lines not collapsed: " + JSON.stringify(text));
   });
+  await step("P-165: a file Milkdown would rewrite opens clean, and Reload after an outside change leaves it clean", async () => {
+    // `-` bullets serialise as `*`: before the fix the view took the raw text as its baseline,
+    // so the normalised form counted as an edit — on open and after Reload.
+    fs.writeFileSync(`${ROOT}/Reload.md`, "# Reload\n\n- one\n- two\n");
+    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer");
+    await page.waitForSelector(".mk-tree-file >> text=Reload.md", { timeout: 15000 });
+    await page.click(".mk-tree-file >> text=Reload.md");
+    await page.waitForSelector(".mk-md-modes:visible", { timeout: 15000 });
+    await page.click(".mk-md-modes:visible button:has-text('Rich')");
+    await page.waitForSelector(".mk-rich-host:visible .ProseMirror li", { timeout: 30000 });
+    await page.waitForTimeout(1000);
+    if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("opening Reload.md marked it dirty");
+    fs.writeFileSync(`${ROOT}/Reload.md`, "# Reload\n\n- one\n- two\n- three\n");
+    await page.waitForTimeout(500);
+    await page.click(".mk-rich:visible button:has-text('Reload')");
+    await page.waitForFunction(() => [...document.querySelectorAll(".mk-rich-host .ProseMirror")].some((e) => e.offsetParent && /three/.test(e.textContent)), null, { timeout: 15000 });
+    await page.waitForTimeout(1000);
+    if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("Reload left the document dirty");
+    if (fs.readFileSync(`${ROOT}/Reload.md`, "utf8") !== "# Reload\n\n- one\n- two\n- three\n") throw new Error("file changed");
+  });
   console.log("\nRICH E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

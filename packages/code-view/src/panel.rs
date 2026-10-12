@@ -47,8 +47,12 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mut references: Signal<Option<Vec<moonkale_lsp::Location>>> = use_signal(|| None);
     // What the view currently shows (its own edits, or text we pushed), so
     // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
-    let mut view_text: Signal<String> = use_signal(|| doc.peek().text.replace("\r\n", "\n"));
-    let mut crlf = use_signal(|| doc.peek().text.contains("\r\n"));
+    let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
+    // Splice mismatches in a row. A resync costs one more (the view answers
+    // it with a splice against its old text), so a few are normal; one that
+    // never settles stops the editor instead of looping (P-164).
+    let mut mismatches = use_signal(|| 0u32);
+
     let selection = if *ws.docs.active.read() == Some(node) {
         *ws.docs.selection.read()
     } else {
@@ -66,7 +70,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             if backend.peek().is_some() {
                 return;
             }
-            let initial = doc.peek().text.replace("\r\n", "\n");
+            let initial = doc.peek().text.clone();
             let ident = lsp_ident.clone();
             let element_id_for_events = element_id.clone();
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
@@ -84,18 +88,24 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         tracing::warn!(
                             "editor: splice mismatch (ok={ok}, len {mirrored_len} vs {length}); resyncing"
                         );
-                        let text = doc.peek().text.replace("\r\n", "\n");
+                        let n = *mismatches.peek() + 1;
+                        mismatches.set(n);
+                        if n > 3 {
+                            tracing::error!("editor: still out of sync after {n} resyncs; stopped");
+                            mount_error.set(Some(t!(ws, L, "editor-out-of-sync")));
+                            return;
+                        }
+                        let text = doc.peek().text.clone();
                         view_text.set(text.clone());
                         if let Some(b) = backend.peek().as_ref() {
                             b.set_text(&text);
                         }
                         return;
                     }
-                    let text = if *crlf.peek() {
-                        view_text.peek().replace('\n', "\r\n")
-                    } else {
-                        view_text.peek().clone()
-                    };
+                    if *mismatches.peek() != 0 {
+                        mismatches.set(0);
+                    }
+                    let text = view_text.peek().clone();
                     if doc.peek().text != text {
                         doc.with_mut(|d| d.text = text.clone());
                     }
@@ -124,18 +134,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     head,
                 } => {
                     let mut ws = ws;
-                    let view = view_text.peek();
-                    let canonical_offset = |offset| {
-                        if *crlf.peek() {
-                            let byte = backend::utf16_to_byte(&view, offset as usize)
-                                .unwrap_or(view.len());
-                            offset
-                                + view[..byte].bytes().filter(|byte| *byte == b'\n').count() as u32
-                        } else {
-                            offset
-                        }
-                    };
-                    ws.set_selection(node, canonical_offset(anchor), canonical_offset(head));
+                    ws.set_selection(node, anchor, head);
                     ws.set_cursor(node, line, col);
                 }
                 // Spec 012: `[[` completion and Ctrl+click in markdown sources.
@@ -318,14 +317,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // mirror is *not* updated here — the view answers with the splice it
     // applied, and that brings the mirror up to date (spec 018).
     use_effect(move || {
-        let canonical = doc.read().text.clone();
-        if canonical.contains('\n') {
-            let next = canonical.contains("\r\n");
-            if *crlf.peek() != next {
-                crlf.set(next);
-            }
-        }
-        let text = canonical.replace("\r\n", "\n");
+        let text = doc.read().text.clone();
         if !ready() || *view_text.peek() == text {
             return;
         }
