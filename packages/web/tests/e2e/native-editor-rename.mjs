@@ -27,6 +27,10 @@ try{
   await mode("normal");const before=(await requests()).length;await open();
   if(await prompt().locator("input").inputValue()!=="old")throw Error("Prompt did not use symbol at UTF-16 caret");
   await prompt().locator("input").evaluate(input=>{if(document.activeElement!==input)throw Error("Prompt did not receive focus");});
+  await prompt().locator("input").fill("composing");
+  await prompt().locator("input").evaluate(input=>input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",isComposing:true,bubbles:true})));
+  await page.waitForTimeout(150);
+  if((await requests()).length!==before || !await prompt().isVisible())throw Error("IME Enter committed rename");
   await prompt().locator("input").fill(" ");if(!await prompt().locator(".mk-native-rename-confirm").isDisabled())throw Error("Blank name allowed");
   await prompt().locator("input").press("Enter");if((await requests()).length!==before)throw Error("Blank name sent request");
   await prompt().locator("input").press("Escape");await prompt().waitFor({state:"detached"});

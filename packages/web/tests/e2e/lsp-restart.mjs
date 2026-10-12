@@ -18,6 +18,21 @@ page.on('websocket', socket => {
       const msg = typeof frame === 'string' ? JSON.parse(frame) : frame;
       if (msg.language) connection.language = msg.language;
       connection.sent.push(msg);
+      if (msg.method === 'textDocument/didOpen') connection.text = msg.params.textDocument.text;
+      if (msg.method === 'textDocument/didChange') {
+        for (const change of msg.params.contentChanges) {
+          if (!change.range) connection.text = change.text;
+          else {
+            const offset = position => {
+              let start = 0;
+              for (let line = 0; line < position.line; line++) start = connection.text.indexOf('\n', start) + 1;
+              return start + position.character;
+            };
+            const start = offset(change.range.start), end = offset(change.range.end);
+            connection.text = connection.text.slice(0, start) + change.text + connection.text.slice(end);
+          }
+        }
+      }
     } catch {}
   });
   socket.on('close', () => connection.closed = true);
@@ -63,6 +78,9 @@ try {
     await page.keyboard.press('Control+Home');
     await page.keyboard.insertText('// unsaved 猫\n');
     await page.waitForSelector('.mk-editor-dirty');
+    await wait(() => forLanguage('rust').at(-1).text?.includes('// unsaved 猫'));
+    const change = forLanguage('rust').at(-1).sent.find(msg => msg.method === 'textDocument/didChange');
+    if (!change?.params.contentChanges[0].range) throw Error('rust-analyzer did not receive an incremental change');
     const replacement = await restart('rust');
     await wait(() => initialized(replacement) && opened(replacement, '// unsaved 猫\n'));
     await page.waitForSelector('.cm-lint-marker-error', { timeout: 120000 });
@@ -80,7 +98,7 @@ try {
     const replacement = await restart('rust');
     await wait(() => initialized(replacement) && opened(replacement, '// native restart\n') && opened(replacement, '// unsaved 猫\n'));
     await input.waitFor();
-    const lastChange = () => replacement.sent.filter(msg => msg.method === 'textDocument/didChange').at(-1)?.params.contentChanges.at(-1)?.text;
+    const lastChange = () => replacement.text;
     await input.focus();
     await page.keyboard.press('Control+z');
     await wait(() => lastChange()?.includes('// unsaved 猫') && !lastChange()?.includes('// native restart'));

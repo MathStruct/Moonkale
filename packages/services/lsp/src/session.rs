@@ -169,6 +169,65 @@ impl WorkspaceEdit {
     }
 }
 
+// A single replacement also covers disjoint edits. Prefix/suffix boundaries
+// are Unicode scalar boundaries, never half a surrogate. Treat CRLF as one
+// line ending so the range never points between its two bytes.
+fn incremental_change(old: &str, new: &str) -> Value {
+    let mut start = old
+        .chars()
+        .zip(new.chars())
+        .take_while(|(a, b)| a == b)
+        .map(|(c, _)| c.len_utf8())
+        .sum::<usize>();
+    if start > 0
+        && old.as_bytes().get(start - 1) == Some(&b'\r')
+        && (old.as_bytes().get(start) == Some(&b'\n') || new.as_bytes().get(start) == Some(&b'\n'))
+    {
+        start -= 1;
+    }
+    let suffix = old[start..]
+        .chars()
+        .rev()
+        .zip(new[start..].chars().rev())
+        .take_while(|(a, b)| a == b)
+        .map(|(c, _)| c.len_utf8())
+        .sum::<usize>();
+    let mut old_end = old.len() - suffix;
+    let mut new_end = new.len() - suffix;
+    let splits_crlf = |text: &str, end: usize| {
+        end > start
+            && text.as_bytes().get(end - 1) == Some(&b'\r')
+            && text.as_bytes().get(end) == Some(&b'\n')
+    };
+    if splits_crlf(old, old_end) || splits_crlf(new, new_end) {
+        old_end += 1;
+        new_end += 1;
+    }
+    fn position(text: &str, offset: usize) -> Value {
+        let prefix = &text[..offset];
+        let (mut line, mut column) = (0, 0);
+        let mut chars = prefix.chars().peekable();
+        while let Some(ch) = chars.next() {
+            match ch {
+                '\r' => {
+                    if chars.peek() == Some(&'\n') {
+                        chars.next();
+                    }
+                    line += 1;
+                    column = 0;
+                }
+                '\n' => {
+                    line += 1;
+                    column = 0;
+                }
+                _ => column += ch.len_utf16(),
+            }
+        }
+        json!({ "line": line, "character": column })
+    }
+    json!({ "range": { "start": position(old, start), "end": position(old, old_end) }, "text": &new[start..new_end] })
+}
+
 /// Char index of an LSP position (line, UTF-16 column) in `chars`; clamps
 /// to the line end and to the document end.
 pub fn char_offset(chars: &[char], line: u32, col: u32) -> usize {
@@ -237,6 +296,7 @@ struct Inner {
     next_id: i64,
     pending: HashMap<i64, oneshot::Sender<Result<Value, String>>>,
     initialized: bool,
+    sync_kind: u8,
     closing: bool,
     closed: bool,
 }
@@ -280,6 +340,7 @@ impl LspSession {
                 next_id: 1,
                 pending: HashMap::new(),
                 initialized: false,
+                sync_kind: 1,
                 closing: false,
                 closed: false,
             })),
@@ -525,6 +586,12 @@ impl LspSession {
             if inner.closed || inner.closing {
                 return Err("session closed".into());
             }
+            inner.sync_kind = result
+                .pointer("/capabilities/textDocumentSync")
+                .and_then(|sync| sync.as_u64().or_else(|| sync.get("change")?.as_u64()))
+                .and_then(|kind| u8::try_from(kind).ok())
+                .filter(|kind| *kind <= 2)
+                .unwrap_or(0);
             inner.initialized = true;
         }
         let _ = self.events.unbounded_send(LspEvent::Initialized {
@@ -548,6 +615,21 @@ impl LspSession {
     }
 
     /// Full-document sync (`TextDocumentSyncKind::Full`).
+    /// Sync two canonical snapshots using the server's negotiated change mode.
+    /// Incremental servers receive one UTF-16 range replacement; full-sync
+    /// servers receive the new snapshot. A disabled sync mode sends nothing.
+    pub fn did_change_from(&self, uri: &str, version: i32, old: &str, text: &str) {
+        if old == text {
+            return;
+        }
+        let change = match self.inner.borrow().sync_kind {
+            0 => return,
+            2 => incremental_change(old, text),
+            _ => json!({ "text": text }),
+        };
+        self.notify("textDocument/didChange", json!({ "textDocument": { "uri": uri, "version": version }, "contentChanges": [change] }));
+    }
+
     pub fn did_change(&self, uri: &str, version: i32, text: &str) {
         self.notify("textDocument/didChange", json!({ "textDocument": { "uri": uri, "version": version }, "contentChanges": [{ "text": text }] }));
     }
@@ -1291,6 +1373,74 @@ mod tests {
             assert_eq!(actions.iter().map(|action| action.title.as_str()).collect::<Vec<_>>(), ["Preferred", "Valid"]);
         }).await;
     }
+    #[test]
+    fn incremental_ranges_replay_unicode_crlf_and_disjoint_changes_exactly() {
+        for (old, new) in [
+            ("😀old\r\ncat", "😀new\r\ncat"),
+            ("😀", "😁"),
+            ("猫", "狗"),
+            ("", "猫\n😀"),
+            ("😀猫", ""),
+            ("one\r\ntwo\r\n", "one\ntwo\n"),
+            ("one\ntwo\n", "one\r\ntwo\r\n"),
+            ("first\n😀middle\nlast", "FIRST\n😀middle\nLAST"),
+            ("same", "same"),
+        ] {
+            let change = incremental_change(old, new);
+            let edit =
+                text_edit(&json!({ "range": change["range"], "newText": change["text"] })).unwrap();
+            assert_eq!(WorkspaceEdit::apply_to_text(old, &[edit]), new, "{change}");
+        }
+        let change = incremental_change("a\rb", "a\rc");
+        assert_eq!(
+            change["range"],
+            json!({"start":{"line":1,"character":0},"end":{"line":1,"character":1}})
+        );
+        assert_eq!(change["text"], "c");
+        let old = format!("{}😀tail", "x".repeat(3_000_000));
+        let new = format!("{}😀TAIL", "x".repeat(3_000_000));
+        let change = incremental_change(&old, &new);
+        assert!(change.to_string().len() < 200);
+        assert_eq!(change["range"]["start"]["character"], 3_000_002);
+        assert_eq!(change["text"], "TAIL");
+    }
+
+    #[tokio::test]
+    async fn initialize_negotiates_numeric_and_object_sync_modes() {
+        for (capability, kind) in [
+            (json!(2), 2),
+            (json!({"change": 2}), 2),
+            (json!(1), 1),
+            (json!(0), 0),
+            (json!({}), 0),
+            (json!(99), 0),
+        ] {
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let (tx, rx) = mpsc::unbounded::<String>();
+            let (session, _) = LspSession::new(Box::new(Fake {
+                sent: sent.clone(),
+                incoming: Some(rx),
+            }));
+            tokio::task::LocalSet::new().run_until(async {
+                tokio::task::spawn_local(session.clone().pump());
+                let init_session = session.clone();
+                let init = tokio::task::spawn_local(async move { init_session.initialize("/tmp").await });
+                tokio::task::yield_now().await;
+                tx.unbounded_send(json!({"jsonrpc":"2.0", "id":1, "result":{"capabilities":{"textDocumentSync":capability}}}).to_string()).unwrap();
+                init.await.unwrap().unwrap();
+                session.did_change_from("file:///tmp/a", 2, "😀old", "😀new");
+                let messages = sent.borrow();
+                let change = messages.iter().find(|message| message["method"] == "textDocument/didChange");
+                if kind == 0 { assert!(change.is_none()); }
+                else {
+                    let change = &change.unwrap()["params"]["contentChanges"][0];
+                    assert_eq!(change.get("range").is_some(), kind == 2);
+                    assert_eq!(change["text"], if kind == 2 { "new" } else { "😀new" });
+                }
+            }).await;
+        }
+    }
+
     #[tokio::test]
     async fn initialize_handshake_and_diagnostics() {
         let sent = Rc::new(RefCell::new(Vec::new()));

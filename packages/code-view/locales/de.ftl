@@ -86,3 +86,5 @@ editor-preview-title = Markdown-Formatierung anzeigen; aktiviert den Zeilenumbru
 editor-out-of-sync = Editor und Dokument stimmen nicht überein und ließen sich nicht wieder abgleichen; die Bearbeitung wurde hier angehalten, um die Datei zu schützen. Schließen und öffnen Sie sie erneut; die gespeicherte Datei ist unverändert.
 
 lsp-restart-unavailable = Zum Neustart wird ein Sprachserver für ein aktives Ordnerdokument benötigt
+
+editor-rename-stale = Dokument geändert; Umbenennen erneut öffnen

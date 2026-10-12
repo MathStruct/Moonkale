@@ -86,3 +86,5 @@ editor-preview-title = Preview Markdown formatting; wraps source while enabled.
 editor-out-of-sync = The editor and the document disagree and could not be brought back in step, so editing stopped here to protect the file. Close and reopen it; the saved file is unchanged.
 
 lsp-restart-unavailable = Restart needs a language server for an active folder document
+
+editor-rename-stale = Document changed; open Rename again

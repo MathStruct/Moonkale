@@ -429,8 +429,10 @@ impl LspManager {
             };
             if changed {
                 document.version += 1;
+                document
+                    .session
+                    .did_change_from(uri, document.version, &document.text, text);
                 document.text = text.to_string();
-                document.session.did_change(uri, document.version, text);
             }
             if saved_changed {
                 document.saved = saved.to_string();
@@ -1141,7 +1143,7 @@ mod ownership_tests {
                 let response = if matches!(self.mode, FailureMode::Initialize) {
                     serde_json::json!({"jsonrpc":"2.0", "id":value["id"], "error":{"code":-1,"message":"init refused"}})
                 } else {
-                    serde_json::json!({"jsonrpc":"2.0", "id":value["id"], "result":{"capabilities":{}}})
+                    serde_json::json!({"jsonrpc":"2.0", "id":value["id"], "result":{"capabilities":{"textDocumentSync":1}}})
                 };
                 let _ = self.reply.unbounded_send(response.to_string());
                 if matches!(self.mode, FailureMode::InitializeThenClose) {
@@ -1666,7 +1668,7 @@ mod ownership_tests {
         HARNESS.with(|h| {
             let (tx, id) = h.borrow_mut().initialization.take().unwrap();
             tx.unbounded_send(
-                serde_json::json!({"jsonrpc":"2.0", "id":id, "result":{"capabilities":{}}})
+                serde_json::json!({"jsonrpc":"2.0", "id":id, "result":{"capabilities":{"textDocumentSync":1}}})
                     .to_string(),
             )
             .unwrap();

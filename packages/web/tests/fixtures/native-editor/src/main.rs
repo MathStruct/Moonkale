@@ -129,7 +129,7 @@ impl moonkale_lsp::LspTransport for FakeLsp {
             }
         }
         if message["method"] == "initialize" {
-            self.sender.unbounded_send(serde_json::json!({"jsonrpc":"2.0", "id":message["id"], "result":{"capabilities":{}, "serverInfo":{"name":"fixture-lsp"}}}).to_string()).unwrap();
+            self.sender.unbounded_send(serde_json::json!({"jsonrpc":"2.0", "id":message["id"], "result":{"capabilities":{"textDocumentSync":1}, "serverInfo":{"name":"fixture-lsp"}}}).to_string()).unwrap();
         }
     }
     fn take_incoming(&mut self) -> Option<futures_channel::mpsc::UnboundedReceiver<String>> {

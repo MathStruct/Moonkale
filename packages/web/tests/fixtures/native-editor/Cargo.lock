@@ -3744,6 +3744,7 @@ name = "moonkale-lsp"
 version = "0.1.0"
 dependencies = [
  "futures-channel",
+ "futures-timer",
  "futures-util",
  "lsp-types",
  "serde",
