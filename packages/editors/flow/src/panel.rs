@@ -1093,7 +1093,29 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
         } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
             // Either drag order; domains unify symmetrically.
             match a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)) {
-                Some(_) => Ok(Accepted::Equation),
+                Some(_) => {
+                    // The same pin on both ends is a short, and an equation
+                    // already stored in either order is the same equation —
+                    // store neither twice (the pins review's #3). Two
+                    // different pins of one block are a real short circuit.
+                    if from.node == to.node && from.port == to.port {
+                        return (false, "a pin does not connect to itself".into());
+                    }
+                    let same = f.wires.iter().any(|w| {
+                        (w.from_block == from.node
+                            && w.from_port == from.port
+                            && w.to_block == to.node
+                            && w.to_port == to.port)
+                            || (w.from_block == to.node
+                                && w.from_port == to.port
+                                && w.to_block == from.node
+                                && w.to_port == from.port)
+                    });
+                    if same {
+                        return (false, "the same equation is already wired".into());
+                    }
+                    Ok(Accepted::Equation)
+                }
                 None => Err(format!(
                     "{}.{} ({}) does not connect to {}.{} ({})",
                     from.node,
@@ -1104,6 +1126,12 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
                     b.ty.describe()
                 )),
             }
+        } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
+            // The ports exist but cannot pair (an output against a pin).
+            return (
+                false,
+                "an output connects to an input, a pin to a pin".into(),
+            );
         } else {
             return (false, "wire: the port does not exist".into());
         }
@@ -1317,6 +1345,23 @@ mod tests {
             "a pin may carry several wires"
         );
 
+        // The same equation twice — either drag order — and a pin onto
+        // itself: stored neither (the pins review's #3).
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("g", "g"));
+        assert!(!ok, "the same equation is not stored twice");
+        let (ok, _) = wire(&mut flow, &libs, &end("g", "g"), &end("r", "p"));
+        assert!(!ok, "nor in the other order");
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("r", "p"));
+        assert!(!ok, "a pin does not connect to itself");
+        // Two different pins of one block: a short circuit, allowed.
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("r", "n"));
+        assert!(ok, "two pins of the same block make a short circuit");
+        assert_eq!(
+            flow.read().wires.len(),
+            3,
+            "the duplicate wires were refused"
+        );
+
         // Directed wires keep their one-wire-per-input replacement.
         wire(&mut flow, &libs, &end("s", "out"), &end("k", "in"));
         let (ok, _) = wire(&mut flow, &libs, &end("s", "out"), &end("k", "in"));
@@ -1331,11 +1376,11 @@ mod tests {
             "a new input wire replaces the old one"
         );
 
-        // Domains still rule the gesture: a directed port onto a pin is
-        // no port pair at all, and validate names the mismatch.
+        // A directed port onto a pin is a mixed wire — the ports exist,
+        // they just do not pair (the pins review's #5).
         let (ok, why) = wire(&mut flow, &libs, &end("s", "out"), &end("r", "p"));
         assert!(!ok, "an output does not connect to a pin");
-        assert!(why.contains("does not exist"), "{why}");
+        assert!(why.contains("a pin to a pin"), "{why}");
     }
 
     #[test]

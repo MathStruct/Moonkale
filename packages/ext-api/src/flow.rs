@@ -130,8 +130,11 @@ pub struct Param {
     pub default: String,
 }
 
-/// A block type a library offers.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// A block type a library offers. `Default` keeps future fields
+/// non-breaking: a library builds the fields it cares about and finishes
+/// with `..Default::default()`, so a new field no longer needs a new
+/// ext-api tag in lockstep (the pins review's #2).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BlockKind {
     /// Unique within the library (`"dense"`).
     pub id: String,
@@ -393,7 +396,8 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
         let pin_t = tk.connections.iter().find(|p| p.name == w.to_port);
         // A wire is dataflow when it leaves an output and enters an input;
         // an equation when both ends are pins (ADR-0020) — either drag
-        // order, and its types must unify symmetrically.
+        // order, and its types must unify symmetrically. A port that
+        // exists but cannot pair is a mixed wire, not a missing one.
         if let (Some(o), Some(i)) = (out, inp) {
             if o.ty.unify(&i.ty).is_none() {
                 issues.push(Issue {
@@ -424,6 +428,11 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
                     ),
                 });
             }
+        } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
+            issues.push(Issue {
+                about: w.id.clone(),
+                message: "an output connects to an input, a pin to a pin".into(),
+            });
         } else {
             issues.push(Issue {
                 about: w.id.clone(),
@@ -431,8 +440,38 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
             });
         }
     }
+    // Port names are unique across a kind's inputs, outputs and
+    // connections — the wire classification depends on it (the pins
+    // review's #4). Reported once per kind, on the first block using it.
+    let duplicated_kinds: std::collections::HashSet<String> = libraries
+        .iter()
+        .flat_map(|l| l.blocks.iter().map(move |k| (l.id, k)))
+        .filter(|(_, k)| {
+            let mut seen: Vec<&str> = Vec::new();
+            k.inputs
+                .iter()
+                .chain(&k.outputs)
+                .chain(&k.connections)
+                .any(|p| {
+                    if seen.contains(&p.name.as_str()) {
+                        true
+                    } else {
+                        seen.push(p.name.as_str());
+                        false
+                    }
+                })
+        })
+        .map(|(lib, k)| format!("{lib}/{}", k.id))
+        .collect();
+    let mut reported_kinds: std::collections::HashSet<String> = std::collections::HashSet::new();
     for b in &flow.blocks {
         if let Some((_, k)) = find_kind(libraries, &b.kind) {
+            if duplicated_kinds.contains(&b.kind) && reported_kinds.insert(b.kind.clone()) {
+                issues.push(Issue {
+                    about: b.id.clone(),
+                    message: format!("{} reuses a port name", b.kind),
+                });
+            }
             for p in k.inputs.iter().filter(|p| p.required) {
                 if !flow
                     .wires
@@ -823,5 +862,133 @@ mod tests {
         assert!(f.clone().topological().is_err());
         let skip = |w: &Wire| w.id == "w1";
         assert!(f.topological_skipping(&skip).is_ok());
+    }
+
+    #[test]
+    fn a_kind_that_reuses_a_port_name_is_reported_once() {
+        let mut libs = vec![pin_lib()];
+        libs[0].blocks.push(BlockKind {
+            id: "dup".into(),
+            name: "Dup".into(),
+            category: "electrical".into(),
+            description: String::new(),
+            inputs: vec![Port {
+                name: "p".into(),
+                ty: PortType::Scalar,
+                required: false,
+            }],
+            outputs: vec![],
+            connections: vec![Port {
+                name: "p".into(),
+                ty: PortType::Named {
+                    name: "electrical".into(),
+                },
+                required: false,
+            }],
+            params: vec![],
+        });
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "d1".into(),
+                kind: "m/dup".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "d2".into(),
+                kind: "m/dup".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+        ];
+        let issues = validate(&f, &libs);
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|i| i.message.contains("reuses a port name"))
+                .count(),
+            1,
+            "one issue per kind, not per block: {issues:?}"
+        );
+        assert!(
+            issues.iter().any(|i| i.about == "d1"),
+            "reported on the first block of the kind: {issues:?}"
+        );
+    }
+
+    #[test]
+    fn a_mixed_wire_is_told_what_pairs_with_what() {
+        let mut libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "m".into(),
+                kind: "m/mass".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+        ];
+        // mass's flange (a pin) onto resistor's p (also a pin) but of
+        // another domain: refused as a domain mismatch. The mixed wire —
+        // an output against a pin — names its rule instead.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "m".into(),
+            from_port: "flange".into(),
+            to_block: "r".into(),
+            to_port: "p".into(),
+        }];
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "w1" && i.message.contains("does not connect")),
+            "the domain mismatch keeps its message: {issues:?}"
+        );
+        libs[0].blocks.push(BlockKind {
+            id: "src".into(),
+            name: "Source".into(),
+            category: "io".into(),
+            description: String::new(),
+            inputs: vec![],
+            outputs: vec![Port {
+                name: "out".into(),
+                ty: PortType::Scalar,
+                required: false,
+            }],
+            connections: vec![],
+            params: vec![],
+        });
+        f.blocks.push(Block {
+            id: "s".into(),
+            kind: "m/src".into(),
+            x: 0.0,
+            y: 0.0,
+            params: Default::default(),
+        });
+        f.wires = vec![Wire {
+            id: "w2".into(),
+            from_block: "s".into(),
+            from_port: "out".into(),
+            to_block: "r".into(),
+            to_port: "p".into(),
+        }];
+        let issues = validate(&f, &libs);
+        assert!(
+            issues.iter().any(|i| i.about == "w2"
+                && i.message == "an output connects to an input, a pin to a pin"),
+            "the mixed wire says which port pairs with which: {issues:?}"
+        );
     }
 }
