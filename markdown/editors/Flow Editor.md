@@ -34,10 +34,10 @@ flowchart LR
 > `editors/flow` on [[dioxus-flow]] 0.1.2, opt-in; the model (`PortType`/`unify`, `BlockKind`, `FlowLibrary`, `Flow` JSON, `validate`) lives in `ext-api::flow` so libraries are contributions from other extensions; `extensions/lux` is the first (Input/Dense/Conv/MaxPool/Flatten/Dropout/BatchNorm/Loss/Optimiser → `model.jl`). Flows are `*.flow.json` files. Phase 1 and the codegen half of phase 2 are done; running through the terminal with errors linked to blocks, and the MTK library, are next. Notes: [flow.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/flow/flow.md), [lux.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/lux/lux.md).
 
 ## Beyond Lux: MTK and Lenticulum
-Undirected ports are in the model (ADR-0020, 2026-10-12): `BlockKind.connections` — acausal, domain-typed pins, wires in either order, buses allowed, equation loops legal. Bipartite constraints and nested subgraphs are what remains for the ModelingToolkit editor, and the Lenticulum factor-graph editor — the goal behind Moonkale — builds on all of it: [[Julia and Lenticulum]].
+Undirected pins are in the model (ADR-0020, 2026-10-12): `BlockKind.connections` — acausal, domain-typed pins, wires in either order, buses allowed, equation loops legal. The **ModelingToolkit library exists** (same date, in [`MathStruct/moonkale-julia`](https://github.com/MathStruct/moonkale-julia)): Resistor/Capacitor/Inductor/Voltage/Ground and Mass/Spring/Damper/Fixed, `circuit.jl` codegen — `@named` components, the pin wires grouped into nets (a bus is one `connect`), `structural_simplify` and a solved ODE problem; the `mtk.mjs` e2e builds an RC low-pass, checks the generation against a golden file and simulates it (99.3 % after 5τ). What remains for the rung is nested subflows (ADR-0021 is that design), then RxInfer's bipartite rule and polarity, then Lenticulum — the goal behind Moonkale ([[Julia and Lenticulum]]).
 
 ## Phases
 1. Canvas, palette, wires, validation, save/load as nodes.
 2. Lux.jl library + codegen; run via [[Terminal]] (`julia model.jl`) with errors linked back to blocks.
-3. MTK library.
+3. MTK library — **done 2026-10-12** (ADR-0020's pins + the library in moonkale-julia; `mtk.mjs` builds and simulates an RC circuit).
 4. Execute-in-place (Julia kernel) — research.

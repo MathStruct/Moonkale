@@ -860,7 +860,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     if !issues_now.is_empty() { span { class: "mk-flow-issues", title: "{issues_now.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues_now.len())} } }
                 }
                 for lib in generators {
-                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: t!(ws, L, "flow-generate-title", language = lib.language), {t!(ws, L, "flow-generate", language = lib.language)} }
+                    // The button names the library, not just the language —
+                    // two Julia libraries must not read as one button.
+                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: t!(ws, L, "flow-generate-title", language = lib.name), {t!(ws, L, "flow-generate", language = lib.name)} }
                 }
                 // While broken there is nothing to arrange, fit or save —
                 // only Reload leads out (the review's #3: the toolbar

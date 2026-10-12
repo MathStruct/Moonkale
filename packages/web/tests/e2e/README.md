@@ -297,3 +297,7 @@ python3 packages/web/tests/e2e/native-editor-renderer.py packages/web/tests/fixt
 ```
 
 The standalone Cargo fixture inlines the production panel/native CSS for earlier geometry probes, but cannot supply hashed syntax theme assets. The Dioxus-built fixture bundles those styles; fenced acceptance fails with stylesheet-load diagnostics if theme colors are missing. The displayed binary path assumes no `CARGO_TARGET_DIR` override.
+
+## Spec 031 / ADR-0020: the ModelingToolkit library (2026-10-12)
+
+- `mtk.mjs`: enable Flow editor + the ModelingToolkit library (Lux off — one library per flow), place an RC low-pass from the acausal palette, edit C = 1.0 F in the floating parameter editor (τ = 1s), wire the pins — the capacitor's negative pin carries the return **and** the ground: a bus, one `connect` with all ends — refuse an electrical-onto-mechanical wire, generate `circuit.jl` **byte-exact against the golden** (sequential `@named` names, wire-order nets, uuid-suffixed block ids never emitted), and simulate it with `julia --project=$MTK_ENV` when a ModelingToolkit environment exists (default `~/.cache/moonkale-e2e/julia-mtk`; otherwise the step skips with a message): the capacitor reads `1 - e^-5 = 99.3 %` of the source after five time constants.
