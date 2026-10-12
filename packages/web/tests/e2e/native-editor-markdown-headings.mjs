@@ -11,7 +11,7 @@ const ready=()=>page.waitForFunction(()=>{
   const runs=[...document.querySelectorAll('.language .mk-proportional-run')];
   return runs.length>0&&runs.every(run=>run.dataset.ready==='true');
 });
-const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();};
+const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();await panel.locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();};
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
   await page.click('#markdown-headings');

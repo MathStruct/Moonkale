@@ -11,6 +11,14 @@ use dioxus::prelude::*;
 use editor_core::{Command, CursorCommand, EditCommand, EditorStateManager, Position};
 use std::{cell::RefCell, rc::Rc};
 
+#[cfg(feature = "markdown-preview")]
+#[derive(Clone, PartialEq)]
+struct PresentationIndex {
+    state: crate::native_layout::PresentationState,
+    values: Rc<Vec<crate::native_presentation::Replacement>>,
+    collapsed: Vec<usize>,
+}
+
 #[component]
 pub(crate) fn RustEditorSurface(
     completion_items: Vec<moonkale_lsp::CompletionItem>,
@@ -114,26 +122,63 @@ pub(crate) fn RustEditorSurface(
         )>
     });
     let mut composing = use_signal(|| false);
+    #[cfg(feature = "markdown-preview")]
+    let presentation_index = use_memo(use_reactive!(|model| {
+        let state = model.read();
+        let enabled =
+            fixture.is_some_and(|value| value().presentation) || markdown_enabled(fixture, model);
+        let values = if enabled {
+            crate::native_presentation::replacements(
+                presentation_mode(fixture, model),
+                &state.engine,
+                state.revision,
+            )
+        } else {
+            Rc::new(Vec::new())
+        };
+        let presentation = if enabled {
+            crate::native_presentation::state_for_values(
+                &values,
+                &state.engine,
+                if presentation_mode(fixture, model) == crate::native_presentation::Mode::Markdown {
+                    2
+                } else {
+                    1
+                },
+            )
+        } else {
+            Default::default()
+        };
+        let collapsed = if presentation.enabled() {
+            crate::native_presentation::collapsed_rows(&state.engine, &values, presentation)
+        } else {
+            Vec::new()
+        };
+        PresentationIndex {
+            state: presentation,
+            values,
+            collapsed,
+        }
+    }));
     let heights = use_memo(use_reactive!(|model, run_heights| {
         #[cfg(not(feature = "markdown-preview"))]
         let _ = run_heights;
         let state = model.read();
         let rows = state.engine.get_viewport_state().total_visual_lines;
         #[cfg(feature = "markdown-preview")]
-        let presentation = presentation_state(fixture, model);
+        let base_height = if markdown_enabled(fixture, model) && state.preferences.wrap {
+            32.0
+        } else {
+            row_pixels()
+        };
+        #[cfg(not(feature = "markdown-preview"))]
+        let base_height = row_pixels();
         #[cfg(feature = "markdown-preview")]
-        let mapped = (presentation != 0 && proportional_enabled(fixture, model, 0, false))
-            .then(|| {
-                crate::native_presentation::mapped_runs(
-                    presentation_mode(fixture, model),
-                    &state.engine,
-                    state.revision,
-                    presentation,
-                )
-            })
-            .flatten();
+        let presentation = presentation_index.read().state;
         #[cfg(feature = "markdown-preview")]
-        let mut overrides = fixture
+        let presentation_values = presentation_index.read().values.clone();
+        #[cfg(feature = "markdown-preview")]
+        let mut overrides: std::collections::BTreeMap<usize, f64> = fixture
             .map(|value| {
                 let config = value();
                 state
@@ -144,7 +189,7 @@ pub(crate) fn RustEditorSurface(
                     .map(|(row, _)| {
                         vec![(
                             row,
-                            row_pixels()
+                            base_height
                                 + config.extra_height.max(0.0)
                                 + measured_block()
                                     .filter(|(key, revision, _)| {
@@ -156,7 +201,9 @@ pub(crate) fn RustEditorSurface(
                     })
                     .unwrap_or_default()
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         #[cfg(feature = "markdown-preview")]
         if let Some(line) = markdown_enabled(fixture, model)
             .then_some(0)
@@ -167,17 +214,18 @@ pub(crate) fn RustEditorSurface(
                 .get_line(line)
                 .map(|value| value.char_count)
                 .unwrap_or(usize::MAX);
-            if state.preferences.wrap && length <= 4096 {
+            if state.preferences.wrap && (markdown_enabled(fixture, model) || length <= 4096) {
                 if let Some((first, _)) = state
                     .engine
                     .logical_position_to_visual(line, 0)
                     .filter(|(row, _)| state.engine.visual_to_logical_line(*row).0 == line)
                 {
-                    let last_line = if markdown_enabled(fixture, model)
-                        || fixture.is_some_and(|value| {
-                            (value().presentation || markdown_enabled(fixture, model))
-                                && value().proportional_line == Some(0)
-                        }) {
+                    let last_line = if markdown_enabled(fixture, model) {
+                        index.line_count().saturating_sub(1)
+                    } else if fixture.is_some_and(|value| {
+                        (value().presentation || markdown_enabled(fixture, model))
+                            && value().proportional_line == Some(0)
+                    }) {
                         crate::native_presentation::last_line(
                             presentation_mode(fixture, model),
                             &state.engine,
@@ -195,48 +243,62 @@ pub(crate) fn RustEditorSurface(
                         .logical_position_to_visual(last_line, last_length)
                         .map(|(row, _)| row)
                         .unwrap_or(first);
-                    for row in first..=last {
-                        let cache = run_heights.read();
-                        let measured = cache.values().find(|entry| {
+                    let cache = run_heights.read();
+                    let by_row: std::collections::BTreeMap<_, _> =
+                        cache.values().map(|entry| (entry.row, entry)).collect();
+                    let candidates: Vec<usize> = if markdown_enabled(fixture, model) {
+                        by_row
+                            .keys()
+                            .copied()
+                            .filter(|row| first <= *row && *row <= last)
+                            .collect()
+                    } else {
+                        (first..=last).collect()
+                    };
+                    for row in candidates {
+                        let measured = by_row.get(&row).filter(|entry| {
                             entry.revision == state.revision
                                 && entry.row == row
                                 && entry.presentation == presentation
                                 && entry.viewport_width == viewport_width_pixels()
-                                && mapped
-                                    .as_ref()
-                                    .and_then(|runs| runs.lines.get(row))
-                                    .map(|run| run.char_offset_start == entry.start)
-                                    .unwrap_or_else(|| {
-                                        let (source_line, column) =
-                                            index.char_offset_to_position(entry.start);
-                                        source_line >= line
-                                            && source_line <= last_line
-                                            && state
-                                                .engine
-                                                .logical_position_to_visual(source_line, column)
-                                                .is_some_and(|(mapped, _)| mapped == row)
-                                    })
+                                && entry.font_epoch == font_epoch()
+                                && state.engine.visual_position_to_logical(row, 0).is_some_and(
+                                    |position| {
+                                        let offset = index.position_to_char_offset(
+                                            position.line,
+                                            position.column,
+                                        );
+                                        crate::native_presentation::mapped_boundary(
+                                            &presentation_values,
+                                            presentation,
+                                            offset,
+                                        ) == entry.start
+                                    },
+                                )
                         });
+                        if markdown_enabled(fixture, model) && measured.is_none() {
+                            continue;
+                        }
                         let height = measured.map(|entry| entry.height).unwrap_or(32.0);
-                        if let Some(value) = overrides.iter_mut().find(|(index, _)| *index == row) {
-                            value.1 += height - row_pixels();
+                        if let Some(value) = overrides.get_mut(&row) {
+                            *value += height - base_height;
                         } else {
-                            overrides.push((row, height));
+                            overrides.insert(row, height);
                         }
                     }
                 }
             }
         }
         #[cfg(feature = "markdown-preview")]
-        if let Some(mapped) = mapped {
-            for row in mapped.collapsed {
-                overrides.retain(|(index, _)| *index != row);
-                overrides.push((row, 0.0));
+        if presentation.enabled() {
+            for &row in &presentation_index.read().collapsed {
+                overrides.insert(row, 0.0);
             }
         }
         #[cfg(not(feature = "markdown-preview"))]
         let overrides = Vec::new();
-        RowHeights::new(rows, row_pixels(), &overrides)
+        let overrides: Vec<_> = overrides.into_iter().collect();
+        RowHeights::new(rows, base_height, &overrides)
     }));
     // Preserve source position only across view changes. Text revisions and
     // explicit row changes establish a new anchor instead.
@@ -537,17 +599,19 @@ pub(crate) fn RustEditorSurface(
         };
         #[cfg(feature = "markdown-preview")]
         if state.preferences.wrap
-            && presentation_state(fixture, model) != 0
+            && current_presentation(presentation_index, model).enabled()
             && proportional_enabled(fixture, model, 0, false)
         {
-            if let Some(mapped) = crate::native_presentation::mapped_runs(
+            if let Some(mapped) = crate::native_presentation::mapped_window(
                 presentation_mode(fixture, model),
                 editor,
                 state.revision,
-                presentation_state(fixture, model),
+                current_presentation(presentation_index, model),
+                first_row(),
+                grid.lines.len(),
             ) {
                 for (index, line) in grid.lines.iter_mut().enumerate() {
-                    if let Some(value) = mapped.lines.get(first_row() + index) {
+                    if let Some(value) = mapped.lines.get(index) {
                         *line = value.clone();
                     }
                 }
@@ -646,7 +710,7 @@ pub(crate) fn RustEditorSurface(
             native_decorations::wiki(state.revision, window, &wiki_marks),
         ];
         #[cfg(feature = "markdown-preview")]
-        if fixture.is_some_and(|value| value().presentation) || markdown_enabled(fixture, model) {
+        if fixture.is_some_and(|value| value().presentation) && !markdown_enabled(fixture, model) {
             let length = crate::native_presentation::source_length(&state.engine);
             batches.push(crate::native_presentation::provider(
                 presentation_mode(fixture, model),
@@ -657,15 +721,23 @@ pub(crate) fn RustEditorSurface(
         Decorations::compose(state.revision, window, batches)
     });
     #[cfg(feature = "markdown-preview")]
-    let show_presentation = presentation_state(fixture, model);
+    let show_presentation = current_presentation(presentation_index, model);
     #[cfg(feature = "markdown-preview")]
-    let presentation_values = if show_presentation != 0 {
+    let presentation_values = if show_presentation.enabled() {
         model.with(|state| {
-            crate::native_presentation::replacements(
+            let values = crate::native_presentation::replacements(
                 presentation_mode(fixture, model),
                 &state.engine,
                 state.revision,
-            )
+            );
+            let start = grid.lines.first().map_or(0, |line| line.char_offset_start);
+            let end = grid.lines.last().map_or(start, |line| line.char_offset_end);
+            let first = values.partition_point(|value| value.end <= start);
+            values[first..]
+                .iter()
+                .take_while(|value| value.start < end)
+                .cloned()
+                .collect::<Vec<_>>()
         })
     } else {
         Vec::new()
@@ -792,7 +864,7 @@ pub(crate) fn RustEditorSurface(
                     if font_loading() && plain && proportional_enabled(fixture,model,cursor.position.line,false) && matches!(key,Key::ArrowUp|Key::ArrowDown|Key::ArrowLeft|Key::ArrowRight|Key::Home|Key::End) {
                         event.prevent_default(); event.stop_propagation(); return;
                     }
-                    let valid_key = |stamp: crate::native_proportional_run::RunKey| stamp.model == model && stamp.revision == state.revision && stamp.viewport_width == viewport_width_pixels() && stamp.font_epoch == font_epoch() && stamp.presentation == presentation_state(fixture,model) && !font_loading();
+                    let valid_key = |stamp: crate::native_proportional_run::RunKey| stamp.model == model && stamp.revision == state.revision && stamp.viewport_width == viewport_width_pixels() && stamp.font_epoch == font_epoch() && stamp.presentation == current_presentation(presentation_index,model) && !font_loading();
                     let affinity = caret_affinity.peek().filter(|value| valid_key(value.key) && value.offset == cursor.offset);
                     let preferred = vertical_intent.peek().filter(|old| valid_key(old.key) && old.offset == cursor.offset).map(|old| old.x);
                     let runs = navigation_runs.borrow();
@@ -812,7 +884,7 @@ pub(crate) fn RustEditorSurface(
                         })
                     } else if plain && matches!(key,Key::Home|Key::End) {
                         measured.zip(origin).and_then(|(run,origin)| navigation::edge(run,origin,key==Key::End,&heights.read())).map(|target| (measured.unwrap().key,target,target.x))
-                    } else if plain && matches!(key,Key::ArrowUp|Key::ArrowDown) && fixture.is_some_and(|value| value().proportional_line.is_some()) {
+                    } else if plain && matches!(key,Key::ArrowUp|Key::ArrowDown) && (markdown_enabled(fixture,model) || fixture.is_some_and(|value| value().proportional_line.is_some())) {
                         let down=key==Key::ArrowDown;
                         if let Some((run,origin)) = measured.zip(origin) {
                             let x=preferred.unwrap_or(origin.x);
@@ -1207,20 +1279,19 @@ pub(crate) fn RustEditorSurface(
                                                         let measured_runs = measured_runs.clone();
                                                         move |result: crate::native_proportional_run::RunHeight| {
                                                             let view = current_view.peek();
-                                                            if view.0 != result.key.model || result.key.model.read().revision != result.key.revision || viewport_width_pixels() != result.key.viewport_width || font_epoch()!=result.key.font_epoch || result.key.presentation != presentation_state(fixture,model) || font_loading() || !result.height.is_finite() || result.height <= 0.0 { return; }
+                                                            if view.0 != result.key.model || result.key.model.read().revision != result.key.revision || viewport_width_pixels() != result.key.viewport_width || font_epoch()!=result.key.font_epoch || result.key.presentation != current_presentation(presentation_index,model) || font_loading() || !result.height.is_finite() || result.height <= 0.0 { return; }
                                                             measured_runs.borrow_mut().retain(|_, old| old.key.model == result.key.model && old.key.revision == result.key.revision && old.key.viewport_width == result.key.viewport_width && old.key.font_epoch==result.key.font_epoch);
                                                             measured_runs.borrow_mut().insert(result.key.start, result.clone());
                                                             let previous=*caret_affinity.peek();
                                                             if let Some(previous)=previous.filter(|value| value.key.model==result.key.model && value.key.revision==result.key.revision && value.offset>result.key.start && value.offset<=result.key.start+result.length) {
                                                                 let local=previous.offset-result.key.start;
-                                                                let backward=result.geometry.caret_backward(local);
-                                                                let wrapped=backward.zip(result.geometry.caret(local)).is_some_and(|(back,forward)| (back.1-forward.1).abs()>0.5) || local==result.length && !result.include_end;
+                                                                let wrapped=crate::native_proportional_navigation::wrap_boundary(&result.geometry,local) || local==result.length && !result.include_end;
                                                                 caret_affinity.set(wrapped.then_some(crate::native_proportional_navigation::CaretAffinity {key:result.key,offset:previous.offset}));
                                                             }
                                                             let mut cache = current_runs();
-                                                            let entry = crate::native_layout::CachedRunHeight { revision: result.key.revision, row: result.key.row, start: result.key.start, viewport_width: result.key.viewport_width, height: result.height, presentation: result.key.presentation };
+                                                            let entry = crate::native_layout::CachedRunHeight { revision: result.key.revision, row: result.key.row, start: result.key.start, viewport_width: result.key.viewport_width, font_epoch: result.key.font_epoch, height: result.height, presentation: result.key.presentation };
                                                             if cache.read().get(&entry.start) == Some(&entry) { return; }
-                                                            cache.with_mut(|values| { values.retain(|_, old| old.revision == entry.revision && old.viewport_width == entry.viewport_width); values.insert(entry.start, entry); });
+                                                            cache.with_mut(|values| { values.retain(|_, old| old.revision == entry.revision && old.viewport_width == entry.viewport_width && old.font_epoch == entry.font_epoch); values.insert(entry.start, entry); });
                                                         }
                                                         },
                                                         oninvalidated: {
@@ -1232,11 +1303,15 @@ pub(crate) fn RustEditorSurface(
                                                         },
                                                         oncaret: move |(key, y, height): (crate::native_proportional_run::RunKey, f64, f64)| {
                                                             let view = current_view.peek();
-                                                            if view.0 != key.model || key.model.read().revision != key.revision || viewport_width_pixels() != key.viewport_width || font_epoch()!=key.font_epoch || key.presentation != presentation_state(fixture,model) || font_loading() { return; }
-                                                            let index = heights.read();
+                                                            if view.0 != key.model || key.model.read().revision != key.revision || viewport_width_pixels() != key.viewport_width || font_epoch()!=key.font_epoch || key.presentation != current_presentation(presentation_index,model) || font_loading() { return; }
+                                                            let index = heights.peek();
                                                             let mut row = view.1;
                                                             let mut displacement = current_scroll();
-                                                            let top = index.row_top(row()) + displacement();
+                                                            // A delayed caret measurement from a row scrolled out
+                                                            // of view must not pull a manually scrolled note back.
+                                                            let first = *row.peek();
+                                                            if key.row < first || key.row >= first + index.visible_rows(first, *viewport_pixels.peek()) + 3 { return; }
+                                                            let top = index.row_top(first) + *displacement.peek();
                                                             let caret_top = index.row_top(key.row) + block_height + y;
                                                             let target = if caret_top < top { caret_top } else if caret_top + height > top + viewport_pixels() { (caret_top + height - viewport_pixels()).max(0.0) } else { return; };
                                                             let target_row = index.row_at_y(target);
@@ -1565,6 +1640,22 @@ fn NativeCell(
     }
 }
 
+#[cfg(feature = "markdown-preview")]
+fn current_presentation(
+    index: Memo<PresentationIndex>,
+    model: Signal<NativeModel>,
+) -> crate::native_layout::PresentationState {
+    let index = index.peek();
+    if !index.state.enabled() {
+        return index.state;
+    }
+    crate::native_presentation::state_for_values(
+        &index.values,
+        &model.peek().engine,
+        index.state.provider,
+    )
+}
+
 pub(crate) fn mutate<R>(
     mut model: Signal<NativeModel>,
     onchange: Callback<()>,
@@ -1597,13 +1688,13 @@ fn presentation_mode(
     }
 }
 
-#[cfg(feature = "markdown-preview")]
+#[cfg(all(test, feature = "markdown-preview"))]
 fn presentation_state(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
-) -> u64 {
+) -> crate::native_layout::PresentationState {
     if !fixture.is_some_and(|value| value().presentation) && !markdown_enabled(fixture, model) {
-        return 0;
+        return Default::default();
     }
     model.with(|state| {
         crate::native_presentation::state(
@@ -1625,12 +1716,6 @@ fn proportional_enabled(
     !folded
         && state.preferences.wrap
         && (markdown_enabled(fixture, model)
-            && line
-                <= crate::native_presentation::last_line(
-                    crate::native_presentation::Mode::Markdown,
-                    &state.engine,
-                    state.revision,
-                )
             || fixture.is_some_and(|value| {
                 value().proportional_line == Some(line)
                     || (value().presentation || markdown_enabled(fixture, model))
@@ -1647,7 +1732,7 @@ fn proportional_enabled(
             .editor()
             .line_index()
             .get_line(line)
-            .is_some_and(|value| value.char_count <= 4096)
+            .is_some_and(|value| markdown_enabled(fixture, model) || value.char_count <= 4096)
 }
 #[cfg(not(feature = "markdown-preview"))]
 fn proportional_enabled(_: Option<Signal<()>>, _: Signal<NativeModel>, _: usize, _: bool) -> bool {
@@ -1676,12 +1761,13 @@ mod preview_tests {
             assert!(!markdown_enabled(None, model));
             model.with_mut(|state| state.preferences.markdown_preview = true);
             assert!(markdown_enabled(None, model));
-            assert_eq!(presentation_state(None, model), (1 << 63) | 1);
+            assert_eq!(presentation_state(None, model).provider, 2);
+            assert!(presentation_state(None, model).revealed.is_none());
             assert!(proportional_enabled(None, model, 1, false));
             assert!(!proportional_enabled(None, model, 1, true));
             model.with_mut(|state| state.language = Some(dioxus_code::Language::Rust));
             assert!(!markdown_enabled(None, model));
-            assert_eq!(presentation_state(None, model), 0);
+            assert!(!presentation_state(None, model).enabled());
             assert!(!proportional_enabled(None, model, 1, false));
             rsx! {}
         }

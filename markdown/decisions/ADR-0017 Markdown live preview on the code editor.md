@@ -30,3 +30,15 @@ Daniel's further idea, rendering doc comments (`///`, docstrings) as markdown in
 - Selection and IME across replaced ranges (a hidden `**`, a widget) need defined behaviour: the cursor skips or enters them. CodeMirror 6's "atomic ranges" are the reference.
 - Milkdown stays until live preview covers what Rich mode does today: tables, KaTeX, images, wiki-link popups, front-matter properties.
 - Not decided here: whether live preview becomes Rich mode's replacement, or a third mode next to Source and Rich. That is for when it exists.
+
+## Whole-document implementation (2026-10-13)
+
+The native preview no longer has the 4096-scalar prefix or 63-construct reveal limit. Reveal identity is the contiguous source interval containing the caret/selection's active constructs, plus provider identity; moving outside constructs keeps geometry identity stable.
+
+A CommonMark block pass determines complete top-level ranges and preserves container, fence and Setext context. Unchanged blocks reuse their presentation decorations and fenced-code highlights; only changed blocks enter the semantic presentation parser. Reference definitions currently use a conservative document-wide parse because their meaning crosses blocks. The block scan and canonical snapshot comparison remain linear; this is block reuse, not a fully incremental syntax engine. Source offsets rebase across inserted blocks, and front matter stays source.
+
+A cached index owns all replacement ranges and collapsed continuation rows. Rendering materializes source cells only for visible rows plus the existing three-row margin, with grapheme-valid replacements from that window. Synthetic continuation indentation never becomes source geometry. The sparse `RowHeights` prefix index uses a 32-pixel proportional baseline plus measured exceptions; font epochs, viewport width, revision and revealed intervals reject stale measurements. A row-only engine lookup avoids scanning long offscreen lines to compute unused horizontal coordinates.
+
+Unicode fallback glyph ascents share visual navigation rows when their vertical extents overlap; exact glyph boxes still draw the caret. Production Markdown uses measured pixel-column navigation. CRLF syntax edits now normalize both coordinates and text before updating the retained syntax tree. These changes affect the view and derived syntax, while Workspace keeps canonical bytes, selection and undo ownership.
+
+The full-app long-note suite records constrained typing samples against a 3 MB Source reference and checks deep preview, complete copy and byte-exact CRLF save/undo. Large single atomic widgets still require their full content and geometry when visible; lists, links/wiki links, images, tables, mathematics and callouts remain the next provider work. Milkdown stays available as Rich mode.

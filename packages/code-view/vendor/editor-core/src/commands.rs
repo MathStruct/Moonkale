@@ -605,6 +605,25 @@ impl EditorCore {
         })
     }
 
+    /// Map a logical position to its visual row without scanning text for x.
+    /// Used by height indexes whose work must not depend on line length.
+    pub fn logical_position_to_visual_row(
+        &self,
+        logical_line: usize,
+        column: usize,
+    ) -> Option<usize> {
+        let line = Self::closest_visible_line(self.folding_manager.regions(), logical_line)?;
+        let start = self.visual_start_for_logical_line(line)?;
+        let layout = self.layout_engine.get_line_layout(line)?;
+        let column = column.min(self.line_index.get_line(line)?.char_count);
+        Some(
+            start
+                + layout
+                    .wrap_points
+                    .partition_point(|point| point.char_index <= column),
+        )
+    }
+
     /// Convert logical coordinates (line, column) to visual coordinates (visual line number, in-line x cell offset), considering folding.
     pub fn logical_position_to_visual(
         &self,

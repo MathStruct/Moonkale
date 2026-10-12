@@ -19,8 +19,8 @@ pub(crate) struct RunKey {
     pub row: usize,
     pub viewport_width: f64,
     pub font_epoch: u64,
-    /// Bit mask of constructs still in preview, with provider identity.
-    pub presentation: u64,
+    /// Provider and revealed source interval.
+    pub presentation: crate::native_layout::PresentationState,
 }
 
 #[derive(Clone)]

@@ -1221,6 +1221,13 @@ impl EditorStateManager {
         self.executor.editor().visual_to_logical_line(visual_row)
     }
 
+    /// Map a logical position to its visual row without computing x cells.
+    pub fn logical_position_to_visual_row(&self, line: usize, column: usize) -> Option<usize> {
+        self.executor
+            .editor()
+            .logical_position_to_visual_row(line, column)
+    }
+
     /// Map logical position to visual `(row, x_cells)`.
     pub fn logical_position_to_visual(&self, line: usize, column: usize) -> Option<(usize, usize)> {
         self.executor
