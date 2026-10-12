@@ -300,7 +300,10 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
 
     // Text replaced from outside (reload / revert): push it into the view.
     {
-        let mut last_seen = use_signal(String::new);
+        // Starts at the body the view is mounted with: pushing that again on
+        // Ready made the view adopt the raw text as its baseline, and its
+        // normalised serialisation then counted as an edit (P-165).
+        let mut last_seen = use_signal(|| split_frontmatter(&doc.peek().text).1.to_string());
         use_effect(move || {
             let (text, version) = {
                 let d = doc.read();

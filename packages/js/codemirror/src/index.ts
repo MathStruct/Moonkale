@@ -8,7 +8,7 @@ import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/sea
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from "@codemirror/language"
 import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
-import { EditorState, StateEffect, StateField, RangeSet, Compartment } from "@codemirror/state"
+import { EditorState, StateEffect, StateField, RangeSet, Compartment, type Text } from "@codemirror/state"
 import { gutter, GutterMarker, Decoration, type DecorationSet } from "@codemirror/view"
 import {
   EditorView,
@@ -136,6 +136,29 @@ function wikiTargetAt(view: EditorView, pos: number): string | null {
   return inner.split("|")[0].split("#")[0].trim() || null
 }
 
+// P-164: CodeMirror counts a line break as one position whatever its bytes, while Rust's
+// offsets are UTF-16 units of the text, where "\r\n" is two. The view keeps the text's own
+// separator (`EditorState.lineSeparator`, so it saves byte for byte), and offsets are converted
+// here, at the boundary: `toText` for what goes to Rust, `fromText` for what comes from it.
+function separatorOf(text: string): string {
+  return text.includes("\r\n") ? "\r\n" : "\n"
+}
+function toText(doc: Text, pos: number, extra: number): number {
+  return extra ? pos + (doc.lineAt(pos).number - 1) * extra : pos
+}
+function fromText(state: EditorState, off: number): number {
+  const extra = state.lineBreak.length - 1
+  if (!extra) return off
+  // The last line whose start, in text units, is at or before `off`.
+  let lo = 1, hi = state.doc.lines
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (state.doc.line(mid).from + (mid - 1) * extra <= off) lo = mid
+    else hi = mid - 1
+  }
+  return Math.min(off - (lo - 1) * extra, state.doc.line(lo).to)
+}
+
 function lspPos(view: EditorView, pos: number): { line: number; col: number } {
   const line = view.state.doc.lineAt(pos)
   return { line: line.number - 1, col: pos - line.from }
@@ -257,6 +280,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
     state: EditorState.create({
       doc: text,
       extensions: [
+        EditorState.lineSeparator.of(separatorOf(text)),
         presenceGutter,
         cursorWatch,
         entry.wrap!.of(features.wrap ? EditorView.lineWrapping : []),
@@ -287,8 +311,11 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
             const changes: Splice[] = []
-            u.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => { changes.push({ from: fromA, to: toA, insert: inserted.toString() }) })
-            onChange(changes, u.state.doc.length)
+            const sep = u.state.lineBreak, extra = sep.length - 1, old = u.startState.doc
+            u.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+              changes.push({ from: toText(old, fromA, extra), to: toText(old, toA, extra), insert: inserted.sliceString(0, inserted.length, sep) })
+            })
+            onChange(changes, toText(u.state.doc, u.state.doc.length, extra))
           }
         }),
       ],
@@ -342,7 +369,9 @@ function setWrap(el: HTMLElement, wrap: boolean): void {
 /** `[[link]]` spans and whether they resolve (spec 012). */
 function setWikiLinks(el: HTMLElement, spans: WikiSpan[]): void {
   const view = views.get(el)?.view
-  if (view) view.dispatch({ effects: setWikiEffect.of(spans) })
+  if (!view) return
+  const state = view.state
+  view.dispatch({ effects: setWikiEffect.of(spans.map((w) => ({ ...w, from: fromText(state, w.from), to: fromText(state, w.to) }))) })
 }
 
 /** Other people's positions in this document (Milestone 9). */
@@ -381,18 +410,22 @@ function setText(el: HTMLElement, text: string): void {
   if (!view) return
   // Replace only the changed middle (common prefix/suffix kept) so the
   // cursor and scroll position survive a rename or an agent edit.
-  const old = view.state.doc.toString()
+  const old = view.state.sliceDoc()
   if (old === text) return
   let start = 0
   const max = Math.min(old.length, text.length)
   while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++
   let endOld = old.length, endNew = text.length
   while (endOld > start && endNew > start && old.charCodeAt(endOld - 1) === text.charCodeAt(endNew - 1)) { endOld--; endNew-- }
-  view.dispatch({ changes: { from: start, to: endOld, insert: text.slice(start, endNew) } })
+  // Never cut a "\r\n" in two (P-164): widen the changed middle over it.
+  if (start > 0 && old.charCodeAt(start - 1) === 13) start--
+  if (endOld < old.length && old.charCodeAt(endOld) === 10 && old.charCodeAt(endOld - 1) === 13) { endOld++; endNew++ }
+  const state = view.state
+  view.dispatch({ changes: { from: fromText(state, start), to: fromText(state, endOld), insert: text.slice(start, endNew) } })
 }
 
 function getText(el: HTMLElement): string | undefined {
-  return views.get(el)?.view.state.doc.toString()
+  return views.get(el)?.view.state.sliceDoc()
 }
 
 function focus(el: HTMLElement): void {

@@ -24,7 +24,7 @@ site/tsconfig.tsbuildinfo
 packages/js/*/node_modules/
 
 # local secrets (API keys); see markdown/Development.md
-.secrets/
+.secrets
 
 # Release artefacts and makepkg work dirs (Milestone 13)
 /dist/

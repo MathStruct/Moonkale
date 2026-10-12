@@ -48,6 +48,10 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // What the view currently shows (its own edits, or text we pushed), so
     // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
     let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
+    // Splice mismatches in a row. A resync costs one more (the view answers
+    // it with a splice against its old text), so a few are normal; one that
+    // never settles stops the editor instead of looping (P-164).
+    let mut mismatches = use_signal(|| 0u32);
 
     // Mount the backend from the host element's `onmounted` — not an effect:
     // on desktop the DOM mutation reaches the webview asynchronously, so an
@@ -78,12 +82,22 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         tracing::warn!(
                             "editor: splice mismatch (ok={ok}, len {mirrored_len} vs {length}); resyncing"
                         );
+                        let n = *mismatches.peek() + 1;
+                        mismatches.set(n);
+                        if n > 3 {
+                            tracing::error!("editor: still out of sync after {n} resyncs; stopped");
+                            mount_error.set(Some(t!(ws, L, "editor-out-of-sync")));
+                            return;
+                        }
                         let text = doc.peek().text.clone();
                         view_text.set(text.clone());
                         if let Some(b) = backend.peek().as_ref() {
                             b.set_text(&text);
                         }
                         return;
+                    }
+                    if *mismatches.peek() != 0 {
+                        mismatches.set(0);
                     }
                     let text = view_text.peek().clone();
                     if doc.peek().text != text {
