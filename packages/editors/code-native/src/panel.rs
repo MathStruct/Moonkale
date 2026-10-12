@@ -1,16 +1,11 @@
-//! The panel: one `dioxus-code-editor` per document the extension claims,
-//! the same toolbar as the CodeMirror panel, and the caret reported to
-//! the workspace.
+//! Opt-in extension adapter to the shared Rust code view in `moonkale-code-view`.
 
 use crate::L;
 use dioxus::prelude::*;
-use dioxus_code::{CodeTheme, Theme};
-use dioxus_code_editor::{CodeEditor, Language};
+use moonkale_code_view::RustCodeEditorPanel;
 use moonkale_ext_api::prelude::*;
-use moonkale_ext_api::t;
 
 pub const PANEL_PREFIX: &str = "editor-native:";
-const CSS: Asset = asset!("/assets/code-native.css");
 
 #[derive(Default)]
 pub struct NativeCodeExtension;
@@ -38,7 +33,7 @@ impl Extension for NativeCodeExtension {
         Manifest::opt_in(
             "dev.moonkale.editor-code-native",
             "Code Editor (Rust)",
-            "A code editor without JavaScript bundles: dioxus-code-editor, tree-sitter highlighting in Rust for every core language (Lean, Nix and Typst included). No language-server features yet.",
+            "A code editor without JavaScript bundles: editor-core, tree-sitter highlighting in Rust for every core language (Lean, Nix and Typst included). Language-server diagnostics included.",
         )
     }
 
@@ -66,7 +61,9 @@ impl Extension for NativeCodeExtension {
 
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id) {
-            Some(node) => rsx! { NativeCodePanel { ws, node } },
+            Some(node) => {
+                rsx! { RustCodeEditorPanel { ws, node, lsp: moonkale_code_view::lsp::LspManager::for_workspace(ws) } }
+            }
             None => rsx! { "unknown panel {panel_id}" },
         }
     }
@@ -83,204 +80,4 @@ impl Extension for NativeCodeExtension {
 
     // Which editor opens a file is Settings → Which extension (Milestone 15);
     // this extension has no settings of its own yet.
-}
-
-/// `Node::language_hint` → the grammar; unknown or none → plain text
-/// (`Language::from_slug("text")` is absent, so Markdown's plain-ish grammar
-/// is not used either: the editor then highlights nothing).
-fn language_of(hint: Option<&str>) -> Option<Language> {
-    let slug = match hint? {
-        "c" => "c",
-        "cpp" => "cpp",
-        "javascript" => "javascript",
-        "typescript" => "typescript",
-        "tsx" => "tsx",
-        "shell" | "bash" => "bash",
-        "pixi" => "toml",
-        "postgres" => "sql",
-        other => other,
-    };
-    Language::from_slug(slug)
-}
-
-#[component]
-fn NativeCodePanel(ws: Workspace, node: NodeId) -> Element {
-    let Some(doc) = ws.document(node) else {
-        return rsx! { div { class: "mk-editor-failed", "This document is not open any more." } };
-    };
-    let mut doc = doc;
-    let mut last_error: Signal<Option<String>> = use_signal(|| None);
-    let element_id = use_hook(|| format!("mk-cn-{}", node.0.simple()));
-
-    let save_now = Callback::new(move |_: ()| {
-        spawn(async move {
-            match ws.save(node).await {
-                Ok(()) => last_error.set(None),
-                Err(e) => last_error.set(Some(e.to_string())),
-            }
-        });
-    });
-    let reload = move |_| async move {
-        if ws.reload(node).await.is_ok() {
-            last_error.set(None);
-        }
-    };
-
-    // The caret: the textarea's selectionStart, read on caret-moving events
-    // (the one JavaScript touch in this editor — Dioxus's eval, no bundle),
-    // turned into (line, col) in Rust for `Workspace::cursor`.
-    let report_caret = {
-        let element_id = element_id.clone();
-        move || {
-            let js = format!(
-                "const t = document.querySelector('#{element_id} textarea'); return t ? t.selectionStart : -1;"
-            );
-            spawn(async move {
-                let eval = document::eval(&js);
-                if let Ok(v) = eval.await {
-                    if let Some(offset) = v.as_i64().filter(|o| *o >= 0) {
-                        let text = doc.peek().text.clone();
-                        let (line, col) = line_col(&text, offset as usize);
-                        let mut ws = ws;
-                        ws.set_cursor(node, line, col);
-                    }
-                }
-            });
-        }
-    };
-    let caret_key = report_caret.clone();
-    let caret_click = report_caret.clone();
-    let caret_select = report_caret;
-
-    let d = doc.read();
-    let title = d.node.native_key.clone();
-    let dirty = d.dirty();
-    let version = d.version.0;
-    let hint = d.node.language_hint();
-    let lang = hint.unwrap_or("text").to_string();
-    let language = language_of(hint);
-    let text = d.text.clone();
-    drop(d);
-    // Spec 030: the shell knows whether the theme (a file, or the system's
-    // preference) is light.
-    let dark = !*ws.shell.theme_light.read();
-    let theme = if dark {
-        CodeTheme::fixed(Theme::TOKYO_NIGHT)
-    } else {
-        CodeTheme::fixed(Theme::GITHUB_LIGHT)
-    };
-    let word = ws.cursor_word();
-    let codemirror_on = ws
-        .settings
-        .resolved
-        .read()
-        .extensions
-        .is_enabled_id("dev.moonkale.editor-code", true);
-
-    rsx! {
-        moonkale_ext_api::Stylesheet { href: CSS }
-        div {
-            class: "mk-editor mk-cn",
-            id: "{element_id}",
-            "data-editor": "native",
-            onkeydown: move |e| {
-                let mods = e.modifiers();
-                if moonkale_ext_api::keys::primary(&mods) && e.key() == Key::Character("s".into()) {
-                    e.prevent_default();
-                    e.stop_propagation();
-                    save_now.call(());
-                }
-            },
-            onkeyup: move |_| caret_key(),
-            onclick: move |_| caret_click(),
-            onselect: move |_| caret_select(),
-            div { class: "mk-editor-toolbar",
-                span { class: "mk-editor-path", "{title}" }
-                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "cn-unsaved"), "●" } }
-                span { class: "mk-editor-spacer" }
-                if let Some(w) = word {
-                    span { class: "mk-cn-word", title: t!(ws, L, "cn-word"), "‹{w}›" }
-                }
-                span { class: "mk-editor-meta", "{lang} · v{version} · Rust editor" }
-                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save_now.call(()), {t!(ws, L, "cn-save")} }
-                button { class: "mk-btn", onclick: reload, title: t!(ws, L, "cn-reload-title"), {t!(ws, L, "cn-reload")} }
-                if codemirror_on {
-                    button { class: "mk-btn mk-editor-switch", title: t!(ws, L, "cn-to-codemirror"), onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "codemirror"); }, "CodeMirror" }
-                }
-            }
-            if let Some(e) = last_error() {
-                div { class: "mk-editor-bar mk-editor-error", "{e}" }
-            }
-            div { class: "mk-cn-body",
-                match language {
-                    Some(language) => rsx! {
-                        CodeEditor {
-                            value: text,
-                            language,
-                            theme,
-                            line_numbers: true,
-                            aria_label: "{title}",
-                            oninput: move |value: String| doc.with_mut(|d| d.text = value),
-                        }
-                    },
-                    None => rsx! {
-                        CodeEditor {
-                            value: text,
-                            theme,
-                            line_numbers: true,
-                            aria_label: "{title}",
-                            oninput: move |value: String| doc.with_mut(|d| d.text = value),
-                        }
-                    },
-                }
-            }
-        }
-    }
-}
-
-/// Byte-agnostic: `offset` counts UTF-16 code units the way the browser
-/// does; Moonkale's lines are counted by `\n`, columns in characters.
-fn line_col(text: &str, offset: usize) -> (u32, u32) {
-    let mut units = 0usize;
-    let mut line = 0u32;
-    let mut col = 0u32;
-    for c in text.chars() {
-        if units >= offset {
-            break;
-        }
-        units += c.len_utf16();
-        if c == '\n' {
-            line += 1;
-            col = 0;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn offsets_become_lines_and_columns() {
-        assert_eq!(line_col("ab\ncd", 0), (0, 0));
-        assert_eq!(line_col("ab\ncd", 2), (0, 2));
-        assert_eq!(line_col("ab\ncd", 3), (1, 0));
-        assert_eq!(line_col("ab\ncd", 5), (1, 2));
-        assert_eq!(line_col("é😀x", 3), (0, 2)); // 😀 is two UTF-16 units
-    }
-
-    #[test]
-    fn hints_map_to_grammars() {
-        assert!(language_of(Some("rust")).is_some());
-        assert!(language_of(Some("julia")).is_some());
-        assert!(language_of(Some("lean")).is_some());
-        assert!(language_of(Some("nix")).is_some());
-        assert!(language_of(Some("typst")).is_some());
-        assert!(language_of(Some("pixi")).is_some());
-        assert!(language_of(Some("no-such-language")).is_none());
-        assert!(language_of(None).is_none());
-    }
 }

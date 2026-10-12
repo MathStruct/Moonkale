@@ -38,7 +38,7 @@ impl Workspace {
         match node {
             Some(node) => {
                 self.start_drag(node);
-                true
+                *self.session.own_drag.peek() == Some(node)
             }
             None => false,
         }
@@ -97,9 +97,13 @@ impl Workspace {
             }
             SessionMessage::Moved { node, to, .. } => {
                 // Our document landed in another window: close it here.
-                if self.document(node).is_some() {
-                    self.close_node(node);
-                    self.set_status(t!(self, L, "moved-to-window", window = to.to_string()));
+                if let Some(doc) = self.document(node) {
+                    if doc.peek().dirty() {
+                        self.set_status(t!(self, L, "move-unsaved"));
+                    } else {
+                        self.close_node(node);
+                        self.set_status(t!(self, L, "moved-to-window", window = to.to_string()));
+                    }
                 }
                 // Someone accepted the offer: withdraw it everywhere.
                 if self.session.foreign_drag.peek().as_ref().map(|d| d.node.id) == Some(node) {
@@ -111,7 +115,7 @@ impl Workspace {
 
     /// Begin dragging one of our documents out (HTML5 `dragstart`).
     pub fn start_drag(&mut self, node: NodeId) {
-        let Some((doc, source)) = self.document(node).and_then(|d| {
+        let Some((doc, source, dirty)) = self.document(node).and_then(|d| {
             let d = d.read();
             let src = self
                 .sources
@@ -121,10 +125,17 @@ impl Workspace {
                 .find(|s| s.descriptor.id == d.node.source)?
                 .descriptor
                 .clone();
-            Some((d.node.clone(), src))
+            Some((d.node.clone(), src, d.dirty()))
         }) else {
             return;
         };
+        // The session protocol transfers a source node, not unsaved text.
+        // Refuse an offer that could discard local changes at the destination.
+        if dirty {
+            self.end_drag();
+            self.set_status(t!(self, L, "move-unsaved"));
+            return;
+        }
         self.session.own_drag.set(Some(node));
         self.set_status(t!(self, L, "dragging", name = doc.native_key.clone()));
         self.send(SessionMessage::DragStarted {

@@ -53,7 +53,8 @@ try {
     await page.screenshot({ path: `${S}/m7-lsp-completion.png` });
     await page.keyboard.press("Escape");
     // Undo the typed characters.
-    for (let i = 0; i < 6; i++) await page.keyboard.press("Backspace");
+    await page.keyboard.press("Control+z");
+    await page.waitForFunction(() => [...document.querySelectorAll(".cm-line")].some((line) => line.textContent === "fn main() {"));
     await page.waitForFunction(() => !document.querySelector(".cm-tooltip-autocomplete"), null, { timeout: 5000 });
   });
   await step("F2 on `add` → prompt → 'plus' → definition and call renamed, document dirty, not saved", async () => {

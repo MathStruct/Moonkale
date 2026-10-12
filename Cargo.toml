@@ -1,4 +1,5 @@
 [workspace]
+exclude = ["packages/code-view/vendor/dioxus-code-editor"]
 resolver = "2"
 members = [
     # Platform entrypoints

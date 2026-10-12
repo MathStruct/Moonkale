@@ -38,8 +38,14 @@ pub enum BackendEvent {
     },
     /// Shift+F12: references of the symbol at a position.
     References { line: u32, col: u32 },
-    /// The cursor moved (throttled by the view); presence (Milestone 9).
-    Cursor { line: u32, col: u32 },
+    /// The active selection changed (throttled by the view). Positions use
+    /// zero-based LSP line/UTF-16 columns and absolute UTF-16 document offsets.
+    Cursor {
+        line: u32,
+        col: u32,
+        anchor: u32,
+        head: u32,
+    },
     /// `[[query` typed (spec 012); answer with `completion_result` — items
     /// whose labels are page targets.
     WikiQuery { id: u32, query: String },
@@ -120,6 +126,8 @@ pub trait CodeEditorBackend {
     fn set_wiki_links(&self, marks: &[WikiMark]);
     /// Soft-wrap long lines (spec 014).
     fn set_wrap(&self, wrap: bool);
+    /// Apply optional user indentation overrides; None restores backend defaults.
+    fn set_indentation(&self, insert_spaces: Option<bool>, width: Option<u8>);
     /// A menu action (spec 009): what the corresponding key would do.
     fn run(&self, action: moonkale_ext_api::EditorAction);
 }

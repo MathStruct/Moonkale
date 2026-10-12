@@ -1,0 +1,100 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const bytes=await readFile(process.env.MOONKALE_TEST_FONT??new URL('../../../editors/markdown/assets/katex/fonts/KaTeX_Typewriter-Regular.woff2',import.meta.url));
+const alternate=await readFile(join(dirname(process.env.MOONKALE_TEST_FONT??fileURLToPath(new URL('../../../editors/markdown/assets/katex/fonts/KaTeX_Typewriter-Regular.woff2',import.meta.url))),'KaTeX_Main-Regular.woff2'));
+const browser=await chromium.launch();
+const page=await browser.newPage({viewport:{width:1200,height:1000}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+let release;
+const gate=new Promise(resolve=>release=resolve);
+await page.route('**/fixture-delayed-font.woff2',async route=>{await gate;await route.fulfill({body:bytes,contentType:'font/woff2'}).catch(()=>{});});
+const ready=()=>page.waitForFunction(()=>{const runs=[...document.querySelectorAll('.primary .mk-proportional-run')];return runs.length>0&&runs.every(run=>run.dataset.ready==='true'&&run.dataset.fontLoading==='false');});
+const cursor=async()=>Number(await page.locator('.primary .mk-native-surface').getAttribute('data-cursor-offset'));
+let backwardIntent=true;
+const checkCaret=async offset=>{
+  const result=await page.locator('.primary').evaluate((root,offset)=>{
+    const spans=[];
+    for(const run of root.querySelectorAll('.mk-proportional-run'))
+      for(const [i,span] of [...run.querySelectorAll('.mk-proportional-text > span')].entries())
+        spans.push({offset:Number(run.dataset.sourceStart)+i,rect:span.getBoundingClientRect()});
+    const next=spans.find(p=>p.offset===offset)?.rect;
+    const previous=spans.find(p=>p.offset===offset-1)?.rect;
+    const caret=root.querySelector('.mk-proportional-run .mk-editor-core-caret')?.getBoundingClientRect();
+    const backward=next&&previous&&previous.y<next.y-.5;
+    const expected=backward?{x:previous.right,y:previous.y}:{x:next?.x,y:next?.y};
+    return {x:caret?.x,y:caret?.y,wrapped:backward,forward:{x:next?.x,y:next?.y},expected,count:root.querySelectorAll('.mk-proportional-run .mk-editor-core-caret').length};
+  },offset);
+  assert.equal(result.count,1);
+  if(!result.wrapped) backwardIntent=false;
+  const expected=backwardIntent?result.expected:result.forward;
+  assert.ok(Math.abs(result.x-expected.x)<2 && Math.abs(result.y-expected.y)<2,'Caret uses current font/resize geometry and wrap affinity');
+};
+const watcherCount=()=>page.evaluate(()=>window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0);
+try {
+  await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
+  await page.click('#layout-navigation-document');await page.click('#layout-proportional');await ready();
+  const original=await page.locator('.canonical').textContent();
+  await page.locator('.primary .mk-editor-core-input-sink').focus();
+  await page.keyboard.press('Control+Home');await page.keyboard.press('End');
+  const offset=await cursor();
+  const beforeEpoch=Number(await page.locator('.primary .mk-proportional-run').first().getAttribute('data-font-epoch'));
+  await page.click('#layout-delay');
+  const oldWidth=await page.locator('.primary .mk-proportional-text > span').first().evaluate(el=>el.getBoundingClientRect().width);
+  await page.evaluate(()=>{
+    const font=new FontFace('GeometryAcceptanceFont','url(/fixture-delayed-font.woff2)');
+    document.fonts.add(font);
+    const style=document.createElement('style');style.textContent='.mk-proportional-text {font-family:GeometryAcceptanceFont,serif !important}';document.head.append(style);
+    font.load().catch(()=>{});
+  });
+  await page.waitForFunction(()=>[...document.querySelectorAll('.primary .mk-proportional-run')].every(run=>run.dataset.ready==='false'&&run.dataset.fontLoading==='true'));
+  await page.keyboard.press('ArrowDown');assert.equal(await cursor(),offset,'Font loading blocks stale navigation');
+  const first=await page.locator('.primary .mk-proportional-text > span').first().boundingBox();
+  await page.mouse.click(first.x+first.width*.2,first.y+first.height/2);
+  assert.equal(await cursor(),offset,'Font loading blocks stale pointer hits');
+  release();await ready();
+  assert.ok(Number(await page.locator('.primary .mk-proportional-run').first().getAttribute('data-font-epoch'))>beforeEpoch);
+  const newWidth=await page.locator('.primary .mk-proportional-text > span').first().evaluate(el=>el.getBoundingClientRect().width);
+  assert.ok(Math.abs(newWidth-oldWidth)>1,'The loaded font changes glyph advances');
+  assert.equal(await cursor(),offset);assert.equal(await page.locator('.canonical').textContent(),original);
+  await checkCaret(offset);
+  await page.locator('.primary').evaluate(el=>el.style.width='440px');await ready();
+  await page.waitForTimeout(700);await ready();
+  assert.equal(await cursor(),offset,'Resize preserves source caret');
+  await checkCaret(offset);
+  const beforeError=Number(await page.locator('.primary .mk-proportional-run').first().getAttribute('data-font-epoch'));
+  await page.route('**/fixture-failed-font.woff2',route=>route.abort());
+  await page.evaluate(()=>{
+    const font=new FontFace('FailedGeometryFont','url(/fixture-failed-font.woff2)');document.fonts.add(font);
+    const style=document.createElement('style');style.textContent='.mk-proportional-text {font-family:FailedGeometryFont,GeometryAcceptanceFont,serif !important}';document.head.append(style);
+    font.load().catch(()=>{});
+  });
+  await page.waitForFunction(before=>Number(document.querySelector('.primary .mk-proportional-run')?.dataset.fontEpoch)>before,beforeError);
+  await ready();await checkCaret(offset);
+  assert.equal(await cursor(),offset);assert.equal(await page.locator('.canonical').textContent(),original);
+  const beforeReplacement=Number(await page.locator('.primary .mk-proportional-run').first().getAttribute('data-font-epoch'));
+  const replacementWidth=await page.locator('.primary .mk-proportional-text > span').first().evaluate(el=>el.getBoundingClientRect().width);
+  await page.evaluate(async bytes=>{
+    const face=new FontFace('GeometryAcceptanceFont',new Uint8Array(bytes).buffer);
+    await face.load();
+    for(const old of [...document.fonts]) if(old.family==='GeometryAcceptanceFont') document.fonts.delete(old);
+    document.fonts.add(face);
+  },Array.from(alternate));
+  await page.waitForFunction(before=>Number(document.querySelector('.primary .mk-proportional-run')?.dataset.fontEpoch)>before,beforeReplacement);
+  await ready();await checkCaret(offset);
+  assert.ok(Math.abs((await page.locator('.primary .mk-proportional-text > span').first().evaluate(el=>el.getBoundingClientRect().width))-replacementWidth)>1,'An already loaded replacement face refreshes geometry');
+  assert.equal(await cursor(),offset);
+  const count=await watcherCount();
+  await page.click('#mount');await page.locator('.primary').waitFor({state:'detached'});
+  await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0)===count-1,count);
+  await page.click('#mount');await ready();
+  await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0)===count,count);
+  assert.equal(await cursor(),offset);assert.equal(await page.locator('.canonical').textContent(),original);
+  await page.click('#show-proportional');await page.waitForFunction(()=>document.querySelector('.proportional-probe')?.dataset.ready==='true');
+  await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0)===count+1,count);
+  await page.click('#show-proportional');await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0)===count,count);
+  assert.deepEqual(errors,[]);
+  console.log('PASS: delayed/failed/preloaded font invalidation, stale input protection, fresh glyph geometry, resize/caret stability and watcher cleanup');
+} finally {release();await browser.close();}

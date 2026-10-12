@@ -1,0 +1,74 @@
+import { chromium } from "playwright";
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+const errors = [];
+page.on("pageerror", error => errors.push(error.message));
+const surface = () => page.locator(".primary .mk-native-surface");
+const input = () => page.locator(".primary .mk-editor-core-input-sink");
+const context = () => page.locator("#workspace-context");
+const caret = (line, col) => page.waitForFunction(({ line, col }) => {
+  const el = document.querySelector("#workspace-context");
+  return el?.dataset.line === String(line) && el.dataset.col === String(col);
+}, { line, col });
+try {
+  await page.goto(`http://127.0.0.1:${process.env.PORT ?? "8099"}/`, { waitUntil: "networkidle" });
+  await surface().waitFor();
+  await page.click("#integration-document");
+  await page.click("#integration-reveal");
+  await caret(210, 4);
+  if (await context().getAttribute("data-word") !== "word210") throw Error("Reveal reported the wrong Unicode word");
+  await page.locator('.primary .mk-editor-core-row[data-line="210"]').waitFor();
+  const rowVisible = await page.locator('.primary .mk-editor-core-row[data-line="210"]').evaluate(el => {
+    const row = el.getBoundingClientRect(), viewport = el.closest(".mk-editor-core-viewport").getBoundingClientRect();
+    return row.top >= viewport.top && row.bottom <= viewport.bottom;
+  });
+  if (!rowVisible) throw Error("Reveal did not scroll its row into view");
+  await page.click("#integration-python");
+  await page.locator(".python .mk-editor-core-input-sink").focus();
+  await page.keyboard.press("Control+Home");
+  await page.keyboard.press("ArrowDown");
+  await caret(1, 0);
+  await page.click("#integration-main");
+  await caret(210, 4);
+  if (await context().getAttribute("data-word") !== "word210") throw Error("Activation lost the retained caret context");
+  const offset = await surface().getAttribute("data-cursor-offset");
+  const scroll = await surface().getAttribute("data-first-row");
+  await page.click("#integration-dock");
+  await page.locator(".dock-right .primary").waitFor();
+  await page.waitForFunction(({ offset, scroll }) => {
+    const el = document.querySelector(".primary .mk-native-surface");
+    return el?.dataset.cursorOffset === offset && el.dataset.firstRow === scroll;
+  }, { offset, scroll });
+  await page.click("#mount");
+  await page.click("#integration-replace-reveal");
+  await page.click("#mount");
+  await caret(180, 4);
+  if (await context().getAttribute("data-word") !== "fresh180") throw Error("Pending reveal used the old document");
+  await page.click("#integration-agent");
+  await caret(0, 0);
+  if (await context().getAttribute("data-word") !== "") throw Error("External edit left stale cursor context");
+  await input().focus();
+  await page.keyboard.press("Control+z");
+  if (!(await page.locator(".canonical").textContent()).startsWith("😀agent0")) throw Error("External edit retained obsolete undo");
+  await page.click("#integration-replace-reveal");
+  await caret(180, 4);
+  if (await context().getAttribute("data-word") !== "fresh180") throw Error("Mounted reveal raced an external replacement");
+  await page.click("#integration-clamp");
+  await caret(240, 0);
+  await page.click("#integration-reload");
+  await caret(0, 0);
+  await page.waitForFunction(() => document.querySelector(".canonical")?.textContent === "fn main() {\n    // 😀中 Unicode\n}\n");
+  const sequence = Number(await context().getAttribute("data-reveal-seq"));
+  await page.click("#integration-close-main");
+  await page.locator(".primary").waitFor({ state: "detached" });
+  await page.click("#integration-main");
+  await surface().waitFor();
+  await caret(0, 0);
+  await page.click("#integration-reveal");
+  await caret(3, 0);
+  if (Number(await context().getAttribute("data-reveal-seq")) <= sequence) throw Error("Closing a pending reveal reset request ordering");
+  if (errors.length) throw Error(errors.join("\n"));
+  console.log("ok: Unicode reveal, scrolling, retained tab context, dock moves, pending reveal, workspace replacement and reload");
+} finally {
+  await browser.close();
+}

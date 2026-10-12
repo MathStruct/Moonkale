@@ -39,6 +39,7 @@ mod assets;
 mod command;
 pub mod contrib;
 pub mod document;
+pub mod editor;
 pub mod extension;
 
 /// The namespace of the built-in extensions' ids; third-party (wasm)

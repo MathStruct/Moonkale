@@ -18,7 +18,7 @@ HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(")
 # Spec 030: the colours are in packages/shell/src/theme.rs; no stylesheet is exempt.
 THEME = set()
 # Vendored or built from node_modules (their colours are overridden through tokens).
-VENDORED = ("site/", ".obsidian/", "packages/editors/markdown/assets/katex/",
+VENDORED = ("packages/code-view/vendor/", "site/", ".obsidian/", "packages/editors/markdown/assets/katex/",
             "packages/editors/terminal/assets/xterm.css", "packages/editors/markdown/assets/milkdown.css")
 
 
@@ -29,7 +29,11 @@ def counts():
     for f in files:
         if f in THEME or f.startswith(VENDORED):
             continue
-        with open(os.path.join(ROOT, f), encoding="utf-8", errors="ignore") as fh:
+        path = os.path.join(ROOT, f)
+        # git ls-files still lists tracked files deleted in the working tree.
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8", errors="ignore") as fh:
             n = len(HEX.findall(fh.read()))
         if n:
             out[f] = n

@@ -67,6 +67,8 @@ Two people typing in the same document need more than versions: a **text CRDT** 
 
 > [!note] Milestone 8: presence exists — `moonkale_server::presence` is a hub with a room per folder id; members carry `{window, name, active document}`; the client publishes on every active-document change and shows others as initials badges (status bar, tabs, Explorer). No cursors yet, web only (desktop's session bus stays local). [[Milestone 8 - Implementation Log]].
 
+The current move protocol reloads saved source text. Save an unsaved document before moving it: dirty tabs are not offered. If the origin receives an edit after a clean offer, the move acknowledgement leaves that origin open so the edit remains available. This can leave both windows open on the file; the source version check still governs saving. It does not provide a shared editing transport.
+
 ## Open questions (→ [[Problem Ranking]] R-34, R-30)
 - Presence for the [[Graph View]]: show other users' viewports/selections on the graph? Probably yes, same channel.
 - Should agents publish presence ("agent X is reading main.rs")? Useful for trust; cheap.

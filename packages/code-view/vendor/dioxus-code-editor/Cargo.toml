@@ -1,0 +1,19 @@
+[package]
+name = "dioxus-code-editor"
+version = "0.1.2"
+edition = "2024"
+license = "MIT"
+description = "Syntax-highlighted code editor component for Dioxus (Moonkale controlled-textarea fix)."
+repository = "https://github.com/ealmloff/dioxus-code"
+readme = "README.md"
+
+[dependencies]
+dioxus = { version = "0.7.10", default-features = false, features = ["lib"] }
+dioxus-code = { version = "0.1.2", default-features = false, features = ["runtime"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Element", "Event", "EventTarget", "HtmlTextAreaElement", "InputEvent"] }
+
+[features]
+all-languages = ["dioxus-code/all-languages"]

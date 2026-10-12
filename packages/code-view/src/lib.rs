@@ -12,18 +12,68 @@
 //!
 //! ```text
 //!   Document (Rust, truth) ◄──── change ────  Backend view
-//!          │                                     ├─ CodeMirror 6 (TS, today)
-//!          └──── setText / focus ───────────►    └─ Rust-native (later)
+//!          │                                     ├─ CodeMirror 6 (TS)
+//!          └──── setText / focus ───────────►    └─ Rust view (opt-in M1)
 //! ```
 //!
-//! Milestone 1: [`backend::codemirror`] over `assets/codemirror.js` (built
+//! CodeMirror remains the default: [`backend::codemirror`] over `assets/codemirror.js` (built
 //! from `packages/js/codemirror`), whole-document changes, Ctrl+S / Save
-//! button, dirty marker, conflict → reload. No highlighting or LSP yet —
-//! those arrive as *decorations* pushed from the index, never as language
-//! packages inside the bundle.
+//! button, dirty marker and conflict reload. The opt-in [`RustCodeEditorPanel`]
+//! uses editor-core-owned caret/selection, localized deltas and a virtualized
+//! Dioxus view over shared Workspace state. Both surfaces integrate with the
+//! shared LSP manager and Workspace navigation. Native Markdown Source supports
+//! wiki marks/completion/following, and the native gutter displays presence.
+//! `editor.markdown_preview` enables bounded inline preview in the Rust Markdown
+//! source view (off by default); the `markdown-preview` Cargo feature supplies
+//! its geometry/parser independently of the `layout-fixture` test controls.
+//! Live rust-analyzer protocol and native XWayland keyboard/clipboard/drag checks
+//! pass; renderer and remaining platform acceptance stay open.
 
 pub mod backend;
+mod edit;
+#[doc(hidden)]
+pub mod editor_core_spike;
 pub mod lsp;
+mod native_completion;
+mod native_decorations;
+mod native_definition;
+mod native_diagnostics;
+mod native_folding;
+mod native_hover;
+mod native_indent;
+mod native_language;
+mod native_layout;
+mod uri;
+#[cfg(feature = "layout-fixture")]
+pub use native_layout::LayoutFixture;
+#[cfg(all(feature = "markdown-preview", not(feature = "layout-fixture")))]
+pub(crate) use native_layout::LayoutFixture;
+#[cfg(feature = "markdown-preview")]
+mod native_browser_geometry;
+mod native_lean_folding;
+mod native_lsp_tools;
+#[cfg(feature = "markdown-preview")]
+mod native_markdown;
+mod native_model;
+mod native_panel;
+#[cfg(feature = "markdown-preview")]
+mod native_presentation;
+#[cfg(feature = "layout-fixture")]
+mod native_proportional;
+#[cfg(feature = "markdown-preview")]
+mod native_proportional_navigation;
+#[cfg(feature = "markdown-preview")]
+mod native_proportional_run;
+#[cfg(feature = "markdown-preview")]
+mod native_widgets;
+#[cfg(feature = "layout-fixture")]
+pub use native_proportional::ProportionalGeometryProbe;
+mod native_rename;
+mod native_search;
+mod native_structure;
+mod native_surface;
+mod native_wiki;
+mod native_workspace_edit;
 pub mod panel;
 
 /// This crate's strings (spec 030): English, German, Chinese.
@@ -33,4 +83,6 @@ pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
     ("zh-CN", include_str!("../locales/zh-CN.ftl")),
 ];
 
+pub use moonkale_ext_api::editor as contract;
+pub use native_panel::RustCodeEditorPanel;
 pub use panel::{toggle_wrap, CodeEditorPanel};
