@@ -346,3 +346,9 @@ Native color acceptance additionally exposed missing stylesheets in the plain Ca
 Leading YAML front matter stays literal source, including a one-key block. The metadata parser option identifies only the leading block; the remainder uses ordinary CommonMark, preserving Setext headings after a thematic break later in the note. Regression tests cover one and multiple keys and later headings.
 
 Before enabling Preview by default, lift the complete-line 4096-scalar prefix and 63-construct limit through incremental parsing and ADR-0017 row heights. Until then, text beyond that prefix stays plain source; this remains an opt-in bounded preview.
+
+### Shared language-server recovery (Review 3 follow-up)
+
+An unavailable Markdown language server leaves the editor usable and retains its failure status. The workspace manager shares a lifetime budget of one initial attempt plus retries after 5 seconds and 30 seconds for each language/root. Initialized crashes consume the same budget; success and panel remount do not reset it. Reloading the app creates a new manager and budget. Startup and retry timers belong to the root scope, so unmounting a pane cannot cancel shared recovery. Reactive maps notify readers only when cleanup removes existing entries.
+
+Acceptance: VirtualDom transports cover immediate close, spawn/initialization failures, initialization followed by immediate EOF, duplicate panels, panel unmount/remount, initialized crashes and stale close events. The full-app sequence `files rich stores palette shell wiki` passed with both server and browsers limited to two CPU cores, with five LSP requests across all six suites rather than the previous reconnect storm.
