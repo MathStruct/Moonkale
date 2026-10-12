@@ -885,7 +885,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                                                     class: "mk-flow-palette-block",
                                                                     title: "{b.description}",
                                                                     onclick: {
-                                                                        let mut add_block = add_block.clone();
+                                                                        let mut add_block = add_block;
                                                                         let kind = kind.clone();
                                                                         move |_| add_block(kind.clone())
                                                                     },
@@ -942,7 +942,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     {
                                         let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
                                         let (bid, name) = (b.id.clone(), p.name.clone());
-                                        let mut set_param = set_param.clone();
+                                        let mut set_param = set_param;
                                         rsx! {
                                             label { key: "{p.name}", class: "mk-flow-param",
                                                 span { "{p.name}" }

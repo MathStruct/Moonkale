@@ -58,7 +58,11 @@ fn library() -> FlowLibrary {
             description: "adds".into(),
             inputs: vec![],
             outputs: vec![],
-            params: vec![Param { name: "n".into(), kind: ParamKind::Int, default: "1".into() }],
+            params: vec![Param {
+                name: "n".into(),
+                kind: ParamKind::Int,
+                default: "1".into(),
+            }],
         }],
         codegen: None,
         language: "none",
@@ -177,7 +181,9 @@ async fn the_palette_clicks_natively_and_a_broken_document_is_never_written() {
         .copied()
         .expect("the palette button rendered");
     assert!(
-        m.listeners.iter().any(|(n, i)| *n == "click" && *i == button),
+        m.listeners
+            .iter()
+            .any(|(n, i)| *n == "click" && *i == button),
         "the palette button carries no click handler"
     );
 
@@ -187,7 +193,8 @@ async fn the_palette_clicks_natively_and_a_broken_document_is_never_written() {
     let click: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(
         SerializedMouseData::default(),
     )));
-    dom.runtime().handle_event("click", Event::new(click, true), button);
+    dom.runtime()
+        .handle_event("click", Event::new(click, true), button);
     settle(&mut dom, &mut m).await;
     let flow = Flow::parse(&doc_text(&dom)).expect("the document stays a flow");
     assert_eq!(flow.blocks.len(), 2, "the palette pick added its block");
@@ -223,7 +230,8 @@ async fn the_palette_clicks_natively_and_a_broken_document_is_never_written() {
             false,
         ),
     )));
-    dom.runtime().handle_event("keydown", Event::new(undo, true), root);
+    dom.runtime()
+        .handle_event("keydown", Event::new(undo, true), root);
     settle(&mut dom, &mut m).await;
     let key: Rc<dyn Any> = Rc::new(PlatformEventData::new(Box::new(
         SerializedKeyboardData::new(
@@ -235,7 +243,8 @@ async fn the_palette_clicks_natively_and_a_broken_document_is_never_written() {
             false,
         ),
     )));
-    dom.runtime().handle_event("keydown", Event::new(key, true), root);
+    dom.runtime()
+        .handle_event("keydown", Event::new(key, true), root);
     settle(&mut dom, &mut m).await;
 
     assert_eq!(

@@ -21,7 +21,9 @@ const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); c
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const status = () => page.$eval(".mk-flow-status:visible", (e) => ({ blocks: +e.dataset.blocks, wires: +e.dataset.wires, issues: +e.dataset.issues }));
 // The engine view behind this panel: positions and ports are its to report.
-const canvasRect = () => page.$eval(".mk-flow-canvas", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top }; });
+// `:visible` — with two flow documents open, the hidden tab's canvas
+// matches first (the P-168 lesson, applied to the rect too).
+const canvasRect = () => page.$eval(".mk-flow-canvas:visible", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top }; });
 const idOfKind = async (prefix) => {
   const pos = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].node_positions()));
   // The palette shows the block's name ("Dense"); its id is the kind's
@@ -288,7 +290,7 @@ try {
     await page.waitForSelector(".mk-flow-broken", { timeout: 15000 });
     const untouched = fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8");
     if (untouched !== bad) throw new Error("the broken file was written");
-    fs.writeFileSync(`${ROOT}/broken.flow.json`, '{"version":1,"blocks":[{"id":"b1","kind":"lux/Dense","x":10,"y":10,"params":{"out":"7"}}],"wires":[]}');
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, '{"version":1,"blocks":[{"id":"b1","kind":"lux/dense","x":10,"y":10,"params":{"out":"7"}}],"wires":[]}');
     await page.click(".mk-flow-reload:visible");
     await sleep(500);
     const s = await status();
@@ -296,24 +298,37 @@ try {
     if (s.blocks !== "1" && s.blocks !== 1) throw new Error("Reload did not load the fixed file: " + JSON.stringify(s));
   });
   await step("the #11 guard: a stale selection against a broken file never writes (#3)", async () => {
-    // Select the block — then the file goes broken on disk. Reload shows
-    // the error; Backspace/Delete against the stale selection must not
-    // write the old flow over the user's broken file.
+    // Two flow documents are open now (untitled still has its view), so
+    // the helpers that take flowViews[0] would speak to the wrong panel:
+    // the broken file's view is found by the block it holds.
+    const viewOf = (blockId) => page.evaluate((id) => {
+      for (const [k, v] of Object.entries(window.moonkale.flowViews || {})) {
+        try { if (Object.keys(JSON.parse(v.node_positions())).includes(id)) return k; } catch {}
+      }
+      return null;
+    }, blockId);
     const box = await canvasRect();
     await page.waitForFunction(() => {
-      const v = Object.values(window.moonkale.flowViews || {})[0];
-      return v && Object.keys(JSON.parse(v.node_positions())).includes("b1");
+      return Object.values(window.moonkale.flowViews || {}).some((v) => {
+        try { return Object.keys(JSON.parse(v.node_positions())).includes("b1"); } catch { return false; }
+      });
     }, null, { timeout: 15000 });
-    const p = await screen("b1");
+    const key = await viewOf("b1");
+    const p = await page.evaluate(({ k, id }) => window.moonkale.flowViews[k].node_screen_position(id), { k: key, id: "b1" });
     await page.mouse.click(box.x + p[0], box.y + p[1]);
     await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
     const bad = '{ broken — not a flow';
     fs.writeFileSync(`${ROOT}/broken.flow.json`, bad);
     await page.click(".mk-flow-reload:visible");
     await page.waitForSelector(".mk-flow-broken", { timeout: 15000 });
-    // The toolbar offers nothing but Reload while broken.
+    // Entering broken tears the renderer down (the review's #5): no view
+    // may hold the old canvas while the document does not parse.
+    if (await viewOf("b1")) throw new Error("the broken panel's view survived the broken spell");
+    // The toolbar offers nothing but Reload while broken (the visible
+    // panel's toolbar — the hidden tab's buttons are not disabled).
     for (const label of ["Layout", "Fit", "Save"]) {
-      const disabled = await page.$eval(`.mk-flow button:has-text('${label}')`, (e) => e.disabled);
+      const disabled = await page.$$eval(".mk-flow button", (els, label) =>
+        els.filter((e) => e.offsetParent !== null && e.textContent.trim() === label).every((e) => e.disabled), label);
       if (!disabled) throw new Error(`${label} is clickable while the document is broken`);
     }
     await page.keyboard.press("Backspace");
@@ -324,17 +339,17 @@ try {
     if (untouched !== bad) throw new Error("Delete wrote to a broken file (#11)");
   });
   await step("a valid file after a broken spell draws again (the canvas re-mounts, #5)", async () => {
-    fs.writeFileSync(`${ROOT}/broken.flow.json`, '{"version":1,"blocks":[{"id":"b1","kind":"lux/Dense","x":10,"y":10,"params":{"out":"7"}}],"wires":[]}');
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, '{"version":1,"blocks":[{"id":"b1","kind":"lux/dense","x":10,"y":10,"params":{"out":"7"}}],"wires":[]}');
     await page.click(".mk-flow-reload:visible");
     await sleep(300);
     // The old renderer was torn down; a fresh one must have mounted on
     // the new canvas div — a blank canvas here means the mount guard
-    // refused the second init (the review's #5).
+    // refused the second init (the review's #5). The view is found by
+    // the block it holds (untitled's view is the other one).
     await page.waitForFunction(() => {
-      const views = Object.values(window.moonkale.flowViews || {});
-      if (views.length !== 1) return false;
-      const pos = JSON.parse(views[0].node_positions());
-      return Object.keys(pos).length === 1 && "b1" in pos;
+      return Object.values(window.moonkale.flowViews || {}).some((v) => {
+        try { return Object.keys(JSON.parse(v.node_positions())).includes("b1"); } catch { return false; }
+      });
     }, null, { timeout: 15000 });
     const s = await status();
     console.log("\n  reloaded:", JSON.stringify(s));
