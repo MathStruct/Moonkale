@@ -31,7 +31,7 @@ The [[Roadmap]]'s Phase 7 items (3D, browser wasm extensions, JS-free desktop) a
 
 ```mermaid
 flowchart LR
-  EXT[extensions: commands()] --> REG[command registry + keybindings]
+  EXT["extensions: commands()"] --> REG[command registry + keybindings]
   REG --> PAL[palette / quick open] & MENU[menus] & KEYS[global keys]
   OPS[core::Op CreateDir/Rename/Delete] --> FS[folder source native] & RS[RemoteSource → api]
   FS --> EXP[explorer context menu, drag-move]

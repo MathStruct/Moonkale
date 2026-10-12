@@ -31,7 +31,7 @@ flowchart LR
   CL[web client] <-->|/api/presence ws| HUB[presence hub per room]
   HUB --> SB[status bar / tab badges / explorer marks]
   GP[Graph panel: 3D toggle] --> R[graph-render: layers, perspective, fog]
-  SRV[/api/ext/module] --> WK[Worker: WebAssembly.instantiate + SAB mailbox]
+  SRV["/api/ext/module"] --> WK[Worker: WebAssembly.instantiate + SAB mailbox]
   WK <-->|host calls| WS[Workspace remote sources]
 ```
 
