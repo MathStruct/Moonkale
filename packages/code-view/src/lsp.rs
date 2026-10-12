@@ -15,6 +15,14 @@ use std::{collections::HashMap, rc::Rc, time::Duration};
 struct Recovery {
     attempts: u8,
     waiting: bool,
+    generation: u64,
+    restarting: bool,
+    startup: Option<dioxus::core::Task>,
+    retry: Option<dioxus::core::Task>,
+    health: Option<dioxus::core::Task>,
+    pumps: Vec<dioxus::core::Task>,
+    pending: Option<LspSession>,
+    retained: Vec<moonkale_core::NodeId>,
 }
 
 // Removing an absent entry must not notify reactive readers.
@@ -51,6 +59,9 @@ pub struct LspManager {
     starting: Signal<Vec<String>>,
     recovery: Signal<HashMap<String, Recovery>>,
     retry_delays: [Duration; 2],
+    healthy_after: Duration,
+    shutdown_grace: Duration,
+    commands_started: Signal<bool>,
     documents: Signal<HashMap<String, OpenDocument>>,
     connections: Signal<HashMap<String, LspSession>>,
     pub diagnostics: Signal<HashMap<String, Vec<Diagnostic>>>,
@@ -62,11 +73,20 @@ pub struct LspManager {
 struct StartingSession {
     starting: Signal<Vec<String>>,
     key: String,
+    recovery: Signal<HashMap<String, Recovery>>,
+    generation: u64,
     tasks: Vec<dioxus::core::Task>,
 }
 impl Drop for StartingSession {
     fn drop(&mut self) {
-        finish_start(self.starting, &self.key);
+        if self
+            .recovery
+            .peek()
+            .get(&self.key)
+            .is_some_and(|state| state.generation == self.generation)
+        {
+            finish_start(self.starting, &self.key);
+        }
         for task in self.tasks.drain(..) {
             task.cancel();
         }
@@ -102,7 +122,12 @@ impl Default for LspManager {
 impl LspManager {
     /// All editor implementations in a workspace share servers and URI versions.
     pub fn for_workspace(ws: Workspace) -> Self {
-        ws.shared_state(Self::new)
+        let mut manager = ws.shared_state(Self::new);
+        if !*manager.commands_started.peek() {
+            manager.commands_started.set(true);
+            manager.listen_commands(ws);
+        }
+        manager
     }
 
     pub fn new() -> Self {
@@ -111,10 +136,191 @@ impl LspManager {
             starting: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             recovery: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             retry_delays: [Duration::from_secs(5), Duration::from_secs(30)],
+            healthy_after: Duration::from_secs(300),
+            shutdown_grace: Duration::from_secs(2),
+            commands_started: Signal::new_in_scope(false, ScopeId::ROOT),
             documents: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             connections: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             diagnostics: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             diagnostic_versions: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
+        }
+    }
+
+    fn listen_commands(self, mut ws: Workspace) {
+        let mut last = ws.shell.commands.peek().0;
+        dioxus::core::spawn_forever(async move {
+            let (context, mut changed) = dioxus::core::ReactiveContext::new();
+            loop {
+                let command = context.reset_and_run_in(|| *ws.shell.commands.read());
+                if command.0 != last {
+                    last = command.0;
+                    if matches!(
+                        command.1,
+                        Some(moonkale_ext_api::Command::RestartLanguageServer)
+                    ) {
+                        let identity = (*ws.docs.active.peek())
+                            .and_then(|id| {
+                                ws.docs
+                                    .open
+                                    .peek()
+                                    .iter()
+                                    .find(|(node, _)| *node == id)
+                                    .map(|(_, doc)| *doc)
+                            })
+                            .and_then(|doc| {
+                                let doc = doc.peek();
+                                Some((
+                                    doc.node.language_hint()?.to_string(),
+                                    doc.node
+                                        .source
+                                        .as_str()
+                                        .strip_prefix("folder:")?
+                                        .to_string(),
+                                ))
+                            });
+                        if let Some((language, root)) =
+                            identity.filter(|_| ws.spawn_lsp().is_some())
+                        {
+                            self.restart(ws, &language, &root);
+                        } else {
+                            ws.set_status(t!(ws, L, "lsp-restart-unavailable"));
+                        }
+                    }
+                }
+                if changed.next().await.is_none() {
+                    break;
+                }
+            }
+        });
+    }
+
+    fn current_generation(&self, key: &str, generation: u64) -> bool {
+        self.recovery
+            .peek()
+            .get(key)
+            .is_some_and(|state| state.generation == generation)
+    }
+
+    fn remember_retained(mut self, ws: Workspace, key: &str) {
+        let nodes: Vec<_> = ws
+            .docs
+            .open
+            .peek()
+            .iter()
+            .filter_map(|(id, doc)| {
+                let doc = doc.peek();
+                let root = doc.node.source.as_str().strip_prefix("folder:")?;
+                let uri = crate::uri::file_uri(root, &doc.node.native_key);
+                self.documents
+                    .peek()
+                    .get(&uri)
+                    .filter(|document| document.key == key && document.retained.is_some())
+                    .map(|_| *id)
+            })
+            .collect();
+        if !nodes.is_empty() {
+            self.recovery.with_mut(|states| {
+                let state = states.get_mut(key).unwrap();
+                for node in nodes {
+                    if !state.retained.contains(&node) {
+                        state.retained.push(node);
+                    }
+                }
+            });
+        }
+    }
+
+    fn schedule_health(mut self, key: String, generation: u64, session: LspSession) {
+        let delay = self.healthy_after;
+        let health_key = key.clone();
+        let task = dioxus::core::spawn_forever(async move {
+            futures_timer::Delay::new(delay).await;
+            if self.current_generation(&health_key, generation)
+                && self
+                    .sessions
+                    .peek()
+                    .get(&health_key)
+                    .is_some_and(|current| {
+                        current.same_connection(&session) && current.is_initialized()
+                    })
+            {
+                self.recovery.with_mut(|states| {
+                    let state = states.get_mut(&health_key).unwrap();
+                    state.attempts = 1;
+                    state.health = None;
+                });
+            }
+        });
+        self.recovery
+            .with_mut(|states| states.get_mut(&key).unwrap().health = Some(task));
+    }
+
+    /// Reset one key's budget and restart its connection. Repeated requests
+    /// during the same restart coalesce; other language/root keys are untouched.
+    pub fn restart(mut self, ws: Workspace, language: &str, root: &str) {
+        let key = Self::key(language, root);
+        if ws.spawn_lsp().is_none()
+            || self
+                .recovery
+                .peek()
+                .get(&key)
+                .is_some_and(|state| state.restarting)
+        {
+            return;
+        }
+        self.remember_retained_if_present(ws, &key);
+        let old = self.recovery.peek().get(&key).cloned().unwrap_or_default();
+        let session = self
+            .sessions
+            .peek()
+            .get(&key)
+            .cloned()
+            .or(old.pending.clone());
+        let generation = old.generation.wrapping_add(1);
+        self.recovery.with_mut(|states| {
+            states.insert(
+                key.clone(),
+                Recovery {
+                    generation,
+                    restarting: true,
+                    retained: old.retained.clone(),
+                    ..Default::default()
+                },
+            );
+        });
+        finish_start(self.starting, &key);
+        for task in [old.startup, old.retry, old.health].into_iter().flatten() {
+            task.cancel();
+        }
+        if let Some(session) = &session {
+            self.close_session(&key, session);
+        }
+        let language = language.to_string();
+        let root = root.to_string();
+        dioxus::core::spawn_forever(async move {
+            if let Some(session) = session {
+                session.shutdown(self.shutdown_grace).await;
+            }
+            for task in old.pumps {
+                task.cancel();
+            }
+            if !self.current_generation(&key, generation) {
+                return;
+            }
+            let session = self.ensure_attempt(ws, &language, &root, true).await;
+            if self.current_generation(&key, generation) {
+                self.recovery
+                    .with_mut(|states| states.get_mut(&key).unwrap().restarting = false);
+                if session.is_none() {
+                    self.schedule_retry(ws, language, root);
+                }
+            }
+        });
+    }
+
+    fn remember_retained_if_present(self, ws: Workspace, key: &str) {
+        if self.recovery.peek().contains_key(key) {
+            self.remember_retained(ws, key);
         }
     }
 
@@ -417,24 +623,33 @@ impl LspManager {
     }
 
     // One timer per key; panel rerenders and concurrent ensure calls cannot
-    // advance the budget or bypass the delay. Success does not reset attempts.
+    // advance the budget or bypass the delay. Only healthy uptime refills it.
     fn schedule_retry(mut self, ws: Workspace, language: String, root: String) {
         let key = Self::key(&language, &root);
         let Some(state) = self.recovery.peek().get(&key).cloned() else {
             return;
         };
-        if state.waiting || state.attempts >= 3 {
+        if state.waiting || state.restarting || state.attempts >= 3 {
             return;
         }
         let delay = self.retry_delays[usize::from(state.attempts.saturating_sub(1))];
         self.recovery
             .with_mut(|values| values.get_mut(&key).unwrap().waiting = true);
-        dioxus::core::spawn_forever(async move {
+        let retry_key = key.clone();
+        let task = dioxus::core::spawn_forever(async move {
             futures_timer::Delay::new(delay).await;
-            self.recovery
-                .with_mut(|values| values.get_mut(&key).unwrap().waiting = false);
+            if !self.current_generation(&retry_key, state.generation) {
+                return;
+            }
+            self.recovery.with_mut(|values| {
+                let state = values.get_mut(&retry_key).unwrap();
+                state.waiting = false;
+                state.retry = None;
+            });
             self.ensure(ws, &language, &root).await;
         });
+        self.recovery
+            .with_mut(|values| values.get_mut(&key).unwrap().retry = Some(task));
     }
 
     // Only this connection's initialized session may trigger crash recovery.
@@ -462,9 +677,19 @@ impl LspManager {
         true
     }
 
-    /// Share one startup and a lifetime budget of three attempts per key.
-    /// Failed starts and crashes retry after 5 s, then 30 s; reload resets it.
-    pub async fn ensure(mut self, ws: Workspace, language: &str, root: &str) -> Option<LspSession> {
+    /// Share one startup and three attempts per key. Healthy uptime refills
+    /// the budget after five minutes; manual restart also resets it.
+    pub async fn ensure(self, ws: Workspace, language: &str, root: &str) -> Option<LspSession> {
+        self.ensure_attempt(ws, language, root, false).await
+    }
+
+    async fn ensure_attempt(
+        mut self,
+        ws: Workspace,
+        language: &str,
+        root: &str,
+        restarting: bool,
+    ) -> Option<LspSession> {
         let key = Self::key(language, root);
         // Let the close handler remove a dead connection and establish its
         // cooldown before another caller can claim the next attempt.
@@ -472,11 +697,9 @@ impl LspManager {
             return self.session(language, root);
         }
         if !self.starting.peek().contains(&key) {
-            let blocked = self
-                .recovery
-                .peek()
-                .get(&key)
-                .is_some_and(|state| state.waiting || state.attempts >= 3);
+            let blocked = self.recovery.peek().get(&key).is_some_and(|state| {
+                state.waiting || (state.restarting && !restarting) || state.attempts >= 3
+            });
             if blocked || ws.spawn_lsp().is_none() {
                 return None;
             }
@@ -486,11 +709,23 @@ impl LspManager {
             let language = language.to_string();
             let root = root.to_string();
             // A pane unmount must not cancel shared startup or lose recovery.
-            dioxus::core::spawn_forever(async move {
-                if self.start_attempt(ws, &language, &root).await.is_none() {
-                    self.schedule_retry(ws, language, root);
+            let generation = self.recovery.peek()[&key].generation;
+            let startup_key = key.clone();
+            let task = dioxus::core::spawn_forever(async move {
+                let result = self.start_attempt(ws, &language, &root, generation).await;
+                if self.current_generation(&startup_key, generation) {
+                    self.recovery.with_mut(|states| {
+                        let state = states.get_mut(&startup_key).unwrap();
+                        state.startup = None;
+                        state.pending = None;
+                    });
+                    if result.is_none() {
+                        self.schedule_retry(ws, language, root);
+                    }
                 }
             });
+            self.recovery
+                .with_mut(|states| states.get_mut(&key).unwrap().startup = Some(task));
         }
         // Each phase has its own timeout; the shared attempt releases its marker.
         while self.starting.peek().contains(&key) {
@@ -504,12 +739,15 @@ impl LspManager {
         mut ws: Workspace,
         language: &str,
         root: &str,
+        generation: u64,
     ) -> Option<LspSession> {
         let key = Self::key(language, root);
         let mut this = self;
         let mut startup = StartingSession {
             starting: this.starting,
             key: key.clone(),
+            recovery: this.recovery,
+            generation,
             tasks: Vec::new(),
         };
         ws.processes.lsp_status.set(Some(t!(
@@ -539,7 +777,17 @@ impl LspManager {
                     return None;
                 }
             };
+        if !this.current_generation(&key, generation) {
+            let _ = select(
+                transport.close(),
+                Box::pin(futures_timer::Delay::new(this.shutdown_grace)),
+            )
+            .await;
+            return None;
+        }
         let (session, mut events) = LspSession::new(transport);
+        this.recovery
+            .with_mut(|states| states.get_mut(&key).unwrap().pending = Some(session.clone()));
         let closed = Rc::new(std::cell::Cell::new(false));
         let pump_closed = closed.clone();
         let pump_session = session.clone();
@@ -556,6 +804,9 @@ impl LspManager {
         let event_closed = closed.clone();
         startup.tasks.push(dioxus::core::spawn_forever(async move {
             while let Some(ev) = events.next().await {
+                if !this.current_generation(&event_key, generation) {
+                    break;
+                }
                 if this
                     .sessions
                     .peek()
@@ -583,6 +834,16 @@ impl LspManager {
                     }
                     LspEvent::Closed => {
                         event_closed.set(true);
+                        this.remember_retained(ws, &event_key);
+                        let health = this.recovery.peek()[&event_key].health;
+                        if let Some(task) = health {
+                            task.cancel();
+                        }
+                        this.recovery.with_mut(|states| {
+                            let state = states.get_mut(&event_key).unwrap();
+                            state.health = None;
+                            state.pumps.clear();
+                        });
                         let initialized = this.close_session(&event_key, &event_session);
                         if initialized {
                             this.schedule_retry(ws, lang.clone(), root_for_events.clone());
@@ -599,15 +860,41 @@ impl LspManager {
             }
         }));
         match startup_timeout(session.initialize(root)).await {
-            Some(Ok(_)) if session.is_initialized() && !closed.get() => {
-                startup.tasks.clear();
+            Some(Ok(_))
+                if session.is_initialized()
+                    && !closed.get()
+                    && this.current_generation(&key, generation) =>
+            {
+                this.recovery.with_mut(|states| {
+                    states.get_mut(&key).unwrap().pumps = std::mem::take(&mut startup.tasks)
+                });
                 this.sessions.with_mut(|m| {
                     m.insert(key.clone(), session.clone());
                 });
+                let retained = this.recovery.peek()[&key].retained.clone();
+                for id in retained {
+                    if let Some(node) = ws
+                        .open_node_by_id(id)
+                        .filter(|node| node.source.as_str() == format!("folder:{root}"))
+                    {
+                        this.retain_workspace_document(ws, &node, session.clone(), root, language);
+                    }
+                }
+                this.recovery
+                    .with_mut(|states| states.get_mut(&key).unwrap().retained.clear());
+                this.schedule_health(key.clone(), generation, session.clone());
                 finish_start(this.starting, &key);
                 Some(session)
             }
             result => {
+                let _ = select(
+                    session.close(),
+                    Box::pin(futures_timer::Delay::new(this.shutdown_grace)),
+                )
+                .await;
+                if !this.current_generation(&key, generation) {
+                    return None;
+                }
                 let e = result.and_then(Result::err).unwrap_or_else(|| {
                     if closed.get() {
                         "connection closed during initialization".into()
@@ -801,11 +1088,17 @@ mod ownership_tests {
         Healthy,
         InitializeThenClose,
         Pending,
+        Unresponsive,
     }
     #[derive(Default)]
     struct Harness {
         mode: FailureMode,
         calls: usize,
+        closes: usize,
+        calls_by_key: Vec<(String, String)>,
+        sent: Vec<serde_json::Value>,
+        healthy_after: Option<Duration>,
+        shutdown_grace: Option<Duration>,
         delays: Option<[Duration; 2]>,
         manager: Option<LspManager>,
         ws: Option<Workspace>,
@@ -827,6 +1120,16 @@ mod ownership_tests {
     impl moonkale_lsp::LspTransport for FailingTransport {
         fn send(&self, text: String) {
             let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+            HARNESS.with(|h| h.borrow_mut().sent.push(value.clone()));
+            if value["method"] == "shutdown" && !matches!(self.mode, FailureMode::Unresponsive) {
+                let _ = self.reply.unbounded_send(
+                    serde_json::json!({"jsonrpc":"2.0", "id":value["id"], "result":null})
+                        .to_string(),
+                );
+            }
+            if value["method"] == "exit" && !matches!(self.mode, FailureMode::Unresponsive) {
+                self.reply.close_channel();
+            }
             if value["method"] == "initialize" {
                 if matches!(self.mode, FailureMode::Pending) {
                     HARNESS.with(|h| {
@@ -846,14 +1149,20 @@ mod ownership_tests {
                 }
             }
         }
+        fn close(&self) -> moonkale_lsp::LspCloseFuture {
+            self.reply.close_channel();
+            HARNESS.with(|h| h.borrow_mut().closes += 1);
+            Box::pin(async {})
+        }
         fn take_incoming(&mut self) -> Option<futures_channel::mpsc::UnboundedReceiver<String>> {
             self.incoming.take()
         }
     }
-    fn failing_spawn(_: String, _: String) -> moonkale_lsp::LspTransportFuture {
+    fn failing_spawn(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
         HARNESS.with(|h| {
             let mut h = h.borrow_mut();
             h.calls += 1;
+            h.calls_by_key.push((language, root));
             if matches!(h.mode, FailureMode::Spawn) {
                 return Box::pin(async { Err("not installed".into()) })
                     as moonkale_lsp::LspTransportFuture;
@@ -909,6 +1218,12 @@ mod ownership_tests {
                 if let Some(delays) = h.delays {
                     manager.retry_delays = delays;
                 }
+                if let Some(delay) = h.healthy_after {
+                    manager.healthy_after = delay;
+                }
+                if let Some(grace) = h.shutdown_grace {
+                    manager.shutdown_grace = grace;
+                }
                 h.manager = Some(manager);
                 h.ws = Some(ws);
             });
@@ -929,6 +1244,13 @@ mod ownership_tests {
                 props: Default::default(),
             };
             moonkale_ext_api::Document::new(node, "note".into(), moonkale_core::Version(1))
+        });
+        use_hook(move || {
+            let mut ws = ws;
+            ws.docs
+                .open
+                .with_mut(|docs| docs.push((doc.peek().node.id, doc)));
+            ws.docs.active.set(Some(doc.peek().node.id));
         });
         HARNESS.with(|h| {
             h.borrow_mut().show = Some(show);
@@ -959,6 +1281,321 @@ mod ownership_tests {
         dom.rebuild_in_place();
         dom
     }
+    fn accelerated(mode: FailureMode, healthy: Duration) -> VirtualDom {
+        HARNESS.with(|h| {
+            *h.borrow_mut() = Harness {
+                mode,
+                healthy_after: Some(healthy),
+                shutdown_grace: Some(Duration::from_millis(20)),
+                delays: Some([Duration::from_millis(40), Duration::from_millis(80)]),
+                ..Default::default()
+            }
+        });
+        let mut dom = VirtualDom::new(retry_app);
+        dom.rebuild_in_place();
+        dom
+    }
+    #[test]
+    fn healthy_uptime_refills_and_a_later_crash_gets_a_fresh_budget() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_millis(250));
+        drive(&mut dom, Duration::from_millis(60));
+        let mut manager = HARNESS.with(|h| h.borrow().manager.unwrap());
+        dom.in_scope(ScopeId::ROOT, || {
+            manager
+                .recovery
+                .with_mut(|states| states.get_mut("markdown@/project").unwrap().attempts = 3)
+        });
+        drive(&mut dom, Duration::from_millis(100));
+        dom.in_scope(ScopeId::ROOT, || {
+            assert_eq!(manager.recovery.peek()["markdown@/project"].attempts, 3)
+        });
+        drive(&mut dom, Duration::from_millis(170));
+        dom.in_scope(ScopeId::ROOT, || {
+            assert_eq!(manager.recovery.peek()["markdown@/project"].attempts, 1)
+        });
+        HARNESS.with(|h| {
+            for incoming in h.borrow_mut().incoming.drain(..) {
+                incoming.close_channel();
+            }
+        });
+        drive(&mut dom, Duration::from_millis(100));
+        HARNESS.with(|h| assert_eq!(h.borrow().calls, 2));
+        dom.in_scope(ScopeId::ROOT, || {
+            assert_eq!(manager.recovery.peek()["markdown@/project"].attempts, 2)
+        });
+    }
+    #[test]
+    fn manual_restart_coalesces_and_preserves_document_text_and_views() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_secs(10));
+        drive(&mut dom, Duration::from_millis(60));
+        let (manager, ws) = HARNESS.with(|h| {
+            let h = h.borrow();
+            (h.manager.unwrap(), h.ws.unwrap())
+        });
+        let old = dom.in_scope(ScopeId::ROOT, || {
+            manager.session("markdown", "/project").unwrap()
+        });
+        dom.in_scope(ScopeId::ROOT, || {
+            let mut doc = ws.docs.open.peek()[0].1;
+            doc.write().text = "unsaved 猫".into();
+            manager.restart(ws, "markdown", "/project");
+            manager.restart(ws, "markdown", "/project");
+        });
+        drive(&mut dom, Duration::from_millis(120));
+        HARNESS.with(|h| {
+            let h = h.borrow();
+            assert_eq!(h.calls, 2);
+            assert_eq!(h.closes, 1);
+        });
+        dom.in_scope(ScopeId::ROOT, || {
+            let new = manager.session("markdown", "/project").unwrap();
+            assert!(!old.same_connection(&new));
+            assert!(!old.is_initialized());
+            assert_eq!(ws.docs.open.peek()[0].1.peek().text, "unsaved 猫");
+            assert_eq!(
+                manager.documents.peek()["file:///project/note.md"].clients,
+                2
+            );
+            assert_eq!(
+                manager.documents.peek()["file:///project/note.md"].text,
+                "unsaved 猫"
+            );
+        });
+    }
+    #[test]
+    fn restart_during_pending_initialization_discards_the_old_generation() {
+        let mut dom = accelerated(FailureMode::Pending, Duration::from_millis(30));
+        drive(&mut dom, Duration::from_millis(30));
+        let (manager, ws) = HARNESS.with(|h| {
+            let mut h = h.borrow_mut();
+            h.mode = FailureMode::Healthy;
+            (h.manager.unwrap(), h.ws.unwrap())
+        });
+        dom.in_scope(ScopeId::ROOT, || {
+            manager.restart(ws, "markdown", "/project")
+        });
+        drive(&mut dom, Duration::from_millis(100));
+        HARNESS.with(|h| assert_eq!(h.borrow().calls, 2));
+        dom.in_scope(ScopeId::ROOT, || {
+            assert!(manager.session("markdown", "/project").is_some());
+            assert_eq!(manager.recovery.peek()["markdown@/project"].generation, 1);
+        });
+    }
+    #[test]
+    fn exhausted_and_cooling_keys_can_restart_without_old_retry_timers() {
+        for duration in [Duration::from_millis(25), Duration::from_millis(300)] {
+            let mut dom = accelerated(FailureMode::Spawn, Duration::from_millis(30));
+            drive(&mut dom, duration);
+            let (manager, ws) = HARNESS.with(|h| {
+                let mut h = h.borrow_mut();
+                h.mode = FailureMode::Healthy;
+                (h.manager.unwrap(), h.ws.unwrap())
+            });
+            let before = HARNESS.with(|h| h.borrow().calls);
+            dom.in_scope(ScopeId::ROOT, || {
+                manager.restart(ws, "markdown", "/project")
+            });
+            drive(&mut dom, Duration::from_millis(180));
+            HARNESS.with(|h| assert_eq!(h.borrow().calls, before + 1));
+            dom.in_scope(ScopeId::ROOT, || {
+                assert!(manager.session("markdown", "/project").is_some())
+            });
+        }
+    }
+    #[test]
+    fn unrelated_keys_keep_their_session_and_budget_on_restart() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_secs(10));
+        drive(&mut dom, Duration::from_millis(40));
+        let (manager, ws) = HARNESS.with(|h| {
+            let h = h.borrow();
+            (h.manager.unwrap(), h.ws.unwrap())
+        });
+        dom.in_scope(ScopeId::ROOT, || {
+            spawn(async move {
+                manager.ensure(ws, "rust", "/other").await;
+            });
+        });
+        drive(&mut dom, Duration::from_millis(60));
+        let other = dom.in_scope(ScopeId::ROOT, || manager.session("rust", "/other").unwrap());
+        dom.in_scope(ScopeId::ROOT, || {
+            manager.restart(ws, "markdown", "/project")
+        });
+        drive(&mut dom, Duration::from_millis(100));
+        dom.in_scope(ScopeId::ROOT, || {
+            assert!(manager
+                .session("rust", "/other")
+                .unwrap()
+                .same_connection(&other));
+            assert_eq!(manager.recovery.peek()["rust@/other"].attempts, 1);
+        });
+        HARNESS.with(|h| {
+            assert_eq!(
+                h.borrow()
+                    .calls_by_key
+                    .iter()
+                    .filter(|(language, _)| language == "rust")
+                    .count(),
+                1
+            )
+        });
+    }
+    #[test]
+    fn stale_health_timer_cannot_refill_a_restarted_failed_key() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_millis(200));
+        drive(&mut dom, Duration::from_millis(40));
+        let (manager, ws) = HARNESS.with(|h| {
+            let mut h = h.borrow_mut();
+            h.mode = FailureMode::Spawn;
+            (h.manager.unwrap(), h.ws.unwrap())
+        });
+        dom.in_scope(ScopeId::ROOT, || {
+            manager.restart(ws, "markdown", "/project")
+        });
+        drive(&mut dom, Duration::from_millis(400));
+        HARNESS.with(|h| assert_eq!(h.borrow().calls, 4));
+        dom.in_scope(ScopeId::ROOT, || {
+            assert_eq!(manager.recovery.peek()["markdown@/project"].attempts, 3)
+        });
+    }
+    #[test]
+    fn manual_restart_forces_an_unresponsive_initialized_connection_closed() {
+        let mut dom = accelerated(FailureMode::Unresponsive, Duration::from_secs(10));
+        drive(&mut dom, Duration::from_millis(40));
+        let (manager, ws) = HARNESS.with(|h| {
+            let h = h.borrow();
+            (h.manager.unwrap(), h.ws.unwrap())
+        });
+        dom.in_scope(ScopeId::ROOT, || {
+            manager.restart(ws, "markdown", "/project")
+        });
+        drive(&mut dom, Duration::from_millis(120));
+        HARNESS.with(|h| {
+            let h = h.borrow();
+            assert_eq!(h.calls, 2);
+            assert_eq!(h.closes, 1);
+        });
+    }
+    #[test]
+    fn restart_palette_command_is_shared_and_unsupported_documents_do_not_spawn() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_secs(10));
+        drive(&mut dom, Duration::from_millis(40));
+        let mut ws = HARNESS.with(|h| h.borrow().ws.unwrap());
+        dom.in_scope(ScopeId::ROOT, || {
+            ws.dispatch(moonkale_ext_api::Command::RestartLanguageServer)
+        });
+        drive(&mut dom, Duration::from_millis(120));
+        HARNESS.with(|h| assert_eq!(h.borrow().calls, 2));
+        dom.in_scope(ScopeId::ROOT, || {
+            ws.docs.active.set(None);
+            ws.dispatch(moonkale_ext_api::Command::RestartLanguageServer);
+        });
+        drive(&mut dom, Duration::from_millis(80));
+        HARNESS.with(|h| assert_eq!(h.borrow().calls, 2));
+    }
+
+    struct ProjectSource;
+    #[moonkale_core::async_trait]
+    impl moonkale_core::Source for ProjectSource {
+        fn id(&self) -> moonkale_core::SourceId {
+            moonkale_core::SourceId::new("folder:/project")
+        }
+        fn descriptor(&self) -> moonkale_core::SourceDescriptor {
+            moonkale_core::SourceDescriptor {
+                id: self.id(),
+                root: moonkale_core::NodeId::derive(&self.id(), "root"),
+                display_name: "project".into(),
+                family: moonkale_core::SourceFamily::Folder,
+                capabilities: Default::default(),
+            }
+        }
+        async fn query(
+            &self,
+            _: moonkale_core::Query,
+        ) -> Result<moonkale_core::QueryResult, SourceError> {
+            Ok(Default::default())
+        }
+        async fn fetch_text(
+            &self,
+            _: moonkale_core::NodeId,
+        ) -> Result<(String, moonkale_core::Version), SourceError> {
+            Err(SourceError::NotFound)
+        }
+        async fn apply(
+            &self,
+            _: moonkale_core::Transaction,
+        ) -> Result<moonkale_core::Applied, SourceError> {
+            Err(SourceError::NotFound)
+        }
+    }
+    #[test]
+    fn restart_reattaches_retained_unsaved_files_without_a_mounted_view() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_secs(10));
+        drive(&mut dom, Duration::from_millis(50));
+        let (manager, mut ws) = HARNESS.with(|h| {
+            let h = h.borrow();
+            (h.manager.unwrap(), h.ws.unwrap())
+        });
+        let uri = crate::uri::file_uri("/project", "parked 猫.md");
+        let node = dom.in_scope(ScopeId::ROOT, || {
+            ws.add_source(std::sync::Arc::new(ProjectSource));
+            let mut node = ws.docs.open.peek()[0].1.peek().node.clone();
+            node.native_key = "parked 猫.md".into();
+            node.id = moonkale_core::NodeId::derive(&node.source, &node.native_key);
+            let mut doc = Signal::new_in_scope(
+                moonkale_ext_api::Document::new(
+                    node.clone(),
+                    "saved".into(),
+                    moonkale_core::Version(1),
+                ),
+                ScopeId::ROOT,
+            );
+            doc.write().text = "unsaved 猫\r\n".into();
+            ws.docs.open.with_mut(|docs| docs.push((node.id, doc)));
+            manager.retain_workspace_document(
+                ws,
+                &node,
+                manager.session("markdown", "/project").unwrap(),
+                "/project",
+                "markdown",
+            );
+            node
+        });
+        drive(&mut dom, Duration::from_millis(20));
+        dom.in_scope(ScopeId::ROOT, || {
+            manager.restart(ws, "markdown", "/project")
+        });
+        drive(&mut dom, Duration::from_millis(100));
+        dom.in_scope(ScopeId::ROOT, || {
+            let session = manager.session("markdown", "/project").unwrap();
+            let document = manager.documents.peek();
+            let document = &document[&uri];
+            assert!(document.session.same_connection(&session));
+            assert_eq!(document.clients, 1);
+            assert!(document.retained.is_some());
+            assert_eq!(document.text, "unsaved 猫\r\n");
+            assert_eq!(document.saved, "saved");
+            assert_eq!(ws.document(node.id).unwrap().peek().text, "unsaved 猫\r\n");
+        });
+    }
+    #[test]
+    fn short_lived_initialized_connections_do_not_accumulate_healthy_time() {
+        let mut dom = accelerated(FailureMode::Healthy, Duration::from_millis(200));
+        for duration in [40, 90, 130] {
+            drive(&mut dom, Duration::from_millis(duration));
+            HARNESS.with(|h| {
+                for tx in h.borrow_mut().incoming.drain(..) {
+                    tx.close_channel();
+                }
+            });
+        }
+        drive(&mut dom, Duration::from_millis(250));
+        HARNESS.with(|h| assert_eq!(h.borrow().calls, 3));
+        let manager = HARNESS.with(|h| h.borrow().manager.unwrap());
+        dom.in_scope(ScopeId::ROOT, || {
+            assert_eq!(manager.recovery.peek()["markdown@/project"].attempts, 3)
+        });
+    }
+
     #[test]
     fn immediately_closed_server_waits_five_seconds_with_duplicate_panels() {
         let mut dom = harness(FailureMode::Close, None);

@@ -330,3 +330,5 @@ wb-close-empty = Close empty panel group
 wb-close-empty-hint = Close empty group
 wb-splitter = Resize panel groups
 wb-splitter-hint = Drag to resize. Arrow keys resize; Shift moves farther; double-click resets.
+
+cmd-editor-restart-language-server = Edit: Restart Language Server

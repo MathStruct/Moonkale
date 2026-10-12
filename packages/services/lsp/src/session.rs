@@ -237,6 +237,8 @@ struct Inner {
     next_id: i64,
     pending: HashMap<i64, oneshot::Sender<Result<Value, String>>>,
     initialized: bool,
+    closing: bool,
+    closed: bool,
 }
 
 #[derive(Clone)]
@@ -278,6 +280,8 @@ impl LspSession {
                 next_id: 1,
                 pending: HashMap::new(),
                 initialized: false,
+                closing: false,
+                closed: false,
             })),
             events: tx,
         };
@@ -288,21 +292,72 @@ impl LspSession {
     /// pending requests; notifications become [`LspEvent`]s; server→client
     /// requests get the minimal reply that keeps servers happy.
     pub async fn pump(self) {
-        let Some(mut incoming) = self.inner.borrow_mut().transport.take_incoming() else {
+        let incoming = self.inner.borrow_mut().transport.take_incoming();
+        let Some(mut incoming) = incoming else {
+            self.finish_closed();
             return;
         };
         while let Some(text) = incoming.next().await {
+            if self.inner.borrow().closed {
+                break;
+            }
             let Ok(msg) = serde_json::from_str::<Value>(&text) else {
                 continue;
             };
             self.handle(msg);
         }
-        {
-            let mut inner = self.inner.borrow_mut();
-            inner.initialized = false;
-            inner.pending.clear();
+        self.finish_closed();
+    }
+
+    fn finish_closed(&self) {
+        let mut inner = self.inner.borrow_mut();
+        if inner.closed {
+            return;
         }
+        inner.closed = true;
+        inner.closing = true;
+        inner.initialized = false;
+        inner.pending.clear();
+        drop(inner);
         let _ = self.events.unbounded_send(LspEvent::Closed);
+    }
+
+    /// Invalidate requests immediately and return an owned forced-close future.
+    pub fn close(&self) -> crate::LspCloseFuture {
+        self.finish_closed();
+        self.inner.borrow().transport.close()
+    }
+
+    /// Gracefully shut down an initialized server, then force transport closure.
+    /// `grace` bounds the protocol handshake and the forced-close future separately.
+    pub async fn shutdown(&self, grace: std::time::Duration) {
+        use futures_util::future::select;
+        let initialized = {
+            let mut inner = self.inner.borrow_mut();
+            if inner.closing || inner.closed {
+                false
+            } else {
+                inner.closing = true;
+                inner.pending.clear();
+                inner.initialized
+            }
+        };
+        if initialized {
+            let protocol = async {
+                if self.request("shutdown", Value::Null).await.is_ok() {
+                    self.notify("exit", Value::Null);
+                    while !self.inner.borrow().closed {
+                        futures_timer::Delay::new(std::time::Duration::from_millis(1)).await;
+                    }
+                }
+            };
+            let _ = select(
+                Box::pin(protocol),
+                Box::pin(futures_timer::Delay::new(grace)),
+            )
+            .await;
+        }
+        let _ = select(self.close(), Box::pin(futures_timer::Delay::new(grace))).await;
     }
 
     fn handle(&self, msg: Value) {
@@ -405,10 +460,16 @@ impl LspSession {
     }
 
     fn send(&self, msg: Value) {
+        if self.inner.borrow().closed {
+            return;
+        }
         self.inner.borrow().transport.send(msg.to_string());
     }
 
     fn notify(&self, method: &str, params: Value) {
+        if self.inner.borrow().closing && method != "exit" {
+            return;
+        }
         self.send(json!({ "jsonrpc": "2.0", "method": method, "params": params }));
     }
 
@@ -416,6 +477,9 @@ impl LspSession {
         let (tx, rx) = oneshot::channel();
         let id = {
             let mut inner = self.inner.borrow_mut();
+            if inner.closed || (inner.closing && method != "shutdown") {
+                return Err("session closed".into());
+            }
             let id = inner.next_id;
             inner.next_id += 1;
             inner.pending.insert(id, tx);
@@ -456,7 +520,13 @@ impl LspSession {
             .unwrap_or("language server")
             .to_string();
         self.notify("initialized", json!({}));
-        self.inner.borrow_mut().initialized = true;
+        {
+            let mut inner = self.inner.borrow_mut();
+            if inner.closed || inner.closing {
+                return Err("session closed".into());
+            }
+            inner.initialized = true;
+        }
         let _ = self.events.unbounded_send(LspEvent::Initialized {
             server: server.clone(),
         });
@@ -469,7 +539,8 @@ impl LspSession {
     }
 
     pub fn is_initialized(&self) -> bool {
-        self.inner.borrow().initialized
+        let inner = self.inner.borrow();
+        inner.initialized && !inner.closing && !inner.closed
     }
 
     pub fn did_open(&self, uri: &str, language: &str, version: i32, text: &str) {
@@ -910,6 +981,7 @@ fn first_location(v: Value) -> Option<Location> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::FutureExt;
 
     /// A transport that records what the client sends and lets the test
     /// inject server messages.
@@ -926,6 +998,107 @@ mod tests {
         fn take_incoming(&mut self) -> Option<mpsc::UnboundedReceiver<String>> {
             self.incoming.take()
         }
+    }
+
+    struct ClosingTransport {
+        sent: Rc<RefCell<Vec<Value>>>,
+        incoming: Option<mpsc::UnboundedReceiver<String>>,
+        reply: mpsc::UnboundedSender<String>,
+        closes: Rc<std::cell::Cell<usize>>,
+        responsive: bool,
+        close_on_initialize: bool,
+    }
+    impl LspTransport for ClosingTransport {
+        fn send(&self, text: String) {
+            let msg: Value = serde_json::from_str(&text).unwrap();
+            self.sent.borrow_mut().push(msg.clone());
+            if msg["method"] == "initialize" && self.close_on_initialize {
+                let _ = self.reply.unbounded_send(
+                    json!({"jsonrpc":"2.0", "id":msg["id"], "result":{"capabilities":{}}})
+                        .to_string(),
+                );
+                self.reply.close_channel();
+            }
+            if msg["method"] == "shutdown" && self.responsive {
+                let _ = self.reply.unbounded_send(
+                    json!({"jsonrpc":"2.0", "id":msg["id"], "result":null}).to_string(),
+                );
+            }
+            if msg["method"] == "exit" && self.responsive {
+                self.reply.close_channel();
+            }
+        }
+        fn take_incoming(&mut self) -> Option<mpsc::UnboundedReceiver<String>> {
+            self.incoming.take()
+        }
+        fn close(&self) -> crate::LspCloseFuture {
+            self.closes.set(self.closes.get() + 1);
+            self.reply.close_channel();
+            Box::pin(async {})
+        }
+    }
+    #[tokio::test]
+    async fn shutdown_fails_pending_requests_and_closes_responsive_or_stalled_transports() {
+        tokio::task::LocalSet::new()
+            .run_until(async {
+                for responsive in [true, false] {
+                    let (tx, rx) = mpsc::unbounded();
+                    let sent = Rc::new(RefCell::new(Vec::new()));
+                    let closes = Rc::new(std::cell::Cell::new(0));
+                    let (session, mut events) = LspSession::new(Box::new(ClosingTransport {
+                        sent: sent.clone(),
+                        incoming: Some(rx),
+                        reply: tx,
+                        closes: closes.clone(),
+                        responsive,
+                        close_on_initialize: false,
+                    }));
+                    session.inner.borrow_mut().initialized = true;
+                    let pump = tokio::task::spawn_local(session.clone().pump());
+                    let s = session.clone();
+                    let pending =
+                        tokio::task::spawn_local(
+                            async move { s.hover("file:///main.rs", 0, 0).await },
+                        );
+                    tokio::task::yield_now().await;
+                    session.shutdown(std::time::Duration::from_millis(20)).await;
+                    assert!(pending.await.unwrap().is_err());
+                    pump.await.unwrap();
+                    assert!(!session.is_initialized());
+                    assert_eq!(closes.get(), 1);
+                    assert_eq!(events.next().await, Some(LspEvent::Closed));
+                    assert!(events.next().now_or_never().is_none());
+                    let before = sent.borrow().len();
+                    assert!(session.initialize("/tmp").await.is_err());
+                    assert_eq!(sent.borrow().len(), before);
+                    assert!(sent.borrow().iter().any(|msg| msg["method"] == "shutdown"));
+                    assert_eq!(
+                        sent.borrow().iter().any(|msg| msg["method"] == "exit"),
+                        responsive
+                    );
+                }
+            })
+            .await;
+    }
+    #[tokio::test]
+    async fn initialize_response_followed_by_eof_cannot_resurrect_the_session() {
+        tokio::task::LocalSet::new()
+            .run_until(async {
+                let (tx, rx) = mpsc::unbounded();
+                let (session, _) = LspSession::new(Box::new(ClosingTransport {
+                    sent: Rc::new(RefCell::new(Vec::new())),
+                    incoming: Some(rx),
+                    reply: tx,
+                    closes: Rc::new(std::cell::Cell::new(0)),
+                    responsive: false,
+                    close_on_initialize: true,
+                }));
+                let pump = tokio::task::spawn_local(session.clone().pump());
+                assert!(session.initialize("/tmp").await.is_err());
+                pump.await.unwrap();
+                assert!(!session.is_initialized());
+            })
+            .await;
     }
 
     #[test]

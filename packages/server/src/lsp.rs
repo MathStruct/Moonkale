@@ -80,6 +80,8 @@ pub async fn lsp_socket(
 pub struct RemoteLsp {
     outgoing: futures_channel::mpsc::UnboundedSender<String>,
     incoming: Option<futures_channel::mpsc::UnboundedReceiver<String>>,
+    socket: std::cell::RefCell<Option<std::rc::Rc<Websocket<Frame, Frame>>>>,
+    tasks: [dioxus::core::Task; 2],
 }
 
 impl RemoteLsp {
@@ -98,15 +100,15 @@ impl RemoteLsp {
         let (out_tx, mut out_rx) = futures_channel::mpsc::unbounded::<String>();
         let (in_tx, in_rx) = futures_channel::mpsc::unbounded::<String>();
         let s = socket.clone();
-        spawn(async move {
+        let send_task = spawn(async move {
             while let Some(m) = out_rx.next().await {
                 if s.send(Frame(m)).await.is_err() {
                     break;
                 }
             }
         });
-        let s = socket;
-        spawn(async move {
+        let s = socket.clone();
+        let receive_task = spawn(async move {
             while let Ok(Frame(m)) = s.recv().await {
                 if in_tx.unbounded_send(m).is_err() {
                     break;
@@ -116,13 +118,40 @@ impl RemoteLsp {
         Ok(Self {
             outgoing: out_tx,
             incoming: Some(in_rx),
+            socket: std::cell::RefCell::new(Some(socket)),
+            tasks: [send_task, receive_task],
         })
+    }
+}
+
+struct CloseRemote([dioxus::core::Task; 2]);
+impl Drop for CloseRemote {
+    fn drop(&mut self) {
+        for task in self.0 {
+            task.cancel();
+        }
     }
 }
 
 impl moonkale_lsp::LspTransport for RemoteLsp {
     fn send(&self, message: String) {
         let _ = self.outgoing.unbounded_send(message);
+    }
+    fn close(&self) -> moonkale_lsp::LspCloseFuture {
+        self.outgoing.close_channel();
+        let socket = self.socket.borrow_mut().take();
+        let guard = CloseRemote(self.tasks);
+        Box::pin(async move {
+            let _guard = guard;
+            if let Some(socket) = socket {
+                let _ = socket
+                    .send_raw(dioxus::fullstack::Message::Close {
+                        code: dioxus::fullstack::CloseCode::Normal,
+                        reason: String::new(),
+                    })
+                    .await;
+            }
+        })
     }
     fn take_incoming(&mut self) -> Option<futures_channel::mpsc::UnboundedReceiver<String>> {
         self.incoming.take()

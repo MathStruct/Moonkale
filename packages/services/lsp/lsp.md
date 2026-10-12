@@ -6,9 +6,10 @@ Notes for `moonkale-lsp` (Milestone 3). Design: [[LSP and Terminal]].
 
 Platform-neutral LSP client; compiles on wasm.
 
-- `LspTransport` trait — `send(String)` one JSON-RPC message, `take_incoming()` the stream of messages from the server. Implementations: `moonkale-lsp-local::StdioTransport` (desktop; also on the server) and `moonkale_server::RemoteLsp` (web, websocket `/api/lsp`).
+- `LspTransport` trait — `send(String)` one JSON-RPC message, `take_incoming()` the stream of messages from the server, `close()` explicitly releases the transport. The default close hook is a compatibility no-op; live transports must override it. Implementations: `moonkale-lsp-local::StdioTransport` (desktop; also on the server) and `moonkale_server::RemoteLsp` (web, websocket `/api/lsp`).
 - `SpawnLsp = fn(language, root) -> LspTransportFuture` — the `WorkspaceConfig` hook.
 - `LspSession` (cheap `Rc` clone) — `initialize(root)`, `did_open/did_change/did_close/did_save`, `hover(uri,line,col) → Option<String>` (markdown fences stripped: the tooltip is plain text), `definition(uri,line,col) → Option<Location>`; `pump()` runs the receive loop and emits `LspEvent::{Initialized, Diagnostics{uri, Vec<Diagnostic>}, Status(String), Closed}`. `$/progress` and `window/showMessage` become `Status` (long progress messages are cut at the first `: ` so the status bar stays short). Requests time out per id; unknown server→client requests get `-32601`.
+- `LspSession::shutdown(grace)` fails pending feature requests, tries the initialized server's `shutdown` / `exit` handshake within the grace period, then bounds explicit transport closure by the same period. `close()` immediately marks the session closed and returns the transport cleanup future. Closure emits one event; late initialize replies cannot revive the session.
 - `Diagnostic` is neutral (`line/col/end_line/end_col`, `severity` as a string, `message`) so editors need no `lsp-types`.
 
 Tests: `cargo test -p moonkale-lsp` (initialize handshake + publishDiagnostics + hover through a fake transport).

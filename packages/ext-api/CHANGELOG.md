@@ -15,6 +15,7 @@ Rules:
 ## Unreleased — the editor API (not in a tag yet)
 
 **moonkale-ext-api**
+- Added `Command::RestartLanguageServer`, exposed as `editor.restartLanguageServer` in the palette without a default shortcut. Shared per-language/root recovery refills after five healthy minutes and supports manual restart with retained unsaved documents. Callers exhaustively matching `Command` must handle the new variant.
 - `Workspace::restore_documents(folder, keys, active)` loads saved tabs in the background and restores the active tab only if foreground navigation has not superseded it. Existing open documents retain their edits.
 - Document activation clears stale cursor/selection/presence context. Closing a document clears its pending reveal without resetting workspace reveal ordering. Cross-window moves refuse dirty offers and retain an origin edited after the offer; save before moving an unsaved document.
 - Added `Workspace::follow_wiki_guarded` to cancel stale editor navigation after lookup/loading. `follow_wiki` now opens the resolved node in its original source instead of searching other folders for the same relative path.

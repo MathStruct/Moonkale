@@ -389,6 +389,8 @@ pub enum Command {
     ToggleBottom,
     /// An action for the active editor (menus: Find, Rename, …).
     Editor(EditorAction),
+    /// Restart the active folder document's shared language server.
+    RestartLanguageServer,
     /// Open the documentation site (Help menu).
     Docs,
     /// Ask for a host and a path, then open that folder over SSH

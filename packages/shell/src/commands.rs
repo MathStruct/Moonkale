@@ -103,6 +103,13 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
             Command::Editor(EditorAction::Replace),
         ),
         (
+            c(
+                "editor.restartLanguageServer",
+                t!(ws, L, "cmd-editor-restart-language-server"),
+            ),
+            Command::RestartLanguageServer,
+        ),
+        (
             c("editor.rename", t!(ws, L, "cmd-editor-rename")),
             Command::Editor(EditorAction::Rename),
         ),
