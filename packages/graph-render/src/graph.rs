@@ -592,7 +592,7 @@ pub struct Edge {
     /// Layer membership (spec 031 §3): an empty list is the base scene.
     pub layers: Vec<String>,
     /// The parallel-fan-out offset (world units), assigned by
-    /// [`Graph::with_bows`] on top of the host's route — an own field, so
+    /// `Graph::with_bows` on top of the host's route — an own field, so
     /// re-running the assignment never accumulates.
     pub bow: f32,
     /// A moving pulse along the stroke (spec 031 §2, stage 6): world

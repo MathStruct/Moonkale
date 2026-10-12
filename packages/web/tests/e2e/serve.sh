@@ -8,9 +8,10 @@
 # SERVE_FEATURES: the web crate's features for the build (default `julia`: flow.mjs drives the Lux
 # blocks, which come from MathStruct/moonkale-julia since Milestone 18 phase 6.4).
 # SERVE_WAIT: seconds to wait for the first build (default 1200 = 20 min; CI sets more).
-# SERVE_STALL: give up when the dx log has not grown for this many seconds (default 1200;
-#   a cold build of a bundled C++ library prints nothing for minutes): a hung
-#   build fails in minutes instead of using up SERVE_WAIT (CI, 2026-10-09: 80 minutes for nothing).
+# SERVE_STALL: give up after this many seconds without progress (default 1200): a hung
+#   build fails early instead of using up SERVE_WAIT (CI, 2026-10-09: 80 minutes for nothing).
+#   Progress is the dx log growing *or* a new file in the target dir: without a terminal dx
+#   prints nothing while cargo compiles, so a cold CI build looked hung after 20 min (P-175).
 set -uo pipefail
 E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 PORT="${PORT:-8090}"
@@ -32,6 +33,7 @@ case "${1:-start}" in
     pid=$(cat "$E/dx-$PORT.pid")
     deadline=$(( $(date +%s) + ${SERVE_WAIT:-1200} ))
     last_size=-1; last_change=$(date +%s)
+    target="${CARGO_TARGET_DIR:-$REPO/target}"; mark="$E/dx-$PORT.progress"; touch "$mark"
     while [ "$(date +%s)" -lt "$deadline" ]; do
       sleep 5
       code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:$PORT/login" 2>/dev/null)
@@ -40,8 +42,13 @@ case "${1:-start}" in
       if ! kill -0 "$pid" 2>/dev/null; then echo "dx exited — see $E/dx-$PORT.log"; exit 1; fi
       size=$(wc -c < "$E/dx-$PORT.log")
       if [ "$size" != "$last_size" ]; then last_size=$size; last_change=$(date +%s); fi
+      # Only look at the target dir once the log has been quiet for a minute (the scan is not free).
+      if [ $(( $(date +%s) - last_change )) -ge 60 ]; then
+        if [ -n "$(find "$target" -newer "$mark" -type f -print -quit 2>/dev/null)" ]; then last_change=$(date +%s); fi
+        touch "$mark"
+      fi
       if [ $(( $(date +%s) - last_change )) -ge "${SERVE_STALL:-1200}" ]; then
-        echo "no progress for ${SERVE_STALL:-1200} s (the dx log stopped growing) — see $E/dx-$PORT.log"; exit 1
+        echo "no progress for ${SERVE_STALL:-1200} s (neither the dx log nor $target changed) — see $E/dx-$PORT.log"; exit 1
       fi
     done
     echo "timeout after ${SERVE_WAIT:-1200} s — see $E/dx-$PORT.log"; exit 1 ;;
