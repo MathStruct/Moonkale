@@ -14,5 +14,5 @@ pub const RENDER_WASM: Asset = asset!("/assets/graph_render_bg.wasm");
 
 // The engine build's hash (see build.rs): including it here means a new
 // engine rebuild recompiles this crate, so `asset!` re-hashes the new
-// bytes — dx otherwise served the previous build's URL (P-168).
+// bytes — dx otherwise served the previous build's URL (P-171).
 include!(concat!(env!("OUT_DIR"), "/asset_version.rs"));

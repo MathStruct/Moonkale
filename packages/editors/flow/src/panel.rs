@@ -852,7 +852,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     // which on desktop and Android (native handlers,
                     // outside wasm) crashed on `web_sys::window()` (the
                     // review's #1). The buttons are keyed: the delegated
-                    // double fire of the stage 7b quirk (your P-167)
+                    // double fire of the stage 7b quirk (P-167)
                     // came from unkeyed list items borrowing the first
                     // item's listener.
                     div {

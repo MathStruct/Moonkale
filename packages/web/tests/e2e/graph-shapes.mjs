@@ -73,7 +73,7 @@ try {
     await page.screenshot({ path: `${S}/s8-shapes.png`, clip });
   });
   await step("the strokes: a hue only a rim band produces", async () => {
-    // Park the pointer off-canvas first: a hovered node draws white (P-163).
+    // Park the pointer off-canvas first: a hovered node draws white (P-166).
     await page.mouse.move(box.x - 40, box.y - 40);
     await sleep(200);
     const png2 = await page.screenshot({ clip });

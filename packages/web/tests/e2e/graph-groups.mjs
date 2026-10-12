@@ -252,7 +252,7 @@ try {
     // Zoom out until the curve's sub-segments (≈ its screen length / 8)
     // fall under 6 px — exactly where the LOD used to gate per sub-segment
     // and the curve drew solid while its straight twin stayed dashed
-    // (the P-163 review's #5). The whole stroke still spans ~40 px, so
+    // (the P-166 review's #5). The whole stroke still spans ~40 px, so
     // the gaps must keep reading: the longest lit run stays a dash long,
     // it does not become the whole curve.
     await zoomTo(async () => {

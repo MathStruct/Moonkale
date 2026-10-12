@@ -23,7 +23,7 @@ await page.addInitScript(() => {
   window.view_layout_settled = () => v().layout_state()[0] === 0;
 });
 // The hue of a drawn kind — the pixel probe for "did the delta reach the
-// screen" (the P-163 review's #1: counts and ids held, the picture did not).
+// screen" (the P-166 review's #1: counts and ids held, the picture did not).
 const box = () => page.$eval(".mk-graph-overlay", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
 const bluePx = async () => {
   // Park the pointer off the canvas first: a hovered node draws white

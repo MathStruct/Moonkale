@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn fit_rect_centres_and_sets_the_3d_fields() {
-        // The shared fitting core (the P-163 review's #9): `focus` used to
+        // The shared fitting core (the P-166 review's #9): `focus` used to
         // re-derive the 2D half only — nothing set the orbit, so a focus in
         // 3D did nothing.
         let mut c = Camera {

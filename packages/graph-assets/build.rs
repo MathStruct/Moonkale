@@ -1,7 +1,7 @@
 //! The engine's wasm/JS are build OUTPUTS (graph-render's build.sh writes
 //! them into assets/) — cargo rebuilds this crate only when its sources
 //! change, so a rebuilt engine kept serving under the previous asset URL
-//! hash (P-159, P-168). Emitting the bytes' hash into a generated file
+//! hash (P-159, P-171). Emitting the bytes' hash into a generated file
 //! the library includes makes every engine rebuild recompile the crate
 //! and re-expand `asset!`, so the hash dx serves always matches.
 

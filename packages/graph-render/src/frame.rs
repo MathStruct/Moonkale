@@ -1744,7 +1744,7 @@ mod tests {
 
     #[test]
     fn hyperedges_and_simplices_do_not_reach_hidden_nodes() {
-        // The P-163 review's #6: an invisible member (a hidden layer)
+        // The P-166 review's #6: an invisible member (a hidden layer)
         // draws nothing — its spoke must not point at it, the junction
         // must not lean toward it, and no face may stretch to it.
         let mut g = graph(

@@ -879,7 +879,7 @@ impl Graph {
             })
             .collect();
         // One id → index map for the groups, hyperedges and simplices
-        // (the P-163 review's #8: a linear scan per member is O(m·n)).
+        // (the P-166 review's #8: a linear scan per member is O(m·n)).
         let ids: std::collections::HashMap<String, usize> = nodes
             .iter()
             .enumerate()
@@ -930,7 +930,7 @@ impl Graph {
             let n = idx.len();
             if n < 2 {
                 // A lone edge carries no parallel offset — its partner
-                // may have gone with a delta (the P-163 review's #3).
+                // may have gone with a delta (the P-166 review's #3).
                 if let Some(&i) = idx.first() {
                     self.edges[i].bow = 0.0;
                 }
@@ -966,7 +966,7 @@ impl Graph {
     /// Apply an incremental change (spec 031 §4, stage 4a). Returns
     /// whether anything actually changed — a delta naming nothing that
     /// exists (or re-sending identical instances) must not redraw or warm
-    /// the layout; a count-preserving collapse must (the P-163 review's
+    /// the layout; a count-preserving collapse must (the P-166 review's
     /// #1: five equal counts used to skip the redraw entirely).
     pub fn apply_delta(&mut self, d: InDelta) -> bool {
         if d.remove_edges.is_empty()
@@ -1042,7 +1042,7 @@ impl Graph {
         }
         self.simplexes.retain(|s| s.nodes.len() >= 3);
         changed |= self.simplexes.len() != before;
-        // One id → index map for the whole delta (the P-163 review's #8:
+        // One id → index map for the whole delta (the P-166 review's #8:
         // a linear scan per id is O(k·n) — a 2 000-edge delta at 100 k
         // nodes was ~4·10⁸ string comparisons). Owned, so it stays alive
         // across the mutations below; new ids join as they arrive.
@@ -1795,7 +1795,7 @@ mod delta_tests {
 
     #[test]
     fn a_delta_reports_whether_it_changed_anything() {
-        // The P-163 review's #1: a count-preserving collapse must report
+        // The P-166 review's #1: a count-preserving collapse must report
         // a change (five equal counts used to skip the redraw), and a
         // delta re-sending identical instances must not (it would warm
         // the layout and jiggle a settled graph for nothing).
