@@ -145,6 +145,14 @@ pub struct BlockKind {
     pub inputs: Vec<Port>,
     /// Its output ports.
     pub outputs: Vec<Port>,
+    /// Its undirected pins (ADR-0020): ModelingToolkit-style `connect`
+    /// ports. A pin's type names the **domain** both ends must share
+    /// (`Named { name: "electrical" }`). Absent in directed libraries
+    /// (Lux), so the field is defaulted — old flows and libraries parse
+    /// unchanged. Port names must stay unique across inputs, outputs and
+    /// connections within one kind.
+    #[serde(default)]
+    pub connections: Vec<Port>,
     /// Its parameters.
     pub params: Vec<Param>,
 }
@@ -283,9 +291,22 @@ impl Flow {
     /// Blocks in an order where every wire goes from earlier to later
     /// (Kahn); `Err` names a block on a cycle.
     pub fn topological(&self) -> Result<Vec<&Block>, String> {
+        self.topological_skipping(&|_| false)
+    }
+
+    /// [`topological`](Self::topological) over the wires `skip` does not
+    /// name — a pin wire is an equation, not dataflow (ADR-0020), so
+    /// cycles through pins are legal and must not trap the walk.
+    pub fn topological_skipping(
+        &self,
+        skip: &dyn Fn(&Wire) -> bool,
+    ) -> Result<Vec<&Block>, String> {
         let mut indeg: BTreeMap<&str, usize> =
             self.blocks.iter().map(|b| (b.id.as_str(), 0)).collect();
         for w in &self.wires {
+            if skip(w) {
+                continue;
+            }
             if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
                 *d += 1;
             }
@@ -298,7 +319,11 @@ impl Flow {
         let mut out = Vec::new();
         while let Some(b) = ready.pop() {
             out.push(b);
-            for w in self.wires.iter().filter(|w| w.from_block == b.id) {
+            for w in self
+                .wires
+                .iter()
+                .filter(|w| w.from_block == b.id && !skip(w))
+            {
                 if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
                     *d -= 1;
                     if *d == 0 {
@@ -364,27 +389,46 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
         };
         let out = fk.outputs.iter().find(|p| p.name == w.from_port);
         let inp = tk.inputs.iter().find(|p| p.name == w.to_port);
-        match (out, inp) {
-            (Some(o), Some(i)) => {
-                if o.ty.unify(&i.ty).is_none() {
-                    issues.push(Issue {
-                        about: w.id.clone(),
-                        message: format!(
-                            "{}.{} ({}) does not fit {}.{} ({})",
-                            w.from_block,
-                            w.from_port,
-                            o.ty.describe(),
-                            w.to_block,
-                            w.to_port,
-                            i.ty.describe()
-                        ),
-                    });
-                }
+        let pin_f = fk.connections.iter().find(|p| p.name == w.from_port);
+        let pin_t = tk.connections.iter().find(|p| p.name == w.to_port);
+        // A wire is dataflow when it leaves an output and enters an input;
+        // an equation when both ends are pins (ADR-0020) — either drag
+        // order, and its types must unify symmetrically.
+        if let (Some(o), Some(i)) = (out, inp) {
+            if o.ty.unify(&i.ty).is_none() {
+                issues.push(Issue {
+                    about: w.id.clone(),
+                    message: format!(
+                        "{}.{} ({}) does not fit {}.{} ({})",
+                        w.from_block,
+                        w.from_port,
+                        o.ty.describe(),
+                        w.to_block,
+                        w.to_port,
+                        i.ty.describe()
+                    ),
+                });
             }
-            _ => issues.push(Issue {
+        } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
+            if a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)).is_none() {
+                issues.push(Issue {
+                    about: w.id.clone(),
+                    message: format!(
+                        "{}.{} ({}) does not connect to {}.{} ({})",
+                        w.from_block,
+                        w.from_port,
+                        a.ty.describe(),
+                        w.to_block,
+                        w.to_port,
+                        b.ty.describe()
+                    ),
+                });
+            }
+        } else {
+            issues.push(Issue {
                 about: w.id.clone(),
                 message: "wire references a port that does not exist".into(),
-            }),
+            });
         }
     }
     for b in &flow.blocks {
@@ -401,9 +445,39 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
                     });
                 }
             }
+            // A required pin is satisfied from either direction — a pin
+            // wire's from/to are just the two ends (ADR-0020).
+            for p in k.connections.iter().filter(|p| p.required) {
+                if !flow.wires.iter().any(|w| {
+                    (w.from_block == b.id && w.from_port == p.name)
+                        || (w.to_block == b.id && w.to_port == p.name)
+                }) {
+                    issues.push(Issue {
+                        about: b.id.clone(),
+                        message: format!("pin {} of {} is not connected", p.name, b.id),
+                    });
+                }
+            }
         }
     }
-    if let Err(e) = flow.topological() {
+    // Cycles are a dataflow problem; equations may loop (ADR-0020).
+    let pin_wires: std::collections::HashSet<&str> = flow
+        .wires
+        .iter()
+        .filter(|w| {
+            flow.block(&w.from_block)
+                .and_then(|b| find_kind(libraries, &b.kind))
+                .map(|(_, k)| k.connections.iter().any(|p| p.name == w.from_port))
+                .unwrap_or(false)
+                && flow
+                    .block(&w.to_block)
+                    .and_then(|b| find_kind(libraries, &b.kind))
+                    .map(|(_, k)| k.connections.iter().any(|p| p.name == w.to_port))
+                    .unwrap_or(false)
+        })
+        .map(|w| w.id.as_str())
+        .collect();
+    if let Err(e) = flow.topological_skipping(&|w| pin_wires.contains(w.id.as_str())) {
         issues.push(Issue {
             about: String::new(),
             message: e,
@@ -439,6 +513,7 @@ mod tests {
                         PortType::tensor(vec![Some(28), Some(28), Some(1)]),
                         false,
                     )],
+                    connections: vec![],
                     params: vec![],
                 },
                 BlockKind {
@@ -448,6 +523,7 @@ mod tests {
                     description: String::new(),
                     inputs: vec![port("in", PortType::tensor(vec![None]), true)],
                     outputs: vec![port("out", PortType::tensor(vec![None]), false)],
+                    connections: vec![],
                     params: vec![],
                 },
                 BlockKind {
@@ -457,6 +533,7 @@ mod tests {
                     description: String::new(),
                     inputs: vec![port("in", PortType::tensor(vec![]), true)],
                     outputs: vec![port("out", PortType::tensor(vec![None]), false)],
+                    connections: vec![],
                     params: vec![],
                 },
             ],
@@ -532,5 +609,219 @@ mod tests {
             .any(|i| i.message.contains("cycle")));
         let json = f.to_json();
         assert_eq!(Flow::parse(&json).unwrap(), f);
+    }
+
+    /// A pin library (ADR-0020): two acausal components whose `connect`
+    /// ports share a domain, plus one of another domain.
+    fn pin_lib() -> FlowLibrary {
+        let pin = |n: &str, domain: &str, required: bool| Port {
+            name: n.into(),
+            ty: PortType::Named {
+                name: domain.into(),
+            },
+            required,
+        };
+        FlowLibrary {
+            id: "m",
+            name: "MTK",
+            language: "none",
+            codegen: None,
+            blocks: vec![
+                BlockKind {
+                    id: "resistor".into(),
+                    name: "Resistor".into(),
+                    category: "electrical".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![],
+                    connections: vec![pin("p", "electrical", true), pin("n", "electrical", true)],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "ground".into(),
+                    name: "Ground".into(),
+                    category: "electrical".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![],
+                    connections: vec![pin("g", "electrical", false)],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "mass".into(),
+                    name: "Mass".into(),
+                    category: "mechanical".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![],
+                    connections: vec![pin("flange", "mechanical", false)],
+                    params: vec![],
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn pin_wires_connect_in_either_order_and_refuse_other_domains() {
+        let libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "g".into(),
+                kind: "m/ground".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+        ];
+        // Dragged r.p → g.g: an equation, accepted either way round.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "r".into(),
+            from_port: "p".into(),
+            to_block: "g".into(),
+            to_port: "g".into(),
+        }];
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .all(|i| !i.message.contains("does not connect")
+                    && !i.message.contains("port that does not exist")),
+            "the pin wire is an equation: {issues:?}"
+        );
+        // The same wire dragged the other way: also fine.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "g".into(),
+            from_port: "g".into(),
+            to_block: "r".into(),
+            to_port: "n".into(),
+        }];
+        let issues = validate(&f, &libs);
+        assert!(
+            !issues.iter().any(|i| i.message.contains("does not connect")
+                || i.message.contains("port that does not exist")),
+            "either drag order connects: {issues:?}"
+        );
+        // A mechanical flange onto an electrical pin: refused.
+        f.blocks.push(Block {
+            id: "m".into(),
+            kind: "m/mass".into(),
+            x: 0.0,
+            y: 0.0,
+            params: Default::default(),
+        });
+        f.wires = vec![Wire {
+            id: "w2".into(),
+            from_block: "m".into(),
+            from_port: "flange".into(),
+            to_block: "r".into(),
+            to_port: "p".into(),
+        }];
+        assert!(
+            validate(&f, &libs)
+                .iter()
+                .any(|i| i.about == "w2" && i.message.contains("does not connect")),
+            "a mechanical flange does not connect to an electrical pin"
+        );
+    }
+
+    #[test]
+    fn pin_cycles_are_legal_and_required_pins_must_wire() {
+        let libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "r1".into(),
+                kind: "m/resistor".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "r2".into(),
+                kind: "m/resistor".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+        ];
+        // A loop of equations — legal (an algebraic loop is a model, not
+        // a wiring mistake), and the unwired required pins are issues.
+        f.wires = vec![
+            Wire {
+                id: "w1".into(),
+                from_block: "r1".into(),
+                from_port: "p".into(),
+                to_block: "r2".into(),
+                to_port: "p".into(),
+            },
+            Wire {
+                id: "w2".into(),
+                from_block: "r2".into(),
+                from_port: "n".into(),
+                to_block: "r1".into(),
+                to_port: "n".into(),
+            },
+        ];
+        let issues = validate(&f, &libs);
+        assert!(
+            !issues.iter().any(|i| i.message.contains("cycle")),
+            "a cycle through pins is not a dataflow cycle: {issues:?}"
+        );
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|i| i.message.contains("not connected"))
+                .count(),
+            0,
+            "both pins of both resistors are wired: {issues:?}"
+        );
+        // Wire one required pin the other way round: satisfied too.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "r2".into(),
+            from_port: "p".into(),
+            to_block: "r1".into(),
+            to_port: "p".into(),
+        }];
+        let issues = validate(&f, &libs);
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|i| i.message.contains("not connected"))
+                .count(),
+            2,
+            "r2's pins and r1's n are still open: {issues:?}"
+        );
+        // topological() itself still counts every wire — the Lux codegen
+        // walks it — while topological_skipping frees the loop.
+        f.wires = vec![
+            Wire {
+                id: "w1".into(),
+                from_block: "r1".into(),
+                from_port: "p".into(),
+                to_block: "r2".into(),
+                to_port: "p".into(),
+            },
+            Wire {
+                id: "w2".into(),
+                from_block: "r2".into(),
+                from_port: "n".into(),
+                to_block: "r1".into(),
+                to_port: "n".into(),
+            },
+        ];
+        assert!(f.clone().topological().is_err());
+        let skip = |w: &Wire| w.id == "w1";
+        assert!(f.topological_skipping(&skip).is_ok());
     }
 }

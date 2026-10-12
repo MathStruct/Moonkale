@@ -58,6 +58,7 @@ fn library() -> FlowLibrary {
             description: "adds".into(),
             inputs: vec![],
             outputs: vec![],
+            connections: vec![],
             params: vec![Param {
                 name: "n".into(),
                 kind: ParamKind::Int,
