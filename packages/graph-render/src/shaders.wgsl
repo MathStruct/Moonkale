@@ -128,12 +128,13 @@ fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
     }
     if (alpha < 0.02) { discard; }
     // A selected node wears a light ring; an unselected one a darker rim.
-    // The circle's `d` is the uv radius (1 at the rim); a shape's `d` is a
-    // pixel SDF (negative inside) — normalize it by the smaller
-    // half-extent so the ring reads on the same 0..1 scale for every
-    // silhouette (the review's #8: the shaped ring never drew, because
-    // `smoothstep(0.7, 1.0, d)` sat past the shape's rim).
-    let u = select(d, clamp(-d / max(min(in.extent.x, in.extent.y), 1.0), 0.0, 1.0), in.shape > 0.5);
+    // The circle's `d` is the uv radius (0 at the centre, 1 at the rim); a
+    // shape's `d` is a pixel SDF — 0 at the rim, negative inside — so its
+    // inside-distance is normalised by the smaller half-extent and then
+    // inverted: `u` is 1 at the rim and 0 at the centre for every
+    // silhouette, and the band sits at the edge, not across the core
+    // (the fixes review's #1).
+    let u = select(d, 1.0 - clamp(-d / max(min(in.extent.x, in.extent.y), 1.0), 0.0, 1.0), in.shape > 0.5);
     let rim = smoothstep(0.7, 1.0, u) * 0.35;
     let ring = mix(in.color.rgb * (1.0 - rim), vec3<f32>(1.0), rim * 0.9);
     let bg = vec3<f32>(0.047, 0.055, 0.075);

@@ -72,6 +72,40 @@ try {
     if (rcorner < 20) throw new Error(`the rect's corner is not lit green (${rcorner} px)`);
     await page.screenshot({ path: `${S}/s8-shapes.png`, clip });
   });
+  await step("the rim hugs the edge, not the block's core (the fixes review's #1)", async () => {
+    // Park the pointer off-canvas first: a hovered node draws white (P-166).
+    await page.mouse.move(box.x - 40, box.y - 40);
+    await sleep(200);
+    const FILL = (r, g, b) => g > 180 && g > r + 40 && g > b + 40;   // the block's fill #8ccf6a
+    const RING = (r, g, b) => r > 120 && g > 120 && b > 90;         // the selection ring's light band
+    const b = await screen("blk");
+    const png = await page.screenshot({ clip });
+    // An unselected block's centre is the plain fill — the inverted rim
+    // normalisation darkened a band across the core instead.
+    let centre = patch(png, b[0], b[1], 3, FILL);
+    if (centre < 20) throw new Error(`the unselected block's centre is not its fill (${centre} px)`);
+    // Find the block's top rim in the pixels themselves (greenish up to
+    // the boundary, background beyond), just right of the label.
+    const { width, bpp, data } = decode(png);
+    const xb = Math.round(b[0]) + 30;
+    let top = Math.round(b[1]);
+    while (top > 0 && data[(top * width + xb) * bpp + 1] > 90) top -= 1;
+    // The unselected rim is the darkened fill — no ring there yet.
+    const before = patch(png, b[0], top + 3, 2, RING);
+    if (before > 0) throw new Error(`the unselected block already wears the ring (${before} px)`);
+    // Select the block: the centre stays the fill, the edge lights up.
+    await page.mouse.click(box.x + b[0], box.y + b[1]);
+    await sleep(300);
+    await page.mouse.move(box.x - 40, box.y - 40);
+    await sleep(300);
+    const png2 = await page.screenshot({ clip });
+    centre = patch(png2, b[0], b[1], 3, FILL);
+    if (centre < 20) throw new Error(`the selected block's centre is not its fill (${centre} px)`);
+    const edge = patch(png2, b[0], top + 3, 2, RING);
+    console.log(`\n  centre fill held; ring ${edge} px at the edge (unselected rim: ${before} px)`);
+    if (edge < 5) throw new Error(`the selected block's edge has no light ring (${edge} px)`);
+    await page.keyboard.press("Escape");
+  });
   await step("the strokes: a hue only a rim band produces", async () => {
     // Park the pointer off-canvas first: a hovered node draws white (P-166).
     await page.mouse.move(box.x - 40, box.y - 40);

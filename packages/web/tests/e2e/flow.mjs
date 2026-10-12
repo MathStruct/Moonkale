@@ -333,7 +333,10 @@ try {
     }
     await page.keyboard.press("Backspace");
     await page.keyboard.press("Delete");
-    await sleep(300);
+    // Ctrl+S is what turns a polluted document into data loss (#11):
+    // with the guard, the save writes the broken text back unchanged.
+    await page.keyboard.press("Control+s");
+    await sleep(500);
     const untouched = fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8");
     console.log("\n  broken file held:", untouched === bad);
     if (untouched !== bad) throw new Error("Delete wrote to a broken file (#11)");
