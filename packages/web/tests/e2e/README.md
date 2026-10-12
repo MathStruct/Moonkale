@@ -97,4 +97,4 @@ First run (2026-10-11, `dev-claude`): **Source 15/16 exact**; the 16th, `11-crlf
 - escapes callouts (`> \[!note]`) and turns `$$…$$` on one line into `$…$`;
 - drops inline `<br>`, the BOM and CRLF, and adds a final newline.
 
-After the P-164 fix (same day): **Source 16/16**, now strict by default.
+After the P-164 fix (same day): **Source 16/16**, now strict by default. P-165 fixed: Rich mode no longer marks any corpus file dirty on open (still 2/16 exact on save: the rewrites listed above remain).
