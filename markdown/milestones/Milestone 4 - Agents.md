@@ -26,7 +26,7 @@ On desktop and web:
 
 ```mermaid
 flowchart LR
-  subgraph client [client (desktop or web)]
+  subgraph client["client (desktop or web)"]
     AP[editors/agent panel] --> AG[llm::agent loop]
     AG --> POL[llm::policy] --> TH[ToolHost over Workspace]
     TH --> SRC[(sources)]

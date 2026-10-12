@@ -207,7 +207,9 @@ document.addEventListener("nav", async () => {
       node.removeAttribute("data-processed")
       const oldText = textMapping.get(node)
       if (oldText) {
-        node.innerHTML = oldText
+        // textContent, not innerHTML: a diagram's `<<trait>>` would parse as an HTML tag
+        // and swallow the rest of the source ("Syntax error in text", P-176).
+        node.textContent = oldText
       }
     }
 
