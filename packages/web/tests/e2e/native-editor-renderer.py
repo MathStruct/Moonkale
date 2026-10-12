@@ -16,6 +16,7 @@ import time
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("binary", type=pathlib.Path)
 parser.add_argument("--os-input", action="store_true")
+parser.add_argument("--headings", action="store_true", help="use heading formatting with --markdown")
 parser.add_argument("--nested", action="store_true", help="use nested formatting with --markdown")
 parser.add_argument("--markdown", action="store_true", help="test bounded Markdown preview and canonical editing")
 parser.add_argument("--widgets", action="store_true", help="test interactive block widget focus, input isolation and source return")
@@ -29,6 +30,8 @@ parser.add_argument("--x11", action="store_true",
 parser.add_argument("--screenshot", type=pathlib.Path)
 parser.add_argument("--isolate", action="store_true", help="compare visible textarea/editor IME and inspect unready geometry")
 args = parser.parse_args()
+if args.headings and (not args.markdown or args.nested):
+    parser.error("--headings requires --markdown and excludes --nested")
 if args.nested and not args.markdown:
     parser.error("--nested requires --markdown")
 if args.markdown and (args.widgets or args.presentation or args.proportional or args.isolate or args.ime):
@@ -81,6 +84,9 @@ with tempfile.TemporaryDirectory(prefix="moonkale-renderer-") as directory:
     env.pop("MOONKALE_MARKDOWN_NESTED", None)
     if args.nested:
         env["MOONKALE_MARKDOWN_NESTED"] = "1"
+    env.pop("MOONKALE_MARKDOWN_HEADINGS", None)
+    if args.headings:
+        env["MOONKALE_MARKDOWN_HEADINGS"] = "1"
     previous_ime = None
     if args.ime or args.isolate:
         env["GTK_IM_MODULE"] = "fcitx"

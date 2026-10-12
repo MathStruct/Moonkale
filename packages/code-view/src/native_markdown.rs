@@ -41,8 +41,15 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
     let mut frames: Vec<Frame> = Vec::new();
     let mut values = Vec::new();
     let mut blocked = 0usize;
-    let mut emit = |range: Range<usize>, label: String, style| {
-        // Multiline inlines retain source in this bounded provider.
+    let mut emit = |mut range: Range<usize>, label: String, style| {
+        if matches!(style, InlineStyle::Heading(..)) {
+            while range.end > range.start
+                && matches!(source.as_bytes()[range.end - 1], b'\n' | b'\r')
+            {
+                range.end -= 1;
+            }
+        }
+        // Multiline constructs retain source in this bounded provider.
         if range.is_empty() || label.is_empty() || source[range.clone()].contains('\n') {
             return;
         }
@@ -60,14 +67,16 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
     };
     for (event, range) in Parser::new(source).into_offset_iter() {
         match event {
-            Event::Start(Tag::Emphasis | Tag::Strong) => {
+            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Heading { .. }) => {
                 if let Some(parent) = frames.last_mut() {
                     parent.nested = true;
                 }
-                let style = if matches!(event, Event::Start(Tag::Strong)) {
-                    InlineStyle::Strong
-                } else {
-                    InlineStyle::Emphasis
+                let style = match event {
+                    Event::Start(Tag::Strong) => InlineStyle::Strong,
+                    Event::Start(Tag::Heading { level, .. }) => {
+                        InlineStyle::Heading(level as u8, Vec::new())
+                    }
+                    _ => InlineStyle::Emphasis,
                 };
                 frames.push(Frame {
                     range,
@@ -77,7 +86,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
                     unsupported: blocked > 0,
                 });
             }
-            Event::End(TagEnd::Emphasis | TagEnd::Strong) => {
+            Event::End(TagEnd::Emphasis | TagEnd::Strong | TagEnd::Heading(_)) => {
                 if let Some(frame) = frames.pop() {
                     if let Some(parent) = frames.last_mut() {
                         parent.unsupported |= frame.unsupported;
@@ -90,10 +99,12 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
                             .iter()
                             .map(|fragment| fragment.text.as_str())
                             .collect();
-                        let style = if frame.nested {
-                            InlineStyle::Nested(frame.fragments)
-                        } else {
-                            frame.style
+                        let style = match frame.style {
+                            InlineStyle::Heading(level, _) => {
+                                InlineStyle::Heading(level, frame.fragments)
+                            }
+                            _ if frame.nested => InlineStyle::Nested(frame.fragments),
+                            style => style,
                         };
                         emit(frame.range, label, style);
                     }
@@ -257,5 +268,37 @@ mod tests {
         assert_eq!(result.revision, DocumentRevision(8));
         assert_eq!(result.values.len(), 63);
         assert_eq!(result.values.last().unwrap().id, 248);
+    }
+
+    #[test]
+    fn atx_headings_own_markers_but_not_newlines_and_keep_inline_styles() {
+        for level in 1..=6 {
+            let token = format!("{} Title **猫** and `x` ###", "#".repeat(level));
+            let result = previews(&format!("{token}\nnext"));
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].0, token);
+            assert_eq!(result[0].1, "Title 猫 and x");
+            let InlineStyle::Heading(actual, fragments) = &result[0].2 else {
+                panic!("heading style");
+            };
+            assert_eq!(*actual, level as u8);
+            assert!(fragments
+                .iter()
+                .any(|fragment| fragment.text == "猫" && fragment.strong));
+            assert!(fragments
+                .iter()
+                .any(|fragment| fragment.text == "x" && fragment.code));
+        }
+        for source in [
+            "Title *source*\n---\n",
+            "#No heading",
+            "####### Too many",
+            "# [**link**](url)",
+            "# a <b>b</b>",
+            "```\n# literal\n```",
+            "#",
+        ] {
+            assert!(previews(source).is_empty(), "{source}");
+        }
     }
 }

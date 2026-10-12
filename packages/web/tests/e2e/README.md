@@ -278,3 +278,6 @@ First run (2026-10-11, `dev-claude`): **Source 15/16 exact**; the 16th, `11-crlf
 After the P-164 fix (same day): **Source 16/16**, now strict by default. P-165 fixed: Rich mode no longer marks any corpus file dirty on open (still 2/16 exact on save: the rewrites listed above remain).
 
 `codemirror-crlf.mjs` checks LF and CRLF canonical UTF-16 selection callbacks, Unicode splice coordinates and undo against the bundled view. Reconciliation with P-164 preserves the view separator and removes the former Rust LF mirror/CRLF expansion; `roundtrip.mjs` Source remains 16/16 byte-exact.
+
+
+`native-editor-markdown-headings.mjs` checks all six ATX levels through the production Preview toggle: mixed inline fragments, full source-marker ownership, pointer boundaries at three widths, retained variable row heights without gaps, local reveal, canonical source copy, CRLF editing/undo and synthetic composition. Native `native-editor-renderer.py target/debug/moonkale-native-editor-host --x11 --markdown --headings --os-input` covers WebKit styles and real pointer/source input/undo. `--headings` requires `--markdown` and excludes `--nested`; its enlarged viewport keeps all heading targets mounted.

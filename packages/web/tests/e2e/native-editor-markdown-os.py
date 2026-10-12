@@ -37,19 +37,20 @@ assert int(subprocess.check_output(["xdotool", "getwindowpid", args.window], tex
 result = json.loads(args.result.read_text())
 original = result["text"]
 token = result["token"]
-state = wait(lambda value: value["ready"] and value["count"] == 3, "Markdown geometry")
+count = result["count"]
+state = wait(lambda value: value["ready"] and value["count"] == count, "Markdown geometry")
 xdo("windowactivate", "--sync", args.window, "windowfocus", "--sync", args.window)
 time.sleep(.2)
-state = wait(lambda value: value["ready"] and value["count"] == 3, "focused Markdown geometry")
+state = wait(lambda value: value["ready"] and value["count"] == count, "focused Markdown geometry")
 rect = state["rect"]
 xdo("mousemove", "--window", args.window, str(round(rect["x"] + 2)),
     str(round(rect["y"] + rect["height"] / 2 + 27)), "click", "1")
 start = len(original.replace("\r\n", "\n").split(token)[0])
-wait(lambda value: value["offset"] == start and value["count"] == 2, "local source reveal")
+wait(lambda value: value["offset"] == start and value["count"] == count - 1, "local source reveal")
 xdo("type", "--clearmodifiers", "Q")
 wait(lambda value: value["text"] == original.replace(token, "Q" + token, 1), "canonical Markdown typing")
 xdo("key", "--clearmodifiers", "ctrl+z")
 wait(lambda value: value["text"] == original, "Markdown undo")
 xdo("key", "--clearmodifiers", "ctrl+End")
-wait(lambda value: value["count"] == 3 and value["ready"], "preview restored")
+wait(lambda value: value["count"] == count and value["ready"], "preview restored")
 print("PASS: real OS Markdown pointer reveal, source typing/undo and preview restoration")

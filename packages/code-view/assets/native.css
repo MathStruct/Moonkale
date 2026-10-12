@@ -62,3 +62,10 @@
 .mk-markdown-fragment[data-emphasis="true"] { font-style: italic; }
 .mk-markdown-fragment[data-strong="true"] { font-weight: bold; }
 .mk-markdown-fragment[data-code="true"] { font-family: var(--mk-code-font, monospace); background: var(--mk-code-selection); border-radius: 3px; }
+
+.mk-native-inline-widget.mk-markdown-heading { font-weight: bold; line-height: 1.25; }
+.mk-markdown-heading[data-heading-level="1"] { font-size: 1.6em; }
+.mk-markdown-heading[data-heading-level="2"] { font-size: 1.4em; }
+.mk-markdown-heading[data-heading-level="3"] { font-size: 1.25em; }
+.mk-markdown-heading[data-heading-level="4"] { font-size: 1.1em; }
+.mk-markdown-heading[data-heading-level="5"], .mk-markdown-heading[data-heading-level="6"] { font-size: 1em; }

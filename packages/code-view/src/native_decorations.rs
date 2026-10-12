@@ -31,6 +31,8 @@ pub(crate) enum InlineStyle {
     Code,
     #[cfg(feature = "markdown-preview")]
     Nested(Vec<InlineFragment>),
+    #[cfg(feature = "markdown-preview")]
+    Heading(u8, Vec<InlineFragment>),
 }
 
 #[cfg(feature = "markdown-preview")]
@@ -50,12 +52,13 @@ impl InlineStyle {
             Self::Strong => "mk-markdown-strong",
             Self::Code => "mk-markdown-code",
             Self::Nested(_) => "mk-markdown-nested",
+            Self::Heading(_, _) => "mk-markdown-heading",
         }
     }
 }
 
-/// Source-owned presentation. The bounded fixture renders replacement and
-/// block kinds; production providers currently emit only marks and lines.
+/// Source-owned presentation. Opt-in Markdown uses bounded replacements;
+/// fixtures additionally exercise hidden ranges and interactive blocks.
 #[derive(Clone, PartialEq)]
 pub(crate) enum Kind {
     Mark {
