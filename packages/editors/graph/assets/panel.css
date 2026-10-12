@@ -7,6 +7,9 @@
 .mk-graph-check { display: inline-flex; align-items: center; gap: 4px; }
 .mk-graph-spacer { flex: 1; }
 .mk-graph-info { opacity: 0.8; }
+/* The aria-live line (spec 031, stage 10): present for screen readers,
+   unobtrusive for everyone else — never display:none, which silences it. */
+.mk-graph-live { font-size: 11px; opacity: 0.6; }
 .mk-btn-on { background: var(--wb-selected); border-color: var(--wb-accent); }
 .mk-graph-host { position: relative; flex: 1; min-height: 0; background: var(--mk-graph-bg); overflow: hidden; }
 .mk-graph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

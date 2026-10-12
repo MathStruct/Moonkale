@@ -1,0 +1,9 @@
+[package]
+name = "moonkale-graph-assets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The graph engine's wasm module and JS glue as shared build assets (one copy for every host panel; written by graph-render's build.sh)."
+
+[dependencies]
+dioxus = { workspace = true }

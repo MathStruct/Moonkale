@@ -35,3 +35,5 @@ graph-failed = 渲染器未能启动：{ $error }
 graph-commit = 提交 { $hash }：{ $label }
 graph-not-in-folder = { $path } 不在已打开的文件夹中
 graph-nothing-to-open = { $label } 没有可打开的内容
+graph-selection = 已选择 { $nodes } 个节点和 { $edges } 条边
+graph-selection-none = 未选择任何内容

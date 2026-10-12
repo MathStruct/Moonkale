@@ -3,7 +3,7 @@
 //! target, with the same public operations. The shaders get one uniform
 //! block carrying both.
 
-use crate::graph::Graph;
+use crate::graph::{Graph, Shape};
 
 /// The furthest the 2D camera zooms out. A layout of a few thousand nodes
 /// spans tens of thousands of world units (ideal edge length 28 + 6·ln n);
@@ -29,6 +29,9 @@ pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
     pub dist: f32,
+    /// Elapsed seconds since the view was created — the clock the edge
+    /// pulses run on (spec 031 §2, stage 6). Presentation only.
+    pub time: f32,
 }
 
 impl Default for Camera {
@@ -44,6 +47,7 @@ impl Default for Camera {
             yaw: 0.6,
             pitch: 0.8,
             dist: 1200.0,
+            time: 0.0,
         }
     }
 }
@@ -250,14 +254,24 @@ impl Camera {
         let Some((x0, y0, x1, y1)) = graph.fit_bounds() else {
             return;
         };
-        let w = (x1 - x0).max(1.0);
-        let h = (y1 - y0).max(1.0);
-        self.cx = (x0 + x1) / 2.0;
-        self.cy = (y0 + y1) / 2.0;
         let (z0, z1) = graph
             .nodes
             .iter()
             .fold((f32::MAX, f32::MIN), |(a, b), n| (a.min(n.z), b.max(n.z)));
+        self.fit_rect((x0, y0, x1, y1), (z0, z1), padding);
+    }
+
+    /// The shared fitting core (the stage 4–6 review's #9: `focus` had
+    /// re-derived it, without the 3D fields and with a world-unit pad
+    /// mixed into a pixel margin). `padding` is in pixels; the caller
+    /// includes whatever margins it wants in the rect.
+    pub fn fit_rect(&mut self, rect: (f32, f32, f32, f32), z: (f32, f32), padding: f32) {
+        let (x0, y0, x1, y1) = rect;
+        let (z0, z1) = z;
+        let w = (x1 - x0).max(1.0);
+        let h = (y1 - y0).max(1.0);
+        self.cx = (x0 + x1) / 2.0;
+        self.cy = (y0 + y1) / 2.0;
         self.cz = if z0 <= z1 { (z0 + z1) / 2.0 } else { 0.0 };
         self.scale = ((self.width - 2.0 * padding) / w)
             .min((self.height - 2.0 * padding) / h)
@@ -268,20 +282,32 @@ impl Camera {
     }
 
     /// Index of the node under the screen point, if any (nearest wins).
+    /// A shaped block is hit inside its drawn silhouette — a rect by its
+    /// half-extents, a diamond by the rhombus inscribed in them — not by
+    /// a circle of half the width, which grabbed the space above and
+    /// below a flat block and missed its corners (the review's #8).
     pub fn hit(&self, graph: &Graph, sx: f32, sy: f32) -> Option<usize> {
         let mut best: Option<(usize, f32)> = None;
         for (i, n) in graph.nodes.iter().enumerate() {
-            let (px, py, r) = if self.three_d {
+            let (px, py, ex, ey) = if self.three_d {
                 let Some((px, py, w)) = self.project(n.x, n.y, n.z) else {
                     continue;
                 };
-                (px, py, n.radius * self.size_factor(w) + 4.0)
+                let a = self.size_factor(w);
+                (px, py, n.radius * a + 4.0, n.height * a + 4.0)
             } else {
                 let (px, py) = self.world_to_screen(n.x, n.y);
-                (px, py, n.radius * self.scale.max(0.6) + 4.0)
+                let s = self.scale.max(0.6);
+                (px, py, n.radius * s + 4.0, n.height * s + 4.0)
             };
-            let d2 = (px - sx).powi(2) + (py - sy).powi(2);
-            if d2 <= r * r && best.is_none_or(|(_, bd)| d2 < bd) {
+            let (dx, dy) = (px - sx, py - sy);
+            let inside = match n.shape {
+                Shape::Circle => dx * dx + dy * dy <= ex * ex,
+                Shape::Rect => dx.abs() <= ex && dy.abs() <= ey,
+                Shape::Diamond => dx.abs() / ex + dy.abs() / ey <= 1.0,
+            };
+            let d2 = dx * dx + dy * dy;
+            if inside && best.is_none_or(|(_, bd)| d2 < bd) {
                 best = Some((i, d2));
             }
         }
@@ -299,7 +325,8 @@ impl Camera {
         u[4] = self.width;
         u[5] = self.height;
         u[6] = self.dist;
-        u[7] = 0.0;
+        // The clock the pulses run on (spec 031 §2, stage 6).
+        u[7] = self.time;
         u[8..24].copy_from_slice(&self.view_proj());
         u
     }
@@ -308,6 +335,31 @@ impl Camera {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fit_rect_centres_and_sets_the_3d_fields() {
+        // The shared fitting core (the P-166 review's #9): `focus` used to
+        // re-derive the 2D half only — nothing set the orbit, so a focus in
+        // 3D did nothing.
+        let mut c = Camera {
+            width: 800.0,
+            height: 600.0,
+            ..Default::default()
+        };
+        c.fit_rect((10.0, 20.0, 110.0, 120.0), (-140.0, 140.0), 40.0);
+        assert!((c.cx - 60.0).abs() < 1e-4 && (c.cy - 70.0).abs() < 1e-4);
+        assert_eq!(c.cz, 0.0, "the orbit target is the rect's depth centre");
+        // 100 wide, padding 40 → scale 720/100 = 7.2 (height-bound: 520/100).
+        assert!((c.scale - 5.2).abs() < 1e-4, "scale {}", c.scale);
+        let radius = (100.0f32 * 100.0 + 100.0 * 100.0 + 280.0 * 280.0).sqrt() / 2.0;
+        let want = (radius / 25f32.to_radians().sin() * 1.1).clamp(200.0, 60_000.0);
+        assert!(
+            (c.dist - want).abs() < 1e-2,
+            "dist {} want {}",
+            c.dist,
+            want
+        );
+    }
 
     #[test]
     fn zoom_keeps_the_point_under_the_cursor() {

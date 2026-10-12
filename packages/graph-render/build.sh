@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the graph renderer wasm module into packages/editors/graph/assets/.
+# Builds the graph renderer wasm module into packages/graph-assets/assets/ (one copy shared by every host panel).
 # Needs: rustup target wasm32-unknown-unknown, and wasm-bindgen 0.2.128
 # (the version dx installs under ~/.local/share/.dx/tools; the CLI version must
 # match the wasm-bindgen crate version in Cargo.lock).
@@ -8,6 +8,6 @@ cd "$(dirname "$0")/../.."
 BINDGEN="${WASM_BINDGEN:-$HOME/.local/share/.dx/tools/wasm-bindgen-0.2.128/wasm-bindgen}"
 cargo build -p moonkale-graph-render --target wasm32-unknown-unknown --profile graph-wasm
 "$BINDGEN" --target web --no-typescript \
-  --out-dir packages/editors/graph/assets --out-name graph_render \
+  --out-dir packages/graph-assets/assets --out-name graph_render \
   "${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/graph-wasm/moonkale_graph_render.wasm"
-ls -la packages/editors/graph/assets/graph_render*
+ls -la packages/graph-assets/assets/graph_render*

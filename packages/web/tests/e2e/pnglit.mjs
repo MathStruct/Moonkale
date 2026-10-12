@@ -7,6 +7,22 @@ import zlib from "node:zlib";
 /// lit when its brightness passes `threshold` (default 60 of 255 — the
 /// graph background is #0c0e13).
 export function litPixels(png, threshold = 60) {
+  const { width, height, bpp, data } = decode(png);
+  const lit = [];
+  const stride = width * bpp;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * stride + x * bpp;
+      const b = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      if (b > threshold) lit.push({ x, y, b });
+    }
+  }
+  return { width, height, lit };
+}
+
+/// The raw decoded pixels — for colour checks (a hull's tint is dimmer
+/// than any lit threshold; it is told apart by hue).
+export function decode(png) {
   if (png.readUInt32BE(0) !== 0x89504e47) throw new Error("not a PNG");
   let off = 8;
   let width = 0, height = 0, colorType = 6, bitDepth = 8, interlace = 0;
@@ -55,13 +71,5 @@ export function litPixels(png, threshold = 60) {
       cur[i] = v;
     }
   }
-  const lit = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = y * stride + x * bpp;
-      const b = (out[i] + out[i + 1] + out[i + 2]) / 3;
-      if (b > threshold) lit.push({ x, y, b });
-    }
-  }
-  return { width, height, lit };
+  return { width, height, bpp, data: out };
 }

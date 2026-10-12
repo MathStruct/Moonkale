@@ -4,7 +4,7 @@ struct Camera {
     mode: f32,          // 0 = 2D, 1 = 3D (Milestone 8)
     viewport: vec2<f32>,
     dist: f32,          // 3D: orbit distance, for size attenuation
-    _pad: f32,
+    time: f32,          // seconds since the view was created — the pulses' clock (§2)
     view_proj: mat4x4<f32>,
 };
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -39,13 +39,21 @@ struct NodeInst {
     @location(1) color: vec4<f32>,
     @location(2) radius: f32,
     @location(3) selected: f32,
+    @location(4) kind: f32,      // 0 = node, 1 = port (spec 031 §6: port LOD)
+    @location(5) shape: f32,     // 0 = circle, 1 = rect, 2 = diamond (§2)
+    @location(6) height: f32,    // a block's half-height, world
+    @location(7) stroke: vec4<f32>, // a host rim colour (§2, stage 8)
 };
 struct NodeOut {
     @builtin(position) clip: vec4<f32>,
-    @location(0) uv: vec2<f32>,
+    @location(0) uv: vec2<f32>,     // ±1 across the instance
     @location(1) color: vec4<f32>,
     @location(2) fog: f32,
     @location(3) selected: f32,
+    @location(4) kind: f32,
+    @location(5) shape: f32,
+    @location(6) extent: vec2<f32>, // the instance's half-extents, screen px
+    @location(7) stroke: vec4<f32>,
 };
 
 @vertex
@@ -54,36 +62,93 @@ fn node_vs(@builtin(vertex_index) vi: u32, inst: NodeInst) -> NodeOut {
     let c = corners[vi];
     let pr = project(inst.pos);
     // Radius in pixels, never smaller than 2px when zoomed far out; in 3D
-    // nearer nodes are bigger.
-    var r: f32;
-    if (camera.mode > 0.5) {
-        r = max(inst.radius * clamp(camera.dist / pr.w, 0.2, 4.0), 2.0) + 1.0;
+    // nearer nodes are bigger. A rect (a flow block, stage 7) spans its
+    // half-width and half-height instead of one radius.
+    var ext: vec2<f32>;
+    if (inst.shape < 0.5) {
+        // A circle has one radius; its (unused) rect height must not
+        // balloon it — every node defaults to height 22.
+        let r = inst.radius
+            * select(camera.scale, clamp(camera.dist / pr.w, 0.2, 4.0), camera.mode > 0.5);
+        ext = vec2<f32>(max(r, 2.0) + 1.0);
+    } else if (camera.mode > 0.5) {
+        let a = clamp(camera.dist / pr.w, 0.2, 4.0);
+        ext = vec2<f32>(max(inst.radius * a, 2.0), max(inst.height * a, 2.0)) + vec2<f32>(1.0, 1.0);
     } else {
-        r = max(inst.radius * camera.scale, 2.0) + 1.0;
+        ext = vec2<f32>(
+            max(inst.radius * camera.scale, 2.0),
+            max(inst.height * camera.scale, 2.0),
+        ) + vec2<f32>(1.0, 1.0);
     }
-    let off = vec2<f32>(c.x * r / (camera.viewport.x * 0.5), c.y * r / (camera.viewport.y * 0.5));
+    let off = vec2<f32>(c.x * ext.x / (camera.viewport.x * 0.5), c.y * ext.y / (camera.viewport.y * 0.5));
     var out: NodeOut;
     out.clip = vec4<f32>(pr.x + off.x, pr.y + off.y, pr.z, 1.0);
     out.uv = c;
     out.color = inst.color;
     out.fog = fog(pr.w);
     out.selected = inst.selected;
+    out.shape = inst.shape;
+    out.extent = ext;
+    out.stroke = inst.stroke;
+    // Port LOD (spec 031 §6): once a port's projected size falls under a
+    // couple of pixels it stops drawing — the scale lives here, not in the
+    // fragment. kind becomes 2 = a suppressed port. kind 3 (a hyperedge
+    // junction) is structural and always draws.
+    if (inst.kind == 1.0 && inst.radius * camera.scale < 2.5) {
+        out.kind = 2.0;
+    } else {
+        out.kind = inst.kind;
+    }
     return out;
 }
 
 @fragment
 fn node_fs(in: NodeOut) -> @location(0) vec4<f32> {
-    let d = length(in.uv);
-    let edge = fwidth(d) * 1.5;
-    let alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
+    if (in.kind > 1.5 && in.kind < 2.5) { discard; } // a port under the pixel threshold
+    // Shapes (spec 031 §2): a rect block and a diamond are SDFs in screen
+    // pixels; a circle is the uv distance as before. A diamond inscribes
+    // its extent box — the box's corners stay dark.
+    var alpha: f32;
+    var d: f32;  // screen px inside the shape (negative), 0 at the rim
+    if (in.shape > 1.5) {
+        let p = abs(in.uv) * in.extent;
+        d = (p.x / in.extent.x + p.y / in.extent.y - 1.0) * min(in.extent.x, in.extent.y);
+        let edge = fwidth(d) * 1.5;
+        alpha = 1.0 - smoothstep(-edge, edge, d);
+    } else if (in.shape > 0.5) {
+        let corner = min(in.extent.x, in.extent.y) * 0.25;
+        let q = abs(in.uv * in.extent) - (in.extent - vec2<f32>(corner, corner));
+        d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - corner;
+        let edge = fwidth(d) * 1.5;
+        alpha = 1.0 - smoothstep(-edge, edge, d);
+    } else {
+        d = length(in.uv);
+        let edge = fwidth(d) * 1.5;
+        alpha = 1.0 - smoothstep(1.0 - edge, 1.0, d);
+    }
     if (alpha < 0.02) { discard; }
     // A selected node wears a light ring; an unselected one a darker rim.
-    let rim = smoothstep(0.7, 1.0, d) * 0.35;
+    // The circle's `d` is the uv radius (0 at the centre, 1 at the rim); a
+    // shape's `d` is a pixel SDF — 0 at the rim, negative inside — so its
+    // inside-distance is normalised by the smaller half-extent and then
+    // inverted: `u` is 1 at the rim and 0 at the centre for every
+    // silhouette, and the band sits at the edge, not across the core
+    // (the fixes review's #1).
+    let u = select(d, 1.0 - clamp(-d / max(min(in.extent.x, in.extent.y), 1.0), 0.0, 1.0), in.shape > 0.5);
+    let rim = smoothstep(0.7, 1.0, u) * 0.35;
     let ring = mix(in.color.rgb * (1.0 - rim), vec3<f32>(1.0), rim * 0.9);
     let bg = vec3<f32>(0.047, 0.055, 0.075);
-    let rgb = select(mix(in.color.rgb * (1.0 - rim), bg, in.fog),
+    var rgb = select(mix(in.color.rgb * (1.0 - rim), bg, in.fog),
                      mix(ring, bg, in.fog),
                      in.selected > 0.5);
+    // A host stroke (spec 031 §2, stage 8): a ~2 px band in the host's
+    // colour just inside the rim (the rim itself is where the fill's
+    // alpha fades into the background — a band there would blend dark).
+    // Selection wins over styling — the light ring reads louder.
+    if (in.stroke.a > 0.5 && in.selected < 0.5) {
+        let band = select(smoothstep(0.72, 0.95, d), smoothstep(-3.5, -1.5, d), in.shape > 0.5);
+        rgb = mix(rgb, in.stroke.rgb, band);
+    }
     return vec4<f32>(rgb, in.color.a * alpha);
 }
 
@@ -95,6 +160,8 @@ struct EdgeInst {
     @location(3) width: f32,
     @location(4) dash: f32,
     @location(5) phase: f32,   // arc length at the segment's start (world)
+    @location(6) pulse: f32,   // world units per second, 0 = none (§2)
+    @location(7) edge_len: f32, // the whole stroke's world length
 };
 struct EdgeOut {
     @builtin(position) clip: vec4<f32>,
@@ -102,6 +169,12 @@ struct EdgeOut {
     @location(1) fog: f32,
     @location(2) coord: f32,    // distance along the stroke, screen pixels
     @location(3) dash: f32,
+    @location(4) seglen: f32,   // this segment's screen length (LOD, §6)
+    @location(5) wcoord: f32,   // distance along the stroke, world units
+    @location(6) pulse: f32,    // world units per second, 0 = none (§2)
+    @location(7) pulse_pos: f32, // the glow's world position — the clock lives
+                                // in the vertex (the fragment cannot read the
+                                // camera uniform; it is vertex-visibility)
 };
 
 @vertex
@@ -133,17 +206,50 @@ fn edge_vs(@builtin(vertex_index) vi: u32, inst: EdgeInst) -> EdgeOut {
     // the camera scale converts (2D; in 3D it is an approximation).
     out.coord = t * length(seg) + inst.phase * camera.scale;
     out.dash = inst.dash;
+    // LOD gates read the STROKE's screen length, not the sub-segment's
+    // (the review's #5: a bowed dashed edge 40 px wide has 5 px
+    // sub-segments and drew solid while its straight twin stayed
+    // dashed). Plain strokes carry no edge_len — the segment itself.
+    out.seglen = select(length(seg), inst.edge_len * camera.scale, inst.edge_len > 0.0);
+    // The phase and the stroke's length are 2D — nodes carry kind-plane z
+    // (±140–280) even in the 2D view, and a 3D length over a 2D phase
+    // left the glow covering only part of the stroke (the review's #4).
+    out.wcoord = inst.phase + t * length(inst.b.xy - inst.a.xy);
+    out.pulse = inst.pulse;
+    // The glow's position is the clock's over the stroke's length —
+    // constant across the segment, so the fragment interpolates it
+    // unchanged.
+    out.pulse_pos = 0.0;
+    if (inst.pulse > 0.0) {
+        out.pulse_pos = fract(camera.time * inst.pulse / max(inst.edge_len, 1e-3)) * inst.edge_len;
+    }
     return out;
 }
 
 @fragment
 fn edge_fs(in: EdgeOut) -> @location(0) vec4<f32> {
-    if (in.dash > 0.5) {
+    // Dash LOD (spec 031 §6): a dash pattern needs several dash lengths
+    // to read. On a segment shorter than that the gaps would eat most of
+    // the stroke — it draws solid instead.
+    if (in.dash > 0.5 && in.seglen > 6.0) {
         // 50 % duty cycle along the stroke, in screen pixels.
         if (fract(in.coord / in.dash) < 0.5) { discard; }
     }
+    var rgb = in.color.rgb;
+    var alpha = in.color.a;
+    // A pulse travels the whole stroke in world units (spec 031 §2): the
+    // position arrives from the vertex, the distance is interpolated per
+    // fragment, so the glow crosses a curve's sub-segments as one
+    // continuous line. Barely visible animations stop (§6): a segment
+    // under 8 screen px does not glow.
+    if (in.pulse > 0.0 && in.seglen > 8.0) {
+        let d = abs(in.wcoord - in.pulse_pos);
+        let glow = exp(-(d * d) / 128.0);  // sigma = 8 world units
+        rgb = mix(rgb, vec3<f32>(1.0), glow * 0.85);
+        alpha = clamp(alpha + glow * 0.6, 0.0, 1.0);
+    }
     let bg = vec3<f32>(0.047, 0.055, 0.075);
-    return vec4<f32>(mix(in.color.rgb, bg, in.fog), in.color.a);
+    return vec4<f32>(mix(rgb, bg, in.fog), alpha);
 }
 
 // ---------------- arrowheads: rotated triangle billboards ----------------
@@ -199,4 +305,112 @@ fn arrow_fs(in: ArrowOut) -> @location(0) vec4<f32> {
     if (alpha < 0.02) { discard; }
     let bg = vec3<f32>(0.047, 0.055, 0.075);
     return vec4<f32>(mix(in.color.rgb, bg, in.fog), in.color.a * alpha);
+}
+
+// ---------------- group hulls: rounded-rect SDF, drawn first ----------------
+// Spec 031 §4: a group tints the region its members occupy. One billboard
+// per hull, two instance slots like every pipeline (geometry on pos_rev,
+// tint on attr_rev); drawn before the edges and nodes so it sits behind.
+struct HullInst {
+    @location(0) center: vec3<f32>,
+    @location(1) half: vec2<f32>,   // world, padding included
+    @location(2) color: vec4<f32>,
+    @location(3) corner: f32,       // world
+    @location(4) highlight: f32,    // 1 = a clique's rim (spec 031 §2)
+};
+struct HullOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) uv: vec2<f32>,     // ±1 across the rect
+    @location(1) color: vec4<f32>,
+    @location(2) extent: vec2<f32>, // half-extents in screen pixels
+    @location(3) corner: f32,       // corner radius in screen pixels
+    @location(4) highlight: f32,
+};
+
+@vertex
+fn hull_vs(@builtin(vertex_index) vi: u32, inst: HullInst) -> HullOut {
+    var corners = array<vec2<f32>, 4>(vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0));
+    let c = corners[vi];
+    let pr = project(inst.center);
+    // Screen half-extents shrink with the zoom; the corner keeps a 3 px
+    // minimum so the shape stays rounded, clamped to never exceed the
+    // box (a pill at most).
+    let ew = max(inst.half * camera.scale, vec2<f32>(1.0, 1.0));
+    let cr = clamp(inst.corner * camera.scale, 0.0, min(ew.x, ew.y));
+    let corner_px = max(cr, min(3.0, min(ew.x, ew.y)));
+    let off = vec2<f32>(c.x * ew.x / (camera.viewport.x * 0.5),
+                       c.y * ew.y / (camera.viewport.y * 0.5));
+    var out: HullOut;
+    out.clip = vec4<f32>(pr.x + off.x, pr.y + off.y, pr.z, 1.0);
+    out.uv = c;
+    out.color = inst.color;
+    out.extent = ew;
+    out.corner = corner_px;
+    out.highlight = inst.highlight;
+    return out;
+}
+
+@fragment
+fn hull_fs(in: HullOut) -> @location(0) vec4<f32> {
+    // Signed distance to the rounded rect, in screen pixels.
+    let q = abs(in.uv * in.extent) - (in.extent - vec2<f32>(in.corner, in.corner));
+    let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - in.corner;
+    let edge = fwidth(d) * 1.5;
+    let cov = 1.0 - smoothstep(-edge, edge, d);
+    if (cov < 0.02) { discard; }
+    // LOD (spec 031 §6): a hull a few pixels across is a smudge, not a
+    // region — it fades out between 6 and 14 px of its smaller half-extent.
+    let lod = smoothstep(6.0, 14.0, min(in.extent.x, in.extent.y));
+    if (lod < 0.02) { discard; }
+    // The fill tints; a thin band of the group's colour traces the rim —
+    // twice as strong for a highlighted clique (spec 031 §2).
+    let rim_w = fwidth(d) * 1.5 + 1.5;
+    let inner = 1.0 - smoothstep(-edge, edge, d + rim_w);
+    let rim_a = clamp(cov - inner, 0.0, 1.0) * select(0.45, 0.9, in.highlight > 0.5) * lod;
+    return vec4<f32>(in.color.rgb, max(cov * in.color.a * lod, rim_a));
+}
+
+// ---------------- simplicial faces: instanced filled triangles ----------------
+// Spec 031 §2: a 2-simplex is a filled triangle over three nodes (a face
+// over more is fanned into triangles); drawn behind the edges and nodes.
+// Not a group hull, not a hyperedge junction — a third class.
+struct SimpInst {
+    @location(0) a: vec3<f32>,
+    @location(1) b: vec3<f32>,
+    @location(2) c: vec3<f32>,
+    @location(3) color: vec4<f32>,
+};
+struct SimpOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) color: vec4<f32>,
+    @location(1) min_edge: f32,   // the triangle's smallest edge, screen px
+};
+
+@vertex
+fn simplex_vs(@builtin(vertex_index) vi: u32, inst: SimpInst) -> SimpOut {
+    let pa = project(inst.a);
+    let pb = project(inst.b);
+    let pc = project(inst.c);
+    var corner = array<vec4<f32>, 3>(pa, pb, pc);
+    let sx = camera.viewport * 0.5;
+    let sa = vec2<f32>(pa.x * sx.x, -pa.y * sx.y);
+    let sb = vec2<f32>(pb.x * sx.x, -pb.y * sx.y);
+    let sc = vec2<f32>(pc.x * sx.x, -pc.y * sx.y);
+    let e0 = distance(sa, sb);
+    let e1 = distance(sb, sc);
+    let e2 = distance(sc, sa);
+    var out: SimpOut;
+    out.clip = corner[vi];
+    out.color = inst.color;
+    out.min_edge = min(e0, min(e1, e2));
+    return out;
+}
+
+@fragment
+fn simplex_fs(in: SimpOut) -> @location(0) vec4<f32> {
+    // LOD (spec 031 §6), same ladder as the hulls: a face a few pixels
+    // across fades out instead of smudging.
+    let lod = smoothstep(6.0, 14.0, in.min_edge);
+    if (lod < 0.02) { discard; }
+    return vec4<f32>(in.color.rgb, in.color.a * lod);
 }
