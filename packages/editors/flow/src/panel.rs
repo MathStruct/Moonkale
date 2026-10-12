@@ -165,8 +165,37 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
                     color: port_color(&p.ty),
                 });
             }
+            // Acausal pins ride the top edge (ADR-0020) — drawn like any
+            // port, in their domain's colour, never an arrow.
+            for (j, p) in k.connections.iter().enumerate() {
+                ports.push(OutPort {
+                    node: i,
+                    name: p.name.clone(),
+                    side: "top",
+                    offset: (j + 1) as f32 / (k.connections.len() + 1) as f32,
+                    direction: "both",
+                    color: port_color(&p.ty),
+                });
+            }
         }
     }
+    // A wire between two pins is an equation: drawn without an arrowhead
+    // (ADR-0020). The map names each kind's pins, keyed by the kind's id.
+    let pins: BTreeMap<&str, std::collections::HashSet<&str>> = libs
+        .iter()
+        .flat_map(|l| &l.blocks)
+        .filter(|k| !k.connections.is_empty())
+        .map(|k| {
+            (
+                k.id.as_str(),
+                k.connections.iter().map(|p| p.name.as_str()).collect(),
+            )
+        })
+        .collect();
+    let is_pin = |kind: &str, port: &str| {
+        let id = kind.split_once('/').map(|(_, k)| k).unwrap_or("");
+        pins.get(id).is_some_and(|s| s.contains(port))
+    };
     let edges = flow
         .wires
         .iter()
@@ -179,11 +208,13 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
             ) else {
                 return None;
             };
+            let directed = !(is_pin(&flow.blocks[a].kind, &w.from_port)
+                && is_pin(&flow.blocks[b].kind, &w.to_port));
             Some(OutEdge {
                 id: &w.id,
                 a,
                 b,
-                directed: true,
+                directed,
                 a_port: &w.from_port,
                 b_port: &w.to_port,
                 route: OutRoute::Ortho {},
@@ -1019,9 +1050,18 @@ fn push_graph(eval: &Signal<Option<Eval>>, flow: &Signal<Flow>, libs: &[FlowLibr
     }
 }
 
-/// One wire per input port (a new one replaces the old), and only when
-/// the types unify — the panel owns the model; the renderer never does.
+/// One wire per input port (a new one replaces the old), only when the
+/// types unify — and a pin wire, an equation the ModelingToolkit rung
+/// needs (ADR-0020), connects in either drag order, may share its pin
+/// with other wires (a bus), and never replaces anything. The renderer
+/// never mutates the model.
 fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> (bool, String) {
+    /// A wire is dataflow (leaves an output, enters an input) or an
+    /// equation (both ends are pins) — the retention rule follows.
+    enum Accepted {
+        Dataflow,
+        Equation,
+    }
     // The type check reads; the write mutates — the two must not overlap.
     let checked = {
         let f = flow.read();
@@ -1035,27 +1075,76 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
         };
         let out = fkind.outputs.iter().find(|p| p.name == from.port);
         let inp = tkind.inputs.iter().find(|p| p.name == to.port);
-        let (Some(o), Some(i)) = (out, inp) else {
+        let pin_f = fkind.connections.iter().find(|p| p.name == from.port);
+        let pin_t = tkind.connections.iter().find(|p| p.name == to.port);
+        if let (Some(o), Some(i)) = (out, inp) {
+            match o.ty.unify(&i.ty) {
+                Some(_) => Ok(Accepted::Dataflow),
+                None => Err(format!(
+                    "{}.{} ({}) does not fit {}.{} ({})",
+                    from.node,
+                    from.port,
+                    o.ty.describe(),
+                    to.node,
+                    to.port,
+                    i.ty.describe()
+                )),
+            }
+        } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
+            // Either drag order; domains unify symmetrically.
+            match a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)) {
+                Some(_) => {
+                    // The same pin on both ends is a short, and an equation
+                    // already stored in either order is the same equation —
+                    // store neither twice (the pins review's #3). Two
+                    // different pins of one block are a real short circuit.
+                    if from.node == to.node && from.port == to.port {
+                        return (false, "a pin does not connect to itself".into());
+                    }
+                    let same = f.wires.iter().any(|w| {
+                        (w.from_block == from.node
+                            && w.from_port == from.port
+                            && w.to_block == to.node
+                            && w.to_port == to.port)
+                            || (w.from_block == to.node
+                                && w.from_port == to.port
+                                && w.to_block == from.node
+                                && w.to_port == from.port)
+                    });
+                    if same {
+                        return (false, "the same equation is already wired".into());
+                    }
+                    Ok(Accepted::Equation)
+                }
+                None => Err(format!(
+                    "{}.{} ({}) does not connect to {}.{} ({})",
+                    from.node,
+                    from.port,
+                    a.ty.describe(),
+                    to.node,
+                    to.port,
+                    b.ty.describe()
+                )),
+            }
+        } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
+            // The ports exist but cannot pair (an output against a pin).
+            return (
+                false,
+                "an output connects to an input, a pin to a pin".into(),
+            );
+        } else {
             return (false, "wire: the port does not exist".into());
-        };
-        match o.ty.unify(&i.ty) {
-            Some(_) => Ok(()),
-            None => Err(format!(
-                "{}.{} ({}) does not fit {}.{} ({})",
-                from.node,
-                from.port,
-                o.ty.describe(),
-                to.node,
-                to.port,
-                i.ty.describe()
-            )),
         }
     };
     match checked {
-        Ok(()) => {
+        Ok(kind) => {
             flow.with_mut(|f| {
-                f.wires
-                    .retain(|w| !(w.to_block == to.node && w.to_port == to.port));
+                // One wire per input port — a dataflow rule. A pin is a
+                // bus: every wire to it is another `connect` argument.
+                if matches!(kind, Accepted::Dataflow) {
+                    f.wires
+                        .retain(|w| !(w.to_block == to.node && w.to_port == to.port));
+                }
                 f.wires.push(Wire {
                     id: format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]),
                     from_block: from.node.clone(),
@@ -1106,5 +1195,252 @@ mod tests {
         assert_eq!(scene.edges.len(), 1);
         assert_eq!(scene.edges[0].a, 0);
         assert_eq!(scene.edges[0].b, 1);
+    }
+
+    // ---- ADR-0020: undirected pins -------------------------------------
+
+    use moonkale_ext_api::flow::{BlockKind, FlowLibrary, Port, PortType};
+
+    /// A mixed library: two acausal components (electrical pins) and one
+    /// directed pair, so both wire rules are exercised against the panel.
+    fn pin_lib() -> FlowLibrary {
+        let pin = |n: &str| Port {
+            name: n.into(),
+            ty: PortType::Named {
+                name: "electrical".into(),
+            },
+            required: false,
+        };
+        let port = |n: &str, ty: PortType, required: bool| Port {
+            name: n.into(),
+            ty,
+            required,
+        };
+        FlowLibrary {
+            id: "m",
+            name: "MTK",
+            language: "none",
+            codegen: None,
+            blocks: vec![
+                BlockKind {
+                    id: "resistor".into(),
+                    name: "Resistor".into(),
+                    category: "electrical".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![],
+                    connections: vec![pin("p"), pin("n")],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "ground".into(),
+                    name: "Ground".into(),
+                    category: "electrical".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![],
+                    connections: vec![pin("g")],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "src".into(),
+                    name: "Source".into(),
+                    category: "io".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![port("out", PortType::Scalar, false)],
+                    connections: vec![],
+                    params: vec![],
+                },
+                BlockKind {
+                    id: "sink".into(),
+                    name: "Sink".into(),
+                    category: "io".into(),
+                    description: String::new(),
+                    inputs: vec![port("in", PortType::Scalar, false)],
+                    outputs: vec![],
+                    connections: vec![],
+                    params: vec![],
+                },
+            ],
+        }
+    }
+
+    fn end(node: &str, port: &str) -> End {
+        End {
+            node: node.into(),
+            port: port.into(),
+        }
+    }
+
+    /// `wire` lives on signals; a parked VirtualDom gives the test a
+    /// runtime scope for them (the desktop smoke check's trick, in-process).
+    #[tokio::test(flavor = "current_thread")]
+    async fn pin_wires_accept_both_orders_buses_and_keep_replacement_rules() {
+        #[component]
+        fn Host() -> Element {
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Host);
+        dom.rebuild_in_place();
+        let libs = vec![pin_lib()];
+        let mut flow = dom.in_scope(ScopeId::ROOT, || {
+            Signal::new_in_scope(Flow::new(), ScopeId::ROOT)
+        });
+        flow.with_mut(|f| {
+            f.blocks = vec![
+                Block {
+                    id: "r".into(),
+                    kind: "m/resistor".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    params: Default::default(),
+                },
+                Block {
+                    id: "g".into(),
+                    kind: "m/ground".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    params: Default::default(),
+                },
+                Block {
+                    id: "r2".into(),
+                    kind: "m/resistor".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    params: Default::default(),
+                },
+                Block {
+                    id: "s".into(),
+                    kind: "m/src".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    params: Default::default(),
+                },
+                Block {
+                    id: "k".into(),
+                    kind: "m/sink".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    params: Default::default(),
+                },
+            ];
+        });
+
+        // Either drag order connects (an equation has no direction).
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("g", "g"));
+        assert!(ok, "pin → pin connects");
+        let (ok, _) = wire(&mut flow, &libs, &end("g", "g"), &end("r2", "n"));
+        assert!(ok, "the same pin accepts the other drag order");
+
+        // A pin is a bus: the ground's one pin now carries two wires, both kept.
+        assert_eq!(flow.read().wires.len(), 2);
+        assert_eq!(
+            flow.read()
+                .wires
+                .iter()
+                .filter(|w| w.from_port == "g" || w.to_port == "g")
+                .count(),
+            2,
+            "a pin may carry several wires"
+        );
+
+        // The same equation twice — either drag order — and a pin onto
+        // itself: stored neither (the pins review's #3).
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("g", "g"));
+        assert!(!ok, "the same equation is not stored twice");
+        let (ok, _) = wire(&mut flow, &libs, &end("g", "g"), &end("r", "p"));
+        assert!(!ok, "nor in the other order");
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("r", "p"));
+        assert!(!ok, "a pin does not connect to itself");
+        // Two different pins of one block: a short circuit, allowed.
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("r", "n"));
+        assert!(ok, "two pins of the same block make a short circuit");
+        assert_eq!(
+            flow.read().wires.len(),
+            3,
+            "the duplicate wires were refused"
+        );
+
+        // Directed wires keep their one-wire-per-input replacement.
+        wire(&mut flow, &libs, &end("s", "out"), &end("k", "in"));
+        let (ok, _) = wire(&mut flow, &libs, &end("s", "out"), &end("k", "in"));
+        assert!(ok);
+        assert_eq!(
+            flow.read()
+                .wires
+                .iter()
+                .filter(|w| w.to_port == "in")
+                .count(),
+            1,
+            "a new input wire replaces the old one"
+        );
+
+        // A directed port onto a pin is a mixed wire — the ports exist,
+        // they just do not pair (the pins review's #5).
+        let (ok, why) = wire(&mut flow, &libs, &end("s", "out"), &end("r", "p"));
+        assert!(!ok, "an output does not connect to a pin");
+        assert!(why.contains("a pin to a pin"), "{why}");
+    }
+
+    #[test]
+    fn to_scene_draws_pins_on_the_top_edge_and_equations_without_arrows() {
+        let libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "g".into(),
+                kind: "m/ground".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "s".into(),
+                kind: "m/src".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+            Block {
+                id: "k".into(),
+                kind: "m/sink".into(),
+                x: 0.0,
+                y: 0.0,
+                params: Default::default(),
+            },
+        ];
+        f.wires = vec![
+            Wire {
+                id: "w1".into(),
+                from_block: "r".into(),
+                from_port: "p".into(),
+                to_block: "g".into(),
+                to_port: "g".into(),
+            },
+            Wire {
+                id: "w2".into(),
+                from_block: "s".into(),
+                from_port: "out".into(),
+                to_block: "k".into(),
+                to_port: "in".into(),
+            },
+        ];
+        let scene = to_scene(&f, &libs, &[]);
+        // The equation carries no arrow; the dataflow wire does.
+        assert!(!scene.edges.iter().find(|e| e.id == "w1").unwrap().directed);
+        assert!(scene.edges.iter().find(|e| e.id == "w2").unwrap().directed);
+        // Pins ride the top edge, drawn `both`.
+        let pins: Vec<&OutPort> = scene.ports.iter().filter(|p| p.side == "top").collect();
+        assert_eq!(pins.len(), 3, "2 + 1 + 0 + 0 resistor/ground pins");
+        assert!(pins.iter().all(|p| p.direction == "both"));
+        assert!(pins.iter().any(|p| p.name == "p" && p.node == 0));
     }
 }

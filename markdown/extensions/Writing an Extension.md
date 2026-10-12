@@ -5,7 +5,7 @@ tags: [extensions, guide]
 Moonkale is extension-driven: the built-in editors are extensions. This guide takes you from an empty folder to a panel, a command, a language and a data source. Reference material: [[Manifest Reference]], [[Contribution Points]], [[Host API Reference]], [[Publishing and Platforms]].
 
 > [!warning] Two halves — read which one you need
-> **Part A** is how to write an extension **today**, against `moonkale-ext-api` as tagged `lib-v1` (Milestone 18 phase 6.3, 2026-10-03; what changed per tag: `packages/ext-api/CHANGELOG.md`). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `moonkale_shell::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
+> **Part A** is how to write an extension **today**, against `moonkale-ext-api` by git tag (currently `ext-api-2026-10-12`; what changed per tag: `packages/ext-api/CHANGELOG.md`). **Part B** (sections 1 onwards) is the *target design* — a `moonkale.toml` manifest, a `Host` handle, `moonkale_shell::Tree` panels, WIT components — kept so the implementation is held to it; **none of Part B exists yet**. The decision record for what was built instead is [[ADR-0013 JSON ABI before components]].
 
 # Part A — writing an extension today
 
@@ -23,7 +23,7 @@ There are two kinds, and they can do different things:
 Depend on `moonkale-ext-api` (and `moonkale-core` for the model) and `dioxus`, implement the trait, and list the crate in `packages/distribution` — a Cargo feature and one `#[cfg(feature = …)]` line in `default_extensions()`; the shell is never edited.
 
 - **Inside the repository**: a crate under `packages/editors/` or `packages/extensions/`, `moonkale-ext-api = { workspace = true }`.
-- **In a repository of its own** (as `MathStruct/moonkale-julia` does): depend **by git tag**, never a branch — `moonkale-ext-api = { git = "https://github.com/MathStruct/Moonkale", tag = "lib-v1" }` (likewise `moonkale-core`); Moonkale's distribution then pulls your crate by git behind an off-by-default feature. A `lib-vN` tag marks a state where `core`, `ext-api` and `graph-render` are compatible.
+- **In a repository of its own** (as `MathStruct/moonkale-julia` does): depend **by git tag**, never a branch — `moonkale-ext-api = { git = "https://github.com/MathStruct/Moonkale", tag = "ext-api-2026-10-12" }` (likewise `moonkale-core`); Moonkale's distribution then pulls your crate by git behind an off-by-default feature. An `ext-api-YYYY-MM-DD` tag marks a state where `core`, `ext-api` and `graph-render` are compatible (`lib-v1` was the first state's original name).
 
 ```rust
 use dioxus::prelude::*;

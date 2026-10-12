@@ -1,29 +1,31 @@
 # Changelog — the library crates
 
-`moonkale-core`, `moonkale-ext-api` and `moonkale-graph-render` are versioned together by **git tags** `lib-vN` on [MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) (no crates.io release; decided 2026-10-01). Depend by tag, never by branch:
+`moonkale-core`, `moonkale-ext-api` and `moonkale-graph-render` are versioned together by **git tags** `ext-api-YYYY-MM-DD` on [MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) — the date of the tagged commit; a second tag on the same day gets `-2` (no version counter: the API tag and the app's releases are independent, and `ext-api-*` matches none of the release workflow's `v*`/`moonkale-*`/`YYMMDD-proto*` patterns; decided 2026-10-12). Depend by tag, never by branch:
 
 ```toml
-moonkale-ext-api = { git = "https://github.com/MathStruct/Moonkale", tag = "lib-v1" }
-moonkale-core    = { git = "https://github.com/MathStruct/Moonkale", tag = "lib-v1" }
+moonkale-ext-api = { git = "https://github.com/MathStruct/Moonkale", tag = "ext-api-2026-10-12" }
+moonkale-core    = { git = "https://github.com/MathStruct/Moonkale", tag = "ext-api-2026-10-12" }
 ```
 
 Rules:
-- A new `lib-vN` is tagged when anything public in these crates changes in a way that can break a caller; the entry below lists what and how to update.
-- Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a new `Extension` method with a default) go into the next tag without a version bump of their own.
+- A new tag is cut when anything public in these crates changes in a way that can break a caller; the entry below lists what and how to update. (`lib-v1`, the first state's original name, stays as a tag — moonkale-julia v0.1.0 depends on it.)
+- Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
-## Unreleased — additions, nothing breaks
+## ext-api-2026-10-12
 
-**moonkale-ext-api** (spec 030)
+**Breaking** — build against the `BlockKind` additions:
+- `moonkale-ext-api::flow::BlockKind.connections: Vec<Port>` (ADR-0020): undirected, domain-typed pins (`PortType::Named` names the domain both ends must share). The field is `#[serde(default)]`, so every existing flow and library *parses* unchanged; a library that constructs `BlockKind` literally does not *compile*. *Update:* add `connections: vec![]`, or build the fields you set and finish with `..Default::default()` (see below) — the next field then needs no release.
+
+**Additions, nothing else breaks**
+- `BlockKind: Default` — the non-breaking path above.
+- `Flow::topological_skipping(&skip)`: the directed dataflow order ignoring the wires `skip` names (pin wires are equations and may loop); `Flow::topological()` keeps its meaning — the Lux codegen walks it.
 - `i18n`: `tr`, `lookup`, `check`, `system_language`, `LANGUAGES`, the `t!(ws, L, "id", var = x)` macro, and `FluentArgs`/`FluentValue` re-exported.
 - `Settings.language` (empty = the system's) and `Workspace::lang()`; `SettingsState.system_language`.
 - `workspace::untracked(f)`: inside it `lang()` peeks instead of subscribing — for code run from untracked effects (P-151).
 - `Extension::themes()` (theme files as JSON; default none) and `ShellState.theme_light`.
 - The status bar message starts empty; the shell shows its own translated *Ready*.
-
-**moonkale-core** (audit fixes, 2026-10-04 — a stricter gate)
-- `source::risk::statements(text)`: how many statements a text holds. `classify_sql` and `classify_cypher` return `Risk::Unknown` for more than one (a read-only source refuses them; the agent asks).
-- `classify_cypher` ignores string literals and counts `LOAD`, `EXPORT`, `IMPORT`, `INSTALL`, `ATTACH`, `USE`, transactions and `CALL name = value` as writes.
+- `moonkale-core`: `source::risk::statements(text)`: how many statements a text holds. `classify_sql` and `classify_cypher` return `Risk::Unknown` for more than one (a read-only source refuses them; the agent asks). `classify_cypher` ignores string literals and counts `LOAD`, `EXPORT`, `IMPORT`, `INSTALL`, `ATTACH`, `USE`, transactions and `CALL name = value` as writes (audit fixes, 2026-10-04).
 
 ## lib-v1 — 2026-10-03 (Milestone 18)
 

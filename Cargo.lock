@@ -7217,7 +7217,7 @@ dependencies = [
 [[package]]
 name = "moonkale-ext-lux"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.1.0#2d8b84ee3790eeb5405bdb50258314548e16d37f"
+source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.1.1#cb5ece2a4cea3cf28009337350b427af92354bcd"
 dependencies = [
  "dioxus",
  "moonkale-ext-api",
@@ -8936,7 +8936,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.119",

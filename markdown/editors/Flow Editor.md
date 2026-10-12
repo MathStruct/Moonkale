@@ -34,7 +34,7 @@ flowchart LR
 > `editors/flow` on [[dioxus-flow]] 0.1.2, opt-in; the model (`PortType`/`unify`, `BlockKind`, `FlowLibrary`, `Flow` JSON, `validate`) lives in `ext-api::flow` so libraries are contributions from other extensions; `extensions/lux` is the first (Input/Dense/Conv/MaxPool/Flatten/Dropout/BatchNorm/Loss/Optimiser → `model.jl`). Flows are `*.flow.json` files. Phase 1 and the codegen half of phase 2 are done; running through the terminal with errors linked to blocks, and the MTK library, are next. Notes: [flow.md](https://github.com/MathStruct/Moonkale/blob/master/packages/editors/flow/flow.md), [lux.md](https://github.com/MathStruct/Moonkale/blob/master/packages/extensions/lux/lux.md).
 
 ## Beyond Lux: MTK and Lenticulum
-Undirected ports, bipartite constraints and nested subgraphs are what the ModelingToolkit editor needs and what the Lenticulum factor-graph editor — the goal behind Moonkale — builds on: [[Julia and Lenticulum]].
+Undirected ports are in the model (ADR-0020, 2026-10-12): `BlockKind.connections` — acausal, domain-typed pins, wires in either order, buses allowed, equation loops legal. Bipartite constraints and nested subgraphs are what remains for the ModelingToolkit editor, and the Lenticulum factor-graph editor — the goal behind Moonkale — builds on all of it: [[Julia and Lenticulum]].
 
 ## Phases
 1. Canvas, palette, wires, validation, save/load as nodes.
