@@ -340,3 +340,9 @@ The production Preview toggle enables this slice. Next gates include richer code
 
 
 Native color acceptance additionally exposed missing stylesheets in the plain Cargo fixture, which deliberately inlines only panel/native CSS. The fenced probe now requires actual distinct syntax colors, with stylesheet diagnostics on failure. Build the fixture through `dx build --platform desktop --no-default-features --features desktop` and run its bundled Linux executable for this gate. This exercises the same hashed theme assets used by the packaged product, instead of treating syntax classes alone as proof of native highlighting.
+
+### Review 3: front matter and the preview budget
+
+Leading YAML front matter stays literal source, including a one-key block. The metadata parser option identifies only the leading block; the remainder uses ordinary CommonMark, preserving Setext headings after a thematic break later in the note. Regression tests cover one and multiple keys and later headings.
+
+Before enabling Preview by default, lift the complete-line 4096-scalar prefix and 63-construct limit through incremental parsing and ADR-0017 row heights. Until then, text beyond that prefix stays plain source; this remains an opt-in bounded preview.

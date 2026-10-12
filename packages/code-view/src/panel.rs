@@ -558,10 +558,10 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let rename_ident = lsp_ident.clone();
     let mut rename_value = use_signal(String::new);
     let commit_rename = Callback::new(move |_: ()| {
-        if rename_prompt.peek().is_none() || *ws.docs.active.peek() != Some(node) {
+        if *ws.docs.active.peek() != Some(node) {
             return;
         }
-        let Some((line, col)) = *ws.docs.cursor.peek() else {
+        let Some((line, col, _)) = rename_prompt.peek().clone() else {
             return;
         };
         let new_name = rename_value.peek().trim().to_string();

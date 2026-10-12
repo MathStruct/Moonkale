@@ -72,4 +72,5 @@ try {
     if (await panel.locator(".mk-editor-core-row").count() > 100) throw Error("unbounded viewport rendering");
   });
   if (process.env.M1_SHOTS) await page.screenshot({ path: `${process.env.M1_SHOTS}/m1-rust-code-view.png` });
+  console.log("CODE NATIVE E2E: PASS");
 } finally { await browser.close(); }

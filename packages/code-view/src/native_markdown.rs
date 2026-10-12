@@ -3,7 +3,7 @@ use crate::native_decorations::{
     Batch, CodeFragment, Decoration, InlineFragment, InlineStyle, Kind, Provider,
 };
 use moonkale_ext_api::editor::DocumentRevision;
-use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use std::ops::Range;
 
 struct Frame {
@@ -187,7 +187,18 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             },
         });
     };
-    for (event, range) in Parser::new(source).into_offset_iter() {
+    // Metadata is front matter only at the beginning of the document. The
+    // parser option also accepts later fenced paragraphs, so parse the body
+    // without it and retain canonical offsets after the leading source block.
+    let body_start = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS)
+        .into_offset_iter()
+        .next()
+        .filter(|(event, range)| {
+            range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
+        })
+        .map_or(0, |(_, range)| range.end);
+    for (event, range) in Parser::new(&source[body_start..]).into_offset_iter() {
+        let range = range.start + body_start..range.end + body_start;
         match event {
             Event::Start(Tag::Emphasis | Tag::Strong | Tag::Heading { .. }) => {
                 if let Some(parent) = frames.last_mut() {
@@ -276,13 +287,17 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                 }
                 blocked = blocked.saturating_sub(1);
             }
-            Event::Start(Tag::Link { .. } | Tag::Image { .. } | Tag::HtmlBlock) => {
+            Event::Start(
+                Tag::Link { .. } | Tag::Image { .. } | Tag::HtmlBlock | Tag::MetadataBlock(_),
+            ) => {
                 blocked += 1;
                 if let Some(frame) = frames.last_mut() {
                     frame.unsupported = true;
                 }
             }
-            Event::End(TagEnd::Link | TagEnd::Image | TagEnd::HtmlBlock) => {
+            Event::End(
+                TagEnd::Link | TagEnd::Image | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_),
+            ) => {
                 blocked = blocked.saturating_sub(1);
             }
             Event::InlineHtml(_) | Event::Html(_) | Event::SoftBreak | Event::HardBreak => {
@@ -324,6 +339,23 @@ mod tests {
             })
             .collect()
     }
+    #[test]
+    fn front_matter_keeps_source_without_consuming_later_setext_headings() {
+        for metadata in ["title: Notes", "title: Notes\ntags: [test]"] {
+            let source = format!("---\n{metadata}\n---\n\nBody\n---\n");
+            let values = previews(&source);
+            assert_eq!(values.len(), 1);
+            assert_eq!(values[0].0, "Body\n---");
+            assert_eq!(values[0].1, "Body");
+            assert!(matches!(values[0].2, InlineStyle::Heading(2, _)));
+        }
+        assert!(previews("---\ntitle: Notes\n---").is_empty());
+        let values = previews("Before\n\n---\ntitle: Notes\n---");
+        assert_eq!(values.len(), 1);
+        assert_eq!(values[0].0, "title: Notes\n---");
+        assert_eq!(values[0].1, "title: Notes");
+    }
+
     #[test]
     fn commonmark_ranges_preserve_unicode_escapes_entities_and_code_delimiters() {
         assert_eq!(
