@@ -7,7 +7,24 @@ use crate::{t, L};
 #[derive(Clone, Copy)]
 struct RevealCounter(Signal<u64>);
 
+#[derive(Clone, Copy)]
+struct NavigationCounter(Signal<u64>);
+
 impl Workspace {
+    fn begin_document_navigation(self) {
+        // Only restoration needs this clock. Ordinary document operations,
+        // including close_node outside a render scope, must not allocate it.
+        let counter = self
+            .shared
+            .peek()
+            .get(&std::any::TypeId::of::<NavigationCounter>())
+            .and_then(|value| value.downcast_ref::<NavigationCounter>())
+            .map(|counter| counter.0);
+        if let Some(mut counter) = counter {
+            counter.with_mut(|value| *value = value.wrapping_add(1));
+        }
+    }
+
     pub(super) fn set_active_document(&mut self, node: Option<NodeId>) {
         if *self.docs.active.peek() != node {
             self.docs.active.set(node);
@@ -369,12 +386,83 @@ impl Workspace {
     }
 
     pub(crate) async fn open_node_when(
-        mut self,
+        self,
         node: Node,
         current: impl Fn() -> bool,
     ) -> Result<bool, SourceError> {
+        self.load_node_when(node, current, true).await
+    }
+
+    /// Restore saved tabs without stealing focus from navigation started while
+    /// they load. Existing edits and the user's current selection are retained.
+    pub async fn restore_documents(
+        mut self,
+        folder: SourceId,
+        keys: Vec<String>,
+        active: Option<String>,
+    ) {
+        let counter = self
+            .shared_state(|| NavigationCounter(Signal::new_in_scope(0, ScopeId::ROOT)))
+            .0;
+        let navigation = *counter.peek();
+        let before = *self.docs.active.peek();
+        let already_active = before
+            .and_then(|id| self.document(id))
+            .is_some_and(|doc| doc.peek().node.source == folder);
+        let current = || {
+            self.settings.folder.peek().as_ref() == Some(&folder)
+                && self
+                    .sources
+                    .open
+                    .peek()
+                    .iter()
+                    .any(|source| source.descriptor.id == folder)
+        };
+        let mut saved_active = None;
+        let mut last = None;
+        for key in keys {
+            if !current() {
+                return;
+            }
+            if let Some(node) = self.node_at_path(&folder, &key).await {
+                let id = node.id;
+                match self.load_node_when(node, current, false).await {
+                    Ok(true) => {
+                        last = Some(id);
+                        if active.as_deref() == Some(key.as_str()) {
+                            saved_active = Some(id);
+                        }
+                    }
+                    Ok(false) => return,
+                    Err(_) => {}
+                }
+            }
+        }
+        if current()
+            && !already_active
+            && *counter.peek() == navigation
+            && *self.docs.active.peek() == before
+        {
+            if let Some(id) = saved_active
+                .or(last)
+                .filter(|id| self.open_node_by_id(*id).is_some())
+            {
+                self.set_active_document(Some(id));
+            }
+        }
+    }
+
+    async fn load_node_when(
+        mut self,
+        node: Node,
+        current: impl Fn() -> bool,
+        activate: bool,
+    ) -> Result<bool, SourceError> {
         if !current() {
             return Ok(false);
+        }
+        if activate {
+            self.begin_document_navigation();
         }
         // Nodes without a text body (tables, images and other blobs) open as
         // views, not documents (spec 008).
@@ -384,8 +472,10 @@ impl Workspace {
             if !self.docs.views.peek().iter().any(|n| n.id == node.id) {
                 self.docs.views.with_mut(|v| v.push(node.clone()));
             }
-            self.set_active_document(Some(node.id));
-            self.set_status(t!(self, L, "opened", name = node.label.clone()));
+            if activate {
+                self.set_active_document(Some(node.id));
+                self.set_status(t!(self, L, "opened", name = node.label.clone()));
+            }
             return Ok(true);
         }
         if self.document(node.id).is_none() {
@@ -410,13 +500,16 @@ impl Workspace {
                 self.docs.open.with_mut(|v| v.push((node.id, doc)));
             }
         }
-        self.set_active_document(Some(node.id));
-        self.set_status(t!(self, L, "opened", name = node.native_key.clone()));
+        if activate {
+            self.set_active_document(Some(node.id));
+            self.set_status(t!(self, L, "opened", name = node.native_key.clone()));
+        }
         Ok(true)
     }
 
     /// Open a blob as a text document anyway (an SVG's source, spec 008).
     pub async fn open_as_text(mut self, node: Node) -> Result<(), SourceError> {
+        self.begin_document_navigation();
         if self.document(node.id).is_none() {
             let source = self.source(&node.source).ok_or(SourceError::NotFound)?;
             let (text, version) = source.fetch_text(node.id).await?;
@@ -431,6 +524,7 @@ impl Workspace {
 
     /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
+        self.begin_document_navigation();
         let pending_reveal = *self.docs.reveal.peek();
         if let Some(reveal) = pending_reveal {
             if reveal.node == node {
