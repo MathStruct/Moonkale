@@ -35,3 +35,5 @@ graph-failed = Der Renderer ist nicht gestartet: { $error }
 graph-commit = Commit { $hash }: { $label }
 graph-not-in-folder = { $path } liegt in keinem geöffneten Ordner
 graph-nothing-to-open = { $label } lässt sich nicht öffnen
+graph-selection = { $nodes } Knoten und { $edges } Kanten ausgewählt
+graph-selection-none = nichts ausgewählt

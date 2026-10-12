@@ -30,6 +30,11 @@ pub struct SegAttr {
     /// Arc length (world units) at this segment's start: the dash pattern
     /// continues across a curve's sub-segments instead of restarting.
     pub phase: f32,
+    /// A moving pulse along the whole stroke (spec 031 §2, stage 6):
+    /// world units per second, 0 = none.
+    pub pulse: f32,
+    /// The stroke's total world length — the pulse wraps over it.
+    pub edge_len: f32,
 }
 
 /// An arrowhead: a billboard at `pos`, rotated to point along `angle`.
@@ -98,6 +103,69 @@ pub const PORT_RADIUS: f32 = 2.5;
 /// An edge shared by two visible layers bows its strokes apart by this many
 /// world units per rank (spec 031 §3: offset parallel strokes).
 pub const LAYER_STROKE_SPACING: f32 = 3.0;
+/// A hull clears its outermost member's rim by this many world units
+/// (spec 031 §4: the tinted region reads as *around* the group).
+pub const HULL_PAD: f32 = 7.0;
+/// Hull corner radius in world units (rounded-rect SDF).
+pub const HULL_CORNER: f32 = 12.0;
+/// The hull tint's strength (spec 031 §4: a tinted region, not a block).
+pub const HULL_FILL: f32 = 0.16;
+/// A stroke of the group's colour traces the hull's rim, this many px.
+pub const HULL_RIM: f32 = 1.5;
+/// Junction marker radius in world units (spec 031 §2: hyperedges).
+pub const JUNCTION_RADIUS: f32 = 3.0;
+/// A highlight clique's hull tints twice as strong as a group's wash.
+pub const HULL_HIGHLIGHT_FILL: f32 = 0.32;
+/// The pulse's glow radius in world units (spec 031 §2, stage 6).
+pub const PULSE_SIZE: f32 = 8.0;
+
+/// A group hull: one rounded-rect instance (instance slot 0 — the box
+/// follows its members' positions every layout step).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct HullPos {
+    pub center: [f32; 3],
+    /// World half-extents, padding included.
+    pub half: [f32; 2],
+}
+
+/// Hull appearance (instance slot 1 — the tint, set on a graph swap).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct HullAttr {
+    pub color: [f32; 4],
+    /// Corner radius in world units.
+    pub corner: f32,
+    /// 1.0 = a highlighted clique's rim (spec 031 §2): stronger than a
+    /// group's wash, so the two read apart over the same nodes.
+    pub highlight: f32,
+}
+
+/// One filled triangle of a simplicial face (spec 031 §2) — instance
+/// slot 0; a face over more than three nodes is fanned into triangles.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct SimplexPos {
+    pub a: [f32; 3],
+    pub b: [f32; 3],
+    pub c: [f32; 3],
+}
+
+/// Simplex appearance (instance slot 1).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct SimplexAttr {
+    pub color: [f32; 4],
+}
+
+/// A hyperedge's junction marker (spec 031 §2) — a small circle riding
+/// the node pipeline at the members' centroid; the spokes ride the
+/// segment pipeline. A distinct class from a group hull and a simplex.
+#[derive(Clone, Copy)]
+pub struct Junction {
+    pub pos: [f32; 3],
+    pub color: [f32; 4],
+}
 
 #[derive(Default)]
 pub struct Frame {
@@ -116,6 +184,17 @@ pub struct Frame {
     /// draws only while one is visible. The instance keeps its slot (hover
     /// and selection stay index-aligned); the renderer fades it out.
     pub node_visible: Vec<bool>,
+    /// Group hulls (spec 031 §4), one per visible group with visible
+    /// members — 2D only; 3D keeps plain nodes and edges.
+    pub hulls: Vec<HullPos>,
+    pub hull_attrs: Vec<HullAttr>,
+    /// Simplicial faces (spec 031 §2, stage 5), fanned into triangles —
+    /// 2D only, drawn with the hulls behind everything.
+    pub simplex_tris: Vec<SimplexPos>,
+    pub simplex_attrs: Vec<SimplexAttr>,
+    /// Hyperedge junctions (spec 031 §2, stage 5): the markers ride the
+    /// node pipeline; the spokes are already among the segments.
+    pub junctions: Vec<Junction>,
 }
 
 /// The scene → instance lists for one frame.
@@ -137,6 +216,11 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
     f.arrow_attrs.clear();
     f.port_pos.clear();
     f.node_visible.clear();
+    f.hulls.clear();
+    f.hull_attrs.clear();
+    f.simplex_tris.clear();
+    f.simplex_attrs.clear();
+    f.junctions.clear();
     f.port_pos
         .extend(graph.ports.iter().map(|p| port_world(graph, p)));
     f.node_visible.extend(graph.nodes.iter().map(|n| {
@@ -172,11 +256,29 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
                 .get(rank.min(visible.len().saturating_sub(1)))
                 .copied();
             polyline_into(graph, e, stroke_offset(rank, strokes), scratch);
+            // The stroke's total length — the pulse wraps over it, and the
+            // dash LOD gates on it (the glow and the gaps are positioned in
+            // world units / screen pixels over the whole stroke, crossing a
+            // curve's sub-segments as one line). Plain strokes skip the
+            // pass (the stage 4–6 review's #10: every edge ran it on every
+            // layout step) — a layer may dash a stroke whose edge isn't.
+            let needs_len =
+                e.pulse_speed > 0.0 || e.dash > 0.0 || visible.iter().any(|l| l.dash.is_some());
+            let edge_len: f32 = if needs_len {
+                scratch
+                    .windows(2)
+                    .map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt())
+                    .sum()
+            } else {
+                0.0
+            };
             let mut attr = SegAttr {
                 color: e.color,
                 width: e.width,
                 dash: e.dash,
                 phase: 0.0,
+                pulse: e.pulse_speed,
+                edge_len,
             };
             if let Some(l) = layer {
                 if let Some(c) = l.color {
@@ -249,6 +351,173 @@ pub fn build_frame_into(graph: &Graph, three_d: bool, f: &mut Frame, scratch: &m
         }
     }
     build_traces(graph, three_d, f);
+    build_hyperedges(graph, f);
+    if !three_d {
+        build_hulls(graph, f);
+        build_simplexes(graph, f);
+    }
+}
+
+/// One rounded-rect hull per visible group (spec 031 §4): the axis-aligned
+/// box of its visible members' rims, padded, tinted by the group's colour.
+/// A group may nest (a member of the inner is a member of the outer) or
+/// overlap (members shared) — each emits its own instance, drawn in
+/// declaration order; alpha blending stacks the tints.
+fn build_hulls(graph: &Graph, f: &mut Frame) {
+    for g in &graph.groups {
+        if !g.visible {
+            continue;
+        }
+        let (mut x0, mut y0) = (f32::MAX, f32::MAX);
+        let (mut x1, mut y1) = (f32::MIN, f32::MIN);
+        let mut rim = 0.0f32;
+        let mut any = false;
+        for &i in &g.members {
+            let visible = f.node_visible.get(i).copied().unwrap_or(true);
+            if !visible {
+                continue; // an invisible member does not stretch the tint
+            }
+            let n = &graph.nodes[i];
+            x0 = x0.min(n.x - n.radius);
+            y0 = y0.min(n.y - n.radius);
+            x1 = x1.max(n.x + n.radius);
+            y1 = y1.max(n.y + n.radius);
+            rim = rim.max(n.radius);
+            any = true;
+        }
+        if !any {
+            continue; // every member left with a collapse or a hidden layer
+        }
+        let pad = rim + HULL_PAD;
+        f.hulls.push(HullPos {
+            center: [(x0 + x1) / 2.0, (y0 + y1) / 2.0, 0.0],
+            half: [(x1 - x0) / 2.0 + pad, (y1 - y0) / 2.0 + pad],
+        });
+        let mut color = g.color;
+        // A highlighted clique tints twice as strong as a group's wash
+        // and wears the brighter rim (spec 031 §2: three classes apart).
+        color[3] *= if g.highlight {
+            HULL_HIGHLIGHT_FILL
+        } else {
+            HULL_FILL
+        };
+        f.hull_attrs.push(HullAttr {
+            color,
+            corner: HULL_CORNER,
+            highlight: g.highlight as u32 as f32,
+        });
+    }
+}
+
+/// Hyperedges (spec 031 §2, stage 5): one junction per hyperedge — a
+/// marker at the members' centroid, a spoke to each member. The spokes
+/// are segments owned by `None` (never picked as an edge — a hyperedge
+/// is presentation over the same nodes, never new topology), the markers
+/// ride the node pipeline behind this builder's back.
+fn build_hyperedges(graph: &Graph, f: &mut Frame) {
+    for h in &graph.hyperedges {
+        if !h.visible {
+            continue;
+        }
+        // An invisible member (a hidden layer) draws nothing — its spoke
+        // and the centroid must not reach for it (the stage 4–6 review's
+        // #6, unlike a hull whose box only shrinks).
+        let members: Vec<usize> = h
+            .nodes
+            .iter()
+            .copied()
+            .filter(|&i| f.node_visible.get(i).copied().unwrap_or(true))
+            .collect();
+        if members.len() < 2 {
+            continue;
+        }
+        let mut center = [0.0f32; 3];
+        for &i in &members {
+            let n = &graph.nodes[i];
+            center[0] += n.x;
+            center[1] += n.y;
+            center[2] += n.z;
+        }
+        let k = members.len() as f32;
+        center[0] /= k;
+        center[1] /= k;
+        center[2] /= k;
+        for &i in &members {
+            f.segs.push(SegPos {
+                a: center,
+                b: node_pos(graph, i),
+            });
+            f.seg_edge.push(None); // never picked as an edge (§2, §3)
+            f.seg_attrs.push(SegAttr {
+                color: h.color,
+                width: h.width,
+                dash: h.dash,
+                phase: 0.0,
+                pulse: 0.0, // no pulse knob on a hyperedge (yet, §2)
+                edge_len: 0.0,
+            });
+        }
+        f.junctions.push(Junction {
+            pos: center,
+            color: h.color,
+        });
+    }
+}
+
+/// Simplicial faces (spec 031 §2, stage 5): a filled triangle over three
+/// nodes; a face over more is fanned from its centroid into triangles.
+fn build_simplexes(graph: &Graph, f: &mut Frame) {
+    for s in &graph.simplexes {
+        if !s.visible {
+            continue;
+        }
+        // Invisible members (hidden layers) leave the face — it must not
+        // stretch to a node that draws nothing (the review's #6).
+        let pts: Vec<[f32; 3]> = s
+            .nodes
+            .iter()
+            .filter(|&&i| f.node_visible.get(i).copied().unwrap_or(true))
+            .map(|&i| node_pos(graph, i))
+            .collect();
+        if pts.len() < 3 {
+            continue;
+        }
+        if pts.len() == 3 {
+            f.simplex_tris.push(SimplexPos {
+                a: pts[0],
+                b: pts[1],
+                c: pts[2],
+            });
+            f.simplex_attrs.push(SimplexAttr { color: s.color });
+            continue;
+        }
+        let mut center = [0.0f32; 3];
+        for p in &pts {
+            center[0] += p[0];
+            center[1] += p[1];
+            center[2] += p[2];
+        }
+        let k = pts.len() as f32;
+        center[0] /= k;
+        center[1] /= k;
+        center[2] /= k;
+        for w in pts.windows(2) {
+            f.simplex_tris.push(SimplexPos {
+                a: center,
+                b: w[0],
+                c: w[1],
+            });
+            f.simplex_attrs.push(SimplexAttr { color: s.color });
+        }
+        // Close the fan: last → first.
+        let n = pts.len();
+        f.simplex_tris.push(SimplexPos {
+            a: center,
+            b: pts[n - 1],
+            c: pts[0],
+        });
+        f.simplex_attrs.push(SimplexAttr { color: s.color });
+    }
 }
 
 /// Traces (spec 031 §3): ordered walks over node ids — recursion revisits
@@ -291,6 +560,8 @@ fn build_traces(graph: &Graph, three_d: bool, f: &mut Frame) {
                     width: 2.2,
                     dash: 0.0,
                     phase: 0.0,
+                    pulse: 0.0, // traces are ordered, not flowing (§3)
+                    edge_len: 0.0,
                 });
                 if !three_d {
                     let into = normalize2([pos[0] - a[0], pos[1] - a[1]]);
@@ -330,7 +601,7 @@ fn stroke_offset(rank: usize, total: usize) -> f32 {
 /// into `out` (cleared first — the renderer reuses one buffer across every
 /// frame of a layout). The `stroke` bows a parallel copy off the route
 /// (spec 031 §3) — 0 is the edge's own line.
-fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) {
+fn polyline_into(graph: &Graph, e: &Edge, extra: f32, out: &mut Vec<[f32; 3]>) {
     out.clear();
     let na = &graph.nodes[e.a];
     let a_end = anchored(graph, e.a, &e.a_port);
@@ -340,8 +611,8 @@ fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) 
         // its centre so it reads as attached; the bow widens the ring.
         let offset = match e.route {
             Route::Bezier { offset } => offset,
-            Route::Straight => 0.0,
-        };
+            Route::Straight | Route::Ortho { .. } => 0.0,
+        } + e.bow;
         let side = if offset < 0.0 { -1.0 } else { 1.0 };
         let r = na.radius + 6.0 + offset.abs() * 0.35;
         let (cx, cy) = (na.x, na.y - side * r);
@@ -359,15 +630,35 @@ fn polyline_into(graph: &Graph, e: &Edge, stroke: f32, out: &mut Vec<[f32; 3]>) 
         }
     } else {
         // A bowed parallel of a straight line is a shallow Bézier; a
-        // curve's control point takes the stroke offset on top of its own.
-        let route = match (e.route, stroke) {
+        // curve's control point takes the extra offset (the edge's own bow
+        // plus the layer rank) on top of its own.
+        let route = match (e.route, e.bow + extra) {
             (Route::Straight, s) if s.abs() > 1e-6 => Route::Bezier { offset: s },
             (Route::Straight, _) => Route::Straight,
             (Route::Bezier { offset }, s) => Route::Bezier { offset: offset + s },
+            (Route::Ortho { stub }, s) => Route::Ortho {
+                stub: stub.map(|st| st + s * 0.5), // parallels step apart
+            },
         };
         match route {
             Route::Straight => {
                 out.push(a_end);
+                out.push(b_end);
+            }
+            Route::Ortho { stub } => {
+                // The flow route (spec 031 SS2): out of the source toward
+                // the target, across, in — three segments whose corners
+                // stay square (arrowheads ride the tangents naturally).
+                let gap = (b_end[0] - a_end[0]).abs();
+                let stub = stub.unwrap_or((gap * 0.5).max(8.0));
+                let corner = if b_end[0] >= a_end[0] {
+                    a_end[0] + stub
+                } else {
+                    a_end[0] - stub
+                };
+                out.push(a_end);
+                out.push([corner, a_end[1], a_end[2]]);
+                out.push([corner, b_end[1], b_end[2]]);
                 out.push(b_end);
             }
             Route::Bezier { offset } => {
@@ -410,6 +701,7 @@ fn bezier(a: [f32; 3], c: [f32; 3], b: [f32; 3], t: f32, s: f32) -> [f32; 3] {
 /// along the side by `offset` (0..1). Circles for now — stage 7's port
 /// diagrams on rectangles re-derives this from the node's shape.
 pub fn port_world(graph: &Graph, port: &Port) -> [f32; 3] {
+    use crate::graph::Shape;
     let n = &graph.nodes[port.node];
     let (dir, tangent) = match port.side {
         InSide::Right => ([1.0, 0.0], [0.0, 1.0]),
@@ -417,10 +709,21 @@ pub fn port_world(graph: &Graph, port: &Port) -> [f32; 3] {
         InSide::Top => ([0.0, -1.0], [1.0, 0.0]),
         InSide::Bottom => ([0.0, 1.0], [1.0, 0.0]),
     };
-    let along = (port.offset - 0.5) * n.radius * 2.0;
+    // A block's ports ride its rectangle — a diamond block too (spec 031
+    // §2, stage 8): the side's own half-extent pushes out, the other axis
+    // spreads along it (spec 031 §2, stage 7).
+    let (out, along_half) = if n.shape == Shape::Rect || n.shape == Shape::Diamond {
+        match port.side {
+            InSide::Left | InSide::Right => (n.radius, n.height),
+            InSide::Top | InSide::Bottom => (n.height, n.radius),
+        }
+    } else {
+        (n.radius, n.radius)
+    };
+    let along = (port.offset - 0.5) * along_half * 2.0;
     [
-        n.x + dir[0] * (n.radius + PORT_STANDOFF) + tangent[0] * along,
-        n.y + dir[1] * (n.radius + PORT_STANDOFF) + tangent[1] * along,
+        n.x + dir[0] * (out + PORT_STANDOFF) + tangent[0] * along,
+        n.y + dir[1] * (out + PORT_STANDOFF) + tangent[1] * along,
         n.z,
     ]
 }
@@ -548,6 +851,10 @@ mod tests {
             degree: 1,
             pinned: false,
             layers: Vec::new(),
+            height: crate::graph::RECT_HEIGHT,
+            shape: crate::graph::Shape::Circle,
+            stroke: [0.0, 0.0, 0.0, 0.0],
+            icon: None,
         }
     }
 
@@ -565,6 +872,8 @@ mod tests {
             a_port: None,
             b_port: None,
             layers: Vec::new(),
+            bow: 0.0,
+            pulse_speed: 0.0,
         }
     }
 
@@ -575,6 +884,9 @@ mod tests {
             ports: Vec::new(),
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         }
     }
 
@@ -750,6 +1062,9 @@ mod tests {
             edges: Vec::new(),
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
             ports: vec![
                 port(0, "out", InSide::Right, 0.5),
                 port(0, "in", InSide::Left, 0.5),
@@ -786,6 +1101,9 @@ mod tests {
             ],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.segs.len(), 1);
@@ -807,6 +1125,9 @@ mod tests {
             ports: vec![port(0, "out", InSide::Right, 0.5)],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let f = build_frame(&g, false);
         let c = cam(100.0, 100.0);
@@ -914,7 +1235,7 @@ mod tests {
                 e
             }],
         );
-        g = g.with_bows();
+        g.with_bows();
         let f = build_frame(&g, false);
         assert_eq!(f.segs.len(), 2 * CURVE_SEGS);
         let y_at_mid = |e: usize| {
@@ -1009,6 +1330,9 @@ mod tests {
             ports: vec![port(1, "in", InSide::Left, 0.5)],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let f = build_frame(&g, false);
         assert_eq!(f.arrows.len(), 1);
@@ -1029,6 +1353,9 @@ mod tests {
             ports: vec![port(0, "out", InSide::Right, 0.5)],
             layers: Vec::new(),
             traces: Vec::new(),
+            groups: Vec::new(),
+            hyperedges: Vec::new(),
+            simplexes: Vec::new(),
         };
         let mut f = Frame::default();
         let mut scratch = Vec::new();
@@ -1055,5 +1382,403 @@ mod tests {
         // → screen (70, 41.7).
         let hit = edge_at(&f, &c, 70.0, 41.7);
         assert_eq!(hit, Some(0));
+    }
+
+    fn group(id: &str, members: &[usize], color: &str) -> crate::graph::Group {
+        crate::graph::Group {
+            id: id.into(),
+            label: id.into(),
+            members: members.to_vec(),
+            color: crate::graph::parse_hex(color, 1.0).unwrap(),
+            visible: true,
+            highlight: false,
+        }
+    }
+
+    #[test]
+    fn a_group_tints_the_box_of_its_members() {
+        // Spec 031 §4: one hull per group — the axis-aligned box of the
+        // members' rims (radius 5 here), padded by rim + HULL_PAD (12).
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 40.0, 10.0),
+                node("c", -60.0, 50.0),
+            ],
+            vec![edge(0, 1)],
+        );
+        g.groups = vec![group("g", &[0, 1], "#596cff")];
+        let f = build_frame(&g, false);
+        assert_eq!(f.hulls.len(), 1);
+        let h = f.hulls[0];
+        assert!(
+            (h.center[0] - 20.0).abs() < 1e-4,
+            "centre x {}",
+            h.center[0]
+        );
+        assert!((h.center[1] - 5.0).abs() < 1e-4, "centre y {}", h.center[1]);
+        let pad = 5.0 + HULL_PAD;
+        assert!(
+            (h.half[0] - (25.0 + pad)).abs() < 1e-4,
+            "half x {}",
+            h.half[0]
+        );
+        assert!(
+            (h.half[1] - (10.0 + pad)).abs() < 1e-4,
+            "half y {}",
+            h.half[1]
+        );
+        // The tint: the group colour with HULL_FILL strength.
+        let c = crate::graph::parse_hex("#596cff", HULL_FILL).unwrap();
+        assert!((f.hull_attrs[0].color[0] - c[0]).abs() < 1e-4);
+        assert_eq!(f.hull_attrs[0].corner, HULL_CORNER);
+        // 3D keeps plain nodes and edges: no hulls (the mapping's rule).
+        assert!(build_frame(&g, true).hulls.is_empty());
+    }
+
+    #[test]
+    fn hidden_or_gone_members_do_not_stretch_the_tint() {
+        // An invisible member (a hidden layer) leaves no mark; a group with
+        // no visible member draws nothing at all.
+        let mut g = graph(
+            vec![node("a", 0.0, 0.0), node("b", 200.0, 0.0)],
+            vec![edge(0, 1)],
+        );
+        g.nodes[1].layers = vec!["ghost".into()];
+        g.layers = vec![layer("ghost", [0.9, 0.2, 0.2, 0.9], false)];
+        g.groups = vec![
+            group("near", &[0], "#596cff"),
+            group("far", &[1], "#596cff"),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.hulls.len(), 1, "only the visible member's hull");
+        assert!(
+            f.hulls[0].half[0] < 30.0,
+            "the hidden member did not stretch it"
+        );
+        // The group itself hidden: nothing.
+        g.groups[0].visible = false;
+        assert!(build_frame(&g, false).hulls.is_empty());
+    }
+
+    #[test]
+    fn nested_and_overlapping_groups_each_get_their_own_hull() {
+        // Spec 031 §4: nesting and overlapping visual memberships are not
+        // conflated — two groups sharing a member both tint.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 30.0, 0.0),
+                node("c", 60.0, 0.0),
+            ],
+            vec![edge(0, 1), edge(1, 2)],
+        );
+        g.groups = vec![
+            group("outer", &[0, 1, 2], "#596cff"),
+            group("pair", &[0, 1], "#ff5959"),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.hulls.len(), 2);
+        let widths: Vec<f32> = f.hulls.iter().map(|h| h.half[0]).collect();
+        assert!(widths[0] > widths[1], "the outer box is the wider one");
+        // The shared member sits in both boxes.
+        for h in &f.hulls {
+            assert!(h.half[0] >= 30.0 && h.center[0] - h.half[0] < 0.0 + 1e-4);
+        }
+    }
+
+    #[test]
+    fn a_hyperedge_draws_a_junction_with_spokes_never_picked() {
+        // Spec 031 §2: a hyperedge is a junction — a marker at the
+        // members' centroid, a spoke to each — and never new topology:
+        // no spoke picks as an edge.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 30.0, 0.0),
+                node("c", 0.0, 30.0),
+            ],
+            vec![],
+        );
+        g.hyperedges = vec![crate::graph::Hyperedge {
+            id: "h".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.75, 0.55, 0.95, 0.85],
+            width: 1.4,
+            dash: 0.0,
+            visible: true,
+        }];
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 3, "one spoke per member");
+        assert!(f.seg_edge.iter().all(|o| o.is_none()), "never an edge");
+        assert_eq!(f.junctions.len(), 1);
+        let j = f.junctions[0];
+        assert!((j.pos[0] - 10.0).abs() < 1e-4 && (j.pos[1] - 10.0).abs() < 1e-4);
+        assert_eq!(j.color, [0.75, 0.55, 0.95, 0.85]);
+        // A spoke midpoint never picks (presentation, not topology — §2).
+        let c = cam(100.0, 100.0);
+        let mid = [
+            (f.segs[0].a[0] + f.segs[0].b[0]) / 2.0,
+            (f.segs[0].a[1] + f.segs[0].b[1]) / 2.0,
+        ];
+        let s = c.world_to_screen(mid[0], mid[1]);
+        assert_eq!(edge_at(&f, &c, s.0, s.1), None);
+        // Hidden: no spokes, no marker. 3D keeps the junction and spokes.
+        g.hyperedges[0].visible = false;
+        let f2 = build_frame(&g, false);
+        assert!(f2.segs.is_empty() && f2.junctions.is_empty());
+        g.hyperedges[0].visible = true;
+        let f3 = build_frame(&g, true);
+        assert_eq!(f3.junctions.len(), 1, "3D keeps the junction");
+    }
+
+    #[test]
+    fn a_simplex_fills_one_triangle_or_a_fan() {
+        // Spec 031 §2: three members → one filled triangle; more → a fan
+        // from the centroid, closing the loop; 2D only.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 40.0, 0.0),
+                node("c", 0.0, 40.0),
+                node("d", 40.0, 40.0),
+            ],
+            vec![],
+        );
+        g.simplexes = vec![crate::graph::Simplex {
+            id: "s".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.95, 0.60, 0.30, 0.9],
+            visible: true,
+        }];
+        let f = build_frame(&g, false);
+        assert_eq!(f.simplex_tris.len(), 1);
+        let t = f.simplex_tris[0];
+        assert_eq!(t.a, [0.0, 0.0, 0.0]);
+        assert_eq!(t.b, [40.0, 0.0, 0.0]);
+        assert_eq!(t.c, [0.0, 40.0, 0.0]);
+        assert_eq!(f.simplex_attrs[0].color, [0.95, 0.60, 0.30, 0.9]);
+        // 3D draws no faces (like the hulls).
+        assert!(build_frame(&g, true).simplex_tris.is_empty());
+        // Four members fan into four triangles around the centroid (20, 20).
+        g.simplexes[0].nodes = vec![0, 1, 3, 2];
+        let f2 = build_frame(&g, false);
+        assert_eq!(f2.simplex_tris.len(), 4, "a fan of n triangles");
+        for t in &f2.simplex_tris {
+            assert_eq!(
+                t.a,
+                [20.0, 20.0, 0.0],
+                "each fan triangle starts at the centroid"
+            );
+        }
+    }
+
+    #[test]
+    fn a_highlighted_clique_wears_a_stronger_tint_than_a_group() {
+        // Spec 031 §2: a highlighted clique is not a group — same hull
+        // mechanism, twice the tint and the highlight rim flag.
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 30.0, 0.0)], vec![]);
+        g.groups = vec![group("plain", &[0, 1], "#59ff8c")];
+        let plain = build_frame(&g, false).hull_attrs[0];
+        g.groups[0].highlight = true;
+        let lit = build_frame(&g, false).hull_attrs[0];
+        assert!(
+            (plain.color[3] - crate::graph::parse_hex("#59ff8c", HULL_FILL).unwrap()[3]).abs()
+                < 1e-4
+        );
+        assert!(
+            (lit.color[3] - crate::graph::parse_hex("#59ff8c", HULL_HIGHLIGHT_FILL).unwrap()[3])
+                .abs()
+                < 1e-4,
+            "the highlight tints twice as strong"
+        );
+        assert_eq!(plain.highlight, 0.0);
+        assert_eq!(lit.highlight, 1.0);
+    }
+
+    #[test]
+    fn a_pulsed_edge_carries_speed_and_its_full_length() {
+        // Spec 031 §2, stage 6: the glow is positioned in world units over
+        // the whole stroke, so every sub-segment of a curve carries the
+        // speed and the stroke's total length — it crosses them as one
+        // continuous line, and each sub-segment's phase finds it.
+        let mut e = edge(0, 1);
+        e.route = Route::Bezier { offset: 15.0 };
+        e.pulse_speed = 30.0;
+        let g = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![e]);
+        let f = build_frame(&g, false);
+        assert_eq!(f.seg_attrs.len(), CURVE_SEGS);
+        for a in &f.seg_attrs {
+            assert_eq!(a.pulse, 30.0);
+            assert!(a.edge_len > 40.0, "a bowed stroke is longer than its chord");
+        }
+        // The straight stroke: the chord exactly. A plain edge carries no
+        // length at all — the pass is gated to pulsed and dashed strokes
+        // (the review's #10).
+        let mut plain = edge(0, 1);
+        plain.pulse_speed = 20.0;
+        let f2 = build_frame(
+            &graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)], vec![plain]),
+            false,
+        );
+        assert!((f2.seg_attrs[0].edge_len - 40.0).abs() < 1e-4);
+        let f3 = build_frame(
+            &graph(
+                vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
+                vec![edge(0, 1)],
+            ),
+            false,
+        );
+        assert_eq!(f3.seg_attrs[0].pulse, 0.0);
+        assert_eq!(
+            f3.seg_attrs[0].edge_len, 0.0,
+            "a plain stroke skips the pass"
+        );
+    }
+
+    #[test]
+    fn an_ortho_route_steps_between_the_ports() {
+        // The flow route (spec 031 SS2, stage 7): out of the source's
+        // port, across, into the target's — three square-cornered
+        // segments, and the head rides the last tangent.
+        let mut e = edge(0, 1);
+        e.route = Route::Ortho { stub: None };
+        e.a_port = Some("out".into());
+        e.b_port = Some("in".into());
+        e.arrow = Arrow::Target;
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 60.0, 40.0)], vec![e]);
+        g.ports = vec![
+            port(0, "out", InSide::Right, 0.5),
+            port(1, "in", InSide::Left, 0.5),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 3, "out, across, in");
+        let a_end = f.segs[0].a;
+        let b_end = f.segs[2].b;
+        // The stub is half the gap: 7.5 world off a's port (x 7.5).
+        assert!((a_end[0] - 7.5).abs() < 1e-4, "starts at a's port");
+        // The middle segment is the vertical leg: one column of corners.
+        assert_eq!(f.segs[0].b[0], f.segs[1].a[0], "square corners");
+        // The stub is half the gap: a's port at 7.5, b's at 52.5 → 22.5.
+        assert!(
+            (f.segs[1].a[0] - (a_end[0] + 22.5)).abs() < 1e-4,
+            "half-way across"
+        );
+        assert!(
+            (f.segs[1].a[1] - a_end[1]).abs() < 1e-4,
+            "across at a's height"
+        );
+        assert!(
+            (f.segs[1].b[1] - b_end[1]).abs() < 1e-4,
+            "down to b's height"
+        );
+        assert!(
+            (b_end[0] - 52.5).abs() < 1e-4 && (b_end[1] - 40.0).abs() < 1e-4,
+            "ends at b's port"
+        );
+        // The head points into the target along the last tangent (+x:
+        // b's left port faces the corner from the left).
+        assert_eq!(f.arrows.len(), 1);
+        assert!(
+            f.arrows[0].angle.abs() < 1e-4,
+            "angle {}",
+            f.arrows[0].angle
+        );
+    }
+
+    #[test]
+    fn a_rect_node_puts_its_ports_on_its_sides() {
+        // A flow block (spec 031 SS2, stage 7): the port rides the
+        // rectangle — pushed out by the side's half-extent, spread along
+        // the other axis.
+        let mut n = node("blk", 0.0, 0.0);
+        n.shape = crate::graph::Shape::Rect;
+        n.radius = 46.0; // its half-width
+        n.height = 22.0;
+        let mut g = graph(vec![n], vec![]);
+        g.ports = vec![
+            port(0, "in", InSide::Left, 0.25),
+            port(0, "out", InSide::Right, 0.75),
+        ];
+        let f = build_frame(&g, false);
+        let near = |a: [f32; 3], x: f32, y: f32| (a[0] - x).abs() < 1e-4 && (a[1] - y).abs() < 1e-4;
+        // Left: x −(46 + 2.5), y at a quarter of the height's span.
+        assert!(
+            near(f.port_pos[0], -(46.0 + PORT_STANDOFF), (0.25 - 0.5) * 44.0),
+            "in: {:?}",
+            f.port_pos[0]
+        );
+        assert!(
+            near(f.port_pos[1], 46.0 + PORT_STANDOFF, (0.75 - 0.5) * 44.0),
+            "out: {:?}",
+            f.port_pos[1]
+        );
+    }
+
+    #[test]
+    fn a_diamond_node_puts_its_ports_on_its_sides() {
+        // Stage 8 (spec 031 §2): a decision block's ports ride the same
+        // half-extents as a rect's.
+        let mut n = node("dec", 0.0, 0.0);
+        n.shape = crate::graph::Shape::Diamond;
+        n.radius = 50.0;
+        n.height = 24.0;
+        let mut g = graph(vec![n], vec![]);
+        g.ports = vec![
+            port(0, "in", InSide::Left, 0.5),
+            port(0, "out", InSide::Right, 0.5),
+        ];
+        let f = build_frame(&g, false);
+        let near = |a: [f32; 3], x: f32, y: f32| (a[0] - x).abs() < 1e-4 && (a[1] - y).abs() < 1e-4;
+        assert!(
+            near(f.port_pos[0], -(50.0 + PORT_STANDOFF), 0.0),
+            "in: {:?}",
+            f.port_pos[0]
+        );
+        assert!(
+            near(f.port_pos[1], 50.0 + PORT_STANDOFF, 0.0),
+            "out: {:?}",
+            f.port_pos[1]
+        );
+    }
+
+    #[test]
+    fn hyperedges_and_simplices_do_not_reach_hidden_nodes() {
+        // The P-166 review's #6: an invisible member (a hidden layer)
+        // draws nothing — its spoke must not point at it, the junction
+        // must not lean toward it, and no face may stretch to it.
+        let mut g = graph(
+            vec![
+                node("a", 0.0, 0.0),
+                node("b", 40.0, 0.0),
+                node("c", 0.0, 40.0),
+            ],
+            vec![],
+        );
+        g.nodes[2].layers = vec!["ghost".into()];
+        g.layers = vec![layer("ghost", [0.9, 0.2, 0.2, 0.9], false)];
+        g.hyperedges = vec![crate::graph::Hyperedge {
+            id: "h".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.75, 0.55, 0.95, 0.85],
+            width: 1.4,
+            dash: 0.0,
+            visible: true,
+        }];
+        g.simplexes = vec![crate::graph::Simplex {
+            id: "s".into(),
+            nodes: vec![0, 1, 2],
+            color: [0.95, 0.6, 0.3, 0.9],
+            visible: true,
+        }];
+        let f = build_frame(&g, false);
+        // Two visible members: one spoke each, the centroid over them
+        // (20, 0) — the hidden member pulled neither.
+        assert_eq!(f.junctions.len(), 1);
+        assert_eq!(f.segs.len(), 2, "no spoke to the hidden node");
+        assert!((f.junctions[0].pos[0] - 20.0).abs() < 1e-4);
+        assert!((f.junctions[0].pos[1] - 0.0).abs() < 1e-4);
+        // Two visible corners: no face.
+        assert!(f.simplex_tris.is_empty());
     }
 }

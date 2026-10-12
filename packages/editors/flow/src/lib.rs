@@ -3,16 +3,17 @@
 //! A flow is a graph with a *schema*: block kinds with typed input/output
 //! ports, and wires that must respect port types
 //! (`moonkale_ext_api::flow`). It is stored as `*.flow.json` in the folder
-//! and edited here on a [dioxus-flow](https://crates.io/crates/dioxus-flow)
-//! canvas with a palette, typed wiring (a mismatch is refused), per-block
-//! parameters, validation and **codegen** through whichever library the
-//! blocks came from.
+//! and edited here on the graph engine's canvas (spec 031 stage 7 /
+//! ADR-0018 — one engine serves graph exploration and flow editing) with
+//! a palette, typed wiring (a mismatch is refused), a parameter editor
+//! for the selected block, validation and **codegen** through whichever
+//! library the blocks came from.
 //!
 //! Block libraries are extension contributions
 //! (`Extension::flow_libraries`); this crate ships none. The Lux.jl library
 //! is the optional `moonkale-ext-lux` extension — off by default.
 //!
-//! Vault: `editors/Flow Editor.md`, `research/dioxus-flow.md`.
+//! Vault: `editors/Flow Editor.md`.
 
 mod extension;
 mod panel;
@@ -25,3 +26,4 @@ pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
 ];
 
 pub use extension::{is_flow, FlowExtension, EDITOR_PREFIX};
+pub use panel::FlowPanel;

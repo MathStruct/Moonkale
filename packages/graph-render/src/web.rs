@@ -13,7 +13,7 @@
 
 use crate::camera::Camera;
 use crate::frame;
-use crate::graph::{Graph, InGraph};
+use crate::graph::{Graph, InDelta, InGraph};
 use crate::layout::Layout;
 use crate::render::Renderer;
 use std::cell::RefCell;
@@ -33,6 +33,30 @@ struct State {
     on_event: js_sys::Function,
     dirty: bool,
     alive: bool,
+    /// Any edge carries a pulse (spec 031 §2, stage 6): the view redraws
+    /// every frame while true — the clock moves even when nothing is
+    /// dirty. Recomputed wherever the graph changes.
+    animates: bool,
+    /// Any node carries an icon (spec 031 §2, stage 8): gates the
+    /// overlay's icon scan — a second pass over every node per frame
+    /// that a 100 k-node graph must not pay for nothing.
+    has_icons: bool,
+    /// The pointer's canvas position — the edge label rides it.
+    pointer: (f32, f32),
+    /// The edge under the pointer (spec 031 §2, stage 9) — its label
+    /// names the stroke while hovered; a node hover wins over it.
+    hovered_edge: Option<usize>,
+    /// Any edge carries a label: gates the per-move edge scan, one
+    /// pass over every drawn segment.
+    has_edge_labels: bool,
+    /// The keyboard focus node's id (spec 031, stage 10): Tab and the
+    /// arrows walk the map, Enter clicks — a canvas graph is invisible
+    /// to keyboards without it. Id-keyed, so it survives graph swaps
+    /// like the selection.
+    focus_id: Option<String>,
+    /// The pulse clock's zero (`performance.now` at create); `camera.time`
+    /// is the elapsed seconds since.
+    t0_ms: f64,
     last_click_ms: f64,
     /// Fit the view when the layout settles — only until the user has moved
     /// the camera or a node; after that, their view is theirs.
@@ -153,9 +177,22 @@ fn emit_select(s: &State) {
     nodes.sort();
     let mut edges: Vec<&String> = s.selected.edges.iter().collect();
     edges.sort();
+    // The first selected node's screen position, so a host can open its
+    // editor beside the block (spec 031 §7). Computed here, under the
+    // borrow the event is emitted with — a host cannot call back into
+    // the view from inside an event (the RefCell is held).
+    let screen = nodes.first().and_then(|id| {
+        let n = s.graph.nodes.iter().find(|n| &n.id == *id)?;
+        if s.camera.three_d {
+            s.camera.project(n.x, n.y, n.z).map(|(x, y, _)| vec![x, y])
+        } else {
+            let (x, y) = s.camera.world_to_screen(n.x, n.y);
+            Some(vec![x, y])
+        }
+    });
     emit(
         s,
-        serde_json::json!({ "kind": "select", "nodes": nodes, "edges": edges }),
+        serde_json::json!({ "kind": "select", "nodes": nodes, "edges": edges, "screen": screen }),
     );
 }
 
@@ -183,11 +220,7 @@ fn end_wire(s: &mut State) {
 }
 
 fn node_visible(graph: &Graph, i: usize) -> bool {
-    let n = &graph.nodes[i];
-    n.layers.is_empty()
-        || n.layers
-            .iter()
-            .any(|id| graph.layers.iter().any(|l| &l.id == id && l.visible))
+    graph.visible(i)
 }
 
 fn emit(state: &State, value: serde_json::Value) {
@@ -225,6 +258,7 @@ pub fn bench_layout(n: usize, steps: usize) -> f64 {
             key: String::new(),
             color: None,
             layers: Vec::new(),
+            ..Default::default()
         })
         .collect();
     let mut edges = Vec::new();
@@ -291,7 +325,10 @@ pub async fn create(
         .and_then(|c| c.dyn_into::<web_sys::CanvasRenderingContext2d>().ok())
         .ok_or_else(|| JsValue::from_str("no 2d context for the label overlay"))?;
     let graph = Graph::default();
+    let has_icons = false;
+    let has_edge_labels = false;
     let layout = Layout::new(&graph);
+    let animates_at_create = animates(&graph);
     let state = Rc::new(RefCell::new(State {
         camera: Camera {
             width: w,
@@ -308,6 +345,16 @@ pub async fn create(
         on_event,
         dirty: true,
         alive: true,
+        animates: animates_at_create,
+        has_icons,
+        pointer: (0.0, 0.0),
+        hovered_edge: None,
+        has_edge_labels,
+        focus_id: None,
+        t0_ms: web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now())
+            .unwrap_or(0.0),
         last_click_ms: 0.0,
         auto_fit: true,
         touches: Vec::new(),
@@ -332,8 +379,100 @@ pub async fn create(
         serde_json::json!({ "kind": "ready", "backend": backend }),
     );
     install_pointer_handlers(&overlay, state.clone());
+    install_keyboard(&overlay, state.clone());
     start_loop(state.clone());
     Ok(GraphView { state })
+}
+
+/// The overlay becomes keyboard-focusable (spec 031, stage 10): the
+/// canvas takes a tabindex — its pointerdown prevents the default, which
+/// would otherwise stop the browser's focus-on-mousedown, so a
+/// capture-phase listener focuses it first — and the arrow keys walk the
+/// map spatially, Enter clicks the focused node and Escape clears the
+/// selection. The walk emits `focus { id }` and wears a ring on the
+/// label overlay, so hosts and keyboard users can both see it. Tab
+/// stays the browser's: a canvas widget must not trap it.
+fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<State>>) {
+    let _ = overlay.set_attribute("tabindex", "0");
+    {
+        let el = overlay.clone();
+        let cb = Closure::<dyn FnMut(web_sys::PointerEvent)>::new(move |_| {
+            let _ = el.focus();
+        });
+        let target: &web_sys::EventTarget = overlay.as_ref();
+        let _ = target.add_event_listener_with_callback_and_bool(
+            "pointerdown",
+            cb.as_ref().unchecked_ref(),
+            true,
+        );
+        cb.forget();
+    }
+    let st = state.clone();
+    let cb = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
+        let mut s = st.borrow_mut();
+        let n = s.graph.nodes.len();
+        if n == 0 {
+            return;
+        }
+        // The focused node's index — the focus is id-keyed, so a swapped
+        // graph keeps it like the selection does.
+        let idx = s
+            .focus_id
+            .as_deref()
+            .and_then(|id| s.graph.nodes.iter().position(|nd| nd.id == id))
+            .filter(|i| node_visible(&s.graph, *i));
+        match e.key().as_str() {
+            "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" => {
+                e.prevent_default(); // the page must not scroll
+                let dir = match e.key().as_str() {
+                    // Screen up is world −y in the 2D view.
+                    "ArrowLeft" => [-1.0, 0.0],
+                    "ArrowRight" => [1.0, 0.0],
+                    "ArrowUp" => [0.0, -1.0],
+                    _ => [0.0, 1.0],
+                };
+                // Nothing focused yet: walk from the map's first node —
+                // the very first arrow already moves, it does not land
+                // on node 0 itself.
+                let target = match idx {
+                    Some(i) => s.graph.nearest_in_direction(i, dir).or(Some(i)),
+                    None => s.graph.nearest_in_direction(0, dir).or(Some(0)),
+                };
+                let Some(target) = target else { return };
+                let id = s.graph.nodes[target].id.clone();
+                if s.focus_id.as_deref() != Some(id.as_str()) {
+                    s.focus_id = Some(id.clone());
+                    s.dirty = true; // the focus ring redraws
+                    emit(&s, serde_json::json!({ "kind": "focus", "id": id }));
+                }
+            }
+            "Enter" => {
+                if let Some(i) = idx {
+                    e.prevent_default();
+                    let id = s.graph.nodes[i].id.clone();
+                    s.selected = frame::Selection {
+                        nodes: [id.clone()].into_iter().collect(),
+                        edges: Default::default(),
+                    };
+                    s.sel_rev += 1;
+                    emit_select(&s);
+                    emit(&s, serde_json::json!({ "kind": "click", "id": id }));
+                }
+            }
+            "Escape" => {
+                if !s.selected.is_empty() {
+                    e.prevent_default();
+                    s.selected = frame::Selection::default();
+                    s.sel_rev += 1;
+                    emit_select(&s);
+                }
+            }
+            _ => {}
+        }
+    });
+    let target: &web_sys::EventTarget = overlay.as_ref();
+    let _ = target.add_event_listener_with_callback("keydown", cb.as_ref().unchecked_ref());
+    cb.forget();
 }
 
 #[wasm_bindgen]
@@ -354,6 +493,41 @@ impl GraphView {
     /// scattered its few nodes across the map (Prompt26).
     pub fn set_graph_fresh(&self, json: &str) -> Result<(), JsValue> {
         self.load(json, true)
+    }
+
+    /// Apply an incremental change (spec 031 §4, stage 4a): add and remove
+    /// nodes and edges **by instance id** — a collapse/expand or a live
+    /// host sends this instead of re-serialising 100 k nodes through
+    /// `set_graph`. Survivors keep their positions and pins; the camera
+    /// and the id-keyed selection are untouched. The layout only warms
+    /// (temperature 3), so the view drifts rather than restarts.
+    pub fn apply_delta(&self, json: &str) -> Result<(), JsValue> {
+        let d: InDelta =
+            serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let mut s = self.state.borrow_mut();
+        // A node drag follows its node to its new index, or ends when the
+        // node is gone — a stale index panicked every pointer move (#12,
+        // P-155; the stage 4–6 review's #2).
+        let dragged = s.dragged_id();
+        if !s.graph.apply_delta(d) {
+            return Ok(()); // nothing named existed; nothing to redraw
+        }
+        s.keep_drag(dragged);
+        // Warm, not restart: newcomers settle next to where they were put.
+        let mut l = Layout::new(&s.graph);
+        l.temperature = 3.0;
+        s.layout = l;
+        // Indices shifted: the hover is an index, so it goes; the wire ends.
+        s.hovered = None;
+        s.hover_rev += 1;
+        end_wire(&mut s);
+        s.pos_rev += 1;
+        s.attr_rev += 1;
+        s.animates = animates(&s.graph);
+        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
+        s.dirty = true;
+        Ok(())
     }
 
     /// Put the current view aside under `name` (graph, positions, pins,
@@ -385,6 +559,9 @@ impl GraphView {
         s.hovered = None;
         s.pos_rev += 1;
         s.attr_rev += 1;
+        s.animates = animates(&s.graph);
+        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         s.dirty = true;
         true
     }
@@ -394,6 +571,16 @@ impl GraphView {
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
         let dragged = s.dragged_id();
+        // A **pinned** node with an explicit position is the host's to move —
+        // the document owns a pinned block's coordinates (stage 7c: undo
+        // restores them); an unpinned one keeps its live position (the
+        // explorer's layout wins).
+        let host_moved: std::collections::HashSet<String> = input
+            .nodes
+            .iter()
+            .filter(|n| n.pinned && n.pos.is_some())
+            .map(|n| n.id.clone())
+            .collect();
         let mut next = Graph::from_input(input);
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
             .graph
@@ -410,16 +597,23 @@ impl GraphView {
         if incremental {
             // Known nodes stay put; new ones start at the mean of their known
             // neighbours (or where the spiral put them) with a nudge so two
-            // new siblings do not coincide.
+            // new siblings do not coincide — unless the host repositioned a
+            // pinned node (see `host_moved` above).
             let known: Vec<bool> = next.nodes.iter().map(|n| old.contains_key(&n.id)).collect();
             let mut placed: Vec<Option<(f32, f32, f32)>> = vec![None; next.nodes.len()];
             for (i, n) in next.nodes.iter().enumerate() {
                 if let Some(&(x, y, z, _)) = old.get(&n.id) {
-                    placed[i] = Some((x, y, z));
+                    placed[i] = if host_moved.contains(&n.id) {
+                        Some((n.x, n.y, n.z))
+                    } else {
+                        Some((x, y, z))
+                    };
                 }
             }
             for (i, n) in next.nodes.iter().enumerate() {
-                if known[i] {
+                // A pinned newcomer sits where the host put it (a flow
+                // block, stage 7) — the neighbour mean is for explorers.
+                if known[i] || n.pinned {
                     continue;
                 }
                 let mut acc = (0.0f32, 0.0f32, 0.0f32);
@@ -483,6 +677,9 @@ impl GraphView {
             s.hovered = None;
             s.pos_rev += 1;
             s.attr_rev += 1;
+            s.animates = animates(&s.graph);
+            s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+            s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
             s.dirty = true;
             return Ok(());
         }
@@ -493,6 +690,9 @@ impl GraphView {
         s.auto_fit = true;
         s.pos_rev += 1;
         s.attr_rev += 1;
+        s.animates = animates(&s.graph);
+        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
         s.camera.fit(&g, 40.0);
@@ -524,6 +724,72 @@ impl GraphView {
         s.camera.fit(&g, 40.0);
         s.graph = g;
         s.dirty = true;
+    }
+
+    /// Fit to a subset (spec 031 §4: layouts centred on one or several
+    /// focal nodes) — a JSON array of node ids. An explicit focus is a
+    /// navigation act: it ends the auto-fit, unlike a whole-graph fit.
+    pub fn focus(&self, ids: &str) {
+        let ids: Vec<String> = match serde_json::from_str(ids) {
+            Ok(ids) => ids,
+            Err(_) => return,
+        };
+        let mut s = self.state.borrow_mut();
+        let (mut x0, mut y0) = (f32::MAX, f32::MAX);
+        let (mut x1, mut y1) = (f32::MIN, f32::MIN);
+        let (mut z0, mut z1) = (f32::MAX, f32::MIN);
+        let mut any = false;
+        for n in s.graph.nodes.iter().filter(|n| ids.contains(&n.id)) {
+            x0 = x0.min(n.x - n.radius);
+            y0 = y0.min(n.y - n.radius);
+            x1 = x1.max(n.x + n.radius);
+            y1 = y1.max(n.y + n.radius);
+            z0 = z0.min(n.z);
+            z1 = z1.max(n.z);
+            any = true;
+        }
+        if !any {
+            return;
+        }
+        // The rect carries the nodes' rims; the pad is pixels, like `fit`
+        // — and 3D fits too, via the shared `fit_rect` (the stage 4–6
+        // review's #9: this re-derived the 2D half only, in world units).
+        s.camera.fit_rect((x0, y0, x1, y1), (z0, z1), 40.0);
+        s.auto_fit = false;
+        s.dirty = true;
+    }
+
+    /// The layered arrangement (spec 031 SS5, stage 7): every wire left
+    /// to right, columns and rows — the flow editor's Layout button. The
+    /// nodes land pinned (a flow's positions are the host's document);
+    /// the host harvests them with [`node_positions`](Self::node_positions).
+    pub fn hier_layout(&self) {
+        let mut s = self.state.borrow_mut();
+        s.graph.hierarchize();
+        s.layout.running = false; // the arrangement is final, not settling
+        s.auto_fit = true;
+        let g = std::mem::take(&mut s.graph);
+        s.camera.fit(&g, 40.0); // the whole arrangement on screen
+        s.graph = g;
+        s.pos_rev += 1;
+        s.dirty = true;
+    }
+
+    /// Every node's world position as `{"id":[x,y],...}` — the host's
+    /// harvest after a drag or a layout (stage 7: the flow document owns
+    /// the positions, the renderer only holds them between gestures).
+    pub fn node_positions(&self) -> String {
+        let s = self.state.borrow();
+        let mut out = String::from("{");
+        for (i, n) in s.graph.nodes.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&serde_json::to_string(&n.id).unwrap_or_default());
+            out.push_str(&format!(":[{:.3},{:.3}]", n.x, n.y));
+        }
+        out.push('}');
+        out
     }
 
     pub fn relayout(&self) {
@@ -645,6 +911,11 @@ impl GraphView {
         self.state.borrow().graph.nodes.len()
     }
 
+    /// Edge count, for the delta tests (spec 031 §1).
+    pub fn edge_count(&self) -> usize {
+        self.state.borrow().graph.edges.len()
+    }
+
     /// `[running, temperature, iterations, x0, y0, x1, y1]` — the layout, for tests.
     pub fn layout_state(&self) -> Vec<f32> {
         let s = self.state.borrow();
@@ -677,8 +948,10 @@ impl GraphView {
         serde_json::json!({ "nodes": nodes, "edges": edges }).to_string()
     }
 
-    /// `[segments, arrows, ports]` — instance counts; ports count only in
-    /// edit mode (they are drawn then) — for tests (spec 031 §2).
+    /// `[segments, arrows, ports, hulls, simplexes, junctions]` — instance
+    /// counts; ports count only in edit mode (they are drawn then), hulls
+    /// and simplexes are 2D-only, junctions ride the node pipeline — for
+    /// tests (spec 031 §2, §4, stage 5).
     pub fn frame_state(&self) -> Vec<f64> {
         let s = self.state.borrow();
         let f = s.renderer.frame();
@@ -687,7 +960,14 @@ impl GraphView {
         } else {
             0
         };
-        vec![f.segs.len() as f64, f.arrows.len() as f64, ports as f64]
+        vec![
+            f.segs.len() as f64,
+            f.arrows.len() as f64,
+            ports as f64,
+            f.hulls.len() as f64,
+            f.simplex_tris.len() as f64,
+            f.junctions.len() as f64,
+        ]
     }
 
     /// `"explore"` or `"edit"` — the interaction mode (spec 031 §5), for
@@ -748,6 +1028,12 @@ impl GraphView {
     }
 }
 
+/// Does any edge carry a pulse (spec 031 §2, stage 6)? The view redraws
+/// every frame while true — the clock moves even when nothing is dirty.
+fn animates(g: &Graph) -> bool {
+    g.edges.iter().any(|e| e.pulse_speed > 0.0)
+}
+
 fn start_loop(state: Rc<RefCell<State>>) {
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -786,7 +1072,15 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 emit(&s, serde_json::json!({ "kind": "settled" }));
             }
         }
-        if s.dirty {
+        // The pulse clock (spec 031 §2, stage 6): seconds since the view
+        // was created. A pulsed view redraws every frame — the animation
+        // is presentation in the shader, nothing on the CPU moves.
+        let now_ms = web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now())
+            .unwrap_or(s.t0_ms);
+        s.camera.time = ((now_ms - s.t0_ms) / 1000.0) as f32;
+        if s.dirty || s.animates {
             s.dirty = false;
             let t0 = web_sys::window()
                 .and_then(|w| w.performance())
@@ -862,6 +1156,97 @@ fn draw_labels(s: &State) {
     let show_all = !huge && ((!s.camera.three_d && scale >= 0.9) || s.graph.nodes.len() <= 60);
     ctx.set_font("12px 'Segoe UI', sans-serif");
     ctx.set_text_baseline("middle");
+    // Icons (spec 031 §2, stage 8): a glyph centered on the node — but
+    // only while hovered or selected (§6 reserves per-node ink for the
+    // few), and only when the projected size can hold it. The scan is a
+    // second pass over every node per frame, so it waits until some node
+    // actually carries an icon.
+    if s.has_icons {
+        for (i, n) in s.graph.nodes.iter().enumerate() {
+            let Some(icon) = n.icon.as_deref() else {
+                continue;
+            };
+            let hovered = Some(i) == s.hovered;
+            if !hovered && !s.selected.nodes.contains(&n.id) {
+                continue;
+            }
+            if !node_visible(&s.graph, i) {
+                continue; // a layer-hidden node keeps its ink off too
+            }
+            let (x, y, r) = if s.camera.three_d {
+                let Some((x, y, w)) = s.camera.project(n.x, n.y, n.z) else {
+                    continue;
+                };
+                (x, y, n.radius * s.camera.size_factor(w))
+            } else {
+                let (x, y) = s.camera.world_to_screen(n.x, n.y);
+                (x, y, n.radius * scale.max(0.6))
+            };
+            if r < 7.0 {
+                continue; // LOD: a speck of ink is noise
+            }
+            // The ink contrasts with the node's own fill: a bright fill (the
+            // hovered node is white) wears the background's ink, a dark one
+            // the theme's label ink.
+            let lum = 0.2126 * n.color[0] + 0.7152 * n.color[1] + 0.0722 * n.color[2];
+            let bg_ink = format!(
+                "rgb({:.0},{:.0},{:.0})",
+                s.renderer.clear[0] * 255.0,
+                s.renderer.clear[1] * 255.0,
+                s.renderer.clear[2] * 255.0
+            );
+            let ink = if lum > 0.5 { bg_ink } else { s.label.clone() };
+            ctx.set_text_align("center");
+            ctx.set_fill_style_str(&ink);
+            let _ = ctx.fill_text(icon, x as f64, y as f64);
+            ctx.set_text_align("start");
+        }
+    }
+    // An edge's label rides the pointer while its stroke is hovered
+    // (spec 031 §2, stage 9), inked in the edge's own colour so it
+    // names the thing it sits on.
+    if let Some(i) = s.hovered_edge {
+        if let Some(e) = s.graph.edges.get(i) {
+            if !e.label.is_empty() {
+                ctx.set_fill_style_str(&format!(
+                    "rgb({:.0},{:.0},{:.0})",
+                    e.color[0] * 255.0,
+                    e.color[1] * 255.0,
+                    e.color[2] * 255.0
+                ));
+                let _ = ctx.fill_text(
+                    &e.label,
+                    (s.pointer.0 + 12.0) as f64,
+                    (s.pointer.1 - 10.0) as f64,
+                );
+            }
+        }
+    }
+    // The keyboard focus wears a ring (spec 031, stage 10): without it a
+    // keyboard user cannot see where Tab or the arrows landed.
+    if let Some(id) = &s.focus_id {
+        if let Some(i) = s.graph.nodes.iter().position(|n| &n.id == id) {
+            if node_visible(&s.graph, i) {
+                let n = &s.graph.nodes[i];
+                let (x, y, r) = if s.camera.three_d {
+                    match s.camera.project(n.x, n.y, n.z) {
+                        Some((x, y, w)) => (x, y, n.radius * s.camera.size_factor(w)),
+                        None => (0.0, 0.0, 0.0),
+                    }
+                } else {
+                    let (x, y) = s.camera.world_to_screen(n.x, n.y);
+                    (x, y, n.radius * s.camera.scale.max(0.6))
+                };
+                if r > 0.0 {
+                    ctx.set_stroke_style_str(&s.label_hover);
+                    ctx.set_line_width(1.5);
+                    ctx.begin_path();
+                    let _ = ctx.arc(x as f64, y as f64, (r + 5.0) as f64, 0.0, 6.2832);
+                    let _ = ctx.stroke();
+                }
+            }
+        }
+    }
     // Candidates by importance (hovered first, then degree), placed with a
     // screen-space collision test so labels never pile onto each other in a
     // dense cluster (spec 017 follow-up): the important ones win the space.
@@ -1032,6 +1417,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
             move |e: web_sys::PointerEvent| {
                 let (x, y) = local(&e);
                 let mut s = st.borrow_mut();
+                s.pointer = (x, y);
                 if e.pointer_type() == "touch" {
                     if let Some(t) = s.touches.iter_mut().find(|t| t.0 == e.pointer_id()) {
                         t.1 = x;
@@ -1175,6 +1561,19 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             };
                             emit(&s, payload);
                         }
+                        // An edge's label names the stroke under the
+                        // pointer (spec 031 §2, stage 9). A node hover
+                        // wins; the scan is one pass over every drawn
+                        // segment, so it waits for a labelled graph.
+                        let eh = if hit.is_none() && s.has_edge_labels {
+                            frame::edge_at(&s.renderer.frame(), &s.camera, x, y)
+                        } else {
+                            None
+                        };
+                        if eh != s.hovered_edge {
+                            s.hovered_edge = eh;
+                            s.dirty = true;
+                        }
                     }
                 }
             },
@@ -1232,10 +1631,43 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     return;
                 }
                 // A node the user placed stays put (pinned) until Relayout.
+                let was_node = matches!(s.dragging, Drag::Node { .. });
+                let drag_id = if let Drag::Node { index } = s.dragging {
+                    s.graph.nodes.get(index).map(|n| n.id.clone())
+                } else {
+                    None
+                };
                 s.dragging = Drag::None;
                 let moved = s.drag_moved;
                 s.drag_moved = false;
                 if moved {
+                    if was_node {
+                        // A block finished moving (spec 031 §5, stage 7):
+                        // the host harvests the position into its document.
+                        // The payload is built here, under the borrow —
+                        // the host cannot call back into the view from
+                        // inside an event (the RefCell is held).
+                        if let Some(n) =
+                            drag_id.and_then(|id| s.graph.nodes.iter().find(|n| n.id == id))
+                        {
+                            let screen = if s.camera.three_d {
+                                s.camera.project(n.x, n.y, n.z).map(|(x, y, _)| vec![x, y])
+                            } else {
+                                let (x, y) = s.camera.world_to_screen(n.x, n.y);
+                                Some(vec![x, y])
+                            };
+                            let mut positions = serde_json::Map::new();
+                            positions.insert(n.id.clone(), serde_json::json!([n.x, n.y]));
+                            emit(
+                                &s,
+                                serde_json::json!({
+                                    "kind": "moved",
+                                    "positions": positions,
+                                    "screen": screen,
+                                }),
+                            );
+                        }
+                    }
                     return; // a released pan or node move is not a pick
                 }
                 if let Some(i) = s

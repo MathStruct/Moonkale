@@ -1,8 +1,12 @@
-//! wgpu: surface on a `<canvas>`, three instanced pipelines (segments,
-//! arrowheads, nodes). Written against wgpu 30.
+//! wgpu: surface on a `<canvas>`, five instanced pipelines (group hulls,
+//! simplicial faces, segments, arrowheads, nodes — the faces and hulls
+//! first, behind everything). Written against wgpu 30.
 
 use crate::camera::Camera;
-use crate::frame::{self, ArrowAttr, ArrowPos, DrawInput, SegAttr, SegPos};
+use crate::frame::{
+    self, ArrowAttr, ArrowPos, DrawInput, HullAttr, HullPos, SegAttr, SegPos, SimplexAttr,
+    SimplexPos, JUNCTION_RADIUS,
+};
 use crate::graph::Graph;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
@@ -23,6 +27,16 @@ struct NodeAttr {
     color: [f32; 4],
     radius: f32,
     selected: f32,
+    /// 0 = a node, 1 = a port: the shader's port LOD needs to tell them
+    /// apart (spec 031 §6) — the port rides this pipeline (stage 2).
+    kind: f32,
+    /// 0 = a circle, 1 = a rect (a flow block, spec 031 §2, stage 7),
+    /// 2 = a diamond (stage 8); `radius` is then its half-width.
+    shape: f32,
+    /// A rect's half-height in world units.
+    height: f32,
+    /// A host rim colour (spec 031 §2, stage 8); alpha 0 = none.
+    stroke: [f32; 4],
 }
 
 /// One primitive class's persistent instance buffers. Geometry and
@@ -38,6 +52,10 @@ struct InstBufs {
     attr_rev: u64,
     hover_rev: u64,
     sel_rev: u64,
+    /// The hovered node whose styling is baked into the attr buffer —
+    /// the next hover patches two slots instead of re-uploading the
+    /// whole appearance buffer (spec 031 §6, partial buffer updates).
+    hovered: Option<usize>,
 }
 
 impl InstBufs {
@@ -58,6 +76,7 @@ impl InstBufs {
             attr_rev: u64::MAX,
             hover_rev: u64::MAX,
             sel_rev: u64::MAX,
+            hovered: None,
         }
     }
 
@@ -96,9 +115,13 @@ pub struct Renderer {
     node_pipe: wgpu::RenderPipeline,
     seg_pipe: wgpu::RenderPipeline,
     arrow_pipe: wgpu::RenderPipeline,
+    hull_pipe: wgpu::RenderPipeline,
+    simplex_pipe: wgpu::RenderPipeline,
     node_bufs: InstBufs,
     seg_bufs: InstBufs,
     arrow_bufs: InstBufs,
+    hull_bufs: InstBufs,
+    simplex_bufs: InstBufs,
     /// The built scene (`frame::build_frame`), cached until a revision
     /// moves — a camera pan or zoom re-draws it without rebuilding.
     frame: frame::Frame,
@@ -224,39 +247,46 @@ impl Renderer {
             write_mask: wgpu::ColorWrites::ALL,
         })];
 
-        let make =
-            |name: &str, vs: &str, fs: &str, buffers: &[Option<wgpu::VertexBufferLayout>]| {
-                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(name),
-                    layout: Some(&pipe_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: Some(vs),
-                        compilation_options: Default::default(),
-                        buffers,
+        let make = |name: &str,
+                    vs: &str,
+                    fs: &str,
+                    buffers: &[Option<wgpu::VertexBufferLayout>],
+                    strip: bool| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(name),
+                layout: Some(&pipe_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some(vs),
+                    compilation_options: Default::default(),
+                    buffers,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some(fs),
+                    compilation_options: Default::default(),
+                    targets: &targets,
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: if strip {
+                        wgpu::PrimitiveTopology::TriangleStrip
+                    } else {
+                        wgpu::PrimitiveTopology::TriangleList
                     },
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: Some(fs),
-                        compilation_options: Default::default(),
-                        targets: &targets,
-                    }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleStrip,
-                        ..Default::default()
-                    },
-                    depth_stencil: Some(wgpu::DepthStencilState {
-                        format: wgpu::TextureFormat::Depth24Plus,
-                        depth_write_enabled: Some(true),
-                        depth_compare: Some(wgpu::CompareFunction::LessEqual),
-                        stencil: Default::default(),
-                        bias: Default::default(),
-                    }),
-                    multisample: Default::default(),
-                    multiview_mask: None,
-                    cache: None,
-                })
-            };
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth24Plus,
+                    depth_write_enabled: Some(true),
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
         fn inst<'a>(
             stride: u64,
             attrs: &'a [wgpu::VertexAttribute],
@@ -298,6 +328,26 @@ impl Renderer {
                     offset: 20,
                     shader_location: 3,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 24,
+                    shader_location: 4,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 28,
+                    shader_location: 5,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 32,
+                    shader_location: 6,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 36,
+                    shader_location: 7,
+                },
             ],
         );
         let seg_pos_layout = inst(
@@ -338,6 +388,16 @@ impl Renderer {
                     offset: 24,
                     shader_location: 5,
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 28,
+                    shader_location: 6,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 32,
+                    shader_location: 7,
+                },
             ],
         );
         let arrow_pos_layout = inst(
@@ -370,23 +430,104 @@ impl Renderer {
                 },
             ],
         );
+        let hull_pos_layout = inst(
+            std::mem::size_of::<HullPos>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: 12,
+                    shader_location: 1,
+                },
+            ],
+        );
+        let hull_attr_layout = inst(
+            std::mem::size_of::<HullAttr>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 0,
+                    shader_location: 2,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 16,
+                    shader_location: 3,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32,
+                    offset: 20,
+                    shader_location: 4,
+                },
+            ],
+        );
+        let simplex_pos_layout = inst(
+            std::mem::size_of::<SimplexPos>() as u64,
+            &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 12,
+                    shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 24,
+                    shader_location: 2,
+                },
+            ],
+        );
+        let simplex_attr_layout = inst(
+            std::mem::size_of::<SimplexAttr>() as u64,
+            &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 0,
+                shader_location: 3,
+            }],
+        );
         let node_pipe = make(
             "nodes",
             "node_vs",
             "node_fs",
             &[Some(node_pos_layout), Some(node_attr_layout)],
+            true,
         );
         let seg_pipe = make(
             "segments",
             "edge_vs",
             "edge_fs",
             &[Some(seg_pos_layout), Some(seg_attr_layout)],
+            true,
         );
         let arrow_pipe = make(
             "arrowheads",
             "arrow_vs",
             "arrow_fs",
             &[Some(arrow_pos_layout), Some(arrow_attr_layout)],
+            true,
+        );
+        let hull_pipe = make(
+            "group hulls",
+            "hull_vs",
+            "hull_fs",
+            &[Some(hull_pos_layout), Some(hull_attr_layout)],
+            true,
+        );
+        // One filled triangle per instance: three vertices, not a strip.
+        let simplex_pipe = make(
+            "simplicial faces",
+            "simplex_vs",
+            "simplex_fs",
+            &[Some(simplex_pos_layout), Some(simplex_attr_layout)],
+            false,
         );
         let depth = depth_view(&device, config.width, config.height);
         let node_bufs = InstBufs::new(
@@ -404,6 +545,16 @@ impl Renderer {
             std::mem::size_of::<ArrowPos>() as u64,
             std::mem::size_of::<ArrowAttr>() as u64,
         );
+        let hull_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<HullPos>() as u64,
+            std::mem::size_of::<HullAttr>() as u64,
+        );
+        let simplex_bufs = InstBufs::new(
+            &device,
+            std::mem::size_of::<SimplexPos>() as u64,
+            std::mem::size_of::<SimplexAttr>() as u64,
+        );
 
         Ok(Self {
             surface,
@@ -415,9 +566,13 @@ impl Renderer {
             node_pipe,
             seg_pipe,
             arrow_pipe,
+            hull_pipe,
+            simplex_pipe,
             node_bufs,
             seg_bufs,
             arrow_bufs,
+            hull_bufs,
+            simplex_bufs,
             frame: frame::Frame::default(),
             scratch: Vec::new(),
             built_pos_rev: 0,
@@ -474,10 +629,16 @@ impl Renderer {
         let seg_attr_stride = std::mem::size_of::<SegAttr>() as u64;
         let arrow_stride = std::mem::size_of::<ArrowPos>() as u64;
         let arrow_attr_stride = std::mem::size_of::<ArrowAttr>() as u64;
+        let hull_stride = std::mem::size_of::<HullPos>() as u64;
+        let hull_attr_stride = std::mem::size_of::<HullAttr>() as u64;
+        let simplex_stride = std::mem::size_of::<SimplexPos>() as u64;
+        let simplex_attr_stride = std::mem::size_of::<SimplexAttr>() as u64;
         // Ports draw as small circles on the node pipeline (edit mode only,
-        // spec 031 §2); the pending wire draws as one extra segment.
+        // spec 031 §2); the pending wire draws as one extra segment; the
+        // hyperedge junctions ride the node pipeline too (stage 5).
         let port_count = if edit { self.frame.port_pos.len() } else { 0 };
-        let node_count = graph.nodes.len() + port_count;
+        let junction_count = self.frame.junctions.len();
+        let node_count = graph.nodes.len() + port_count + junction_count;
         let pending_count = pending.map_or(0, |_| 1);
         self.node_bufs.ensure(
             &self.device,
@@ -497,6 +658,18 @@ impl Renderer {
             arrow_stride,
             arrow_attr_stride,
         );
+        self.hull_bufs.ensure(
+            &self.device,
+            self.frame.hulls.len() as u64,
+            hull_stride,
+            hull_attr_stride,
+        );
+        self.simplex_bufs.ensure(
+            &self.device,
+            self.frame.simplex_tris.len() as u64,
+            simplex_stride,
+            simplex_attr_stride,
+        );
 
         if pos_rev != self.node_bufs.pos_rev {
             let mut pos: Vec<NodePos> = graph
@@ -509,46 +682,72 @@ impl Renderer {
             for p in self.frame.port_pos.iter().take(port_count) {
                 pos.push(NodePos { pos: *p });
             }
+            for j in self.frame.junctions.iter().take(junction_count) {
+                pos.push(NodePos { pos: j.pos });
+            }
             self.queue
                 .write_buffer(&self.node_bufs.pos, 0, bytemuck::cast_slice(&pos));
             self.node_bufs.pos_rev = pos_rev;
         }
-        if attr_rev != self.node_bufs.attr_rev
-            || hover_rev != self.node_bufs.hover_rev
-            || sel_rev != self.node_bufs.sel_rev
-        {
+        // One node's appearance — shared by the full rebuild and the
+        // two-slot hover patch below.
+        let node_attr = |i: usize, h: bool| -> NodeAttr {
+            let n = &graph.nodes[i];
+            let sel = selected.nodes.contains(&n.id);
+            // A node in only-hidden layers keeps its slot (indices stay
+            // aligned) but draws nothing (spec 031 §3).
+            let hidden = !self.frame.node_visible.get(i).copied().unwrap_or(true);
+            let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
+            if hidden {
+                color[3] = 0.0;
+            }
+            NodeAttr {
+                color,
+                radius: if h {
+                    n.radius * 1.4
+                } else if sel {
+                    n.radius * 1.15
+                } else {
+                    n.radius
+                },
+                selected: sel as u32 as f32,
+                kind: 0.0,
+                shape: match n.shape {
+                    crate::graph::Shape::Circle => 0.0,
+                    crate::graph::Shape::Rect => 1.0,
+                    crate::graph::Shape::Diamond => 2.0,
+                },
+                height: n.height,
+                stroke: if sel { [0.0; 4] } else { n.stroke },
+            }
+        };
+        if attr_rev != self.node_bufs.attr_rev || sel_rev != self.node_bufs.sel_rev {
             let mut attr: Vec<NodeAttr> = graph
                 .nodes
                 .iter()
                 .enumerate()
-                .map(|(i, n)| {
-                    let h = Some(i) == hovered;
-                    let sel = selected.nodes.contains(&n.id);
-                    // A node in only-hidden layers keeps its slot (indices
-                    // stay aligned) but draws nothing (spec 031 §3).
-                    let hidden = !self.frame.node_visible.get(i).copied().unwrap_or(true);
-                    let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
-                    if hidden {
-                        color[3] = 0.0;
-                    }
-                    NodeAttr {
-                        color,
-                        radius: if h {
-                            n.radius * 1.4
-                        } else if sel {
-                            n.radius * 1.15
-                        } else {
-                            n.radius
-                        },
-                        selected: sel as u32 as f32,
-                    }
-                })
+                .map(|(i, _)| node_attr(i, Some(i) == hovered))
                 .collect();
             for p in graph.ports.iter().take(port_count) {
                 attr.push(NodeAttr {
                     color: p.color,
                     radius: frame::PORT_RADIUS,
                     selected: 0.0,
+                    kind: 1.0,
+                    shape: 0.0,
+                    height: 0.0,
+                    stroke: [0.0; 4],
+                });
+            }
+            for j in self.frame.junctions.iter().take(junction_count) {
+                attr.push(NodeAttr {
+                    color: j.color,
+                    radius: JUNCTION_RADIUS,
+                    selected: 0.0,
+                    kind: 3.0, // a junction: no port LOD suppression
+                    shape: 0.0,
+                    height: 0.0,
+                    stroke: [0.0; 4],
                 });
             }
             self.queue
@@ -556,6 +755,29 @@ impl Renderer {
             self.node_bufs.attr_rev = attr_rev;
             self.node_bufs.hover_rev = hover_rev;
             self.node_bufs.sel_rev = sel_rev;
+            self.node_bufs.hovered = hovered; // baked into the rebuild
+        } else if hover_rev != self.node_bufs.hover_rev {
+            // A hover restyles exactly two nodes (spec 031 §6: partial
+            // buffer updates) — patch their slots, not 5 MB of instances.
+            let slot = std::mem::size_of::<NodeAttr>() as u64;
+            if let Some(old) = self.node_bufs.hovered.filter(|i| *i < graph.nodes.len()) {
+                let a = [node_attr(old, false)];
+                self.queue.write_buffer(
+                    &self.node_bufs.attr,
+                    old as u64 * slot,
+                    bytemuck::cast_slice(&a),
+                );
+            }
+            if let Some(new) = hovered.filter(|i| *i < graph.nodes.len()) {
+                let a = [node_attr(new, true)];
+                self.queue.write_buffer(
+                    &self.node_bufs.attr,
+                    new as u64 * slot,
+                    bytemuck::cast_slice(&a),
+                );
+            }
+            self.node_bufs.hover_rev = hover_rev;
+            self.node_bufs.hovered = hovered;
         }
         if pos_rev != self.seg_bufs.pos_rev {
             // The frame's segments upload as they are; the pending wire, if
@@ -596,12 +818,15 @@ impl Renderer {
                 }
             }
             if pending.is_some() {
-                // The wire being dragged: light, uncommitted, never dashed.
+                // The wire being dragged: light, uncommitted, never dashed,
+                // never pulsing.
                 attr.push(SegAttr {
                     color: [0.78, 0.82, 0.90, 0.9],
                     width: 1.6,
                     dash: 0.0,
                     phase: 0.0,
+                    pulse: 0.0,
+                    edge_len: 0.0,
                 });
             }
             self.queue
@@ -625,6 +850,42 @@ impl Renderer {
             );
             self.arrow_bufs.attr_rev = attr_rev;
             self.arrow_bufs.sel_rev = sel_rev;
+        }
+        // Hulls (spec 031 §4): positions with the members (pos_rev), tint
+        // with the groups (attr_rev).
+        if pos_rev != self.hull_bufs.pos_rev {
+            self.queue.write_buffer(
+                &self.hull_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.hulls),
+            );
+            self.hull_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.hull_bufs.attr_rev {
+            self.queue.write_buffer(
+                &self.hull_bufs.attr,
+                0,
+                bytemuck::cast_slice(&self.frame.hull_attrs),
+            );
+            self.hull_bufs.attr_rev = attr_rev;
+        }
+        // Simplicial faces (spec 031 §2, stage 5): corners with the
+        // members (pos_rev), tint with the faces (attr_rev).
+        if pos_rev != self.simplex_bufs.pos_rev {
+            self.queue.write_buffer(
+                &self.simplex_bufs.pos,
+                0,
+                bytemuck::cast_slice(&self.frame.simplex_tris),
+            );
+            self.simplex_bufs.pos_rev = pos_rev;
+        }
+        if attr_rev != self.simplex_bufs.attr_rev {
+            self.queue.write_buffer(
+                &self.simplex_bufs.attr,
+                0,
+                bytemuck::cast_slice(&self.frame.simplex_attrs),
+            );
+            self.simplex_bufs.attr_rev = attr_rev;
         }
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::cast_slice(&camera.uniform()));
@@ -668,6 +929,43 @@ impl Renderer {
                 ..Default::default()
             });
             pass.set_bind_group(0, &self.camera_bind, &[]);
+            // Hulls first (spec 031 §4): the tint sits behind the nodes
+            // and edges its members draw over. In 2D every depth is 0.5,
+            // so the draw order is the layering.
+            if !self.frame.hulls.is_empty() {
+                pass.set_pipeline(&self.hull_pipe);
+                pass.set_vertex_buffer(
+                    0,
+                    self.hull_bufs
+                        .pos
+                        .slice(..self.frame.hulls.len() as u64 * hull_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.hull_bufs
+                        .attr
+                        .slice(..self.frame.hulls.len() as u64 * hull_attr_stride),
+                );
+                pass.draw(0..4, 0..self.frame.hulls.len() as u32);
+            }
+            // Simplicial faces next (spec 031 §2): behind the edges and
+            // nodes, above the group tints. Three vertices per instance.
+            if !self.frame.simplex_tris.is_empty() {
+                pass.set_pipeline(&self.simplex_pipe);
+                pass.set_vertex_buffer(
+                    0,
+                    self.simplex_bufs
+                        .pos
+                        .slice(..self.frame.simplex_tris.len() as u64 * simplex_stride),
+                );
+                pass.set_vertex_buffer(
+                    1,
+                    self.simplex_bufs
+                        .attr
+                        .slice(..self.frame.simplex_tris.len() as u64 * simplex_attr_stride),
+                );
+                pass.draw(0..3, 0..self.frame.simplex_tris.len() as u32);
+            }
             let seg_total = self.frame.segs.len() + pending_count;
             if seg_total > 0 {
                 pass.set_pipeline(&self.seg_pipe);

@@ -18,6 +18,7 @@ fn synthetic(n: usize) -> Graph {
             key: String::new(),
             color: None,
             layers: Vec::new(),
+            ..Default::default()
         })
         .collect();
     let mut edges = Vec::new();

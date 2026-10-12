@@ -42,9 +42,9 @@ flowchart TB
     sql[sources-sql] & gdb[sources-graph] & kv[sources-kv] & lspl[lsp-local] & pty[terminal-pty]
   end
   subgraph cfg["cfg-gated modules"]
-    fs[project-fs::platform::{native,web,mobile}]
-    host[ext-host::runtime::{static,wasmtime,browser}]
-    surf[editor-graph::render::surface]
+    fs["project-fs::platform::{native,web,mobile}"]
+    host["ext-host::runtime::{static,wasmtime,browser}"]
+    surf["editor-graph::render::surface"]
   end
   api --> native
   desktop --> native

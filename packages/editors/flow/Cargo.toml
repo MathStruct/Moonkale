@@ -3,13 +3,18 @@ name = "moonkale-editor-flow"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "No-code / low-code flow editor: drag-and-drop blocks wired by typed ports, on dioxus-flow. Block libraries come from extensions (e.g. the optional Lux.jl one). Milestone 6."
+description = "No-code / low-code flow editor: drag-and-drop blocks wired by typed ports, on the graph engine (spec 031 stage 7 / ADR-0018). Block libraries come from extensions (e.g. the optional Lux.jl one). Milestone 6."
 
 [dependencies]
 dioxus = { workspace = true }
-dioxus-flow = "0.1.2"
 moonkale-core = { workspace = true }
+moonkale-graph-assets = { workspace = true }
 moonkale-ext-api = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "js"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+dioxus-core = "0.7.10"
+dioxus-html = { version = "0.7.10", features = ["serialize"] }

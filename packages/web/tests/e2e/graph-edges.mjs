@@ -5,7 +5,7 @@
 // built for directed/`both` edges, a click selects (plain) and toggles
 // (Ctrl), a drag does not select, and empty space clears.
 import { chromium } from "playwright";
-import { litPixels } from "./pnglit.mjs";
+import { litPixels, decode } from "./pnglit.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
@@ -147,6 +147,54 @@ try {
     console.log(`\n  head centroid (${cx.toFixed(1)}, ${cy.toFixed(1)}) · into-b ${dot.toFixed(1)} of ${mag.toFixed(1)}`);
     if (dot / mag < 0.25) throw new Error("the head's lit mass does not point into its node");
     await page.screenshot({ path: `${S}/s1-arrow.png` });
+  });
+  await step("an edge's label rides the pointer while its stroke is hovered (§2, stage 9)", async () => {
+    // A labelled edge: the label appears near the pointer only while the
+    // stroke itself is hovered, and leaves when the pointer does.
+    const graph = {
+      nodes: [
+        { id: "x", label: "x", kind: "file", pos: [-80, 0], pinned: true },
+        { id: "y", label: "y", kind: "file", pos: [80, 0], pinned: true },
+      ],
+      edges: [{ id: "e", a: 0, b: 1, color: "#4fd6c2", label: "invokes" }],
+    };
+    await page.evaluate((json) => Object.values(window.moonkale.graphViews)[0].set_graph(json), JSON.stringify(graph));
+    await page.waitForFunction(() => Object.values(window.moonkale.graphViews)[0].layout_state()[0] === 0, null, { timeout: 20000 });
+    await sleep(700);
+    const mid = await page.evaluate(() => {
+      const v = Object.values(window.moonkale.graphViews)[0];
+      const a = v.node_screen_position("x");
+      const b = v.node_screen_position("y");
+      return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    });
+    const clip = { x: box.x, y: box.y, width: box.w, height: box.h };
+    // The label sits up-right of the pointer; the stroke itself runs
+    // through mid, so the patch sits above it.
+    const patch = (png, x, y, r, match) => {
+      const { width, height, bpp, data } = decode(png);
+      let n = 0;
+      for (let py = Math.max(0, Math.floor(y - r)); py < Math.min(height, Math.ceil(y + r)); py++) {
+        for (let px = Math.max(0, Math.floor(x - r)); px < Math.min(width, Math.ceil(x + r)); px++) {
+          const o = (py * width + px) * bpp;
+          if (match(data[o], data[o + 1], data[o + 2])) n++;
+        }
+      }
+      return n;
+    };
+    const TEAL = (r, g, b) => g > 150 && b > 130 && g > r + 40;
+    await page.mouse.move(...at(mid));
+    await sleep(400);
+    let png = await page.screenshot({ clip });
+    let ink = patch(png, mid[0] + 38, mid[1] - 12, 30, TEAL);
+    if (ink < 4) throw new Error(`no label ink near the hovered edge (${ink} px)`);
+    // Off-canvas the overlay receives no moves — leave through empty
+    // canvas space instead, so the hover actually clears.
+    await page.mouse.move(box.x + 8, box.y + 8);
+    await sleep(400);
+    png = await page.screenshot({ clip });
+    ink = patch(png, mid[0] + 38, mid[1] - 12, 30, TEAL);
+    if (ink > 0) throw new Error(`the label outlived the hover (${ink} px)`);
+    console.log(`\n  label ink while hovered, gone after`);
   });
   console.log("\nGRAPH-EDGES E2E: PASS");
 } catch (e) {

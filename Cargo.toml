@@ -50,6 +50,7 @@ members = [
     "packages/extensions/history",
     "packages/extensions/wordcount",
     "packages/graph-render",
+    "packages/graph-assets",
     "packages/services/typst",
 ]
 
@@ -106,6 +107,7 @@ moonkale-ext-lux = { git = "https://github.com/MathStruct/moonkale-julia", tag =
 moonkale-ext-git = { path = "packages/extensions/git" }
 moonkale-ext-wordcount = { path = "packages/extensions/wordcount" }
 moonkale-graph-render = { path = "packages/graph-render" }
+moonkale-graph-assets = { path = "packages/graph-assets" }
 moonkale-typst = { path = "packages/services/typst" }
 
 # Debug builds: line tables only (backtraces keep file:line), no debug info
