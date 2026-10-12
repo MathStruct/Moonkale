@@ -31,7 +31,7 @@ flowchart LR
   S[(settings.extensions)] --> CAT[ext-host catalog: built-in + wasm]
   CAT -->|enabled| SHELL[shell: panels/commands/tools]
   CAT --> FLOW[editors/flow canvas]
-  LUX[ext: lux (optional)] -->|FlowLibrary| FLOW
+  LUX["ext: lux (optional)"] -->|FlowLibrary| FLOW
   WASM[(~/.config/moonkale/extensions/*.wasm)] --> RT[ext-host runtime: wasmtime, JSON ABI, permissions]
   RT -->|commands| SHELL
   RT -->|tools| AGENT[agent]
