@@ -26,3 +26,4 @@ pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
 ];
 
 pub use extension::{is_flow, FlowExtension, EDITOR_PREFIX};
+pub use panel::FlowPanel;

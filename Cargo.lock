@@ -7049,13 +7049,15 @@ name = "moonkale-editor-flow"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "dioxus-core",
+ "dioxus-html",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-graph-assets",
  "serde",
  "serde_json",
+ "tokio",
  "uuid",
- "web-sys",
 ]
 
 [[package]]

@@ -249,6 +249,17 @@ try {
     if (flow.blocks.length !== 7 || flow.wires.length !== 6) throw new Error("flow json wrong");
     const xs = flow.blocks.map((b) => b.x);
     if (!xs.every((x) => Number.isFinite(x))) throw new Error("positions did not reach the document");
+    // The Layout's harvest must match the engine exactly (the review's
+    // #4): the reply is parsed into a map now, so the document's
+    // coordinates are the engine's — not the pre-layout ones.
+    const eng = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].node_positions()));
+    for (const b of flow.blocks) {
+      const p = eng[b.id];
+      if (!p) throw new Error(`block ${b.id} is missing from the engine`);
+      if (Math.abs(p[0] - b.x) > 0.01 || Math.abs(p[1] - b.y) > 0.01) {
+        throw new Error(`document and engine disagree on ${b.id}: ${b.x},${b.y} vs ${p[0]},${p[1]}`);
+      }
+    }
   });
   await step("Generate julia writes model.jl and opens it", async () => {
     await page.click(".mk-flow-generate");
@@ -283,6 +294,51 @@ try {
     const s = await status();
     console.log("\n  reloaded:", JSON.stringify(s));
     if (s.blocks !== "1" && s.blocks !== 1) throw new Error("Reload did not load the fixed file: " + JSON.stringify(s));
+  });
+  await step("the #11 guard: a stale selection against a broken file never writes (#3)", async () => {
+    // Select the block — then the file goes broken on disk. Reload shows
+    // the error; Backspace/Delete against the stale selection must not
+    // write the old flow over the user's broken file.
+    const box = await canvasRect();
+    await page.waitForFunction(() => {
+      const v = Object.values(window.moonkale.flowViews || {})[0];
+      return v && Object.keys(JSON.parse(v.node_positions())).includes("b1");
+    }, null, { timeout: 15000 });
+    const p = await screen("b1");
+    await page.mouse.click(box.x + p[0], box.y + p[1]);
+    await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
+    const bad = '{ broken — not a flow';
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, bad);
+    await page.click(".mk-flow-reload:visible");
+    await page.waitForSelector(".mk-flow-broken", { timeout: 15000 });
+    // The toolbar offers nothing but Reload while broken.
+    for (const label of ["Layout", "Fit", "Save"]) {
+      const disabled = await page.$eval(`.mk-flow button:has-text('${label}')`, (e) => e.disabled);
+      if (!disabled) throw new Error(`${label} is clickable while the document is broken`);
+    }
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Delete");
+    await sleep(300);
+    const untouched = fs.readFileSync(`${ROOT}/broken.flow.json`, "utf8");
+    console.log("\n  broken file held:", untouched === bad);
+    if (untouched !== bad) throw new Error("Delete wrote to a broken file (#11)");
+  });
+  await step("a valid file after a broken spell draws again (the canvas re-mounts, #5)", async () => {
+    fs.writeFileSync(`${ROOT}/broken.flow.json`, '{"version":1,"blocks":[{"id":"b1","kind":"lux/Dense","x":10,"y":10,"params":{"out":"7"}}],"wires":[]}');
+    await page.click(".mk-flow-reload:visible");
+    await sleep(300);
+    // The old renderer was torn down; a fresh one must have mounted on
+    // the new canvas div — a blank canvas here means the mount guard
+    // refused the second init (the review's #5).
+    await page.waitForFunction(() => {
+      const views = Object.values(window.moonkale.flowViews || {});
+      if (views.length !== 1) return false;
+      const pos = JSON.parse(views[0].node_positions());
+      return Object.keys(pos).length === 1 && "b1" in pos;
+    }, null, { timeout: 15000 });
+    const s = await status();
+    console.log("\n  reloaded:", JSON.stringify(s));
+    if (+s.blocks !== 1) throw new Error("the canvas did not re-mount: " + JSON.stringify(s));
   });
   console.log("\nFLOW E2E: PASS");
 } catch (e) {

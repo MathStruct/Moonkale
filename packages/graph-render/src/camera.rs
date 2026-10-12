@@ -3,7 +3,7 @@
 //! target, with the same public operations. The shaders get one uniform
 //! block carrying both.
 
-use crate::graph::Graph;
+use crate::graph::{Graph, Shape};
 
 /// The furthest the 2D camera zooms out. A layout of a few thousand nodes
 /// spans tens of thousands of world units (ideal edge length 28 + 6·ln n);
@@ -282,20 +282,32 @@ impl Camera {
     }
 
     /// Index of the node under the screen point, if any (nearest wins).
+    /// A shaped block is hit inside its drawn silhouette — a rect by its
+    /// half-extents, a diamond by the rhombus inscribed in them — not by
+    /// a circle of half the width, which grabbed the space above and
+    /// below a flat block and missed its corners (the review's #8).
     pub fn hit(&self, graph: &Graph, sx: f32, sy: f32) -> Option<usize> {
         let mut best: Option<(usize, f32)> = None;
         for (i, n) in graph.nodes.iter().enumerate() {
-            let (px, py, r) = if self.three_d {
+            let (px, py, ex, ey) = if self.three_d {
                 let Some((px, py, w)) = self.project(n.x, n.y, n.z) else {
                     continue;
                 };
-                (px, py, n.radius * self.size_factor(w) + 4.0)
+                let a = self.size_factor(w);
+                (px, py, n.radius * a + 4.0, n.height * a + 4.0)
             } else {
                 let (px, py) = self.world_to_screen(n.x, n.y);
-                (px, py, n.radius * self.scale.max(0.6) + 4.0)
+                let s = self.scale.max(0.6);
+                (px, py, n.radius * s + 4.0, n.height * s + 4.0)
             };
-            let d2 = (px - sx).powi(2) + (py - sy).powi(2);
-            if d2 <= r * r && best.is_none_or(|(_, bd)| d2 < bd) {
+            let (dx, dy) = (px - sx, py - sy);
+            let inside = match n.shape {
+                Shape::Circle => dx * dx + dy * dy <= ex * ex,
+                Shape::Rect => dx.abs() <= ex && dy.abs() <= ey,
+                Shape::Diamond => dx.abs() / ex + dy.abs() / ey <= 1.0,
+            };
+            let d2 = dx * dx + dy * dy;
+            if inside && best.is_none_or(|(_, bd)| d2 < bd) {
                 best = Some((i, d2));
             }
         }

@@ -509,14 +509,10 @@ impl GraphView {
         // node is gone — a stale index panicked every pointer move (#12,
         // P-155; the stage 4–6 review's #2).
         let dragged = s.dragged_id();
-        let delta_icons = d.add_nodes.iter().any(|n| n.icon.is_some());
-        let delta_labels = d.add_edges.iter().any(|e| e.label.is_some());
         if !s.graph.apply_delta(d) {
             return Ok(()); // nothing named existed; nothing to redraw
         }
         s.keep_drag(dragged);
-        s.has_icons |= delta_icons;
-        s.has_edge_labels |= delta_labels;
         // Warm, not restart: newcomers settle next to where they were put.
         let mut l = Layout::new(&s.graph);
         l.temperature = 3.0;

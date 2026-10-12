@@ -24,7 +24,6 @@ use moonkale_ext_api::{t, Workspace};
 use moonkale_graph_assets::{RENDER_JS, RENDER_WASM};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use web_sys::wasm_bindgen::JsCast;
 
 const CSS: Asset = asset!("/assets/flow.css");
 
@@ -171,15 +170,25 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
     let edges = flow
         .wires
         .iter()
-        .map(|w| OutEdge {
-            id: &w.id,
-            a: index[w.from_block.as_str()],
-            b: index[w.to_block.as_str()],
-            directed: true,
-            a_port: &w.from_port,
-            b_port: &w.to_port,
-            route: OutRoute::Ortho {},
-            color: issues.iter().any(|x| x.about == w.id).then_some("#e86b6a"),
+        // A wire naming a gone block parses (validate reports it) — it
+        // draws nothing here instead of panicking on the index.
+        .filter_map(|w| {
+            let (Some(&a), Some(&b)) = (
+                index.get(w.from_block.as_str()),
+                index.get(w.to_block.as_str()),
+            ) else {
+                return None;
+            };
+            Some(OutEdge {
+                id: &w.id,
+                a,
+                b,
+                directed: true,
+                a_port: &w.from_port,
+                b_port: &w.to_port,
+                route: OutRoute::Ortho {},
+                color: issues.iter().any(|x| x.about == w.id).then_some("#e86b6a"),
+            })
         })
         .collect();
     OutScene {
@@ -283,11 +292,6 @@ try {
     return failed(String(e && e.message ? e.message : e));
 }
 view.set_interaction("edit"); // the flow surface is always an edit surface
-// Clicks land on the overlay, whose pointerdown prevents the default
-// (the browser's focus-on-mousedown) — take the focus in the capture
-// phase instead, so the panel's keys (Delete, Ctrl+Z, Ctrl+S) work
-// after a canvas click and not only from a field's Tab-out.
-overlay.addEventListener("pointerdown", () => overlay.focus(), true);
 const host = canvas.parentElement;
 const ro = new ResizeObserver(() => {
     const r = host.getBoundingClientRect();
@@ -311,7 +315,8 @@ for (;;) {
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "hierLayout") {
         view.hier_layout();
-        dioxus.send({ kind: "moved", positions: view.node_positions() });
+        // `node_positions()` answers a JSON string; the host expects a map.
+        dioxus.send({ kind: "moved", positions: JSON.parse(view.node_positions()) });
     }
     else if (msg.kind === "destroy") {
         ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme);
@@ -348,12 +353,14 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let mut redo_stack: Signal<Vec<String>> = use_signal(Vec::new);
     // Where the selected block sits on the canvas (the editor follows).
     let mut editor_pos: Signal<Option<(f32, f32)>> = use_signal(|| None);
-    let id = use_hook(|| "mk-flow-panel".to_string());
+    // One DOM id per panel: two split views show two flows at once, and
+    // the canvas ids and `flowViews` key derive from it — a fixed id
+    // made the second view draw into the first's canvas (the review's #6).
+    let id = use_hook(|| format!("mk-flow-{node}"));
 
     // Mount the renderer from the host element's `onmounted` event.
     let mount = {
         let id = id.clone();
-        let libs = libs.clone();
         move |_| {
             if eval.peek().is_some() {
                 return;
@@ -370,8 +377,6 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 );
             let ev = document::eval(&script);
             let mut rx = ev;
-            // The event loop owns its copy; the mount closure stays FnMut.
-            let libs = libs.clone();
             spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
@@ -387,21 +392,38 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             selected.set((nodes, edges))
                         }
                         Ok(FromJs::Connect { from, to }) => {
+                            // A connect that races a reload into a broken
+                            // document is refused — the model never takes
+                            // a wire it cannot write back (#11).
+                            if broken.peek().is_some() {
+                                continue;
+                            }
+                            // The wire types are checked against the
+                            // libraries as they are *now* — a library
+                            // enabled after this loop started must be
+                            // found, and one disabled must not lend its
+                            // ports to a connect (the review's #7).
+                            let libs = ws.contrib.flow_libraries.read().clone();
                             let before = flow.read().to_json();
                             let (ok, why) = wire(&mut flow, &libs, &from, &to);
                             if ok {
                                 push_undo(undo_stack, redo_stack, before);
                                 notice.set(None);
-                                sync(&flow, &libs, &mut last_text, &mut doc);
-                                push_graph(&eval, &flow, &libs);
+                                sync(&flow, &mut last_text, &mut doc, &broken);
                             } else {
-                                // The gesture drew a wire; the model did not
-                                // take it. The next sync redraws without it.
+                                // The gesture drew a wire; the model did
+                                // not take it. The engine drops its own
+                                // gesture wire (`end_wire`) — the canvas
+                                // reverts without a scene push.
                                 notice.set(Some(why));
-                                push_graph(&eval, &flow, &libs);
                             }
                         }
                         Ok(FromJs::Moved { positions, screen }) => {
+                            // The Layout reply (and a drag) never lands in
+                            // a broken document (#11, the review's #3).
+                            if broken.peek().is_some() {
+                                continue;
+                            }
                             let before = flow.read().to_json();
                             flow.with_mut(|f| {
                                 for b in &mut f.blocks {
@@ -419,7 +441,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     editor_pos.set(Some((p[0], p[1])));
                                 }
                             }
-                            sync(&flow, &libs, &mut last_text, &mut doc);
+                            sync(&flow, &mut last_text, &mut doc, &broken);
                         }
                         Ok(FromJs::Settled) => {}
                         Err(dioxus::document::EvalError::Serialization(_)) => continue,
@@ -437,19 +459,24 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         }
     });
 
-    // The first scene goes out when the canvas is up; every mutation
-    // below pushes its own (the engine matches by id and keeps the live
-    // positions, so nothing else is re-sent). A scene that has grown
-    // beyond the fitted box refits — the palette's grid and the Layout
-    // both reach past the default camera — but wires and drags that stay
-    // inside never move the viewport under the user.
+    // The scene goes out when the canvas is up, and again on every flow
+    // or library change — the engine matches by id and keeps the live
+    // positions, so nothing else is re-sent. This effect is the single
+    // push path: the mutators below change `flow` and never push their
+    // own scene (the review's #10 — every edit used to rebuild twice).
+    // Reading the libraries here (not a copy from mount) also re-sends
+    // when a library is enabled or disabled, so the ports follow (#7).
+    // A scene that has grown beyond the fitted box refits — the
+    // palette's grid and the Layout both reach past the default camera —
+    // but wires and drags that stay inside never move the viewport
+    // under the user.
     let eval_for_scene = eval;
     let loaded_for_scene = loaded;
-    let libs_for_scene = libs.clone();
     let mut fitted: Signal<Option<[f64; 4]>> = use_signal(|| None);
     use_effect(move || {
         if loaded_for_scene() {
-            push_graph(&eval_for_scene, &flow, &libs_for_scene);
+            let libs = ws.contrib.flow_libraries.read().clone();
+            push_graph(&eval_for_scene, &flow, &libs);
             let bounds = flow
                 .read()
                 .blocks
@@ -486,12 +513,33 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             undo_stack.write().clear();
             redo_stack.write().clear();
             editor_pos.set(None);
+            // The selection names blocks of the *old* document; keeping it
+            // let Delete act on a stale view (#11, the review's #3).
+            selected.set((Vec::new(), Vec::new()));
             match Flow::parse(&text) {
                 Ok(f) => {
                     broken.set(None);
                     flow.set(f);
                 }
                 Err(e) => broken.set(Some(e)),
+            }
+        });
+    }
+
+    // Going broken unmounts the canvas div; coming back mounts a *new*
+    // div. The old renderer still points at the old elements, and the
+    // mount guard would refuse a second init — the new canvas would stay
+    // blank (the review's #5). Tear the eval down on the way into
+    // broken; the fresh div then mounts a fresh renderer.
+    {
+        use_effect(move || {
+            if broken().is_some() {
+                if let Some(ev) = eval.peek().as_ref() {
+                    let _ = ev.send(ToJs::Destroy);
+                }
+                eval.set(None);
+                loaded.set(false);
+                fitted.set(None);
             }
         });
     }
@@ -594,129 +642,134 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
     };
 
-    // A palette pick adds a block on a 3-column grid, as before.
-    let add_block = {
-        let libs = libs.clone();
-        move |kind: String| {
-            let Some((lib, k)) = find_kind(&libs, &kind) else {
-                return;
-            };
-            let n = flow.read().blocks.len();
-            let (col, row) = ((n % 3) as f64, (n / 3) as f64);
-            let params = k
-                .params
-                .iter()
-                .map(|p| (p.name.clone(), p.default.clone()))
-                .collect();
-            let before = flow.read().to_json();
-            flow.with_mut(|f| {
-                f.blocks.push(Block {
-                    id: format!(
-                        "{}-{}",
-                        k.id,
-                        &uuid::Uuid::new_v4().simple().to_string()[..6]
-                    ),
-                    kind: format!("{}/{}", lib.id, k.id),
-                    x: 30.0 + col * 165.0,
-                    y: 30.0 + row * 170.0,
-                    params,
-                });
-            });
-            push_undo(undo_stack, redo_stack, before);
-            notice.set(None);
-            sync(&flow, &libs, &mut last_text, &mut doc);
-            push_graph(&eval, &flow, &libs);
+    // A palette pick adds a block on a 3-column grid, as before. The
+    // kinds resolve against the libraries as they are now, so a library
+    // enabled after the panel opened is addable (the review's #7).
+    let add_block = move |kind: String| {
+        // Never against a broken document (#11): the model must not
+        // hold an edit it refuses to write back.
+        if broken.peek().is_some() {
+            return;
         }
+        let libs = ws.contrib.flow_libraries.read().clone();
+        let Some((lib, k)) = find_kind(&libs, &kind) else {
+            return;
+        };
+        let n = flow.read().blocks.len();
+        let (col, row) = ((n % 3) as f64, (n / 3) as f64);
+        let params = k
+            .params
+            .iter()
+            .map(|p| (p.name.clone(), p.default.clone()))
+            .collect();
+        let before = flow.read().to_json();
+        flow.with_mut(|f| {
+            f.blocks.push(Block {
+                id: format!(
+                    "{}-{}",
+                    k.id,
+                    &uuid::Uuid::new_v4().simple().to_string()[..6]
+                ),
+                kind: format!("{}/{}", lib.id, k.id),
+                x: 30.0 + col * 165.0,
+                y: 30.0 + row * 170.0,
+                params,
+            });
+        });
+        push_undo(undo_stack, redo_stack, before);
+        notice.set(None);
+        sync(&flow, &mut last_text, &mut doc, &broken);
+        // No scene push — the flow change re-runs the scene effect.
     };
 
     // The parameter editor writes one parameter of the selected block.
-    let set_param = {
-        let libs = libs.clone();
-        move |(bid, name, value): (String, String, String)| {
-            let before = flow.read().to_json();
-            flow.with_mut(|f| {
-                if let Some(b) = f.blocks.iter_mut().find(|b| b.id == bid) {
-                    b.params.insert(name, value);
-                }
-            });
-            push_undo(undo_stack, redo_stack, before);
-            sync(&flow, &libs, &mut last_text, &mut doc);
+    let set_param = move |(bid, name, value): (String, String, String)| {
+        if broken.peek().is_some() {
+            return; // #11: a broken document is never written
         }
+        let before = flow.read().to_json();
+        flow.with_mut(|f| {
+            if let Some(b) = f.blocks.iter_mut().find(|b| b.id == bid) {
+                b.params.insert(name, value);
+            }
+        });
+        push_undo(undo_stack, redo_stack, before);
+        sync(&flow, &mut last_text, &mut doc, &broken);
     };
 
     // Delete removes the selected blocks and wires (the engine only
     // reports the selection; the model is the panel's to mutate).
-    let mut delete_selected = {
-        let libs = libs.clone();
-        move |_| {
-            let (nodes, wires) = selected.read().clone();
-            if nodes.is_empty() && wires.is_empty() {
-                return;
-            }
-            let before = flow.read().to_json();
-            flow.with_mut(|f| {
-                f.blocks.retain(|b| !nodes.contains(&b.id));
-                f.wires.retain(|w| {
-                    !wires.contains(&w.id)
-                        && !nodes.contains(&w.from_block)
-                        && !nodes.contains(&w.to_block)
-                });
-            });
-            push_undo(undo_stack, redo_stack, before);
-            selected.set((Vec::new(), Vec::new()));
-            editor_pos.set(None);
-            notice.set(None);
-            sync(&flow, &libs, &mut last_text, &mut doc);
-            push_graph(&eval, &flow, &libs);
+    let mut delete_selected = move |_| {
+        // #11: a stale selection against a broken document must not
+        // reach the file — this is the exact path that lost data.
+        if broken.peek().is_some() {
+            return;
         }
+        let (nodes, wires) = selected.read().clone();
+        if nodes.is_empty() && wires.is_empty() {
+            return;
+        }
+        let before = flow.read().to_json();
+        flow.with_mut(|f| {
+            f.blocks.retain(|b| !nodes.contains(&b.id));
+            f.wires.retain(|w| {
+                !wires.contains(&w.id)
+                    && !nodes.contains(&w.from_block)
+                    && !nodes.contains(&w.to_block)
+            });
+        });
+        push_undo(undo_stack, redo_stack, before);
+        selected.set((Vec::new(), Vec::new()));
+        editor_pos.set(None);
+        notice.set(None);
+        sync(&flow, &mut last_text, &mut doc, &broken);
     };
 
     // Undo restores the last snapshot (Ctrl+Z), redo the one undone
-    // (Ctrl+Y / Ctrl+Shift+Z). A restore re-sends the scene; the engine
-    // moves the pinned blocks to the restored coordinates.
-    let mut undo = {
-        let libs = libs.clone();
-        move |_| {
-            let Some(prev) = undo_stack.read().last().cloned() else {
-                return;
-            };
-            let cur = flow.read().to_json();
-            let Ok(f) = Flow::parse(&prev) else {
-                return;
-            };
-            undo_stack.with_mut(|u| {
-                u.pop();
-            });
-            redo_stack.with_mut(|r| r.push(cur));
-            flow.set(f);
-            selected.set((Vec::new(), Vec::new()));
-            editor_pos.set(None);
-            notice.set(None);
-            sync(&flow, &libs, &mut last_text, &mut doc);
-            push_graph(&eval, &flow, &libs);
+    // (Ctrl+Y / Ctrl+Shift+Z). A restore changes `flow`, so the scene
+    // effect re-sends it; the engine moves the pinned blocks to the
+    // restored coordinates.
+    let mut undo = move |_| {
+        if broken.peek().is_some() {
+            return; // #11: a broken document is never written
         }
+        let Some(prev) = undo_stack.read().last().cloned() else {
+            return;
+        };
+        let cur = flow.read().to_json();
+        let Ok(f) = Flow::parse(&prev) else {
+            return;
+        };
+        undo_stack.with_mut(|u| {
+            u.pop();
+        });
+        redo_stack.with_mut(|r| r.push(cur));
+        flow.set(f);
+        selected.set((Vec::new(), Vec::new()));
+        editor_pos.set(None);
+        notice.set(None);
+        sync(&flow, &mut last_text, &mut doc, &broken);
     };
-    let mut redo = {
-        let libs = libs.clone();
-        move |_| {
-            let Some(next) = redo_stack.read().last().cloned() else {
-                return;
-            };
-            let cur = flow.read().to_json();
-            let Ok(f) = Flow::parse(&next) else {
-                return;
-            };
-            redo_stack.with_mut(|r| {
-                r.pop();
-            });
-            undo_stack.with_mut(|u| u.push(cur));
-            flow.set(f);
-            selected.set((Vec::new(), Vec::new()));
-            editor_pos.set(None);
-            notice.set(None);
-            sync(&flow, &libs, &mut last_text, &mut doc);
-            push_graph(&eval, &flow, &libs);
+    let mut redo = move |_| {
+        if broken.peek().is_some() {
+            return; // #11: a broken document is never written
         }
+        let Some(next) = redo_stack.read().last().cloned() else {
+            return;
+        };
+        let cur = flow.read().to_json();
+        let Ok(f) = Flow::parse(&next) else {
+            return;
+        };
+        redo_stack.with_mut(|r| {
+            r.pop();
+        });
+        undo_stack.with_mut(|u| u.push(cur));
+        flow.set(f);
+        selected.set((Vec::new(), Vec::new()));
+        editor_pos.set(None);
+        notice.set(None);
+        sync(&flow, &mut last_text, &mut doc, &broken);
     };
 
     // The selected block's parameters (spec 031 §7: one editor for the
@@ -778,9 +831,12 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 for lib in generators {
                     button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: t!(ws, L, "flow-generate-title", language = lib.language), {t!(ws, L, "flow-generate", language = lib.language)} }
                 }
-                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }, {t!(ws, L, "flow-layout")} }
-                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, {t!(ws, L, "flow-fit")} }
-                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), {t!(ws, L, "flow-save")} }
+                // While broken there is nothing to arrange, fit or save —
+                // only Reload leads out (the review's #3: the toolbar
+                // must not offer edits the model refuses to write).
+                button { class: "mk-btn", disabled: broken.read().is_some(), onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }, {t!(ws, L, "flow-layout")} }
+                button { class: "mk-btn", disabled: broken.read().is_some(), onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, {t!(ws, L, "flow-fit")} }
+                button { class: "mk-btn", disabled: !dirty || broken.read().is_some(), onclick: move |_| save(()), {t!(ws, L, "flow-save")} }
                 button { class: "mk-btn mk-flow-reload", title: t!(ws, L, "flow-reload-title"),
                     onclick: move |_| { spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); },
                     {t!(ws, L, "flow-reload")}
@@ -791,31 +847,16 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 div { class: "mk-editor-error mk-flow-broken", role: "alert", {t!(ws, L, "flow-broken", error = why)} }
             } else {
                 div { class: "mk-flow-body",
-                    // One click handler for the whole palette (the clicked
-                    // button names its kind): per-button handlers hit a
-                    // dioxus delegated-event quirk on this panel's first
-                    // click — the first button's handler fired alongside
-                    // the clicked one's, adding a stray block.
+                    // Each palette button carries its own handler with
+                    // the kind captured in the closure — no DOM reading,
+                    // which on desktop and Android (native handlers,
+                    // outside wasm) crashed on `web_sys::window()` (the
+                    // review's #1). The buttons are keyed: the delegated
+                    // double fire of the stage 7b quirk (your P-167)
+                    // came from unkeyed list items borrowing the first
+                    // item's listener.
                     div {
                         class: "mk-flow-palette",
-                        onclick: {
-                            let mut add_block = add_block.clone();
-                            move |e| {
-                                let kind = web_sys::window()
-                                    .and_then(|w| w.event().dyn_into::<web_sys::Event>().ok())
-                                    .and_then(|ev| ev.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()))
-                                    .and_then(|el| {
-                                        el.closest("[data-kind]").ok().flatten()
-                                    })
-                                    .and_then(|b| {
-                                        b.get_attribute("data-kind")
-                                    });
-                                if let Some(kind) = kind {
-                                    e.stop_propagation();
-                                    add_block(kind);
-                                }
-                            }
-                        },
                         if libs.is_empty() {
                             p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
                         } else {
@@ -834,10 +875,23 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                             cats.dedup();
                                             rsx! {
                                                 for cat in cats {
-                                                    div { class: "mk-flow-palette-cat", "{cat}" }
+                                                    div { key: "{cat}", class: "mk-flow-palette-cat", "{cat}" }
                                                     for b in lib.blocks.iter().filter(|b| b.category == cat) {
-                                                        button { "data-kind": "{lib.id}/{b.id}", class: "mk-flow-palette-block", title: "{b.description}",
-                                                            "{b.name}"
+                                                        {
+                                                            let kind = format!("{}/{}", lib.id, b.id);
+                                                            rsx! {
+                                                                button { key: "{kind}",
+                                                                    "data-kind": "{kind}",
+                                                                    class: "mk-flow-palette-block",
+                                                                    title: "{b.description}",
+                                                                    onclick: {
+                                                                        let mut add_block = add_block.clone();
+                                                                        let kind = kind.clone();
+                                                                        move |_| add_block(kind.clone())
+                                                                    },
+                                                                    "{b.name}"
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -938,15 +992,19 @@ fn push_undo(
     redo_stack.write().clear();
 }
 
-/// Serialise the working copy into the document (dirty → Save).
+/// Serialise the working copy into the document (dirty → Save). A broken
+/// document is never written (#11): the panel may hold edits made before
+/// the reload, and writing them would replace the file's text.
 fn sync(
     flow: &Signal<Flow>,
-    libs: &[FlowLibrary],
     last_text: &mut Signal<String>,
     doc: &mut Signal<moonkale_ext_api::Document>,
+    broken: &Signal<Option<String>>,
 ) {
+    if broken.peek().is_some() {
+        return;
+    }
     let f = flow.read();
-    let _ = validate(&f, libs);
     let text = f.to_json();
     last_text.set(text.clone());
     doc.with_mut(|d| d.text = text);
@@ -1009,5 +1067,44 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
             (true, String::new())
         }
         Err(why) => (false, why),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A `.flow.json` whose wire names a deleted block parses — `validate`
+    /// reports it — and must not panic the scene build (the review's #2).
+    #[test]
+    fn to_scene_skips_a_wire_whose_block_is_gone() {
+        let flow = Flow::parse(
+            r#"{"version":1,"blocks":[
+                {"id":"a","kind":"lux/Input","x":0,"y":0,"params":{}},
+                {"id":"b","kind":"lux/Dense","x":10,"y":10,"params":{}}],
+            "wires":[{"id":"w1","from_block":"a","from_port":"out",
+                      "to_block":"ghost","to_port":"in"}]}"#,
+        )
+        .expect("parses");
+        let scene = to_scene(&flow, &[], &[]);
+        assert_eq!(scene.nodes.len(), 2);
+        assert!(
+            scene.edges.is_empty(),
+            "the dangling wire draws nothing instead of panicking"
+        );
+
+        // The wire to an existing block still draws.
+        let flow = Flow::parse(
+            r#"{"version":1,"blocks":[
+                {"id":"a","kind":"lux/Input","x":0,"y":0,"params":{}},
+                {"id":"b","kind":"lux/Dense","x":10,"y":10,"params":{}}],
+            "wires":[{"id":"w1","from_block":"a","from_port":"out",
+                      "to_block":"b","to_port":"in"}]}"#,
+        )
+        .expect("parses");
+        let scene = to_scene(&flow, &[], &[]);
+        assert_eq!(scene.edges.len(), 1);
+        assert_eq!(scene.edges[0].a, 0);
+        assert_eq!(scene.edges[0].b, 1);
     }
 }

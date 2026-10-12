@@ -1219,6 +1219,12 @@ impl Graph {
                     })
                     .collect()
             };
+            // Ids first added in this batch: a second add of the same new
+            // id replaces the first, exactly as the nodes' `ids` map
+            // does as they arrive — building the map once per batch let
+            // both pushes through (the review's #9).
+            let mut fresh: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
             for (edge, existing) in resolved.into_iter().flatten() {
                 match existing {
                     Some(i) => {
@@ -1231,10 +1237,21 @@ impl Graph {
                             changed = true;
                         }
                     }
-                    None => {
-                        self.edges.push(edge);
-                        changed = true;
-                    }
+                    None => match fresh.get(&edge.id).copied() {
+                        Some(i) => {
+                            let mut cmp = edge.clone();
+                            cmp.bow = self.edges[i].bow;
+                            if self.edges[i] != cmp {
+                                self.edges[i] = edge;
+                                changed = true;
+                            }
+                        }
+                        None => {
+                            fresh.insert(edge.id.clone(), self.edges.len());
+                            self.edges.push(edge);
+                            changed = true;
+                        }
+                    },
                 }
             }
         }
