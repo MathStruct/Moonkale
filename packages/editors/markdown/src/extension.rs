@@ -169,7 +169,7 @@ fn MarkdownPanel(
         .copied()
         .unwrap_or_else(|| ws.settings.resolved.read().editor.markdown_rich);
     rsx! {
-        div { class: "mk-md",
+        div { class: "mk-md", "data-document-id": "{node}",
             div { class: "mk-md-modes",
                 button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, false); }); }, title: t!(ws, L, "md-source-title"), {t!(ws, L, "md-source")} }
                 button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, true); }); }, title: t!(ws, L, "md-rich-title"), {t!(ws, L, "md-rich")} }

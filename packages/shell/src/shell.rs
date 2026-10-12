@@ -324,6 +324,7 @@ pub fn Shell() -> Element {
     let closed = ws.shell.closed_panels.read().clone();
     // Whether a contribution is a static panel (no document behind it).
     let mut is_static: HashMap<String, bool> = HashMap::new();
+    let mut document_nodes = HashMap::new();
     let current_layout = if is_narrow {
         phone_layout.read().clone()
     } else {
@@ -345,6 +346,9 @@ pub fn Shell() -> Element {
                 continue;
             }
             owner.insert(c.id.clone(), i);
+            if let Some(node) = c.node {
+                document_nodes.insert(c.id.clone(), node);
+            }
             is_static.insert(c.id.clone(), c.node.is_none());
             present.push(c.id.clone());
             if c.node.is_some() && c.node == active_node {
@@ -387,6 +391,19 @@ pub fn Shell() -> Element {
             panels.push(panel);
         }
     }
+
+    // A user-selected retained tab is foreground navigation too. Programmatic
+    // activation during restore does not call the workbench's event callback.
+    let on_activate = move |id: PanelId| {
+        if let Some(node) = document_nodes
+            .get(id.as_str())
+            .and_then(|node| ws.open_node_by_id(*node))
+        {
+            spawn(async move {
+                let _ = ws.open_node(node).await;
+            });
+        }
+    };
 
     let on_close = {
         let exts = exts.clone();
@@ -674,6 +691,7 @@ pub fn Shell() -> Element {
                             reset_layout: narrow_layout(),
                             active_panel,
                             on_panel_close: on_close,
+                            on_panel_activate: on_activate,
                             on_layout_change: move |_| {},
                         }
                         if more_open() {
@@ -719,6 +737,7 @@ pub fn Shell() -> Element {
                         reset_layout: default_layout(),
                         active_panel,
                         on_panel_close: on_close,
+                        on_panel_activate: on_activate,
                         on_layout_change,
                     }
                 }

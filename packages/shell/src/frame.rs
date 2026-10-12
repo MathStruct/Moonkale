@@ -273,18 +273,7 @@ pub fn Frame(
         }
         tracing::info!("settings: restoring {} documents", keys.len());
         spawn(async move {
-            let mut activate = None;
-            for key in keys {
-                if let Some(node) = ws.node_at_path(&folder, &key).await {
-                    if active.as_deref() == Some(key.as_str()) {
-                        activate = Some(node.id);
-                    }
-                    let _ = ws.open_node(node).await;
-                }
-            }
-            if let Some(id) = activate {
-                ws.docs.active.set(Some(id));
-            }
+            ws.restore_documents(folder, keys, active).await;
         });
     });
     use_effect(move || {

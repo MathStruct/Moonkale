@@ -297,3 +297,9 @@ python3 packages/web/tests/e2e/native-editor-renderer.py packages/web/tests/fixt
 ```
 
 The standalone Cargo fixture inlines the production panel/native CSS for earlier geometry probes, but cannot supply hashed syntax theme assets. The Dioxus-built fixture bundles those styles; fenced acceptance fails with stylesheet-load diagnostics if theme colors are missing. The displayed binary path assumes no `CARGO_TARGET_DIR` override.
+
+`rich.mjs` resolves each requested Markdown document by its path and stable `data-document-id` before clicking its own mode controls. Its retained-tab regression switches Front/Math between Source and Rich repeatedly while preserving an unsaved Front edit and leaving both files on disk intact. Readiness checks use the requested document and content; no click is forced and no transition delay is added.
+
+For the slow Rich-button investigation, set `RICH_TRANSITION_TRACE=1` when running the suite. It samples panel/toolbar/button identity, bounds, visibility and the center hit target every 250 ms during the ordinary Front transition, capped at 160 samples, and writes `rich-Front.md-transition.json` under `M1_SHOTS`. The trace is optional; run the acceptance sequence with and without it. The two-core gate is three consecutive rounds of `files rich stores palette shell wiki`, with the owned server and browser runner both launched through `taskset -c <two available CPUs>`.
+
+P-179 also guards asynchronous saved-tab restoration: background loads do not activate each tab, and saved focus yields to foreground document navigation. Selecting a retained document tab updates the workspace's active document. `wiki.mjs` waits for the expected selected completion option to settle for 100 ms, resetting its observation when the popup/selection/options change; this exceeds CodeMirror's intentional 75 ms keyboard interaction guard without a fixed sleep.

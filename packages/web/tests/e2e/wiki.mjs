@@ -40,6 +40,22 @@ try {
     const labels = await page.$$eval(".cm-tooltip-autocomplete .cm-completionLabel", (els) => els.map((e) => e.textContent));
     console.log("\n  completions:", JSON.stringify(labels));
     if (!labels.includes("Beta")) throw new Error("Beta not offered");
+    // CodeMirror deliberately ignores completion keys for 75 ms after an
+    // updated list appears. Wait for the expected selected option to settle,
+    // restarting the observation if the popup or its options change.
+    await page.waitForFunction(() => {
+      const popup = document.querySelector('.cm-tooltip-autocomplete');
+      const selected = popup?.querySelector('li[aria-selected="true"]');
+      const labels = popup && [...popup.querySelectorAll('.cm-completionLabel')].map(x => x.textContent).join('\n');
+      if (selected?.querySelector('.cm-completionLabel')?.textContent !== 'Beta') {
+        delete window.__wikiCompletionReady; return false;
+      }
+      const last = window.__wikiCompletionReady;
+      if (!last || last.popup !== popup || last.selected !== selected || last.labels !== labels) {
+        window.__wikiCompletionReady = { popup, selected, labels, since: performance.now() }; return false;
+      }
+      return performance.now() - last.since >= 100;
+    }, null, { timeout: 10000 });
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => /See \[\[Beta\]\]/.test(document.querySelector(".mk-md .cm-content")?.textContent || ""), null, { timeout: 5000 });
   });
