@@ -35,3 +35,4 @@ editor-save-failed = Speichern fehlgeschlagen: { $error }
 editor-failed = Der Editor konnte nicht starten.
 editor-failed-hint =  Das ist ein Fehler – bitte mit der Meldung unten melden (die Datei selbst ist in Ordnung; „Neu laden“ versucht es erneut).
 editor-loading = Editor wird geladen …
+editor-out-of-sync = Editor und Dokument stimmen nicht überein und ließen sich nicht wieder abgleichen; die Bearbeitung wurde hier angehalten, um die Datei zu schützen. Schließen und öffnen Sie sie erneut; die gespeicherte Datei ist unverändert.

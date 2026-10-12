@@ -22,7 +22,7 @@ Plan: [[Milestone 2 - Graph Appears]].
 
 ## Deviations from the plan
 1. **Index stats live in the descriptor's display name** ("index: 5 files · 5 links · 5 symbols") so the status bar shows them without a new API. Cheap; to be replaced by a proper stats query.
-2. **Symbol keys carry the line number** (`src/lib.rs#fn:new@3`) so two `fn new` in different `impl`s stay distinct. Stable until code moves — good enough until the index persists.
+2. **Symbol keys carry the line number** (`src/lib.rs#fn:new@3`) so two `fn new` in different `impl`s stay distinct. Stable until code moves — good enough until the index persists. *(Replaced 2026-10-11 by path keys, `src/lib.rs#impl:A/fn:new`, with the line as a property: see the index crate note.)*
 3. **Graph nodes are indexed by position** in the JSON sent to the renderer (`edges: [{a, b}]`), not by id — halves the payload.
 4. **No text on the GPU**: labels are a 2D-canvas overlay, capped at ~400 and hidden when zoomed out.
 5. **Tables open as `Workspace::views`**, not documents: `open_node` routes `NodeKind::Table` into a separate list the table extension claims. Same mechanism will serve graph views and rows.

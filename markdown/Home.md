@@ -93,6 +93,11 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[ADR-0012 Two histories]] — accepted: git for text, entity log for the graph, checkpoints between them
 - [[ADR-0013 JSON ABI before components]] — accepted: what the wasm runtime actually is (amends ADR-0004)
 - [[ADR-0014 One store for internal state]] — accepted: SQLite for all state except secrets, synced later
+- [[ADR-0015 The core model]] — accepted: properties on nodes and edges, no GraphView, content ids, `changes_since`
+- [[ADR-0016 Freya is a reference, not a target]]
+- [[ADR-0017 Markdown live preview on the code editor]] — accepted: live preview as decorations on the Rust code editor; Milkdown stays meanwhile
+- [[ADR-0018 One frontend graph engine]]
+- [[ADR-0019 Extension coordinates and block addressing]] — proposed: UTF-8 byte offsets plus a revision for extensions; a block is `(file, anchor)`, never a graph node
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅
@@ -124,6 +129,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 
 ## Research
 - [[State Store Comparison]] — five engines for Moonkale's own state, measured (2026-10-02) · [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]]
+- [[External Code Intelligence Projects]] — Recoco and Thread: requirements and fit for Moonkale (prior art only; Thread is AGPL)
 
 ## Contributing
 - [[Development]] — build, run, test, and how this vault becomes the website

@@ -6,7 +6,7 @@ Notes for `moonkale-index` (Milestone 2). Design: [[Indexing]].
 
 - `graph.rs` — `IndexGraph`: mirrored folder nodes + derived nodes; edges keyed by the file they came from (`set_derived(origin, nodes, edges)` replaces a file's contribution atomically); `by_stem`/`by_path` maps for link resolution; `neighbours` (BFS with direction), `all` (kind filter, cap, files first), `children`.
 - `extract/wikilinks.rs` — `[[Name]]`, `[[Name#h|alias]]`, `[[dir/Name]]`, `[text](rel.md)`; Obsidian resolution (stem, case-insensitive, shortest path wins); unresolved targets become phantom `Page` nodes owned by the index.
-- `extract/symbols_rust.rs` — tree-sitter: fn/struct/enum/trait/mod/impl/const/static/type/union/macro, nested items via `body`, `Defines` from the file and `Contains` from the parent item. Keys include the line number.
+- `extract/symbols_rust.rs` — tree-sitter: fn/struct/enum/trait/mod/impl/const/static/type/union/macro, nested items via `body`, `Defines` from the file and `Contains` from the parent item. Keys: see *Stable symbol keys* below (they included the line number until 2026-10-11).
 - `walk.rs` — BFS over `Query::Children`, skips `.git`/`target`/`node_modules`, caps files and text size.
 - `source.rs` — `IndexSource::build(folder)`; id `index:<folder id>`; root = the folder's root; `fetch_text` delegates to the folder for mirrored nodes; `refresh(node)` re-extracts one file; `descriptor().display_name` carries the stats.
 - Native only (tree-sitter's C runtime); an empty crate on wasm32.
@@ -26,3 +26,6 @@ Tests: `cargo test -p moonkale-index` (4 integration on a tempdir vault + 2 unit
 
 ## Milestone 14
 The tree-sitter runtime is `arborium-tree-sitter` and the grammars `arborium-rust/-julia/-python` (P-113: one `links = "tree-sitter"` per binary, shared with the Rust code editor). Same `Parser`/`Node` API and node kinds; the three extractors changed two lines each and their tests pass unchanged.
+
+## Stable symbol keys (2026-10-11)
+A symbol's key used to end in `@<line>`, so its id changed whenever a line was inserted above it: the graph view lost the node's position and pin, and nothing could refer to a symbol across an edit (raised in the review of the editor-extensibility RFC). All three extractors now build their nodes through `extract::Symbols`. The key is the definition's path: `"<file>#<kind>:<name>"`, nested ones `"<parent key>/<kind>:<name>"` (`src/lib.rs#impl:A/fn:new`). The n-th repeat of a key in one file gets `~n` (`impl:A~2`, Julia methods `function:f~2`). An id now changes only when the symbol is renamed, moves to another parent, or gets a same-named sibling before it. The line moved to the `line` property (`Value::Int`, 1-based). Nothing parsed the line out of the key: the graph view opens a symbol's file through its `Defines` edge. Tests `extract::tests::{keys_are_paths_not_positions, ids_survive_lines_inserted_above, julia_methods_are_numbered_in_order}`.

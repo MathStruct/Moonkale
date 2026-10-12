@@ -82,7 +82,10 @@ function setText(el: HTMLElement, markdown: string): void {
   const e = views.get(el)
   if (!e || markdown === e.last) return
   e.suppress = true
-  try { e.crepe.editor.action(replaceAll(markdown)); e.last = markdown } finally { e.suppress = false }
+  // The baseline is the view's own (normalised) serialisation, as after
+  // mount: the raw text made the debounced update after `suppress` look
+  // like an edit, so Reload left the document dirty (P-165).
+  try { e.crepe.editor.action(replaceAll(markdown)); e.last = clean(e.crepe.getMarkdown()) } finally { e.suppress = false }
 }
 
 function getText(el: HTMLElement): string | undefined {

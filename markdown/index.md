@@ -41,7 +41,7 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | Platform | [[Platform Matrix]] · [[Linux Desktop Setup]] · [[Core Languages]] · [[Licensing]] |
 | Packaging | [[Install]] · [[Two Binaries]] · [[Packaging Overview]] · [[Arch Linux]] · [[NixOS]] · [[Android]] · [[Android Extensions and Bundling]] |
 | Testing | [[Testing Strategy]] · [[How to Write Tests]] |
-| Research | [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]] |
+| Research | [[Database Backends]] · [[Graph Rendering Options]] · [[Rust-native Editor Candidates]] · [[WASM Extension Runtimes]] · [[Versioning Prior Art]] · [[dioxus-flow]] · [[External Code Intelligence Projects]] |
 | Planning and records | [[Status]] · [[Roadmap]] · [[Problem Ranking]] · [[Problem Log]] · [[Audit 2026-09-23]] · [[specifications/README\|Specifications]] · milestones 1–18 in [[Home#Milestones\|Home]] |
 | Contributing | [[Development]] — building, running, and how this site is published · [[Feedback]] |
 

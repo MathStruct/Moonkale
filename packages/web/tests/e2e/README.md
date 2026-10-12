@@ -77,3 +77,24 @@ Milestone 6 suites: `flow.mjs` (enable Flow editor + Lux in Settings → Extensi
 - `rich.mjs` gained a step: a file with `<br />` lines opens clean, and the next save writes none.
 
 Gotchas found writing them: the activity-bar entry `#mk-rail-explorer` *toggles* (click it only when `.mk-explorer` is hidden); a narrow side tile squeezes tab titles ("Sour…"); a swipe scrolls the tab strip, so `scrollIntoView` a tab before touching it.
+
+## E3: markdown round-trip fidelity (2026-10-11)
+
+`roundtrip.mjs` is experiment E3 of the editor-extensibility RFC (see the review and [[ADR-0019 Extension coordinates and block addressing]]). For each file in `corpus/` and each mode (Source = CodeMirror, Rich = Milkdown), it does two things:
+1. It opens the file. The tab must stay clean and the file unchanged.
+2. It appends ` EDIT` to the file's `Sentinel paragraph.`, which sits in the middle of the file, and saves. The file must then equal the original plus exactly that edit.
+
+It copies the corpus to `<root>/e3/<mode>/` and opens each file through quick open in a fresh page. It prints a table and writes `$M1_SHOTS/e3-roundtrip.{json,md}`.
+
+It fails on harness errors, and on fidelity failures in the modes listed in `E3_STRICT`: by default `source`, which must stay byte-exact; Rich is measured only (`E3_STRICT=` measures everything, `E3_STRICT=source,rich` gates both). `E3_MODES=rich` and `E3_ONLY=crlf` narrow a run. A file that hangs the page (P-164) counts as an error after `E3_HANG_S` seconds (default 90), and the suite continues with a new browser. It needs only the corpus, not the full fixture: a root with `.moonkale/settings.json` = `{"editor":{"markdown_rich":false}}` is enough.
+
+The corpus covers inline markup, lists, tables, wiki and markdown links, callouts and `^block-ids`, math, code fences, front matter, pasted HTML, Unicode (ZWJ emoji, combining marks, CJK, RTL, bidi controls), CRLF, a missing final newline, a 20 000-character line, a BOM, images and a leading thematic break. `corpus/.gitattributes` says `-text`, so git never normalises the line endings the corpus exists to test. Add a file by writing it with a `Sentinel paragraph.` paragraph somewhere in the middle.
+
+First run (2026-10-11, `dev-claude`): **Source 15/16 exact**; the 16th, `11-crlf.md`, hangs the tab on the first keystroke (P-164). **Rich 2/16 exact** (Unicode and the long line). Milkdown:
+- marks six files dirty on open (lists, tables, links, callouts, code, CRLF);
+- rewrites setext headings as ATX, `-` bullets as `*`, `---` breaks as `***`, and pads table columns;
+- inlines reference links and images, and drops a fence's info string after the language (`title="main.rs"`);
+- escapes callouts (`> \[!note]`) and turns `$$…$$` on one line into `$…$`;
+- drops inline `<br>`, the BOM and CRLF, and adds a final newline.
+
+After the P-164 fix (same day): **Source 16/16**, now strict by default. P-165 fixed: Rich mode no longer marks any corpus file dirty on open (still 2/16 exact on save: the rewrites listed above remain).

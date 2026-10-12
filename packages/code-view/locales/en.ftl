@@ -35,3 +35,4 @@ editor-save-failed = Save failed: { $error }
 editor-failed = The editor could not start.
 editor-failed-hint =  This is a bug — please report it with the message below (the file itself is fine; Reload retries).
 editor-loading = Loading editor…
+editor-out-of-sync = The editor and the document disagree and could not be brought back in step, so editing stopped here to protect the file. Close and reopen it; the saved file is unchanged.

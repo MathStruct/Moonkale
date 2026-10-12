@@ -2,14 +2,13 @@
 //! `impl`, `const`, `static`, `type`. Items nested in `impl`/`mod` bodies are
 //! found too and linked to their parent with `Contains`.
 //!
-//! Symbol nodes have native key `"<path>#<kind>:<name>@<line>"` so two
-//! `fn new` in different `impl` blocks stay distinct and stable across
-//! re-indexing as long as they don't move.
+//! Keys and ids come from [`Symbols`]: `src/lib.rs#impl:A/fn:new`, so two
+//! `fn new` in different `impl` blocks stay distinct and keep their ids
+//! when lines move.
 
-use super::Derived;
-use crate::graph::derived_id;
+use super::{Derived, Parent, Symbol, Symbols};
 use arborium_tree_sitter::{Node as TsNode, Parser};
-use moonkale_core::{Edge, EdgeKind, Node, NodeId, NodeKind, SourceId};
+use moonkale_core::{Node, SourceId};
 
 const ITEM_KINDS: &[(&str, &str)] = &[
     ("function_item", "fn"),
@@ -37,25 +36,18 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let Some(tree) = parser.parse(text, None) else {
         return Derived::default();
     };
-    let mut d = Derived::default();
-    walk(index, file, text.as_bytes(), tree.root_node(), None, &mut d);
-    d
+    let mut symbols = Symbols::new(index, file);
+    walk(text.as_bytes(), tree.root_node(), None, &mut symbols);
+    symbols.derived
 }
 
-fn walk(
-    index: &SourceId,
-    file: &Node,
-    src: &[u8],
-    node: TsNode,
-    parent: Option<NodeId>,
-    d: &mut Derived,
-) {
+fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let Some((_, short)) = ITEM_KINDS.iter().find(|(k, _)| *k == child.kind()) else {
             // Descend through declaration lists / bodies without a symbol of their own.
             if matches!(child.kind(), "declaration_list" | "source_file") {
-                walk(index, file, src, child, parent, d);
+                walk(src, child, parent, symbols);
             }
             continue;
         };
@@ -78,38 +70,15 @@ fn walk(
                 .unwrap_or("?")
                 .to_string()
         };
-        let line = child.start_position().row + 1;
-        let key = format!("{}#{}:{}@{}", file.native_key, short, name, line);
-        let id = derived_id(index, &key);
-        d.nodes.push(Node {
-            props: Default::default(),
-            id,
-            source: index.clone(),
-            kind: NodeKind::Symbol,
-            label: format!("{short} {name}"),
-            native_key: key,
-            content: None,
-            version: file.version,
+        let me = symbols.add(Symbol {
+            parent,
+            kind: short,
+            name: &name,
+            line: child.start_position().row + 1,
         });
-        d.edges.push(Edge {
-            props: Default::default(),
-            source: index.clone(),
-            from: file.id,
-            to: id,
-            kind: EdgeKind::Defines,
-        });
-        if let Some(p) = parent {
-            d.edges.push(Edge {
-                props: Default::default(),
-                source: index.clone(),
-                from: p,
-                to: id,
-                kind: EdgeKind::Contains,
-            });
-        }
         // Items inside impl/mod/trait bodies.
         if let Some(body) = child.child_by_field_name("body") {
-            walk(index, file, src, body, Some(id), d);
+            walk(src, body, Some(&me), symbols);
         }
     }
 }
@@ -117,7 +86,7 @@ fn walk(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moonkale_core::{ContentRef, Version};
+    use moonkale_core::{ContentRef, EdgeKind, NodeId, NodeKind, Version};
 
     #[test]
     fn extracts_items_and_nesting() {

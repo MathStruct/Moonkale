@@ -8,10 +8,9 @@
 //! → identifier`, through `where`/`::`/`{…}` wrappers; `Base.show` keeps
 //! its dotted form.
 
-use super::Derived;
-use crate::graph::derived_id;
+use super::{Derived, Parent, Symbol, Symbols};
 use arborium_tree_sitter::{Node as TsNode, Parser};
-use moonkale_core::{Edge, EdgeKind, Node, NodeId, NodeKind, SourceId};
+use moonkale_core::{Node, SourceId};
 
 const ITEM_KINDS: &[(&str, &str)] = &[
     ("function_definition", "function"),
@@ -34,9 +33,9 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let Some(tree) = parser.parse(text, None) else {
         return Derived::default();
     };
-    let mut d = Derived::default();
-    walk(index, file, text.as_bytes(), tree.root_node(), None, &mut d);
-    d
+    let mut symbols = Symbols::new(index, file);
+    walk(text.as_bytes(), tree.root_node(), None, &mut symbols);
+    symbols.derived
 }
 
 /// The identifier a definition head boils down to.
@@ -81,14 +80,7 @@ fn short_function(node: TsNode, src: &[u8]) -> Option<String> {
     }
 }
 
-fn walk(
-    index: &SourceId,
-    file: &Node,
-    src: &[u8],
-    node: TsNode,
-    parent: Option<NodeId>,
-    d: &mut Derived,
-) {
+fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let (short, name) = match ITEM_KINDS.iter().find(|(k, _)| *k == child.kind()) {
@@ -109,44 +101,21 @@ fn walk(
                 Some(name) => ("function", name),
                 None => {
                     if matches!(child.kind(), "source_file" | "block" | "begin_statement") {
-                        walk(index, file, src, child, parent, d);
+                        walk(src, child, parent, symbols);
                     }
                     continue;
                 }
             },
         };
-        let line = child.start_position().row + 1;
-        let key = format!("{}#{}:{}@{}", file.native_key, short, name, line);
-        let id = derived_id(index, &key);
-        d.nodes.push(Node {
-            props: Default::default(),
-            id,
-            source: index.clone(),
-            kind: NodeKind::Symbol,
-            label: format!("{short} {name}"),
-            native_key: key,
-            content: None,
-            version: file.version,
+        let me = symbols.add(Symbol {
+            parent,
+            kind: short,
+            name: &name,
+            line: child.start_position().row + 1,
         });
-        d.edges.push(Edge {
-            props: Default::default(),
-            source: index.clone(),
-            from: file.id,
-            to: id,
-            kind: EdgeKind::Defines,
-        });
-        if let Some(p) = parent {
-            d.edges.push(Edge {
-                props: Default::default(),
-                source: index.clone(),
-                from: p,
-                to: id,
-                kind: EdgeKind::Contains,
-            });
-        }
         // Definitions inside a module.
         if short == "module" {
-            walk(index, file, src, child, Some(id), d);
+            walk(src, child, Some(&me), symbols);
         }
     }
 }
@@ -154,7 +123,7 @@ fn walk(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moonkale_core::{ContentRef, Version};
+    use moonkale_core::{ContentRef, EdgeKind, NodeId, NodeKind, Version};
 
     #[test]
     fn extracts_julia_definitions() {

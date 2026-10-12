@@ -2,10 +2,9 @@
 //! methods inside classes linked with `Contains`. Module-level assignments
 //! are not symbols (too many, too noisy).
 
-use super::Derived;
-use crate::graph::derived_id;
+use super::{Derived, Parent, Symbol, Symbols};
 use arborium_tree_sitter::{Node as TsNode, Parser};
-use moonkale_core::{Edge, EdgeKind, Node, NodeId, NodeKind, SourceId};
+use moonkale_core::{Node, SourceId};
 
 pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let mut parser = Parser::new();
@@ -18,19 +17,12 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let Some(tree) = parser.parse(text, None) else {
         return Derived::default();
     };
-    let mut d = Derived::default();
-    walk(index, file, text.as_bytes(), tree.root_node(), None, &mut d);
-    d
+    let mut symbols = Symbols::new(index, file);
+    walk(text.as_bytes(), tree.root_node(), None, &mut symbols);
+    symbols.derived
 }
 
-fn walk(
-    index: &SourceId,
-    file: &Node,
-    src: &[u8],
-    node: TsNode,
-    parent: Option<NodeId>,
-    d: &mut Derived,
-) {
+fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         // `@decorator` wraps the definition.
@@ -47,7 +39,7 @@ fn walk(
             "class_definition" => "class",
             _ => {
                 if matches!(def.kind(), "module" | "block") {
-                    walk(index, file, src, def, parent, d);
+                    walk(src, def, parent, symbols);
                 }
                 continue;
             }
@@ -56,39 +48,16 @@ fn walk(
             .child_by_field_name("name")
             .and_then(|n| n.utf8_text(src).ok())
             .unwrap_or("?");
-        let line = def.start_position().row + 1;
-        let key = format!("{}#{}:{}@{}", file.native_key, short, name, line);
-        let id = derived_id(index, &key);
-        d.nodes.push(Node {
-            props: Default::default(),
-            id,
-            source: index.clone(),
-            kind: NodeKind::Symbol,
-            label: format!("{short} {name}"),
-            native_key: key,
-            content: None,
-            version: file.version,
+        let me = symbols.add(Symbol {
+            parent,
+            kind: short,
+            name,
+            line: def.start_position().row + 1,
         });
-        d.edges.push(Edge {
-            props: Default::default(),
-            source: index.clone(),
-            from: file.id,
-            to: id,
-            kind: EdgeKind::Defines,
-        });
-        if let Some(p) = parent {
-            d.edges.push(Edge {
-                props: Default::default(),
-                source: index.clone(),
-                from: p,
-                to: id,
-                kind: EdgeKind::Contains,
-            });
-        }
         // Methods and nested classes; functions inside functions are not symbols.
         if short == "class" {
             if let Some(body) = def.child_by_field_name("body") {
-                walk(index, file, src, body, Some(id), d);
+                walk(src, body, Some(&me), symbols);
             }
         }
     }
@@ -97,7 +66,7 @@ fn walk(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moonkale_core::{ContentRef, Version};
+    use moonkale_core::{ContentRef, EdgeKind, NodeId, NodeKind, Version};
 
     #[test]
     fn extracts_defs_and_classes() {
