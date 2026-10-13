@@ -56,8 +56,11 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
         })
         .map_or(0, |(_, range)| range.end);
     let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
-    for (event, range) in
-        Parser::new_ext(&projected.text, Options::ENABLE_TASKLISTS).into_offset_iter()
+    for (event, range) in Parser::new_ext(
+        &projected.text,
+        Options::ENABLE_TASKLISTS | Options::ENABLE_TABLES,
+    )
+    .into_offset_iter()
     {
         let range = projected.range(range);
         let range = range.start + body_start..range.end + body_start;

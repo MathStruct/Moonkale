@@ -314,10 +314,10 @@ pub(crate) fn ProportionalRun(
                             class: "mk-native-inline-widget {replacement.style.as_ref().map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             "data-heading-level": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Heading(level, _) = style { Some(level.to_string()) } else { None }),
-                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_))).to_string(),
+                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_))).to_string(),
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             if let Some(style @ (crate::native_decorations::InlineStyle::Nested(_) | crate::native_decorations::InlineStyle::Heading(_, _) | crate::native_decorations::InlineStyle::Link(_))) = &replacement.style {
                                 for (fragment_index, fragment) in fragments(style).iter().enumerate() {
                                     MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
@@ -329,6 +329,20 @@ pub(crate) fn ProportionalRun(
                                     span { class: "mk-markdown-list-marker", "{marker} " }
                                     for (fragment_index, fragment) in fragments.iter().enumerate() {
                                         MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
+                                    }
+                                }
+                            } else if let Some(crate::native_decorations::InlineStyle::Table(table)) = &replacement.style {
+                                div {class:"mk-table",role:"table",
+                                    for (row_index, row) in table.rows.iter().enumerate() {
+                                        div {class:"mk-table-row",role:"row",style:format!("grid-template-columns:repeat({},minmax(0,1fr));",table.alignments.len()),
+                                            for (column, cell) in row.iter().enumerate() {
+                                                div {class:"mk-table-cell",role:if row_index == 0 {"columnheader"} else {"cell"},style:format!("text-align:{};",table.alignments[column]),
+                                                    for fragment_index in cell.clone() {
+                                                        MarkdownFragment {fragment:table.fragments[fragment_index].clone(),identity:format!("{}:{fragment_index}",replacement.start),resolved:fragment_resolved(&table.fragments[fragment_index],&marks)}
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } else if let Some(crate::native_decorations::InlineStyle::Image(image)) = &replacement.style {
@@ -382,6 +396,7 @@ fn fragments(
         InlineStyle::Nested(values) | InlineStyle::Heading(_, values) => values,
         InlineStyle::Link(values) => values,
         InlineStyle::ListItem { fragments, .. } => fragments,
+        InlineStyle::Table(table) => &table.fragments,
         _ => &[],
     }
 }

@@ -45,6 +45,8 @@ pub(crate) enum InlineStyle {
     #[cfg(feature = "markdown-preview")]
     Image(crate::native_image_parser::Image),
     #[cfg(feature = "markdown-preview")]
+    Table(std::rc::Rc<crate::native_markdown_tables::Table>),
+    #[cfg(feature = "markdown-preview")]
     Fenced {
         language: String,
         fragments: Vec<CodeFragment>,
@@ -79,6 +81,7 @@ impl InlineStyle {
             Self::Link(_) => "mk-markdown-link-widget",
             Self::Heading(_, _) => "mk-markdown-heading",
             Self::Image(_) => "mk-markdown-image",
+            Self::Table(_) => "mk-markdown-table",
             Self::Fenced { .. } => "mk-markdown-fenced dxc",
             Self::ListItem { .. } => "mk-markdown-list-item",
         }

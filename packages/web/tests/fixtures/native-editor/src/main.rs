@@ -1069,6 +1069,13 @@ fn App() -> Element {
         button {id:"image-hold",onclick:move |_|IMAGE_HOLD.with(|hold|hold.set(true)),"Hold image"}
         button {id:"image-release",onclick:move |_|IMAGE_HOLD.with(|hold|hold.set(false)),"Release image"}
         button {id:"image-version",onclick:move |_|{IMAGE_VERSION.with(|version|version.set(version.get()+1));let mut ws=ws;ws.sources.graph_epoch.with_mut(|epoch|*epoch+=1);},"Change image"}
+        button {id:"markdown-tables",onclick:move |_|{
+            let id=NodeId::derive(&doc.peek().node.source,"nested.md");
+            if let Some(mut markdown)=ws.document(id) {
+                markdown.write().text="before 😀\r\n\r\n  | **猫** | `a\\|b` | *Right* |\r\n| :--- | :---: | ---: |\r\n| &amp; | | [Web](https://example.org/table) |\r\n| long words that wrap at narrow widths | 中文 | [[Note é|Alias <safe>]] |\r\n\r\na | b\r\n--- | ---\r\none | two\r\n\r\nend\r\n".into();
+            }
+            show_language.set(Some(id));let mut ws=ws;ws.docs.active.set(Some(id));layout_fixture.set(Default::default());
+        },"Markdown tables"}
         button {id:"markdown-images",onclick:move |_|{
             let nested=ws.document(NodeId::derive(&doc.peek().node.source,"nested.md")).unwrap().peek().node.clone();
             if let Some(mut markdown)=ws.document(nested.id) {markdown.write().text="before 😀\r\n\r\n![**猫**](pics/Caf%C3%A9.svg \"title\")\r\n\r\n![[Café.svg|Alias <safe>]]\r\n\r\n![broken](broken.png)\r\n\r\n![missing](missing.png)\r\n\r\n![huge](huge.png)\r\n\r\ntext ![inline](pics/Café.svg)\r\n\r\nend\r\n".into();}

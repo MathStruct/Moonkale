@@ -164,7 +164,9 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
                 range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
             })
             .map_or(0, |(_, range)| range.end);
-        for (event, range) in Parser::new(&source[body_start..]).into_offset_iter() {
+        for (event, range) in
+            Parser::new_ext(&source[body_start..], Options::ENABLE_TABLES).into_offset_iter()
+        {
             let range = range.start + body_start..range.end + body_start;
             match event {
                 Event::Start(_) => {
@@ -230,6 +232,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
+    let table_values = crate::native_markdown_tables::previews(source);
     let image_values = crate::native_image_parser::previews(source);
     let list_values = crate::native_markdown_lists::previews(source);
     let scalar_bytes: Vec<_> = source
@@ -251,7 +254,10 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
         }
         if matches!(
             style,
-            InlineStyle::Heading(..) | InlineStyle::Fenced { .. } | InlineStyle::ListItem { .. }
+            InlineStyle::Heading(..)
+                | InlineStyle::Fenced { .. }
+                | InlineStyle::ListItem { .. }
+                | InlineStyle::Table(_)
         ) {
             while range.end > range.start
                 && matches!(source.as_bytes()[range.end - 1], b'\n' | b'\r')
@@ -269,9 +275,15 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             || (matches!(style, InlineStyle::Heading(..)) && newlines == 1)
             || matches!(
                 style,
-                InlineStyle::Fenced { .. } | InlineStyle::ListItem { .. } | InlineStyle::Link(_)
+                InlineStyle::Fenced { .. }
+                    | InlineStyle::ListItem { .. }
+                    | InlineStyle::Link(_)
+                    | InlineStyle::Table(_)
             );
-        if range.is_empty() || label.is_empty() || !supported_lines {
+        if range.is_empty()
+            || label.is_empty() && !matches!(style, InlineStyle::Table(_))
+            || !supported_lines
+        {
             return;
         }
         let Ok(start) = scalar_bytes.binary_search(&range.start) else {
@@ -314,7 +326,9 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
         })
         .map_or(0, |(_, range)| range.end);
     let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
-    for (event, range) in Parser::new(&projected.text).into_offset_iter() {
+    for (event, range) in
+        Parser::new_ext(&projected.text, Options::ENABLE_TABLES).into_offset_iter()
+    {
         let range = projected.range(range);
         let range = range.start + body_start..range.end + body_start;
         match event {
@@ -428,13 +442,17 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                 }
                 blocked = blocked.saturating_sub(1);
             }
-            Event::Start(Tag::Image { .. } | Tag::HtmlBlock | Tag::MetadataBlock(_)) => {
+            Event::Start(
+                Tag::Image { .. } | Tag::HtmlBlock | Tag::MetadataBlock(_) | Tag::Table(_),
+            ) => {
                 blocked += 1;
                 if let Some(frame) = frames.last_mut() {
                     frame.unsupported = true;
                 }
             }
-            Event::End(TagEnd::Image | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_)) => {
+            Event::End(
+                TagEnd::Image | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_) | TagEnd::Table,
+            ) => {
                 blocked = blocked.saturating_sub(1);
             }
             Event::SoftBreak | Event::HardBreak
@@ -461,7 +479,9 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
     for (range, label, style) in &list_values {
         emit(range.clone(), label.clone(), style.clone());
     }
-    values.sort_by_key(|value| value.id);
+    for (range, label, style) in table_values {
+        emit(range, label, style);
+    }
     for (range, image) in image_values {
         let start = source[..range.start].chars().count();
         let end = start + source[range].chars().count();
@@ -887,5 +907,32 @@ mod tests {
         assert!(changed.values.iter().any(|value| matches!(&value.kind,
             Kind::Replace {style: Some(InlineStyle::Image(image)), ..}
                 if image.destination == crate::native_image_parser::Destination::File("second.svg".into()))));
+    }
+    #[test]
+    fn tables_own_complete_ranges_and_reuse_rebased_fragments() {
+        let source = "😀\r\n\r\n| **猫** | `code` |\r\n| --- | ---: |\r\n| a | b |\r\n\r\nend\r\n";
+        let first = batch(DocumentRevision(30), source);
+        assert_eq!(first.values.len(), 1);
+        assert!(matches!(
+            &first.values[0].kind,
+            Kind::Replace {
+                style: Some(InlineStyle::Table(_)),
+                ..
+            }
+        ));
+        let same = batch(DocumentRevision(31), source);
+        assert!(first.values == same.values);
+        let prefixed = batch(DocumentRevision(32), &format!("prefix\r\n\r\n{source}"));
+        let Kind::Replace { range: old, .. } = &first.values[0].kind else {
+            panic!("table")
+        };
+        let Kind::Replace { range: new, .. } = &prefixed.values[0].kind else {
+            panic!("table")
+        };
+        assert_eq!(new.start, old.start + 10);
+        assert_eq!(new.end, old.end + 10);
+        let changed = batch(DocumentRevision(33), &source.replace("a | b", "a | 中文"));
+        assert!(first.values != changed.values);
+        assert!(previews("| a | b |\n| --- | --- |\n| ![x](pic.png) | **source** |\n").is_empty());
     }
 }
