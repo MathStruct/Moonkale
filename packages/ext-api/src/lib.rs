@@ -41,6 +41,7 @@ pub mod contrib;
 pub mod document;
 pub mod editor;
 pub mod extension;
+pub mod media;
 
 /// The namespace of the built-in extensions' ids; third-party (wasm)
 /// extensions may not use it (audit #4).

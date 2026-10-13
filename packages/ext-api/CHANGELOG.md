@@ -14,6 +14,8 @@ Rules:
 
 ## Unreleased — the editor API (not in a tag yet)
 
+- Added `media::image` format, MIME, dimensions and size-limit helpers shared by native preview and the image editor. Existing image-editor public helper names remain reexports.
+
 - Added `Workspace::load_node_guarded(node, current)` for background loading without activation. Existing open documents retain unsaved text; a stale fetch is discarded.
 - Wiki resolution accepts same-note heading targets and creation retains an explicit `.md` suffix. Existing callers remain source-compatible.
 - The code-view crate exports `ExternalLinkOpener`, registered through workspace services for native preview URL navigation.

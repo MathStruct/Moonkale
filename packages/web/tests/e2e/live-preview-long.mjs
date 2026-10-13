@@ -8,9 +8,11 @@ if (!root) throw Error('M1_ROOT must name a disposable fixture');
 const note = '---\r\ntitle: Long vault note\r\n---\r\n\r\n' + Array.from({length:240}, (_,n) =>
   `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(71)} [**bold ${n}**](https://example.org/${n}) and \`code ${n}\`.\r\n\r\n` +
   `- list item ${n} **bold** [[#section-${n}-猫|jump]]\r\n  - [ ] pending ${n}\r\n- [x] completed ${n} 猫\r\n\r\n` +
+  ([20,60,180,239].includes(n) ? `![Image ${n}](PreviewImage.svg)\r\n\r\n` : '') +
   (n % 20 === 0 ? `\`\`\`rust\r\nfn section_${n}() {}\r\n\`\`\`\r\n\r\n` : '')).join('') + 'End.\r\n';
 // Keep the byte budget near the preceding 246 KB list fixture while adding 480 links.
 assert.ok(Buffer.byteLength(note)>240_000);
+fs.writeFileSync(`${root}/PreviewImage.svg`,'<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80" fill="blue"/></svg>');
 fs.writeFileSync(`${root}/LongPreview.md`,note);
 fs.writeFileSync(`${root}/PreviewPerf.txt`,'x'.repeat(3_000_000));
 const browser = await firefox.launch();
@@ -90,6 +92,10 @@ try {
     await panel().locator('.mk-markdown-list-item').filter({hasText:`list item ${section} bold jump`}).waitFor();
     await panel().locator('.mk-markdown-list-item').filter({hasText:`☑ completed ${section} 猫`}).waitFor();
     await panel().locator('.mk-preview-link').filter({hasText:'jump'}).first().waitFor();
+    if(section===239) {
+      await panel().locator('.mk-preview-image[alt="Image 239"]').waitFor();
+      await page.waitForFunction(()=>document.querySelector('img.mk-preview-image[alt="Image 239"]')?.naturalWidth===240);
+    }
     console.log(`deep list ${section}: preview visible`);
   }
   // Navigate to specific headings so a viewport inside a long plain paragraph

@@ -91,3 +91,9 @@ editor-rename-stale = Document changed; open Rename again
 
 editor-link-failed = Could not open link: { $error }
 editor-link-heading-missing = Heading not found: { $heading }
+
+editor-image-loading = Loading image…
+editor-image-missing = Image not found
+editor-image-too-big = Image exceeds the 24 MiB limit
+editor-image-pixels = Image dimensions exceed the pixel limit
+editor-image-failed = Cannot display image

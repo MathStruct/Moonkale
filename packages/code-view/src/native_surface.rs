@@ -44,6 +44,7 @@ pub(crate) fn RustEditorSurface(
     wiki_marks: Vec<crate::native_wiki::Mark>,
     onwiki: Callback<String>,
     onlink: Callback<crate::native_links::Target>,
+    onimage: Callback<crate::native_image_parser::Image>,
     mut hover_target: Signal<Option<(usize, usize)>>,
     hover_text: Option<String>,
     hover_label: String,
@@ -1278,6 +1279,9 @@ pub(crate) fn RustEditorSurface(
                                                         include_end, affinity: caret_affinity, dragging, hovered_position, onwiki, onchange,
                                                         onlink: move |(key,target): (crate::native_proportional_run::RunKey,crate::native_links::Target)| {
                                                             if key.model == model && key.revision == model.peek().revision && key.viewport_width == viewport_width_pixels() && key.font_epoch == font_epoch() && key.presentation == current_presentation(presentation_index,model) && !font_loading() && !composing() { onlink.call(target); }
+                                                        },
+                                                        onimage: move |(key,image): (crate::native_proportional_run::RunKey,crate::native_image_parser::Image)| {
+                                                            if key.model == model && key.revision == model.peek().revision && key.viewport_width == viewport_width_pixels() && key.font_epoch == font_epoch() && key.presentation == current_presentation(presentation_index,model) && !font_loading() && !composing() { onimage.call(image); }
                                                         },
                                                         onheight: {
                                                         let measured_runs = measured_runs.clone();

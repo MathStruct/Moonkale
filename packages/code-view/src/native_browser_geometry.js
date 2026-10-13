@@ -10,7 +10,10 @@ if (request.replacements?.length) {
         const start = Number(child.dataset.sourceStart), end = Number(child.dataset.sourceEnd);
         const replacement = request.replacements.find(value => value.start === start && value.end === end);
         const expected = replacement ? replacement.widget ?? '' : scalars.slice(start, end).join('');
-        const matches = start === offset && end > start && end <= scalars.length && child.textContent === expected;
+        const image = request.images?.find(value => value.start === start && value.end === end);
+        const owners = child.querySelectorAll('[data-image-owner]');
+        const contentMatches = image ? owners.length === 1 && owners[0].dataset.imageOwner === image.id : child.textContent === expected;
+        const matches = start === offset && end > start && end <= scalars.length && contentMatches;
         offset = end;
         return matches;
     }) && offset === scalars.length;
@@ -55,6 +58,10 @@ if (request.replacements?.length) {
             for (const rect of range.getClientRects()) {
                 if (rect.width > 0 && rect.height > 0) links.push({id:element.dataset.previewLink,x:rect.x-origin.x,y:rect.y-origin.y,width:rect.width,height:rect.height});
             }
+        }
+        for (const element of node.querySelectorAll('[data-preview-image]')) {
+            const rect = element.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) links.push({id:element.dataset.previewImage,x:rect.x-origin.x,y:rect.y-origin.y,width:rect.width,height:rect.height});
         }
         dioxus.send({boxes,links,width:origin.width,height:origin.height});
     }

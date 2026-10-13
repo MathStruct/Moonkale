@@ -46,6 +46,7 @@ pub(crate) fn ProportionalRun(
     mut hovered_position: Signal<Option<(usize, usize)>>,
     onwiki: Callback<String>,
     onlink: Callback<(RunKey, crate::native_links::Target)>,
+    onimage: Callback<(RunKey, crate::native_image_parser::Image)>,
     onchange: Callback<()>,
     onheight: Callback<RunHeight>,
     oninvalidated: Callback<RunKey>,
@@ -172,6 +173,15 @@ pub(crate) fn ProportionalRun(
         let _ = current();
         measure.call(());
     });
+    let media_changed = {
+        let requests = requests.clone();
+        use_callback(move |_: ()| {
+            requests.set(requests.get().wrapping_add(1));
+            measured.set(None);
+            oninvalidated.call(current.peek().0);
+            measure.call(());
+        })
+    };
     let geometry = measured
         .read()
         .as_ref()
@@ -263,6 +273,9 @@ pub(crate) fn ProportionalRun(
                     if let Some(value) = &geometry {
                         if moonkale_ext_api::keys::primary(&event.modifiers()) && event.held_buttons().contains(dioxus::html::input_data::MouseButton::Primary) {
                             if let Some(id) = value.link_at(event.element_coordinates().x,event.element_coordinates().y) {
+                                if let Some(image) = preview_images(&replacements).into_iter().find_map(|(key,image)| (key==id).then_some(image)) {
+                                    event.stop_propagation();onimage.call((stamp,image));return;
+                                }
                                 if let Some(target) = preview_targets(&replacements).into_iter().find_map(|(key,target)| (key == id).then_some(target)) {
                                     event.stop_propagation(); onlink.call((stamp,target)); return;
                                 }
@@ -273,7 +286,8 @@ pub(crate) fn ProportionalRun(
                                 event.stop_propagation(); onwiki.call(mark.target.clone()); return;
                             }
                         }
-                        if let Some(offset) = value.hit(event.element_coordinates().x, event.element_coordinates().y).or_else(|| text.is_empty().then_some(0)) {
+                        let image_start=value.link_at(event.element_coordinates().x,event.element_coordinates().y).and_then(|id|id.strip_prefix("image:")).and_then(|start|start.parse::<usize>().ok());
+                        if let Some(offset) = image_start.or_else(||value.hit(event.element_coordinates().x, event.element_coordinates().y)).or_else(|| text.is_empty().then_some(0)) {
                             dragging.set(true);
                             mutate(stamp.model, onchange, |editor| {
                                 let (line, column) = editor.editor().line_index().char_offset_to_position(stamp.start + offset);
@@ -300,10 +314,10 @@ pub(crate) fn ProportionalRun(
                             class: "mk-native-inline-widget {replacement.style.as_ref().map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             "data-heading-level": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Heading(level, _) = style { Some(level.to_string()) } else { None }),
-                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. })).to_string(),
+                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_))).to_string(),
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. })) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             if let Some(style @ (crate::native_decorations::InlineStyle::Nested(_) | crate::native_decorations::InlineStyle::Heading(_, _) | crate::native_decorations::InlineStyle::Link(_))) = &replacement.style {
                                 for (fragment_index, fragment) in fragments(style).iter().enumerate() {
                                     MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
@@ -317,6 +331,8 @@ pub(crate) fn ProportionalRun(
                                         MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
                                     }
                                 }
+                            } else if let Some(crate::native_decorations::InlineStyle::Image(image)) = &replacement.style {
+                                crate::native_images::ImageBlock { image:image.clone(), identity:format!("image:{}",replacement.start), onlayout:media_changed }
                             } else if let Some(crate::native_decorations::InlineStyle::Fenced { fragments, .. }) = &replacement.style {
                                 for fragment in fragments {
                                     span { class: "mk-markdown-code-fragment {fragment.class}", "{fragment.text}" }
@@ -423,4 +439,18 @@ fn MarkdownFragment(
         "data-emphasis": fragment.emphasis.to_string(), "data-strong": fragment.strong.to_string(),
         "data-code": fragment.code.to_string(), "{fragment.text}"
     } }
+}
+
+pub(crate) fn preview_images(
+    values: &[crate::native_presentation::Replacement],
+) -> Vec<(String, crate::native_image_parser::Image)> {
+    values
+        .iter()
+        .filter_map(|value| match &value.style {
+            Some(crate::native_decorations::InlineStyle::Image(image)) => {
+                Some((format!("image:{}", value.start), image.clone()))
+            }
+            _ => None,
+        })
+        .collect()
 }

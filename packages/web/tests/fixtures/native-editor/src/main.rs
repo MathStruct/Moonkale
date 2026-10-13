@@ -8,6 +8,9 @@ use moonkale_ext_api::{
 };
 use std::sync::{Arc, Mutex};
 thread_local! {
+    static IMAGE_HOLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static IMAGE_VERSION: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
+    static IMAGE_LOG: std::cell::RefCell<Option<Signal<Vec<String>>>> = const { std::cell::RefCell::new(None) };
     static WIKI_CREATED: std::cell::RefCell<std::collections::HashMap<NodeId, (Node, String)>> = std::cell::RefCell::new(std::collections::HashMap::new());
     static WIKI_INDEX: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
     static WIKI_DELAY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -531,6 +534,12 @@ impl Source for WikiIndex {
         Err(SourceError::NotFound)
     }
 }
+fn fixture_images(source:&SourceId)->Vec<Node> {
+    ["pics/Café.svg","broken.png","huge.png"].into_iter().map(|key|Node {
+        source:source.clone(),id:NodeId::derive(source,key),native_key:key.into(),label:key.rsplit('/').next().unwrap().into(),kind:NodeKind::File,props:Default::default(),
+        content:Some(ContentRef::Blob {len:if key=="huge.png" {25*1024*1024}else{128},mime:None}),version:Version(IMAGE_VERSION.with(|version|version.get())),
+    }).collect()
+}
 struct MemoryFile {
     descriptor: SourceDescriptor,
     saved: Mutex<(String, Version)>,
@@ -555,6 +564,8 @@ impl Source for MemoryFile {
                 result.nodes.push(page);
                 Ok(result)
             }
+            Query::Text {dialect,text} if dialect=="path" => Ok(QueryResult {nodes:fixture_images(&self.id()).into_iter().filter(|node|node.native_key==text).collect(),..Default::default()}),
+            Query::All {..}=>Ok(QueryResult {nodes:fixture_images(&self.id()),..Default::default()}),
             Query::Node(id) => Ok(WIKI_CREATED.with(|created| {
                 created
                     .borrow()
@@ -565,6 +576,16 @@ impl Source for MemoryFile {
             Query::Children(id) if id == folder.id => Ok(QueryResult::single(target)),
             _ => Ok(QueryResult::default()),
         }
+    }
+    async fn fetch_bytes(&self,node:NodeId)->Result<(Vec<u8>,Version),SourceError> {
+        let image=fixture_images(&self.id()).into_iter().find(|image|image.id==node).ok_or(SourceError::NotFound)?;
+        IMAGE_LOG.with(|log| {if let Some(mut log)=*log.borrow(){log.write().push(format!("{}:{}",self.id().as_str(),image.native_key));}});
+        while IMAGE_HOLD.with(|hold|hold.get()) {futures_timer::Delay::new(std::time::Duration::from_millis(10)).await;}
+        let bytes=if image.native_key=="broken.png" {b"broken".to_vec()}else {
+            let width=if IMAGE_VERSION.with(|version|version.get())==1 {240}else{120};
+            format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"80\"><rect width=\"{width}\" height=\"80\" fill=\"currentColor\"/></svg>").into_bytes()
+        };
+        Ok((bytes,image.version))
     }
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
         if let Some(text) =
@@ -634,6 +655,8 @@ static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&EXTERNAL_LINKS];
 
 #[component]
 fn App() -> Element {
+    let image_log = use_signal(Vec::<String>::new);
+    use_hook(move || IMAGE_LOG.with(|log|*log.borrow_mut()=Some(image_log)));
     let opened_links = use_signal(Vec::<String>::new);
     use_hook(move || LINK_LOG.with(|value| *value.borrow_mut() = Some(opened_links)));
     let mut show_proportional = use_signal(|| false);
@@ -914,6 +937,7 @@ fn App() -> Element {
         button { id: "syntax", onclick: move |_| { let mut doc = doc; doc.write().text = "fn f() { // 😀 comment\r\n}\r\n".into(); }, "Syntax indentation" }
         button { id: "syntax-string", onclick: move |_| { let mut doc = doc; doc.write().text = "let text = \"{\";\r\n".into(); }, "String indentation" }
         div { class: "language-canonical", hidden: true, "{language_text}" }
+        div {class:"image-log", hidden:true,"{image_log():?}"}
         div { class: "opened-links", hidden: true, "{opened_links():?}" }
         if let Some(id) = show_language() { div { class: "harness-editor language", RustCodeEditorPanel { ws, node: id, lsp } } }
         div { id: "active-source", hidden: true, "{ws.docs.active.read().and_then(|id| ws.document(id)).map(|doc| doc.peek().node.source.to_string()).unwrap_or_default()}" }
@@ -1042,6 +1066,14 @@ fn App() -> Element {
             let mut ws = ws; ws.docs.active.set(Some(id));
             layout_fixture.set(Default::default());
         }, "Setext heading source" }
+        button {id:"image-hold",onclick:move |_|IMAGE_HOLD.with(|hold|hold.set(true)),"Hold image"}
+        button {id:"image-release",onclick:move |_|IMAGE_HOLD.with(|hold|hold.set(false)),"Release image"}
+        button {id:"image-version",onclick:move |_|{IMAGE_VERSION.with(|version|version.set(version.get()+1));let mut ws=ws;ws.sources.graph_epoch.with_mut(|epoch|*epoch+=1);},"Change image"}
+        button {id:"markdown-images",onclick:move |_|{
+            let nested=ws.document(NodeId::derive(&doc.peek().node.source,"nested.md")).unwrap().peek().node.clone();
+            if let Some(mut markdown)=ws.document(nested.id) {markdown.write().text="before 😀\r\n\r\n![**猫**](pics/Caf%C3%A9.svg \"title\")\r\n\r\n![[Café.svg|Alias <safe>]]\r\n\r\n![broken](broken.png)\r\n\r\n![missing](missing.png)\r\n\r\n![huge](huge.png)\r\n\r\ntext ![inline](pics/Café.svg)\r\n\r\nend\r\n".into();}
+            let mut ws=ws;ws.docs.active.set(Some(nested.id)); show_language.set(Some(nested.id));layout_fixture.set(Default::default());
+        },"Markdown images"}
         button { id: "markdown-links", onclick: move |_| {
             let id = NodeId::derive(&doc.peek().node.source, "nested.md");
             if let Some(mut markdown) = ws.document(id) {

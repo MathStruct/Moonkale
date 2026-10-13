@@ -83,3 +83,9 @@ editor-rename-stale = 文档已更改；请重新打开重命名
 
 editor-link-failed = 无法打开链接：{ $error }
 editor-link-heading-missing = 未找到标题：{ $heading }
+
+editor-image-loading = 正在加载图片…
+editor-image-missing = 找不到图片
+editor-image-too-big = 图片超过 24 MiB 限制
+editor-image-pixels = 图片尺寸超过像素限制
+editor-image-failed = 无法显示图片

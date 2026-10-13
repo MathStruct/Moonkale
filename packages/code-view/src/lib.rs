@@ -92,3 +92,7 @@ pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
 pub use moonkale_ext_api::editor as contract;
 pub use native_panel::RustCodeEditorPanel;
 pub use panel::{toggle_wrap, CodeEditorPanel};
+
+mod native_image_parser;
+#[cfg(feature = "markdown-preview")]
+mod native_images;

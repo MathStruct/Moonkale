@@ -83,7 +83,7 @@ fn decode(value: &str) -> Option<String> {
         .filter(|value| !value.chars().any(|ch| ch.is_control()))
 }
 
-fn file_path(from: &str, path: &str) -> Option<String> {
+pub(crate) fn file_path(from: &str, path: &str) -> Option<String> {
     if path.contains('\\') {
         return None;
     }

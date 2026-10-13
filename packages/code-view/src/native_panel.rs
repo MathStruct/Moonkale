@@ -51,6 +51,14 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     let diagnostics = crate::native_diagnostics::use_diagnostics(ws, node, manager);
     let (wiki_marks, follow_wiki) = crate::native_wiki::use_wiki(ws, node);
     let follow_link = crate::native_links::use_follow(ws, node);
+    #[cfg(feature = "markdown-preview")]
+    let follow_image = {
+        let context = crate::native_images::ImageContext { ws, node };
+        use_context_provider(move || context);
+        crate::native_images::use_follow(context)
+    };
+    #[cfg(not(feature = "markdown-preview"))]
+    let follow_image = Callback::new(|_: crate::native_image_parser::Image| {});
     let presence = use_memo(move || {
         let _ = ws.session.presence.read();
         let key = doc.read().node.native_key.clone();
@@ -652,6 +660,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 wiki_marks: wiki_marks(),
                 onwiki: follow_wiki,
                 onlink: follow_link,
+                onimage: follow_image,
                 model,
                 highlights,
                 first_row,

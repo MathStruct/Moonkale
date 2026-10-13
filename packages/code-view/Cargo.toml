@@ -9,6 +9,7 @@ description = "The code editing component (CodeMirror 6 behind a swappable backe
 dioxus = { workspace = true }
 regex = "1"
 url = "2.5.8"
+base64 = { version = "0.22", optional = true }
 unicode-segmentation = { version = "1", optional = true }
 arborium = { version = "2.18.2", default-features = false }
 arborium-tree-sitter = "2.18.2"
@@ -39,7 +40,7 @@ arboard = { version = "3.6.1", optional = true, default-features = false, featur
 
 [features]
 default = ["markdown-preview"]
-markdown-preview = ["dep:unicode-segmentation", "dep:pulldown-cmark"]
+markdown-preview = ["dep:unicode-segmentation", "dep:pulldown-cmark", "dep:base64"]
 layout-fixture = ["markdown-preview"]
 native-desktop = ["dep:arboard"]
 spike-desktop = ["dioxus/desktop", "native-desktop"]

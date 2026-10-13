@@ -154,18 +154,28 @@ pub(crate) async fn measure_presented(
         })
         .collect();
     let mut eval = document::eval(include_str!("native_browser_geometry.js"));
-    eval.send(serde_json::json!({"id": id, "text": text, "segments": segments, "replacements": replacements}))
+    let images = replacements.iter().filter(|value|matches!(value.style,Some(crate::native_decorations::InlineStyle::Image(_))))
+        .map(|value|serde_json::json!({"start":value.start,"end":value.end,"id":format!("image:{}",value.start)})).collect::<Vec<_>>();
+    eval.send(serde_json::json!({"id": id, "text": text, "segments": segments, "replacements": replacements,"images":images}))
         .map_err(|error| format!("send: {error}"))?;
     let received = eval.recv::<Option<Geometry>>().await;
     let _ = eval.send(serde_json::Value::Null);
     let result = received.map_err(|error| format!("receive: {error}"))?;
     let geometry = result.ok_or_else(|| "source-mismatch".to_string())?;
-    let allowed = crate::native_proportional_run::preview_targets(replacements);
+    let mut allowed = crate::native_proportional_run::preview_targets(replacements)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect::<Vec<_>>();
+    allowed.extend(
+        crate::native_proportional_run::preview_images(replacements)
+            .into_iter()
+            .map(|(id, _)| id),
+    );
     if geometry.valid(scalar)
         && geometry
             .links
             .iter()
-            .all(|link| allowed.iter().any(|(id, _)| id == &link.id))
+            .all(|link| allowed.iter().any(|id| id == &link.id))
     {
         Ok(geometry)
     } else {

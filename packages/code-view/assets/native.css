@@ -78,3 +78,7 @@
 
 .mk-preview-link { text-decoration: underline; text-underline-offset: 0.15em; color: var(--mk-code-link, currentColor); }
 .mk-preview-link[data-link-resolved="false"] { text-decoration-style: dashed; opacity: 0.75; }
+
+.mk-image-block { max-width:640px; width:100%; white-space:normal; }
+.mk-preview-image { display:block; max-width:100%; max-height:320px; width:auto; height:auto; }
+.mk-image-placeholder { height:160px; display:flex; align-items:center; justify-content:center; background:var(--mk-surface); color:var(--mk-muted); border:1px solid var(--mk-line); font-size:16px; }

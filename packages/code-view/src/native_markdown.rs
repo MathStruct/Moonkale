@@ -230,6 +230,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
+    let image_values = crate::native_image_parser::previews(source);
     let list_values = crate::native_markdown_lists::previews(source);
     let scalar_bytes: Vec<_> = source
         .char_indices()
@@ -459,6 +460,20 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
     }
     for (range, label, style) in &list_values {
         emit(range.clone(), label.clone(), style.clone());
+    }
+    values.sort_by_key(|value| value.id);
+    for (range, image) in image_values {
+        let start = source[..range.start].chars().count();
+        let end = start + source[range].chars().count();
+        values.push(Decoration {
+            provider: Provider::Markdown,
+            id: start,
+            kind: Kind::Replace {
+                range: start..end,
+                widget: Some(image.label()),
+                style: Some(InlineStyle::Image(image)),
+            },
+        });
     }
     values.sort_by_key(|value| value.id);
     Batch { revision, values }
@@ -839,5 +854,38 @@ mod tests {
         ] {
             assert!(previews(source).is_empty(), "{source}");
         }
+    }
+    #[test]
+    fn image_references_rebase_unicode_ranges_and_refresh_destinations() {
+        let source = "😀\r\n\r\n![猫][id]\r\n\r\n[id]: first.svg\r\n";
+        let first = batch(DocumentRevision(20), source);
+        let same = batch(DocumentRevision(21), source);
+        assert!(first.values == same.values);
+        let prefixed = batch(DocumentRevision(22), &format!("猫\r\n\r\n{source}"));
+        let image_range = |batch: &crate::native_decorations::Batch| {
+            batch
+                .values
+                .iter()
+                .find_map(|value| match &value.kind {
+                    Kind::Replace {
+                        range,
+                        style: Some(InlineStyle::Image(_)),
+                        ..
+                    } => Some(range.clone()),
+                    _ => None,
+                })
+                .expect("image replacement")
+        };
+        let old = image_range(&first);
+        let new = image_range(&prefixed);
+        assert_eq!(new.start, old.start + 5);
+        assert_eq!(new.end, old.end + 5);
+        let changed = batch(
+            DocumentRevision(23),
+            &source.replace("first.svg", "second.svg"),
+        );
+        assert!(changed.values.iter().any(|value| matches!(&value.kind,
+            Kind::Replace {style: Some(InlineStyle::Image(image)), ..}
+                if image.destination == crate::native_image_parser::Destination::File("second.svg".into()))));
     }
 }

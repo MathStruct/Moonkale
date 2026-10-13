@@ -7008,6 +7008,7 @@ dependencies = [
  "arborium-julia",
  "arborium-markdown",
  "arborium-tree-sitter",
+ "base64 0.22.1",
  "cc",
  "dioxus",
  "dioxus-code",
