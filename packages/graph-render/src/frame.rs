@@ -853,6 +853,7 @@ mod tests {
             layers: Vec::new(),
             height: crate::graph::RECT_HEIGHT,
             shape: crate::graph::Shape::Circle,
+            sized: false,
             stroke: [0.0, 0.0, 0.0, 0.0],
             icon: None,
         }

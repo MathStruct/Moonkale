@@ -18,7 +18,8 @@ use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
 use moonkale_core::NodeId as CoreNodeId;
 use moonkale_ext_api::flow::{
-    find_kind, validate, Block, Flow, FlowLibrary, ParamKind, PortType, Wire,
+    bipartite_refusal, channel_refusal, find_kind, inner_ports, validate, Block, BlockPorts, Flow,
+    FlowLibrary, ParamKind, Port, PortType, Role, Subflow, Wire, BOUNDARY,
 };
 use moonkale_ext_api::{t, Workspace};
 use moonkale_graph_assets::{RENDER_JS, RENDER_WASM};
@@ -59,7 +60,7 @@ fn port_color(ty: &PortType) -> &'static str {
 
 #[derive(Serialize)]
 struct OutNode<'a> {
-    id: &'a str,
+    id: String,
     label: &'a str,
     /// The block's `library/kind` (the engine's own `kind` field); the
     /// explicit `color` decides how it draws.
@@ -110,50 +111,256 @@ struct OutScene<'a> {
 
 /// `Flow` → the engine's scene. The ids are the blocks' and wires' ids, so
 /// the engine's incremental `set_graph` keeps the live positions and the
-/// selection across every sync.
+/// selection across every sync. The root scope; an entered subflow draws
+/// through [`subflow_scene`] — the engine never learns which level it
+/// holds (ADR-0021 §4).
 fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> OutScene<'a> {
-    let index: BTreeMap<&str, usize> = flow
-        .blocks
+    let mut b = SceneBuilder::default();
+    for block in flow.blocks.iter() {
+        let resolved = flow.ports_of(libs, block);
+        let bad = issues.iter().any(|x| x.about == block.id);
+        b.push(BlockOut {
+            id: block.id.clone(),
+            // A factor graph's variable shows its own name (θ, y), not
+            // its kind's (ADR-0022).
+            name: match block.params.get("name") {
+                Some(n)
+                    if !n.trim().is_empty()
+                        && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
+                {
+                    n.as_str()
+                }
+                _ => resolved
+                    .map(|p| p.name)
+                    .unwrap_or_else(|| block.kind.as_str()),
+            },
+            kind: if block.subflow.is_some() {
+                "subflow"
+            } else {
+                block.kind.as_str()
+            },
+            color: if bad {
+                "#e86b6a"
+            } else if block.subflow.is_some() {
+                "#b48cf0"
+            } else {
+                kind_color(&block.kind)
+            },
+            pos: [block.x as f32, block.y as f32],
+            resolved,
+        });
+    }
+    b.edges(
+        &flow.wires,
+        &|id, port| {
+            flow.blocks
+                .iter()
+                .find(|x| x.id == id)
+                .and_then(|x| flow.ports_of(libs, x))
+                .is_some_and(|p| p.connections.iter().any(|p| p.name == port))
+        },
+        issues,
+        "",
+    )
+}
+
+/// An entered subflow's scene (ADR-0021 §3-4): its own blocks and wires,
+/// plus one pseudo-block per declared boundary port — a declared input
+/// on the left edge (a source inside), an output on the right (a
+/// sink), a pin on the top — placed by the panel, never stored. The
+/// declaration is the truth; the pseudo-block is the illusion.
+fn subflow_scene<'a>(
+    flow: &'a Flow,
+    sub: &'a Subflow,
+    libs: &'a [FlowLibrary],
+    issues: &[Issue],
+) -> OutScene<'a> {
+    let mut b = SceneBuilder::default();
+    let boundary_of = |p: &Port| format!("{BOUNDARY}{}", p.name);
+    for (j, p) in sub.inputs.iter().enumerate() {
+        b.push(BlockOut {
+            id: boundary_of(p),
+            name: p.name.as_str(),
+            kind: "boundary/in",
+            color: "#9ab7ff",
+            pos: [30.0, 60.0 + 80.0 * j as f32],
+            resolved: Some(BlockPorts {
+                name: &p.name,
+                inputs: &[],
+                outputs: std::slice::from_ref(p),
+                connections: &[],
+                params: &[],
+                role: None,
+            }),
+        });
+    }
+    for (j, p) in sub.outputs.iter().enumerate() {
+        b.push(BlockOut {
+            id: boundary_of(p),
+            name: p.name.as_str(),
+            kind: "boundary/out",
+            color: "#9ab7ff",
+            pos: [630.0, 60.0 + 80.0 * j as f32],
+            resolved: Some(BlockPorts {
+                name: &p.name,
+                inputs: std::slice::from_ref(p),
+                outputs: &[],
+                connections: &[],
+                params: &[],
+                role: None,
+            }),
+        });
+    }
+    for (j, p) in sub.connections.iter().enumerate() {
+        b.push(BlockOut {
+            id: boundary_of(p),
+            name: p.name.as_str(),
+            kind: "boundary/pin",
+            color: "#9ab7ff",
+            pos: [330.0, 40.0 + 70.0 * j as f32],
+            resolved: Some(BlockPorts {
+                name: &p.name,
+                inputs: &[],
+                outputs: &[],
+                connections: std::slice::from_ref(p),
+                params: &[],
+                role: None,
+            }),
+        });
+    }
+    for block in sub.blocks.iter() {
+        let resolved = flow.ports_of(libs, block);
+        let bad = issues
+            .iter()
+            .any(|x| x.about == format!("{}/{}", sub.id, block.id));
+        b.push(BlockOut {
+            id: block.id.clone(),
+            // A factor graph's variable shows its own name (θ, y), not
+            // its kind's (ADR-0022).
+            name: match block.params.get("name") {
+                Some(n)
+                    if !n.trim().is_empty()
+                        && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
+                {
+                    n.as_str()
+                }
+                _ => resolved
+                    .map(|p| p.name)
+                    .unwrap_or_else(|| block.kind.as_str()),
+            },
+            kind: if block.subflow.is_some() {
+                "subflow"
+            } else {
+                block.kind.as_str()
+            },
+            color: if bad {
+                "#e86b6a"
+            } else if block.subflow.is_some() {
+                "#b48cf0"
+            } else {
+                kind_color(&block.kind)
+            },
+            pos: [block.x as f32, block.y as f32],
+            resolved,
+        });
+    }
+    b.edges(
+        &sub.wires,
+        &|id, port| {
+            if let Some(name) = id.strip_prefix(BOUNDARY) {
+                sub.connections
+                    .iter()
+                    .any(|p| p.name == name && p.name == port)
+            } else {
+                sub.blocks
+                    .iter()
+                    .find(|x| x.id == id)
+                    .and_then(|x| flow.ports_of(libs, x))
+                    .is_some_and(|p| p.connections.iter().any(|p| p.name == port))
+            }
+        },
+        issues,
+        &sub.id,
+    )
+}
+
+/// The library a document is written in: the first block — at the root,
+/// else inside a subflow — whose kind names a known library. `None` for
+/// an empty flow (the palette then starts on the first library).
+fn document_library(flow: &Flow, libs: &[FlowLibrary]) -> Option<usize> {
+    flow.blocks
         .iter()
-        .enumerate()
-        .map(|(i, b)| (b.id.as_str(), i))
-        .collect();
-    let mut nodes = Vec::new();
-    let mut ports = Vec::new();
-    for (i, b) in flow.blocks.iter().enumerate() {
-        // A block resolves through its subflow when it references one
-        // (ADR-0021 §2) — the engine never learns what a subflow is;
-        // it receives one more node with ports.
-        let resolved = flow.ports_of(libs, b);
-        let sub = b.subflow.is_some();
-        let name = resolved.map(|p| p.name).unwrap_or_else(|| b.kind.as_str());
-        let bad = issues.iter().any(|x| x.about == b.id);
+        .chain(flow.subflows.iter().flat_map(|s| s.blocks.iter()))
+        .find_map(|b| {
+            let (lib, _) = b.kind.split_once('/')?;
+            libs.iter().position(|l| l.id == lib)
+        })
+}
+
+/// One block's appearance, for [`SceneBuilder::push`] — the shape the
+/// root scope and an entered subflow share (ADR-0021 §4).
+struct BlockOut<'a> {
+    id: String,
+    name: &'a str,
+    kind: &'a str,
+    color: &'static str,
+    pos: [f32; 2],
+    resolved: Option<BlockPorts<'a>>,
+}
+
+/// Builds a scope's scene — the root flow's or an entered subflow's;
+/// the engine never learns which level it draws (ADR-0021 §4).
+#[derive(Default)]
+struct SceneBuilder<'a> {
+    index: BTreeMap<String, usize>,
+    nodes: Vec<OutNode<'a>>,
+    ports: Vec<OutPort>,
+}
+
+impl<'a> SceneBuilder<'a> {
+    /// One block: the node, and its ports — inputs on the left,
+    /// outputs on the right, acausal pins on the top edge (ADR-0020).
+    fn push(&mut self, block: BlockOut<'a>) {
+        let BlockOut {
+            id,
+            name,
+            kind,
+            color,
+            pos,
+            resolved,
+        } = block;
+        let i = self.nodes.len();
+        self.index.insert(id.clone(), i);
         let (n_in, n_out) = resolved
             .map(|p| (p.inputs.len(), p.outputs.len()))
             .unwrap_or((0, 0));
-        // Tall enough for its ports; a little room for the label.
-        let height = (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0);
-        let width = BLOCK_W.max(name.len() as f32 * 1.9);
-        nodes.push(OutNode {
-            id: &b.id,
+        // Tall enough for its ports; a little room for the label. A
+        // factor graph's variable is a circle, as on paper (ADR-0022):
+        // it has no behaviour, only the one pin factors attach to.
+        let variable = resolved.is_some_and(|p| p.role == Some(Role::Variable));
+        let (shape, width, height) = if variable {
+            ("circle", 14.0, 14.0)
+        } else {
+            (
+                "rect",
+                BLOCK_W.max(name.len() as f32 * 1.9),
+                (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0),
+            )
+        };
+        self.nodes.push(OutNode {
+            id,
             label: name,
-            kind: if sub { "subflow" } else { b.kind.as_str() },
-            color: if bad {
-                "#e86b6a"
-            } else if sub {
-                "#b48cf0"
-            } else {
-                kind_color(&b.kind)
-            },
-            shape: "rect",
+            kind,
+            color,
+            shape,
             width,
             height,
-            pos: [b.x as f32, b.y as f32],
-            pinned: true, // the document owns the positions
+            pos,
+            pinned: true, // the document (or the declaration) owns the positions
         });
         if let Some(s) = resolved {
             for (j, p) in s.inputs.iter().enumerate() {
-                ports.push(OutPort {
+                self.ports.push(OutPort {
                     node: i,
                     name: p.name.clone(),
                     side: "left",
@@ -163,7 +370,7 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
                 });
             }
             for (j, p) in s.outputs.iter().enumerate() {
-                ports.push(OutPort {
+                self.ports.push(OutPort {
                     node: i,
                     name: p.name.clone(),
                     side: "right",
@@ -172,11 +379,10 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
                     color: port_color(&p.ty),
                 });
             }
-            // Acausal pins ride the top edge (ADR-0020) — drawn like any
-            // port, in their domain's colour, never an arrow. A subflow
-            // block's pins are its subflow's declared ones (ADR-0021 §2).
+            // Acausal pins ride the top edge (ADR-0020) — drawn like
+            // any port, in their domain's colour, never an arrow.
             for (j, p) in s.connections.iter().enumerate() {
-                ports.push(OutPort {
+                self.ports.push(OutPort {
                     node: i,
                     name: p.name.clone(),
                     side: "top",
@@ -187,43 +393,50 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
             }
         }
     }
-    // A wire between two pins is an equation: drawn without an arrowhead
-    // (ADR-0020). The pins are named per block — a subflow block's come
-    // from its subflow, not a library kind (ADR-0021 §2).
-    let is_pin = |block: &Block, port: &str| {
-        flow.ports_of(libs, block)
-            .is_some_and(|p| p.connections.iter().any(|p| p.name == port))
-    };
-    let edges = flow
-        .wires
-        .iter()
-        // A wire naming a gone block parses (validate reports it) — it
-        // draws nothing here instead of panicking on the index.
-        .filter_map(|w| {
-            let (Some(&a), Some(&b)) = (
-                index.get(w.from_block.as_str()),
-                index.get(w.to_block.as_str()),
-            ) else {
-                return None;
-            };
-            let directed =
-                !(is_pin(&flow.blocks[a], &w.from_port) && is_pin(&flow.blocks[b], &w.to_port));
-            Some(OutEdge {
-                id: &w.id,
-                a,
-                b,
-                directed,
-                a_port: &w.from_port,
-                b_port: &w.to_port,
-                route: OutRoute::Ortho {},
-                color: issues.iter().any(|x| x.about == w.id).then_some("#e86b6a"),
+
+    /// The wires: a wire between two pins is an equation, drawn without
+    /// an arrowhead (ADR-0020). `scope` prefixes an inner issue's
+    /// `about` ("amp/w1") — a wire of this scope is bad when an issue
+    /// names it.
+    fn edges(
+        self,
+        wires: &'a [Wire],
+        is_pin: &dyn Fn(&str, &str) -> bool,
+        issues: &[Issue],
+        scope: &str,
+    ) -> OutScene<'a> {
+        let bad_wire = |id: &str| issues.iter().any(|x| x.about == format!("{scope}{id}"));
+        let edges = wires
+            .iter()
+            // A wire naming a gone block parses (validate reports it) — it
+            // draws nothing here instead of panicking on the index.
+            .filter_map(|w| {
+                let (Some(&a), Some(&b)) = (
+                    self.index.get(w.from_block.as_str()),
+                    self.index.get(w.to_block.as_str()),
+                ) else {
+                    return None;
+                };
+                let directed =
+                    !(is_pin(&w.from_block, &w.from_port) && is_pin(&w.to_block, &w.to_port));
+                let color = bad_wire(&w.id).then_some("#e86b6a");
+                Some(OutEdge {
+                    id: &w.id,
+                    a,
+                    b,
+                    directed,
+                    a_port: &w.from_port,
+                    b_port: &w.to_port,
+                    route: OutRoute::Ortho {},
+                    color,
+                })
             })
-        })
-        .collect();
-    OutScene {
-        nodes,
-        edges,
-        ports,
+            .collect();
+        OutScene {
+            nodes: self.nodes,
+            edges,
+            ports: self.ports,
+        }
     }
 }
 
@@ -269,6 +482,13 @@ enum FromJs {
     Connect {
         from: End,
         to: End,
+    },
+    /// The engine's double-click on a node — entering a subsystem block
+    /// opens its subflow (ADR-0021 §4). The engine says `dblclick`, not
+    /// camelCase.
+    #[serde(rename = "dblclick")]
+    DblClick {
+        id: String,
     },
     Moved {
         /// The nodes that moved — a drag-end names the dragged block,
@@ -369,7 +589,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let mut last_text = use_signal(|| doc.peek().text.clone());
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut notice: Signal<Option<String>> = use_signal(|| None);
-    let mut selected_lib = use_signal(|| 0usize);
+    // The palette's library: the reader's choice once made, else the one
+    // the document already uses (a RxInfer flow opens on RxInfer, not
+    // on whichever library registered first).
+    let mut chosen_lib: Signal<Option<usize>> = use_signal(|| None);
     let mut selected: Signal<(Vec<String>, Vec<String>)> = use_signal(|| (Vec::new(), Vec::new()));
     let mut eval: Signal<Option<Eval>> = use_signal(|| None);
     let mut loaded = use_signal(|| false);
@@ -382,6 +605,11 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let mut redo_stack: Signal<Vec<String>> = use_signal(Vec::new);
     // Where the selected block sits on the canvas (the editor follows).
     let mut editor_pos: Signal<Option<(f32, f32)>> = use_signal(|| None);
+    // The open scope's stack of subflow ids (ADR-0021 §4): the root at
+    // `[]`, a subflow once entered. The scene, the mutators and the
+    // palette all serve whichever scope is on top; the engine never
+    // knows a level exists.
+    let mut scope: Signal<Vec<String>> = use_signal(Vec::new);
     // One DOM id per panel: two split views show two flows at once, and
     // the canvas ids and `flowViews` key derive from it — a fixed id
     // made the second view draw into the first's canvas (the review's #6).
@@ -417,8 +645,40 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             edges,
                             screen,
                         }) => {
-                            editor_pos.set(screen.filter(|s| s.len() == 2).map(|s| (s[0], s[1])));
-                            selected.set((nodes, edges))
+                            // An empty-canvas click pops a scope open
+                            // (ADR-0021 §4) — the way out beside Escape.
+                            if nodes.is_empty() && !scope.read().is_empty() {
+                                scope.with_mut(|sc| {
+                                    sc.pop();
+                                });
+                                selected.set((Vec::new(), Vec::new()));
+                                editor_pos.set(None);
+                            } else {
+                                editor_pos
+                                    .set(screen.filter(|s| s.len() == 2).map(|s| (s[0], s[1])));
+                                selected.set((nodes, edges))
+                            }
+                        }
+                        Ok(FromJs::DblClick { id }) => {
+                            // A double-click on a subsystem block enters
+                            // its subflow (ADR-0021 §4): the scene swaps,
+                            // the breadcrumb names the stack.
+                            let open = scope.read().clone();
+                            let enters = flow
+                                .read()
+                                .scope(&open)
+                                .and_then(|sc| {
+                                    sc.blocks.iter().find(|b| b.id == id && b.subflow.is_some())
+                                })
+                                .and_then(|b| b.subflow.clone());
+                            if let Some(sub) = enters {
+                                if flow.read().subflow(&sub).is_some() {
+                                    scope.with_mut(|sc| sc.push(sub));
+                                    selected.set((Vec::new(), Vec::new()));
+                                    editor_pos.set(None);
+                                    notice.set(None);
+                                }
+                            }
                         }
                         Ok(FromJs::Connect { from, to }) => {
                             // A connect that races a reload into a broken
@@ -433,8 +693,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             // found, and one disabled must not lend its
                             // ports to a connect (the review's #7).
                             let libs = ws.contrib.flow_libraries.read().clone();
+                            let open = scope.read().clone();
                             let before = flow.read().to_json();
-                            let (ok, why) = wire(&mut flow, &libs, &from, &to);
+                            let (ok, why) = wire(&mut flow, &open, &libs, &from, &to);
                             if ok {
                                 push_undo(undo_stack, redo_stack, before);
                                 notice.set(None);
@@ -453,14 +714,17 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             if broken.peek().is_some() {
                                 continue;
                             }
+                            let open = scope.read().clone();
                             let before = flow.read().to_json();
                             flow.with_mut(|f| {
-                                for b in &mut f.blocks {
-                                    if let Some(p) = positions.get(&b.id) {
-                                        b.x = p[0] as f64;
-                                        b.y = p[1] as f64;
+                                let _ = f.with_scope(&open, |blocks, _| {
+                                    for b in blocks.iter_mut() {
+                                        if let Some(p) = positions.get(&b.id) {
+                                            b.x = p[0] as f64;
+                                            b.y = p[1] as f64;
+                                        }
                                     }
-                                }
+                                });
                             });
                             push_undo(undo_stack, redo_stack, before);
                             // The editor follows a dragged selected block.
@@ -502,20 +766,31 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let eval_for_scene = eval;
     let loaded_for_scene = loaded;
     let mut fitted: Signal<Option<[f64; 4]>> = use_signal(|| None);
+    let mut fitted_scope: Signal<Vec<String>> = use_signal(Vec::new);
     use_effect(move || {
+        let open = scope();
         if loaded_for_scene() {
             let libs = ws.contrib.flow_libraries.read().clone();
-            push_graph(&eval_for_scene, &flow, &libs);
+            push_graph(&eval_for_scene, &flow, &open, &libs);
+            // The open scope's blocks bound the frame — entering a
+            // scope refits by construction (its frame differs).
             let bounds = flow
                 .read()
-                .blocks
-                .iter()
+                .scope(&open)
+                .map(|sc| sc.blocks.iter())
+                .into_iter()
+                .flatten()
                 .fold(None::<[f64; 4]>, |a, b| match a {
                     None => Some([b.x, b.y, b.x, b.y]),
                     Some([x0, y0, x1, y1]) => {
                         Some([x0.min(b.x), y0.min(b.y), x1.max(b.x), y1.max(b.y)])
                     }
                 });
+            let scope_changed = *fitted_scope.peek() != open;
+            if scope_changed {
+                fitted.set(None);
+                fitted_scope.set(open.clone());
+            }
             let refit = match (bounds, fitted()) {
                 (Some(b), Some(f)) => b[0] < f[0] || b[1] < f[1] || b[2] > f[2] || b[3] > f[3],
                 (Some(_), None) => true,
@@ -545,6 +820,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             // The selection names blocks of the *old* document; keeping it
             // let Delete act on a stale view (#11, the review's #3).
             selected.set((Vec::new(), Vec::new()));
+            scope.set(Vec::new());
             match Flow::parse(&text) {
                 Ok(f) => {
                     broken.set(None);
@@ -684,26 +960,75 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         let Some((lib, k)) = find_kind(&libs, &kind) else {
             return;
         };
-        let n = flow.read().blocks.len();
+        let open = scope.read().clone();
+        let n = flow
+            .read()
+            .scope(&open)
+            .map(|sc| sc.blocks.len())
+            .unwrap_or(0);
         let (col, row) = ((n % 3) as f64, (n / 3) as f64);
-        let params = k
+        let params: BTreeMap<String, String> = k
             .params
             .iter()
             .map(|p| (p.name.clone(), p.default.clone()))
             .collect();
         let before = flow.read().to_json();
         flow.with_mut(|f| {
-            f.blocks.push(Block {
-                id: format!(
-                    "{}-{}",
-                    k.id,
-                    &uuid::Uuid::new_v4().simple().to_string()[..6]
-                ),
-                kind: format!("{}/{}", lib.id, k.id),
-                x: 30.0 + col * 165.0,
-                y: 30.0 + row * 170.0,
-                params,
-                subflow: None, // a palette block is a library block
+            let _ = f.with_scope(&open, |blocks, _| {
+                blocks.push(Block {
+                    id: format!(
+                        "{}-{}",
+                        k.id,
+                        &uuid::Uuid::new_v4().simple().to_string()[..6]
+                    ),
+                    kind: format!("{}/{}", lib.id, k.id),
+                    x: 30.0 + col * 165.0,
+                    y: 30.0 + row * 170.0,
+                    params: params.clone(),
+                    subflow: None, // a palette block is a library block
+                });
+            });
+        });
+        push_undo(undo_stack, redo_stack, before);
+        notice.set(None);
+        sync(&flow, &mut last_text, &mut doc, &broken);
+        // No scene push — the flow change re-runs the scene effect.
+    };
+
+    // The palette's Subsystem button creates a subflow and a block
+    // referencing it (ADR-0021 stage B): an empty subflow you enter
+    // (double-click the block) and fill. Declaring boundary ports is
+    // its own UX, deliberately not decided by the ADR — today the
+    // declaration is written in the file.
+    let create_subflow = move |_| {
+        if broken.peek().is_some() {
+            return;
+        }
+        let open = scope.read().clone();
+        let n = flow.read().subflows.len();
+        let placed = flow
+            .read()
+            .scope(&open)
+            .map(|sc| sc.blocks.len())
+            .unwrap_or(0);
+        let (col, row) = ((placed % 3) as f64, (placed / 3) as f64);
+        let suffix = uuid::Uuid::new_v4().simple().to_string()[..6].to_string();
+        let before = flow.read().to_json();
+        flow.with_mut(|f| {
+            f.subflows.push(Subflow {
+                id: format!("subflow-{suffix}"),
+                name: format!("Subsystem {}", n + 1),
+                ..Default::default()
+            });
+            let _ = f.with_scope(&open, |blocks, _| {
+                blocks.push(Block {
+                    id: format!("subsystem-{suffix}"),
+                    kind: "subflow".into(),
+                    x: 30.0 + col * 165.0,
+                    y: 30.0 + row * 170.0,
+                    params: Default::default(),
+                    subflow: Some(format!("subflow-{suffix}")),
+                });
             });
         });
         push_undo(undo_stack, redo_stack, before);
@@ -717,11 +1042,14 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         if broken.peek().is_some() {
             return; // #11: a broken document is never written
         }
+        let open = scope.read().clone();
         let before = flow.read().to_json();
         flow.with_mut(|f| {
-            if let Some(b) = f.blocks.iter_mut().find(|b| b.id == bid) {
-                b.params.insert(name, value);
-            }
+            let _ = f.with_scope(&open, |blocks, _| {
+                if let Some(b) = blocks.iter_mut().find(|b| b.id == bid) {
+                    b.params.insert(name.clone(), value.clone());
+                }
+            });
         });
         push_undo(undo_stack, redo_stack, before);
         sync(&flow, &mut last_text, &mut doc, &broken);
@@ -739,13 +1067,16 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         if nodes.is_empty() && wires.is_empty() {
             return;
         }
+        let open = scope.read().clone();
         let before = flow.read().to_json();
         flow.with_mut(|f| {
-            f.blocks.retain(|b| !nodes.contains(&b.id));
-            f.wires.retain(|w| {
-                !wires.contains(&w.id)
-                    && !nodes.contains(&w.from_block)
-                    && !nodes.contains(&w.to_block)
+            let _ = f.with_scope(&open, |blocks, scope_wires| {
+                blocks.retain(|b| !nodes.contains(&b.id));
+                scope_wires.retain(|w| {
+                    !wires.contains(&w.id)
+                        && !nodes.contains(&w.from_block)
+                        && !nodes.contains(&w.to_block)
+                });
             });
         });
         push_undo(undo_stack, redo_stack, before);
@@ -775,6 +1106,17 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
         redo_stack.with_mut(|r| r.push(cur));
         flow.set(f);
+        // A snapshot is the whole document; a scope the restored
+        // document no longer holds (its subflow was deleted) pops off
+        // the stack (ADR-0021 §4).
+        let mut open = scope.read().clone();
+        {
+            let f = flow.read();
+            while !open.is_empty() && f.scope(&open).is_none() {
+                open.pop();
+            }
+        }
+        scope.set(open);
         selected.set((Vec::new(), Vec::new()));
         editor_pos.set(None);
         notice.set(None);
@@ -796,6 +1138,14 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
         undo_stack.with_mut(|u| u.push(cur));
         flow.set(f);
+        let mut open = scope.read().clone();
+        {
+            let f = flow.read();
+            while !open.is_empty() && f.scope(&open).is_none() {
+                open.pop();
+            }
+        }
+        scope.set(open);
         selected.set((Vec::new(), Vec::new()));
         editor_pos.set(None);
         notice.set(None);
@@ -805,9 +1155,12 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // The selected block's parameters (spec 031 §7: one editor for the
     // selected node, not a component per block).
     let (sel_blocks, _sel_wires) = selected.read().clone();
-    let sel_block = sel_blocks
-        .first()
-        .and_then(|id| flow.read().block(id).cloned());
+    let sel_block = sel_blocks.first().and_then(|id| {
+        let open = scope.read().clone();
+        flow.read()
+            .scope(&open)
+            .and_then(|sc| sc.blocks.iter().find(|b| b.id == *id).cloned())
+    });
     let sel_kind = sel_block
         .as_ref()
         .and_then(|b| find_kind(&libs, &b.kind).map(|(_, k)| k.clone()));
@@ -842,6 +1195,16 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         }
                         _ => {}
                     }
+                } else if e.key() == Key::Escape {
+                    // The way out of a subflow, beside the empty-canvas
+                    // click (ADR-0021 §4).
+                    if !scope.read().is_empty() {
+                        scope.with_mut(|sc| {
+                            sc.pop();
+                        });
+                        selected.set((Vec::new(), Vec::new()));
+                        editor_pos.set(None);
+                    }
                 } else if matches!(e.key(), Key::Delete | Key::Backspace) {
                     // The editor stops its own keys (below), so a key
                     // that reaches the root is aimed at the canvas.
@@ -850,11 +1213,18 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 }
             },
             div { class: "mk-editor-toolbar",
-                span { class: "mk-editor-path", "{doc.read().node.native_key}" }
+                span { class: "mk-editor-path",
+                    "{doc.read().node.native_key}",
+                    // The breadcrumb of an open scope stack
+                    // (ADR-0021 §4): parent / sub_1 / …
+                    for sid in scope.read().iter() {
+                        { if let Some(sub) = flow.read().subflow(sid) { format!(" / {}", sub.name) } else { String::new() } }
+                    }
+                }
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "flow-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
                 if let Some(n) = notice() { span { class: "mk-flow-notice", "{n}" } }
-                span { class: "mk-flow-status", "data-blocks": "{flow.read().blocks.len()}", "data-wires": "{flow.read().wires.len()}", "data-issues": "{issues_now.len()}",
+                span { class: "mk-flow-status", "data-blocks": "{flow.read().scope(&scope.read()).map(|sc| sc.blocks.len()).unwrap_or(0)}", "data-wires": "{flow.read().scope(&scope.read()).map(|sc| sc.wires.len()).unwrap_or(0)}", "data-issues": "{issues_now.len()}",
                     {t!(ws, L, "flow-counts", blocks = flow.read().blocks.len(), wires = flow.read().wires.len())}
                     if !issues_now.is_empty() { span { class: "mk-flow-issues", title: "{issues_now.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues_now.len())} } }
                 }
@@ -892,13 +1262,25 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         if libs.is_empty() {
                             p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
                         } else {
-                            if libs.len() > 1 {
-                                select { class: "mk-input", onchange: move |e| selected_lib.set(e.value().parse().unwrap_or(0)),
-                                    for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == selected_lib(), "{l.name}" } }
+                            {
+                                let current = chosen_lib()
+                                    .filter(|i| *i < libs.len())
+                                    .or_else(|| document_library(&flow.read(), &libs))
+                                    .unwrap_or(0);
+                                rsx! {
+                                    if libs.len() > 1 {
+                                        select { class: "mk-input", onchange: move |e| chosen_lib.set(e.value().parse().ok()),
+                                            for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == current, "{l.name}" } }
+                                        }
+                                    }
                                 }
                             }
                             {
-                                let lib = libs.get(selected_lib()).or(libs.first()).cloned();
+                                let current = chosen_lib()
+                                    .filter(|i| *i < libs.len())
+                                    .or_else(|| document_library(&flow.read(), &libs))
+                                    .unwrap_or(0);
+                                let lib = libs.get(current).or(libs.first()).cloned();
                                 rsx! {
                                     if let Some(lib) = lib {
                                         div { class: "mk-flow-palette-title", "{lib.name}" }
@@ -933,6 +1315,17 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 }
                             }
                         }
+                    }
+                    // The built-in palette entry: a subsystem,
+                    // whatever libraries are enabled (ADR-0021 B).
+                    button {
+                        class: "mk-flow-palette-block mk-flow-subsystem",
+                        title: t!(ws, L, "flow-subsystem-title"),
+                        onclick: {
+                            let mut create_subflow = create_subflow;
+                            move |_| create_subflow(())
+                        },
+                        {t!(ws, L, "flow-subsystem")}
                     }
                     div {
                         class: "mk-flow-canvas",
@@ -1042,11 +1435,28 @@ fn sync(
     doc.with_mut(|d| d.text = text);
 }
 
-/// Re-send the scene after a mutation (the engine matches by id).
-fn push_graph(eval: &Signal<Option<Eval>>, flow: &Signal<Flow>, libs: &[FlowLibrary]) {
+/// Re-send the scene after a mutation (the engine matches by id). The
+/// open scope's scene — the root's or the entered subflow's.
+fn push_graph(
+    eval: &Signal<Option<Eval>>,
+    flow: &Signal<Flow>,
+    scope: &[String],
+    libs: &[FlowLibrary],
+) {
     if let Some(ev) = eval.peek().as_ref() {
         let f = flow.read();
-        let scene = to_scene(&f, libs, &validate(&f, libs));
+        let issues = validate(&f, libs);
+        let scene = match f.scope(scope).and_then(|sc| {
+            scope
+                .last()
+                .and_then(|id| f.subflow(id))
+                .map(|sub| (sub, sc))
+        }) {
+            // An entered subflow: its own blocks and wires, plus its
+            // declared boundary as pseudo-blocks (ADR-0021 §3).
+            Some((sub, _)) => subflow_scene(&f, sub, libs, &issues),
+            None => to_scene(&f, libs, &issues),
+        };
         let _ = ev.send(ToJs::SetGraph { scene });
     }
 }
@@ -1055,8 +1465,16 @@ fn push_graph(eval: &Signal<Option<Eval>>, flow: &Signal<Flow>, libs: &[FlowLibr
 /// types unify — and a pin wire, an equation the ModelingToolkit rung
 /// needs (ADR-0020), connects in either drag order, may share its pin
 /// with other wires (a bus), and never replaces anything. The renderer
-/// never mutates the model.
-fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> (bool, String) {
+/// never mutates the model. The wire lands in the open scope
+/// (ADR-0021 §4): at the root, or inside the entered subflow — where a
+/// boundary pseudo-block resolves through the declaration.
+fn wire(
+    flow: &mut Signal<Flow>,
+    path: &[String],
+    libs: &[FlowLibrary],
+    from: &End,
+    to: &End,
+) -> (bool, String) {
     /// A wire is dataflow (leaves an output, enters an input) or an
     /// equation (both ends are pins) — the retention rule follows.
     enum Accepted {
@@ -1066,12 +1484,19 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
     // The type check reads; the write mutates — the two must not overlap.
     let checked = {
         let f = flow.read();
-        let (Some(fb), Some(tb)) = (f.block(&from.node), f.block(&to.node)) else {
-            return (false, "wire: unknown block".into());
+        let Some(sc) = f.scope(path) else {
+            return (false, "wire: unknown scope".into());
         };
-        // A subflow block's ports are its subflow's declared boundary
-        // (ADR-0021 §2) — one resolution site with the library kinds.
-        let (Some(fp), Some(tp)) = (f.ports_of(libs, fb), f.ports_of(libs, tb)) else {
+        let ports_of = |id: &str| -> Option<BlockPorts<'_>> {
+            match path.last().and_then(|sid| f.subflow(sid)) {
+                // Inside a subflow, `inner_ports` resolves a boundary
+                // pseudo-block through the declaration (ADR-0021 §3)
+                // and every other block as at the root.
+                Some(sub) => inner_ports(&f, sub, libs, id),
+                None => f.block(id).and_then(|b| f.ports_of(libs, b)),
+            }
+        };
+        let (Some(fp), Some(tp)) = (ports_of(&from.node), (ports_of(&to.node))) else {
             return (false, "wire: unknown block kind".into());
         };
         let out = fp.outputs.iter().find(|p| p.name == from.port);
@@ -1102,7 +1527,7 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
                     if from.node == to.node && from.port == to.port {
                         return (false, "a pin does not connect to itself".into());
                     }
-                    let same = f.wires.iter().any(|w| {
+                    let same = sc.wires.iter().any(|w| {
                         (w.from_block == from.node
                             && w.from_port == from.port
                             && w.to_block == to.node
@@ -1114,6 +1539,31 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
                     });
                     if same {
                         return (false, "the same equation is already wired".into());
+                    }
+                    // A factor graph is bipartite, and a factor's
+                    // channel holds one variable (ADR-0022) — the same
+                    // words `validate` uses.
+                    if let Some(why) = bipartite_refusal(&fp, &tp) {
+                        return (false, why);
+                    }
+                    let degree = |node: &str, port: &str| {
+                        sc.wires
+                            .iter()
+                            .filter(|w| {
+                                (w.from_block == node && w.from_port == port)
+                                    || (w.to_block == node && w.to_port == port)
+                            })
+                            .count()
+                    };
+                    for (ports, end) in [(&fp, from), (&tp, to)] {
+                        if let Some(why) = channel_refusal(
+                            ports,
+                            &end.node,
+                            &end.port,
+                            degree(&end.node, &end.port),
+                        ) {
+                            return (false, why);
+                        }
                     }
                     Ok(Accepted::Equation)
                 }
@@ -1139,22 +1589,28 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
     };
     match checked {
         Ok(kind) => {
+            let mut taken = false;
             flow.with_mut(|f| {
-                // One wire per input port — a dataflow rule. A pin is a
-                // bus: every wire to it is another `connect` argument.
-                if matches!(kind, Accepted::Dataflow) {
-                    f.wires
-                        .retain(|w| !(w.to_block == to.node && w.to_port == to.port));
+                if f.with_scope(path, |_, wires| {
+                    // One wire per input port — a dataflow rule. A pin is a
+                    // bus: every wire to it is another `connect` argument.
+                    if matches!(kind, Accepted::Dataflow) {
+                        wires.retain(|w| !(w.to_block == to.node && w.to_port == to.port));
+                    }
+                    wires.push(Wire {
+                        id: format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]),
+                        from_block: from.node.clone(),
+                        from_port: from.port.clone(),
+                        to_block: to.node.clone(),
+                        to_port: to.port.clone(),
+                    });
+                })
+                .is_some()
+                {
+                    taken = true;
                 }
-                f.wires.push(Wire {
-                    id: format!("w-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]),
-                    from_block: from.node.clone(),
-                    from_port: from.port.clone(),
-                    to_block: to.node.clone(),
-                    to_port: to.port.clone(),
-                });
             });
-            (true, String::new())
+            (taken, String::new())
         }
         Err(why) => (false, why),
     }
@@ -1233,6 +1689,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("p"), pin("n")],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "ground".into(),
@@ -1243,6 +1700,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("g")],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "src".into(),
@@ -1253,6 +1711,24 @@ mod tests {
                     outputs: vec![port("out", PortType::Scalar, false)],
                     connections: vec![],
                     params: vec![],
+                    role: None,
+                },
+                BlockKind {
+                    id: "mass".into(),
+                    name: "Mass".into(),
+                    category: "mechanical".into(),
+                    description: String::new(),
+                    inputs: vec![],
+                    outputs: vec![],
+                    connections: vec![Port {
+                        name: "flange".into(),
+                        ty: PortType::Named {
+                            name: "mechanical".into(),
+                        },
+                        required: false,
+                    }],
+                    params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "sink".into(),
@@ -1263,8 +1739,19 @@ mod tests {
                     outputs: vec![],
                     connections: vec![],
                     params: vec![],
+                    role: None,
                 },
             ],
+        }
+    }
+
+    /// A block referencing a subflow, for the scope tests.
+    fn sub_block(id: &str, sub: &str) -> Block {
+        Block {
+            id: id.into(),
+            kind: "subflow".into(),
+            subflow: Some(sub.into()),
+            ..Default::default()
         }
     }
 
@@ -1273,6 +1760,139 @@ mod tests {
             node: node.into(),
             port: port.into(),
         }
+    }
+
+    #[test]
+    fn subflow_scene_draws_the_boundary_as_pseudo_blocks() {
+        let libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        let mut amp = sub_amp();
+        // Inside: a resistor fed by the boundary input x, joined at the
+        // boundary pin p.
+        amp.blocks = vec![Block {
+            id: "r".into(),
+            kind: "m/resistor".into(),
+            ..Default::default()
+        }];
+        amp.wires = vec![
+            Wire {
+                id: "w1".into(),
+                from_block: "boundary/x".into(),
+                from_port: "x".into(),
+                to_block: "r".into(),
+                to_port: "p".into(),
+            },
+            Wire {
+                id: "w2".into(),
+                from_block: "boundary/p".into(),
+                from_port: "p".into(),
+                to_block: "r".into(),
+                to_port: "n".into(),
+            },
+        ];
+        f.subflows = vec![amp];
+        let sub = f.subflow("amp").unwrap();
+        let scene = subflow_scene(&f, sub, &libs, &[]);
+        // The declared boundary rides the edges: x on the left, y on the
+        // right, p on the top (ADR-0021 §3).
+        let by_id = |id: &str| scene.nodes.iter().find(|n| n.id == id);
+        assert_eq!(by_id("boundary/x").unwrap().kind, "boundary/in");
+        assert_eq!(by_id("boundary/y").unwrap().kind, "boundary/out");
+        assert_eq!(by_id("boundary/p").unwrap().kind, "boundary/pin");
+        assert!(scene.nodes.iter().any(|n| n.id == "r"));
+        // w2 is an equation through the boundary pin — no arrow.
+        assert!(!scene.edges.iter().find(|e| e.id == "w2").unwrap().directed);
+        // The boundary pseudo-blocks carry their declared port: x is an
+        // output inside (a source), y an input, p a pin.
+        let x_out = scene
+            .ports
+            .iter()
+            .any(|p| p.name == "x" && p.direction == "out");
+        let y_in = scene
+            .ports
+            .iter()
+            .any(|p| p.name == "y" && p.direction == "in");
+        let p_pin = scene
+            .ports
+            .iter()
+            .any(|p| p.name == "p" && p.direction == "both");
+        assert!(x_out && y_in && p_pin, "the boundary's sides flip inside");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn wires_land_in_the_open_scope_and_through_its_boundary() {
+        #[component]
+        fn Host() -> Element {
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Host);
+        dom.rebuild_in_place();
+        let libs = vec![pin_lib()];
+        let mut flow = dom.in_scope(ScopeId::ROOT, || {
+            Signal::new_in_scope(Flow::new(), ScopeId::ROOT)
+        });
+        flow.with_mut(|f| {
+            let mut amp = sub_amp();
+            amp.blocks = vec![
+                Block {
+                    id: "r".into(),
+                    kind: "m/resistor".into(),
+                    ..Default::default()
+                },
+                Block {
+                    id: "k".into(),
+                    kind: "m/sink".into(),
+                    ..Default::default()
+                },
+            ];
+            f.subflows = vec![amp];
+            f.blocks = vec![sub_block("sub_1", "amp")];
+        });
+        let path = vec!["amp".to_string()];
+        // A dataflow wire from the boundary input x (a source inside)
+        // into the sink.
+        let (ok, _) = wire(
+            &mut flow,
+            &path,
+            &libs,
+            &end("boundary/x", "x"),
+            &end("k", "in"),
+        );
+        assert!(ok, "the boundary input feeds the inside");
+        // The boundary pin joins the inside — an equation, either order.
+        let (ok, _) = wire(
+            &mut flow,
+            &path,
+            &libs,
+            &end("boundary/p", "p"),
+            &end("r", "n"),
+        );
+        assert!(ok, "the boundary pin joins the inside");
+        // The wires landed in the subflow, not the root.
+        assert_eq!(flow.read().subflow("amp").unwrap().wires.len(), 2);
+        assert!(flow.read().wires.is_empty());
+        // A mechanical flange onto the boundary pin: refused inside too.
+        flow.with_mut(|f| {
+            f.subflows
+                .iter_mut()
+                .find(|s| s.id == "amp")
+                .unwrap()
+                .blocks
+                .push(Block {
+                    id: "mm".into(),
+                    kind: "m/mass".into(),
+                    ..Default::default()
+                });
+        });
+        let (ok, why) = wire(
+            &mut flow,
+            &path,
+            &libs,
+            &end("mm", "flange"),
+            &end("boundary/p", "p"),
+        );
+        assert!(!ok, "the domain rule holds through the boundary");
+        assert!(why.contains("does not connect"), "{why}");
     }
 
     /// `wire` lives on signals; a parked VirtualDom gives the test a
@@ -1320,9 +1940,9 @@ mod tests {
         });
 
         // Either drag order connects (an equation has no direction).
-        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("g", "g"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("g", "g"));
         assert!(ok, "pin → pin connects");
-        let (ok, _) = wire(&mut flow, &libs, &end("g", "g"), &end("r2", "n"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("g", "g"), &end("r2", "n"));
         assert!(ok, "the same pin accepts the other drag order");
 
         // A pin is a bus: the ground's one pin now carries two wires, both kept.
@@ -1339,14 +1959,14 @@ mod tests {
 
         // The same equation twice — either drag order — and a pin onto
         // itself: stored neither (the pins review's #3).
-        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("g", "g"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("g", "g"));
         assert!(!ok, "the same equation is not stored twice");
-        let (ok, _) = wire(&mut flow, &libs, &end("g", "g"), &end("r", "p"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("g", "g"), &end("r", "p"));
         assert!(!ok, "nor in the other order");
-        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("r", "p"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("r", "p"));
         assert!(!ok, "a pin does not connect to itself");
         // Two different pins of one block: a short circuit, allowed.
-        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("r", "n"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("r", "n"));
         assert!(ok, "two pins of the same block make a short circuit");
         assert_eq!(
             flow.read().wires.len(),
@@ -1355,8 +1975,8 @@ mod tests {
         );
 
         // Directed wires keep their one-wire-per-input replacement.
-        wire(&mut flow, &libs, &end("s", "out"), &end("k", "in"));
-        let (ok, _) = wire(&mut flow, &libs, &end("s", "out"), &end("k", "in"));
+        wire(&mut flow, &[], &libs, &end("s", "out"), &end("k", "in"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("s", "out"), &end("k", "in"));
         assert!(ok);
         assert_eq!(
             flow.read()
@@ -1370,7 +1990,7 @@ mod tests {
 
         // A directed port onto a pin is a mixed wire — the ports exist,
         // they just do not pair (the pins review's #5).
-        let (ok, why) = wire(&mut flow, &libs, &end("s", "out"), &end("r", "p"));
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("s", "out"), &end("r", "p"));
         assert!(!ok, "an output does not connect to a pin");
         assert!(why.contains("a pin to a pin"), "{why}");
     }
@@ -1535,7 +2155,7 @@ mod tests {
             ];
         });
         // The declared pin is a pin: an equation, either drag order.
-        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("sub_1", "p"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("sub_1", "p"));
         assert!(ok, "a resistor's pin connects to the boundary pin");
         // The declared input is an input: one wire per input port, the
         // boundary included (a second source replaces the first).
@@ -1551,9 +2171,9 @@ mod tests {
                 ..Default::default()
             });
         });
-        let (ok, _) = wire(&mut flow, &libs, &end("s", "out"), &end("sub_1", "x"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("s", "out"), &end("sub_1", "x"));
         assert!(ok, "the declared input takes a dataflow wire");
-        let (ok, _) = wire(&mut flow, &libs, &end("s2", "out"), &end("sub_1", "x"));
+        let (ok, _) = wire(&mut flow, &[], &libs, &end("s2", "out"), &end("sub_1", "x"));
         assert!(ok);
         assert_eq!(
             flow.read()
@@ -1566,8 +2186,128 @@ mod tests {
         );
         // A missing subflow is refused, not panicked on.
         flow.with_mut(|f| f.subflows.clear());
-        let (ok, why) = wire(&mut flow, &libs, &end("r", "p"), &end("sub_1", "p"));
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("sub_1", "p"));
         assert!(!ok, "a block whose subflow is gone takes no wire");
         assert!(why.contains("unknown block kind"), "{why}");
+    }
+
+    /// A factor-graph library (ADR-0022): a variable, a factor with two
+    /// channels.
+    fn rx_lib() -> FlowLibrary {
+        let pin = |n: &str| Port {
+            name: n.into(),
+            ty: PortType::Any,
+            required: false,
+        };
+        FlowLibrary {
+            id: "rx",
+            name: "RxInfer",
+            language: "none",
+            codegen: None,
+            blocks: vec![
+                BlockKind {
+                    id: "variable".into(),
+                    name: "x".into(),
+                    connections: vec![pin("x")],
+                    role: Some(Role::Variable),
+                    ..Default::default()
+                },
+                BlockKind {
+                    id: "normal".into(),
+                    name: "Normal".into(),
+                    connections: vec![pin("out"), pin("mean")],
+                    role: Some(Role::Factor),
+                    ..Default::default()
+                },
+            ],
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn the_wire_gesture_keeps_a_factor_graph_bipartite() {
+        #[component]
+        fn Host() -> Element {
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Host);
+        dom.rebuild_in_place();
+        let libs = vec![rx_lib()];
+        let mut flow = dom.in_scope(ScopeId::ROOT, || {
+            Signal::new_in_scope(Flow::new(), ScopeId::ROOT)
+        });
+        flow.with_mut(|f| {
+            for (id, kind) in [
+                ("x", "variable"),
+                ("y", "variable"),
+                ("f", "normal"),
+                ("g", "normal"),
+            ] {
+                f.blocks.push(Block {
+                    id: id.into(),
+                    kind: format!("rx/{kind}"),
+                    ..Default::default()
+                });
+            }
+        });
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("f", "out"), &end("g", "mean"));
+        assert!(!ok, "factor – factor is refused");
+        assert!(why.contains("factors connect to variables"), "{why}");
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("x", "x"), &end("y", "x"));
+        assert!(!ok, "variable – variable is refused");
+        assert!(why.contains("variables connect to factors"), "{why}");
+        // Variable – factor, either drag order; a variable fans out.
+        assert!(wire(&mut flow, &[], &libs, &end("f", "out"), &end("x", "x")).0);
+        assert!(wire(&mut flow, &[], &libs, &end("x", "x"), &end("g", "mean")).0);
+        // A channel holds one variable: f.out already has x.
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("y", "x"), &end("f", "out"));
+        assert!(!ok, "a second variable on one channel is refused");
+        assert!(why.contains("not a bus"), "{why}");
+        assert_eq!(flow.read().wires.len(), 2);
+        assert_eq!(validate(&flow.read(), &libs), vec![]);
+        // Variables draw as circles, factors as blocks.
+        flow.with_mut(|f| {
+            f.blocks[0].params.insert("name".into(), "θ".into());
+        });
+        let f = flow.read();
+        let scene = to_scene(&f, &libs, &[]);
+        let shape = |id: &str| scene.nodes.iter().find(|n| n.id == id).unwrap().shape;
+        assert_eq!(shape("x"), "circle");
+        // A variable is labelled with its name once it has one.
+        assert_eq!(scene.nodes.iter().find(|n| n.id == "x").unwrap().label, "θ");
+        assert_eq!(
+            scene.nodes.iter().find(|n| n.id == "f").unwrap().label,
+            "Normal"
+        );
+        assert_eq!(shape("f"), "rect");
+    }
+
+    #[test]
+    fn the_palette_opens_on_the_library_the_document_uses() {
+        let libs = vec![pin_lib(), rx_lib()];
+        let mut f = Flow::new();
+        assert_eq!(document_library(&f, &libs), None, "an empty flow has none");
+        f.blocks.push(Block {
+            id: "x".into(),
+            kind: "rx/variable".into(),
+            ..Default::default()
+        });
+        assert_eq!(document_library(&f, &libs), Some(1));
+        // A subflow block has no library; its inside decides.
+        f.blocks = vec![Block {
+            id: "s1".into(),
+            kind: "subflow".into(),
+            subflow: Some("s".into()),
+            ..Default::default()
+        }];
+        f.subflows = vec![Subflow {
+            id: "s".into(),
+            blocks: vec![Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }];
+        assert_eq!(document_library(&f, &libs), Some(0));
     }
 }

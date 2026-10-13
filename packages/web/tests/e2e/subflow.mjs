@@ -22,6 +22,12 @@ const status = () => page.$eval(".mk-flow-status:visible", (e) => ({ blocks: +e.
 const canvasRect = () => page.$eval(".mk-flow-canvas:visible", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top }; });
 const screenOf = (id) => page.evaluate((id) => Object.values(window.moonkale.flowViews)[0].node_screen_position(id), id);
 const portOf = (id, port) => page.evaluate(({ id, port }) => Object.values(window.moonkale.flowViews)[0].port_screen_position(id, port), { id, port });
+const idOfKind = async (prefix) => {
+  const pos = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].node_positions()));
+  const id = Object.keys(pos).find((k) => k.toLowerCase().startsWith(prefix.toLowerCase() + "-"));
+  if (!id) throw new Error(`no block of kind ${prefix}`);
+  return id;
+};
 const dragWire = async (fromId, fromPort, toId, toPort) => {
   const box = await canvasRect();
   const a = await portOf(fromId, fromPort);
@@ -142,6 +148,109 @@ try {
     if (!into.some((w) => w.to_port === "x")) throw new Error("the declared input wire did not reach the file");
     if (!outOf.some((w) => w.from_port === "y")) throw new Error("the declared output wire did not reach the file");
     console.log(`\n  saved: ${flow.blocks.length} blocks, ${flow.wires.length} wires, subflow "${flow.subflows[0].name}" kept`);
+  });
+  await step("stage B: a double-click enters the subflow — the boundary rides the edges", async () => {
+    const box = await canvasRect();
+    const p = await screenOf("sub_1");
+    await page.dblclick(".mk-flow-canvas:visible .mk-flow-ov", { position: { x: p[0], y: p[1] } });
+    await page.waitForFunction(() => {
+      const v = Object.values(window.moonkale.flowViews || {})[0];
+      try {
+        const ids = Object.keys(JSON.parse(v.node_positions()));
+        return ids.includes("boundary/x") && ids.includes("boundary/y") && ids.includes("boundary/p");
+      } catch { return false; }
+    }, null, { timeout: 15000 });
+    const crumb = await page.$eval(".mk-flow .mk-editor-path", (e) => e.textContent);
+    console.log(`\n  breadcrumb: ${crumb}`);
+    if (!/Amplifier/.test(crumb)) throw new Error("the breadcrumb does not name the entered subflow");
+    // An empty scope: amp declares its boundary but holds no blocks.
+    let s = await status();
+    if (s.blocks !== 0 || s.wires !== 0) throw new Error("the entered scope should be empty: " + JSON.stringify(s));
+    await page.screenshot({ path: `${S}/s-subflow-inside.png` });
+  });
+  await step("stage B: fill it — a palette add lands inside; the boundary wires up", async () => {
+    await page.click(".mk-flow-palette-block:text-is('Dense')");
+    await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "1", null, { timeout: 10000 });
+    const dense = await idOfKind("dense");
+    await dragWire("boundary/x", "x", dense, "in");
+    let s = await status();
+    if (s.wires !== 1) throw new Error("the boundary input did not feed the inside: " + JSON.stringify(s));
+    await dragWire(dense, "out", "boundary/y", "y");
+    s = await status();
+    if (s.wires !== 2) throw new Error("the inside did not feed the boundary output: " + JSON.stringify(s));
+  });
+  await step("stage B: undo and redo hold across levels (a snapshot is the whole document)", async () => {
+    await page.keyboard.press("Control+z");
+    await sleep(300);
+    let s = await status();
+    if (s.wires !== 1) throw new Error("undo did not drop the inner wire: " + JSON.stringify(s));
+    await page.keyboard.press("Control+y");
+    await sleep(300);
+    s = await status();
+    if (s.wires !== 2) throw new Error("redo did not restore the inner wire: " + JSON.stringify(s));
+  });
+  await step("stage B: Escape pops out; the parent view is back", async () => {
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => {
+      const v = Object.values(window.moonkale.flowViews || {})[0];
+      try { return Object.keys(JSON.parse(v.node_positions())).includes("sub_1"); } catch { return false; }
+    }, null, { timeout: 15000 });
+    const s = await status();
+    console.log(`\n  back at the root: ${JSON.stringify(s)}`);
+    if (s.blocks !== 6) throw new Error("the parent view did not come back: " + JSON.stringify(s));
+  });
+  await step("stage B: an empty-canvas click pops out too (the other way back)", async () => {
+    const box = await canvasRect();
+    const p = await screenOf("sub_1");
+    await page.dblclick(".mk-flow-canvas:visible .mk-flow-ov", { position: { x: p[0], y: p[1] } });
+    await page.waitForFunction(() => {
+      const v = Object.values(window.moonkale.flowViews || {})[0];
+      try { return Object.keys(JSON.parse(v.node_positions())).includes("boundary/x"); } catch { return false; }
+    }, null, { timeout: 15000 });
+    await page.mouse.click(box.x + 6, box.y + 6);
+    await page.waitForFunction(() => {
+      const v = Object.values(window.moonkale.flowViews || {})[0];
+      try { return Object.keys(JSON.parse(v.node_positions())).includes("sub_1"); } catch { return false; }
+    }, null, { timeout: 15000 });
+  });
+  await step("stage B: the palette creates a subsystem you enter and fill", async () => {
+    await page.click(".mk-flow-subsystem");
+    await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "7", null, { timeout: 10000 });
+    const sub = await idOfKind("subsystem");
+    // The palette add grows the scene, so a refit may move the camera
+    // under the measured position — settle, then double-click with a
+    // fresh measure each try (the mtk lesson).
+    let entered = false;
+    for (let i = 0; i < 3 && !entered; i++) {
+      await sleep(500);
+      const p = await screenOf(sub);
+      await page.dblclick(".mk-flow-canvas:visible .mk-flow-ov", { position: { x: p[0], y: p[1] } });
+      await sleep(500);
+      entered = /Subsystem \d/.test(await page.$eval(".mk-flow .mk-editor-path", (e) => e.textContent));
+    }
+    if (!entered) throw new Error("the double-click did not enter the created subsystem");
+    // Empty: no blocks, no boundary (declaring ports is its own UX —
+    // the ADR leaves it open).
+    let s = await status();
+    if (s.blocks !== 0) throw new Error("a fresh subsystem is not empty: " + JSON.stringify(s));
+    await page.click(".mk-flow-palette-block:text-is('Input')");
+    await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "1", null, { timeout: 10000 });
+    await page.keyboard.press("Escape");
+    await sleep(400);
+    s = await status();
+    if (s.blocks !== 7) throw new Error("Escape did not return to the parent: " + JSON.stringify(s));
+  });
+  await step("stage B: Save keeps the inside — both subflows' contents", async () => {
+    await page.click(".mk-flow button:has-text('Save')");
+    await page.waitForFunction(() => !document.querySelector(".mk-flow .mk-editor-dirty"), null, { timeout: 15000 });
+    const flow = JSON.parse(fs.readFileSync(`${ROOT}/sub.flow.json`, "utf8"));
+    if (flow.subflows?.length !== 2) throw new Error("the created subsystem's subflow was lost: " + JSON.stringify(flow.subflows?.map((x) => x.id)));
+    const amp = flow.subflows.find((x) => x.id === "amp");
+    if (amp.blocks.length !== 1 || amp.wires.length !== 2) throw new Error("the inside edit did not reach the file: " + JSON.stringify(amp));
+    if (!amp.wires.some((w) => w.from_block === "boundary/x")) throw new Error("the boundary input wire is gone");
+    const made = flow.subflows.find((x) => x.id.startsWith("subflow-"));
+    if (!made || made.blocks.length !== 1) throw new Error("the filled subsystem lost its block: " + JSON.stringify(made));
+    console.log(`\n  saved: ${flow.subflows.map((x) => `${x.id}(${x.blocks.length} blocks)`).join(", ")}`);
   });
   console.log("\nSUBFLOW E2E: PASS");
 } catch (e) {
