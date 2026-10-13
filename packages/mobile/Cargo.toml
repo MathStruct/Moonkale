@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+webbrowser = "1.2.4"
+moonkale-code-view = { workspace = true }
 # The store for this app's own state (ADR-0014): SQLite.
 moonkale-state = { workspace = true }
 moonkale-state-stores = { workspace = true, features = ["sqlite"] }

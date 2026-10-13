@@ -410,13 +410,25 @@ impl EditorCore {
         regions: Vec<FoldRegion>,
         preserve_collapsed: bool,
     ) {
+        let collapsed = |regions: &[FoldRegion]| {
+            regions
+                .iter()
+                .filter(|region| region.is_collapsed)
+                .map(|region| (region.start_line, region.end_line))
+                .collect::<Vec<_>>()
+        };
+        let before = collapsed(self.folding_manager.regions());
         if preserve_collapsed {
             self.folding_manager
                 .replace_derived_regions_preserving_collapsed(regions);
         } else {
             self.folding_manager.replace_derived_regions(regions);
         }
-        self.invalidate_visual_row_index_cache();
+        // Expanded derived regions do not change row visibility. Preserve the
+        // incrementally updated prefix index when only their metadata changes.
+        if before != collapsed(self.folding_manager.regions()) {
+            self.invalidate_visual_row_index_cache();
+        }
     }
 
     /// Clear derived folding regions and invalidate visual-row mappings.
@@ -612,8 +624,14 @@ impl EditorCore {
         logical_line: usize,
         column: usize,
     ) -> Option<usize> {
-        let line = Self::closest_visible_line(self.folding_manager.regions(), logical_line)?;
-        let start = self.visual_start_for_logical_line(line)?;
+        // The row index already records fold visibility. Most lookups are for
+        // visible lines; scanning every expanded fold again is unnecessary.
+        let (line, start) = if let Some(start) = self.visual_start_for_logical_line(logical_line) {
+            (logical_line, start)
+        } else {
+            let line = Self::closest_visible_line(self.folding_manager.regions(), logical_line)?;
+            (line, self.visual_start_for_logical_line(line)?)
+        };
         let layout = self.layout_engine.get_line_layout(line)?;
         let column = column.min(self.line_index.get_line(line)?.char_count);
         Some(

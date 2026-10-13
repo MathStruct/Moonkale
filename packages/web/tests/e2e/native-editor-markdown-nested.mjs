@@ -19,7 +19,7 @@ try {
   const original=await canonical.textContent();
   assert.ok(original.includes('\r\n'),'Fixture retains CRLF');
   await preview();
-  assert.deepEqual(await widgets.allTextContents(),['both 猫','bold italic & 猫 and code <safe> tail','plain strong then x * y end']);
+  assert.deepEqual(await widgets.allTextContents(),['both 猫','bold italic & 猫 and code <safe> tail','plain strong then x * y end','a link b']);
   assert.equal(await page.locator('.primary .mk-native-inline-widget').count(),0,'Provider is Markdown-only');
   assert.equal(await panel.locator('safe').count(),0,'Code label stays text');
   assert.equal(await widgets.nth(0).locator('.mk-markdown-fragment').evaluate(el=>getComputedStyle(el).fontStyle),'italic');
@@ -42,7 +42,7 @@ try {
         const widget=widgets.filter({hasText:label});const rect=await widget.boundingBox();
         await page.mouse.click(rect.x+rect.width*fraction,rect.y+rect.height/2);await ready();
         assert.equal(Number(await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset')),expected);
-        assert.equal(await widgets.count(),2,'Only active construct reveals');
+        assert.equal(await widgets.count(),3,'Only active construct reveals');
         await page.keyboard.insertText('Q');
         const byte=Array.from(normalized).slice(0,expected).join('').length;
         const rawOffset=byte+(normalized.slice(0,byte).match(/\n/g)??[]).length;
@@ -75,7 +75,7 @@ try {
     el.dispatchEvent(new CompositionEvent('compositionupdate',{bubbles:true,data:'你好'}));
   });
   await page.waitForFunction(()=>document.querySelector('.language .mk-native-surface').dataset.composing==='true');
-  assert.equal(await widgets.count(),2);assert.equal(await canonical.textContent(),original);
+  assert.equal(await widgets.count(),3);assert.equal(await canonical.textContent(),original);
   await input.evaluate(el=>{
     el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'你好'}));
     el.value='你好';el.dispatchEvent(new Event('input',{bubbles:true}));

@@ -80,3 +80,6 @@ editor-out-of-sync = 编辑器与文档不一致且无法重新同步，为保�
 lsp-restart-unavailable = 重启需要活动文件夹文档的语言服务器
 
 editor-rename-stale = 文档已更改；请重新打开重命名
+
+editor-link-failed = 无法打开链接：{ $error }
+editor-link-heading-missing = 未找到标题：{ $heading }

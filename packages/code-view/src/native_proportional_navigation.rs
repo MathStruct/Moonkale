@@ -256,6 +256,7 @@ mod tests {
             height,
         };
         let geometry = Geometry {
+            links: Vec::new(),
             width: 80.0,
             height: 64.0,
             boxes: vec![

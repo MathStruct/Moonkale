@@ -32,6 +32,8 @@ pub(crate) enum InlineStyle {
     #[cfg(feature = "markdown-preview")]
     Nested(Vec<InlineFragment>),
     #[cfg(feature = "markdown-preview")]
+    Link(std::rc::Rc<Vec<InlineFragment>>),
+    #[cfg(feature = "markdown-preview")]
     Heading(u8, Vec<InlineFragment>),
     #[cfg(feature = "markdown-preview")]
     ListItem {
@@ -54,6 +56,7 @@ pub(crate) struct InlineFragment {
     pub emphasis: bool,
     pub strong: bool,
     pub code: bool,
+    pub link: Option<crate::native_link_parser::Link>,
 }
 
 #[cfg(feature = "markdown-preview")]
@@ -71,6 +74,7 @@ impl InlineStyle {
             Self::Strong => "mk-markdown-strong",
             Self::Code => "mk-markdown-code",
             Self::Nested(_) => "mk-markdown-nested",
+            Self::Link(_) => "mk-markdown-link-widget",
             Self::Heading(_, _) => "mk-markdown-heading",
             Self::Fenced { .. } => "mk-markdown-fenced dxc",
             Self::ListItem { .. } => "mk-markdown-list-item",

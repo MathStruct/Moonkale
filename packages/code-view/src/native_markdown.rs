@@ -12,6 +12,7 @@ struct Frame {
     fragments: Vec<InlineFragment>,
     nested: bool,
     unsupported: bool,
+    link: Option<crate::native_link_parser::Link>,
 }
 
 fn fragment(frames: &[Frame], text: String, code: bool) -> InlineFragment {
@@ -24,6 +25,7 @@ fn fragment(frames: &[Frame], text: String, code: bool) -> InlineFragment {
             .iter()
             .any(|frame| frame.style == InlineStyle::Strong),
         code,
+        link: frames.iter().rev().find_map(|frame| frame.link.clone()),
     }
 }
 
@@ -32,6 +34,7 @@ fn append(fragments: &mut Vec<InlineFragment>, fragment: InlineFragment) {
         previous.emphasis == fragment.emphasis
             && previous.strong == fragment.strong
             && previous.code == fragment.code
+            && previous.link == fragment.link
     }) {
         previous.text.push_str(&fragment.text);
     } else if !fragment.text.is_empty() {
@@ -237,7 +240,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
     let mut values = Vec::new();
     let mut blocked = 0usize;
     let mut fenced: Option<FencedFrame> = None;
-    let mut emit = |mut range: Range<usize>, label: String, style| {
+    let mut emit = |mut range: Range<usize>, label: String, mut style| {
         if !matches!(style, InlineStyle::ListItem { .. })
             && list_values
                 .get(list_values.partition_point(|(item, _, _)| item.end <= range.start))
@@ -265,7 +268,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             || (matches!(style, InlineStyle::Heading(..)) && newlines == 1)
             || matches!(
                 style,
-                InlineStyle::Fenced { .. } | InlineStyle::ListItem { .. }
+                InlineStyle::Fenced { .. } | InlineStyle::ListItem { .. } | InlineStyle::Link(_)
             );
         if range.is_empty() || label.is_empty() || !supported_lines {
             return;
@@ -276,6 +279,19 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
         let Ok(end) = scalar_bytes.binary_search(&range.end) else {
             return;
         };
+        match &mut style {
+            InlineStyle::Nested(fragments) | InlineStyle::Heading(_, fragments) => {
+                crate::native_link_parser::relative(fragments, source, range.start);
+            }
+            InlineStyle::Link(fragments) => {
+                crate::native_link_parser::relative(
+                    std::rc::Rc::make_mut(fragments).as_mut_slice(),
+                    source,
+                    range.start,
+                );
+            }
+            _ => {}
+        }
         values.push(Decoration {
             provider: Provider::Markdown,
             id: start,
@@ -296,14 +312,28 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
         })
         .map_or(0, |(_, range)| range.end);
-    for (event, range) in Parser::new(&source[body_start..]).into_offset_iter() {
+    let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
+    for (event, range) in Parser::new(&projected.text).into_offset_iter() {
+        let range = projected.range(range);
         let range = range.start + body_start..range.end + body_start;
         match event {
-            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Heading { .. }) => {
+            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Heading { .. } | Tag::Link { .. }) => {
+                let is_link = matches!(event, Event::Start(Tag::Link { .. }));
+                let link = if let Event::Start(Tag::Link {
+                    dest_url, title, ..
+                }) = &event
+                {
+                    projected.link(dest_url, title, range.clone())
+                } else {
+                    None
+                };
                 if let Some(parent) = frames.last_mut() {
                     parent.nested = true;
                 }
                 let style = match event {
+                    Event::Start(Tag::Link { .. }) => {
+                        InlineStyle::Link(std::rc::Rc::new(Vec::new()))
+                    }
                     Event::Start(Tag::Strong) => InlineStyle::Strong,
                     Event::Start(Tag::Heading { level, .. }) => {
                         InlineStyle::Heading(level as u8, Vec::new())
@@ -315,10 +345,11 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                     style,
                     fragments: Vec::new(),
                     nested: false,
-                    unsupported: blocked > 0,
+                    unsupported: blocked > 0 || is_link && link.is_none(),
+                    link,
                 });
             }
-            Event::End(TagEnd::Emphasis | TagEnd::Strong | TagEnd::Heading(_)) => {
+            Event::End(TagEnd::Emphasis | TagEnd::Strong | TagEnd::Heading(_) | TagEnd::Link) => {
                 if let Some(frame) = frames.pop() {
                     if let Some(parent) = frames.last_mut() {
                         parent.unsupported |= frame.unsupported;
@@ -335,7 +366,17 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                             InlineStyle::Heading(level, _) => {
                                 InlineStyle::Heading(level, frame.fragments)
                             }
-                            _ if frame.nested => InlineStyle::Nested(frame.fragments),
+                            InlineStyle::Link(_) => {
+                                InlineStyle::Link(std::rc::Rc::new(frame.fragments))
+                            }
+                            _ if frame.nested
+                                || frame
+                                    .fragments
+                                    .iter()
+                                    .any(|fragment| fragment.link.is_some()) =>
+                            {
+                                InlineStyle::Nested(frame.fragments)
+                            }
                             style => style,
                         };
                         emit(frame.range, label, style);
@@ -386,18 +427,27 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                 }
                 blocked = blocked.saturating_sub(1);
             }
-            Event::Start(
-                Tag::Link { .. } | Tag::Image { .. } | Tag::HtmlBlock | Tag::MetadataBlock(_),
-            ) => {
+            Event::Start(Tag::Image { .. } | Tag::HtmlBlock | Tag::MetadataBlock(_)) => {
                 blocked += 1;
                 if let Some(frame) = frames.last_mut() {
                     frame.unsupported = true;
                 }
             }
-            Event::End(
-                TagEnd::Link | TagEnd::Image | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_),
-            ) => {
+            Event::End(TagEnd::Image | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_)) => {
                 blocked = blocked.saturating_sub(1);
+            }
+            Event::SoftBreak | Event::HardBreak
+                if frames.iter().any(|frame| frame.link.is_some()) =>
+            {
+                let text = if matches!(event, Event::HardBreak) {
+                    "\n"
+                } else {
+                    " "
+                };
+                let fragment = fragment(&frames, text.into(), false);
+                if let Some(frame) = frames.last_mut() {
+                    append(&mut frame.fragments, fragment);
+                }
             }
             Event::InlineHtml(_) | Event::Html(_) | Event::SoftBreak | Event::HardBreak => {
                 if let Some(frame) = frames.last_mut() {
@@ -534,7 +584,6 @@ mod tests {
             "\\*literal*",
             "*a\nb*",
             "`a\nb`",
-            "[**link**](url)",
             "![*image*](url)",
             "*a <b>b</b>*",
             "```\n*code* `raw`\n",
@@ -550,6 +599,7 @@ mod tests {
             emphasis,
             strong,
             code,
+            link: None,
         };
         assert_eq!(
             previews("😀 ***猫 &amp; dog***"),
@@ -577,7 +627,6 @@ mod tests {
         for source in [
             "*before **a <b>b</b>** after*",
             "**before *a\nb* after**",
-            "*before [**link**](url) after*",
             "*before `a\nb` after*",
         ] {
             assert!(previews(source).is_empty(), "{source}");
@@ -621,7 +670,6 @@ mod tests {
             "Title *source*\ncontinued\n---\n",
             "#No heading",
             "####### Too many",
-            "# [**link**](url)",
             "# a <b>b</b>",
             "    # literal",
             "#",
@@ -649,7 +697,6 @@ mod tests {
         }
         for source in [
             "first\nsecond\n===",
-            "Title [**link**](url)\n---",
             "Title <b>html</b>\n===",
             "    Title\n    ===",
             "---\n",
@@ -728,5 +775,69 @@ mod tests {
         assert!(batch(DocumentRevision(4), "```rust\nfn main() {}\n")
             .values
             .is_empty());
+    }
+    #[test]
+    fn links_preserve_nested_styles_and_original_unicode_ranges() {
+        let source = "😀\n\n[**猫**](https://example.org) and [[Note#Intro|Alias <safe>]]\n\n# Title [site](https://example.org)\n\n- [[Note|item]]\n";
+        let values = previews(source);
+        assert!(values
+            .iter()
+            .any(|(raw, text, _)| raw == "[[Note#Intro|Alias <safe>]]" && text == "Alias <safe>"));
+        assert!(values.iter().any(|(_, text, style)| text == "猫" && matches!(style, InlineStyle::Link(parts) if parts[0].strong && parts[0].link.is_some())));
+        assert!(values.iter().any(|(_, _, style)| matches!(style, InlineStyle::Heading(_, parts) if parts.iter().any(|part| part.text == "site" && part.link.is_some()))));
+        let first = batch(DocumentRevision(10), source);
+        let second = batch(DocumentRevision(11), source);
+        assert!(first.values == second.values);
+        let prefixed = batch(DocumentRevision(12), &format!("prefix\n\n{source}"));
+        assert_eq!(first.values.len(), prefixed.values.len());
+        for (old, new) in first.values.iter().zip(&prefixed.values) {
+            let (
+                Kind::Replace {
+                    range: old_range,
+                    widget: old_widget,
+                    style: old_style,
+                },
+                Kind::Replace {
+                    range: new_range,
+                    widget: new_widget,
+                    style: new_style,
+                },
+            ) = (&old.kind, &new.kind)
+            else {
+                panic!("replacement")
+            };
+            assert_eq!(new_range.start, old_range.start + 8);
+            assert_eq!(new_range.end, old_range.end + 8);
+            assert_eq!(old_widget, new_widget);
+            assert!(old_style == new_style);
+        }
+    }
+    #[test]
+    fn references_follow_definition_changes_and_unsafe_schemes_remain_source() {
+        let source =
+            "[Reference][id] and <https://example.org/auto>\n\n[id]: https://example.org/first\n";
+        let first = previews(source);
+        assert_eq!(
+            first
+                .iter()
+                .map(|(_, text, _)| text.as_str())
+                .collect::<Vec<_>>(),
+            ["Reference", "https://example.org/auto"]
+        );
+        let changed = previews(&source.replace("/first", "/second"));
+        let InlineStyle::Link(parts) = &changed[0].2 else {
+            panic!("link")
+        };
+        assert!(
+            matches!(&parts[0].link.as_ref().unwrap().target, crate::native_links::Target::External(url) if url.ends_with("/second"))
+        );
+        for source in [
+            "[bad](javascript:alert)",
+            "[bad](data:text/html,hello)",
+            "[bad](file:///etc/passwd)",
+            "[undefined][missing]",
+        ] {
+            assert!(previews(source).is_empty(), "{source}");
+        }
     }
 }

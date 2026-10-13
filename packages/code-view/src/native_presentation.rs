@@ -3,7 +3,6 @@ use crate::native_decorations::{Batch, Decoration, InlineStyle, Kind, Provider};
 use crate::native_layout::PresentationState;
 use moonkale_ext_api::editor::DocumentRevision;
 use serde::Serialize;
-use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum Mode {
@@ -28,11 +27,30 @@ pub(crate) struct Replacement {
 }
 
 pub(crate) fn valid_replacements(text: &str, values: Vec<Replacement>) -> Vec<Replacement> {
-    let mut boundaries = vec![0];
-    let mut offset = 0;
-    for grapheme in text.graphemes(true) {
-        offset += grapheme.chars().count();
-        boundaries.push(offset);
+    // Only replacement endpoints need validation. Scanning every grapheme and
+    // allocating a boundary for every plain-source character dominates long
+    // notes, even though nearly all of those positions are never queried.
+    let mut endpoints: Vec<_> = values
+        .iter()
+        .flat_map(|value| [value.start, value.end])
+        .collect();
+    endpoints.sort_unstable();
+    endpoints.dedup();
+    let mut boundaries = Vec::with_capacity(endpoints.len());
+    let mut remaining = text.chars();
+    let mut previous = 0;
+    for scalar in endpoints {
+        // Chars::nth skips UTF-8 runs in chunks; avoid a debug-build branch and
+        // endpoint comparison for every plain-source scalar in a long note.
+        if scalar > previous && remaining.nth(scalar - previous - 1).is_none() {
+            break;
+        }
+        let byte = text.len() - remaining.as_str().len();
+        previous = scalar;
+        let mut cursor = unicode_segmentation::GraphemeCursor::new(byte, text.len(), true);
+        if cursor.is_boundary(text, 0).unwrap_or(false) {
+            boundaries.push(scalar);
+        }
     }
     values
         .into_iter()
@@ -881,5 +899,67 @@ mod tests {
             replacements(Mode::Markdown, &editor, revision).len() == 1,
             "a complete fence beyond the former prefix retains its owner"
         );
+    }
+    #[test]
+    fn endpoint_validation_matches_full_grapheme_segmentation() {
+        use unicode_segmentation::UnicodeSegmentation;
+        for text in ["", "a\r\nb", "a👩🏽‍💻é", "🇩🇪🇨🇳🇺🇸", "क्‍षि", "\u{600}a\u{301}b"]
+        {
+            let mut expected = vec![0];
+            let mut offset = 0;
+            for grapheme in text.graphemes(true) {
+                offset += grapheme.chars().count();
+                expected.push(offset);
+            }
+            let values = (0..=offset + 1)
+                .flat_map(|start| {
+                    (start + 1..=offset + 2).map(move |end| Replacement {
+                        start,
+                        end,
+                        widget: None,
+                        style: None,
+                    })
+                })
+                .collect();
+            let actual = valid_replacements(text, values);
+            let wanted = expected
+                .iter()
+                .flat_map(|start| {
+                    expected
+                        .iter()
+                        .filter(move |end| *end > start)
+                        .map(move |end| (*start, *end))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                actual
+                    .iter()
+                    .map(|value| (value.start, value.end))
+                    .collect::<Vec<_>>(),
+                wanted,
+                "{text:?}"
+            );
+        }
+    }
+    #[test]
+    fn derived_fold_refresh_updates_visibility_after_row_index_is_cached() {
+        let mut editor = editor_core::EditorStateManager::new("a\nb\nc\nd\n", 80);
+        editor.replace_folding_regions(vec![editor_core::FoldRegion::new(0, 2)], false);
+        assert_eq!(editor.total_visual_lines(), 5);
+        editor.replace_folding_regions(vec![editor_core::FoldRegion::new(0, 3)], false);
+        assert_eq!(editor.logical_position_to_visual_row(3, 0), Some(3));
+        let mut region = editor_core::FoldRegion::new(0, 3);
+        region.collapse();
+        editor.replace_folding_regions(vec![region], false);
+        assert_eq!(editor.total_visual_lines(), 2);
+        assert_eq!(editor.logical_position_to_visual_row(3, 0), Some(0));
+        let mut region = editor_core::FoldRegion::new(0, 2);
+        region.collapse();
+        editor.replace_folding_regions(vec![region], false);
+        assert_eq!(editor.total_visual_lines(), 3);
+        assert_eq!(editor.logical_position_to_visual_row(3, 0), Some(1));
+        editor.replace_folding_regions(vec![editor_core::FoldRegion::new(0, 2)], false);
+        assert_eq!(editor.total_visual_lines(), 5);
+        assert_eq!(editor.logical_position_to_visual_row(3, 0), Some(3));
     }
 }

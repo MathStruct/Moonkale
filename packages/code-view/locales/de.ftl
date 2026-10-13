@@ -88,3 +88,6 @@ editor-out-of-sync = Editor und Dokument stimmen nicht überein und ließen sich
 lsp-restart-unavailable = Zum Neustart wird ein Sprachserver für ein aktives Ordnerdokument benötigt
 
 editor-rename-stale = Dokument geändert; Umbenennen erneut öffnen
+
+editor-link-failed = Link konnte nicht geöffnet werden: { $error }
+editor-link-heading-missing = Überschrift nicht gefunden: { $heading }

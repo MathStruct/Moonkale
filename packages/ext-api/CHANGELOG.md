@@ -14,6 +14,10 @@ Rules:
 
 ## Unreleased — the editor API (not in a tag yet)
 
+- Added `Workspace::load_node_guarded(node, current)` for background loading without activation. Existing open documents retain unsaved text; a stale fetch is discarded.
+- Wiki resolution accepts same-note heading targets and creation retains an explicit `.md` suffix. Existing callers remain source-compatible.
+- The code-view crate exports `ExternalLinkOpener`, registered through workspace services for native preview URL navigation.
+
 **moonkale-ext-api**
 - Native Markdown preview renders bullet/ordered/nested list items and task status as independent source-owned replacements. Caret/selection reveals the active item; task markers use the canonical edit/undo history. Complex unsupported items retain source.
 - Native Markdown preview covers whole documents with uncapped reveal state, changed-block reuse, sparse row heights and visible-window geometry. Canonical CRLF bytes and Workspace history remain intact; mixed-font visual navigation and incremental CRLF syntax edits are corrected.

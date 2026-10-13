@@ -49,7 +49,14 @@ if (request.replacements?.length) {
             }
             boxes.push({start,end,x:rect.x-origin.x,y:rect.y-origin.y,width:rect.width,height:rect.height});
         }
-        dioxus.send({boxes,width:origin.width,height:origin.height});
+        const links = [];
+        for (const element of node.querySelectorAll('[data-preview-link]')) {
+            const range = document.createRange(); range.selectNodeContents(element);
+            for (const rect of range.getClientRects()) {
+                if (rect.width > 0 && rect.height > 0) links.push({id:element.dataset.previewLink,x:rect.x-origin.x,y:rect.y-origin.y,width:rect.width,height:rect.height});
+            }
+        }
+        dioxus.send({boxes,links,width:origin.width,height:origin.height});
     }
     await dioxus.recv();
 } else {

@@ -244,3 +244,35 @@ fn closing_a_background_tab_cancels_saved_focus() {
         })
     });
 }
+
+#[test]
+fn guarded_background_load_preserves_foreground_and_unsaved_target_and_discards_stale_fetch() {
+    scenario(|ws, files| {
+        runtime().block_on(async {
+            ws.open_node(Files::node("user.md")).await.unwrap();
+            let current = std::rc::Rc::new(std::cell::Cell::new(true));
+            let check = current.clone();
+            let mut load =
+                std::pin::pin!(ws.load_node_guarded(Files::node("saved.md"), move || check.get()));
+            assert!(load.as_mut().now_or_never().is_none());
+            current.set(false);
+            files.release.notify_one();
+            assert!(!load.await.unwrap());
+            assert!(ws.document(Files::node("saved.md").id).is_none());
+            files.pause.store(false, Ordering::SeqCst);
+            assert!(ws
+                .load_node_guarded(Files::node("saved.md"), || true)
+                .await
+                .unwrap());
+            assert_eq!(*ws.docs.active.peek(), Some(Files::node("user.md").id));
+            let mut saved = ws.document(Files::node("saved.md").id).unwrap();
+            saved.write().text = "# Unsaved target".into();
+            assert!(ws
+                .load_node_guarded(Files::node("saved.md"), || true)
+                .await
+                .unwrap());
+            assert_eq!(saved.peek().text, "# Unsaved target");
+            assert_eq!(*ws.docs.active.peek(), Some(Files::node("user.md").id));
+        });
+    });
+}

@@ -496,7 +496,9 @@ static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(moonkale_e
 /// The theme files (spec 030).
 static THEMES: moonkale_shell::theme::ThemeFiles =
     moonkale_shell::theme::ThemeFiles(moonkale_server::themes::remote_themes);
-static SERVICES: [&(dyn std::any::Any + Sync); 2] = [&GIT, &THEMES];
+static EXTERNAL_LINKS: moonkale_code_view::ExternalLinkOpener =
+    moonkale_code_view::ExternalLinkOpener(open_external_link);
+static SERVICES: [&(dyn std::any::Any + Sync); 3] = [&GIT, &THEMES, &EXTERNAL_LINKS];
 
 fn workspace_config() -> WorkspaceConfig {
     WorkspaceConfig {
@@ -539,5 +541,21 @@ fn workspace_config() -> WorkspaceConfig {
             wasm_module_url: Some(|id| format!("/api/ext/module/{id}")),
         },
         services: &SERVICES,
+    }
+}
+
+fn open_external_link(url: String) -> Result<(), String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window()
+            .ok_or("No browser window")?
+            .open_with_url_and_target_and_features(&url, "_blank", "noopener,noreferrer")
+            .map(|_| ())
+            .map_err(|error| format!("{error:?}"))
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = url;
+        Err("External links require the browser client".into())
     }
 }

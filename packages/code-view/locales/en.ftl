@@ -88,3 +88,6 @@ editor-out-of-sync = The editor and the document disagree and could not be broug
 lsp-restart-unavailable = Restart needs a language server for an active folder document
 
 editor-rename-stale = Document changed; open Rename again
+
+editor-link-failed = Could not open link: { $error }
+editor-link-heading-missing = Heading not found: { $heading }

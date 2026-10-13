@@ -21,12 +21,12 @@ try {
   await panel.evaluate(el=>{el.style.height='1000px';});
   await page.waitForTimeout(200);
   await preview();
-  assert.deepEqual(await widgets.allTextContents(),['Title 猫','Heading bold and code','Third','Fourth','Fifth','Sixth']);
+  assert.deepEqual(await widgets.allTextContents(),['Title 猫','Heading bold and code','Third','Fourth','Fifth','Sixth','Setext source','link']);
   assert.equal(await page.locator('.primary .mk-native-inline-widget').count(),0,'Provider is Markdown-only');
   assert.equal(await panel.locator('safe').count(),0,'Code label stays text');
   assert.equal(await widgets.nth(0).locator('.mk-markdown-fragment').evaluate(el=>getComputedStyle(el).fontStyle),'normal');
   assert.ok(Number(await widgets.nth(0).locator('.mk-markdown-fragment').evaluate(el=>getComputedStyle(el).fontWeight))>=700);
-  assert.deepEqual(await widgets.evaluateAll(elements=>elements.map(el=>Number(el.dataset.headingLevel))),[1,2,3,4,5,6]);
+  assert.deepEqual(await widgets.evaluateAll(elements=>elements.map(el=>Number(el.dataset.headingLevel))),[1,2,3,4,5,6,2,1]);
   const sizes=await widgets.evaluateAll(elements=>elements.map(el=>Number.parseFloat(getComputedStyle(el).fontSize)));
   assert.ok(sizes[0]>sizes[1]&&sizes[1]>sizes[2]&&sizes[2]>sizes[3]&&sizes[3]>sizes[4]);
   assert.equal(await widgets.nth(1).locator('[data-code="true"]').textContent(),'code');
@@ -43,7 +43,7 @@ try {
         const widget=widgets.filter({hasText:label});const rect=await widget.boundingBox();
         await page.mouse.click(rect.x+rect.width*fraction,rect.y+rect.height/2);await ready();
         assert.equal(Number(await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset')),expected);
-        assert.equal(await widgets.count(),5,'Only active construct reveals');
+        assert.equal(await widgets.count(),7,'Only active construct reveals');
         await page.keyboard.insertText('Q');
         const byte=Array.from(normalized).slice(0,expected).join('').length;
         const rawOffset=byte+(normalized.slice(0,byte).match(/\n/g)??[]).length;
@@ -76,7 +76,7 @@ try {
     el.dispatchEvent(new CompositionEvent('compositionupdate',{bubbles:true,data:'你好'}));
   });
   await page.waitForFunction(()=>document.querySelector('.language .mk-native-surface').dataset.composing==='true');
-  assert.equal(await widgets.count(),5);assert.equal(await canonical.textContent(),original);
+  assert.equal(await widgets.count(),7);assert.equal(await canonical.textContent(),original);
   await input.evaluate(el=>{
     el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'你好'}));
     el.value='你好';el.dispatchEvent(new Event('input',{bubbles:true}));

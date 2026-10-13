@@ -14,6 +14,7 @@ struct Item {
     strong: usize,
     paragraphs: usize,
     unsupported: bool,
+    link: Option<crate::native_link_parser::Link>,
 }
 
 impl Item {
@@ -24,11 +25,13 @@ impl Item {
         let fragment = InlineFragment {
             text,
             code,
+            link: self.link.clone(),
             emphasis: self.emphasis > 0,
             strong: self.strong > 0,
         };
         if let Some(last) = self.fragments.last_mut().filter(|last| {
-            last.code == fragment.code
+            last.link == fragment.link
+                && last.code == fragment.code
                 && last.emphasis == fragment.emphasis
                 && last.strong == fragment.strong
         }) {
@@ -52,9 +55,11 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
             range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
         })
         .map_or(0, |(_, range)| range.end);
+    let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
     for (event, range) in
-        Parser::new_ext(&source[body_start..], Options::ENABLE_TASKLISTS).into_offset_iter()
+        Parser::new_ext(&projected.text, Options::ENABLE_TASKLISTS).into_offset_iter()
     {
+        let range = projected.range(range);
         let range = range.start + body_start..range.end + body_start;
         match event {
             Event::Start(Tag::List(number)) => {
@@ -86,6 +91,7 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
                     strong: 0,
                     paragraphs: 0,
                     unsupported: quotes > 0,
+                    link: None,
                 });
             }
             Event::End(TagEnd::Item) => {
@@ -96,11 +102,7 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
                     {
                         item.range.end -= 1;
                     }
-                    if item.unsupported
-                        || item.paragraphs > 1
-                        || item.range.is_empty()
-                        || source[item.range.clone()].contains("[[")
-                    {
+                    if item.unsupported || item.paragraphs > 1 || item.range.is_empty() {
                         continue;
                     }
                     if let Some(checked) = item.checked {
@@ -117,6 +119,11 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
                         .map(|fragment| fragment.text.as_str())
                         .collect::<String>();
                     let label = format!("{} {text}", item.marker);
+                    crate::native_link_parser::relative(
+                        &mut item.fragments,
+                        source,
+                        item.range.start,
+                    );
                     values.push((
                         item.range,
                         label,
@@ -158,6 +165,15 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
                     }
                     Event::End(TagEnd::Strong) => {
                         item.strong = item.strong.saturating_sub(1);
+                    }
+                    Event::Start(Tag::Link {
+                        dest_url, title, ..
+                    }) => {
+                        item.link = projected.link(&dest_url, &title, range);
+                        item.unsupported |= item.link.is_none();
+                    }
+                    Event::End(TagEnd::Link) => {
+                        item.link = None;
                     }
                     Event::TaskListMarker(checked) => {
                         item.checked = Some(checked);
@@ -255,8 +271,6 @@ mod tests {
     #[test]
     fn unsupported_blocks_and_front_matter_keep_their_source() {
         for source in [
-            "- [link](url)\n",
-            "- [[Wiki]]\n",
             "- ![image](url)\n",
             "> - quote\n",
             "- first\n\n  second paragraph\n",

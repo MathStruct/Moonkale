@@ -48,3 +48,24 @@ The full-app long-note suite records constrained typing samples against a 3 MB S
 CommonMark list items now produce independent source replacements: bullet and ordered markers, nested indentation, checked/unchecked task status, decoded text, inline emphasis/code, and wrapped single-paragraph bodies. A parent’s preview stops before its nested children so each item reveals locally. The canonical Markdown remains editable, copyable and undoable; task state changes by editing its source marker. Items containing links/wiki links, images, quotes, code blocks or multiple paragraphs retain source until those providers support the complete construct.
 
 Unchanged block keys/decorations and list fragment payloads are shared across revisions to avoid repeated allocation. Replacement offsets use one byte-to-scalar index per changed block, and overlap checks use sorted item ranges. Presentation filters collapsed folds once rather than scanning every expanded heading/list fold for every replacement. The long-note gate includes hundreds of list/task items and checks deep list previews while retaining its existing latency limits. Rich mode stays available; links/wiki links, images, tables, math and callouts remain next.
+
+
+## Link preview and navigation (2026-10-13)
+
+CommonMark inline/reference/autolinks and wiki-links now share structured inline fragments in paragraphs, headings and supported list/task items. Wiki aliases are literal text; their temporary CommonMark projection retains a byte-boundary map to canonical source. Escaped wiki syntax, embeds, code, images, HTML and metadata remain source. Reference definitions still select the conservative document-wide semantic parse.
+
+Ordinary clicks reveal the enclosing source replacement. Ctrl/Cmd-click follows only a measured link glyph rectangle, including wrapped fragments inside an atomic heading/list widget. The existing narrow geometry bridge reports identifiers and rectangles; Rust validates identifiers and retains destinations. Revision, font epoch, viewport and presentation identity reject stale measurements.
+
+File links resolve relative to the origin within its source, with normalized paths and one percent-decoding pass; missing regular files are not created. Wiki links retain guarded resolve/create behavior and explicit `.md` suffixes. Same-note and cross-note fragments use canonical unsaved text, rendered heading slugs with duplicate suffixes, or case-insensitive heading text. A missing heading opens the target at the top and reports a localized status. Background loading does not activate a document; origin revision/selection and target text guards protect the eventual reveal.
+
+`ExternalLinkOpener` is a workspace service. Web calls `Window.open` synchronously during the gesture with `_blank` and `noopener,noreferrer`; desktop/mobile use the platform browser opener. Only HTTP, HTTPS and mailto destinations are accepted. Hover previews, link completion, images/embeds and Rich-mode replacement remain later work.
+
+Wiki resolution invalidates on the origin node, unique page targets and index epoch, rather than offsets or unrelated edits. Same-note headings remain resolved immediately. Visible row lookups reuse fold visibility from the engine row index. The long-note fixture turns its existing bold fragments into external links and adds wiki aliases inside existing list items, preserving comparable widget counts while testing 480 links.
+
+Replacement validation converts requested scalar endpoints to bytes in one pass and asks `GraphemeCursor` about those boundaries only. It avoids materializing every plain-source grapheme boundary; comparison tests retain the full-segmentation oracle for CRLF, ZWJ emoji, regional indicators, combining marks and Indic clusters.
+
+The derived-fold refresh keeps the row prefix index while collapsed ranges are unchanged. Wiki span cache identity includes normalized scalar positions as well as raw byte ranges, so equal-byte Unicode edits still move source marks correctly. CRLF counting uses substring matches rather than an allocated byte-window walk.
+
+The deferred structural pair pass classifies parser spans only at bracket characters, while retaining Unicode scalar offsets and line counts across prose. Performance measurements wait for pending network/font/save work before timing either mode; the fixture keeps the preceding byte budget by replacing plain filler with link syntax, while preserving every section and list/task item.
+
+Measured proportional runs may reuse geometry across revisions only when their source, marks, tags, replacement payloads, model/row/source start, viewport width, font epoch and presentation identity match exactly. The result is rebound to the current revision and republished to the height index. Request sequence numbers still cancel pending old responses; resize clears the cache, and font/viewport/presentation changes force measurement.

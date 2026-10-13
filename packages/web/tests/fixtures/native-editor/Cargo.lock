@@ -3682,6 +3682,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "unicode-segmentation",
+ "url",
  "wasm-bindgen",
  "web-sys",
 ]

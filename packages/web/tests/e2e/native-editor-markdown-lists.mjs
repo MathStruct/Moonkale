@@ -22,9 +22,9 @@ try {
   const original=await canonical.textContent();
   const normalized=original.replaceAll('\r\n','\n');
   await panel.evaluate(el=>el.style.height='900px');await preview();
-  assert.equal(await lists.count(),7);
-  assert.deepEqual(await lists.allTextContents(),['• parent 猫','• child code','☑ completed 😀','☐ pending & safe','7. first italic','8. second','• wrapped line with words that can wrap at narrow widths continuation bold']);
-  assert.deepEqual(await lists.locator('.mk-markdown-list-content').evaluateAll(els=>els.map(el=>el.dataset.listDepth)),['0','1','1','0','0','0','0']);
+  assert.equal(await lists.count(),8);
+  assert.deepEqual(await lists.allTextContents(),['• parent 猫','• child code','☑ completed 😀','☐ pending & safe','7. first italic','8. second','• wrapped line with words that can wrap at narrow widths continuation bold','• link']);
+  assert.deepEqual(await lists.locator('.mk-markdown-list-content').evaluateAll(els=>els.map(el=>el.dataset.listDepth)),['0','1','1','0','0','0','0','0']);
   assert.deepEqual(await lists.locator('[data-task-checked]').evaluateAll(els=>els.map(el=>el.dataset.taskChecked)),['true','false']);
   assert.equal(await lists.locator('[data-strong="true"]').count(),2);
   assert.equal(await lists.locator('[data-code="true"]').count(),1);
@@ -39,7 +39,7 @@ try {
     await page.mouse.click(rect.x+3,rect.y+rect.height/2);await ready();
     const start=Array.from(normalized.slice(0,normalized.indexOf('  - [x] completed'))).length;
     assert.equal(Number(await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset')),start);
-    assert.equal(await lists.count(),6,'Only the clicked item reveals');
+    assert.equal(await lists.count(),7,'Only the clicked item reveals');
     await page.keyboard.insertText('猫');
     await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original.replace('  - [x] completed','猫  - [x] completed'));
     await page.keyboard.press('Control+z');

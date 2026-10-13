@@ -23,8 +23,19 @@ pub(crate) struct GlyphBox {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub(crate) struct LinkBox {
+    pub id: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub(crate) struct Geometry {
     pub boxes: Vec<GlyphBox>,
+    #[serde(default)]
+    pub links: Vec<LinkBox>,
     pub width: f64,
     pub height: f64,
 }
@@ -35,6 +46,13 @@ impl Geometry {
             && self.width > 0.0
             && self.height.is_finite()
             && self.height > 0.0
+            && self.links.iter().all(|rect| {
+                [rect.x, rect.y, rect.width, rect.height]
+                    .iter()
+                    .all(|v| v.is_finite())
+                    && rect.width > 0.0
+                    && rect.height > 0.0
+            })
             && self.boxes.iter().all(|rect| {
                 rect.start < rect.end
                     && rect.end <= length
@@ -44,6 +62,15 @@ impl Geometry {
                     && rect.width >= 0.0
                     && rect.height > 0.0
             })
+    }
+
+    pub(crate) fn link_at(&self, x: f64, y: f64) -> Option<&str> {
+        self.links
+            .iter()
+            .find(|rect| {
+                x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height
+            })
+            .map(|rect| rect.id.as_str())
     }
 
     /// Forward affinity places a wrapped boundary at the next visual row.
@@ -133,7 +160,13 @@ pub(crate) async fn measure_presented(
     let _ = eval.send(serde_json::Value::Null);
     let result = received.map_err(|error| format!("receive: {error}"))?;
     let geometry = result.ok_or_else(|| "source-mismatch".to_string())?;
-    if geometry.valid(scalar) {
+    let allowed = crate::native_proportional_run::preview_targets(replacements);
+    if geometry.valid(scalar)
+        && geometry
+            .links
+            .iter()
+            .all(|link| allowed.iter().any(|(id, _)| id == &link.id))
+    {
         Ok(geometry)
     } else {
         Err(format!(
@@ -177,6 +210,7 @@ mod tests {
     #[test]
     fn proportional_hits_use_measured_grapheme_boundaries_and_wrapped_affinity() {
         let geometry = Geometry {
+            links: Vec::new(),
             width: 20.0,
             height: 40.0,
             boxes: vec![
@@ -218,5 +252,27 @@ mod tests {
         assert_eq!(geometry.caret(2), None);
         assert_eq!(geometry.hit(f64::NAN, 0.0), None);
         assert!(!geometry.valid(3));
+    }
+    #[test]
+    fn link_hits_require_containment_and_finite_geometry() {
+        let mut geometry = Geometry {
+            boxes: vec![],
+            links: vec![LinkBox {
+                id: "3:0".into(),
+                x: 10.0,
+                y: 20.0,
+                width: 30.0,
+                height: 15.0,
+            }],
+            width: 100.0,
+            height: 100.0,
+        };
+        assert!(geometry.valid(0));
+        assert_eq!(geometry.link_at(15.0, 25.0), Some("3:0"));
+        assert_eq!(geometry.link_at(9.0, 25.0), None);
+        assert_eq!(geometry.link_at(15.0, 36.0), None);
+        assert_eq!(geometry.link_at(f64::NAN, 25.0), None);
+        geometry.links[0].width = f64::INFINITY;
+        assert!(!geometry.valid(0));
     }
 }

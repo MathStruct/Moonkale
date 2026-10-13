@@ -393,6 +393,16 @@ impl Workspace {
         self.load_node_when(node, current, true).await
     }
 
+    /// Load a document or view in the background while the request is current.
+    /// Existing unsaved text is preserved; this does not activate the target.
+    pub async fn load_node_guarded(
+        self,
+        node: Node,
+        current: impl Fn() -> bool,
+    ) -> Result<bool, SourceError> {
+        self.load_node_when(node, current, false).await
+    }
+
     /// Restore saved tabs without stealing focus from navigation started while
     /// they load. Existing edits and the user's current selection are retained.
     pub async fn restore_documents(

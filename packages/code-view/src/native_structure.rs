@@ -27,39 +27,43 @@ impl Structure {
         let mut pairs = BTreeMap::new();
         let mut folds = BTreeSet::new();
         for (offset, (byte, ch)) in text.char_indices().enumerate() {
-            while span < spans.len() && spans[span].end() as usize <= byte {
-                span += 1;
-            }
-            let excluded = spans.get(span).is_some_and(|value| {
-                value.start() as usize <= byte && matches!(value.tag(), "s" | "c")
-            });
-            if !excluded {
-                match ch {
-                    '(' | '[' | '{' => stack.push((ch, offset, line)),
-                    ')' | ']' | '}' => {
-                        let expected = match ch {
-                            ')' => '(',
-                            ']' => '[',
-                            _ => '{',
-                        };
-                        if stack.last().is_some_and(|(open, _, _)| *open == expected) {
-                            let (_, start, start_line) = stack.pop().unwrap();
-                            pairs.insert(start, offset);
-                            pairs.insert(offset, start);
-                            if line > start_line
-                                && !matches!(
-                                    language.map(Language::slug),
-                                    Some("html" | "markdown")
-                                )
-                            {
-                                folds.insert((start_line, line));
+            // Only delimiters need parser-span classification. Ordinary prose
+            // must not repeatedly inspect syntax spans for every character.
+            if matches!(ch, '(' | '[' | '{' | ')' | ']' | '}') {
+                while span < spans.len() && spans[span].end() as usize <= byte {
+                    span += 1;
+                }
+                let excluded = spans.get(span).is_some_and(|value| {
+                    value.start() as usize <= byte && matches!(value.tag(), "s" | "c")
+                });
+                if !excluded {
+                    match ch {
+                        '(' | '[' | '{' => stack.push((ch, offset, line)),
+                        ')' | ']' | '}' => {
+                            let expected = match ch {
+                                ')' => '(',
+                                ']' => '[',
+                                _ => '{',
+                            };
+                            if stack.last().is_some_and(|(open, _, _)| *open == expected) {
+                                let (_, start, start_line) = stack.pop().unwrap();
+                                pairs.insert(start, offset);
+                                pairs.insert(offset, start);
+                                if line > start_line
+                                    && !matches!(
+                                        language.map(Language::slug),
+                                        Some("html" | "markdown")
+                                    )
+                                {
+                                    folds.insert((start_line, line));
+                                }
+                            } else {
+                                // Broken nesting must not produce a misleading pair/fold.
+                                stack.clear();
                             }
-                        } else {
-                            // Broken nesting must not produce a misleading pair/fold.
-                            stack.clear();
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             if ch == '\n' {

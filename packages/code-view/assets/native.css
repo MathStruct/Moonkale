@@ -75,3 +75,6 @@
 .mk-native-inline-widget.mk-markdown-list-item { box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mk-markdown-list-content { display: block; box-sizing: border-box; }
 .mk-markdown-list-marker { display: inline-block; min-width: 1.5em; }
+
+.mk-preview-link { text-decoration: underline; text-underline-offset: 0.15em; color: var(--mk-code-link, currentColor); }
+.mk-preview-link[data-link-resolved="false"] { text-decoration-style: dashed; opacity: 0.75; }

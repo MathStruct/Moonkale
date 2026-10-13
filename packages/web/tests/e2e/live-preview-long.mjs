@@ -6,10 +6,11 @@ const root = process.env.M1_ROOT;
 const shots = process.env.M1_SHOTS ?? '.';
 if (!root) throw Error('M1_ROOT must name a disposable fixture');
 const note = '---\r\ntitle: Long vault note\r\n---\r\n\r\n' + Array.from({length:240}, (_,n) =>
-  `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(75)} **bold ${n}** and \`code ${n}\`.\r\n\r\n` +
-  `- list item ${n} **bold**\r\n  - [ ] pending ${n}\r\n- [x] completed ${n} 猫\r\n\r\n` +
+  `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(71)} [**bold ${n}**](https://example.org/${n}) and \`code ${n}\`.\r\n\r\n` +
+  `- list item ${n} **bold** [[#section-${n}-猫|jump]]\r\n  - [ ] pending ${n}\r\n- [x] completed ${n} 猫\r\n\r\n` +
   (n % 20 === 0 ? `\`\`\`rust\r\nfn section_${n}() {}\r\n\`\`\`\r\n\r\n` : '')).join('') + 'End.\r\n';
-assert.ok(Buffer.byteLength(note)>200_000);
+// Keep the byte budget near the preceding 246 KB list fixture while adding 480 links.
+assert.ok(Buffer.byteLength(note)>240_000);
 fs.writeFileSync(`${root}/LongPreview.md`,note);
 fs.writeFileSync(`${root}/PreviewPerf.txt`,'x'.repeat(3_000_000));
 const browser = await firefox.launch();
@@ -35,6 +36,10 @@ const open=async name=>{
 };
 const bench=async()=>{
   await input().focus();
+  if(await panel().locator('.mk-proportional-run').count())await ready();
+  await page.waitForLoadState('networkidle');
+  // Let the preceding save/index and font work settle before timing input.
+  await page.waitForTimeout(1000);
   const times=[];
   for(let i=0;i<10;i++){
     const before=Number(await surface().getAttribute('data-cursor-offset'));
@@ -82,8 +87,9 @@ try {
       await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);
     }
     await ready();
-    await panel().locator('.mk-markdown-list-item').filter({hasText:`list item ${section} bold`}).waitFor();
+    await panel().locator('.mk-markdown-list-item').filter({hasText:`list item ${section} bold jump`}).waitFor();
     await panel().locator('.mk-markdown-list-item').filter({hasText:`☑ completed ${section} 猫`}).waitFor();
+    await panel().locator('.mk-preview-link').filter({hasText:'jump'}).first().waitFor();
     console.log(`deep list ${section}: preview visible`);
   }
   // Navigate to specific headings so a viewport inside a long plain paragraph

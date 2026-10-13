@@ -71,7 +71,9 @@ pub fn spans(text: &str) -> Vec<RawSpan> {
                         None => (rest, None),
                     };
                     let target = target.trim().to_string();
-                    if !target.is_empty() {
+                    if !target.is_empty()
+                        || heading.as_ref().is_some_and(|heading| !heading.is_empty())
+                    {
                         out.push((i, i + 2 + close + 2, target, heading, alias));
                     }
                     i += 2 + close + 2;
@@ -107,6 +109,9 @@ impl Workspace {
     /// relative to the linking file, then from the root; otherwise by stem,
     /// case-insensitively — the index's rules, over its page list.
     pub async fn resolve_wiki(&self, from: &Node, target: &str) -> Option<Node> {
+        if target.trim().is_empty() {
+            return Some(from.clone());
+        }
         let pages = self.index_pages().await;
         resolve_in(&pages, &from.native_key, target)
     }
@@ -117,7 +122,8 @@ impl Workspace {
         spans(text)
             .into_iter()
             .map(|(start, end, target, heading, alias)| WikiSpan {
-                resolved: resolve_in(&pages, &from.native_key, &target).is_some(),
+                resolved: target.is_empty()
+                    || resolve_in(&pages, &from.native_key, &target).is_some(),
                 start,
                 end,
                 target,
@@ -229,12 +235,17 @@ impl Workspace {
             self.set_status(t!(self, L, "wiki-unresolved", target = target.to_string()));
             return Err(SourceError::NotFound);
         }
+        let filename = if target.ends_with(".md") {
+            target.to_string()
+        } else {
+            format!("{target}.md")
+        };
         let rel = if target.contains('/') {
-            format!("{}.md", target.trim_start_matches('/'))
+            filename.trim_start_matches('/').to_string()
         } else {
             match from.native_key.rsplit_once('/') {
-                Some((dir, _)) => format!("{dir}/{target}.md"),
-                None => format!("{target}.md"),
+                Some((dir, _)) => format!("{dir}/{filename}"),
+                None => filename,
             }
         };
         let (dir, name) = rel.rsplit_once('/').unwrap_or(("", rel.as_str()));
@@ -438,6 +449,16 @@ mod tests {
         assert_eq!(s[1].3.as_deref(), Some("Intro"));
         assert_eq!(s[1].4.as_deref(), Some("the intro"));
         assert_eq!(s[2].2, "img.png");
+    }
+
+    #[test]
+    fn same_note_heading_spans_have_an_empty_page_and_keep_alias() {
+        let parsed = spans("[[#Intro|here]] [[#]] [[ ]] [[Page.md#Section]]");
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].2, "");
+        assert_eq!(parsed[0].3.as_deref(), Some("Intro"));
+        assert_eq!(parsed[0].4.as_deref(), Some("here"));
+        assert_eq!(parsed[1].2, "Page.md");
     }
 
     #[test]

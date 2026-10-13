@@ -2749,6 +2749,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.28.0",
  "tracing",
+ "webbrowser",
 ]
 
 [[package]]
@@ -6979,6 +6980,7 @@ name = "mobile"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "moonkale-code-view",
  "moonkale-core",
  "moonkale-distribution",
  "moonkale-ext-git",
@@ -6993,6 +6995,7 @@ dependencies = [
  "moonkale-state-stores",
  "moonkale-terminal",
  "tracing",
+ "webbrowser",
 ]
 
 [[package]]
@@ -7021,6 +7024,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "unicode-segmentation",
+ "url",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -13444,6 +13448,7 @@ dependencies = [
  "axum",
  "axum-server",
  "dioxus",
+ "moonkale-code-view",
  "moonkale-core",
  "moonkale-distribution",
  "moonkale-editor-markdown",

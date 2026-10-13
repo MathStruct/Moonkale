@@ -70,11 +70,15 @@ mod native_proportional_run;
 mod native_widgets;
 #[cfg(feature = "layout-fixture")]
 pub use native_proportional::ProportionalGeometryProbe;
+mod native_links;
 mod native_rename;
 mod native_search;
 mod native_structure;
 mod native_surface;
 mod native_wiki;
+pub use native_links::ExternalLinkOpener;
+#[cfg(feature = "markdown-preview")]
+mod native_link_parser;
 mod native_workspace_edit;
 pub mod panel;
 

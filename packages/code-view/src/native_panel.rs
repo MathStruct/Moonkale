@@ -50,6 +50,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     };
     let diagnostics = crate::native_diagnostics::use_diagnostics(ws, node, manager);
     let (wiki_marks, follow_wiki) = crate::native_wiki::use_wiki(ws, node);
+    let follow_link = crate::native_links::use_follow(ws, node);
     let presence = use_memo(move || {
         let _ = ws.session.presence.read();
         let key = doc.read().node.native_key.clone();
@@ -650,6 +651,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 presence: presence(),
                 wiki_marks: wiki_marks(),
                 onwiki: follow_wiki,
+                onlink: follow_link,
                 model,
                 highlights,
                 first_row,

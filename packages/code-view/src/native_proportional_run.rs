@@ -45,6 +45,7 @@ pub(crate) fn ProportionalRun(
     mut dragging: Signal<bool>,
     mut hovered_position: Signal<Option<(usize, usize)>>,
     onwiki: Callback<String>,
+    onlink: Callback<(RunKey, crate::native_links::Target)>,
     onchange: Callback<()>,
     onheight: Callback<RunHeight>,
     oninvalidated: Callback<RunKey>,
@@ -91,6 +92,34 @@ pub(crate) fn ProportionalRun(
             }
             let request = requests.get().wrapping_add(1);
             requests.set(request);
+            let reused = measured.peek().as_ref().and_then(
+                |(old, old_source, old_marks, old_tags, old_replacements, geometry)| {
+                    let mut comparable = *old;
+                    comparable.revision = key.revision;
+                    (old.revision != key.revision
+                        && comparable == key
+                        && *old_source == source
+                        && *old_marks == marks
+                        && *old_tags == tags
+                        && *old_replacements == replacements)
+                        .then(|| geometry.clone())
+                },
+            );
+            if let Some(geometry) = reused {
+                // Identical run content/layout can be bound to the new revision.
+                // Pending browser responses still carry their original request
+                // and revision and are rejected below; resize clears this cache.
+                onheight.call(RunHeight {
+                    key,
+                    height: geometry.height,
+                    length: source.chars().count(),
+                    geometry: geometry.clone(),
+                    include_end,
+                });
+                measured.set(Some((key, source, marks, tags, replacements, geometry)));
+                measurement_status.set("reused".to_string());
+                return;
+            }
             measurement_status.set("measuring".to_string());
             let id = id.clone();
             let requests = requests.clone();
@@ -230,10 +259,16 @@ pub(crate) fn ProportionalRun(
                 },
                 onmousedown: move |event| {
                     event.prevent_default();
-                    if !ready { return; }
+                    if !ready || stamp.model.peek().revision != stamp.revision { return; }
                     if let Some(value) = &geometry {
-                        if moonkale_ext_api::keys::primary(&event.modifiers()) {
+                        if moonkale_ext_api::keys::primary(&event.modifiers()) && event.held_buttons().contains(dioxus::html::input_data::MouseButton::Primary) {
+                            if let Some(id) = value.link_at(event.element_coordinates().x,event.element_coordinates().y) {
+                                if let Some(target) = preview_targets(&replacements).into_iter().find_map(|(key,target)| (key == id).then_some(target)) {
+                                    event.stop_propagation(); onlink.call((stamp,target)); return;
+                                }
+                            }
                             if let Some(mark) = value.box_at(event.element_coordinates().x, event.element_coordinates().y)
+                                .filter(|rect| !replacements.iter().any(|replacement| replacement.start <= rect.start && rect.end <= replacement.end))
                                 .and_then(|rect| marks.get(rect.start)).and_then(|mark| mark.wiki.as_ref()) {
                                 event.stop_propagation(); onwiki.call(mark.target.clone()); return;
                             }
@@ -269,27 +304,17 @@ pub(crate) fn ProportionalRun(
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
                             style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. })) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
-                            if let Some(crate::native_decorations::InlineStyle::Nested(fragments) | crate::native_decorations::InlineStyle::Heading(_, fragments)) = &replacement.style {
-                                for fragment in fragments {
-                                    span {
-                                        class: "mk-markdown-fragment",
-                                        "data-emphasis": fragment.emphasis.to_string(),
-                                        "data-strong": fragment.strong.to_string(),
-                                        "data-code": fragment.code.to_string(),
-                                        "{fragment.text}"
-                                    }
+                            if let Some(style @ (crate::native_decorations::InlineStyle::Nested(_) | crate::native_decorations::InlineStyle::Heading(_, _) | crate::native_decorations::InlineStyle::Link(_))) = &replacement.style {
+                                for (fragment_index, fragment) in fragments(style).iter().enumerate() {
+                                    MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
                                 }
                             } else if let Some(crate::native_decorations::InlineStyle::ListItem { depth, marker, checked, fragments }) = &replacement.style {
                                 span {
                                     class: "mk-markdown-list-content", style: "padding-left: {*depth as f64 * 20.0}px;",
                                     "data-list-depth": "{depth}", "data-task-checked": checked.map(|checked| checked.to_string()),
                                     span { class: "mk-markdown-list-marker", "{marker} " }
-                                    for fragment in fragments.iter() {
-                                        span { class: "mk-markdown-fragment",
-                                            "data-emphasis": fragment.emphasis.to_string(),
-                                            "data-strong": fragment.strong.to_string(),
-                                            "data-code": fragment.code.to_string(), "{fragment.text}"
-                                        }
+                                    for (fragment_index, fragment) in fragments.iter().enumerate() {
+                                        MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
                                     }
                                 }
                             } else if let Some(crate::native_decorations::InlineStyle::Fenced { fragments, .. }) = &replacement.style {
@@ -331,4 +356,71 @@ pub(crate) struct VerticalIntent {
     pub key: RunKey,
     pub offset: usize,
     pub x: f64,
+}
+
+fn fragments(
+    style: &crate::native_decorations::InlineStyle,
+) -> &[crate::native_decorations::InlineFragment] {
+    use crate::native_decorations::InlineStyle;
+    match style {
+        InlineStyle::Nested(values) | InlineStyle::Heading(_, values) => values,
+        InlineStyle::Link(values) => values,
+        InlineStyle::ListItem { fragments, .. } => fragments,
+        _ => &[],
+    }
+}
+
+pub(crate) fn preview_targets(
+    values: &[crate::native_presentation::Replacement],
+) -> Vec<(String, crate::native_links::Target)> {
+    values
+        .iter()
+        .flat_map(|value| {
+            value.style.as_ref().into_iter().flat_map(move |style| {
+                fragments(style)
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, fragment)| {
+                        fragment
+                            .link
+                            .as_ref()
+                            .map(|link| (format!("{}:{index}", value.start), link.target.clone()))
+                    })
+            })
+        })
+        .collect()
+}
+
+fn fragment_resolved(
+    fragment: &crate::native_decorations::InlineFragment,
+    marks: &[CellMarks],
+) -> bool {
+    match fragment.link.as_ref().map(|link| &link.target) {
+        Some(crate::native_links::Target::Wiki { page, .. }) => {
+            page.is_empty()
+                || marks.iter().any(|mark| {
+                    mark.wiki
+                        .as_ref()
+                        .is_some_and(|mark| &mark.target == page && mark.resolved)
+                })
+        }
+        _ => true,
+    }
+}
+
+#[component]
+fn MarkdownFragment(
+    fragment: crate::native_decorations::InlineFragment,
+    identity: String,
+    resolved: bool,
+) -> Element {
+    let link = fragment.link.as_ref();
+    rsx! { span {
+        class: "mk-markdown-fragment", class: if link.is_some() { "mk-preview-link" },
+        "data-preview-link": link.map(|_| identity),
+        "data-link-resolved": link.map(|_| resolved.to_string()),
+        title: link.map(|link| if link.title.is_empty() {link.target.description()} else {link.title.clone()}),
+        "data-emphasis": fragment.emphasis.to_string(), "data-strong": fragment.strong.to_string(),
+        "data-code": fragment.code.to_string(), "{fragment.text}"
+    } }
 }

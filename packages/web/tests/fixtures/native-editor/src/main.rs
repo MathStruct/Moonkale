@@ -624,8 +624,18 @@ impl Source for MemoryFile {
         Ok(Applied { results })
     }
 }
+thread_local! { static LINK_LOG: std::cell::RefCell<Option<Signal<Vec<String>>>> = const { std::cell::RefCell::new(None) }; }
+static EXTERNAL_LINKS: moonkale_code_view::ExternalLinkOpener = moonkale_code_view::ExternalLinkOpener(|url| {
+    LINK_LOG.with(|value| { if let Some(mut log) = *value.borrow() {log.write().push(url);} });
+    Ok(())
+});
+
+static SERVICES: [&(dyn std::any::Any + Sync); 1] = [&EXTERNAL_LINKS];
+
 #[component]
 fn App() -> Element {
+    let opened_links = use_signal(Vec::<String>::new);
+    use_hook(move || LINK_LOG.with(|value| *value.borrow_mut() = Some(opened_links)));
     let mut show_proportional = use_signal(|| false);
     let mut layout_fixture = use_signal(moonkale_code_view::LayoutFixture::default);
     use_context_provider(|| layout_fixture);
@@ -648,7 +658,7 @@ fn App() -> Element {
             persistence: Default::default(),
             network: Default::default(),
             runtimes: Default::default(),
-            services: &[],
+            services: &SERVICES,
         });
         ws.settings
             .user
@@ -904,6 +914,7 @@ fn App() -> Element {
         button { id: "syntax", onclick: move |_| { let mut doc = doc; doc.write().text = "fn f() { // 😀 comment\r\n}\r\n".into(); }, "Syntax indentation" }
         button { id: "syntax-string", onclick: move |_| { let mut doc = doc; doc.write().text = "let text = \"{\";\r\n".into(); }, "String indentation" }
         div { class: "language-canonical", hidden: true, "{language_text}" }
+        div { class: "opened-links", hidden: true, "{opened_links():?}" }
         if let Some(id) = show_language() { div { class: "harness-editor language", RustCodeEditorPanel { ws, node: id, lsp } } }
         div { id: "active-source", hidden: true, "{ws.docs.active.read().and_then(|id| ws.document(id)).map(|doc| doc.peek().node.source.to_string()).unwrap_or_default()}" }
         button { id: "wiki-code", onclick: move |_| { let mut target = doc; target.write().text = "😀 [[Note é]]".into(); }, "Wiki in code" }
@@ -1031,6 +1042,15 @@ fn App() -> Element {
             let mut ws = ws; ws.docs.active.set(Some(id));
             layout_fixture.set(Default::default());
         }, "Setext heading source" }
+        button { id: "markdown-links", onclick: move |_| {
+            let id = NodeId::derive(&doc.peek().node.source, "nested.md");
+            if let Some(mut markdown) = ws.document(id) {
+                markdown.write().text = "before 😀\r\n\r\n[**Web 猫**](https://example.org/path?q=1#part) and [[Note é#Heading|Alias <safe>]]\r\n# Heading [site](https://example.org/heading) and [[#heading-site-and-local|local]]\r\n\r\n- parent [Mail](mailto:a@example.org)\r\n  - [ ] [[Note é|Task alias]]\r\n\r\n[Reference][ref] and <https://example.org/auto>\r\n\r\n[ref]: https://example.org/ref\r\n\r\n`[[Code]]` and ![[Embed]] and \\[[Escaped]]\r\n\r\nlast row\r\n".into();
+            }
+            show_language.set(Some(id));
+            let mut ws = ws; ws.docs.active.set(Some(id));
+            layout_fixture.set(Default::default());
+        }, "Markdown links source" }
         button { id: "markdown-lists", onclick: move |_| {
             let id = NodeId::derive(&doc.peek().node.source, "nested.md");
             if let Some(mut markdown) = ws.document(id) {

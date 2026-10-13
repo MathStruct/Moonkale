@@ -241,7 +241,9 @@ static GIT: moonkale_ext_git::GitRunner = moonkale_ext_git::GitRunner(git_any);
 /// The theme files (spec 030).
 static THEMES: moonkale_shell::theme::ThemeFiles =
     moonkale_shell::theme::ThemeFiles(moonkale_server::themes::local_themes);
-static SERVICES: [&(dyn std::any::Any + Sync); 2] = [&GIT, &THEMES];
+static EXTERNAL_LINKS: moonkale_code_view::ExternalLinkOpener =
+    moonkale_code_view::ExternalLinkOpener(open_external_link);
+static SERVICES: [&(dyn std::any::Any + Sync); 3] = [&GIT, &THEMES, &EXTERNAL_LINKS];
 
 fn workspace_config() -> WorkspaceConfig {
     let state = state_access();
@@ -281,4 +283,8 @@ fn workspace_config() -> WorkspaceConfig {
         runtimes: Default::default(),
         services: &SERVICES,
     }
+}
+
+fn open_external_link(url: String) -> Result<(), String> {
+    webbrowser::open(&url).map_err(|error| error.to_string())
 }

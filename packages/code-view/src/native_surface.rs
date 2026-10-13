@@ -43,6 +43,7 @@ pub(crate) fn RustEditorSurface(
     presence: Vec<moonkale_ext_api::presence::Member>,
     wiki_marks: Vec<crate::native_wiki::Mark>,
     onwiki: Callback<String>,
+    onlink: Callback<crate::native_links::Target>,
     mut hover_target: Signal<Option<(usize, usize)>>,
     hover_text: Option<String>,
     hover_label: String,
@@ -1275,6 +1276,9 @@ pub(crate) fn RustEditorSurface(
                                                         tags: tags[row_index].iter().enumerate().map(|(i, tag)| if bracket_pair.is_some_and(|(a,b)| a == line.char_offset_start+i || b == line.char_offset_start+i) { format!("{tag} mk-native-bracket-match") } else { tag.clone() }).collect::<Vec<_>>(),
                                                         points: (0..=line.cells.len()).filter(|i| *i < line.cells.len() || include_end).filter_map(|i| decorations.search_point(line.char_offset_start+i).map(|current| (i,current))).collect::<Vec<_>>(),
                                                         include_end, affinity: caret_affinity, dragging, hovered_position, onwiki, onchange,
+                                                        onlink: move |(key,target): (crate::native_proportional_run::RunKey,crate::native_links::Target)| {
+                                                            if key.model == model && key.revision == model.peek().revision && key.viewport_width == viewport_width_pixels() && key.font_epoch == font_epoch() && key.presentation == current_presentation(presentation_index,model) && !font_loading() && !composing() { onlink.call(target); }
+                                                        },
                                                         onheight: {
                                                         let measured_runs = measured_runs.clone();
                                                         move |result: crate::native_proportional_run::RunHeight| {

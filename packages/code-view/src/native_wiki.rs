@@ -18,13 +18,42 @@ pub(crate) struct Mark {
 
 pub(crate) fn use_wiki(ws: Workspace, node: NodeId) -> (Memo<Vec<Mark>>, Callback<String>) {
     let doc = ws.document(node).expect("open document");
+    // Resolution depends on page identities, not source offsets or unrelated
+    // typing. Retain the result while the same targets move within the note.
+    let raw = use_memo(move || {
+        let doc = doc.read();
+        if doc.node.language_hint() == Some("markdown") {
+            source_spans(&doc.text)
+        } else {
+            (Vec::new(), Vec::new())
+        }
+    });
+    let from = use_memo(move || doc.read().node.clone());
+    let targets = use_memo(move || {
+        if from().language_hint() != Some("markdown") {
+            return None;
+        }
+        let mut values: Vec<_> = raw
+            .read()
+            .0
+            .iter()
+            .map(|(_, _, target, _, _)| target.clone())
+            .filter(|target| !target.is_empty())
+            .collect();
+        values.sort();
+        values.dedup();
+        Some(values)
+    });
     let resolved = use_resource(move || {
         let epoch = *ws.sources.graph_epoch.read();
-        let doc = doc.read();
-        let from = doc.node.clone();
-        let text = (from.language_hint() == Some("markdown")).then(|| doc.text.clone());
+        let from = from();
+        let targets = targets();
         async move {
-            let text = text?;
+            let targets = targets?;
+            let text = targets
+                .iter()
+                .map(|target| format!("[[{target}]]"))
+                .collect::<String>();
             futures_timer::Delay::new(Duration::from_millis(300)).await;
             let spans = match select(
                 ws.wiki_spans(&from, &text).boxed_local(),
@@ -39,8 +68,8 @@ pub(crate) fn use_wiki(ws: Workspace, node: NodeId) -> (Memo<Vec<Mark>>, Callbac
         }
     });
     let marks = use_memo(move || {
-        let doc = doc.read();
-        if doc.node.language_hint() != Some("markdown") {
+        let spans_raw = raw.read();
+        if from().language_hint() != Some("markdown") {
             return Vec::new();
         }
         let result = resolved.read();
@@ -57,21 +86,15 @@ pub(crate) fn use_wiki(ws: Workspace, node: NodeId) -> (Memo<Vec<Mark>>, Callbac
                     .collect::<std::collections::HashSet<_>>()
             })
             .unwrap_or_default();
-        let mut previous_byte = 0;
-        let mut previous_scalar = 0;
-        let mut offset = |byte: usize| {
-            let segment = &doc.text[previous_byte..byte];
-            previous_scalar += scalar_offset(segment, segment.len());
-            previous_byte = byte;
-            previous_scalar
-        };
-        wiki::spans(&doc.text)
-            .into_iter()
-            .map(|(start, end, target, _, _)| Mark {
-                start: offset(start),
-                end: offset(end),
-                resolved: resolved_targets.contains(&target),
-                target,
+        spans_raw
+            .0
+            .iter()
+            .zip(&spans_raw.1)
+            .map(|((_, _, target, _, _), (start, end))| Mark {
+                start: *start,
+                end: *end,
+                resolved: target.is_empty() || resolved_targets.contains(target),
+                target: target.clone(),
             })
             .collect()
     });
@@ -99,12 +122,24 @@ pub(crate) fn use_wiki(ws: Workspace, node: NodeId) -> (Memo<Vec<Mark>>, Callbac
 
 fn scalar_offset(text: &str, byte: usize) -> usize {
     let prefix = &text[..byte];
-    prefix.chars().count()
-        - prefix
-            .as_bytes()
-            .windows(2)
-            .filter(|pair| *pair == b"\r\n")
-            .count()
+    prefix.chars().count() - prefix.matches("\r\n").count()
+}
+
+fn source_spans(text: &str) -> (Vec<wiki::RawSpan>, Vec<(usize, usize)>) {
+    let spans = wiki::spans(text);
+    let mut previous_byte = 0;
+    let mut previous_scalar = 0;
+    let mut offset = |byte: usize| {
+        let segment = &text[previous_byte..byte];
+        previous_scalar += scalar_offset(segment, segment.len());
+        previous_byte = byte;
+        previous_scalar
+    };
+    let positions = spans
+        .iter()
+        .map(|(start, end, _, _, _)| (offset(*start), offset(*end)))
+        .collect();
+    (spans, positions)
 }
 
 #[cfg(test)]
@@ -119,5 +154,14 @@ mod tests {
             scalar_offset(text, end),
             text.replace("\r\n", "\n").chars().count()
         );
+    }
+    #[test]
+    fn cached_spans_include_scalar_positions_when_byte_ranges_stay_equal() {
+        let ascii = source_spans("abcd\r\n[[Note]]");
+        let emoji = source_spans("😀\r\n[[Note]]");
+        assert_eq!(ascii.0, emoji.0);
+        assert_eq!(ascii.1, [(5, 13)]);
+        assert_eq!(emoji.1, [(2, 10)]);
+        assert!(ascii != emoji);
     }
 }
