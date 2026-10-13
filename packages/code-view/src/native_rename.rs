@@ -330,6 +330,7 @@ pub(crate) fn RenamePrompt(ws: Workspace, mut rename: Rename) -> Element {
         div { class: "mk-editor-bar mk-editor-rename mk-native-rename-prompt", role: "dialog", aria_label: "{label}", aria_busy: "{busy}",
             onkeydown: move |event| {
                 event.stop_propagation();
+                if event.is_composing() { return; }
                 if event.key() == Key::Escape { event.prevent_default(); rename.cancel.call(()); }
                 if event.key() == Key::Enter { event.prevent_default(); rename.commit.call(()); }
             },

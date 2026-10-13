@@ -120,21 +120,40 @@ impl NativeModel {
     }
     pub fn update_highlight_deferred(&mut self, snapshot: &EditorSnapshot, batch: &EditBatch) {
         self.revision = snapshot.revision;
-        // SourceEdit uses bytes of normalized text, while Workspace preserves CRLF.
-        // CRLF replacements use a reparse; ordinary edits update the existing tree.
+        // Normalize byte coordinates as well as text, so CRLF documents can
+        // retain the incremental tree instead of reparsing after every key.
+        let normalized_byte = |byte: usize| {
+            byte - self
+                .lines
+                .iter()
+                .filter(|line| line.crlf && byte > line.byte + line.bytes - 2)
+                .count()
+        };
         if let Some(buffer) = &mut self.highlight {
-            let result = if self.crlf_lines == 0 && batch.changes.len() == 1 {
+            let normalized = snapshot.text.replace("\r\n", "\n");
+            let result = if buffer.source() == normalized {
+                Ok(())
+            } else if batch.changes.len() == 1 {
                 let change = &batch.changes[0];
-                buffer.edit(
-                    SourceEdit {
-                        start_byte: change.range.start,
-                        old_end_byte: change.range.end,
-                        new_end_byte: change.range.start + change.inserted_text.len(),
-                    },
-                    &snapshot.text,
-                )
+                let start = normalized_byte(change.range.start);
+                let end = normalized_byte(change.range.end);
+                let new_end = normalized
+                    .len()
+                    .checked_sub(buffer.source().len().saturating_sub(end));
+                if let Some(new_end) = new_end.filter(|new_end| *new_end >= start) {
+                    buffer.edit(
+                        SourceEdit {
+                            start_byte: start,
+                            old_end_byte: end,
+                            new_end_byte: new_end,
+                        },
+                        &normalized,
+                    )
+                } else {
+                    buffer.replace(normalized)
+                }
             } else {
-                buffer.replace(snapshot.text.replace("\r\n", "\n"))
+                buffer.replace(normalized)
             };
             if result.is_err() {
                 self.highlight = None;
@@ -640,6 +659,43 @@ mod tests {
             inserted_text: inserted.into(),
         }
     }
+    #[test]
+    fn incremental_crlf_byte_edits_match_fresh_syntax_highlighting() {
+        let mut doc = RevisionedDocument::new(
+            NodeId::fresh("crlf-syntax"),
+            "fn main() {\r\n    let n = 1;\r\n}\r\n".into(),
+        );
+        let mut model = NativeModel::new(doc.snapshot(), Some(Language::Rust));
+        for (removed, inserted) in [("1", "22"), ("\r\n", ""), ("}", " // 猫😀\r\n}")] {
+            let base = doc.snapshot();
+            let start = base.text.find(removed).unwrap();
+            let batch = EditBatch {
+                node: base.node,
+                base_revision: base.revision,
+                changes: vec![TextChange {
+                    range: start..start + removed.len(),
+                    removed_text: removed.into(),
+                    inserted_text: inserted.into(),
+                }],
+                selection: None,
+            };
+            let next = doc.apply(&batch).unwrap();
+            model.update_highlight_deferred(&next, &batch);
+            let normalized = next.text.replace("\r\n", "\n");
+            let fresh = Buffer::new(Language::Rust, &normalized).unwrap();
+            let buffer = model.highlight.as_ref().unwrap();
+            assert_eq!(buffer.source(), normalized);
+            let spans = |buffer: &Buffer| {
+                buffer
+                    .spans()
+                    .iter()
+                    .map(|span| (span.start(), span.end(), span.tag().to_string()))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(spans(buffer), spans(&fresh));
+        }
+    }
+
     #[test]
     fn localized_metrics_follow_multiline_crlf_edits_and_selection() {
         let mut doc = RevisionedDocument::new(

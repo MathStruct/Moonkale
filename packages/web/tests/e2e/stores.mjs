@@ -2,6 +2,7 @@
 // directory and a HelixDB directory (fixture: stores/, seeded by seed_stores) open as sources,
 // list their tables/labels, and answer in the table editor in their own dialect (sql, kv, helix).
 import { firefox } from "playwright";
+import fs from "node:fs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const browser = await firefox.launch();
@@ -22,7 +23,34 @@ const run = async (q, rows) => {
 /** Click a store in the tree; wait for its source header and one child. */
 const openStore = async (file, name, child) => {
   await showSources();
-  await page.click(`.mk-tree-row[title='stores/${file}']`);
+  const trace = !!process.env.STORES_TRANSITION_TRACE;
+  if (trace) await page.evaluate(file => {
+    const identities = new WeakMap(); let next = 1;
+    const id = node => node ? (identities.has(node) ? identities.get(node) : (identities.set(node, next), next++)) : null;
+    const samples = []; const start = performance.now();
+    const sample = () => {
+      if (samples.length >= 160) return;
+      const row = document.querySelector(`.mk-tree-row[title="stores/${file}"]`);
+      const rect = row?.getBoundingClientRect();
+      const hit = rect && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      samples.push({ms: Math.round(performance.now() - start), row: id(row),
+        tree: id(row?.closest('.mk-tree')), source: id(row?.closest('.mk-explorer-source')),
+        rect: rect && {x:rect.x,y:rect.y,width:rect.width,height:rect.height},
+        hit: !!row && row.contains(hit), covering: hit?.className,
+        active: document.querySelector('.mk-titlebar-title')?.textContent});
+    };
+    sample(); window.__storeTransition = {samples, sample, timer: setInterval(sample, 250)};
+  }, file);
+  try {
+    await page.click(`.mk-tree-row[title='stores/${file}']`);
+  } finally {
+    if (trace) {
+      const samples = await page.evaluate(() => {
+        const t = window.__storeTransition; clearInterval(t.timer); t.sample(); return t.samples;
+      });
+      fs.writeFileSync(`${S}/stores-${file}-transition.json`, JSON.stringify(samples, null, 2));
+    }
+  }
   await page.waitForSelector(`.mk-explorer-source-name:has-text('${name}')`, { timeout: 20000 });
   await page.waitForSelector(`.mk-tree-db >> text=${child}`, { timeout: 15000 });
 };

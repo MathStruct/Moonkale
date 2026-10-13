@@ -310,3 +310,5 @@ wb-close-empty = 关闭空面板组
 wb-close-empty-hint = 关闭空组
 wb-splitter = 调整面板组大小
 wb-splitter-hint = 拖动以调整大小。方向键调整；按住 Shift 移动更多；双击重置。
+
+cmd-editor-restart-language-server = 编辑：重启语言服务器

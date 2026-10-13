@@ -21,6 +21,33 @@ pub(crate) struct Target {
     pub affinity: Option<CaretAffinity>,
 }
 
+/// Font fallback can change glyph ascent within one physical line. Navigation
+/// groups overlapping glyph heights, while drawing retains exact glyph boxes.
+fn visual_y(geometry: &crate::native_browser_geometry::Geometry, y: f64, height: f64) -> f64 {
+    geometry
+        .boxes
+        .iter()
+        .filter(|rect| {
+            let overlap = (y + height).min(rect.y + rect.height) - y.max(rect.y);
+            overlap > height.min(rect.height) * 0.5
+        })
+        .map(|rect| rect.y)
+        .fold(y, f64::min)
+}
+
+pub(crate) fn wrap_boundary(
+    geometry: &crate::native_browser_geometry::Geometry,
+    offset: usize,
+) -> bool {
+    geometry
+        .caret_backward(offset)
+        .zip(geometry.caret(offset))
+        .is_some_and(|(back, forward)| {
+            (visual_y(geometry, back.1, back.2) - visual_y(geometry, forward.1, forward.2)).abs()
+                > 0.5
+        })
+}
+
 pub(crate) fn positions(run: &RunHeight, heights: &RowHeights) -> Vec<Target> {
     let mut values = Vec::new();
     for rect in &run.geometry.boxes {
@@ -30,13 +57,11 @@ pub(crate) fn positions(run: &RunHeight, heights: &RowHeights) -> Vec<Target> {
             } else {
                 run.geometry.caret(offset)
             };
-            if let Some((x, y, _)) = point {
+            if let Some((x, y, height)) = point {
+                let y = visual_y(&run.geometry, y, height);
                 let backward = backward
                     && (offset == run.length && !run.include_end
-                        || run
-                            .geometry
-                            .caret(offset)
-                            .is_some_and(|(_, forward_y, _)| (forward_y - y).abs() > 0.5));
+                        || wrap_boundary(&run.geometry, offset));
                 values.push(Target {
                     offset: run.key.start + offset,
                     x,
@@ -71,7 +96,7 @@ pub(crate) fn origin(
     if local > run.length || local == run.length && !run.include_end && !backward {
         return None;
     }
-    let (x, y, _) = if backward {
+    let (x, y, height) = if backward {
         run.geometry.caret_backward(local)
     } else {
         run.geometry.caret(local)
@@ -79,7 +104,7 @@ pub(crate) fn origin(
     Some(Target {
         offset,
         x,
-        y: heights.row_top(run.key.row) + y,
+        y: heights.row_top(run.key.row) + visual_y(&run.geometry, y, height),
         affinity: backward.then_some(CaretAffinity {
             key: run.key,
             offset,
@@ -219,6 +244,32 @@ pub(crate) fn uniform(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn fallback_font_ascent_does_not_create_an_extra_visual_row() {
+        use crate::native_browser_geometry::{Geometry, GlyphBox};
+        let make = |start, x, y, height| GlyphBox {
+            start,
+            end: start + 1,
+            x,
+            y,
+            width: 12.0,
+            height,
+        };
+        let geometry = Geometry {
+            width: 80.0,
+            height: 64.0,
+            boxes: vec![
+                make(0, 0.0, 3.0, 28.0),
+                make(1, 12.0, 0.0, 32.0),
+                make(2, 0.0, 35.0, 28.0),
+            ],
+        };
+        assert_eq!(visual_y(&geometry, 3.0, 28.0), 0.0);
+        assert_eq!(visual_y(&geometry, 0.0, 32.0), 0.0);
+        assert!(!wrap_boundary(&geometry, 1));
+        assert!(wrap_boundary(&geometry, 2));
+    }
+
     #[test]
     fn visual_edges_include_zero_width_trailing_source_but_exclude_other_rows() {
         let point = |offset, x, y| Target {
