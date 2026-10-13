@@ -308,3 +308,5 @@ P-179 also guards asynchronous saved-tab restoration: background loads do not ac
 - `flow-tree-open.mjs` (P-183): a `.flow.json` opened from the explorer tree right after the Extensions rail entry keeps its tab in front through the first edit — the shell handles each command once instead of replaying the last one when a signal it read changes.
 
 For store-opening diagnostics, set `STORES_TRANSITION_TRACE=1`. The ordinary store-row click is sampled every 250 ms (up to 160 samples), recording row/tree/source identity, bounds and hit target in `stores-<file>-transition.json` under `M1_SHOTS`. The acceptance sequence is three consecutive two-core rounds of `files rich stores`, including runs without tracing.
+
+The store suite also verifies explorer DOM identity when opening additional stores and reopening the folder, plus database child retention after folder and database refreshes. Ordinary store clicks capture identities synchronously on pointer-down; they do not add a browser round trip or a settling delay before clicking. Source containers and tree rows must be keyed at the direct list-child level, and refresh queries must use the node’s owning source.

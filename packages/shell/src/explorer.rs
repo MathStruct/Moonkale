@@ -135,6 +135,23 @@ async fn toggle(ws: Workspace, mut state: TreeState, node: Node) {
     });
 }
 
+fn tree_owners(
+    sources: impl Iterator<Item = moonkale_core::SourceDescriptor>,
+    children: &HashMap<NodeId, Vec<Node>>,
+) -> HashMap<NodeId, moonkale_core::SourceId> {
+    // The index shares the folder's root ID, but has no explorer tree.
+    let mut owners: HashMap<_, _> = sources
+        .filter(|s| s.family != moonkale_core::SourceFamily::Index)
+        .map(|s| (s.root, s.id))
+        .collect();
+    for nodes in children.values() {
+        for node in nodes {
+            owners.insert(node.id, node.source.clone());
+        }
+    }
+    owners
+}
+
 #[component]
 fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     let mut path = use_signal(String::new);
@@ -215,35 +232,30 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                 loaded.push(*id);
             }
         }
-        let sources: Vec<_> = ws
-            .sources
-            .open
-            .peek()
-            .iter()
-            .map(|s| (s.descriptor.id.clone(), s.descriptor.root))
-            .collect();
+        // A NotFound response from an unrelated source says nothing about
+        // this directory. Route each cached node to its recorded owner.
+        let owners = tree_owners(
+            ws.sources.open.peek().iter().map(|s| s.descriptor.clone()),
+            &state.children.peek(),
+        );
         spawn(async move {
             for dir in loaded {
-                // Find the source owning this directory by asking each one.
-                for (sid, _) in &sources {
-                    match ws.query(sid, Query::Children(dir)).await {
-                        Ok(res) => {
-                            state.children.with_mut(|c| {
-                                c.insert(dir, res.nodes);
-                            });
-                            break;
-                        }
-                        Err(SourceError::NotFound) => {
-                            state.children.with_mut(|c| {
-                                c.remove(&dir);
-                            });
-                            state.expanded.with_mut(|e| {
-                                e.remove(&dir);
-                            });
-                            break;
-                        }
-                        Err(_) => continue,
+                let Some(sid) = owners.get(&dir) else {
+                    continue;
+                };
+                match ws.query(sid, Query::Children(dir)).await {
+                    Ok(res) => state.children.with_mut(|c| {
+                        c.insert(dir, res.nodes);
+                    }),
+                    Err(SourceError::NotFound) => {
+                        state.children.with_mut(|c| {
+                            c.remove(&dir);
+                        });
+                        state.expanded.with_mut(|e| {
+                            e.remove(&dir);
+                        });
                     }
+                    Err(_) => {}
                 }
             }
         });
@@ -302,60 +314,72 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                 p { class: "mk-muted", {t!(ws, L, "explorer-empty")} }
             }
             for s in sources {
-                {
-                    let (icon, kind) = if ws.is_remote_source(&s.descriptor.id) && s.descriptor.family == moonkale_core::SourceFamily::Folder {
-                        ("folder-remote", "remote folder")
-                    } else {
-                        crate::icons::source_icon(&s.descriptor)
-                    };
-                    let color = crate::icons::source_color(s.descriptor.id.as_str());
-                    let read_only = !s.descriptor.capabilities.write;
-                    let watched = ws.sources.watched.read().contains(&s.descriptor.id);
-                    rsx! {
-                div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
-                    div { class: "mk-explorer-source-name", title: if read_only { format!("{kind} · {}", t!(ws, L, "explorer-read-only")) } else { kind.to_string() },
-                        oncontextmenu: {
-                            let root_id = s.descriptor.root;
-                            let sid = s.descriptor.id.clone();
-                            let name = s.descriptor.display_name.clone();
-                            move |e| {
-                                e.prevent_default();
-                                let root = Node { id: root_id, source: sid.clone(), kind: NodeKind::Directory, label: name.clone(), native_key: String::new(), content: None, version: Default::default(), props: Default::default() };
-                                let c = e.client_coordinates();
-                                state.menu.set(Some(Menu { node: root, is_dir: true, x: c.x, y: c.y }));
+                ExplorerSource { key: "{s.descriptor.id}", ws, state, descriptor: s.descriptor }
+            }
+        }
+    }
+}
+
+// The key must belong to the loop's direct child, rather than a nested RSX
+// expression: source-list reordering must preserve the component and its tree.
+#[component]
+fn ExplorerSource(
+    ws: Workspace,
+    state: TreeState,
+    descriptor: moonkale_core::SourceDescriptor,
+) -> Element {
+    let mut state = state;
+    let (icon, kind) = if ws.is_remote_source(&descriptor.id)
+        && descriptor.family == moonkale_core::SourceFamily::Folder
+    {
+        ("folder-remote", "remote folder")
+    } else {
+        crate::icons::source_icon(&descriptor)
+    };
+    let color = crate::icons::source_color(descriptor.id.as_str());
+    let read_only = !descriptor.capabilities.write;
+    let watched = ws.sources.watched.read().contains(&descriptor.id);
+    rsx! {
+        div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
+            div { class: "mk-explorer-source-name", title: if read_only { format!("{kind} · {}", t!(ws, L, "explorer-read-only")) } else { kind.to_string() },
+                oncontextmenu: {
+                    let root_id = descriptor.root;
+                    let sid = descriptor.id.clone();
+                    let name = descriptor.display_name.clone();
+                    move |e| {
+                        e.prevent_default();
+                        let root = Node { id: root_id, source: sid.clone(), kind: NodeKind::Directory, label: name.clone(), native_key: String::new(), content: None, version: Default::default(), props: Default::default() };
+                        let c = e.client_coordinates();
+                        state.menu.set(Some(Menu { node: root, is_dir: true, x: c.x, y: c.y }));
+                    }
+                },
+                span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
+                span { class: "mk-source-label", "{descriptor.display_name}" }
+                if read_only { span { class: "mk-source-lock", title: t!(ws, L, "explorer-read-only"), crate::icons::Icon { name: "lock" } } }
+                // Changes on disk are followed for watched sources
+                // (Milestone 16); the others get a refresh button.
+                if !watched {
+                    button { class: "mk-source-refresh", r#type: "button",
+                        title: t!(ws, L, "explorer-not-watched"),
+                        "aria-label": t!(ws, L, "explorer-refresh-source", name = descriptor.display_name.clone()),
+                        onclick: {
+                            let id = descriptor.id.clone();
+                            move |e: MouseEvent| {
+                                e.stop_propagation();
+                                let id = id.clone();
+                                dioxus::core::spawn_forever(async move {
+                                    ws.refresh_source(&id).await;
+                                });
                             }
                         },
-                        span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
-                        span { class: "mk-source-label", "{s.descriptor.display_name}" }
-                        if read_only { span { class: "mk-source-lock", title: t!(ws, L, "explorer-read-only"), crate::icons::Icon { name: "lock" } } }
-                        // Changes on disk are followed for watched sources
-                        // (Milestone 16); the others get a refresh button.
-                        if !watched {
-                            button { class: "mk-source-refresh", r#type: "button",
-                                title: t!(ws, L, "explorer-not-watched"),
-                                "aria-label": t!(ws, L, "explorer-refresh-source", name = s.descriptor.display_name.clone()),
-                                onclick: {
-                                    let id = s.descriptor.id.clone();
-                                    move |e: MouseEvent| {
-                                        e.stop_propagation();
-                                        let id = id.clone();
-                                        dioxus::core::spawn_forever(async move {
-                                            ws.refresh_source(&id).await;
-                                        });
-                                    }
-                                },
-                                "↻"
-                            }
-                        }
-                    }
-                    if let Some(edit) = state.edit.read().clone().filter(|e| e.parent_id() == s.descriptor.root && !matches!(e, Edit::Rename { .. })) {
-                        InlineEdit { ws, state, edit, depth: 0 }
-                    }
-                    TreeLevel { ws, state, parent: s.descriptor.root, depth: 0 }
-                }
+                        "↻"
                     }
                 }
             }
+            if let Some(edit) = state.edit.read().clone().filter(|e| e.parent_id() == descriptor.root && !matches!(e, Edit::Rename { .. })) {
+                InlineEdit { ws, state, edit, depth: 0 }
+            }
+            TreeLevel { ws, state, parent: descriptor.root, depth: 0 }
         }
     }
 }
@@ -374,137 +398,152 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
     let marks = ws.contrib.file_marks.read().clone();
     let _ = ws.session.presence.read();
     let others = ws.others();
-    rsx! {
-        ul { class: "mk-tree", style: "--depth: {depth}",
-            for node in children {
-                {
-                    let vcs_class = match marks.get(&node.native_key) {
-                        Some(m) => m.class,
-                        None if node.kind == NodeKind::Directory => {
-                            let prefix = format!("{}/", node.native_key);
-                            if marks.keys().any(|k| k.starts_with(&prefix)) { "mk-mark-dir" } else { "" }
+    // Return keyed row VNodes directly. A nested expression inside an RSX
+    // loop wraps each row in an unkeyed node and loses identity on reorder.
+    let mut rows = Vec::with_capacity(children.len());
+    for node in children {
+        let vcs_class = match marks.get(&node.native_key) {
+            Some(m) => m.class,
+            None if node.kind == NodeKind::Directory => {
+                let prefix = format!("{}/", node.native_key);
+                if marks.keys().any(|k| k.starts_with(&prefix)) {
+                    "mk-mark-dir"
+                } else {
+                    ""
+                }
+            }
+            None => "",
+        };
+        // Database paths (SQLite, DuckDB, data files, LadybugDB, Turso,
+        // redb, RocksDB, HelixDB …): the app's source openers decide.
+        let is_db_path = matches!(node.kind, NodeKind::File | NodeKind::Directory)
+            && ws
+                .openers()
+                .is_database(&node.native_key, node.kind == NodeKind::Directory);
+        let is_dir = node.kind == NodeKind::Directory && !is_db_path;
+        let open = expanded.contains(&node.id);
+        let is_text = matches!(node.content, Some(ContentRef::Text { .. }));
+        // Blobs with a viewer (images, spec 008) open as views; the
+        // source says which by giving them a MIME type.
+        let is_viewable = matches!(&node.content, Some(ContentRef::Blob { mime: Some(m), .. }) if m.starts_with("image/"));
+        let is_db = node.kind == NodeKind::Table || is_db_path;
+        let n = node.clone();
+        let mut ws2 = ws;
+        let renaming =
+            matches!(state.edit.read().as_ref(), Some(Edit::Rename { node: r }) if r.id == node.id);
+        let new_below =
+            state.edit.read().clone().filter(|e| {
+                is_dir && !matches!(e, Edit::Rename { .. }) && e.parent_id() == node.id
+            });
+        let drop_target = is_dir
+            && state
+                .dragging
+                .read()
+                .as_ref()
+                .is_some_and(|d| d.id != node.id);
+        let (n_menu, n_drag, n_drop) = (node.clone(), node.clone(), node.clone());
+        rows.push(rsx! {
+            li { key: "{node.id}",
+                div {
+                    class: if is_dir { "mk-tree-row mk-tree-dir" } else { "mk-tree-row mk-tree-file" },
+                    class: if !is_dir && !is_text && !is_db && !is_viewable { "mk-tree-binary" },
+                    class: if is_db { "mk-tree-db" },
+                    class: if drop_target { "mk-tree-droppable" },
+                    class: if !vcs_class.is_empty() { "{vcs_class}" },
+                    title: "{node.native_key}",
+                    draggable: !is_db,
+                    oncontextmenu: move |e| {
+                        e.prevent_default();
+                        e.stop_propagation();
+                        let c = e.client_coordinates();
+                        state.menu.set(Some(Menu { node: n_menu.clone(), is_dir, x: c.x, y: c.y }));
+                    },
+                    ondragstart: move |_| state.dragging.set(Some(n_drag.clone())),
+                    ondragend: move |_| state.dragging.set(None),
+                    ondragover: move |e| { if drop_target { e.prevent_default(); } },
+                    ondrop: move |e| {
+                        e.prevent_default();
+                        e.stop_propagation();
+                        let Some(dragged) = state.dragging.take() else { return };
+                        if !drop_target || dragged.source != n_drop.source { return; }
+                        let name = dragged.native_key.rsplit('/').next().unwrap_or("").to_string();
+                        let to = if n_drop.native_key.is_empty() { name } else { format!("{}/{name}", n_drop.native_key) };
+                        if to == dragged.native_key { return; }
+                        spawn(async move {
+                            if let Err(e) = ws.rename_node(&dragged, &to).await { state.error.set(Some(e.to_string())); }
+                        });
+                    },
+                    onclick: move |_| {
+                        if renaming { return; }
+                        let n = n.clone();
+                        if is_dir {
+                            spawn(toggle(ws, state, n));
+                        } else if n.kind == NodeKind::Table {
+                            // Database tables open in the table editor.
+                            spawn(async move {
+                                if let Err(e) = ws.open_node(n).await {
+                                    ws2.set_status(e.to_string());
+                                }
+                            });
+                        } else if is_db_path {
+                            // A database inside the folder: open it as its own source.
+                            let path = match n.source.as_str().strip_prefix("folder:") {
+                                Some(root) => format!("{root}/{}", n.native_key),
+                                None => n.native_key.clone(),
+                            };
+                            spawn(async move {
+                                if let Err(e) = ws.open_folder(path).await {
+                                    ws2.set_status(t!(ws2, L, "explorer-db-failed", error = e.to_string()));
+                                }
+                            });
+                        } else if is_text || is_viewable {
+                            spawn(async move {
+                                if let Err(e) = ws.open_node(n).await {
+                                    ws2.set_status(match e { SourceError::Unsupported(m) => m, other => other.to_string() });
+                                }
+                            });
+                        } else {
+                            ws2.set_status(t!(ws2, L, "explorer-binary", name = n.native_key.clone()));
                         }
-                        None => "",
-                    };
-                    // Database paths (SQLite, DuckDB, data files, LadybugDB, Turso,
-                    // redb, RocksDB, HelixDB …): the app's source openers decide.
-                    let is_db_path = matches!(node.kind, NodeKind::File | NodeKind::Directory)
-                        && ws.openers().is_database(&node.native_key, node.kind == NodeKind::Directory);
-                    let is_dir = node.kind == NodeKind::Directory && !is_db_path;
-                    let open = expanded.contains(&node.id);
-                    let is_text = matches!(node.content, Some(ContentRef::Text { .. }));
-                    // Blobs with a viewer (images, spec 008) open as views; the
-                    // source says which by giving them a MIME type.
-                    let is_viewable = matches!(&node.content, Some(ContentRef::Blob { mime: Some(m), .. }) if m.starts_with("image/"));
-                    let is_db = node.kind == NodeKind::Table || is_db_path;
-                    let n = node.clone();
-                    let mut ws2 = ws;
-                    let renaming = matches!(state.edit.read().as_ref(), Some(Edit::Rename { node: r }) if r.id == node.id);
-                    let new_below = state.edit.read().clone().filter(|e| is_dir && !matches!(e, Edit::Rename { .. }) && e.parent_id() == node.id);
-                    let drop_target = is_dir && state.dragging.read().as_ref().is_some_and(|d| d.id != node.id);
-                    let (n_menu, n_drag, n_drop) = (node.clone(), node.clone(), node.clone());
-                    rsx! {
-                        li { key: "{node.id}",
-                            div {
-                                class: if is_dir { "mk-tree-row mk-tree-dir" } else { "mk-tree-row mk-tree-file" },
-                                class: if !is_dir && !is_text && !is_db && !is_viewable { "mk-tree-binary" },
-                                class: if is_db { "mk-tree-db" },
-                                class: if drop_target { "mk-tree-droppable" },
-                                class: if !vcs_class.is_empty() { "{vcs_class}" },
-                                title: "{node.native_key}",
-                                draggable: !is_db,
-                                oncontextmenu: move |e| {
-                                    e.prevent_default();
-                                    e.stop_propagation();
-                                    let c = e.client_coordinates();
-                                    state.menu.set(Some(Menu { node: n_menu.clone(), is_dir, x: c.x, y: c.y }));
-                                },
-                                ondragstart: move |_| state.dragging.set(Some(n_drag.clone())),
-                                ondragend: move |_| state.dragging.set(None),
-                                ondragover: move |e| { if drop_target { e.prevent_default(); } },
-                                ondrop: move |e| {
-                                    e.prevent_default();
-                                    e.stop_propagation();
-                                    let Some(dragged) = state.dragging.take() else { return };
-                                    if !drop_target || dragged.source != n_drop.source { return; }
-                                    let name = dragged.native_key.rsplit('/').next().unwrap_or("").to_string();
-                                    let to = if n_drop.native_key.is_empty() { name } else { format!("{}/{name}", n_drop.native_key) };
-                                    if to == dragged.native_key { return; }
-                                    spawn(async move {
-                                        if let Err(e) = ws.rename_node(&dragged, &to).await { state.error.set(Some(e.to_string())); }
-                                    });
-                                },
-                                onclick: move |_| {
-                                    if renaming { return; }
-                                    let n = n.clone();
-                                    if is_dir {
-                                        spawn(toggle(ws, state, n));
-                                    } else if n.kind == NodeKind::Table {
-                                        // Database tables open in the table editor.
-                                        spawn(async move {
-                                            if let Err(e) = ws.open_node(n).await {
-                                                ws2.set_status(e.to_string());
-                                            }
-                                        });
-                                    } else if is_db_path {
-                                        // A database inside the folder: open it as its own source.
-                                        let path = match n.source.as_str().strip_prefix("folder:") {
-                                            Some(root) => format!("{root}/{}", n.native_key),
-                                            None => n.native_key.clone(),
-                                        };
-                                        spawn(async move {
-                                            if let Err(e) = ws.open_folder(path).await {
-                                                ws2.set_status(t!(ws2, L, "explorer-db-failed", error = e.to_string()));
-                                            }
-                                        });
-                                    } else if is_text || is_viewable {
-                                        spawn(async move {
-                                            if let Err(e) = ws.open_node(n).await {
-                                                ws2.set_status(match e { SourceError::Unsupported(m) => m, other => other.to_string() });
-                                            }
-                                        });
-                                    } else {
-                                        ws2.set_status(t!(ws2, L, "explorer-binary", name = n.native_key.clone()));
-                                    }
-                                },
-                                span { class: "mk-tree-caret", if is_dir { if open { "▾" } else { "▸" } } else { "" } }
-                                if renaming {
-                                    InlineEdit { ws, state, edit: Edit::Rename { node: node.clone() }, depth }
-                                } else {
-                                    span { class: "mk-tree-label", "{node.label}" }
+                    },
+                    span { class: "mk-tree-caret", if is_dir { if open { "▾" } else { "▸" } } else { "" } }
+                    if renaming {
+                        InlineEdit { ws, state, edit: Edit::Rename { node: node.clone() }, depth }
+                    } else {
+                        span { class: "mk-tree-label", "{node.label}" }
+                    }
+                    for m in others.iter().filter(|m| m.active.as_deref() == Some(node.native_key.as_str())) {
+                        span { class: "mk-tree-presence", title: t!(ws, L, "explorer-presence", name = m.name.clone()), "{m.initials()}" }
+                    }
+                    if is_dir && ws.spawn_terminal().is_some() {
+                        {
+                            let n2 = node.clone();
+                            rsx! {
+                                span { class: "mk-tree-action", title: t!(ws, L, "explorer-terminal-here"),
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        ws2.processes.terminal_cwd.set(ws2.folder_path(&n2));
+                                        ws2.dispatch(Command::NewTerminal);
+                                    },
+                                    ">_"
                                 }
-                                for m in others.iter().filter(|m| m.active.as_deref() == Some(node.native_key.as_str())) {
-                                    span { class: "mk-tree-presence", title: t!(ws, L, "explorer-presence", name = m.name.clone()), "{m.initials()}" }
-                                }
-                                if is_dir && ws.spawn_terminal().is_some() {
-                                    {
-                                        let n2 = node.clone();
-                                        rsx! {
-                                            span { class: "mk-tree-action", title: t!(ws, L, "explorer-terminal-here"),
-                                                onclick: move |e| {
-                                                    e.stop_propagation();
-                                                    ws2.processes.terminal_cwd.set(ws2.folder_path(&n2));
-                                                    ws2.dispatch(Command::NewTerminal);
-                                                },
-                                                ">_"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if let Some(edit) = new_below {
-                                ul { class: "mk-tree", style: "--depth: {depth + 1}",
-                                    li { div { class: "mk-tree-row", InlineEdit { ws, state, edit, depth: depth + 1 } } }
-                                }
-                            }
-                            if is_dir && open {
-                                TreeLevel { ws, state, parent: node.id, depth: depth + 1 }
                             }
                         }
                     }
                 }
+                if let Some(edit) = new_below {
+                    ul { class: "mk-tree", style: "--depth: {depth + 1}",
+                        li { div { class: "mk-tree-row", InlineEdit { ws, state, edit, depth: depth + 1 } } }
+                    }
+                }
+                if is_dir && open {
+                    TreeLevel { ws, state, parent: node.id, depth: depth + 1 }
+                }
             }
-        }
+        });
+    }
+    rsx! {
+        ul { class: "mk-tree", style: "--depth: {depth}", {rows.into_iter()} }
     }
 }
 
@@ -648,5 +687,51 @@ fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Elem
             },
             onblur: move |_| { if state.edit.peek().is_some() { state.edit.set(None); } },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moonkale_core::{SourceDescriptor, SourceFamily, SourceId};
+
+    #[test]
+    fn refresh_owners_keep_folder_root_when_index_shares_it_and_route_database_children() {
+        let folder = SourceId::new("folder:/vault");
+        let database = SourceId::new("helix:/vault/people.helix");
+        let root = NodeId::derive(&folder, "");
+        let db_root = NodeId::derive(&database, "");
+        let directory = NodeId::derive(&folder, "notes");
+        let descriptor = |id, family, root| SourceDescriptor {
+            id,
+            family,
+            root,
+            display_name: String::new(),
+            capabilities: Default::default(),
+        };
+        let sources = vec![
+            descriptor(folder.clone(), SourceFamily::Folder, root),
+            descriptor(database.clone(), SourceFamily::Graph, db_root),
+            descriptor(
+                SourceId::new("index:folder:/vault"),
+                SourceFamily::Index,
+                root,
+            ),
+        ];
+        let node = Node {
+            id: directory,
+            source: folder.clone(),
+            kind: NodeKind::Directory,
+            label: "notes".into(),
+            native_key: "notes".into(),
+            content: None,
+            version: Default::default(),
+            props: Default::default(),
+        };
+        let owners = tree_owners(sources.into_iter(), &HashMap::from([(root, vec![node])]));
+        assert_eq!(owners.get(&root), Some(&folder));
+        assert_eq!(owners.get(&directory), Some(&folder));
+        assert_eq!(owners.get(&db_root), Some(&database));
+        assert_eq!(owners.get(&NodeId::derive(&folder, "unknown")), None);
     }
 }

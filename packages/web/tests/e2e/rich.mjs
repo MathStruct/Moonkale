@@ -286,6 +286,8 @@ try {
   for (let i = 0; i < 6; i++) {
     const d = await page.evaluate(() => ({
       active: document.querySelector(".mk-titlebar-title")?.textContent,
+      status: document.querySelector(".wb-status-bar")?.textContent,
+      documents: [...document.querySelectorAll('.mk-editor-path')].map(el => el.textContent),
       modes: [...document.querySelectorAll(".mk-md-modes button")].filter((b) => /Rich/.test(b.textContent)).map((b) => { const r = b.getBoundingClientRect(); const cs = getComputedStyle(b); return `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} vis=${cs.visibility} op=${cs.opacity} disp=${cs.display} parent=${!!b.offsetParent}`; }),
     })).catch((x) => String(x));
     console.log("DIAG", JSON.stringify(d));
