@@ -284,6 +284,19 @@ fn subflow_scene<'a>(
     )
 }
 
+/// The library a document is written in: the first block — at the root,
+/// else inside a subflow — whose kind names a known library. `None` for
+/// an empty flow (the palette then starts on the first library).
+fn document_library(flow: &Flow, libs: &[FlowLibrary]) -> Option<usize> {
+    flow.blocks
+        .iter()
+        .chain(flow.subflows.iter().flat_map(|s| s.blocks.iter()))
+        .find_map(|b| {
+            let (lib, _) = b.kind.split_once('/')?;
+            libs.iter().position(|l| l.id == lib)
+        })
+}
+
 /// One block's appearance, for [`SceneBuilder::push`] — the shape the
 /// root scope and an entered subflow share (ADR-0021 §4).
 struct BlockOut<'a> {
@@ -576,7 +589,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let mut last_text = use_signal(|| doc.peek().text.clone());
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut notice: Signal<Option<String>> = use_signal(|| None);
-    let mut selected_lib = use_signal(|| 0usize);
+    // The palette's library: the reader's choice once made, else the one
+    // the document already uses (a RxInfer flow opens on RxInfer, not
+    // on whichever library registered first).
+    let mut chosen_lib: Signal<Option<usize>> = use_signal(|| None);
     let mut selected: Signal<(Vec<String>, Vec<String>)> = use_signal(|| (Vec::new(), Vec::new()));
     let mut eval: Signal<Option<Eval>> = use_signal(|| None);
     let mut loaded = use_signal(|| false);
@@ -1246,13 +1262,25 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         if libs.is_empty() {
                             p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
                         } else {
-                            if libs.len() > 1 {
-                                select { class: "mk-input", onchange: move |e| selected_lib.set(e.value().parse().unwrap_or(0)),
-                                    for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == selected_lib(), "{l.name}" } }
+                            {
+                                let current = chosen_lib()
+                                    .filter(|i| *i < libs.len())
+                                    .or_else(|| document_library(&flow.read(), &libs))
+                                    .unwrap_or(0);
+                                rsx! {
+                                    if libs.len() > 1 {
+                                        select { class: "mk-input", onchange: move |e| chosen_lib.set(e.value().parse().ok()),
+                                            for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == current, "{l.name}" } }
+                                        }
+                                    }
                                 }
                             }
                             {
-                                let lib = libs.get(selected_lib()).or(libs.first()).cloned();
+                                let current = chosen_lib()
+                                    .filter(|i| *i < libs.len())
+                                    .or_else(|| document_library(&flow.read(), &libs))
+                                    .unwrap_or(0);
+                                let lib = libs.get(current).or(libs.first()).cloned();
                                 rsx! {
                                     if let Some(lib) = lib {
                                         div { class: "mk-flow-palette-title", "{lib.name}" }
@@ -2251,5 +2279,35 @@ mod tests {
             "Normal"
         );
         assert_eq!(shape("f"), "rect");
+    }
+
+    #[test]
+    fn the_palette_opens_on_the_library_the_document_uses() {
+        let libs = vec![pin_lib(), rx_lib()];
+        let mut f = Flow::new();
+        assert_eq!(document_library(&f, &libs), None, "an empty flow has none");
+        f.blocks.push(Block {
+            id: "x".into(),
+            kind: "rx/variable".into(),
+            ..Default::default()
+        });
+        assert_eq!(document_library(&f, &libs), Some(1));
+        // A subflow block has no library; its inside decides.
+        f.blocks = vec![Block {
+            id: "s1".into(),
+            kind: "subflow".into(),
+            subflow: Some("s".into()),
+            ..Default::default()
+        }];
+        f.subflows = vec![Subflow {
+            id: "s".into(),
+            blocks: vec![Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }];
+        assert_eq!(document_library(&f, &libs), Some(0));
     }
 }

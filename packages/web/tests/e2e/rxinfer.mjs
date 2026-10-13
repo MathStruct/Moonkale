@@ -178,6 +178,18 @@ try {
     console.log(`\n  ${res.stdout.split("\n").find((l) => l.startsWith("θ = "))}  |  mean(θ) = ${v}`);
     if (Math.abs(v - 9 / 19) > 1e-9) throw new Error(`the posterior mean is not 9/19 (got ${v})`);
   });
+  await step("with ModelingToolkit enabled too, the palette still opens on the document's library", async () => {
+    await page.click("#mk-rail-extensions");
+    await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
+    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
+    await page.click(".wb-tab:has-text('untitled.flow.json')");
+    await page.waitForSelector(".mk-flow-palette select:visible", { timeout: 10000 });
+    const title = await page.$eval(".mk-flow-palette-title:visible", (e) => e.textContent);
+    const h = await page.$eval(".mk-flow-palette select:visible", (e) => e.getBoundingClientRect().height);
+    console.log(`\n  palette: ${title}, picker ${Math.round(h)} px tall`);
+    if (title !== "RxInfer") throw new Error(`the palette opened on ${title}`);
+    if (h > 40) throw new Error(`the library picker is ${h}px tall`);
+  });
   console.log("\nRXINFER E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);
