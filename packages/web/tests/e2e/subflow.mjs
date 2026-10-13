@@ -5,10 +5,8 @@
 // take pin wires onto the declared pin (a bus, like any pin), refuse a
 // wrong domain through the boundary, take dataflow wires through the
 // declared in and out, and keep the whole thing in the file on Save.
-// The fixture is loaded by writing it over the New Flow file and
-// pressing Reload: opening a .flow.json from the explorer tree loses
-// the editor tab to the background on the first edit (P-181, the
-// dioxus-workbench interplay ADR-0022 exists to retire).
+// Opening the fixture from the tree is deliberate: P-183 found here was
+// the shell replaying ShowPanel on the first edit (fixed on master).
 import { chromium } from "playwright";
 import fs from "node:fs";
 const S = process.env.M1_SHOTS ?? ".";
@@ -77,12 +75,10 @@ try {
     await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Lux.jl library')) > label input");
     await page.waitForFunction(() => /editor-flow/.test(localStorage.getItem("moonkale.settings") || "") && /ext-mtk/.test(localStorage.getItem("moonkale.settings") || "") && /ext-lux/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
   });
-  await step("New Flow; the fixture lands on disk and Reload loads it", async () => {
-    await page.click(".mk-menu-button:has-text('File')");
-    await page.click(".mk-menu-item:has-text('New Flow')");
+  await step("the fixture flow opens from the tree: six blocks, the subflow block among them", async () => {
+    fs.writeFileSync(`${ROOT}/sub.flow.json`, FIXTURE);
+    await page.click(".mk-tree-row[title='sub.flow.json']");
     await page.waitForSelector(".mk-flow", { timeout: 15000 });
-    fs.writeFileSync(`${ROOT}/untitled.flow.json`, FIXTURE);
-    await page.click(".mk-flow-reload:visible");
     await page.waitForFunction(() => {
       const v = Object.values(window.moonkale.flowViews || {})[0];
       try { return v && Object.keys(JSON.parse(v.node_positions())).includes("sub_1"); } catch { return false; }
@@ -138,7 +134,7 @@ try {
   await step("Save keeps the boundary wiring and the subflow declaration", async () => {
     await page.click(".mk-flow button:has-text('Save')");
     await page.waitForFunction(() => !document.querySelector(".mk-flow .mk-editor-dirty"), null, { timeout: 15000 });
-    const flow = JSON.parse(fs.readFileSync(`${ROOT}/untitled.flow.json`, "utf8"));
+    const flow = JSON.parse(fs.readFileSync(`${ROOT}/sub.flow.json`, "utf8"));
     if (flow.subflows?.length !== 1 || flow.subflows[0].id !== "amp") throw new Error("the subflow declaration was lost on save");
     const into = flow.wires.filter((w) => w.to_block === "sub_1");
     const outOf = flow.wires.filter((w) => w.from_block === "sub_1");

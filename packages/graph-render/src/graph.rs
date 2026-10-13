@@ -1458,9 +1458,13 @@ impl Graph {
     /// (spec 031). **A pinned node counts as wired**: it sits where a
     /// host or a user put it on purpose, so it belongs in the frame —
     /// without this, a flow's newly placed, still unwired blocks fell
-    /// out of every fit the moment the flow was half wired (P-180, the
+    /// out of every fit the moment the flow was half wired (P-184, the
     /// MTK review's mechanical case: the mass landed below the canvas
     /// and no fit — the panel's refit, Layout, a manual fit — saw it).
+    /// The hierarchical layout pins every node, so in hierarchy mode
+    /// this exception covers its isolates too — harmless there, since
+    /// that layout packs them into its grid; the rule is really for
+    /// hosts that place nodes deliberately (the flow panel).
     pub fn fit_bounds(&self) -> Option<(f32, f32, f32, f32)> {
         let in_view = |n: &&Node| n.degree > 0 || n.pinned;
         let connected = self.nodes.iter().filter(in_view).count();

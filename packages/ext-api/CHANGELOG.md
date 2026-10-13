@@ -12,18 +12,6 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
-## Unreleased — the editor API (not in a tag yet)
-
-**moonkale-ext-api**
-- `Workspace::restore_documents(folder, keys, active)` loads saved tabs in the background and restores the active tab only if foreground navigation has not superseded it. Existing open documents retain their edits.
-- Document activation clears stale cursor/selection/presence context. Closing a document clears its pending reveal without resetting workspace reveal ordering. Cross-window moves refuse dirty offers and retain an origin edited after the offer; save before moving an unsaved document.
-- Added `Workspace::follow_wiki_guarded` to cancel stale editor navigation after lookup/loading. `follow_wiki` now opens the resolved node in its original source instead of searching other folders for the same relative path.
-- Added `RevisionedDocument::apply_in_place` for validated transactions without cloning the resulting snapshot; existing `apply` remains available.
-- New public `editor` module: UTF-8 byte edit batches, UTF-16 selections, revisioned document sessions and bounded transaction undo/redo.
-- `DocsState.editor_sessions`, `editor_views` and editor choice/reveal state; `Workspace::editor_session`, `editor_view_state`, `editor_view_state_with_cleanup`, `shared_state`, `set_editor_selection` and guarded reveal. Editor sessions survive remounts; close/rename disposes their resources.
-- **Source compatibility:** `EditorFile` and `EditorSettings` gain `insert_spaces` and `indent_width`. Update explicit struct literals with these fields or use `..Default::default()` where supported. New public `DocsState` fields also affect explicit literals.
-- **Behavior change:** `word_at` columns count UTF-16 code units rather than Unicode scalar values. Update callers that calculate columns after non-BMP characters.
-
 ## ext-api-2026-10-13
 
 **Breaking** — build against the `Block` addition (ADR-0021 stage A):
@@ -33,6 +21,15 @@ Rules:
 - `flow::Subflow` and `Flow::subflows` (both defaulted): a named subsystem in the same document — `Subflow { id, name, blocks, wires, inputs, outputs, connections }`, the boundary declaration mirroring a `BlockKind`'s three port lists. Two blocks may reference the same subflow.
 - `Flow::subflow(id)`, and `Flow::ports_of(&libraries, &block) -> Option<BlockPorts>`: a block's ports resolved from its subflow's declaration or its library kind — the one resolution site the flow panel and `validate` share. A subflow's port names must stay unique across its lists, and subflows may nest but not reference themselves; both are validation issues.
 - `validate`: a wire into a subflow block type-checks against the declared boundary; a block referencing a subflow the document does not hold reports `references the subflow …, which this document does not hold`.
+- `Workspace::restore_documents(folder, keys, active)` loads saved tabs in the background and restores the active tab only if foreground navigation has not superseded it. Existing open documents retain their edits.
+- Document activation clears stale cursor/selection/presence context. Closing a document clears its pending reveal without resetting workspace reveal ordering. Cross-window moves refuse dirty offers and retain an origin edited after the offer; save before moving an unsaved document.
+- Added `Workspace::follow_wiki_guarded` to cancel stale editor navigation after lookup/loading. `follow_wiki` now opens the resolved node in its original source instead of searching other folders for the same relative path.
+- Added `RevisionedDocument::apply_in_place` for validated transactions without cloning the resulting snapshot; existing `apply` remains available.
+- New public `editor` module: UTF-8 byte edit batches, UTF-16 selections, revisioned document sessions and bounded transaction undo/redo.
+- `DocsState.editor_sessions`, `editor_views` and editor choice/reveal state; `Workspace::editor_session`, `editor_view_state`, `editor_view_state_with_cleanup`, `shared_state`, `set_editor_selection` and guarded reveal. Editor sessions survive remounts; close/rename disposes their resources.
+- **Source compatibility:** `EditorFile` and `EditorSettings` gain `insert_spaces` and `indent_width`. Update explicit struct literals with these fields or use `..Default::default()` where supported. New public `DocsState` fields also affect explicit literals.
+- **Behavior change:** `word_at` columns count UTF-16 code units rather than Unicode scalar values. Update callers that calculate columns after non-BMP characters.
+  (The editor-API items above were under `Unreleased` when this section was cut; the tag contains them, so they describe it.)
 
 ## ext-api-2026-10-12
 
