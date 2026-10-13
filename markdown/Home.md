@@ -99,6 +99,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 - [[ADR-0018 One frontend graph engine]]
 - [[ADR-0019 Extension coordinates and block addressing]] — proposed: UTF-8 byte offsets plus a revision for extensions; a block is `(file, anchor)`, never a graph node
 - [[ADR-0020 Undirected pins in the flow model]] — proposed: `BlockKind.connections` (acausal pins, domain-typed), pin wires as equations — the Lux → ModelingToolkit → RxInfer → Lenticulum ladder
+- [[ADR-0021 Subflows]] — accepted 2026-10-12: a subsystem is one block whose ports the subflow declares; nested in the same document, flattened at codegen — no engine change
 
 ## Milestones
 - [[Milestone 1 - Walking Skeleton]] (plan) → [[Milestone 1 - Implementation Log]] (what happened) ✅

@@ -219,6 +219,12 @@ pub struct Block {
     /// Parameter values by name, as text.
     #[serde(default)]
     pub params: BTreeMap<String, String>,
+    /// The subflow this block renders as one block (ADR-0021): its id
+    /// in the same document. `None` for a library block. Defaulted, so
+    /// every existing flow parses; a literal that lists every field of
+    /// `Block` gains `subflow: None` (the `ext-api` tag with this).
+    #[serde(default)]
+    pub subflow: Option<String>,
 }
 
 /// A wire from an output port to an input port.
@@ -236,6 +242,34 @@ pub struct Wire {
     pub to_port: String,
 }
 
+/// A subflow (ADR-0021): a named subsystem that lives in the same
+/// document as the flow that shows it. A block with
+/// [`Block::subflow`] set renders one as a single block whose ports
+/// are the subflow's declared boundary ports; the declaration mirrors
+/// a [`BlockKind`]'s three port lists, so a boundary port is a
+/// directed input, an output or a domain-typed pin exactly as before.
+/// The inner `blocks`/`wires` (stage B: boundary ports appear inside
+/// as pseudo-blocks) are ordinary [`Block`]s and [`Wire`]s.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Subflow {
+    /// Unique within the flow (`"rc_filter"`).
+    pub id: String,
+    /// The name the parent block shows.
+    pub name: String,
+    /// The subflow's own blocks.
+    pub blocks: Vec<Block>,
+    /// The subflow's own wires.
+    pub wires: Vec<Wire>,
+    /// Declared boundary inputs — the parent block's input ports.
+    pub inputs: Vec<Port>,
+    /// Declared boundary outputs — the parent block's output ports.
+    pub outputs: Vec<Port>,
+    /// Declared boundary pins — the parent block's undirected pins
+    /// (ADR-0020).
+    pub connections: Vec<Port>,
+}
+
 /// A `*.flow.json` file: blocks and wires.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -246,6 +280,9 @@ pub struct Flow {
     pub blocks: Vec<Block>,
     /// The wires.
     pub wires: Vec<Wire>,
+    /// The subflows (ADR-0021): subsystems referenced by
+    /// [`Block::subflow`]. Empty in every pre-subflow flow.
+    pub subflows: Vec<Subflow>,
 }
 
 impl Flow {
@@ -278,6 +315,39 @@ impl Flow {
     /// A block by id.
     pub fn block(&self, id: &str) -> Option<&Block> {
         self.blocks.iter().find(|b| b.id == id)
+    }
+
+    /// A subflow by id (ADR-0021).
+    pub fn subflow(&self, id: &str) -> Option<&Subflow> {
+        self.subflows.iter().find(|s| s.id == id)
+    }
+
+    /// A block's ports: the subflow's declared boundary ports when the
+    /// block references one (ADR-0021 §2 — they *are* the parent
+    /// block's ports), else its library kind's. `None` = the block
+    /// resolves to nothing (`validate` reports it).
+    pub fn ports_of<'a>(
+        &'a self,
+        libraries: &'a [FlowLibrary],
+        block: &Block,
+    ) -> Option<BlockPorts<'a>> {
+        if let Some(id) = &block.subflow {
+            let s = self.subflow(id)?;
+            return Some(BlockPorts {
+                name: &s.name,
+                inputs: &s.inputs,
+                outputs: &s.outputs,
+                connections: &s.connections,
+                params: &[],
+            });
+        }
+        find_kind(libraries, &block.kind).map(|(_, k)| BlockPorts {
+            name: &k.name,
+            inputs: &k.inputs,
+            outputs: &k.outputs,
+            connections: &k.connections,
+            params: &k.params,
+        })
     }
 
     /// Kinds resolved against the libraries: `(block, library, kind)`.
@@ -360,6 +430,25 @@ pub fn find_kind<'a>(
     library.block(id).map(|k| (library, k))
 }
 
+/// What a block resolves to through [`Flow::ports_of`]: its library
+/// kind's ports, or — when the block references a subflow — the
+/// subflow's declared boundary ports (ADR-0021 §2). The panel and
+/// [`validate`] both draw on this; the engine never learns what a
+/// "subflow" is.
+#[derive(Clone, Copy)]
+pub struct BlockPorts<'a> {
+    /// The name the block shows.
+    pub name: &'a str,
+    /// Its input ports.
+    pub inputs: &'a [Port],
+    /// Its output ports.
+    pub outputs: &'a [Port],
+    /// Its undirected pins (ADR-0020).
+    pub connections: &'a [Port],
+    /// Its parameters — a subflow declares none through the model.
+    pub params: &'a [Param],
+}
+
 /// One problem with a flow.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Issue {
@@ -373,7 +462,19 @@ pub struct Issue {
 pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
     let mut issues = Vec::new();
     for b in &flow.blocks {
-        if find_kind(libraries, &b.kind).is_none() {
+        // A subflow block resolves through its subflow, not a library
+        // (ADR-0021 §2) — the message names which one is missing.
+        if let Some(id) = &b.subflow {
+            if flow.subflow(id).is_none() {
+                issues.push(Issue {
+                    about: b.id.clone(),
+                    message: format!(
+                        "block {} references the subflow {id}, which this document does not hold",
+                        b.id
+                    ),
+                });
+            }
+        } else if find_kind(libraries, &b.kind).is_none() {
             issues.push(Issue {
                 about: b.id.clone(),
                 message: format!("unknown block kind {} (is its extension enabled?)", b.kind),
@@ -383,11 +484,11 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
     for w in &flow.wires {
         let from = flow
             .block(&w.from_block)
-            .and_then(|b| find_kind(libraries, &b.kind));
+            .and_then(|b| flow.ports_of(libraries, b));
         let to = flow
             .block(&w.to_block)
-            .and_then(|b| find_kind(libraries, &b.kind));
-        let (Some((_, fk)), Some((_, tk))) = (from, to) else {
+            .and_then(|b| flow.ports_of(libraries, b));
+        let (Some(fk), Some(tk)) = (from, to) else {
             continue;
         };
         let out = fk.outputs.iter().find(|p| p.name == w.from_port);
@@ -464,38 +565,70 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
         .map(|(lib, k)| format!("{lib}/{}", k.id))
         .collect();
     let mut reported_kinds: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // A subflow's boundary ports obey the same uniqueness rule — the
+    // wire classification depends on it — reported once per subflow on
+    // the first block referencing it, mirroring the kind check.
+    let duplicated_subflows: std::collections::HashSet<&str> = flow
+        .subflows
+        .iter()
+        .filter(|s| {
+            let mut seen: Vec<&str> = Vec::new();
+            s.inputs
+                .iter()
+                .chain(&s.outputs)
+                .chain(&s.connections)
+                .any(|p| {
+                    if seen.contains(&p.name.as_str()) {
+                        true
+                    } else {
+                        seen.push(p.name.as_str());
+                        false
+                    }
+                })
+        })
+        .map(|s| s.id.as_str())
+        .collect();
+    let mut reported_subflows: std::collections::HashSet<String> = std::collections::HashSet::new();
     for b in &flow.blocks {
-        if let Some((_, k)) = find_kind(libraries, &b.kind) {
-            if duplicated_kinds.contains(&b.kind) && reported_kinds.insert(b.kind.clone()) {
+        let Some(ports) = flow.ports_of(libraries, b) else {
+            continue;
+        };
+        if let Some(id) = &b.subflow {
+            if duplicated_subflows.contains(id.as_str()) && reported_subflows.insert(id.clone()) {
                 issues.push(Issue {
                     about: b.id.clone(),
-                    message: format!("{} reuses a port name", b.kind),
+                    message: format!("subflow {id} reuses a port name"),
                 });
             }
-            for p in k.inputs.iter().filter(|p| p.required) {
-                if !flow
-                    .wires
-                    .iter()
-                    .any(|w| w.to_block == b.id && w.to_port == p.name)
-                {
-                    issues.push(Issue {
-                        about: b.id.clone(),
-                        message: format!("input {} of {} is not connected", p.name, b.id),
-                    });
-                }
+        } else if duplicated_kinds.contains(&b.kind) && reported_kinds.insert(b.kind.clone()) {
+            issues.push(Issue {
+                about: b.id.clone(),
+                message: format!("{} reuses a port name", b.kind),
+            });
+        }
+        for p in ports.inputs.iter().filter(|p| p.required) {
+            if !flow
+                .wires
+                .iter()
+                .any(|w| w.to_block == b.id && w.to_port == p.name)
+            {
+                issues.push(Issue {
+                    about: b.id.clone(),
+                    message: format!("input {} of {} is not connected", p.name, b.id),
+                });
             }
-            // A required pin is satisfied from either direction — a pin
-            // wire's from/to are just the two ends (ADR-0020).
-            for p in k.connections.iter().filter(|p| p.required) {
-                if !flow.wires.iter().any(|w| {
-                    (w.from_block == b.id && w.from_port == p.name)
-                        || (w.to_block == b.id && w.to_port == p.name)
-                }) {
-                    issues.push(Issue {
-                        about: b.id.clone(),
-                        message: format!("pin {} of {} is not connected", p.name, b.id),
-                    });
-                }
+        }
+        // A required pin is satisfied from either direction — a pin
+        // wire's from/to are just the two ends (ADR-0020).
+        for p in ports.connections.iter().filter(|p| p.required) {
+            if !flow.wires.iter().any(|w| {
+                (w.from_block == b.id && w.from_port == p.name)
+                    || (w.to_block == b.id && w.to_port == p.name)
+            }) {
+                issues.push(Issue {
+                    about: b.id.clone(),
+                    message: format!("pin {} of {} is not connected", p.name, b.id),
+                });
             }
         }
     }
@@ -505,13 +638,13 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
         .iter()
         .filter(|w| {
             flow.block(&w.from_block)
-                .and_then(|b| find_kind(libraries, &b.kind))
-                .map(|(_, k)| k.connections.iter().any(|p| p.name == w.from_port))
+                .and_then(|b| flow.ports_of(libraries, b))
+                .map(|k| k.connections.iter().any(|p| p.name == w.from_port))
                 .unwrap_or(false)
                 && flow
                     .block(&w.to_block)
-                    .and_then(|b| find_kind(libraries, &b.kind))
-                    .map(|(_, k)| k.connections.iter().any(|p| p.name == w.to_port))
+                    .and_then(|b| flow.ports_of(libraries, b))
+                    .map(|k| k.connections.iter().any(|p| p.name == w.to_port))
                     .unwrap_or(false)
         })
         .map(|w| w.id.as_str())
@@ -521,6 +654,37 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
             about: String::new(),
             message: e,
         });
+    }
+    // Subflows nest, but a subflow may not reference itself — directly
+    // or through another (flattening recurses; a cycle would never
+    // end). Reported once per subflow on a cycle.
+    for start in &flow.subflows {
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut stack = vec![start.id.as_str()];
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            for next in flow
+                .subflow(id)
+                .into_iter()
+                .flat_map(|s| s.blocks.iter())
+                .filter_map(|b| b.subflow.as_deref())
+            {
+                if next == start.id.as_str() {
+                    issues.push(Issue {
+                        about: start.id.clone(),
+                        message: format!("subflow {} references itself through subflows", start.id),
+                    });
+                    stack.clear();
+                    break;
+                }
+                stack.push(next);
+            }
+            if stack.is_empty() {
+                break;
+            }
+        }
     }
     issues
 }
@@ -708,16 +872,12 @@ mod tests {
             Block {
                 id: "r".into(),
                 kind: "m/resistor".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "g".into(),
                 kind: "m/ground".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
         ];
         // Dragged r.p → g.g: an equation, accepted either way round.
@@ -754,9 +914,7 @@ mod tests {
         f.blocks.push(Block {
             id: "m".into(),
             kind: "m/mass".into(),
-            x: 0.0,
-            y: 0.0,
-            params: Default::default(),
+            ..Default::default()
         });
         f.wires = vec![Wire {
             id: "w2".into(),
@@ -781,16 +939,12 @@ mod tests {
             Block {
                 id: "r1".into(),
                 kind: "m/resistor".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "r2".into(),
                 kind: "m/resistor".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
         ];
         // A loop of equations — legal (an algebraic loop is a model, not
@@ -892,16 +1046,12 @@ mod tests {
             Block {
                 id: "d1".into(),
                 kind: "m/dup".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "d2".into(),
                 kind: "m/dup".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
         ];
         let issues = validate(&f, &libs);
@@ -927,16 +1077,12 @@ mod tests {
             Block {
                 id: "m".into(),
                 kind: "m/mass".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "r".into(),
                 kind: "m/resistor".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
         ];
         // mass's flange (a pin) onto resistor's p (also a pin) but of
@@ -973,9 +1119,7 @@ mod tests {
         f.blocks.push(Block {
             id: "s".into(),
             kind: "m/src".into(),
-            x: 0.0,
-            y: 0.0,
-            params: Default::default(),
+            ..Default::default()
         });
         f.wires = vec![Wire {
             id: "w2".into(),
@@ -989,6 +1133,253 @@ mod tests {
             issues.iter().any(|i| i.about == "w2"
                 && i.message == "an output connects to an input, a pin to a pin"),
             "the mixed wire says which port pairs with which: {issues:?}"
+        );
+    }
+
+    // ---- ADR-0021: subflows ---------------------------------------------
+
+    /// A subflow with a declared boundary: an input, an output and an
+    /// electrical pin — the shapes a ModelingToolkit subsystem carries.
+    fn sub_amp() -> Subflow {
+        let port = |n: &str, ty: PortType, required: bool| Port {
+            name: n.into(),
+            ty,
+            required,
+        };
+        Subflow {
+            id: "amp".into(),
+            name: "Amplifier".into(),
+            blocks: vec![],
+            wires: vec![],
+            inputs: vec![port("x", PortType::Any, true)],
+            outputs: vec![port("y", PortType::Any, false)],
+            connections: vec![port(
+                "p",
+                PortType::Named {
+                    name: "electrical".into(),
+                },
+                false,
+            )],
+        }
+    }
+
+    fn sub_block(id: &str, sub: &str) -> Block {
+        Block {
+            id: id.into(),
+            kind: "subflow".into(),
+            subflow: Some(sub.into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_subflow_block_resolves_its_declared_boundary_ports() {
+        let mut f = Flow::new();
+        f.subflows = vec![sub_amp()];
+        f.blocks = vec![sub_block("sub_1", "amp")];
+        // The boundary ports are the parent block's ports (ADR-0021 §2).
+        let ports = f
+            .ports_of(&[], f.block("sub_1").unwrap())
+            .expect("a subflow block resolves without any library");
+        assert_eq!(ports.name, "Amplifier");
+        assert_eq!(
+            ports
+                .inputs
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["x"]
+        );
+        assert_eq!(
+            ports
+                .outputs
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["y"]
+        );
+        assert_eq!(
+            ports
+                .connections
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["p"]
+        );
+        assert!(ports.params.is_empty());
+        // Every pre-subflow file parses unchanged, and the new field
+        // round-trips through the file's own JSON.
+        let plain = Flow::parse(r#"{"version":1,"blocks":[],"wires":[]}"#).unwrap();
+        assert_eq!(plain, Flow::new());
+        let json = f.to_json();
+        assert_eq!(Flow::parse(&json).unwrap(), f);
+        // A reference to a subflow the document does not hold is an
+        // issue, not a panic.
+        f.subflows.clear();
+        let issues = validate(&f, &[]);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "sub_1"
+                    && i.message.contains("which this document does not hold")),
+            "{issues:?}"
+        );
+    }
+
+    #[test]
+    fn boundary_wiring_validates_like_any_block() {
+        let libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        f.subflows = vec![sub_amp()];
+        f.blocks = vec![
+            sub_block("sub_1", "amp"),
+            Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                ..Default::default()
+            },
+        ];
+        // A pin wire onto the subsystem's declared pin: an equation,
+        // either end first — the domain unifies through the boundary.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "sub_1".into(),
+            from_port: "p".into(),
+            to_block: "r".into(),
+            to_port: "p".into(),
+        }];
+        let issues = validate(&f, &libs);
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.message.contains("does not connect")),
+            "a declared pin connects: {issues:?}"
+        );
+        // A declared input is required exactly like a kind's.
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "sub_1" && i.message.contains("input x of sub_1")),
+            "{issues:?}"
+        );
+        // A wrong domain through the boundary: refused.
+        f.blocks.push(Block {
+            id: "mm".into(),
+            kind: "m/mass".into(),
+            ..Default::default()
+        });
+        f.wires = vec![Wire {
+            id: "w3".into(),
+            from_block: "mm".into(),
+            from_port: "flange".into(),
+            to_block: "sub_1".into(),
+            to_port: "p".into(),
+        }];
+        assert!(
+            validate(&f, &libs)
+                .iter()
+                .any(|i| i.about == "w3" && i.message.contains("does not connect")),
+            "a mechanical flange does not connect through the boundary"
+        );
+    }
+
+    #[test]
+    fn boundary_dataflow_wires_type_check() {
+        let libs = vec![lib()];
+        let mut f = Flow::new();
+        f.subflows = vec![Subflow {
+            id: "s1".into(),
+            name: "Stage".into(),
+            inputs: vec![Port {
+                name: "x".into(),
+                ty: PortType::tensor(vec![Some(1)]),
+                required: false,
+            }],
+            ..Default::default()
+        }];
+        f.blocks = vec![
+            sub_block("stage", "s1"),
+            Block {
+                id: "src".into(),
+                kind: "t/src".into(),
+                ..Default::default()
+            },
+            Block {
+                id: "fl".into(),
+                kind: "t/flat".into(),
+                ..Default::default()
+            },
+        ];
+        // src (rank 3) into the subsystem's rank-1 input: does not fit.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "src".into(),
+            from_port: "out".into(),
+            to_block: "stage".into(),
+            to_port: "x".into(),
+        }];
+        assert!(
+            validate(&f, &libs)
+                .iter()
+                .any(|i| i.about == "w1" && i.message.contains("does not fit")),
+            "the boundary type-checks like a kind's input"
+        );
+        // flat (rank 1, dimension unknown) into it: fits.
+        f.wires = vec![Wire {
+            id: "w2".into(),
+            from_block: "fl".into(),
+            from_port: "out".into(),
+            to_block: "stage".into(),
+            to_port: "x".into(),
+        }];
+        assert!(
+            !validate(&f, &libs)
+                .iter()
+                .any(|i| i.message.contains("does not fit")),
+            "an unknown dimension unifies through the boundary"
+        );
+    }
+
+    #[test]
+    fn subflow_port_names_are_unique_and_nesting_is_acyclic() {
+        let mut f = Flow::new();
+        f.subflows = vec![Subflow {
+            id: "dup".into(),
+            name: "Dup".into(),
+            inputs: vec![Port {
+                name: "x".into(),
+                ty: PortType::Any,
+                required: false,
+            }],
+            outputs: vec![Port {
+                name: "x".into(),
+                ty: PortType::Any,
+                required: false,
+            }],
+            ..Default::default()
+        }];
+        f.blocks = vec![sub_block("d1", "dup"), sub_block("d2", "dup")];
+        let issues = validate(&f, &[]);
+        assert_eq!(
+            issues
+                .iter()
+                .filter(|i| i.message.contains("reuses a port name"))
+                .count(),
+            1,
+            "reported once per subflow, on the first block referencing it: {issues:?}"
+        );
+        assert_eq!(issues[0].about, "d1");
+        // A subflow may nest, but not into itself — directly or through
+        // another (flattening recurses).
+        f.subflows = vec![sub_amp()];
+        f.subflows[0].blocks = vec![sub_block("inner", "amp")];
+        f.blocks = vec![sub_block("a", "amp")];
+        let issues = validate(&f, &[]);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "amp" && i.message.contains("references itself")),
+            "a self-referencing subflow is an issue: {issues:?}"
         );
     }
 }

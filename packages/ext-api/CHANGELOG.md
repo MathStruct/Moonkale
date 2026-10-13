@@ -18,6 +18,16 @@ Rules:
 - Native Markdown preview covers whole documents with uncapped reveal state, changed-block reuse, sparse row heights and visible-window geometry. Canonical CRLF bytes and Workspace history remain intact; mixed-font visual navigation and incremental CRLF syntax edits are corrected.
 - Editor LSP updates now negotiate incremental synchronization with UTF-16 ranges and preserve full-sync fallback. Both rename prompts ignore IME confirmation keys; CodeMirror rejects rename submissions if its prompt snapshot or server connection changed.
 - Added `Command::RestartLanguageServer`, exposed as `editor.restartLanguageServer` in the palette without a default shortcut. Shared per-language/root recovery refills after five healthy minutes and supports manual restart with retained unsaved documents. Callers exhaustively matching `Command` must handle the new variant.
+
+## ext-api-2026-10-13
+
+**Breaking** — build against the `Block` addition (ADR-0021 stage A):
+- `moonkale-ext-api::flow::Block.subflow: Option<String>`: the subflow a block renders as one block — its id in the same document. The field is `#[serde(default)]`, so every existing flow *parses* unchanged; a caller that constructs `Block` literally does not *compile*. *Update:* add `subflow: None`, or build the fields you set and finish with `..Default::default()`.
+
+**Additions, nothing else breaks**
+- `flow::Subflow` and `Flow::subflows` (both defaulted): a named subsystem in the same document — `Subflow { id, name, blocks, wires, inputs, outputs, connections }`, the boundary declaration mirroring a `BlockKind`'s three port lists. Two blocks may reference the same subflow.
+- `Flow::subflow(id)`, and `Flow::ports_of(&libraries, &block) -> Option<BlockPorts>`: a block's ports resolved from its subflow's declaration or its library kind — the one resolution site the flow panel and `validate` share. A subflow's port names must stay unique across its lists, and subflows may nest but not reference themselves; both are validation issues.
+- `validate`: a wire into a subflow block type-checks against the declared boundary; a block referencing a subflow the document does not hold reports `references the subflow …, which this document does not hold`.
 - `Workspace::restore_documents(folder, keys, active)` loads saved tabs in the background and restores the active tab only if foreground navigation has not superseded it. Existing open documents retain their edits.
 - Document activation clears stale cursor/selection/presence context. Closing a document clears its pending reveal without resetting workspace reveal ordering. Cross-window moves refuse dirty offers and retain an origin edited after the offer; save before moving an unsaved document.
 - Added `Workspace::follow_wiki_guarded` to cancel stale editor navigation after lookup/loading. `follow_wiki` now opens the resolved node in its original source instead of searching other folders for the same relative path.
@@ -26,6 +36,7 @@ Rules:
 - `DocsState.editor_sessions`, `editor_views` and editor choice/reveal state; `Workspace::editor_session`, `editor_view_state`, `editor_view_state_with_cleanup`, `shared_state`, `set_editor_selection` and guarded reveal. Editor sessions survive remounts; close/rename disposes their resources.
 - **Source compatibility:** `EditorFile` and `EditorSettings` gain `insert_spaces` and `indent_width`. Update explicit struct literals with these fields or use `..Default::default()` where supported. New public `DocsState` fields also affect explicit literals.
 - **Behavior change:** `word_at` columns count UTF-16 code units rather than Unicode scalar values. Update callers that calculate columns after non-BMP characters.
+  (The editor-API items above were under `Unreleased` when this section was cut; the tag contains them, so they describe it.)
 
 ## ext-api-2026-10-12
 
