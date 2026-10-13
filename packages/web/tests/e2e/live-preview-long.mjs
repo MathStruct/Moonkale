@@ -7,6 +7,7 @@ const shots = process.env.M1_SHOTS ?? '.';
 if (!root) throw Error('M1_ROOT must name a disposable fixture');
 const note = '---\r\ntitle: Long vault note\r\n---\r\n\r\n' + Array.from({length:240}, (_,n) =>
   `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(75)} **bold ${n}** and \`code ${n}\`.\r\n\r\n` +
+  `- list item ${n} **bold**\r\n  - [ ] pending ${n}\r\n- [x] completed ${n} 猫\r\n\r\n` +
   (n % 20 === 0 ? `\`\`\`rust\r\nfn section_${n}() {}\r\n\`\`\`\r\n\r\n` : '')).join('') + 'End.\r\n';
 assert.ok(Buffer.byteLength(note)>200_000);
 fs.writeFileSync(`${root}/LongPreview.md`,note);
@@ -69,6 +70,21 @@ try {
     const starts=await panel().locator('.mk-proportional-run').evaluateAll(runs=>runs.map(run=>Number(run.dataset.sourceStart)));
     if(fraction>0)assert.ok(Math.max(...starts)>4096,'Preview must extend beyond the old prefix');
     console.log(`scroll ${fraction}: first row ${await surface().getAttribute('data-first-row')}; widgets ${visible.length}`);
+  }
+  for(const section of [60,180,239]) {
+    await input().focus();await page.keyboard.press('Control+f');
+    await panel().locator('.mk-search-query').fill(`list item ${section}`);
+    await panel().getByRole('button',{name:'Next',exact:true}).click();
+    await panel().locator('.mk-search-query').press('Escape');
+    await input().focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('End');await page.keyboard.press('ArrowRight');
+    if(section===239) {
+      await page.keyboard.press('Control+End');
+      await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);
+    }
+    await ready();
+    await panel().locator('.mk-markdown-list-item').filter({hasText:`list item ${section} bold`}).waitFor();
+    await panel().locator('.mk-markdown-list-item').filter({hasText:`☑ completed ${section} 猫`}).waitFor();
+    console.log(`deep list ${section}: preview visible`);
   }
   // Navigate to specific headings so a viewport inside a long plain paragraph
   // is not mistaken for a missing decoration.

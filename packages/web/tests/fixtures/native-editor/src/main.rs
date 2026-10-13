@@ -1031,6 +1031,15 @@ fn App() -> Element {
             let mut ws = ws; ws.docs.active.set(Some(id));
             layout_fixture.set(Default::default());
         }, "Setext heading source" }
+        button { id: "markdown-lists", onclick: move |_| {
+            let id = NodeId::derive(&doc.peek().node.source, "nested.md");
+            if let Some(mut markdown) = ws.document(id) {
+                markdown.write().text = "before\r\n\r\n- parent **猫**\r\n  - child `code`\r\n  - [x] completed 😀\r\n- [ ] pending &amp; safe\r\n\r\n7. first *italic*\r\n8. second\r\n\r\n- wrapped line with words that can wrap at narrow widths\r\n  continuation **bold**\r\n\r\n- [link](url)\r\n\r\nlast row\r\n".into();
+            }
+            show_language.set(Some(id));
+            let mut ws = ws; ws.docs.active.set(Some(id));
+            layout_fixture.set(Default::default());
+        }, "Markdown list source" }
         button { id: "markdown-fenced", onclick: move |_| {
             let id = NodeId::derive(&doc.peek().node.source, "nested.md");
             if let Some(mut markdown) = ws.document(id) {

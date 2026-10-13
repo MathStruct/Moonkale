@@ -54,6 +54,8 @@ mod native_lean_folding;
 mod native_lsp_tools;
 #[cfg(feature = "markdown-preview")]
 mod native_markdown;
+#[cfg(feature = "markdown-preview")]
+mod native_markdown_lists;
 mod native_model;
 mod native_panel;
 #[cfg(feature = "markdown-preview")]

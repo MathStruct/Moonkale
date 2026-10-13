@@ -280,6 +280,13 @@ pub(crate) fn collapsed_rows(
 ) -> Vec<usize> {
     let index = editor.editor().line_index();
     let folds = editor.get_folding_state();
+    // Expanded fold regions do not affect presentation. Filter once rather
+    // than scanning every heading/list region for every replacement.
+    let collapsed_folds: Vec<_> = folds
+        .regions
+        .iter()
+        .filter(|fold| fold.is_collapsed)
+        .collect();
     let mut rows = Vec::new();
     for value in values
         .iter()
@@ -287,9 +294,10 @@ pub(crate) fn collapsed_rows(
     {
         let (start_line, start_col) = index.char_offset_to_position(value.start);
         let (end_line, end_col) = index.char_offset_to_position(value.end);
-        if folds.regions.iter().any(|fold| {
-            fold.is_collapsed && fold.start_line <= end_line && start_line <= fold.end_line
-        }) {
+        if collapsed_folds
+            .iter()
+            .any(|fold| fold.start_line <= end_line && start_line <= fold.end_line)
+        {
             continue;
         }
         let Some(first) = editor.logical_position_to_visual_row(start_line, start_col) else {

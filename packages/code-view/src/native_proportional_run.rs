@@ -265,10 +265,10 @@ pub(crate) fn ProportionalRun(
                             class: "mk-native-inline-widget {replacement.style.as_ref().map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             "data-heading-level": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Heading(level, _) = style { Some(level.to_string()) } else { None }),
-                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. })).to_string(),
+                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. })).to_string(),
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. })) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. })) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             if let Some(crate::native_decorations::InlineStyle::Nested(fragments) | crate::native_decorations::InlineStyle::Heading(_, fragments)) = &replacement.style {
                                 for fragment in fragments {
                                     span {
@@ -277,6 +277,19 @@ pub(crate) fn ProportionalRun(
                                         "data-strong": fragment.strong.to_string(),
                                         "data-code": fragment.code.to_string(),
                                         "{fragment.text}"
+                                    }
+                                }
+                            } else if let Some(crate::native_decorations::InlineStyle::ListItem { depth, marker, checked, fragments }) = &replacement.style {
+                                span {
+                                    class: "mk-markdown-list-content", style: "padding-left: {*depth as f64 * 20.0}px;",
+                                    "data-list-depth": "{depth}", "data-task-checked": checked.map(|checked| checked.to_string()),
+                                    span { class: "mk-markdown-list-marker", "{marker} " }
+                                    for fragment in fragments.iter() {
+                                        span { class: "mk-markdown-fragment",
+                                            "data-emphasis": fragment.emphasis.to_string(),
+                                            "data-strong": fragment.strong.to_string(),
+                                            "data-code": fragment.code.to_string(), "{fragment.text}"
+                                        }
                                     }
                                 }
                             } else if let Some(crate::native_decorations::InlineStyle::Fenced { fragments, .. }) = &replacement.style {

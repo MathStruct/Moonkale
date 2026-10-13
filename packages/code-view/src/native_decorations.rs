@@ -34,6 +34,13 @@ pub(crate) enum InlineStyle {
     #[cfg(feature = "markdown-preview")]
     Heading(u8, Vec<InlineFragment>),
     #[cfg(feature = "markdown-preview")]
+    ListItem {
+        depth: usize,
+        marker: String,
+        checked: Option<bool>,
+        fragments: std::rc::Rc<Vec<InlineFragment>>,
+    },
+    #[cfg(feature = "markdown-preview")]
     Fenced {
         language: String,
         fragments: Vec<CodeFragment>,
@@ -66,6 +73,7 @@ impl InlineStyle {
             Self::Nested(_) => "mk-markdown-nested",
             Self::Heading(_, _) => "mk-markdown-heading",
             Self::Fenced { .. } => "mk-markdown-fenced dxc",
+            Self::ListItem { .. } => "mk-markdown-list-item",
         }
     }
 }

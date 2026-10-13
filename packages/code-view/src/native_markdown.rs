@@ -130,7 +130,7 @@ fn highlighted_code(text: &str, info: &str) -> InlineStyle {
 struct Parsed {
     source: String,
     values: Vec<Decoration>,
-    blocks: std::collections::HashMap<String, Vec<Decoration>>,
+    blocks: std::collections::HashMap<std::rc::Rc<str>, std::rc::Rc<Vec<Decoration>>>,
     #[cfg_attr(not(test), allow(dead_code))]
     reparsed: usize,
 }
@@ -189,14 +189,17 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
         for range in ranges {
             scalar += source[previous..range.start].chars().count();
             let block = &source[range.clone()];
-            let local = cache
+            let (key, local) = cache
                 .blocks
-                .get(block)
-                .or_else(|| blocks.get(block))
-                .cloned()
+                .get_key_value(block)
+                .or_else(|| blocks.get_key_value(block))
+                .map(|(key, values)| (key.clone(), values.clone()))
                 .unwrap_or_else(|| {
                     reparsed += 1;
-                    parse(revision, block).values
+                    (
+                        std::rc::Rc::from(block),
+                        std::rc::Rc::new(parse(revision, block).values),
+                    )
                 });
             for mut value in local.iter().cloned() {
                 value.id += scalar;
@@ -208,7 +211,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
             }
             scalar += block.chars().count();
             previous = range.end;
-            blocks.insert(block.to_string(), local);
+            blocks.insert(key, local);
         }
         *cache = Parsed {
             source: source.to_string(),
@@ -224,12 +227,28 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
+    let list_values = crate::native_markdown_lists::previews(source);
+    let scalar_bytes: Vec<_> = source
+        .char_indices()
+        .map(|(byte, _)| byte)
+        .chain(std::iter::once(source.len()))
+        .collect();
     let mut frames: Vec<Frame> = Vec::new();
     let mut values = Vec::new();
     let mut blocked = 0usize;
     let mut fenced: Option<FencedFrame> = None;
     let mut emit = |mut range: Range<usize>, label: String, style| {
-        if matches!(style, InlineStyle::Heading(..) | InlineStyle::Fenced { .. }) {
+        if !matches!(style, InlineStyle::ListItem { .. })
+            && list_values
+                .get(list_values.partition_point(|(item, _, _)| item.end <= range.start))
+                .is_some_and(|(item, _, _)| item.start < range.end)
+        {
+            return;
+        }
+        if matches!(
+            style,
+            InlineStyle::Heading(..) | InlineStyle::Fenced { .. } | InlineStyle::ListItem { .. }
+        ) {
             while range.end > range.start
                 && matches!(source.as_bytes()[range.end - 1], b'\n' | b'\r')
             {
@@ -244,12 +263,19 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             .count();
         let supported_lines = newlines == 0
             || (matches!(style, InlineStyle::Heading(..)) && newlines == 1)
-            || matches!(style, InlineStyle::Fenced { .. });
+            || matches!(
+                style,
+                InlineStyle::Fenced { .. } | InlineStyle::ListItem { .. }
+            );
         if range.is_empty() || label.is_empty() || !supported_lines {
             return;
         }
-        let start = source[..range.start].chars().count();
-        let end = start + source[range].chars().count();
+        let Ok(start) = scalar_bytes.binary_search(&range.start) else {
+            return;
+        };
+        let Ok(end) = scalar_bytes.binary_search(&range.end) else {
+            return;
+        };
         values.push(Decoration {
             provider: Provider::Markdown,
             id: start,
@@ -381,6 +407,9 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             _ => {}
         }
     }
+    for (range, label, style) in &list_values {
+        emit(range.clone(), label.clone(), style.clone());
+    }
     values.sort_by_key(|value| value.id);
     Batch { revision, values }
 }
@@ -441,6 +470,22 @@ mod tests {
                     == parse(DocumentRevision(4), source).values
             );
         }
+    }
+
+    #[test]
+    fn list_items_replace_inline_styles_once_and_reuse_unmodified_blocks() {
+        let source = "before 😀\r\n\r\n- **parent 猫**\r\n  - [ ] child `code`\r\n- sibling\r\n\r\nafter\r\n";
+        let values = previews(source);
+        assert_eq!(values.len(), 3);
+        assert!(values
+            .iter()
+            .all(|(_, _, style)| matches!(style, InlineStyle::ListItem { .. })));
+        assert_eq!(values[0].0, "- **parent 猫**");
+        assert_eq!(values[1].0, "  - [ ] child `code`");
+        let changed = source.replace("[ ]", "[x]");
+        let result = batch(DocumentRevision(4), &changed);
+        assert!(result.values == parse(DocumentRevision(4), &changed).values);
+        PARSED.with(|cache| assert_eq!(cache.borrow().reparsed, 1));
     }
 
     #[test]

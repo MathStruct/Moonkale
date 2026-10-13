@@ -15,6 +15,7 @@ Rules:
 ## Unreleased — the editor API (not in a tag yet)
 
 **moonkale-ext-api**
+- Native Markdown preview renders bullet/ordered/nested list items and task status as independent source-owned replacements. Caret/selection reveals the active item; task markers use the canonical edit/undo history. Complex unsupported items retain source.
 - Native Markdown preview covers whole documents with uncapped reveal state, changed-block reuse, sparse row heights and visible-window geometry. Canonical CRLF bytes and Workspace history remain intact; mixed-font visual navigation and incremental CRLF syntax edits are corrected.
 - Editor LSP updates now negotiate incremental synchronization with UTF-16 ranges and preserve full-sync fallback. Both rename prompts ignore IME confirmation keys; CodeMirror rejects rename submissions if its prompt snapshot or server connection changed.
 - Added `Command::RestartLanguageServer`, exposed as `editor.restartLanguageServer` in the palette without a default shortcut. Shared per-language/root recovery refills after five healthy minutes and supports manual restart with retained unsaved documents. Callers exhaustively matching `Command` must handle the new variant.
