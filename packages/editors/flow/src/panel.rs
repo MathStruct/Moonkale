@@ -121,14 +121,15 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
     let mut nodes = Vec::new();
     let mut ports = Vec::new();
     for (i, b) in flow.blocks.iter().enumerate() {
-        let resolved = find_kind(libs, &b.kind);
-        let (name, kind_ports) = match &resolved {
-            Some((_, k)) => (k.name.as_str(), Some(k)),
-            None => (b.kind.as_str(), None),
-        };
+        // A block resolves through its subflow when it references one
+        // (ADR-0021 §2) — the engine never learns what a subflow is;
+        // it receives one more node with ports.
+        let resolved = flow.ports_of(libs, b);
+        let sub = b.subflow.is_some();
+        let name = resolved.map(|p| p.name).unwrap_or_else(|| b.kind.as_str());
         let bad = issues.iter().any(|x| x.about == b.id);
-        let (n_in, n_out) = kind_ports
-            .map(|k| (k.inputs.len(), k.outputs.len()))
+        let (n_in, n_out) = resolved
+            .map(|p| (p.inputs.len(), p.outputs.len()))
             .unwrap_or((0, 0));
         // Tall enough for its ports; a little room for the label.
         let height = (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0);
@@ -136,16 +137,22 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
         nodes.push(OutNode {
             id: &b.id,
             label: name,
-            kind: &b.kind,
-            color: if bad { "#e86b6a" } else { kind_color(&b.kind) },
+            kind: if sub { "subflow" } else { b.kind.as_str() },
+            color: if bad {
+                "#e86b6a"
+            } else if sub {
+                "#b48cf0"
+            } else {
+                kind_color(&b.kind)
+            },
             shape: "rect",
             width,
             height,
             pos: [b.x as f32, b.y as f32],
             pinned: true, // the document owns the positions
         });
-        if let Some((_, k)) = resolved {
-            for (j, p) in k.inputs.iter().enumerate() {
+        if let Some(s) = resolved {
+            for (j, p) in s.inputs.iter().enumerate() {
                 ports.push(OutPort {
                     node: i,
                     name: p.name.clone(),
@@ -155,7 +162,7 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
                     color: port_color(&p.ty),
                 });
             }
-            for (j, p) in k.outputs.iter().enumerate() {
+            for (j, p) in s.outputs.iter().enumerate() {
                 ports.push(OutPort {
                     node: i,
                     name: p.name.clone(),
@@ -166,13 +173,14 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
                 });
             }
             // Acausal pins ride the top edge (ADR-0020) — drawn like any
-            // port, in their domain's colour, never an arrow.
-            for (j, p) in k.connections.iter().enumerate() {
+            // port, in their domain's colour, never an arrow. A subflow
+            // block's pins are its subflow's declared ones (ADR-0021 §2).
+            for (j, p) in s.connections.iter().enumerate() {
                 ports.push(OutPort {
                     node: i,
                     name: p.name.clone(),
                     side: "top",
-                    offset: (j + 1) as f32 / (k.connections.len() + 1) as f32,
+                    offset: (j + 1) as f32 / (s.connections.len() + 1) as f32,
                     direction: "both",
                     color: port_color(&p.ty),
                 });
@@ -180,21 +188,11 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
         }
     }
     // A wire between two pins is an equation: drawn without an arrowhead
-    // (ADR-0020). The map names each kind's pins, keyed by the kind's id.
-    let pins: BTreeMap<&str, std::collections::HashSet<&str>> = libs
-        .iter()
-        .flat_map(|l| &l.blocks)
-        .filter(|k| !k.connections.is_empty())
-        .map(|k| {
-            (
-                k.id.as_str(),
-                k.connections.iter().map(|p| p.name.as_str()).collect(),
-            )
-        })
-        .collect();
-    let is_pin = |kind: &str, port: &str| {
-        let id = kind.split_once('/').map(|(_, k)| k).unwrap_or("");
-        pins.get(id).is_some_and(|s| s.contains(port))
+    // (ADR-0020). The pins are named per block — a subflow block's come
+    // from its subflow, not a library kind (ADR-0021 §2).
+    let is_pin = |block: &Block, port: &str| {
+        flow.ports_of(libs, block)
+            .is_some_and(|p| p.connections.iter().any(|p| p.name == port))
     };
     let edges = flow
         .wires
@@ -208,8 +206,8 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
             ) else {
                 return None;
             };
-            let directed = !(is_pin(&flow.blocks[a].kind, &w.from_port)
-                && is_pin(&flow.blocks[b].kind, &w.to_port));
+            let directed =
+                !(is_pin(&flow.blocks[a], &w.from_port) && is_pin(&flow.blocks[b], &w.to_port));
             Some(OutEdge {
                 id: &w.id,
                 a,
@@ -705,6 +703,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 x: 30.0 + col * 165.0,
                 y: 30.0 + row * 170.0,
                 params,
+                subflow: None, // a palette block is a library block
             });
         });
         push_undo(undo_stack, redo_stack, before);
@@ -1067,18 +1066,18 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
     // The type check reads; the write mutates — the two must not overlap.
     let checked = {
         let f = flow.read();
-        let kind_of = |id: &str| f.block(id).map(|b| b.kind.clone());
-        let (Some(fk), Some(tk)) = (kind_of(&from.node), kind_of(&to.node)) else {
+        let (Some(fb), Some(tb)) = (f.block(&from.node), f.block(&to.node)) else {
             return (false, "wire: unknown block".into());
         };
-        let (Some((_, fkind)), Some((_, tkind))) = (find_kind(libs, &fk), find_kind(libs, &tk))
-        else {
+        // A subflow block's ports are its subflow's declared boundary
+        // (ADR-0021 §2) — one resolution site with the library kinds.
+        let (Some(fp), Some(tp)) = (f.ports_of(libs, fb), f.ports_of(libs, tb)) else {
             return (false, "wire: unknown block kind".into());
         };
-        let out = fkind.outputs.iter().find(|p| p.name == from.port);
-        let inp = tkind.inputs.iter().find(|p| p.name == to.port);
-        let pin_f = fkind.connections.iter().find(|p| p.name == from.port);
-        let pin_t = tkind.connections.iter().find(|p| p.name == to.port);
+        let out = fp.outputs.iter().find(|p| p.name == from.port);
+        let inp = tp.inputs.iter().find(|p| p.name == to.port);
+        let pin_f = fp.connections.iter().find(|p| p.name == from.port);
+        let pin_t = tp.connections.iter().find(|p| p.name == to.port);
         if let (Some(o), Some(i)) = (out, inp) {
             match o.ty.unify(&i.ty) {
                 Some(_) => Ok(Accepted::Dataflow),
@@ -1164,6 +1163,7 @@ fn wire(flow: &mut Signal<Flow>, libs: &[FlowLibrary], from: &End, to: &End) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use moonkale_ext_api::flow::Subflow;
 
     /// A `.flow.json` whose wire names a deleted block parses — `validate`
     /// reports it — and must not panic the scene build (the review's #2).
@@ -1294,37 +1294,27 @@ mod tests {
                 Block {
                     id: "r".into(),
                     kind: "m/resistor".into(),
-                    x: 0.0,
-                    y: 0.0,
-                    params: Default::default(),
+                    ..Default::default()
                 },
                 Block {
                     id: "g".into(),
                     kind: "m/ground".into(),
-                    x: 0.0,
-                    y: 0.0,
-                    params: Default::default(),
+                    ..Default::default()
                 },
                 Block {
                     id: "r2".into(),
                     kind: "m/resistor".into(),
-                    x: 0.0,
-                    y: 0.0,
-                    params: Default::default(),
+                    ..Default::default()
                 },
                 Block {
                     id: "s".into(),
                     kind: "m/src".into(),
-                    x: 0.0,
-                    y: 0.0,
-                    params: Default::default(),
+                    ..Default::default()
                 },
                 Block {
                     id: "k".into(),
                     kind: "m/sink".into(),
-                    x: 0.0,
-                    y: 0.0,
-                    params: Default::default(),
+                    ..Default::default()
                 },
             ];
         });
@@ -1393,30 +1383,22 @@ mod tests {
             Block {
                 id: "r".into(),
                 kind: "m/resistor".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "g".into(),
                 kind: "m/ground".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "s".into(),
                 kind: "m/src".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
             Block {
                 id: "k".into(),
                 kind: "m/sink".into(),
-                x: 0.0,
-                y: 0.0,
-                params: Default::default(),
+                ..Default::default()
             },
         ];
         f.wires = vec![
@@ -1444,5 +1426,148 @@ mod tests {
         assert_eq!(pins.len(), 3, "2 + 1 + 0 + 0 resistor/ground pins");
         assert!(pins.iter().all(|p| p.direction == "both"));
         assert!(pins.iter().any(|p| p.name == "p" && p.node == 0));
+    }
+
+    // ---- ADR-0021: subflows ---------------------------------------------
+
+    /// A subflow with a declared boundary: one input, one output and an
+    /// electrical pin.
+    fn sub_amp() -> Subflow {
+        let port = |n: &str, ty: PortType, required: bool| Port {
+            name: n.into(),
+            ty,
+            required,
+        };
+        Subflow {
+            id: "amp".into(),
+            name: "Amplifier".into(),
+            inputs: vec![port("x", PortType::Any, false)],
+            outputs: vec![port("y", PortType::Any, false)],
+            connections: vec![port(
+                "p",
+                PortType::Named {
+                    name: "electrical".into(),
+                },
+                false,
+            )],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn to_scene_draws_a_subflow_block_with_its_declared_boundary() {
+        let libs = vec![pin_lib()];
+        let mut f = Flow::new();
+        f.subflows = vec![sub_amp()];
+        f.blocks = vec![
+            Block {
+                id: "sub_1".into(),
+                kind: "subflow".into(),
+                subflow: Some("amp".into()),
+                ..Default::default()
+            },
+            Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                ..Default::default()
+            },
+        ];
+        // An equation onto the subsystem's declared pin, drawn like any
+        // pin wire — without an arrow, from the block's top edge.
+        f.wires = vec![Wire {
+            id: "w1".into(),
+            from_block: "sub_1".into(),
+            from_port: "p".into(),
+            to_block: "r".into(),
+            to_port: "p".into(),
+        }];
+        let scene = to_scene(&f, &libs, &[]);
+        let node = scene.nodes.iter().find(|n| n.id == "sub_1").unwrap();
+        assert_eq!(
+            node.label, "Amplifier",
+            "the block shows the subflow's name"
+        );
+        assert_eq!(node.kind, "subflow");
+        assert_eq!(node.color, "#b48cf0");
+        assert!(
+            !scene.edges[0].directed,
+            "a boundary pin wire is an equation"
+        );
+        // The declared boundary is the parent block's ports: the input on
+        // the left, the output on the right, the pin on the top.
+        let port = |name: &str| scene.ports.iter().find(|p| p.name == name && p.node == 0);
+        assert_eq!(port("x").unwrap().side, "left");
+        assert_eq!(port("x").unwrap().direction, "in");
+        assert_eq!(port("y").unwrap().side, "right");
+        assert_eq!(port("y").unwrap().direction, "out");
+        assert_eq!(port("p").unwrap().side, "top");
+        assert_eq!(port("p").unwrap().direction, "both");
+    }
+
+    /// `wire` lives on signals; a parked VirtualDom gives the test a
+    /// runtime scope for them.
+    #[tokio::test(flavor = "current_thread")]
+    async fn wires_reach_a_subflow_block_through_its_boundary() {
+        #[component]
+        fn Host() -> Element {
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Host);
+        dom.rebuild_in_place();
+        let libs = vec![pin_lib()];
+        let mut flow = dom.in_scope(ScopeId::ROOT, || {
+            Signal::new_in_scope(Flow::new(), ScopeId::ROOT)
+        });
+        flow.with_mut(|f| {
+            f.subflows = vec![sub_amp()];
+            f.blocks = vec![
+                Block {
+                    id: "sub_1".into(),
+                    kind: "subflow".into(),
+                    subflow: Some("amp".into()),
+                    ..Default::default()
+                },
+                Block {
+                    id: "r".into(),
+                    kind: "m/resistor".into(),
+                    ..Default::default()
+                },
+            ];
+        });
+        // The declared pin is a pin: an equation, either drag order.
+        let (ok, _) = wire(&mut flow, &libs, &end("r", "p"), &end("sub_1", "p"));
+        assert!(ok, "a resistor's pin connects to the boundary pin");
+        // The declared input is an input: one wire per input port, the
+        // boundary included (a second source replaces the first).
+        flow.with_mut(|f| {
+            f.blocks.push(Block {
+                id: "s".into(),
+                kind: "m/src".into(),
+                ..Default::default()
+            });
+            f.blocks.push(Block {
+                id: "s2".into(),
+                kind: "m/src".into(),
+                ..Default::default()
+            });
+        });
+        let (ok, _) = wire(&mut flow, &libs, &end("s", "out"), &end("sub_1", "x"));
+        assert!(ok, "the declared input takes a dataflow wire");
+        let (ok, _) = wire(&mut flow, &libs, &end("s2", "out"), &end("sub_1", "x"));
+        assert!(ok);
+        assert_eq!(
+            flow.read()
+                .wires
+                .iter()
+                .filter(|w| w.to_port == "x")
+                .count(),
+            1,
+            "one wire per input, the boundary included"
+        );
+        // A missing subflow is refused, not panicked on.
+        flow.with_mut(|f| f.subflows.clear());
+        let (ok, why) = wire(&mut flow, &libs, &end("r", "p"), &end("sub_1", "p"));
+        assert!(!ok, "a block whose subflow is gone takes no wire");
+        assert!(why.contains("unknown block kind"), "{why}");
     }
 }
