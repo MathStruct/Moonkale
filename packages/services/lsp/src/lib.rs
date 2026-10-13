@@ -23,4 +23,4 @@ pub use session::{
     char_offset, strip_snippet, CodeAction, CompletionItem, Diagnostic, Location, LspEvent,
     LspSession, TextEdit, WorkspaceEdit,
 };
-pub use transport::{LspTransport, LspTransportFuture, SpawnLsp};
+pub use transport::{LspCloseFuture, LspTransport, LspTransportFuture, SpawnLsp};

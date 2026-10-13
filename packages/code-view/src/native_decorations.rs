@@ -70,7 +70,7 @@ impl InlineStyle {
     }
 }
 
-/// Source-owned presentation. Opt-in Markdown uses bounded replacements;
+/// Source-owned presentation. Opt-in Markdown uses source replacements;
 /// fixtures additionally exercise hidden ranges and interactive blocks.
 #[derive(Clone, PartialEq)]
 pub(crate) enum Kind {
@@ -85,7 +85,7 @@ pub(crate) enum Kind {
     #[allow(dead_code)]
     Replace {
         range: Range<usize>,
-        /// None hides source; Some supplies the bounded inline widget label.
+        /// None hides source; Some supplies the inline widget label.
         widget: Option<String>,
         style: Option<InlineStyle>,
     },
@@ -225,6 +225,7 @@ impl Decorations {
         run: Range<usize>,
     ) -> Vec<crate::native_presentation::Replacement> {
         let mut accepted: Vec<crate::native_presentation::Replacement> = Vec::new();
+        let mut intervals = std::collections::BTreeMap::<usize, usize>::new();
         for value in &self.values {
             let Kind::Replace {
                 range,
@@ -239,12 +240,14 @@ impl Decorations {
             if range.is_empty()
                 || range.start < run.start
                 || range.end > run.end
-                || accepted.iter().any(|old| {
-                    old.start < range.end - run.start && range.start - run.start < old.end
-                })
+                || intervals
+                    .range(..range.end - run.start)
+                    .next_back()
+                    .is_some_and(|(_, end)| range.start - run.start < *end)
             {
                 continue;
             }
+            intervals.insert(range.start - run.start, range.end - run.start);
             accepted.push(crate::native_presentation::Replacement {
                 start: range.start - run.start,
                 end: range.end - run.start,

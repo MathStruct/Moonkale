@@ -3,6 +3,23 @@
 use editor_core::Position;
 use moonkale_ext_api::editor::DocumentRevision;
 
+/// Revision-independent reveal identity. Selection and caret reveal a contiguous
+/// interval of source constructs, so no bitset or construct-count limit is needed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PresentationState {
+    pub provider: u8,
+    pub revealed: Option<(usize, usize)>,
+}
+#[cfg_attr(not(feature = "markdown-preview"), allow(dead_code))]
+impl PresentationState {
+    pub fn enabled(self) -> bool {
+        self.provider != 0
+    }
+    pub fn previews(self, start: usize, end: usize) -> bool {
+        self.enabled() && self.revealed.is_none_or(|(a, b)| end <= a || b <= start)
+    }
+}
+
 /// Retained source anchor for a viewport across view-only layout changes.
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct ViewAnchor {
@@ -35,7 +52,7 @@ pub struct LayoutFixture {
     pub presentation: bool,
     /// View-local controls and content inside the anchored block.
     pub interactive_widget: bool,
-    /// Bounded CommonMark emphasis/code preview for Markdown documents.
+    /// CommonMark preview for Markdown documents.
     pub markdown_preview: bool,
 }
 
@@ -283,7 +300,8 @@ pub(crate) struct CachedRunHeight {
     pub row: usize,
     pub start: usize,
     pub viewport_width: f64,
+    pub font_epoch: u64,
     pub height: f64,
-    /// Bit mask of fixture constructs still in preview.
-    pub presentation: u64,
+    /// Source interval revealed by caret/selection.
+    pub presentation: PresentationState,
 }

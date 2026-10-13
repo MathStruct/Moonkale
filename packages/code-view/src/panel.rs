@@ -42,6 +42,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mut mount_error: Signal<Option<String>> = use_signal(|| None);
     // Milestone 7: an F2 rename prompt, offered code actions, references.
     let mut rename_prompt: Signal<Option<(u32, u32, String)>> = use_signal(|| None);
+    let mut rename_base = use_signal(|| None::<(String, moonkale_lsp::LspSession)>);
     let mut actions: Signal<Option<Vec<moonkale_lsp::CodeAction>>> = use_signal(|| None);
     let mut actions_base = use_signal(|| None::<(String, moonkale_lsp::LspSession)>);
     let mut references: Signal<Option<Vec<moonkale_lsp::Location>>> = use_signal(|| None);
@@ -191,7 +192,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     }
                 }
                 BackendEvent::Rename { line, col, word } => {
-                    if lsp_session.peek().is_some() {
+                    if let Some(session) = lsp_session.peek().clone() {
+                        rename_base.set(Some((doc.peek().text.clone(), session)));
                         rename_prompt.set(Some((line, col, word)));
                         ws.focus_element(&format!("{element_id_for_events}-rename"));
                     } else {
@@ -570,7 +572,13 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             return;
         }
         if let (Some(s), Some((_, _, uri))) = (lsp_session.peek().clone(), rename_ident.clone()) {
-            let base = doc.peek().text.clone();
+            let Some((base, connection)) = rename_base.peek().clone() else {
+                return;
+            };
+            if doc.peek().text != base || !s.same_connection(&connection) {
+                ws.set_status(t!(ws, L, "editor-rename-stale"));
+                return;
+            }
             spawn(async move {
                 match s.rename(&uri, line, col, &new_name).await {
                     Ok(edit) if edit.changes.is_empty() => {
@@ -651,6 +659,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         oninput: move |e| rename_value.set(e.value()),
                         onkeydown: move |e| {
                             e.stop_propagation();
+                            if e.is_composing() { return; }
                             match e.key() {
                                 Key::Enter => { e.prevent_default(); commit_rename.call(()); }
                                 Key::Escape => { e.prevent_default(); rename_prompt.set(None); }

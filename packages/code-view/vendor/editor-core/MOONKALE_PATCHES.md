@@ -7,3 +7,5 @@ This directory vendors the published [`editor-core` 0.5.0](https://github.com/wi
 - `src/undo.rs`: use `web_time::Instant` instead of `std::time::Instant` for undo-group timing. The standard-library clock panics on Moonkale's `wasm32-unknown-unknown` runtime. `std::time::Duration` remains unchanged.
 
 - `src/commands.rs`, `src/state.rs`: expose `discard_undo_history` so the native view can release redundant engine transactions after handing localized deltas to Workspace. Workspace alone owns user undo/redo, including across remounts. When updating the vendored crate, compare against upstream 0.5.0 and reapply this portability patch only if still needed. Keep this note and the `web-time` dependency synchronized with the source.
+
+- `src/commands.rs`, `src/state.rs`: expose `logical_position_to_visual_row` using the cached visual-row prefix index and binary search over wrap points. The preview height index needs rows, not horizontal cell coordinates; this avoids rescanning offscreen line text. Regression coverage compares row-only and full coordinate mapping across wrapping, Unicode, indentation and folding.

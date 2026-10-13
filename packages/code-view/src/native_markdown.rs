@@ -1,4 +1,4 @@
-//! Conservative CommonMark presentation over the bounded source prefix.
+//! Conservative CommonMark presentation with unchanged block reuse.
 use crate::native_decorations::{
     Batch, CodeFragment, Decoration, InlineFragment, InlineStyle, Kind, Provider,
 };
@@ -126,28 +126,101 @@ fn highlighted_code(text: &str, info: &str) -> InlineStyle {
     }
 }
 
+#[derive(Default)]
+struct Parsed {
+    source: String,
+    values: Vec<Decoration>,
+    blocks: std::collections::HashMap<String, Vec<Decoration>>,
+    #[cfg_attr(not(test), allow(dead_code))]
+    reparsed: usize,
+}
 thread_local! {
-    // Layout/reveal calculations request the same bounded source repeatedly.
-    // Keep only one prefix, and attach each caller's live revision on a hit.
-    static PARSED: std::cell::RefCell<Option<(String, Vec<Decoration>)>> = const { std::cell::RefCell::new(None) };
+    static PARSED: std::cell::RefCell<Parsed> = std::cell::RefCell::new(Parsed::default());
 }
 
 pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
-    if let Some(values) = PARSED.with(|cache| {
-        cache
-            .borrow()
-            .as_ref()
-            .filter(|(text, _)| text == source)
-            .map(|(_, values)| values.clone())
-    }) {
-        return Batch { revision, values };
-    }
-    let result = parse(revision, source);
-    if source.len() <= 4096 * 4 {
-        PARSED
-            .with(|cache| *cache.borrow_mut() = Some((source.to_string(), result.values.clone())));
-    }
-    result
+    PARSED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.source == source {
+            return Batch {
+                revision,
+                values: cache.values.clone(),
+            };
+        }
+        // CommonMark's block pass keeps container/fence/setext context correct.
+        // Unchanged top-level blocks reuse their semantic decorations and code
+        // highlighting; only changed blocks enter the presentation parser.
+        // References have document-wide semantics, so conservatively parse them
+        // together until the link provider owns reference-definition invalidation.
+        let mut ranges = Vec::new();
+        let (mut depth, mut start) = (0usize, 0usize);
+        let body_start = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS)
+            .into_offset_iter()
+            .next()
+            .filter(|(event, range)| {
+                range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
+            })
+            .map_or(0, |(_, range)| range.end);
+        for (event, range) in Parser::new(&source[body_start..]).into_offset_iter() {
+            let range = range.start + body_start..range.end + body_start;
+            match event {
+                Event::Start(_) => {
+                    if depth == 0 {
+                        start = source[..range.start].rfind('\n').map_or(0, |byte| byte + 1);
+                    }
+                    depth += 1;
+                }
+                Event::End(_) => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        ranges.push(start..range.end);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if source.contains("]:") {
+            ranges.clear();
+            ranges.push(0..source.len());
+        }
+        let mut blocks = std::collections::HashMap::new();
+        let mut values = Vec::new();
+        let (mut previous, mut scalar, mut reparsed) = (0, 0, 0);
+        for range in ranges {
+            scalar += source[previous..range.start].chars().count();
+            let block = &source[range.clone()];
+            let local = cache
+                .blocks
+                .get(block)
+                .or_else(|| blocks.get(block))
+                .cloned()
+                .unwrap_or_else(|| {
+                    reparsed += 1;
+                    parse(revision, block).values
+                });
+            for mut value in local.iter().cloned() {
+                value.id += scalar;
+                if let Kind::Replace { range, .. } = &mut value.kind {
+                    range.start += scalar;
+                    range.end += scalar;
+                }
+                values.push(value);
+            }
+            scalar += block.chars().count();
+            previous = range.end;
+            blocks.insert(block.to_string(), local);
+        }
+        *cache = Parsed {
+            source: source.to_string(),
+            values,
+            blocks,
+            reparsed,
+        };
+        Batch {
+            revision,
+            values: cache.values.clone(),
+        }
+    })
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
@@ -309,8 +382,6 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
         }
     }
     values.sort_by_key(|value| value.id);
-    // The high bit identifies the provider; the other bits own reveal state.
-    values.truncate(63);
     Batch { revision, values }
 }
 
@@ -339,6 +410,39 @@ mod tests {
             })
             .collect()
     }
+    #[test]
+    fn long_document_reuses_unchanged_blocks_and_rebases_offsets() {
+        let source = (0..240)
+            .map(|n| {
+                format!(
+                    "# Section {n} 猫\n\n{} **bold** and `code`.\n\n",
+                    "plain words ".repeat(75)
+                )
+            })
+            .collect::<String>();
+        let original = batch(DocumentRevision(1), &source);
+        assert_eq!(original.values.len(), 720);
+        let changed = source.replacen("Section 200", "Updated section 200", 1);
+        let result = batch(DocumentRevision(2), &changed);
+        assert_eq!(result.revision, DocumentRevision(2));
+        PARSED.with(|cache| assert_eq!(cache.borrow().reparsed, 1));
+        assert!(result.values == parse(DocumentRevision(2), &changed).values);
+        let prefixed = format!("new paragraph\n\n{changed}");
+        let result = batch(DocumentRevision(3), &prefixed);
+        PARSED.with(|cache| assert_eq!(cache.borrow().reparsed, 1));
+        assert!(result.values == parse(DocumentRevision(3), &prefixed).values);
+        for source in [
+            "before\n\n```rust\n*x*\n\n# later\n",
+            "before\n\n```rust\n*x*\n```\n\n# later\n",
+            "*a [link][ref]*\n\n[ref]: https://example.org",
+        ] {
+            assert!(
+                batch(DocumentRevision(4), source).values
+                    == parse(DocumentRevision(4), source).values
+            );
+        }
+    }
+
     #[test]
     fn front_matter_keeps_source_without_consuming_later_setext_headings() {
         for metadata in ["title: Notes", "title: Notes\ntags: [test]"] {
@@ -436,8 +540,8 @@ mod tests {
         let result = batch(DocumentRevision(9), &"***x*** ".repeat(100));
         assert_eq!(
             result.values.len(),
-            63,
-            "Nested children do not consume reveal bits"
+            100,
+            "Nested children retain one outer owner"
         );
     }
     #[test]
@@ -445,8 +549,8 @@ mod tests {
         let source = "*x* ".repeat(100);
         let result = batch(DocumentRevision(8), &source);
         assert_eq!(result.revision, DocumentRevision(8));
-        assert_eq!(result.values.len(), 63);
-        assert_eq!(result.values.last().unwrap().id, 248);
+        assert_eq!(result.values.len(), 100);
+        assert_eq!(result.values.last().unwrap().id, 396);
     }
 
     #[test]

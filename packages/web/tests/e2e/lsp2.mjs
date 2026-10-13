@@ -62,11 +62,32 @@ try {
     await page.keyboard.press("F2");
     await page.waitForSelector(".mk-editor-rename input", { timeout: 5000 });
     await page.fill(".mk-editor-rename input", "plus");
+    await page.locator(".mk-editor-rename input").evaluate(input => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", isComposing: true, bubbles: true })));
+    await sleep(150);
+    if (!await page.locator(".mk-editor-rename input").isVisible()) throw Error("IME Enter committed rename");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => { const t = [...document.querySelectorAll(".cm-content")].map((e) => e.textContent).join(""); return /fn plus\(/.test(t) && /plus\(1, 2\)/.test(t) && !/add/.test(t); }, null, { timeout: 20000 });
     if (!(await page.$(".mk-tab-dirty"))) throw new Error("should be dirty");
     if (/plus/.test(fs.readFileSync(`${ROOT}/src/main.rs`, "utf8"))) throw new Error("written without save");
     await page.screenshot({ path: `${S}/m7-lsp-rename.png` });
+  });
+  await step("editing while the rename prompt is open rejects its stale position", async () => {
+    await clickAt("plus(1, 2)", 1);
+    await page.keyboard.press("F2");
+    await page.waitForSelector(".mk-editor-rename input");
+    await page.fill(".mk-editor-rename input", "staleName");
+    await page.locator(".cm-content:visible").click();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.insertText("// shifted\n");
+    await page.locator(".mk-editor-rename input").press("Enter");
+    await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('Document changed'));
+    if ((await page.locator('.cm-content:visible').textContent()).includes('staleName')) throw Error('stale rename applied');
+    await page.locator('.cm-content:visible').click();
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('Shift+End');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Delete');
+    await page.waitForFunction(() => !document.querySelector('.cm-content')?.textContent.includes('// shifted') && document.querySelector('.cm-content')?.textContent.includes('plus(1, 2)'));
   });
   await step("Shift+F12 on `plus` lists 2 references; clicking one moves the cursor", async () => {
     await clickAt("plus(1, 2)", 1);

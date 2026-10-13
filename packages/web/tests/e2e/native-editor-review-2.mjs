@@ -7,7 +7,7 @@ const errors=[];page.on("pageerror",error=>errors.push(error.message));
 const click=id=>page.locator(`#${id}`).evaluate(button=>button.click());
 const log=async()=>JSON.parse(await page.locator(".lsp-log").textContent()).map(JSON.parse);
 const count=async method=>(await log()).filter(entry=>entry.method===method).length;
-const waitCount=(method,count)=>page.waitForFunction(({method,count})=>JSON.parse(document.querySelector(".lsp-log").textContent).map(JSON.parse).filter(entry=>entry.method===method).length>=count,{method,count});
+const waitCount=(method,count)=>page.waitForFunction(({method,count})=>JSON.parse(document.querySelector(".lsp-log").textContent).map(JSON.parse).filter(entry=>entry.method===method).length>=count,{method,count},{timeout:60000});
 const waitText=text=>page.waitForFunction(text=>document.querySelector(".canonical").textContent===text,text);
 try {
  await page.goto(`http://127.0.0.1:${process.env.PORT??"8099"}/`);

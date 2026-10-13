@@ -73,6 +73,15 @@ impl LspTransport for StdioTransport {
             let _ = w.flush();
         }
     }
+    fn close(&self) -> moonkale_lsp::LspCloseFuture {
+        if let Ok(mut child) = self.child.lock() {
+            if matches!(child.try_wait(), Ok(None)) {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+        Box::pin(async {})
+    }
     fn take_incoming(&mut self) -> Option<mpsc::UnboundedReceiver<String>> {
         self.incoming.take()
     }
@@ -81,7 +90,44 @@ impl LspTransport for StdioTransport {
 impl Drop for StdioTransport {
     fn drop(&mut self) {
         if let Ok(mut c) = self.child.lock() {
-            let _ = c.kill();
+            if matches!(c.try_wait(), Ok(None)) {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use futures_util::StreamExt;
+    #[tokio::test]
+    async fn explicit_close_reaps_the_child_even_while_transport_is_retained() {
+        let mut transport =
+            StdioTransport::spawn("cat", &[], std::env::temp_dir().to_str().unwrap()).unwrap();
+        let mut incoming = transport.take_incoming().unwrap();
+        assert!(transport
+            .child
+            .lock()
+            .unwrap()
+            .try_wait()
+            .unwrap()
+            .is_none());
+        transport.close().await;
+        assert!(transport
+            .child
+            .lock()
+            .unwrap()
+            .try_wait()
+            .unwrap()
+            .is_some());
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_secs(2), incoming.next())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        transport.close().await; // Idempotent; never signal a recycled PID.
     }
 }

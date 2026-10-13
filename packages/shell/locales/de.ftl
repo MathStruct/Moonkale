@@ -326,3 +326,5 @@ wb-close-empty = Leere Panelgruppe schließen
 wb-close-empty-hint = Leere Gruppe schließen
 wb-splitter = Größe der Panelgruppen ändern
 wb-splitter-hint = Ziehen ändert die Größe. Pfeiltasten ändern sie; mit Umschalt weiter; Doppelklick setzt zurück.
+
+cmd-editor-restart-language-server = Bearbeiten: Sprachserver neu starten
