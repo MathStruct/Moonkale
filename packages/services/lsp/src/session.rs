@@ -291,10 +291,17 @@ pub enum LspEvent {
     Closed,
 }
 
+/// Preserve JSON-RPC error codes internally; callers retain the string API.
+#[derive(Debug)]
+struct RequestError {
+    code: Option<i64>,
+    message: String,
+}
+
 struct Inner {
     transport: Box<dyn LspTransport>,
     next_id: i64,
-    pending: HashMap<i64, oneshot::Sender<Result<Value, String>>>,
+    pending: HashMap<i64, oneshot::Sender<Result<Value, RequestError>>>,
     initialized: bool,
     sync_kind: u8,
     closing: bool,
@@ -433,11 +440,14 @@ impl LspSession {
                 if let Some(id) = id.as_i64() {
                     if let Some(tx) = self.inner.borrow_mut().pending.remove(&id) {
                         let result = match msg.get("error") {
-                            Some(e) => Err(e
-                                .get("message")
-                                .and_then(Value::as_str)
-                                .unwrap_or("error")
-                                .to_string()),
+                            Some(e) => Err(RequestError {
+                                code: e.get("code").and_then(Value::as_i64),
+                                message: e
+                                    .get("message")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("error")
+                                    .to_string(),
+                            }),
                             None => Ok(msg.get("result").cloned().unwrap_or(Value::Null)),
                         };
                         let _ = tx.send(result);
@@ -535,20 +545,49 @@ impl LspSession {
     }
 
     async fn request(&self, method: &str, params: Value) -> Result<Value, String> {
-        let (tx, rx) = oneshot::channel();
-        let id = {
-            let mut inner = self.inner.borrow_mut();
-            if inner.closed || (inner.closing && method != "shutdown") {
-                return Err("session closed".into());
+        // ContentModified is transient for fresh read-only queries. Opaque resolve
+        // payloads and mutating requests must not be replayed automatically.
+        let retryable = matches!(
+            method,
+            "textDocument/hover"
+                | "textDocument/definition"
+                | "textDocument/references"
+                | "textDocument/completion"
+                | "textDocument/codeAction"
+        );
+        for attempt in 0..=3 {
+            let (tx, rx) = oneshot::channel();
+            let id = {
+                let mut inner = self.inner.borrow_mut();
+                if inner.closed || (inner.closing && method != "shutdown") {
+                    return Err("session closed".into());
+                }
+                let id = inner.next_id;
+                inner.next_id += 1;
+                inner.pending.insert(id, tx);
+                id
+            };
+            self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+            let result = {
+                let _pending = PendingRequest { session: self, id };
+                rx.await.unwrap_or_else(|_| {
+                    Err(RequestError {
+                        code: None,
+                        message: "session closed".into(),
+                    })
+                })
+            };
+            match result {
+                Err(error) if retryable && error.code == Some(-32801) && attempt < 3 => {
+                    futures_timer::Delay::new(std::time::Duration::from_millis(
+                        25 * (1 << attempt),
+                    ))
+                    .await;
+                }
+                result => return result.map_err(|error| error.message),
             }
-            let id = inner.next_id;
-            inner.next_id += 1;
-            inner.pending.insert(id, tx);
-            id
-        };
-        self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
-        let _pending = PendingRequest { session: self, id };
-        rx.await.unwrap_or_else(|_| Err("session closed".into()))
+        }
+        unreachable!("the last attempt always returns")
     }
 
     /// The handshake. `root` is an absolute path.
@@ -1080,6 +1119,57 @@ mod tests {
         fn take_incoming(&mut self) -> Option<mpsc::UnboundedReceiver<String>> {
             self.incoming.take()
         }
+    }
+
+    #[tokio::test]
+    async fn content_modified_retries_only_read_queries_with_a_bounded_budget() {
+        tokio::task::LocalSet::new().run_until(async {
+            for (method, code, failures, expected) in [
+                ("textDocument/hover", -32801, 2, 3),
+                ("textDocument/definition", -32801, 1, 2),
+                ("textDocument/references", -32801, 1, 2),
+                ("textDocument/completion", -32801, 1, 2),
+                ("textDocument/codeAction", -32801, 1, 2),
+                ("textDocument/hover", -32801, 10, 4),
+                ("textDocument/hover", -32800, 1, 1),
+                ("textDocument/rename", -32801, 1, 1),
+                ("codeAction/resolve", -32801, 1, 1),
+                ("initialize", -32801, 1, 1),
+            ] {
+                let sent = Rc::new(RefCell::new(Vec::new()));
+                let (sender, receiver) = mpsc::unbounded();
+                let (session, _) = LspSession::new(Box::new(Fake {
+                    sent: sent.clone(), incoming: Some(receiver),
+                }));
+                let pump = tokio::task::spawn_local(session.clone().pump());
+                let copy = session.clone();
+                let params = json!({"textDocument":{"uri":"file:///test.rs"},"position":{"line":1,"character":7}});
+                let original = params.clone();
+                let request = tokio::task::spawn_local(async move { copy.request(method, params).await });
+                for attempt in 0..expected {
+                    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                        while sent.borrow().len() <= attempt {
+                            tokio::task::yield_now().await;
+                        }
+                    }).await.unwrap();
+                    let message = sent.borrow()[attempt].clone();
+                    assert_eq!(message["params"], original);
+                    if attempt > 0 { assert_ne!(message["id"], sent.borrow()[attempt-1]["id"]); }
+                    let response = if attempt < failures {
+                        json!({"id":message["id"],"error":{"code":code,"message":"server state changed"}})
+                    } else {
+                        json!({"id":message["id"],"result":{"ok":true}})
+                    };
+                    sender.unbounded_send(response.to_string()).unwrap();
+                }
+                let result = request.await.unwrap();
+                if failures < expected { assert_eq!(result.unwrap(), json!({"ok":true})); }
+                else { assert_eq!(result.unwrap_err(), "server state changed"); }
+                assert_eq!(sent.borrow().len(), expected);
+                assert!(session.inner.borrow().pending.is_empty());
+                pump.abort();
+            }
+        }).await;
     }
 
     struct ClosingTransport {
