@@ -78,6 +78,7 @@ if (request.replacements?.length) {
         }
         for (const element of node.querySelectorAll('.mk-math-display[data-math-owner]')) {
             const rect = element.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
             links.push({id:`math-hit:${element.dataset.mathOwner}`,x:rect.x-origin.x,y:rect.y-origin.y,width:rect.width,height:rect.height});
             const border = getComputedStyle(element);
             const bottom = rect.height-element.clientHeight-parseFloat(border.borderTopWidth)-parseFloat(border.borderBottomWidth);

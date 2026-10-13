@@ -363,10 +363,10 @@ pub(crate) fn ProportionalRun(
                             class: "mk-native-inline-widget {replacement.style.as_ref().map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             "data-heading-level": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Heading(level, _) = style { Some(level.to_string()) } else { None }),
-                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))).to_string(),
+                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Callout(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))).to_string(),
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Callout(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             if let Some(style @ (crate::native_decorations::InlineStyle::Nested(_) | crate::native_decorations::InlineStyle::Heading(_, _) | crate::native_decorations::InlineStyle::Link(_))) = &replacement.style {
                                 for (fragment_index, fragment) in fragments(style).iter().enumerate() {
                                     MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks),onlayout:media_changed,onpointer:math_pointer }
@@ -380,6 +380,8 @@ pub(crate) fn ProportionalRun(
                                         MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks),onlayout:media_changed,onpointer:math_pointer }
                                     }
                                 }
+                            } else if let Some(crate::native_decorations::InlineStyle::Callout(callout)) = &replacement.style {
+                                CalloutView {key:"callout:{stamp.start}:{replacement.start}",callout:callout.clone(), start:replacement.start, marks:marks.clone(),onlayout:media_changed,onpointer:math_pointer}
                             } else if let Some(crate::native_decorations::InlineStyle::Table(table)) = &replacement.style {
                                 div {class:"mk-table",role:"table",
                                     for (row_index, row) in table.rows.iter().enumerate() {
@@ -448,6 +450,7 @@ fn fragments(
         InlineStyle::Link(values) => values,
         InlineStyle::ListItem { fragments, .. } => fragments,
         InlineStyle::Table(table) => &table.fragments,
+        InlineStyle::Callout(callout) => &callout.fragments,
         _ => &[],
     }
 }
@@ -541,4 +544,46 @@ pub(crate) fn math_owners(
 #[cfg(not(feature = "markdown-preview"))]
 pub(crate) fn math_owners(_: &[crate::native_presentation::Replacement]) -> Vec<serde_json::Value> {
     Vec::new()
+}
+
+#[component]
+fn CalloutView(
+    callout: Rc<crate::native_markdown_callouts::Callout>,
+    start: usize,
+    marks: Vec<CellMarks>,
+    onlayout: Callback<()>,
+    onpointer: Callback<(String, MouseEvent)>,
+) -> Element {
+    let mut open = use_signal(|| callout.fold.unwrap_or(true));
+    let expanded = callout.fold.is_none() || open();
+    use_effect(move || {
+        let _ = open();
+        onlayout.call(());
+    });
+    rsx! {
+        div {class:"mk-callout", "data-callout-type":callout.kind.clone(), "data-callout-expanded":expanded.to_string(),
+            div {class:"mk-callout-title",
+                if callout.fold.is_some() {
+                    button {class:"mk-callout-toggle", r#type:"button", "aria-expanded":expanded.to_string(), "aria-label":callout.fragments[callout.title.clone()].iter().map(|f|f.text.as_str()).collect::<String>(),
+                        onmousedown:move |event|{event.prevent_default();event.stop_propagation();},
+                        onkeydown:move |event|{if !moonkale_ext_api::keys::primary(&event.modifiers()) {event.stop_propagation();}},
+                        onkeyup:move |event|event.stop_propagation(),
+                        onclick:move |event|{event.prevent_default();event.stop_propagation();open.toggle();},
+                    }
+                }
+                for index in callout.title.clone() {
+                    MarkdownFragment {fragment:callout.fragments[index].clone(),identity:format!("{start}:{index}"),resolved:fragment_resolved(&callout.fragments[index],&marks),onlayout,onpointer}
+                }
+            }
+            div {class:"mk-callout-body",hidden:!expanded,
+                for row in &callout.rows {
+                    div {class:"mk-callout-row", "data-quote-depth":row.quote_depth.to_string(),"data-heading-level":row.heading.to_string(),style:format!("padding-left:{}px;",row.quote_depth.saturating_mul(12)),
+                        for index in row.fragments.clone() {
+                            MarkdownFragment {fragment:callout.fragments[index].clone(),identity:format!("{start}:{index}"),resolved:fragment_resolved(&callout.fragments[index],&marks),onlayout,onpointer}
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -8,6 +8,7 @@ if (!root) throw Error('M1_ROOT must name a disposable fixture');
 const note = '---\r\ntitle: Long vault note\r\n---\r\n\r\n' + Array.from({length:240}, (_,n) =>
   `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(71)} [$x_{${n}}^2$](https://example.org/${n}) and \`code ${n}\`.\r\n\r\n` +
   `- list item ${n} **bold** [[#section-${n}-猫|jump]]\r\n  - [ ] pending ${n}\r\n- [x] completed ${n} 猫\r\n\r\n` +
+  ([60,180,239].includes(n) ? `> [!note] Callout ${n}\r\n> Source-owned **猫** and $x_{${n}}$.\r\n\r\n` : '') +
   ([60,180,239].includes(n) ? `$$\r\n\\frac{${n}}{${n+1}}\r\n$$\r\n\r\n` : '') +
   ([60,180,239].includes(n) ? `| Column ${n} | Value |\r\n| :--- | ---: |\r\n| **猫** | cell ${n} |\r\n\r\n` : '') +
   ([20,60,180,239].includes(n) ? `![Image ${n}](PreviewImage.svg)\r\n\r\n` : '') +
@@ -100,6 +101,7 @@ try {
       await page.waitForFunction(()=>document.querySelector('img.mk-preview-image[alt="Image 239"]')?.naturalWidth===240);
     }
     await panel().locator('[role=table]').filter({hasText:`Column ${section}`}).waitFor();
+    await panel().locator('.mk-callout').filter({hasText:`Callout ${section}`}).waitFor();
     await panel().locator('.mk-math-display').filter({has:page.locator('annotation').filter({hasText:`\\frac{${section}}{${section+1}}`})}).locator('.katex').waitFor();
     console.log(`deep list ${section}: preview visible`);
   }

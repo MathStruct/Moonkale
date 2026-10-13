@@ -47,6 +47,8 @@ pub(crate) enum InlineStyle {
     #[cfg(feature = "markdown-preview")]
     Table(std::rc::Rc<crate::native_markdown_tables::Table>),
     #[cfg(feature = "markdown-preview")]
+    Callout(std::rc::Rc<crate::native_markdown_callouts::Callout>),
+    #[cfg(feature = "markdown-preview")]
     Math(crate::native_math_parser::Math),
     #[cfg(feature = "markdown-preview")]
     Fenced {
@@ -85,6 +87,7 @@ impl InlineStyle {
             Self::Heading(_, _) => "mk-markdown-heading",
             Self::Image(_) => "mk-markdown-image",
             Self::Table(_) => "mk-markdown-table",
+            Self::Callout(_) => "mk-markdown-callout",
             Self::Math(_) => "mk-markdown-math",
             Self::Fenced { .. } => "mk-markdown-fenced dxc",
             Self::ListItem { .. } => "mk-markdown-list-item",

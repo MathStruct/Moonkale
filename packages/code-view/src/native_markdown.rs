@@ -238,6 +238,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
+    let callout_values = crate::native_markdown_callouts::previews(source);
     let math_values = crate::native_math_parser::displays(source);
     let table_values = crate::native_markdown_tables::previews(source);
     let image_values = crate::native_image_parser::previews(source);
@@ -253,6 +254,13 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
     let mut containers = 0usize;
     let mut fenced: Option<FencedFrame> = None;
     let mut emit = |mut range: Range<usize>, label: String, mut style| {
+        if !matches!(style, InlineStyle::Callout(_))
+            && callout_values
+                .get(callout_values.partition_point(|(item, _, _)| item.end <= range.start))
+                .is_some_and(|(item, _, _)| item.start < range.end)
+        {
+            return;
+        }
         if !matches!(style, InlineStyle::ListItem { .. })
             && list_values
                 .get(list_values.partition_point(|(item, _, _)| item.end <= range.start))
@@ -266,6 +274,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                 | InlineStyle::Fenced { .. }
                 | InlineStyle::ListItem { .. }
                 | InlineStyle::Table(_)
+                | InlineStyle::Callout(_)
                 | InlineStyle::Math(crate::native_math_parser::Math { display: true, .. })
         ) {
             while range.end > range.start
@@ -288,6 +297,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                     | InlineStyle::ListItem { .. }
                     | InlineStyle::Link(_)
                     | InlineStyle::Table(_)
+                    | InlineStyle::Callout(_)
                     | InlineStyle::Math(_)
             );
         if range.is_empty()
@@ -514,6 +524,9 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             }
             _ => {}
         }
+    }
+    for (range, label, style) in &callout_values {
+        emit(range.clone(), label.clone(), style.clone());
     }
     for (range, label, style) in &list_values {
         emit(range.clone(), label.clone(), style.clone());
@@ -1027,5 +1040,31 @@ mod tests {
         assert!(
             matches!(&values[0].2,InlineStyle::Math(math) if math.tex.contains("[[Note|Alias]]"))
         );
+    }
+    #[test]
+    fn callouts_own_whole_ranges_and_rebase_without_nested_replacements() {
+        let source="😀\r\n\r\n> [!NOTE] **猫**\r\n> Body *emphasis* and [link](https://example.org).\r\n\r\nend";
+        let first = batch(DocumentRevision(50), source);
+        assert_eq!(first.values.len(), 1);
+        assert!(matches!(
+            &first.values[0].kind,
+            Kind::Replace {
+                style: Some(InlineStyle::Callout(_)),
+                ..
+            }
+        ));
+        assert!(first.values == batch(DocumentRevision(51), source).values);
+        let prefixed = batch(DocumentRevision(52), &format!("猫\r\n\r\n{source}"));
+        let range = |b: &Batch| match &b.values[0].kind {
+            Kind::Replace { range, .. } => range.clone(),
+            _ => panic!("replacement"),
+        };
+        assert_eq!(range(&prefixed).start, range(&first).start + 5);
+        assert_eq!(range(&prefixed).end, range(&first).end + 5);
+        let changed = batch(
+            DocumentRevision(53),
+            &source.replace("example.org", "example.net"),
+        );
+        assert!(changed.values.iter().any(|v|matches!(&v.kind,Kind::Replace{style:Some(InlineStyle::Callout(c)),..} if c.fragments.iter().any(|f|f.link.as_ref().is_some_and(|l|l.target.description().contains("example.net"))))));
     }
 }

@@ -55,6 +55,8 @@ mod native_lsp_tools;
 #[cfg(feature = "markdown-preview")]
 mod native_markdown;
 #[cfg(feature = "markdown-preview")]
+mod native_markdown_callouts;
+#[cfg(feature = "markdown-preview")]
 mod native_markdown_lists;
 #[cfg(feature = "markdown-preview")]
 mod native_markdown_tables;

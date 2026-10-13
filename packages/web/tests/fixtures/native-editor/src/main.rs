@@ -1101,6 +1101,13 @@ end
 ".replace('\n',"\r\n");}
             show_language.set(Some(id));let mut ws=ws;ws.docs.active.set(Some(id));layout_fixture.set(Default::default());
         },"Markdown math"}
+        button {id:"markdown-callouts",onclick:move |_|{
+            let id=NodeId::derive(&doc.peek().node.source,"nested.md");
+            if let Some(mut markdown)=ws.document(id) {
+                markdown.write().text="before 😀\r\n\r\n  > [!NOTE] **猫** and `literal`\r\n  > Body &amp; *text* with [Web](https://example.org/callout).\r\n  >\r\n  > > Nested quote.\r\n\r\n> [!warning]- Folded warning\r\n> Hidden $x^2$ and [[Note é|Alias <safe>]].\r\n>\r\n> - [x] task\r\n> - child\r\n\r\n> [!custom]+ Custom title\r\n> ## Heading\r\n> Body\r\n\r\n> [!proof]\r\n> By Lagrange. ∎\r\n\r\n> Plain quote\r\ncontinued lazily.\r\n\r\nend\r\n".into();
+            }
+            show_language.set(Some(id));let mut ws=ws;ws.docs.active.set(Some(id));layout_fixture.set(Default::default());
+        },"Markdown callouts"}
         button {id:"markdown-tables",onclick:move |_|{
             let id=NodeId::derive(&doc.peek().node.source,"nested.md");
             if let Some(mut markdown)=ws.document(id) {
