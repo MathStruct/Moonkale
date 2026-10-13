@@ -46,6 +46,9 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     v.push(Box::new(moonkale_ext_lux::LuxExtension));
     #[cfg(feature = "julia")]
     v.push(Box::new(moonkale_ext_lux::MtkExtension));
+    // ADR-0022: the RxInfer library — bipartite factor graphs, `inference.jl`.
+    #[cfg(feature = "julia")]
+    v.push(Box::new(moonkale_ext_lux::RxInferExtension));
     #[cfg(feature = "git")]
     v.push(Box::new(moonkale_ext_git::GitExtension::new()));
     #[cfg(feature = "history")]

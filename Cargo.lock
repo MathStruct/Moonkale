@@ -7276,8 +7276,8 @@ dependencies = [
 
 [[package]]
 name = "moonkale-ext-lux"
-version = "0.3.0"
-source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.3.0#f69fe243c91666615e1ddc882e343984a739c6c8"
+version = "0.4.0"
+source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.4.0#c22e00521048be58460a8337c45cc04dac31c059"
 dependencies = [
  "dioxus",
  "moonkale-ext-api",
