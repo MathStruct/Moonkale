@@ -18,8 +18,8 @@ use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
 use moonkale_core::NodeId as CoreNodeId;
 use moonkale_ext_api::flow::{
-    find_kind, inner_ports, validate, Block, BlockPorts, Flow, FlowLibrary, ParamKind, Port,
-    PortType, Subflow, Wire, BOUNDARY,
+    bipartite_refusal, channel_refusal, find_kind, inner_ports, validate, Block, BlockPorts, Flow,
+    FlowLibrary, ParamKind, Port, PortType, Role, Subflow, Wire, BOUNDARY,
 };
 use moonkale_ext_api::{t, Workspace};
 use moonkale_graph_assets::{RENDER_JS, RENDER_WASM};
@@ -180,6 +180,7 @@ fn subflow_scene<'a>(
                 outputs: std::slice::from_ref(p),
                 connections: &[],
                 params: &[],
+                role: None,
             }),
         });
     }
@@ -196,6 +197,7 @@ fn subflow_scene<'a>(
                 outputs: &[],
                 connections: &[],
                 params: &[],
+                role: None,
             }),
         });
     }
@@ -212,6 +214,7 @@ fn subflow_scene<'a>(
                 outputs: &[],
                 connections: std::slice::from_ref(p),
                 params: &[],
+                role: None,
             }),
         });
     }
@@ -298,15 +301,25 @@ impl<'a> SceneBuilder<'a> {
         let (n_in, n_out) = resolved
             .map(|p| (p.inputs.len(), p.outputs.len()))
             .unwrap_or((0, 0));
-        // Tall enough for its ports; a little room for the label.
-        let height = (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0);
-        let width = BLOCK_W.max(name.len() as f32 * 1.9);
+        // Tall enough for its ports; a little room for the label. A
+        // factor graph's variable is a circle, as on paper (ADR-0022):
+        // it has no behaviour, only the one pin factors attach to.
+        let variable = resolved.is_some_and(|p| p.role == Some(Role::Variable));
+        let (shape, width, height) = if variable {
+            ("circle", 22.0, 22.0)
+        } else {
+            (
+                "rect",
+                BLOCK_W.max(name.len() as f32 * 1.9),
+                (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0),
+            )
+        };
         self.nodes.push(OutNode {
             id,
             label: name,
             kind,
             color,
-            shape: "rect",
+            shape,
             width,
             height,
             pos,
@@ -1479,6 +1492,31 @@ fn wire(
                     if same {
                         return (false, "the same equation is already wired".into());
                     }
+                    // A factor graph is bipartite, and a factor's
+                    // channel holds one variable (ADR-0022) — the same
+                    // words `validate` uses.
+                    if let Some(why) = bipartite_refusal(&fp, &tp) {
+                        return (false, why);
+                    }
+                    let degree = |node: &str, port: &str| {
+                        sc.wires
+                            .iter()
+                            .filter(|w| {
+                                (w.from_block == node && w.from_port == port)
+                                    || (w.to_block == node && w.to_port == port)
+                            })
+                            .count()
+                    };
+                    for (ports, end) in [(&fp, from), (&tp, to)] {
+                        if let Some(why) = channel_refusal(
+                            ports,
+                            &end.node,
+                            &end.port,
+                            degree(&end.node, &end.port),
+                        ) {
+                            return (false, why);
+                        }
+                    }
                     Ok(Accepted::Equation)
                 }
                 None => Err(format!(
@@ -1603,6 +1641,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("p"), pin("n")],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "ground".into(),
@@ -1613,6 +1652,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("g")],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "src".into(),
@@ -1623,6 +1663,7 @@ mod tests {
                     outputs: vec![port("out", PortType::Scalar, false)],
                     connections: vec![],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "mass".into(),
@@ -1639,6 +1680,7 @@ mod tests {
                         required: false,
                     }],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "sink".into(),
@@ -1649,6 +1691,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![],
                     params: vec![],
+                    role: None,
                 },
             ],
         }
@@ -2098,5 +2141,86 @@ mod tests {
         let (ok, why) = wire(&mut flow, &[], &libs, &end("r", "p"), &end("sub_1", "p"));
         assert!(!ok, "a block whose subflow is gone takes no wire");
         assert!(why.contains("unknown block kind"), "{why}");
+    }
+
+    /// A factor-graph library (ADR-0022): a variable, a factor with two
+    /// channels.
+    fn rx_lib() -> FlowLibrary {
+        let pin = |n: &str| Port {
+            name: n.into(),
+            ty: PortType::Any,
+            required: false,
+        };
+        FlowLibrary {
+            id: "rx",
+            name: "RxInfer",
+            language: "none",
+            codegen: None,
+            blocks: vec![
+                BlockKind {
+                    id: "variable".into(),
+                    name: "x".into(),
+                    connections: vec![pin("x")],
+                    role: Some(Role::Variable),
+                    ..Default::default()
+                },
+                BlockKind {
+                    id: "normal".into(),
+                    name: "Normal".into(),
+                    connections: vec![pin("out"), pin("mean")],
+                    role: Some(Role::Factor),
+                    ..Default::default()
+                },
+            ],
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn the_wire_gesture_keeps_a_factor_graph_bipartite() {
+        #[component]
+        fn Host() -> Element {
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(Host);
+        dom.rebuild_in_place();
+        let libs = vec![rx_lib()];
+        let mut flow = dom.in_scope(ScopeId::ROOT, || {
+            Signal::new_in_scope(Flow::new(), ScopeId::ROOT)
+        });
+        flow.with_mut(|f| {
+            for (id, kind) in [
+                ("x", "variable"),
+                ("y", "variable"),
+                ("f", "normal"),
+                ("g", "normal"),
+            ] {
+                f.blocks.push(Block {
+                    id: id.into(),
+                    kind: format!("rx/{kind}"),
+                    ..Default::default()
+                });
+            }
+        });
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("f", "out"), &end("g", "mean"));
+        assert!(!ok, "factor – factor is refused");
+        assert!(why.contains("factors connect to variables"), "{why}");
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("x", "x"), &end("y", "x"));
+        assert!(!ok, "variable – variable is refused");
+        assert!(why.contains("variables connect to factors"), "{why}");
+        // Variable – factor, either drag order; a variable fans out.
+        assert!(wire(&mut flow, &[], &libs, &end("f", "out"), &end("x", "x")).0);
+        assert!(wire(&mut flow, &[], &libs, &end("x", "x"), &end("g", "mean")).0);
+        // A channel holds one variable: f.out already has x.
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("y", "x"), &end("f", "out"));
+        assert!(!ok, "a second variable on one channel is refused");
+        assert!(why.contains("not a bus"), "{why}");
+        assert_eq!(flow.read().wires.len(), 2);
+        assert_eq!(validate(&flow.read(), &libs), vec![]);
+        // Variables draw as circles, factors as blocks.
+        let f = flow.read();
+        let scene = to_scene(&f, &libs, &[]);
+        let shape = |id: &str| scene.nodes.iter().find(|n| n.id == id).unwrap().shape;
+        assert_eq!(shape("x"), "circle");
+        assert_eq!(shape("f"), "rect");
     }
 }

@@ -64,6 +64,7 @@ fn library() -> FlowLibrary {
                 kind: ParamKind::Int,
                 default: "1".into(),
             }],
+            role: None,
         }],
         codegen: None,
         language: "none",

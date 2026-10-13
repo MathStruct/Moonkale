@@ -119,6 +119,36 @@ pub enum ParamKind {
     },
 }
 
+/// A block kind's side of a bipartite factor graph (ADR-0022): RxInfer
+/// and Lenticulum models are made of variables and factors, and a wire
+/// always joins one of each. A kind without a role (Lux, ModelingToolkit,
+/// a subflow, a boundary pseudo-block) is outside the rule.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Role {
+    /// A variable: no behaviour of its own; any number of factors attach
+    /// to it (a variable of degree d is a copier).
+    Variable,
+    /// A factor: its pins are named channels, each attached to exactly
+    /// one variable — a channel is a port, not a bus.
+    Factor,
+}
+
+impl Role {
+    fn plural(self) -> &'static str {
+        match self {
+            Role::Variable => "variables",
+            Role::Factor => "factors",
+        }
+    }
+    fn other(self) -> &'static str {
+        match self {
+            Role::Variable => "factors",
+            Role::Factor => "variables",
+        }
+    }
+}
+
 /// A parameter of a block (units, activation, …).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Param {
@@ -158,6 +188,12 @@ pub struct BlockKind {
     pub connections: Vec<Port>,
     /// Its parameters.
     pub params: Vec<Param>,
+    /// Its side of a bipartite factor graph (ADR-0022): pin wires join a
+    /// variable and a factor, never two of a kind, and a factor's
+    /// channel carries one wire. `None` — every library before RxInfer —
+    /// is outside the rule.
+    #[serde(default)]
+    pub role: Option<Role>,
 }
 
 /// Generated code for a flow: file name + text.
@@ -426,6 +462,7 @@ impl Flow {
                 outputs: &s.outputs,
                 connections: &s.connections,
                 params: &[],
+                role: None,
             });
         }
         find_kind(libraries, &block.kind).map(|(_, k)| BlockPorts {
@@ -434,6 +471,7 @@ impl Flow {
             outputs: &k.outputs,
             connections: &k.connections,
             params: &k.params,
+            role: k.role,
         })
     }
 
@@ -492,6 +530,40 @@ pub struct BlockPorts<'a> {
     pub connections: &'a [Port],
     /// Its parameters — a subflow declares none through the model.
     pub params: &'a [Param],
+    /// Its bipartite role (ADR-0022) — a subflow and a boundary
+    /// pseudo-block have none.
+    pub role: Option<Role>,
+}
+
+/// Why a pin wire between `a` and `b` breaks the bipartite rule
+/// (ADR-0022), if it does: two variables or two factors. Ends without a
+/// role are outside the rule. `validate` and the flow panel's wire
+/// gesture share it, so the refusal and the issue say the same.
+pub fn bipartite_refusal(a: &BlockPorts, b: &BlockPorts) -> Option<String> {
+    match (a.role, b.role) {
+        (Some(x), Some(y)) if x == y => Some(format!(
+            "{} connect to {}, not to {}",
+            x.plural(),
+            x.other(),
+            x.plural()
+        )),
+        _ => None,
+    }
+}
+
+/// Why one more wire on pin `pin` of a block with ports `ports` is
+/// refused (ADR-0022): a factor's channel attaches to one variable, so
+/// fan-out goes through a shared variable. `wires` is how many the pin
+/// already carries.
+pub fn channel_refusal(ports: &BlockPorts, block: &str, pin: &str, wires: usize) -> Option<String> {
+    (ports.role == Some(Role::Factor)
+        && wires >= 1
+        && ports.connections.iter().any(|p| p.name == pin))
+    .then(|| {
+        format!(
+            "channel {pin} of {block} already has its variable — a channel is a port, not a bus; connect the factors through one variable"
+        )
+    })
 }
 
 /// Blocks in an order where every wire goes from earlier to later
@@ -585,17 +657,23 @@ fn wire_issue(
             ),
         })
     } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
-        (a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)).is_none()).then(|| Issue {
+        if a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)).is_none() {
+            return Some(Issue {
+                about,
+                message: format!(
+                    "{}.{} ({}) does not connect to {}.{} ({})",
+                    from_block,
+                    from_port,
+                    a.ty.describe(),
+                    to_block,
+                    to_port,
+                    b.ty.describe()
+                ),
+            });
+        }
+        bipartite_refusal(fk, tk).map(|why| Issue {
             about,
-            message: format!(
-                "{}.{} ({}) does not connect to {}.{} ({})",
-                from_block,
-                from_port,
-                a.ty.describe(),
-                to_block,
-                to_port,
-                b.ty.describe()
-            ),
+            message: format!("{from_block}.{from_port} – {to_block}.{to_port}: {why}"),
         })
     } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
         Some(Issue {
@@ -631,6 +709,7 @@ pub fn inner_ports<'a>(
                 outputs: one(p),
                 connections: &[],
                 params: &[],
+                role: None,
             });
         }
         if let Some(p) = sub.outputs.iter().find(|p| p.name == port) {
@@ -640,6 +719,7 @@ pub fn inner_ports<'a>(
                 outputs: &[],
                 connections: &[],
                 params: &[],
+                role: None,
             });
         }
         if let Some(p) = sub.connections.iter().find(|p| p.name == port) {
@@ -649,11 +729,44 @@ pub fn inner_ports<'a>(
                 outputs: &[],
                 connections: one(p),
                 params: &[],
+                role: None,
             });
         }
         return None;
     }
     flow.ports_of(libraries, sub.blocks.iter().find(|b| b.id == id)?)
+}
+
+/// A factor's channels carry one wire each (ADR-0022): two wires on one
+/// channel are reported once, about the block.
+fn channel_issues(
+    b: &Block,
+    ports: &BlockPorts,
+    wires: &[Wire],
+    about: &str,
+    issues: &mut Vec<Issue>,
+) {
+    if ports.role != Some(Role::Factor) {
+        return;
+    }
+    for p in ports.connections {
+        let n = wires
+            .iter()
+            .filter(|w| {
+                (w.from_block == b.id && w.from_port == p.name)
+                    || (w.to_block == b.id && w.to_port == p.name)
+            })
+            .count();
+        if n > 1 {
+            issues.push(Issue {
+                about: about.to_string(),
+                message: format!(
+                    "channel {} of {} carries {n} wires — a channel attaches to one variable",
+                    p.name, b.id
+                ),
+            });
+        }
+    }
 }
 
 /// Type-check every wire, check required inputs and cycles.
@@ -791,6 +904,8 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
                 });
             }
         }
+        // A factor's channel attaches to one variable (ADR-0022).
+        channel_issues(b, &ports, &flow.wires, &b.id, &mut issues);
     }
     // Cycles are a dataflow problem; equations may loop (ADR-0020).
     let pin_wires: std::collections::HashSet<&str> = flow
@@ -901,6 +1016,7 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
                     });
                 }
             }
+            channel_issues(b, &ports, &sub.wires, &about, &mut issues);
         }
         // A required boundary port must also be fed from inside: an
         // output that nothing inside drives, a pin nothing inside
@@ -1021,6 +1137,7 @@ mod tests {
                     )],
                     connections: vec![],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "dense".into(),
@@ -1031,6 +1148,7 @@ mod tests {
                     outputs: vec![port("out", PortType::tensor(vec![None]), false)],
                     connections: vec![],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "flat".into(),
@@ -1041,6 +1159,7 @@ mod tests {
                     outputs: vec![port("out", PortType::tensor(vec![None]), false)],
                     connections: vec![],
                     params: vec![],
+                    role: None,
                 },
             ],
         }
@@ -1142,6 +1261,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("p", "electrical", true), pin("n", "electrical", true)],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "ground".into(),
@@ -1152,6 +1272,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("g", "electrical", false)],
                     params: vec![],
+                    role: None,
                 },
                 BlockKind {
                     id: "mass".into(),
@@ -1162,6 +1283,7 @@ mod tests {
                     outputs: vec![],
                     connections: vec![pin("flange", "mechanical", false)],
                     params: vec![],
+                    role: None,
                 },
             ],
         }
@@ -1343,6 +1465,7 @@ mod tests {
                 required: false,
             }],
             params: vec![],
+            role: None,
         });
         let mut f = Flow::new();
         f.blocks = vec![
@@ -1418,6 +1541,7 @@ mod tests {
             }],
             connections: vec![],
             params: vec![],
+            role: None,
         });
         f.blocks.push(Block {
             id: "s".into(),
@@ -1839,6 +1963,204 @@ mod tests {
                 .iter()
                 .any(|i| i.about == "amp" && i.message.contains("references itself")),
             "a self-referencing subflow is an issue: {issues:?}"
+        );
+    }
+
+    // ---- ADR-0022: the bipartite rule -------------------------------
+
+    /// A factor-graph library (ADR-0022): a variable with one pin of any
+    /// degree, a Normal factor with three channels, and a role-less
+    /// component from outside the rule.
+    fn factor_lib() -> FlowLibrary {
+        let pin = |n: &str| Port {
+            name: n.into(),
+            ty: PortType::Any,
+            required: false,
+        };
+        FlowLibrary {
+            id: "rx",
+            name: "RxInfer",
+            language: "none",
+            codegen: None,
+            blocks: vec![
+                BlockKind {
+                    id: "variable".into(),
+                    name: "Variable".into(),
+                    connections: vec![pin("x")],
+                    role: Some(Role::Variable),
+                    ..Default::default()
+                },
+                BlockKind {
+                    id: "normal".into(),
+                    name: "Normal".into(),
+                    connections: vec![pin("out"), pin("mean"), pin("var")],
+                    role: Some(Role::Factor),
+                    ..Default::default()
+                },
+                BlockKind {
+                    id: "plain".into(),
+                    name: "Plain".into(),
+                    connections: vec![pin("p")],
+                    ..Default::default()
+                },
+            ],
+        }
+    }
+
+    fn rx_flow(blocks: &[(&str, &str)], wires: &[(&str, &str, &str, &str, &str)]) -> Flow {
+        let mut f = Flow::new();
+        f.blocks = blocks
+            .iter()
+            .map(|(id, kind)| Block {
+                id: (*id).into(),
+                kind: format!("rx/{kind}"),
+                ..Default::default()
+            })
+            .collect();
+        f.wires = wires
+            .iter()
+            .map(|(id, a, ap, b, bp)| Wire {
+                id: (*id).into(),
+                from_block: (*a).into(),
+                from_port: (*ap).into(),
+                to_block: (*b).into(),
+                to_port: (*bp).into(),
+            })
+            .collect();
+        f
+    }
+
+    #[test]
+    fn a_factor_graph_joins_a_variable_and_a_factor_never_two_of_a_kind() {
+        let libs = vec![factor_lib()];
+        let blocks = [
+            ("x", "variable"),
+            ("y", "variable"),
+            ("f", "normal"),
+            ("g", "normal"),
+        ];
+        // Variable – factor, in either drag order: clean.
+        let f = rx_flow(
+            &blocks,
+            &[("w1", "x", "x", "f", "mean"), ("w2", "f", "out", "y", "x")],
+        );
+        assert_eq!(
+            validate(&f, &libs),
+            vec![],
+            "variable–factor wires are clean"
+        );
+        // Factor – factor and variable – variable: both refused, on the wire.
+        let f = rx_flow(
+            &blocks,
+            &[("w1", "f", "out", "g", "mean"), ("w2", "x", "x", "y", "x")],
+        );
+        let issues = validate(&f, &libs);
+        assert!(
+            issues.iter().any(|i| i.about == "w1"
+                && i.message
+                    .contains("factors connect to variables, not to factors")),
+            "{issues:?}"
+        );
+        assert!(
+            issues.iter().any(|i| i.about == "w2"
+                && i.message
+                    .contains("variables connect to factors, not to variables")),
+            "{issues:?}"
+        );
+        // A block without a role is outside the rule.
+        let mut f = rx_flow(&blocks, &[("w1", "f", "out", "p", "p")]);
+        f.blocks.push(Block {
+            id: "p".into(),
+            kind: "rx/plain".into(),
+            ..Default::default()
+        });
+        assert_eq!(
+            validate(&f, &libs),
+            vec![],
+            "a role-less end is outside the rule"
+        );
+    }
+
+    #[test]
+    fn a_channel_holds_one_variable_and_a_variable_any_number_of_factors() {
+        let libs = vec![factor_lib()];
+        let blocks = [
+            ("x", "variable"),
+            ("y", "variable"),
+            ("f", "normal"),
+            ("g", "normal"),
+        ];
+        // x feeds two factors' means and is g's output too: degree 3, fine.
+        let f = rx_flow(
+            &blocks,
+            &[
+                ("w1", "x", "x", "f", "mean"),
+                ("w2", "x", "x", "g", "mean"),
+                ("w3", "g", "out", "x", "x"),
+            ],
+        );
+        assert_eq!(validate(&f, &libs), vec![], "a variable is a copier");
+        // f.out on two variables: the channel is a port, not a bus.
+        let f = rx_flow(
+            &blocks,
+            &[("w1", "f", "out", "x", "x"), ("w2", "f", "out", "y", "x")],
+        );
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "f" && i.message.contains("channel out of f carries 2 wires")),
+            "{issues:?}"
+        );
+        // The panel's refusal says why before the second wire exists.
+        let fk = f.ports_of(&libs, f.block("f").unwrap()).unwrap();
+        let xk = f.ports_of(&libs, f.block("x").unwrap()).unwrap();
+        assert!(channel_refusal(&fk, "f", "out", 1).is_some());
+        assert!(channel_refusal(&fk, "f", "out", 0).is_none());
+        assert!(
+            channel_refusal(&xk, "x", "x", 5).is_none(),
+            "variables fan out"
+        );
+    }
+
+    #[test]
+    fn the_bipartite_rule_holds_inside_a_subflow() {
+        let libs = vec![factor_lib()];
+        let mut f = rx_flow(&[("sub-1", "variable")], &[]);
+        f.blocks[0].kind = "subflow".into();
+        f.blocks[0].subflow = Some("s".into());
+        let inner = rx_flow(
+            &[
+                ("f", "normal"),
+                ("g", "normal"),
+                ("x", "variable"),
+                ("y", "variable"),
+            ],
+            &[
+                ("iw1", "f", "out", "g", "mean"),
+                ("iw2", "f", "mean", "x", "x"),
+                ("iw3", "f", "mean", "y", "x"),
+            ],
+        );
+        f.subflows = vec![Subflow {
+            id: "s".into(),
+            name: "S".into(),
+            blocks: inner.blocks,
+            wires: inner.wires,
+            ..Default::default()
+        }];
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "s/iw1" && i.message.contains("not to factors")),
+            "{issues:?}"
+        );
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "s/f" && i.message.contains("channel mean of f carries 2")),
+            "{issues:?}"
         );
     }
 }
