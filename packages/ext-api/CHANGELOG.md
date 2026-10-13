@@ -12,10 +12,14 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
-## Unreleased — the editor API (not in a tag yet)
+## ext-api-2026-10-13-2
 
-**moonkale-graph-render**
-- `InNode.width` sets a circle's radius too, not only a rect's half-width. `Node.sized` marks a radius the host set, which the degree recompute leaves alone. **A `Node` literal must add `sized`**; nothing outside the crate builds one. A flow panel uses it to draw a factor graph's variables (ADR-0022).
+The second tag of the day (the bipartite rule, ADR-0022; the subflow scopes, ADR-0021 stage B; the editor's LSP and preview work).
+
+**Breaking:** each of these fails to compile only where a caller builds the struct literally or matches exhaustively.
+- `moonkale-ext-api::Command::RestartLanguageServer` is a new variant. *Update:* an exhaustive `match` on `Command` adds the arm.
+- `moonkale-ext-api::flow::BlockPorts.role` is a new field. *Update:* a `BlockPorts` literal adds `role: None`. `BlockKind.role` itself is defaulted, so kinds finished with `..Default::default()` keep compiling.
+- `moonkale-graph-render::graph::Node.sized` is a new field. *Update:* a `Node` literal adds `sized: false`. Nothing outside the crate builds one today.
 
 **moonkale-ext-api**
 - Bipartite factor graphs (ADR-0022 stage A): `flow::Role { Variable, Factor }` and `BlockKind.role: Option<Role>` (defaulted, so kinds finished with `..Default::default()` keep compiling), plus `BlockPorts.role`. **A `BlockPorts` literal must add `role: None`.** `flow::bipartite_refusal(&a, &b)` and `flow::channel_refusal(&ports, block, pin, wires)` give the rule's wording. `validate` reports a pin wire between two variables or two factors, and a factor channel carrying more than one wire, at the root and inside subflows. Kinds without a role are outside the rule.
@@ -23,6 +27,9 @@ Rules:
 - Native Markdown preview covers whole documents with uncapped reveal state, changed-block reuse, sparse row heights and visible-window geometry. Canonical CRLF bytes and Workspace history remain intact; mixed-font visual navigation and incremental CRLF syntax edits are corrected.
 - Editor LSP updates now negotiate incremental synchronization with UTF-16 ranges and preserve full-sync fallback. Both rename prompts ignore IME confirmation keys; CodeMirror rejects rename submissions if its prompt snapshot or server connection changed.
 - Added `Command::RestartLanguageServer`, exposed as `editor.restartLanguageServer` in the palette without a default shortcut. Shared per-language/root recovery refills after five healthy minutes and supports manual restart with retained unsaved documents. Callers exhaustively matching `Command` must handle the new variant.
+
+**moonkale-graph-render**
+- `InNode.width` sets a circle's radius too, not only a rect's half-width. `Node.sized` marks a radius the host set, which the degree recompute leaves alone. **A `Node` literal must add `sized`**; nothing outside the crate builds one. A flow panel uses it to draw a factor graph's variables (ADR-0022).
 
 ## ext-api-2026-10-13
 
