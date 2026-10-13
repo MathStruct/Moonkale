@@ -1,10 +1,10 @@
 ---
 title: "ADR-0022 — Bipartite factor graphs: variables and factors as block roles"
 tags: [adr, flow, graph, julia, rxinfer, lenticulum]
-status: proposed
+status: accepted
 date: 2026-10-13
 ---
-**Status:** proposed 2026-10-13 (Claude, covering Mistral's rung while Mistral is out; Daniel accepts). Related: [[ADR-0020 Undirected pins in the flow model]] (§4 names this rung and leaves "the bipartite rule's error surface, and polarity's representation" to it), [[ADR-0021 Subflows]], [[Julia and Lenticulum]], [[Flow Editor]].
+**Status:** accepted 2026-10-13 (Daniel; written by Claude, covering Mistral's rung while Mistral is out). Related: [[ADR-0020 Undirected pins in the flow model]] (§4 names this rung and leaves "the bipartite rule's error surface, and polarity's representation" to it), [[ADR-0021 Subflows]], [[Julia and Lenticulum]], [[Flow Editor]].
 
 ## Context
 
