@@ -13,3 +13,5 @@ flow-no-libraries = 未启用任何模块库。请在 设置 → 扩展 中开�
 flow-broken = 此文件不是有效的流程（{ $error }）。不会向其写入任何内容；请在文本编辑器中修复，然后点击“重新加载”。
 flow-reload = 重新加载
 flow-reload-title = 放弃修改并从文件重新加载
+flow-subsystem = 子系统
+flow-subsystem-title = 添加子系统——一个空子流程，双击进入并填充

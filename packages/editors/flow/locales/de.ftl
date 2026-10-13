@@ -17,3 +17,5 @@ flow-no-libraries = Keine Bausteinbibliothek ist eingeschaltet. Schalte eine unt
 flow-broken = Diese Datei ist kein gültiger Flow ({ $error }). Es wird nichts hineingeschrieben; korrigiere sie in einem Texteditor und drücke dann Neu laden.
 flow-reload = Neu laden
 flow-reload-title = Änderungen verwerfen und aus der Datei neu laden
+flow-subsystem = Teilsystem
+flow-subsystem-title = Ein Teilsystem hinzufügen — ein leerer Untergraph, den man mit einem Doppelklick öffnet und füllt
