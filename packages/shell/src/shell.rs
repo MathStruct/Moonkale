@@ -109,10 +109,19 @@ pub fn Shell() -> Element {
     };
 
     // Shell-level commands.
+    // Each command is handled once, by its sequence number: the branches
+    // read workspace signals (`contributions` reads the documents), and a
+    // re-run for one of those must not replay the last command — a dirty
+    // dot re-ran `ShowPanel` and sent the foreground tab back (P-183).
     let exts_for_commands = exts.clone();
+    let mut handled_command = use_signal(|| None::<u64>);
     use_effect(move || {
         let exts = &exts_for_commands;
-        let (_, cmd) = *ws.shell.commands.read();
+        let (seq, cmd) = *ws.shell.commands.read();
+        if *handled_command.peek() == Some(seq) {
+            return;
+        }
+        handled_command.set(Some(seq));
         match cmd {
             Some(Command::ResetLayout) => {
                 layout.set(default_layout());
