@@ -285,6 +285,25 @@ pub struct Flow {
     pub subflows: Vec<Subflow>,
 }
 
+/// The id prefix of a boundary pseudo-block (ADR-0021 §3): inside a
+/// subflow, each declared port appears as a block whose id is
+/// `boundary/<port>` — synthesized by the editor when the scope is
+/// open, never stored in the document. The declaration is the truth;
+/// the pseudo-block is the illusion the panel owns.
+pub const BOUNDARY: &str = "boundary/";
+
+/// The blocks and wires a scope stack addresses (ADR-0021 §4): the
+/// flow's own at the root, a subflow's once entered. The panel's
+/// mutators and its scene build on this; the engine never knows a
+/// "level" exists.
+#[derive(Clone, Copy)]
+pub struct Scope<'a> {
+    /// The scope's blocks (a boundary pseudo-block is not among them).
+    pub blocks: &'a [Block],
+    /// The scope's wires — they may name boundary pseudo-blocks.
+    pub wires: &'a [Wire],
+}
+
 impl Flow {
     /// The version this build writes.
     pub const VERSION: u32 = 1;
@@ -320,6 +339,74 @@ impl Flow {
     /// A subflow by id (ADR-0021).
     pub fn subflow(&self, id: &str) -> Option<&Subflow> {
         self.subflows.iter().find(|s| s.id == id)
+    }
+
+    /// The scope a stack of subflow ids addresses (ADR-0021 §4): the
+    /// flow's own blocks at `[]`, a subflow's once entered. Each id
+    /// must be referenced by a block of the scope it is entered from —
+    /// a dangling id names no scope.
+    pub fn scope(&self, path: &[String]) -> Option<Scope<'_>> {
+        let mut blocks = &self.blocks[..];
+        let mut wires = &self.wires[..];
+        for id in path {
+            let sub = self.subflow(id)?;
+            if !blocks
+                .iter()
+                .any(|b| b.subflow.as_deref() == Some(id.as_str()))
+            {
+                return None;
+            }
+            blocks = &sub.blocks[..];
+            wires = &sub.wires[..];
+        }
+        Some(Scope { blocks, wires })
+    }
+
+    /// Run `f` on the scope's blocks and wires (ADR-0021 §4) — the
+    /// mutators of an open scope write through this. `None` if the
+    /// path names no scope (a dangling id). Each step takes the next
+    /// subflow's lists out and puts them back on unwind, so one frame
+    /// never borrows through two levels.
+    pub fn with_scope<R>(
+        &mut self,
+        path: &[String],
+        mut f: impl FnMut(&mut Vec<Block>, &mut Vec<Wire>) -> R,
+    ) -> Option<R> {
+        fn run<R, F: FnMut(&mut Vec<Block>, &mut Vec<Wire>) -> R>(
+            blocks: &mut Vec<Block>,
+            wires: &mut Vec<Wire>,
+            subs: &mut Vec<Subflow>,
+            path: &[String],
+            f: &mut F,
+        ) -> Option<R> {
+            match path.split_first() {
+                None => Some(f(blocks, wires)),
+                Some((id, rest)) => {
+                    if !blocks
+                        .iter()
+                        .any(|b| b.subflow.as_deref() == Some(id.as_str()))
+                    {
+                        return None;
+                    }
+                    let i = subs.iter().position(|s| &s.id == id)?;
+                    let mut sub = std::mem::take(&mut subs[i]);
+                    let mut inner_blocks = std::mem::take(&mut sub.blocks);
+                    let mut inner_wires = std::mem::take(&mut sub.wires);
+                    let r = run(&mut inner_blocks, &mut inner_wires, subs, rest, f);
+                    sub.blocks = inner_blocks;
+                    sub.wires = inner_wires;
+                    subs[i] = sub;
+                    r
+                }
+            }
+        }
+        run(
+            &mut self.blocks,
+            &mut self.wires,
+            &mut self.subflows,
+            path,
+            &mut f,
+        )
     }
 
     /// A block's ports: the subflow's declared boundary ports when the
@@ -374,49 +461,7 @@ impl Flow {
         &self,
         skip: &dyn Fn(&Wire) -> bool,
     ) -> Result<Vec<&Block>, String> {
-        let mut indeg: BTreeMap<&str, usize> =
-            self.blocks.iter().map(|b| (b.id.as_str(), 0)).collect();
-        for w in &self.wires {
-            if skip(w) {
-                continue;
-            }
-            if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
-                *d += 1;
-            }
-        }
-        let mut ready: Vec<&Block> = self
-            .blocks
-            .iter()
-            .filter(|b| indeg.get(b.id.as_str()) == Some(&0))
-            .collect();
-        let mut out = Vec::new();
-        while let Some(b) = ready.pop() {
-            out.push(b);
-            for w in self
-                .wires
-                .iter()
-                .filter(|w| w.from_block == b.id && !skip(w))
-            {
-                if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
-                    *d -= 1;
-                    if *d == 0 {
-                        if let Some(n) = self.block(&w.to_block) {
-                            ready.push(n);
-                        }
-                    }
-                }
-            }
-        }
-        if out.len() != self.blocks.len() {
-            let stuck = self
-                .blocks
-                .iter()
-                .find(|b| !out.iter().any(|o| o.id == b.id))
-                .map(|b| b.id.clone())
-                .unwrap_or_default();
-            return Err(format!("cycle through block {stuck}"));
-        }
-        Ok(out)
+        topological_over(&self.blocks, &self.wires, skip)
     }
 }
 
@@ -449,6 +494,53 @@ pub struct BlockPorts<'a> {
     pub params: &'a [Param],
 }
 
+/// Blocks in an order where every wire goes from earlier to later
+/// (Kahn); `Err` names a block on a cycle. Shared by the root flow and
+/// every subflow — a scope's dataflow is checked exactly like the
+/// root's (ADR-0021 §4).
+fn topological_over<'a>(
+    blocks: &'a [Block],
+    wires: &[Wire],
+    skip: &dyn Fn(&Wire) -> bool,
+) -> Result<Vec<&'a Block>, String> {
+    let mut indeg: BTreeMap<&str, usize> = blocks.iter().map(|b| (b.id.as_str(), 0)).collect();
+    for w in wires {
+        if skip(w) {
+            continue;
+        }
+        if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
+            *d += 1;
+        }
+    }
+    let mut ready: Vec<&Block> = blocks
+        .iter()
+        .filter(|b| indeg.get(b.id.as_str()) == Some(&0))
+        .collect();
+    let mut out = Vec::new();
+    while let Some(b) = ready.pop() {
+        out.push(b);
+        for w in wires.iter().filter(|w| w.from_block == b.id && !skip(w)) {
+            if let Some(d) = indeg.get_mut(w.to_block.as_str()) {
+                *d -= 1;
+                if *d == 0 {
+                    if let Some(n) = blocks.iter().find(|b| b.id == w.to_block) {
+                        ready.push(n);
+                    }
+                }
+            }
+        }
+    }
+    if out.len() != blocks.len() {
+        let stuck = blocks
+            .iter()
+            .find(|b| !out.iter().any(|o| o.id == b.id))
+            .map(|b| b.id.clone())
+            .unwrap_or_default();
+        return Err(format!("cycle through block {stuck}"));
+    }
+    Ok(out)
+}
+
 /// One problem with a flow.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Issue {
@@ -456,6 +548,112 @@ pub struct Issue {
     pub about: String,
     /// What is wrong.
     pub message: String,
+}
+
+/// The wire classification and type check shared by the root flow and
+/// every subflow (ADR-0021 §4): dataflow fits or mismatches, equations
+/// unify symmetrically or refuse, and a port that exists but cannot
+/// pair is a mixed wire, not a missing one (ADR-0020). `about` prefixes
+/// an inner issue with its subflow's id.
+fn wire_issue(
+    fk: &BlockPorts,
+    tk: &BlockPorts,
+    from_block: &str,
+    from_port: &str,
+    to_block: &str,
+    to_port: &str,
+    about: String,
+) -> Option<Issue> {
+    let out = fk.outputs.iter().find(|p| p.name == from_port);
+    let inp = tk.inputs.iter().find(|p| p.name == to_port);
+    let pin_f = fk.connections.iter().find(|p| p.name == from_port);
+    let pin_t = tk.connections.iter().find(|p| p.name == to_port);
+    // A wire is dataflow when it leaves an output and enters an input;
+    // an equation when both ends are pins (ADR-0020) — either drag
+    // order, and its types must unify symmetrically.
+    if let (Some(o), Some(i)) = (out, inp) {
+        (o.ty.unify(&i.ty).is_none()).then(|| Issue {
+            about,
+            message: format!(
+                "{}.{} ({}) does not fit {}.{} ({})",
+                from_block,
+                from_port,
+                o.ty.describe(),
+                to_block,
+                to_port,
+                i.ty.describe()
+            ),
+        })
+    } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
+        (a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)).is_none()).then(|| Issue {
+            about,
+            message: format!(
+                "{}.{} ({}) does not connect to {}.{} ({})",
+                from_block,
+                from_port,
+                a.ty.describe(),
+                to_block,
+                to_port,
+                b.ty.describe()
+            ),
+        })
+    } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
+        Some(Issue {
+            about,
+            message: "an output connects to an input, a pin to a pin".into(),
+        })
+    } else {
+        Some(Issue {
+            about,
+            message: "wire references a port that does not exist".into(),
+        })
+    }
+}
+
+/// A block's ports inside a subflow (ADR-0021 §3): a boundary
+/// pseudo-block — `boundary/<port>` — resolves through the subflow's
+/// declaration, where a declared *input* is a source inside (an
+/// output), a declared *output* is a sink (an input), and a pin stays
+/// a pin; every other block resolves exactly as at the root (its
+/// library kind, or the subflow it references).
+pub fn inner_ports<'a>(
+    flow: &'a Flow,
+    sub: &'a Subflow,
+    libraries: &'a [FlowLibrary],
+    id: &str,
+) -> Option<BlockPorts<'a>> {
+    if let Some(port) = id.strip_prefix(BOUNDARY) {
+        let one = |p: &'a Port| std::slice::from_ref(p);
+        if let Some(p) = sub.inputs.iter().find(|p| p.name == port) {
+            return Some(BlockPorts {
+                name: &p.name,
+                inputs: &[],
+                outputs: one(p),
+                connections: &[],
+                params: &[],
+            });
+        }
+        if let Some(p) = sub.outputs.iter().find(|p| p.name == port) {
+            return Some(BlockPorts {
+                name: &p.name,
+                inputs: one(p),
+                outputs: &[],
+                connections: &[],
+                params: &[],
+            });
+        }
+        if let Some(p) = sub.connections.iter().find(|p| p.name == port) {
+            return Some(BlockPorts {
+                name: &p.name,
+                inputs: &[],
+                outputs: &[],
+                connections: one(p),
+                params: &[],
+            });
+        }
+        return None;
+    }
+    flow.ports_of(libraries, sub.blocks.iter().find(|b| b.id == id)?)
 }
 
 /// Type-check every wire, check required inputs and cycles.
@@ -491,54 +689,16 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
         let (Some(fk), Some(tk)) = (from, to) else {
             continue;
         };
-        let out = fk.outputs.iter().find(|p| p.name == w.from_port);
-        let inp = tk.inputs.iter().find(|p| p.name == w.to_port);
-        let pin_f = fk.connections.iter().find(|p| p.name == w.from_port);
-        let pin_t = tk.connections.iter().find(|p| p.name == w.to_port);
-        // A wire is dataflow when it leaves an output and enters an input;
-        // an equation when both ends are pins (ADR-0020) — either drag
-        // order, and its types must unify symmetrically. A port that
-        // exists but cannot pair is a mixed wire, not a missing one.
-        if let (Some(o), Some(i)) = (out, inp) {
-            if o.ty.unify(&i.ty).is_none() {
-                issues.push(Issue {
-                    about: w.id.clone(),
-                    message: format!(
-                        "{}.{} ({}) does not fit {}.{} ({})",
-                        w.from_block,
-                        w.from_port,
-                        o.ty.describe(),
-                        w.to_block,
-                        w.to_port,
-                        i.ty.describe()
-                    ),
-                });
-            }
-        } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
-            if a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)).is_none() {
-                issues.push(Issue {
-                    about: w.id.clone(),
-                    message: format!(
-                        "{}.{} ({}) does not connect to {}.{} ({})",
-                        w.from_block,
-                        w.from_port,
-                        a.ty.describe(),
-                        w.to_block,
-                        w.to_port,
-                        b.ty.describe()
-                    ),
-                });
-            }
-        } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
-            issues.push(Issue {
-                about: w.id.clone(),
-                message: "an output connects to an input, a pin to a pin".into(),
-            });
-        } else {
-            issues.push(Issue {
-                about: w.id.clone(),
-                message: "wire references a port that does not exist".into(),
-            });
+        if let Some(issue) = wire_issue(
+            &fk,
+            &tk,
+            &w.from_block,
+            &w.from_port,
+            &w.to_block,
+            &w.to_port,
+            w.id.clone(),
+        ) {
+            issues.push(issue);
         }
     }
     // Port names are unique across a kind's inputs, outputs and
@@ -654,6 +814,149 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
             about: String::new(),
             message: e,
         });
+    }
+    // Subflow ids are unique in the document: the scope stack and the
+    // inner issue paths name them (ADR-0021 §4).
+    {
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for s in &flow.subflows {
+            if !seen.insert(s.id.as_str()) {
+                issues.push(Issue {
+                    about: s.id.clone(),
+                    message: format!("subflow id {} is not unique", s.id),
+                });
+            }
+        }
+    }
+    // Inside a subflow (ADR-0021 §3-4): its wires type-check against
+    // its blocks and its boundary pseudo-blocks, its dataflow must be
+    // acyclic, and a required boundary port must be fed from inside —
+    // a broken inner wire otherwise only shows up at codegen. An
+    // inner issue is about "{subflow id}/{block or wire id}".
+    for sub in &flow.subflows {
+        for w in &sub.wires {
+            let (Some(fk), Some(tk)) = (
+                inner_ports(flow, sub, libraries, &w.from_block),
+                inner_ports(flow, sub, libraries, &w.to_block),
+            ) else {
+                continue;
+            };
+            if let Some(issue) = wire_issue(
+                &fk,
+                &tk,
+                &w.from_block,
+                &w.from_port,
+                &w.to_block,
+                &w.to_port,
+                format!("{}/{}", sub.id, w.id),
+            ) {
+                issues.push(issue);
+            }
+        }
+        for b in &sub.blocks {
+            let about = format!("{}/{}", sub.id, b.id);
+            let Some(ports) = flow.ports_of(libraries, b) else {
+                if b.subflow.is_some() {
+                    if flow.subflow(b.subflow.as_deref().unwrap()).is_none() {
+                        issues.push(Issue {
+                            about,
+                            message: format!(
+                                "block {} references the subflow {}, which this document does not hold",
+                                b.id,
+                                b.subflow.as_deref().unwrap_or_default()
+                            ),
+                        });
+                    }
+                } else if find_kind(libraries, &b.kind).is_none() {
+                    issues.push(Issue {
+                        about,
+                        message: format!(
+                            "unknown block kind {} (is its extension enabled?)",
+                            b.kind
+                        ),
+                    });
+                }
+                continue;
+            };
+            for p in ports.inputs.iter().filter(|p| p.required) {
+                if !sub
+                    .wires
+                    .iter()
+                    .any(|w| w.to_block == b.id && w.to_port == p.name)
+                {
+                    issues.push(Issue {
+                        about: about.clone(),
+                        message: format!("input {} of {} is not connected", p.name, b.id),
+                    });
+                }
+            }
+            for p in ports.connections.iter().filter(|p| p.required) {
+                if !sub.wires.iter().any(|w| {
+                    (w.from_block == b.id && w.from_port == p.name)
+                        || (w.to_block == b.id && w.to_port == p.name)
+                }) {
+                    issues.push(Issue {
+                        about: about.clone(),
+                        message: format!("pin {} of {} is not connected", p.name, b.id),
+                    });
+                }
+            }
+        }
+        // A required boundary port must also be fed from inside: an
+        // output that nothing inside drives, a pin nothing inside
+        // joins.
+        for p in sub.outputs.iter().filter(|p| p.required) {
+            let id = format!("{BOUNDARY}{}", p.name);
+            if !sub
+                .wires
+                .iter()
+                .any(|w| w.to_block == id && w.to_port == p.name)
+            {
+                issues.push(Issue {
+                    about: sub.id.clone(),
+                    message: format!(
+                        "boundary output {} of {} is not fed from inside",
+                        p.name, sub.id
+                    ),
+                });
+            }
+        }
+        for p in sub.connections.iter().filter(|p| p.required) {
+            let id = format!("{BOUNDARY}{}", p.name);
+            if !sub.wires.iter().any(|w| {
+                (w.from_block == id && w.from_port == p.name)
+                    || (w.to_block == id && w.to_port == p.name)
+            }) {
+                issues.push(Issue {
+                    about: sub.id.clone(),
+                    message: format!(
+                        "boundary pin {} of {} is not connected inside",
+                        p.name, sub.id
+                    ),
+                });
+            }
+        }
+        // A scope's dataflow is checked exactly like the root's:
+        // cycles through pins are legal equations (ADR-0020).
+        let inner_pin_wires: std::collections::HashSet<&str> = sub
+            .wires
+            .iter()
+            .filter(|w| {
+                inner_ports(flow, sub, libraries, &w.from_block)
+                    .is_some_and(|k| k.connections.iter().any(|p| p.name == w.from_port))
+                    && inner_ports(flow, sub, libraries, &w.to_block)
+                        .is_some_and(|k| k.connections.iter().any(|p| p.name == w.to_port))
+            })
+            .map(|w| w.id.as_str())
+            .collect();
+        if let Err(e) = topological_over(&sub.blocks, &sub.wires, &|w| {
+            inner_pin_wires.contains(w.id.as_str())
+        }) {
+            issues.push(Issue {
+                about: sub.id.clone(),
+                message: format!("{subid}: {e}", subid = sub.id),
+            });
+        }
     }
     // Subflows nest, but a subflow may not reference itself — directly
     // or through another (flattening recurses; a cycle would never
@@ -1337,6 +1640,162 @@ mod tests {
                 .iter()
                 .any(|i| i.message.contains("does not fit")),
             "an unknown dimension unifies through the boundary"
+        );
+    }
+
+    #[test]
+    fn scopes_follow_the_stack_and_dangling_ids_name_no_scope() {
+        let mut f = Flow::new();
+        f.subflows = vec![
+            sub_amp(),
+            Subflow {
+                id: "outer".into(),
+                name: "Outer".into(),
+                blocks: vec![sub_block("inner_ref", "amp")],
+                ..Default::default()
+            },
+        ];
+        f.blocks = vec![sub_block("sub_1", "amp"), sub_block("o_1", "outer")];
+        // The root scope is the flow's own lists.
+        assert_eq!(f.scope(&[]).unwrap().blocks.len(), 2);
+        // Entering follows the references: o_1 -> outer, its inner_ref
+        // -> amp.
+        assert!(f.scope(&["outer".into()]).is_some());
+        let inner = f.scope(&["outer".into(), "amp".into()]).unwrap();
+        assert!(inner.blocks.is_empty(), "amp holds nothing yet");
+        // A dangling id — referenced by no block of the scope it is
+        // "entered" from — names no scope.
+        assert!(f.scope(&["amp".into(), "outer".into()]).is_none());
+        // with_scope writes the addressed scope and nothing else.
+        f.with_scope(&["outer".into(), "amp".into()], |blocks, wires| {
+            blocks.push(Block {
+                id: "deep".into(),
+                kind: "t/dense".into(),
+                ..Default::default()
+            });
+            wires.push(Wire {
+                id: "w9".into(),
+                from_block: "boundary/x".into(),
+                from_port: "x".into(),
+                to_block: "deep".into(),
+                to_port: "in".into(),
+            });
+        })
+        .expect("the nested scope resolves");
+        assert_eq!(f.subflow("amp").unwrap().blocks.len(), 1);
+        assert_eq!(
+            f.scope(&[]).unwrap().blocks.len(),
+            2,
+            "the root is untouched"
+        );
+        assert_eq!(
+            f.scope(&["outer".into()]).unwrap().blocks.len(),
+            1,
+            "the middle scope is untouched"
+        );
+        // A dangling path writes nothing and answers None.
+        assert!(f
+            .with_scope(&["amp".into(), "outer".into()], |_, _| ())
+            .is_none());
+    }
+
+    #[test]
+    fn validation_looks_inside_subflows() {
+        let libs = vec![lib()];
+        let mut f = Flow::new();
+        let mut amp = sub_amp();
+        // Inside: a dense fed by the boundary input x, feeding the
+        // boundary output y. The boundary pseudo-blocks are the
+        // declared ports seen from within (ADR-0021 §3).
+        amp.blocks = vec![Block {
+            id: "d1".into(),
+            kind: "t/dense".into(),
+            ..Default::default()
+        }];
+        amp.wires = vec![
+            Wire {
+                id: "w1".into(),
+                from_block: "boundary/x".into(),
+                from_port: "x".into(),
+                to_block: "d1".into(),
+                to_port: "in".into(),
+            },
+            Wire {
+                id: "w2".into(),
+                from_block: "d1".into(),
+                from_port: "out".into(),
+                to_block: "boundary/y".into(),
+                to_port: "y".into(),
+            },
+        ];
+        f.subflows = vec![amp];
+        f.blocks = vec![sub_block("sub_1", "amp")];
+        let issues = validate(&f, &libs);
+        // The inner wiring is sound: no issue about amp's inside.
+        assert!(
+            !issues.iter().any(|i| i.about.starts_with("amp/")
+                && (i.message.contains("does not fit")
+                    || i.message.contains("port that does not exist"))),
+            "the boundary wires type-check: {issues:?}"
+        );
+        // The subflow block's required input x is unwired at the
+        // parent — the root-level check still fires.
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "sub_1" && i.message.contains("input x")),
+            "{issues:?}"
+        );
+        // A mismatch through the boundary is an inner issue, about
+        // "amp/w3": the declared input is any-rank, a rank-2 tensor
+        // does not fit the dense's rank-1 input.
+        f.subflows[0].inputs[0].ty = PortType::tensor(vec![Some(1), Some(2)]);
+        f.subflows[0].wires.push(Wire {
+            id: "w3".into(),
+            from_block: "boundary/x".into(),
+            from_port: "x".into(),
+            to_block: "d1".into(),
+            to_port: "in".into(),
+        });
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "amp/w3" && i.message.contains("does not fit")),
+            "an inner mismatch is about the subflow's wire: {issues:?}"
+        );
+        // A required boundary output nobody inside feeds.
+        f.subflows[0].outputs[0].required = true;
+        f.subflows[0].wires.retain(|w| w.id != "w2");
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "amp" && i.message.contains("not fed from inside")),
+            "{issues:?}"
+        );
+        // An inner dataflow cycle is the subflow's issue; a pin loop
+        // inside would be legal, but this one is dataflow.
+        f.subflows[0].wires.push(Wire {
+            id: "w4".into(),
+            from_block: "d1".into(),
+            from_port: "out".into(),
+            to_block: "d1".into(),
+            to_port: "in".into(),
+        });
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "amp" && i.message.contains("cycle")),
+            "{issues:?}"
+        );
+        // Duplicate subflow ids mangle the scope paths: an issue.
+        f.subflows.push(f.subflows[0].clone());
+        let issues = validate(&f, &libs);
+        assert!(
+            issues.iter().any(|i| i.message.contains("is not unique")),
+            "{issues:?}"
         );
     }
 

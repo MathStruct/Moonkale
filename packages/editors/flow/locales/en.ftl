@@ -17,3 +17,5 @@ flow-no-libraries = No block libraries are enabled. Turn one on in Settings → 
 flow-broken = This file is not a valid flow ({ $error }). Nothing is written to it; fix it in a text editor, then press Reload.
 flow-reload = Reload
 flow-reload-title = Discard edits and reload from the file
+flow-subsystem = Subsystem
+flow-subsystem-title = Add a subsystem — an empty subflow you enter with a double-click and fill
