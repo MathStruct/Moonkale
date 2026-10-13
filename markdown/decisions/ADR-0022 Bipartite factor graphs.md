@@ -41,11 +41,11 @@ What is missing is the rule that a wire joins one variable and one factor.
    - the panel's wire gesture refuses the wire, so a wrong wire is never stored;
    - `validate` reports what a file brings in (a hand-edited or agent-written `.flow.json`), about the wire or the factor, at the root and inside subflows.
 4. **Polarity is not a wire property** (stage B, proposed here, not built). The authored part is per run: a variable is *observed* (bound to data) or not, plus, for Lenticulum, an edge direction where a factor is used one way only. The proposal:
-   - a variable block carries an `observed` parameter, so RxInfer's data variables are simply observed variables;
+   - a variable block carries its data, and a variable with data is observed, so RxInfer's data variables are simply observed variables. *(Amended 2026-10-13, in stage B: the sketch had a separate `observed` flag, but a flag without data, or data without the flag, would only be two more ways to be wrong.)*
    - Lenticulum's edge direction waits for its library, because Mycelium's `Bidirectional` is the default and the only one RxInfer needs.
 5. **Stages.**
    - **A (built, 2026-10-13):** the role, the rule at both sites, variables drawn as circles.
-   - **B:** an RxInfer library in `moonkale-julia` (Normal, Gamma, Bernoulli/Beta, …, as factors; a variable kind), `@model` codegen with observed variables as the model's data arguments, and an e2e that infers a coin's bias.
+   - **B (built, 2026-10-13, moonkale-julia v0.4.0):** an RxInfer library in `moonkale-julia`: a variable kind, and Beta, Bernoulli, Normal (variance or precision), Gamma and Poisson as factors. `@model` codegen takes the observed variables as the model's data arguments, writes one `~` per factor in graph order (a data vector is i.i.d., in a loop), and an unwired parameter channel takes its constant. Inference is exact message passing, and mean-field variational (with initial marginals and 30 iterations) only when a factor has two latent inputs. An e2e infers a coin's bias: Beta(9, 10), the exact conjugate posterior. The engine learned sized circles (`InNode.width` now sets a circle's radius too), so a variable stays a click target beside the blocks.
    - **C:** a subsystem as one factor (a role on `Subflow`), and Lenticulum's edge directions once its library exists.
 
 ## Consequences

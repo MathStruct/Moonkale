@@ -55,8 +55,10 @@ pub struct InNode {
     /// Start pinned (a placed block does not drift).
     #[serde(default)]
     pub pinned: bool,
-    /// A rect's half-width in world units (absent: the degree-derived
-    /// radius, like a circle).
+    /// A rect's half-width in world units, or a circle's radius (absent:
+    /// the degree-derived radius). A flow panel sizes its circles — a
+    /// factor graph's variable (ADR-0022) — so they stay a click target
+    /// beside the blocks.
     #[serde(default)]
     pub width: Option<f32>,
     /// A rect's half-height in world units; absent = `RECT_HEIGHT`.
@@ -565,6 +567,9 @@ pub struct Node {
     /// blocks, diamonds for decision blocks — a rect's `radius` is its
     /// half-width, and the degree recompute leaves it alone.
     pub shape: Shape,
+    /// The host set this node's radius (`InNode.width`): the degree
+    /// recompute leaves it alone, a circle included (ADR-0022).
+    pub sized: bool,
     /// A rim colour (spec 031 §2, stage 8): alpha 0 = none.
     pub stroke: [f32; 4],
     /// An overlay glyph (spec 031 §2, stage 8): drawn only while hovered
@@ -759,11 +764,12 @@ impl Graph {
                     None => (r * t.cos(), r * t.sin()),
                 };
                 Node {
-                    radius: if matches!(shape, Shape::Rect | Shape::Diamond) {
-                        n.width.unwrap_or(RECT_WIDTH)
-                    } else {
-                        4.0 + (deg as f32).sqrt().min(6.0)
+                    radius: match (shape, n.width) {
+                        (Shape::Rect | Shape::Diamond, w) => w.unwrap_or(RECT_WIDTH),
+                        (Shape::Circle, Some(w)) => w,
+                        (Shape::Circle, None) => 4.0 + (deg as f32).sqrt().min(6.0),
                     },
+                    sized: n.width.is_some(),
                     height: n.height.unwrap_or(RECT_HEIGHT),
                     shape,
                     color: n
@@ -1081,9 +1087,9 @@ impl Graph {
                     x,
                     y,
                     z,
+                    sized: n.width.is_some(),
                     radius: match (shape, n.width) {
-                        (Shape::Rect, Some(w)) => w,
-                        (Shape::Diamond, Some(w)) => w,
+                        (_, Some(w)) => w,
                         _ if shape != old.shape => {
                             if matches!(shape, Shape::Rect | Shape::Diamond) {
                                 RECT_WIDTH
@@ -1132,11 +1138,12 @@ impl Graph {
                     x,
                     y,
                     z,
-                    radius: if matches!(shape, Shape::Rect | Shape::Diamond) {
-                        n.width.unwrap_or(RECT_WIDTH)
-                    } else {
-                        4.0
+                    radius: match (shape, n.width) {
+                        (_, Some(w)) => w,
+                        (Shape::Rect | Shape::Diamond, None) => RECT_WIDTH,
+                        (Shape::Circle, None) => 4.0,
                     },
+                    sized: n.width.is_some(),
                     height: n.height.unwrap_or(RECT_HEIGHT),
                     shape,
                     color,
@@ -1334,9 +1341,9 @@ impl Graph {
         }
         for (n, deg) in self.nodes.iter_mut().zip(degree) {
             n.degree = deg;
-            if n.shape == Shape::Circle {
+            if n.shape == Shape::Circle && !n.sized {
                 n.radius = 4.0 + (deg as f32).sqrt().min(6.0);
-            } // a rect's width is the host's (stage 7)
+            } // a rect's width, and a sized circle's, is the host's (stage 7)
         }
     }
 

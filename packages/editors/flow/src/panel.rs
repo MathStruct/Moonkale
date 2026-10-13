@@ -121,9 +121,19 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
         let bad = issues.iter().any(|x| x.about == block.id);
         b.push(BlockOut {
             id: block.id.clone(),
-            name: resolved
-                .map(|p| p.name)
-                .unwrap_or_else(|| block.kind.as_str()),
+            // A factor graph's variable shows its own name (θ, y), not
+            // its kind's (ADR-0022).
+            name: match block.params.get("name") {
+                Some(n)
+                    if !n.trim().is_empty()
+                        && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
+                {
+                    n.as_str()
+                }
+                _ => resolved
+                    .map(|p| p.name)
+                    .unwrap_or_else(|| block.kind.as_str()),
+            },
             kind: if block.subflow.is_some() {
                 "subflow"
             } else {
@@ -225,9 +235,19 @@ fn subflow_scene<'a>(
             .any(|x| x.about == format!("{}/{}", sub.id, block.id));
         b.push(BlockOut {
             id: block.id.clone(),
-            name: resolved
-                .map(|p| p.name)
-                .unwrap_or_else(|| block.kind.as_str()),
+            // A factor graph's variable shows its own name (θ, y), not
+            // its kind's (ADR-0022).
+            name: match block.params.get("name") {
+                Some(n)
+                    if !n.trim().is_empty()
+                        && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
+                {
+                    n.as_str()
+                }
+                _ => resolved
+                    .map(|p| p.name)
+                    .unwrap_or_else(|| block.kind.as_str()),
+            },
             kind: if block.subflow.is_some() {
                 "subflow"
             } else {
@@ -306,7 +326,7 @@ impl<'a> SceneBuilder<'a> {
         // it has no behaviour, only the one pin factors attach to.
         let variable = resolved.is_some_and(|p| p.role == Some(Role::Variable));
         let (shape, width, height) = if variable {
-            ("circle", 22.0, 22.0)
+            ("circle", 14.0, 14.0)
         } else {
             (
                 "rect",
@@ -2217,10 +2237,19 @@ mod tests {
         assert_eq!(flow.read().wires.len(), 2);
         assert_eq!(validate(&flow.read(), &libs), vec![]);
         // Variables draw as circles, factors as blocks.
+        flow.with_mut(|f| {
+            f.blocks[0].params.insert("name".into(), "θ".into());
+        });
         let f = flow.read();
         let scene = to_scene(&f, &libs, &[]);
         let shape = |id: &str| scene.nodes.iter().find(|n| n.id == id).unwrap().shape;
         assert_eq!(shape("x"), "circle");
+        // A variable is labelled with its name once it has one.
+        assert_eq!(scene.nodes.iter().find(|n| n.id == "x").unwrap().label, "θ");
+        assert_eq!(
+            scene.nodes.iter().find(|n| n.id == "f").unwrap().label,
+            "Normal"
+        );
         assert_eq!(shape("f"), "rect");
     }
 }

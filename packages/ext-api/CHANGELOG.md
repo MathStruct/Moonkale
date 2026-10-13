@@ -14,6 +14,9 @@ Rules:
 
 ## Unreleased — the editor API (not in a tag yet)
 
+**moonkale-graph-render**
+- `InNode.width` sets a circle's radius too, not only a rect's half-width. `Node.sized` marks a radius the host set, which the degree recompute leaves alone. **A `Node` literal must add `sized`**; nothing outside the crate builds one. A flow panel uses it to draw a factor graph's variables (ADR-0022).
+
 **moonkale-ext-api**
 - Bipartite factor graphs (ADR-0022 stage A): `flow::Role { Variable, Factor }` and `BlockKind.role: Option<Role>` (defaulted, so kinds finished with `..Default::default()` keep compiling), plus `BlockPorts.role`. **A `BlockPorts` literal must add `role: None`.** `flow::bipartite_refusal(&a, &b)` and `flow::channel_refusal(&ports, block, pin, wires)` give the rule's wording. `validate` reports a pin wire between two variables or two factors, and a factor channel carrying more than one wire, at the root and inside subflows. Kinds without a role are outside the rule.
 - Subflow scopes (ADR-0021 stage B, nothing breaking): `flow::BOUNDARY` (the `boundary/<port>` pseudo-block id prefix), `Flow::scope(&path)` and `Flow::with_scope(&path, f)` (the blocks and wires a stack of subflow ids addresses — the scope an editor writes to), and `flow::inner_ports(&flow, &subflow, &libraries, &id)` (a block's ports inside a subflow: a boundary pseudo-block resolves through the declaration, a declared input is a source inside, an output a sink). `validate` now also checks inside subflows — inner wire type-checks, required boundary ports fed from inside, inner dataflow cycles, and subflow id uniqueness — with inner issues about `subflow/id`.
