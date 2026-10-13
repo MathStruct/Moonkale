@@ -156,7 +156,8 @@ pub(crate) async fn measure_presented(
     let mut eval = document::eval(include_str!("native_browser_geometry.js"));
     let images = replacements.iter().filter(|value|matches!(value.style,Some(crate::native_decorations::InlineStyle::Image(_))))
         .map(|value|serde_json::json!({"start":value.start,"end":value.end,"id":format!("image:{}",value.start)})).collect::<Vec<_>>();
-    eval.send(serde_json::json!({"id": id, "text": text, "segments": segments, "replacements": replacements,"images":images}))
+    let math = crate::native_proportional_run::math_owners(replacements);
+    eval.send(serde_json::json!({"id": id, "text": text, "segments": segments, "replacements": replacements,"images":images,"math":math}))
         .map_err(|error| format!("send: {error}"))?;
     let received = eval.recv::<Option<Geometry>>().await;
     let _ = eval.send(serde_json::Value::Null);
@@ -170,6 +171,11 @@ pub(crate) async fn measure_presented(
         crate::native_proportional_run::preview_images(replacements)
             .into_iter()
             .map(|(id, _)| id),
+    );
+    allowed.extend(
+        math.iter()
+            .filter_map(|owner| owner["id"].as_str())
+            .flat_map(|id| [format!("math-scroll:{id}"), format!("math-hit:{id}")]),
     );
     if geometry.valid(scalar)
         && geometry

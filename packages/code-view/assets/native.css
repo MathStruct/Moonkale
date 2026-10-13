@@ -88,3 +88,8 @@
 .mk-table-cell { min-width:0; padding:6px 8px; overflow-wrap:anywhere; }
 .mk-table-cell + .mk-table-cell { border-left:1px solid var(--mk-line); }
 .mk-table-cell[role=columnheader] { font-weight:700; background:var(--mk-surface); }
+.mk-math-owner { display:inline-block; max-width:100%; vertical-align:baseline; white-space:normal; }
+.mk-math-display { display:block; width:100%; overflow-x:auto; pointer-events:auto; }
+.mk-math-display .katex-display { margin:0.5em 0; }
+.mk-math-error { color:var(--mk-danger); white-space:pre-wrap; }
+.mk-math-display .mk-math-rendered, .mk-math-display .mk-math-rendered * { pointer-events:none; }

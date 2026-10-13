@@ -18,7 +18,7 @@ HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(")
 # Spec 030: the colours are in packages/shell/src/theme.rs; no stylesheet is exempt.
 THEME = set()
 # Vendored or built from node_modules (their colours are overridden through tokens).
-VENDORED = ("packages/code-view/vendor/", "site/", ".obsidian/", "packages/editors/markdown/assets/katex/",
+VENDORED = ("packages/code-view/vendor/", "site/", ".obsidian/", "packages/ext-api/assets/katex/",
             "packages/editors/terminal/assets/xterm.css", "packages/editors/markdown/assets/milkdown.css")
 
 

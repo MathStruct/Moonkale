@@ -13,7 +13,7 @@ pub const BUNDLE_CSS: Asset = asset!("/assets/milkdown.css");
 const CSS: Asset = asset!("/assets/rich.css");
 /// KaTeX's stylesheet and woff2 fonts (spec 013): a folder asset so the
 /// relative `fonts/…` urls inside `katex.min.css` keep working.
-const KATEX_DIR: Asset = asset!("/assets/katex", AssetOptions::folder());
+use moonkale_ext_api::media::math::KATEX_DIR;
 /// Per-folder KaTeX macros, relative to the folder root.
 pub const KATEX_FILE: &str = ".moonkale/katex.json";
 

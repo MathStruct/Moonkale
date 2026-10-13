@@ -8,6 +8,7 @@ use moonkale_ext_api::{
 };
 use std::sync::{Arc, Mutex};
 thread_local! {
+    static MATH_MODE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
     static IMAGE_HOLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static IMAGE_VERSION: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
     static IMAGE_LOG: std::cell::RefCell<Option<Signal<Vec<String>>>> = const { std::cell::RefCell::new(None) };
@@ -564,7 +565,7 @@ impl Source for MemoryFile {
                 result.nodes.push(page);
                 Ok(result)
             }
-            Query::Text {dialect,text} if dialect=="path" => Ok(QueryResult {nodes:fixture_images(&self.id()).into_iter().filter(|node|node.native_key==text).collect(),..Default::default()}),
+            Query::Text {dialect,text} if dialect=="path" => Ok(QueryResult {nodes:if text==".moonkale/katex.json" {vec![Node {id:NodeId::derive(&self.id(),".moonkale/katex.json"),source:self.id(),kind:NodeKind::File,label:"katex.json".into(),native_key:text,content:Some(ContentRef::Text {len:64,lang:None}),props:Default::default(),version:Version(MATH_MODE.with(|mode|mode.get()) as u64)}]}else {fixture_images(&self.id()).into_iter().filter(|node|node.native_key==text).collect()},..Default::default()}),
             Query::All {..}=>Ok(QueryResult {nodes:fixture_images(&self.id()),..Default::default()}),
             Query::Node(id) => Ok(WIKI_CREATED.with(|created| {
                 created
@@ -588,6 +589,8 @@ impl Source for MemoryFile {
         Ok((bytes,image.version))
     }
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
+        if node==NodeId::derive(&self.id(),".moonkale/katex.json") {return Ok((MATH_MODE.with(|mode|match mode.get(){1=>serde_json::json!({"macros":{"\\vaultR":"\\mathbf{R}"}}).to_string(),2=>"broken".to_string(),_=>serde_json::json!({"macros":{"\\vaultR":"\\mathbb{R}"}}).to_string()}),Version::default()));}
+
         if let Some(text) =
             WIKI_CREATED.with(|created| created.borrow().get(&node).map(|(_, text)| text.clone()))
         {
@@ -1069,6 +1072,35 @@ fn App() -> Element {
         button {id:"image-hold",onclick:move |_|IMAGE_HOLD.with(|hold|hold.set(true)),"Hold image"}
         button {id:"image-release",onclick:move |_|IMAGE_HOLD.with(|hold|hold.set(false)),"Release image"}
         button {id:"image-version",onclick:move |_|{IMAGE_VERSION.with(|version|version.set(version.get()+1));let mut ws=ws;ws.sources.graph_epoch.with_mut(|epoch|*epoch+=1);},"Change image"}
+        button {id:"math-config",onclick:move |_|{MATH_MODE.with(|mode|mode.set((mode.get()+1)%3));let mut ws=ws;ws.sources.graph_epoch.with_mut(|epoch|*epoch+=1);},"Change math macros"}
+        button {id:"markdown-math",onclick:move |_|{
+            let id=NodeId::derive(&doc.peek().node.source,"nested.md");
+            if let Some(mut markdown)=ws.document(id) {markdown.write().text=r"before 😀
+
+Inline $\alpha$ and $\vaultR$ and $\badcommand$.
+
+# Heading $x^2$
+
+- item $\sqrt{x}$
+
+| Value | Formula |
+| --- | ---: |
+| 猫 | $\frac{a}{b}$ |
+
+[$x+1$](https://example.org/math)
+
+$$
+\int_0^1 x^2\,dx
+$$
+
+$$\underbrace{a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a+a}_{wide}$$
+
+`$literal$` and $5,$10 and \$escaped$.
+
+end
+".replace('\n',"\r\n");}
+            show_language.set(Some(id));let mut ws=ws;ws.docs.active.set(Some(id));layout_fixture.set(Default::default());
+        },"Markdown math"}
         button {id:"markdown-tables",onclick:move |_|{
             let id=NodeId::derive(&doc.peek().node.source,"nested.md");
             if let Some(mut markdown)=ws.document(id) {

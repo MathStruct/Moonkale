@@ -58,6 +58,10 @@ mod native_markdown;
 mod native_markdown_lists;
 #[cfg(feature = "markdown-preview")]
 mod native_markdown_tables;
+#[cfg(feature = "markdown-preview")]
+mod native_math;
+#[cfg(feature = "markdown-preview")]
+mod native_math_parser;
 mod native_model;
 mod native_panel;
 #[cfg(feature = "markdown-preview")]

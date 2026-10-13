@@ -35,3 +35,7 @@ externals) → `dist/<pkg>.js`, committed so `dx` builds need no Node.
 ## `wasm-host` (Milestone 8)
 
 Not a UI package: the browser runtime for JSON-ABI wasm extensions. `npm run build` → `packages/shell/assets/wasm_host.js`, which sets `window.moonkale.wasmHost = { available(), run(url, command, args, hostCall, onLog) }`. `run` fetches the module (cached per URL), spawns a Worker from an inline source, and answers the module's synchronous host calls through a `SharedArrayBuffer` mailbox (`Int32Array[flag, length]` + bytes) with `Atomics.wait`/`notify`; `hostCall(json) → Promise<json>` is provided by Rust (`Workspace::run_wasm_in_browser`). Needs `crossOriginIsolated`; otherwise `available()` is false and Rust uses the server. Rules of this folder apply: no application state, no DOM.
+
+## `katex`: stateless TeX presentation
+
+`packages/js/katex` pins KaTeX 0.18.7 and builds the shared `ext-api/assets/katex-renderer.js`. Its pure `render` request/reply protocol returns HTML/MathML; it owns no Markdown, editor state, macro configuration or DOM. Rich and native math use the shared `ext-api/assets/katex/` CSS/fonts. See `katex/PROTOCOL.md` for bounds, error behavior and replacement requirements.

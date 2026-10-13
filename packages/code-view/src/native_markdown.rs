@@ -18,6 +18,7 @@ struct Frame {
 fn fragment(frames: &[Frame], text: String, code: bool) -> InlineFragment {
     InlineFragment {
         text,
+        math: None,
         emphasis: frames
             .iter()
             .any(|frame| frame.style == InlineStyle::Emphasis),
@@ -31,7 +32,9 @@ fn fragment(frames: &[Frame], text: String, code: bool) -> InlineFragment {
 
 fn append(fragments: &mut Vec<InlineFragment>, fragment: InlineFragment) {
     if let Some(previous) = fragments.last_mut().filter(|previous| {
-        previous.emphasis == fragment.emphasis
+        previous.math.is_none()
+            && fragment.math.is_none()
+            && previous.emphasis == fragment.emphasis
             && previous.strong == fragment.strong
             && previous.code == fragment.code
             && previous.link == fragment.link
@@ -164,8 +167,11 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
                 range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
             })
             .map_or(0, |(_, range)| range.end);
-        for (event, range) in
-            Parser::new_ext(&source[body_start..], Options::ENABLE_TABLES).into_offset_iter()
+        for (event, range) in Parser::new_ext(
+            &source[body_start..],
+            Options::ENABLE_TABLES | Options::ENABLE_MATH,
+        )
+        .into_offset_iter()
         {
             let range = range.start + body_start..range.end + body_start;
             match event {
@@ -232,6 +238,7 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
+    let math_values = crate::native_math_parser::displays(source);
     let table_values = crate::native_markdown_tables::previews(source);
     let image_values = crate::native_image_parser::previews(source);
     let list_values = crate::native_markdown_lists::previews(source);
@@ -243,6 +250,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
     let mut frames: Vec<Frame> = Vec::new();
     let mut values = Vec::new();
     let mut blocked = 0usize;
+    let mut containers = 0usize;
     let mut fenced: Option<FencedFrame> = None;
     let mut emit = |mut range: Range<usize>, label: String, mut style| {
         if !matches!(style, InlineStyle::ListItem { .. })
@@ -258,6 +266,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                 | InlineStyle::Fenced { .. }
                 | InlineStyle::ListItem { .. }
                 | InlineStyle::Table(_)
+                | InlineStyle::Math(crate::native_math_parser::Math { display: true, .. })
         ) {
             while range.end > range.start
                 && matches!(source.as_bytes()[range.end - 1], b'\n' | b'\r')
@@ -279,6 +288,7 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                     | InlineStyle::ListItem { .. }
                     | InlineStyle::Link(_)
                     | InlineStyle::Table(_)
+                    | InlineStyle::Math(_)
             );
         if range.is_empty()
             || label.is_empty() && !matches!(style, InlineStyle::Table(_))
@@ -326,8 +336,11 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
         })
         .map_or(0, |(_, range)| range.end);
     let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
-    for (event, range) in
-        Parser::new_ext(&projected.text, Options::ENABLE_TABLES).into_offset_iter()
+    for (event, range) in Parser::new_ext(
+        &projected.text,
+        Options::ENABLE_TABLES | Options::ENABLE_MATH,
+    )
+    .into_offset_iter()
     {
         let range = projected.range(range);
         let range = range.start + body_start..range.end + body_start;
@@ -396,6 +409,32 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
                         };
                         emit(frame.range, label, style);
                     }
+                }
+            }
+            Event::Start(Tag::List(_) | Tag::BlockQuote(_)) => containers += 1,
+            Event::End(TagEnd::List(_) | TagEnd::BlockQuote(_)) => {
+                containers = containers.saturating_sub(1)
+            }
+            Event::InlineMath(tex) => {
+                let math = if blocked == 0 && containers == 0 {
+                    crate::native_math_parser::value(source, &range, &tex, false)
+                } else {
+                    None
+                };
+                let label = source[range.clone()].to_string();
+                if !frames.is_empty() {
+                    let mut fragment = fragment(&frames, label, false);
+                    fragment.math = math;
+                    let frame = frames.last_mut().unwrap();
+                    frame.nested = true;
+                    append(&mut frame.fragments, fragment);
+                } else if let Some(math) = math {
+                    emit(range, label, InlineStyle::Math(math));
+                }
+            }
+            Event::DisplayMath(_) => {
+                if let Some(frame) = frames.last_mut() {
+                    frame.unsupported = true;
                 }
             }
             Event::Code(text) => {
@@ -481,6 +520,10 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
     }
     for (range, label, style) in table_values {
         emit(range, label, style);
+    }
+    for (range, math) in math_values {
+        let label = source[range.clone()].to_string();
+        emit(range, label, InlineStyle::Math(math));
     }
     for (range, image) in image_values {
         let start = source[..range.start].chars().count();
@@ -631,6 +674,7 @@ mod tests {
     fn nested_styles_keep_one_outer_range_and_combine_fragment_styles() {
         let fragment = |text: &str, emphasis, strong, code| InlineFragment {
             text: text.into(),
+            math: None,
             emphasis,
             strong,
             code,
@@ -934,5 +978,54 @@ mod tests {
         let changed = batch(DocumentRevision(33), &source.replace("a | b", "a | 中文"));
         assert!(first.values != changed.values);
         assert!(previews("| a | b |\n| --- | --- |\n| ![x](pic.png) | **source** |\n").is_empty());
+    }
+    #[test]
+    fn math_is_source_owned_in_paragraphs_headings_lists_tables_and_links() {
+        let source="😀\r\n\r\n$\\alpha$ and [$x^2$](https://example.org)\r\n\r\n# Title $x$\r\n\r\n- item $y$\r\n\r\n| Value | $z$ |\r\n| --- | --- |\r\n| $a$ | b |\r\n\r\n$$\r\n\\frac{a}{b}\r\n$$\r\n";
+        let values = previews(source);
+        assert!(values.iter().any(|(raw, _, style)| raw == "$\\alpha$"
+            && matches!(style,InlineStyle::Math(math) if !math.display)));
+        assert!(values.iter().any(|(_,_,style)|matches!(style,InlineStyle::Heading(_,parts) if parts.iter().any(|part|part.math.is_some()))));
+        assert!(values.iter().any(|(_,_,style)|matches!(style,InlineStyle::ListItem{fragments,..} if fragments.iter().any(|part|part.math.is_some()))));
+        assert!(values.iter().any(|(_,_,style)|matches!(style,InlineStyle::Table(table) if table.fragments.iter().filter(|part|part.math.is_some()).count()==2)));
+        assert!(values.iter().any(|(_,_,style)|matches!(style,InlineStyle::Link(parts) if parts.iter().any(|part|part.math.is_some()&&part.link.is_some()))));
+        assert!(values
+            .iter()
+            .any(|(_, _, style)| matches!(style,InlineStyle::Math(math) if math.display)));
+        let first = batch(DocumentRevision(40), source);
+        let same = batch(DocumentRevision(41), source);
+        assert!(first.values == same.values);
+        let prefixed = batch(DocumentRevision(42), &format!("猫\r\n\r\n{source}"));
+        assert_eq!(first.values.len(), prefixed.values.len());
+        for (old, new) in first.values.iter().zip(&prefixed.values) {
+            assert_eq!(new.id, old.id + 5);
+        }
+    }
+    #[test]
+    fn math_excludes_code_metadata_currency_and_wiki_projection_inside_tex() {
+        for source in [
+            "`$x$`",
+            "```\n$x$\n```",
+            "---\ntitle: $x$\n---",
+            "$5,$10",
+            "escaped \\$x$",
+            "unmatched $x",
+            "before $$x$$ after",
+        ] {
+            assert!(
+                !previews(source)
+                    .iter()
+                    .any(|(_, _, style)| matches!(style, InlineStyle::Math(_))),
+                "{source}"
+            );
+        }
+        let source = "$\\text{[[Note|Alias]]}$";
+        let projected = crate::native_link_parser::Projected::new(source);
+        assert_eq!(projected.text, source);
+        let values = previews(source);
+        assert_eq!(values.len(), 1);
+        assert!(
+            matches!(&values[0].2,InlineStyle::Math(math) if math.tex.contains("[[Note|Alias]]"))
+        );
     }
 }

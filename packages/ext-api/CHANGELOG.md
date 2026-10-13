@@ -14,6 +14,8 @@ Rules:
 
 ## Unreleased — the editor API (not in a tag yet)
 
+- Added `media::math::{KATEX_DIR, KATEX_RENDERER}` for shared local KaTeX CSS/fonts and isolated TeX presentation. Rich and native preview share the asset folder; document/editor APIs are unchanged.
+
 - Added `media::image` format, MIME, dimensions and size-limit helpers shared by native preview and the image editor. Existing image-editor public helper names remain reexports.
 
 - Added `Workspace::load_node_guarded(node, current)` for background loading without activation. Existing open documents retain unsaved text; a stale fetch is discarded.

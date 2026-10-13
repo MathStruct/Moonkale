@@ -6,8 +6,9 @@ const root = process.env.M1_ROOT;
 const shots = process.env.M1_SHOTS ?? '.';
 if (!root) throw Error('M1_ROOT must name a disposable fixture');
 const note = '---\r\ntitle: Long vault note\r\n---\r\n\r\n' + Array.from({length:240}, (_,n) =>
-  `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(71)} [**bold ${n}**](https://example.org/${n}) and \`code ${n}\`.\r\n\r\n` +
+  `# Section ${n} 猫\r\n\r\n${'plain words '.repeat(71)} [$x_{${n}}^2$](https://example.org/${n}) and \`code ${n}\`.\r\n\r\n` +
   `- list item ${n} **bold** [[#section-${n}-猫|jump]]\r\n  - [ ] pending ${n}\r\n- [x] completed ${n} 猫\r\n\r\n` +
+  ([60,180,239].includes(n) ? `$$\r\n\\frac{${n}}{${n+1}}\r\n$$\r\n\r\n` : '') +
   ([60,180,239].includes(n) ? `| Column ${n} | Value |\r\n| :--- | ---: |\r\n| **猫** | cell ${n} |\r\n\r\n` : '') +
   ([20,60,180,239].includes(n) ? `![Image ${n}](PreviewImage.svg)\r\n\r\n` : '') +
   (n % 20 === 0 ? `\`\`\`rust\r\nfn section_${n}() {}\r\n\`\`\`\r\n\r\n` : '')).join('') + 'End.\r\n';
@@ -85,19 +86,21 @@ try {
     await panel().getByRole('button',{name:'Next',exact:true}).click();
     await panel().locator('.mk-search-query').press('Escape');
     await input().focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('End');await page.keyboard.press('ArrowRight');
-    if(section===239) {
-      await page.keyboard.press('Control+End');
-      await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);
-    }
     await ready();
     await panel().locator('.mk-markdown-list-item').filter({hasText:`list item ${section} bold jump`}).waitFor();
     await panel().locator('.mk-markdown-list-item').filter({hasText:`☑ completed ${section} 猫`}).waitFor();
     await panel().locator('.mk-preview-link').filter({hasText:'jump'}).first().waitFor();
     if(section===239) {
+      await page.keyboard.press('Control+End');
+      await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);
+      await ready();
+    }
+    if(section===239) {
       await panel().locator('.mk-preview-image[alt="Image 239"]').waitFor();
       await page.waitForFunction(()=>document.querySelector('img.mk-preview-image[alt="Image 239"]')?.naturalWidth===240);
     }
     await panel().locator('[role=table]').filter({hasText:`Column ${section}`}).waitFor();
+    await panel().locator('.mk-math-display').filter({has:page.locator('annotation').filter({hasText:`\\frac{${section}}{${section+1}}`})}).locator('.katex').waitFor();
     console.log(`deep list ${section}: preview visible`);
   }
   // Navigate to specific headings so a viewport inside a long plain paragraph

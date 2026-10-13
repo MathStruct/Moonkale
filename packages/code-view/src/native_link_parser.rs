@@ -33,7 +33,9 @@ impl<'a> Projected<'a> {
         let mut ancestors = Vec::new();
         for (event, range) in Parser::new_ext(
             source,
-            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS | Options::ENABLE_TASKLISTS,
+            Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
+                | Options::ENABLE_TASKLISTS
+                | Options::ENABLE_MATH,
         )
         .into_offset_iter()
         {
@@ -59,7 +61,7 @@ impl<'a> Projected<'a> {
                 Event::End(_) => {
                     ancestors.pop();
                 }
-                Event::Code(_) => blocked.push(range),
+                Event::Code(_) | Event::InlineMath(_) | Event::DisplayMath(_) => blocked.push(range),
                 Event::InlineHtml(_) | Event::Html(_)
                     // Alias contents are literal text, even when they look like
                     // HTML. Actual surrounding HTML still blocks projection.

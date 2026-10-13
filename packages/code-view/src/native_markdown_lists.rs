@@ -24,13 +24,16 @@ impl Item {
         }
         let fragment = InlineFragment {
             text,
+            math: None,
             code,
             link: self.link.clone(),
             emphasis: self.emphasis > 0,
             strong: self.strong > 0,
         };
         if let Some(last) = self.fragments.last_mut().filter(|last| {
-            last.link == fragment.link
+            last.math.is_none()
+                && fragment.math.is_none()
+                && last.link == fragment.link
                 && last.code == fragment.code
                 && last.emphasis == fragment.emphasis
                 && last.strong == fragment.strong
@@ -58,7 +61,7 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
     let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
     for (event, range) in Parser::new_ext(
         &projected.text,
-        Options::ENABLE_TASKLISTS | Options::ENABLE_TABLES,
+        Options::ENABLE_TASKLISTS | Options::ENABLE_TABLES | Options::ENABLE_MATH,
     )
     .into_offset_iter()
     {
@@ -180,6 +183,16 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
                     }
                     Event::TaskListMarker(checked) => {
                         item.checked = Some(checked);
+                    }
+                    Event::InlineMath(tex) => {
+                        item.fragments.push(InlineFragment {
+                            text: source[range.clone()].to_string(),
+                            math: crate::native_math_parser::value(source, &range, &tex, false),
+                            code: false,
+                            link: item.link.clone(),
+                            emphasis: item.emphasis > 0,
+                            strong: item.strong > 0,
+                        });
                     }
                     Event::Text(text) => {
                         item.text(text.into_string(), false);

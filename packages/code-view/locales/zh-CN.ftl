@@ -89,3 +89,5 @@ editor-image-missing = 找不到图片
 editor-image-too-big = 图片超过 24 MiB 限制
 editor-image-pixels = 图片尺寸超过像素限制
 editor-image-failed = 无法显示图片
+editor-math-failed = 无法显示此公式。点击编辑源文本。
+editor-math-config = 已忽略无效或过大的 .moonkale/katex.json，使用默认数学宏。

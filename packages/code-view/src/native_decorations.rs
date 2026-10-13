@@ -47,6 +47,8 @@ pub(crate) enum InlineStyle {
     #[cfg(feature = "markdown-preview")]
     Table(std::rc::Rc<crate::native_markdown_tables::Table>),
     #[cfg(feature = "markdown-preview")]
+    Math(crate::native_math_parser::Math),
+    #[cfg(feature = "markdown-preview")]
     Fenced {
         language: String,
         fragments: Vec<CodeFragment>,
@@ -57,6 +59,7 @@ pub(crate) enum InlineStyle {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct InlineFragment {
     pub text: String,
+    pub math: Option<crate::native_math_parser::Math>,
     pub emphasis: bool,
     pub strong: bool,
     pub code: bool,
@@ -82,6 +85,7 @@ impl InlineStyle {
             Self::Heading(_, _) => "mk-markdown-heading",
             Self::Image(_) => "mk-markdown-image",
             Self::Table(_) => "mk-markdown-table",
+            Self::Math(_) => "mk-markdown-math",
             Self::Fenced { .. } => "mk-markdown-fenced dxc",
             Self::ListItem { .. } => "mk-markdown-list-item",
         }

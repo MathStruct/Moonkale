@@ -16,6 +16,6 @@
   "dependencies": {
     "@milkdown/crepe": "^7.22.0",
     "@milkdown/kit": "^7.22.0",
-    "katex": "^0.18.7"
+    "katex": "0.18.7"
   }
 }

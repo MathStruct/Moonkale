@@ -43,6 +43,24 @@ jobs:
       - name: UI strings in English, German and Chinese, every id used and defined (spec 030)
         run: python3 tools/check-strings.py
 
+  math-renderer:
+    name: KaTeX renderer + bundle consistency
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/js/katex
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/js/katex/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check && npm run build && npm test
+      - name: Committed renderer matches its source
+        run: git -C "$GITHUB_WORKSPACE" diff --exit-code -- packages/ext-api/assets/katex-renderer.js
+
   test:
     name: test + clippy + wasm check
     runs-on: ubuntu-24.04
@@ -93,7 +111,7 @@ jobs:
       # 45 minutes in seconds. A build whose log stops growing fails after 20 (SERVE_STALL).
       SERVE_WAIT: 2700
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
-      SUITES: files rich stores palette shell wiki
+      SUITES: files rich stores palette shell wiki live-preview-math
     steps:
       - uses: actions/checkout@v4
       - name: Working directory for the suites

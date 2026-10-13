@@ -25,8 +25,11 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
     let mut link = None;
     let mut cell_start = 0;
     let mut values = Vec::new();
-    for (event, range) in
-        Parser::new_ext(&projected.text, Options::ENABLE_TABLES).into_offset_iter()
+    for (event, range) in Parser::new_ext(
+        &projected.text,
+        Options::ENABLE_TABLES | Options::ENABLE_MATH,
+    )
+    .into_offset_iter()
     {
         let range = projected.range(range);
         let range = range.start + body_start..range.end + body_start;
@@ -100,9 +103,18 @@ pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)>
                             unsupported |= link.is_none();
                         }
                         Event::End(TagEnd::Link) => link = None,
+                        Event::InlineMath(tex) => table.fragments.push(InlineFragment {
+                            text: source[range.clone()].to_string(),
+                            math: crate::native_math_parser::value(source, &range, tex, false),
+                            code: false,
+                            link: link.clone(),
+                            emphasis: emphasis > 0,
+                            strong: strong > 0,
+                        }),
                         Event::Text(text) | Event::Code(text) => {
                             table.fragments.push(InlineFragment {
                                 text: text.to_string(),
+                                math: None,
                                 emphasis: emphasis > 0,
                                 strong: strong > 0,
                                 code: matches!(event, Event::Code(_)),

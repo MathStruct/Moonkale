@@ -97,3 +97,5 @@ editor-image-missing = Image not found
 editor-image-too-big = Image exceeds the 24 MiB limit
 editor-image-pixels = Image dimensions exceed the pixel limit
 editor-image-failed = Cannot display image
+editor-math-failed = Cannot render this formula. Click to edit its source.
+editor-math-config = Ignored invalid or oversized .moonkale/katex.json; using default math macros.

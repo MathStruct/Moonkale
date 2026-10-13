@@ -1,9 +1,9 @@
-// Copies KaTeX's stylesheet and woff2 fonts to editors/markdown/assets/katex/
+// Copies KaTeX's stylesheet and woff2 fonts to ext-api/assets/katex/
 // (a dx folder asset: the folder name is hashed, the files inside keep their
 // names, so `fonts/…` inside katex.min.css keeps resolving). Only woff2 —
 // every webview we target prefers it; woff/ttf fallbacks would never load.
 import { mkdirSync, readdirSync, copyFileSync, readFileSync, writeFileSync } from "node:fs"
-const src = "node_modules/katex/dist", out = "../../editors/markdown/assets/katex"
+const src = "node_modules/katex/dist", out = "../../ext-api/assets/katex"
 mkdirSync(`${out}/fonts`, { recursive: true })
 let n = 0
 for (const f of readdirSync(`${src}/fonts`)) if (f.endsWith(".woff2")) { copyFileSync(`${src}/fonts/${f}`, `${out}/fonts/${f}`); n++ }

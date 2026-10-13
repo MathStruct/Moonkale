@@ -194,6 +194,54 @@ pub(crate) fn ProportionalRun(
                 && *old_replacements == replacements
         })
         .map(|(_, _, _, _, _, geometry)| geometry.clone());
+    #[cfg(feature = "markdown-preview")]
+    let math_pointer = use_callback(move |(id, event): (String, MouseEvent)| {
+        let current = current.peek();
+        let stamp = current.0;
+        let measured = measured.peek();
+        let Some((key, _, _, _, _, geometry)) = measured.as_ref().filter(|(key, _, _, _, _, _)| {
+            *key == stamp && !current.6 && stamp.model.peek().revision == stamp.revision
+        }) else {
+            event.prevent_default();
+            return;
+        };
+        let _ = key;
+        let Some(owner) = geometry
+            .links
+            .iter()
+            .find(|rect| rect.id == format!("math-hit:{id}"))
+        else {
+            event.prevent_default();
+            return;
+        };
+        let point = event.element_coordinates();
+        let x = owner.x + point.x;
+        let y = owner.y + point.y;
+        if geometry.links.iter().any(|rect| {
+            rect.id == format!("math-scroll:{id}")
+                && x >= rect.x
+                && x <= rect.x + rect.width
+                && y >= rect.y
+                && y <= rect.y + rect.height
+        }) {
+            return;
+        }
+        event.prevent_default();
+        if let Some(start) = id
+            .strip_prefix("math:")
+            .and_then(|id| id.split(':').next())
+            .and_then(|id| id.parse::<usize>().ok())
+        {
+            dragging.set(true);
+            mutate(stamp.model, onchange, |editor| {
+                let (line, column) = editor
+                    .editor()
+                    .line_index()
+                    .char_offset_to_position(stamp.start + start);
+                place_caret_at(editor, Position::new(line, column));
+            });
+        }
+    });
     let ready = geometry.is_some() && !font_loading;
     let cursor = stamp.model.read().engine.get_cursor_state();
     let active_affinity = affinity().filter(|value| {
@@ -268,6 +316,7 @@ pub(crate) fn ProportionalRun(
                     if !unchanged { measured.set(None); oninvalidated.call(stamp); measure.call(()); }
                 },
                 onmousedown: move |event| {
+                    if geometry.as_ref().and_then(|value|value.link_at(event.element_coordinates().x,event.element_coordinates().y)).is_some_and(|id|id.starts_with("math-scroll:")) {return;}
                     event.prevent_default();
                     if !ready || stamp.model.peek().revision != stamp.revision { return; }
                     if let Some(value) = &geometry {
@@ -314,13 +363,13 @@ pub(crate) fn ProportionalRun(
                             class: "mk-native-inline-widget {replacement.style.as_ref().map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             "data-heading-level": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Heading(level, _) = style { Some(level.to_string()) } else { None }),
-                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_))).to_string(),
+                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))).to_string(),
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             if let Some(style @ (crate::native_decorations::InlineStyle::Nested(_) | crate::native_decorations::InlineStyle::Heading(_, _) | crate::native_decorations::InlineStyle::Link(_))) = &replacement.style {
                                 for (fragment_index, fragment) in fragments(style).iter().enumerate() {
-                                    MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
+                                    MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks),onlayout:media_changed,onpointer:math_pointer }
                                 }
                             } else if let Some(crate::native_decorations::InlineStyle::ListItem { depth, marker, checked, fragments }) = &replacement.style {
                                 span {
@@ -328,7 +377,7 @@ pub(crate) fn ProportionalRun(
                                     "data-list-depth": "{depth}", "data-task-checked": checked.map(|checked| checked.to_string()),
                                     span { class: "mk-markdown-list-marker", "{marker} " }
                                     for (fragment_index, fragment) in fragments.iter().enumerate() {
-                                        MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks) }
+                                        MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks),onlayout:media_changed,onpointer:math_pointer }
                                     }
                                 }
                             } else if let Some(crate::native_decorations::InlineStyle::Table(table)) = &replacement.style {
@@ -338,13 +387,15 @@ pub(crate) fn ProportionalRun(
                                             for (column, cell) in row.iter().enumerate() {
                                                 div {class:"mk-table-cell",role:if row_index == 0 {"columnheader"} else {"cell"},style:format!("text-align:{};",table.alignments[column]),
                                                     for fragment_index in cell.clone() {
-                                                        MarkdownFragment {fragment:table.fragments[fragment_index].clone(),identity:format!("{}:{fragment_index}",replacement.start),resolved:fragment_resolved(&table.fragments[fragment_index],&marks)}
+                                                        MarkdownFragment {fragment:table.fragments[fragment_index].clone(),identity:format!("{}:{fragment_index}",replacement.start),resolved:fragment_resolved(&table.fragments[fragment_index],&marks),onlayout:media_changed,onpointer:math_pointer}
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                            } else if let Some(crate::native_decorations::InlineStyle::Math(math)) = &replacement.style {
+                                crate::native_math::MathView {math:math.clone(),label:replacement.widget.clone().unwrap_or_default(),identity:format!("math:{}",replacement.start),onlayout:media_changed,onpointer:math_pointer}
                             } else if let Some(crate::native_decorations::InlineStyle::Image(image)) = &replacement.style {
                                 crate::native_images::ImageBlock { image:image.clone(), identity:format!("image:{}",replacement.start), onlayout:media_changed }
                             } else if let Some(crate::native_decorations::InlineStyle::Fenced { fragments, .. }) = &replacement.style {
@@ -444,15 +495,19 @@ fn MarkdownFragment(
     fragment: crate::native_decorations::InlineFragment,
     identity: String,
     resolved: bool,
+    onlayout: Callback<()>,
+    onpointer: Callback<(String, MouseEvent)>,
 ) -> Element {
     let link = fragment.link.as_ref();
     rsx! { span {
         class: "mk-markdown-fragment", class: if link.is_some() { "mk-preview-link" },
-        "data-preview-link": link.map(|_| identity),
+        "data-preview-link": link.map(|_| identity.clone()),
         "data-link-resolved": link.map(|_| resolved.to_string()),
         title: link.map(|link| if link.title.is_empty() {link.target.description()} else {link.title.clone()}),
         "data-emphasis": fragment.emphasis.to_string(), "data-strong": fragment.strong.to_string(),
-        "data-code": fragment.code.to_string(), "{fragment.text}"
+        "data-code": fragment.code.to_string(),
+        if let Some(math)=fragment.math {crate::native_math::MathView {math,label:fragment.text,identity:format!("math:{identity}"),onlayout,onpointer}}
+        else {"{fragment.text}"}
     } }
 }
 
@@ -468,4 +523,22 @@ pub(crate) fn preview_images(
             _ => None,
         })
         .collect()
+}
+
+#[cfg(feature = "markdown-preview")]
+pub(crate) fn math_owners(
+    values: &[crate::native_presentation::Replacement],
+) -> Vec<serde_json::Value> {
+    values.iter().flat_map(|value| {
+        let mut owners=Vec::new();
+        if let Some(crate::native_decorations::InlineStyle::Math(_))=&value.style {owners.push(serde_json::json!({"id":format!("math:{}",value.start),"label":value.widget,"start":value.start,"end":value.end}));}
+        if let Some(style)=&value.style {
+            owners.extend(fragments(style).iter().enumerate().filter(|(_,fragment)|fragment.math.is_some()).map(|(index,fragment)|serde_json::json!({"id":format!("math:{}:{index}",value.start),"label":fragment.text,"start":value.start,"end":value.end})));
+        }
+        owners
+    }).collect()
+}
+#[cfg(not(feature = "markdown-preview"))]
+pub(crate) fn math_owners(_: &[crate::native_presentation::Replacement]) -> Vec<serde_json::Value> {
+    Vec::new()
 }

@@ -19,7 +19,7 @@ tags: [platform, licensing]
 | | `webpki-roots` (Mozilla's CA bundle) | CDLA-Permissive-2.0 |
 | | `option-ext` | MPL-2.0 (file-level copyleft; unmodified use is fine) |
 | JavaScript in the app | CodeMirror, Milkdown (ProseMirror, remark), xterm.js, KaTeX | MIT |
-| fonts | KaTeX fonts (`editors/markdown/assets/katex/`) | SIL OFL 1.1 |
+| fonts | KaTeX fonts (`ext-api/assets/katex/`) | SIL OFL 1.1 |
 | the site | Quartz | MIT |
 
 What this means in practice: a redistributed binary should ship a `THIRD-PARTY` notice file (Apache-2.0 asks for the NOTICE contents, MIT/BSD for the copyright lines, OFL for the font licence). It is not generated yet — a `dx bundle` step for the release process ([[Packaging Overview]]).
