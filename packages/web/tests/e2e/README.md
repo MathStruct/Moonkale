@@ -352,3 +352,31 @@ M1_ROOT=/path/to/disposable/fixture M1_SHOTS=/path/to/reports PORT=8094 \
   FPS_BUILD=release-web node /path/to/playwright/editor-fps.mjs
 # Add FPS_STRICT=1 to fail a release web run at p95 > 16.7 ms or max > 50 ms.
 ```
+
+The desktop fixture's **manual** RAF recorder uses real Wayland input. Prepare
+`FpsSource.rs` and `FpsThreeMb.txt` with `editor-fps.mjs`, then build and launch:
+
+```sh
+CARGO_BUILD_JOBS=2 cargo build --release \
+  --manifest-path packages/web/tests/fixtures/native-editor/Cargo.toml \
+  --no-default-features --features desktop
+MOONKALE_FPS_SOURCE=/path/to/FpsSource.rs \
+MOONKALE_FPS_REPORT=/tmp/moonkale-desktop-fps.json \
+  packages/web/tests/fixtures/native-editor/target/release/moonkale-native-editor-host
+```
+
+For each gesture, select its name, click **Record trusted input**, focus the
+editor and perform it continuously for five seconds. Recording starts with the
+first intended gesture. Keep the release window visible; do not run builds or
+other browser suites during measurement. Record all seven gestures with Doc
+preview off and on for the Rust file, then restart with `FpsThreeMb.txt` and
+record the seven Source gestures. The fixture starts with Wrap off; the Doc
+preview toolbar toggle is independent. Reset the caret and viewport before each
+recording and use native Undo to restore typing afterward.
+
+The report includes p50/p95/max, intervals, trusted-event counts, WebView/viewport
+metadata and available long-task observations. Insufficient/no-op gestures and
+development recordings cannot pass. No synthetic desktop input is injected.
+The recorder is fixture instrumentation; `editor-fps-recorder.mjs` checks its
+browser transport and trusted-input accounting with `MOONKALE_REPO` and `PORT`.
+That check does not establish desktop frame acceptance.

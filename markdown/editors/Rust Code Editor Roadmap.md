@@ -20,6 +20,20 @@ The plan is deliberately engine-neutral. First prove a candidate has an editor-o
 
 Daniel set the bar: the Rust code editor runs at **60 FPS**: typing, held arrows, scrolling, selection drag and caret movement, in an ordinary highlighted source file and in the 3 MB document. The gate is p95 frame interval ≤ 16.7 ms and no frame over 50 ms, on web and desktop, release build. The current implementation does not meet it. This gate applies from now on, not only at M5: each milestone's acceptance records the frame numbers, and a feature that pushes them over the bar is not done. First step: a benchmark suite (Playwright, `requestAnimationFrame` intervals during scripted typing and scrolling, both files) that prints p50/p95/max and the long frames' causes, run per release.
 
+### Frame benchmark progress — 2026-10-14
+
+`editor-fps.mjs` now records all seven interactions, long frames and build/browser metadata. The initial release web baseline exposed 233 ms p95 typing in the 3 MB file, preview scrolling up to 83 ms p95 and a 117 ms held-arrow stall. A full-sequence timeline found a 62 ms garbage collection pause after source-cell DOM churn. Bounded engine-owned status slices, fractional scroll offsets, batched height notifications, keyed rows and same-presentation ASCII text runs address those costs.
+
+The isolated release web rerun passed all 21 cases (Chromium 153). The maxima across each file/mode's seven gestures were:
+
+| Case | Highest gesture p95 | Longest frame | Result |
+|---|---:|---:|---|
+| 5000-line highlighted Rust, Doc preview off | 16.67 ms | 16.67 ms | web pass |
+| Same Rust file, Doc preview on | 16.67 ms | 33.33 ms | web pass |
+| 3 MB text, Doc preview off | 16.67 ms | 16.67 ms | web pass |
+
+The raw release report is retained outside git. Desktop release frames remain **unmeasured**. The native fixture now has a manual trusted-input recorder for the same corpus; it injects no Wayland input. This remains an open milestone gate until real desktop recordings meet both bounds. See [[ADR-0023 Native editor frame measurements]] and the E2E README for recording commands. The standalone benchmark remains outside run-all's strict list.
+
 ## Delivery shape
 
 | Milestone | User-visible outcome | Main requirements | Gate to continue |

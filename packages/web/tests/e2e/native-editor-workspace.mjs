@@ -206,10 +206,10 @@ try {
     await query.fill("(\\p{L}+)=(\\d+)");
     await root.locator(".mk-search-regex").check();
     await page.waitForFunction(() => document.querySelector(".primary .mk-search-count")?.dataset.total === "3");
-    if (await root.locator(".mk-native-search-match").count() !== 12) throw Error("missing all-match highlights");
+    if (await root.locator(".mk-native-search-match").allTextContents().then(parts => parts.join("")) !== "猫=12中=34猫=56") throw Error("missing all-match highlights");
     await query.press("Enter");
     await page.waitForFunction(() => document.querySelector(".primary .mk-search-count")?.dataset.current === "1");
-    if (await root.locator(".mk-native-search-current").count() !== 4) throw Error("current match not decorated");
+    if (await root.locator(".mk-native-search-current").allTextContents().then(parts => parts.join("")) !== "猫=12") throw Error("current match not decorated");
     await query.press("Shift+Enter");
     if (await count.getAttribute("data-current") !== "3") throw Error("previous did not wrap");
     await query.fill("(");

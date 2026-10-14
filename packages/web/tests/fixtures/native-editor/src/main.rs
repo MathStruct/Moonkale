@@ -7,6 +7,8 @@ use moonkale_ext_api::{
     OpenOptions, Workspace, WorkspaceConfig,
 };
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "desktop")]
+mod fps;
 thread_local! {
     static MATH_MODE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
     static IMAGE_HOLD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -377,19 +379,21 @@ fn publish_fixture(version: i32, clear: bool) {
 fn main() {
     #[cfg(feature = "desktop")]
     {
-        let title = if std::env::var_os("MOONKALE_RENDERER_PROBE").is_some() {
+        let title = if std::env::var_os("MOONKALE_FPS_REPORT").is_some() {
+            "Moonkale desktop frame recorder"
+        } else if std::env::var_os("MOONKALE_RENDERER_PROBE").is_some() {
             "Moonkale renderer probe"
         } else {
             "Dioxus App"
         };
+        let mut window = dioxus::desktop::WindowBuilder::new()
+            .with_title(title)
+            .with_always_on_top(cfg!(debug_assertions));
+        if std::env::var_os("MOONKALE_FPS_REPORT").is_some() {
+            window = window.with_inner_size(dioxus::desktop::LogicalSize::new(1500.0, 1100.0));
+        }
         dioxus::LaunchBuilder::new()
-            .with_cfg(
-                dioxus::desktop::Config::new().with_window(
-                    dioxus::desktop::WindowBuilder::new()
-                        .with_title(title)
-                        .with_always_on_top(cfg!(debug_assertions)),
-                ),
-            )
+            .with_cfg(dioxus::desktop::Config::new().with_window(window))
             .launch(DesktopApp);
     }
     #[cfg(not(feature = "desktop"))]
@@ -443,6 +447,9 @@ fn DesktopApp() -> Element {
                     });
                 }
             },
+            if std::env::var_os("MOONKALE_FPS_REPORT").is_some() {
+                fps::FrameRecorder {}
+            }
             App {}
         }
     }
@@ -695,17 +702,27 @@ fn App() -> Element {
             .resolved
             .with_mut(|settings| settings.editor.wrap = true);
         let source = SourceId::new("folder:/tmp/native-fixture");
+        let (file_name, text) = {
+            #[cfg(feature = "desktop")]
+            { fps::initial_document().unwrap_or_else(|| ("main.rs".into(), "fn main() {\n    // 😀中 Unicode\n}\n".into())) }
+            #[cfg(not(feature = "desktop"))]
+            { ("main.rs".to_string(), "fn main() {\n    // 😀中 Unicode\n}\n".to_string()) }
+        };
+        #[cfg(feature = "desktop")]
+        if std::env::var_os("MOONKALE_FPS_REPORT").is_some() {
+            ws.settings.user.with_mut(|file| file.editor.wrap = Some(false));
+            ws.settings.resolved.with_mut(|settings| settings.editor.wrap = false);
+        }
         let node = Node {
-            id: NodeId::derive(&source, "main.rs"),
+            id: NodeId::derive(&source, &file_name),
             source: source.clone(),
             kind: NodeKind::File,
-            label: "main.rs".into(),
-            native_key: "main.rs".into(),
+            label: file_name.clone(),
+            native_key: file_name,
             content: None,
             props: Default::default(),
             version: Version(0),
         };
-        let text = "fn main() {\n    // 😀中 Unicode\n}\n".to_string();
         let decoy = SourceId::new("folder:/tmp/decoy");
         ws.add_source(Arc::new(MemoryFile {
             descriptor: SourceDescriptor {

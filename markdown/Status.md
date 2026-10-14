@@ -19,7 +19,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Remote folders over SSH**, desktop as a server's client | ✅ | Milestone 11; hardening #18 |
 | **Projects** (saved sets of sources, selector, sync) | 📝 | [[Projects and Sources]], spec [[003]] |
 | **Code editor** — CodeMirror (LSP, highlighting, wiki-links, presence) | ✅ | splices (spec [[018]]); full-text LSP sync (#19) |
-| **Code editor** — Rust (`dioxus-code-editor`) | ◐ | view + edit + highlight; no LSP or decorations — [[Code Editor Implementations]] |
+| **Code editor** — Rust (editor-core + Dioxus, opt-in) | ◐ | revisioned edits/history, highlighting, LSP, search/folds, Markdown preview and default-off Rust/Python/Julia documentation previews; release web frame gate passes, desktop frames and default cutover remain open — [[Rust Code Editor Implementation]], [[Rust Code Editor Roadmap]] |
 | **Markdown** — rich (Milkdown), source, wiki-links, KaTeX, front matter, typography | ✅ | specs 012, 013, 019, 021, 026 |
 | **Typst preview** | ✅ | no packages |
 | **Diagram fences** (tabs, Typst math, Mermaid, TikZ) | 📝 | [[Markdown Diagrams and Math]] |

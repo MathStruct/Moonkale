@@ -380,22 +380,26 @@ impl NativeModel {
         self.index_metrics();
     }
     /// Bounded status text; full identifiers remain available to semantic actions.
-    pub fn cursor_word_preview(&self, canonical: &str, limit: usize) -> Option<String> {
+    pub fn cursor_word_preview(&self, limit: usize) -> Option<String> {
         if limit == 0 {
             return None;
         }
         let cursor = self.engine.get_cursor_state().position;
-        let metrics = self.lines.get(cursor.line)?;
-        let line = canonical
-            .get(metrics.byte..metrics.byte + metrics.bytes)?
-            .trim_end_matches(['\r', '\n']);
-        let index = self.engine.editor().line_index();
-        let line_byte =
-            index.char_offset_to_byte_offset(index.position_to_char_offset(cursor.line, 0));
-        let byte = index
-            .char_offset_to_byte_offset(index.position_to_char_offset(cursor.line, cursor.column))
-            - line_byte;
-        let byte = byte.min(line.len());
+        let editor = self.engine.editor();
+        let index = editor.line_index();
+        let line_start = index.position_to_char_offset(cursor.line, 0);
+        let offset = index.position_to_char_offset(cursor.line, cursor.column);
+        let line_end = line_start + index.get_line(cursor.line)?.char_count;
+        let start = offset.saturating_sub(limit).max(line_start);
+        let end = offset.saturating_add(limit).saturating_add(1).min(line_end);
+        // Workspace writers may publish new canonical text before the retained
+        // model's synchronization effect. Slice the engine's own rope so its
+        // byte coordinates and Unicode always belong to the same revision.
+        let window = editor.text_range(start, end.saturating_sub(start));
+        let line = window.trim_end_matches(['\r', '\n']);
+        let byte = (index.char_offset_to_byte_offset(offset)
+            - index.char_offset_to_byte_offset(start))
+        .min(line.len());
         let word = |ch: char| ch.is_alphanumeric() || ch == '_';
         let anchor = if line[byte..].chars().next().is_some_and(word) {
             byte
@@ -773,16 +777,24 @@ mod tests {
         let _ = model.engine.execute(editor_core::Command::Cursor(
             editor_core::CursorCommand::MoveTo { line: 0, column: 1 },
         ));
-        assert_eq!(
-            model.cursor_word_preview(&snapshot.text, 128).as_deref(),
-            Some("total_sum")
-        );
+        assert_eq!(model.cursor_word_preview(128).as_deref(), Some("total_sum"));
         let _ = model.engine.execute(editor_core::Command::Cursor(
             editor_core::CursorCommand::MoveTo { line: 1, column: 0 },
         ));
-        let preview = model.cursor_word_preview(&snapshot.text, 128).unwrap();
+        let preview = model.cursor_word_preview(128).unwrap();
         assert_eq!(preview, format!("{}…", "x".repeat(128)));
-        assert!(model.cursor_word_preview(&snapshot.text, 0).is_none());
+        assert!(model.cursor_word_preview(0).is_none());
+        // The engine can change before canonical metrics/snapshots are updated.
+        // Status rendering must use its own Unicode coordinates during that gap.
+        let _ = model.engine.execute(editor_core::Command::Cursor(
+            editor_core::CursorCommand::MoveTo { line: 0, column: 2 },
+        ));
+        let _ = model.engine.execute(editor_core::Command::Edit(
+            editor_core::EditCommand::InsertText {
+                text: "😀".into()
+            },
+        ));
+        assert_eq!(model.cursor_word_preview(128).as_deref(), Some("otal_sum"));
     }
 
     #[test]

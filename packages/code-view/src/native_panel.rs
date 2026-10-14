@@ -537,7 +537,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         .extensions
         .is_enabled_id("dev.moonkale.editor-code", true);
     let cursor_word = (*ws.docs.active.read() == Some(node))
-        .then(|| model.read().cursor_word_preview(&doc.read().text, 128))
+        .then(|| model.read().cursor_word_preview(128))
         .flatten();
     let editor_settings = ws.settings.resolved.read().editor.clone();
     let preview_on = cfg!(feature = "markdown-preview")

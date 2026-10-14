@@ -1807,7 +1807,7 @@ fn NativeCell(
         span {
             title: diagnostic.as_ref().map(|d| d.message.clone()).or_else(|| wiki.as_ref().map(|mark| mark.target.clone())).unwrap_or_default(),
             class: format!("mk-editor-core-cell {} {} {tag} {mark_classes}", if selected { "mk-editor-core-selected" } else { "" }, if matched { "mk-native-bracket-match" } else { "" }),
-            style: "display: inline-block; width: {width}ch;",
+            style: "display: inline-block; width: {width}ch; font-variant-ligatures: none;",
 
             onmousedown: move |event| {
                 if event.trigger_button() == Some(MouseButton::Primary) && moonkale_ext_api::keys::primary(&event.modifiers()) {
