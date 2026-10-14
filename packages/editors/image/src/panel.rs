@@ -127,19 +127,44 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                 span { class: "mk-editor-path", "{title}" }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", "{dims} · {size}" }
-                button { class: "mk-btn", title: t!(ws, L, "image-zoom-out"), onclick: move |_| step(-1), "−" }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "zoom-out",
+                    label: t!(ws, L, "image-zoom-out"),
+                    onclick: move |_| step(-1),
+                }
                 span { class: "mk-image-zoom", "{zoom_label}" }
-                button { class: "mk-btn", title: t!(ws, L, "image-zoom-in"), onclick: move |_| step(1), "+" }
-                button { class: if zoom().is_none() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| zoom.set(None), {t!(ws, L, "image-fit")} }
-                button { class: if zoom() == Some(1.0) { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| zoom.set(Some(1.0)), "100%" }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "zoom-in",
+                    label: t!(ws, L, "image-zoom-in"),
+                    onclick: move |_| step(1),
+                }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "fit",
+                    label: t!(ws, L, "image-fit"),
+                    description: t!(ws, L, "image-fit-title"),
+                    pressed: Some(zoom().is_none()),
+                    onclick: move |_| zoom.set(None),
+                }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "actual-size",
+                    label: "100%".to_string(),
+                    description: t!(ws, L, "image-actual-title"),
+                    pressed: Some(zoom() == Some(1.0)),
+                    onclick: move |_| zoom.set(Some(1.0)),
+                }
                 if node.native_key.to_ascii_lowercase().ends_with(".svg") {
-                    button { class: "mk-btn", title: t!(ws, L, "image-svg-title"), onclick: {
-                        let n = node.clone();
-                        move |_| {
-                            let n = n.clone();
-                            spawn(async move { let _ = ws.open_as_text(n).await; });
-                        }
-                    }, {t!(ws, L, "image-source")} }
+                    moonkale_ext_api::icons::IconButton {
+                        icon: "code",
+                        label: t!(ws, L, "image-source"),
+                        description: t!(ws, L, "image-svg-title"),
+                        onclick: {
+                            let n = node.clone();
+                            move |_| {
+                                let n = n.clone();
+                                spawn(async move { let _ = ws.open_as_text(n).await; });
+                            }
+                        },
+                    }
                 }
             }
             div {

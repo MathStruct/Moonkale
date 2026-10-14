@@ -19,3 +19,5 @@ flow-rotate = ⟳
 flow-rotate-title = 将模块顺时针旋转四分之一圈（R）
 flow-mirror = ⇋
 flow-mirror-title = 将模块左右镜像（M）
+flow-layout-title = 按连线从左到右排列模块
+flow-fit-title = 将整个流程适配到视图中

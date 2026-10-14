@@ -638,18 +638,38 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "editor-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", "{lang} · {version}" }
-                button {
-                    class: if wrap_on { "mk-btn mk-btn-on" } else { "mk-btn" },
-                    title: t!(ws, L, "editor-wrap-title"),
+                // Symbols, with their description on hover (ADR-0027).
+                moonkale_ext_api::icons::IconButton {
+                    icon: "wrap",
+                    label: t!(ws, L, "editor-wrap"),
+                    description: t!(ws, L, "editor-wrap-title"),
+                    pressed: Some(wrap_on),
                     onclick: move |_| toggle_wrap(ws),
-                    {t!(ws, L, "editor-wrap")}
                 }
-                button { class: "mk-btn", disabled: !dirty, onclick: save, {t!(ws, L, "editor-save")} }
-                button { class: "mk-btn", onclick: reload, title: t!(ws, L, "editor-reload-title"), {t!(ws, L, "editor-reload")} }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "save",
+                    label: t!(ws, L, "editor-save"),
+                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    disabled: !dirty,
+                    onclick: save,
+                }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "reload",
+                    label: t!(ws, L, "editor-reload"),
+                    description: t!(ws, L, "editor-reload-title"),
+                    onclick: reload,
+                }
                 // Milestone 14: move this document to the Rust editor.
                 if ws.settings.resolved.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
-                    button { class: "mk-btn mk-editor-switch", title: t!(ws, L, "editor-to-rust"), onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }, "Rust" }
+                    moonkale_ext_api::icons::IconButton {
+                        icon: "swap",
+                        label: "Rust".to_string(),
+                        description: t!(ws, L, "editor-to-rust"),
+                        class: "mk-editor-switch".to_string(),
+                        onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); },
+                    }
                 }
+                moonkale_ext_api::icons::PanelSettingsButton {}
             }
             if let Some((_, _, word)) = rename_prompt() {
                 div { class: "mk-editor-bar mk-editor-rename",

@@ -7,3 +7,5 @@ image-zoom-in = Zoom in (+)
 image-svg-title = Edit the SVG source as text
 image-source = Source
 image-too-many-pixels = { $name } is { $width } × { $height } pixels — too large to show here; open it outside Moonkale
+image-fit-title = Fit the image into the panel
+image-actual-title = Show the image at its actual size

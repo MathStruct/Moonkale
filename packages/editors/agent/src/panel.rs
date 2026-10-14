@@ -830,6 +830,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                 button { class: if show_activity() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| show_activity.toggle(), title: t!(ws, L, "agent-activity-title"), {t!(ws, L, "agent-activity")} }
                 button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: save, title: t!(ws, L, "agent-save-title"), {t!(ws, L, "agent-save")} }
                 button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: clear, {t!(ws, L, "agent-clear")} }
+                moonkale_ext_api::icons::PanelSettingsButton {}
                 button { class: "mk-btn mk-agent-close", disabled: busy() || live.len() <= 1, onclick: close_session, title: t!(ws, L, "agent-close-title"), "×" }
             }
             if show_activity() {

@@ -23,3 +23,5 @@ flow-rotate = ⟳
 flow-rotate-title = Den Block um eine Vierteldrehung im Uhrzeigersinn drehen (R)
 flow-mirror = ⇋
 flow-mirror-title = Den Block links–rechts spiegeln (M)
+flow-layout-title = Die Blöcke entlang ihrer Verbindungen von links nach rechts anordnen
+flow-fit-title = Den ganzen Flow in die Ansicht einpassen

@@ -372,8 +372,20 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "unsaved-changes"), "●" } }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta", {t!(ws, L, "md-rich-meta")} }
-                button { class: "mk-btn", disabled: !dirty, onclick: move |_| save(()), {t!(ws, L, "save")} }
-                button { class: "mk-btn", onclick: reload, title: t!(ws, L, "reload-title"), {t!(ws, L, "reload")} }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "save",
+                    label: t!(ws, L, "save"),
+                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    disabled: !dirty,
+                    onclick: move |_| save(()),
+                }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "reload",
+                    label: t!(ws, L, "reload"),
+                    description: t!(ws, L, "reload-title"),
+                    onclick: reload,
+                }
+                moonkale_ext_api::icons::PanelSettingsButton {}
             }
             if let Some(e) = error() {
                 div { class: "mk-editor-error", "{e}" }

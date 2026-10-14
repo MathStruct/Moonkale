@@ -7,3 +7,5 @@ image-zoom-in = 放大（+）
 image-svg-title = 以文本形式编辑 SVG 源码
 image-source = 源码
 image-too-many-pixels = { $name } 为 { $width } × { $height } 像素——太大，无法在此显示；请在 Moonkale 之外打开
+image-fit-title = 将图片适配到面板中
+image-actual-title = 以实际尺寸显示图片

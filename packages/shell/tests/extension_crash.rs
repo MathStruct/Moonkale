@@ -90,7 +90,7 @@ fn App() -> Element {
     let ws = use_context_provider(|| Workspace::new(config()));
     rsx! {
         div { "before" }
-        {moonkale_shell::guard_extension_panel(ws, "Boom panel".into(), rsx! { Boom {} })}
+        {moonkale_shell::guard_extension_panel(ws, "Boom panel".into(), rsx! { Boom {} }, None, "Boom".into())}
         div { "after" }
     }
 }

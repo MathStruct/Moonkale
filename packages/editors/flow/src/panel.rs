@@ -1459,13 +1459,37 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 // While broken there is nothing to arrange, fit or save —
                 // only Reload leads out (the review's #3: the toolbar
                 // must not offer edits the model refuses to write).
-                button { class: "mk-btn", disabled: broken.read().is_some(), onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }, {t!(ws, L, "flow-layout")} }
-                button { class: "mk-btn", disabled: broken.read().is_some(), onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, {t!(ws, L, "flow-fit")} }
-                button { class: "mk-btn", disabled: !dirty || broken.read().is_some(), onclick: move |_| save(()), {t!(ws, L, "flow-save")} }
-                button { class: "mk-btn mk-flow-reload", title: t!(ws, L, "flow-reload-title"),
-                    onclick: move |_| { spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); },
-                    {t!(ws, L, "flow-reload")}
+                // Symbols, with their description on hover (ADR-0027);
+                // Generate keeps its words, the panel's primary action.
+                moonkale_ext_api::icons::IconButton {
+                    icon: "layout",
+                    label: t!(ws, L, "flow-layout"),
+                    description: t!(ws, L, "flow-layout-title"),
+                    disabled: broken.read().is_some(),
+                    onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } },
                 }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "fit",
+                    label: t!(ws, L, "flow-fit"),
+                    description: t!(ws, L, "flow-fit-title"),
+                    disabled: broken.read().is_some(),
+                    onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } },
+                }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "save",
+                    label: t!(ws, L, "flow-save"),
+                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    disabled: !dirty || broken.read().is_some(),
+                    onclick: move |_| save(()),
+                }
+                moonkale_ext_api::icons::IconButton {
+                    icon: "reload",
+                    label: t!(ws, L, "flow-reload"),
+                    description: t!(ws, L, "flow-reload-title"),
+                    class: "mk-flow-reload".to_string(),
+                    onclick: move |_| { spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); },
+                }
+                moonkale_ext_api::icons::PanelSettingsButton {}
             }
             if let Some(e) = error() { div { class: "mk-editor-error", "{e}" } }
             if let Some(why) = broken() {
