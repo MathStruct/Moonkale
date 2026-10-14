@@ -7071,6 +7071,7 @@ dependencies = [
  "moonkale-llm",
  "moonkale-project-fs",
  "moonkale-state",
+ "pulldown-cmark",
  "serde",
  "serde_json",
  "tempfile",
