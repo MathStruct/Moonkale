@@ -3666,6 +3666,8 @@ dependencies = [
  "arborium-html",
  "arborium-julia",
  "arborium-markdown",
+ "arborium-python",
+ "arborium-rust",
  "arborium-tree-sitter",
  "base64 0.22.1",
  "cc",

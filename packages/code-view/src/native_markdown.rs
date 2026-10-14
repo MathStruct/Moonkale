@@ -84,7 +84,7 @@ fn closed_fence(source: &str, range: &Range<usize>) -> bool {
             .all(|byte| matches!(byte, b' ' | b'\t'))
 }
 
-fn highlighted_code(text: &str, info: &str) -> InlineStyle {
+pub(crate) fn highlighted_code(text: &str, info: &str) -> InlineStyle {
     let hint = info
         .split_whitespace()
         .next()

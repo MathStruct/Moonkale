@@ -105,3 +105,6 @@ editor-properties-apply = 应用
 editor-properties-cancel = 取消
 editor-properties-stale = 此草稿已过期。请取消并重新打开属性以编辑最新文档。
 editor-properties-invalid = 请输入 YAML 属性，不要包含元数据分隔行。
+
+editor-doc-preview = 文档预览
+editor-doc-preview-title = 将文档注释显示为 Markdown；编辑预览时显示源码。

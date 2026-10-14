@@ -293,7 +293,7 @@ mod tests {
 }
 
 /// Retained measured run geometry. Populated only by the opt-in layout feature.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 #[allow(dead_code)]
 pub(crate) struct CachedRunHeight {
     pub revision: DocumentRevision,
@@ -304,4 +304,23 @@ pub(crate) struct CachedRunHeight {
     pub height: f64,
     /// Source interval revealed by caret/selection.
     pub presentation: PresentationState,
+    #[cfg(feature = "markdown-preview")]
+    pub documentation: Option<(usize, std::rc::Rc<crate::native_doc_comments::Document>)>,
+}
+
+#[cfg(feature = "markdown-preview")]
+impl CachedRunHeight {
+    pub fn documentation_matches(
+        &self,
+        values: &[crate::native_presentation::Replacement],
+        presentation: PresentationState,
+    ) -> bool {
+        self.documentation.as_ref().is_some_and(|(end, body)| {
+            values.get(values.partition_point(|value| value.start < self.start)).is_some_and(|value| {
+                value.start == self.start && value.end == *end
+                    && presentation.provider == 3 && presentation.previews(value.start, value.end)
+                    && matches!(&value.style, Some(crate::native_decorations::InlineStyle::Documentation(current)) if std::rc::Rc::ptr_eq(body, current))
+            })
+        })
+    }
 }

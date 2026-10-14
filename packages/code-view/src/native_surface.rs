@@ -52,6 +52,7 @@ pub(crate) fn RustEditorSurface(
     mut first_row: Signal<usize>,
     mut first_column: Signal<usize>,
     mut scroll_displacement: Signal<f64>,
+    mut horizontal_displacement: Signal<f64>,
     source_anchor: Signal<Option<crate::native_layout::ViewAnchor>>,
     run_heights: Signal<std::collections::BTreeMap<usize, crate::native_layout::CachedRunHeight>>,
     onchange: Callback<()>,
@@ -128,8 +129,9 @@ pub(crate) fn RustEditorSurface(
     #[cfg(feature = "markdown-preview")]
     let presentation_index = use_memo(use_reactive!(|model| {
         let state = model.read();
-        let enabled =
-            fixture.is_some_and(|value| value().presentation) || markdown_enabled(fixture, model);
+        let enabled = fixture.is_some_and(|value| value().presentation)
+            || markdown_enabled(fixture, model)
+            || documentation_enabled(model);
         let values = if enabled {
             crate::native_presentation::replacements(
                 presentation_mode(fixture, model),
@@ -143,17 +145,30 @@ pub(crate) fn RustEditorSurface(
             crate::native_presentation::state_for_values(
                 &values,
                 &state.engine,
-                if presentation_mode(fixture, model) == crate::native_presentation::Mode::Markdown {
-                    2
-                } else {
-                    1
+                match presentation_mode(fixture, model) {
+                    crate::native_presentation::Mode::Markdown => 2,
+                    crate::native_presentation::Mode::Documentation(_) => 3,
+                    _ => 1,
                 },
             )
         } else {
             Default::default()
         };
         let collapsed = if presentation.enabled() {
-            crate::native_presentation::collapsed_rows(&state.engine, &values, presentation)
+            if documentation_enabled(model)
+                && state.engine.editor().layout_engine().wrap_mode() == editor_core::WrapMode::None
+                && !state
+                    .engine
+                    .editor()
+                    .folding_manager()
+                    .regions()
+                    .iter()
+                    .any(|fold| fold.is_collapsed)
+            {
+                state.docs.borrow().unwrapped_rows(presentation)
+            } else {
+                crate::native_presentation::collapsed_rows(&state.engine, &values, presentation)
+            }
         } else {
             Vec::new()
         };
@@ -166,6 +181,7 @@ pub(crate) fn RustEditorSurface(
     let heights = use_memo(use_reactive!(|model, run_heights| {
         #[cfg(not(feature = "markdown-preview"))]
         let _ = run_heights;
+
         let state = model.read();
         let rows = state.engine.get_viewport_state().total_visual_lines;
         #[cfg(feature = "markdown-preview")]
@@ -180,6 +196,16 @@ pub(crate) fn RustEditorSurface(
         let presentation = presentation_index.read().state;
         #[cfg(feature = "markdown-preview")]
         let presentation_values = presentation_index.read().values.clone();
+        #[cfg(feature = "markdown-preview")]
+        let direct_documentation_rows = documentation_enabled(model)
+            && state.engine.editor().layout_engine().wrap_mode() == editor_core::WrapMode::None
+            && !state
+                .engine
+                .editor()
+                .folding_manager()
+                .regions()
+                .iter()
+                .any(|fold| fold.is_collapsed);
         #[cfg(feature = "markdown-preview")]
         let mut overrides: std::collections::BTreeMap<usize, f64> = fixture
             .map(|value| {
@@ -210,6 +236,7 @@ pub(crate) fn RustEditorSurface(
         #[cfg(feature = "markdown-preview")]
         if let Some(line) = markdown_enabled(fixture, model)
             .then_some(0)
+            .or_else(|| documentation_enabled(model).then_some(0))
             .or_else(|| fixture.and_then(|value| value().proportional_line))
         {
             let index = state.engine.editor().line_index();
@@ -217,26 +244,29 @@ pub(crate) fn RustEditorSurface(
                 .get_line(line)
                 .map(|value| value.char_count)
                 .unwrap_or(usize::MAX);
-            if state.preferences.wrap && (markdown_enabled(fixture, model) || length <= 4096) {
+            if documentation_enabled(model)
+                || state.preferences.wrap && (markdown_enabled(fixture, model) || length <= 4096)
+            {
                 if let Some((first, _)) = state
                     .engine
                     .logical_position_to_visual(line, 0)
                     .filter(|(row, _)| state.engine.visual_to_logical_line(*row).0 == line)
                 {
-                    let last_line = if markdown_enabled(fixture, model) {
-                        index.line_count().saturating_sub(1)
-                    } else if fixture.is_some_and(|value| {
-                        (value().presentation || markdown_enabled(fixture, model))
-                            && value().proportional_line == Some(0)
-                    }) {
-                        crate::native_presentation::last_line(
-                            presentation_mode(fixture, model),
-                            &state.engine,
-                            state.revision,
-                        )
-                    } else {
-                        line
-                    };
+                    let last_line =
+                        if markdown_enabled(fixture, model) || documentation_enabled(model) {
+                            index.line_count().saturating_sub(1)
+                        } else if fixture.is_some_and(|value| {
+                            (value().presentation || markdown_enabled(fixture, model))
+                                && value().proportional_line == Some(0)
+                        }) {
+                            crate::native_presentation::last_line(
+                                presentation_mode(fixture, model),
+                                &state.engine,
+                                state.revision,
+                            )
+                        } else {
+                            line
+                        };
                     let last_length = index
                         .get_line(last_line)
                         .map(|value| value.char_count)
@@ -249,37 +279,47 @@ pub(crate) fn RustEditorSurface(
                     let cache = run_heights.read();
                     let by_row: std::collections::BTreeMap<_, _> =
                         cache.values().map(|entry| (entry.row, entry)).collect();
-                    let candidates: Vec<usize> = if markdown_enabled(fixture, model) {
-                        by_row
-                            .keys()
-                            .copied()
-                            .filter(|row| first <= *row && *row <= last)
-                            .collect()
-                    } else {
-                        (first..=last).collect()
-                    };
+                    let candidates: Vec<usize> =
+                        if markdown_enabled(fixture, model) || documentation_enabled(model) {
+                            by_row
+                                .keys()
+                                .copied()
+                                .filter(|row| first <= *row && *row <= last)
+                                .collect()
+                        } else {
+                            (first..=last).collect()
+                        };
                     for row in candidates {
                         let measured = by_row.get(&row).filter(|entry| {
-                            entry.revision == state.revision
+                            let documentation_matches =
+                                entry.documentation_matches(&presentation_values, presentation);
+                            (entry.revision == state.revision || documentation_matches)
                                 && entry.row == row
-                                && entry.presentation == presentation
+                                && (entry.presentation == presentation || documentation_matches)
                                 && entry.viewport_width == viewport_width_pixels()
                                 && entry.font_epoch == font_epoch()
-                                && state.engine.visual_position_to_logical(row, 0).is_some_and(
-                                    |position| {
-                                        let offset = index.position_to_char_offset(
-                                            position.line,
-                                            position.column,
-                                        );
-                                        crate::native_presentation::mapped_boundary(
-                                            &presentation_values,
-                                            presentation,
-                                            offset,
-                                        ) == entry.start
-                                    },
-                                )
+                                && if direct_documentation_rows {
+                                    state.docs.borrow().unwrapped_owner_row(entry.start)
+                                        == Some(row)
+                                } else {
+                                    state.engine.visual_position_to_logical(row, 0).is_some_and(
+                                        |position| {
+                                            let offset = index.position_to_char_offset(
+                                                position.line,
+                                                position.column,
+                                            );
+                                            crate::native_presentation::mapped_boundary(
+                                                &presentation_values,
+                                                presentation,
+                                                offset,
+                                            ) == entry.start
+                                        },
+                                    )
+                                }
                         });
-                        if markdown_enabled(fixture, model) && measured.is_none() {
+                        if (markdown_enabled(fixture, model) || documentation_enabled(model))
+                            && measured.is_none()
+                        {
                             continue;
                         }
                         let height = measured.map(|entry| entry.height).unwrap_or(32.0);
@@ -502,7 +542,8 @@ pub(crate) fn RustEditorSurface(
                         .scroll(
                             dioxus::html::geometry::PixelsVector2D::new(
                                 UniformLayout::new(row_pixels(), cell_pixels())
-                                    .column_x(first_column()),
+                                    .column_x(first_column())
+                                    + horizontal_displacement(),
                                 initial_top,
                             ),
                             ScrollBehavior::Instant,
@@ -548,9 +589,10 @@ pub(crate) fn RustEditorSurface(
     }));
     let scroll_on_change = viewport_mounted.clone();
     use_effect(use_reactive!(
-        |first_row, first_column, scroll_displacement| {
+        |first_row, first_column, scroll_displacement, horizontal_displacement| {
             let top = heights.read().row_top(first_row()) + scroll_displacement();
-            let left = UniformLayout::new(row_pixels(), cell_pixels()).column_x(first_column());
+            let left = UniformLayout::new(row_pixels(), cell_pixels()).column_x(first_column())
+                + horizontal_displacement();
             if let Some(element) = scroll_on_change.borrow().as_ref().cloned() {
                 spawn(async move {
                     let _ = element
@@ -564,27 +606,31 @@ pub(crate) fn RustEditorSurface(
         }
     ));
 
-    use_effect(use_reactive!(|model, first_column| {
-        let mut first_column = first_column;
-        let state = model.read();
-        let cursor = state.engine.get_cursor_state();
-        if state.preferences.wrap {
-            return;
+    use_effect(use_reactive!(
+        |model, first_column, horizontal_displacement| {
+            let mut first_column = first_column;
+            let mut horizontal_displacement = horizontal_displacement;
+            let state = model.read();
+            let cursor = state.engine.get_cursor_state();
+            if state.preferences.wrap {
+                return;
+            }
+            let Some((_, x)) = state
+                .engine
+                .logical_position_to_visual(cursor.position.line, cursor.position.column)
+            else {
+                return;
+            };
+            let width = state.engine.editor().viewport_width().max(1);
+            let start = *first_column.peek();
+            let next = UniformLayout::reveal_start(start, width, x);
+            drop(state);
+            if start != next {
+                horizontal_displacement.set(0.0);
+                first_column.set(next);
+            }
         }
-        let Some((_, x)) = state
-            .engine
-            .logical_position_to_visual(cursor.position.line, cursor.position.column)
-        else {
-            return;
-        };
-        let width = state.engine.editor().viewport_width().max(1);
-        let start = *first_column.peek();
-        let next = UniformLayout::reveal_start(start, width, x);
-        drop(state);
-        if start != next {
-            first_column.set(next);
-        }
-    }));
+    ));
     let (grid, cursor, selected_text, tags) = model.with(|state| {
         let editor = &state.engine;
         #[allow(unused_mut)]
@@ -602,11 +648,23 @@ pub(crate) fn RustEditorSurface(
             )
         };
         #[cfg(feature = "markdown-preview")]
-        if state.preferences.wrap
-            && current_presentation(presentation_index, model).enabled()
-            && proportional_enabled(fixture, model, 0, false)
+        if current_presentation(presentation_index, model).enabled()
+            && (documentation_enabled(model)
+                || state.preferences.wrap && proportional_enabled(fixture, model, 0, false))
         {
-            if let Some(mapped) = crate::native_presentation::mapped_window(
+            if documentation_enabled(model) {
+                let values = crate::native_presentation::replacements(
+                    presentation_mode(fixture, model),
+                    editor,
+                    state.revision,
+                );
+                crate::native_presentation::map_documentation_window(
+                    editor,
+                    &mut grid.lines,
+                    &values,
+                    current_presentation(presentation_index, model),
+                );
+            } else if let Some(mapped) = crate::native_presentation::mapped_window(
                 presentation_mode(fixture, model),
                 editor,
                 state.revision,
@@ -746,6 +804,82 @@ pub(crate) fn RustEditorSurface(
     } else {
         Vec::new()
     };
+    #[cfg(feature = "markdown-preview")]
+    let queue_height = {
+        let pending = use_hook(|| {
+            Rc::new(RefCell::new(std::collections::BTreeMap::<
+                usize,
+                (
+                    crate::native_proportional_run::RunKey,
+                    crate::native_layout::CachedRunHeight,
+                ),
+            >::new()))
+        });
+        let scheduled = use_hook(|| Rc::new(std::cell::Cell::new(false)));
+        Callback::new(
+            move |(key, entry): (
+                crate::native_proportional_run::RunKey,
+                crate::native_layout::CachedRunHeight,
+            )| {
+                pending.borrow_mut().insert(entry.start, (key, entry));
+                if scheduled.replace(true) {
+                    return;
+                }
+                let pending = pending.clone();
+                let scheduled = scheduled.clone();
+                spawn(async move {
+                    // Measurement replies share an animation frame. Coalesce them
+                    // before invalidating the viewport's height and row indexes.
+                    futures_timer::Delay::new(std::time::Duration::ZERO).await;
+                    scheduled.set(false);
+                    let entries = std::mem::take(&mut *pending.borrow_mut());
+                    let Ok(view) = current_view.try_peek() else {
+                        return;
+                    };
+                    let active = view.0;
+                    drop(view);
+                    let Ok(state) = active.try_peek() else {
+                        return;
+                    };
+                    let revision = state.revision;
+                    drop(state);
+                    let presentation = current_presentation(presentation_index, active);
+                    let width = viewport_width_pixels();
+                    let epoch = font_epoch();
+                    if font_loading() {
+                        return;
+                    }
+                    let entries: Vec<_> = entries
+                        .into_values()
+                        .filter(|(key, _)| {
+                            key.model == active
+                                && key.revision == revision
+                                && key.viewport_width == width
+                                && key.font_epoch == epoch
+                                && key.presentation == presentation
+                        })
+                        .map(|(_, entry)| entry)
+                        .collect();
+                    if entries.is_empty() {
+                        return;
+                    }
+                    let replacements = presentation_index.peek().values.clone();
+                    let mut cache = current_runs();
+                    cache.with_mut(|values| {
+                        values.retain(|_, old| {
+                            (old.revision == revision
+                                || old.documentation_matches(&replacements, presentation))
+                                && old.viewport_width == width
+                                && old.font_epoch == epoch
+                        });
+                        for entry in entries {
+                            values.insert(entry.start, entry);
+                        }
+                    });
+                });
+            },
+        )
+    };
     let bracket_pair = model.with(|state| state.structure.at_caret(cursor.offset));
     let selection = cursor.selection.clone();
     let hovered_position_text = hovered_position()
@@ -768,6 +902,8 @@ pub(crate) fn RustEditorSurface(
             "data-preedit": "{preedit}",
             "data-wrap": wrap_on.to_string(),
             "data-first-column": first_column().to_string(),
+            "data-language": model.read().language.map(|language| language.slug()),
+            "data-doc-preview": model.read().preferences.doc_comment_preview.to_string(),
             "data-first-row": "{first_row}",
             "data-hover-position": "{hovered_position_text}",
             tabindex: 0,
@@ -1139,7 +1275,11 @@ pub(crate) fn RustEditorSurface(
                     scroll_displacement.set(y - heights.read().row_top(row));
                     first_row.set(row);
                     if !model.peek().preferences.wrap {
-                        first_column.set(UniformLayout::new(row_pixels(), cell_pixels()).column_at_x(event.data().scroll_left()));
+                        let layout = UniformLayout::new(row_pixels(), cell_pixels());
+                        let left = event.data().scroll_left().max(0.0);
+                        let column = layout.column_at_x(left);
+                        horizontal_displacement.set(left-layout.column_x(column));
+                        first_column.set(column);
                     }
                 },
                 div { style: "height: {heights.read().total_height()}px; width: {canvas_width}; position: relative;",
@@ -1226,6 +1366,7 @@ pub(crate) fn RustEditorSurface(
                                         }
                                     }
                                     if text_height > 0.0 { div {
+                                        key: "row:{logical_line}:{visual_row}",
                                         class: "mk-editor-core-row",
                                         "data-line": "{line.logical_line_index}",
                                         style: "height: {text_height}px; line-height: {layout.row_height()}px; position: relative;",
@@ -1301,10 +1442,20 @@ pub(crate) fn RustEditorSurface(
                                                                 let wrapped=crate::native_proportional_navigation::wrap_boundary(&result.geometry,local) || local==result.length && !result.include_end;
                                                                 caret_affinity.set(wrapped.then_some(crate::native_proportional_navigation::CaretAffinity {key:result.key,offset:previous.offset}));
                                                             }
-                                                            let mut cache = current_runs();
-                                                            let entry = crate::native_layout::CachedRunHeight { revision: result.key.revision, row: result.key.row, start: result.key.start, viewport_width: result.key.viewport_width, font_epoch: result.key.font_epoch, height: result.height, presentation: result.key.presentation };
-                                                            if cache.read().get(&entry.start) == Some(&entry) { return; }
-                                                            cache.with_mut(|values| { values.retain(|_, old| old.revision == entry.revision && old.viewport_width == entry.viewport_width && old.font_epoch == entry.font_epoch); values.insert(entry.start, entry); });
+                                                            let cache = current_runs();
+                                                            let entry = crate::native_layout::CachedRunHeight { revision: result.key.revision, row: result.key.row, start: result.key.start, viewport_width: result.key.viewport_width, font_epoch: result.key.font_epoch, height: result.height, presentation: result.key.presentation, documentation: presentation_index.peek().values.iter().find_map(|value| {
+                                                                if value.start != result.key.start || !result.key.presentation.previews(value.start,value.end) { return None; }
+                                                                match &value.style { Some(crate::native_decorations::InlineStyle::Documentation(body)) => Some((value.end, body.clone())), _ => None }
+                                                            }) };
+                                                            if cache.read().get(&entry.start).is_some_and(|old| {
+                                                                if old == &entry { return true; }
+                                                                let mut comparable = entry.clone();
+                                                                comparable.revision = old.revision;
+                                                                comparable.presentation = old.presentation;
+                                                                old.documentation_matches(&presentation_index.peek().values, entry.presentation)
+                                                                    && old == &comparable
+                                                            }) { return; }
+                                                            queue_height.call((result.key, entry));
                                                         }
                                                         },
                                                         oninvalidated: {
@@ -1688,6 +1839,15 @@ pub(crate) fn mutate<R>(
 }
 
 #[cfg(feature = "markdown-preview")]
+fn documentation_enabled(model: Signal<NativeModel>) -> bool {
+    let state = model.read();
+    state.preferences.doc_comment_preview
+        && state.language.is_some_and(|language| {
+            crate::native_doc_comments::Language::from_slug(language.slug()).is_some()
+        })
+}
+
+#[cfg(feature = "markdown-preview")]
 fn markdown_enabled(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
@@ -1704,6 +1864,8 @@ fn presentation_mode(
 ) -> crate::native_presentation::Mode {
     if markdown_enabled(fixture, model) {
         crate::native_presentation::Mode::Markdown
+    } else if documentation_enabled(model) {
+        crate::native_presentation::Mode::Documentation(model)
     } else {
         crate::native_presentation::Mode::Fixture
     }
@@ -1714,7 +1876,10 @@ fn presentation_state(
     fixture: Option<Signal<crate::LayoutFixture>>,
     model: Signal<NativeModel>,
 ) -> crate::native_layout::PresentationState {
-    if !fixture.is_some_and(|value| value().presentation) && !markdown_enabled(fixture, model) {
+    if !fixture.is_some_and(|value| value().presentation)
+        && !markdown_enabled(fixture, model)
+        && !documentation_enabled(model)
+    {
         return Default::default();
     }
     model.with(|state| {
@@ -1734,6 +1899,25 @@ fn proportional_enabled(
     folded: bool,
 ) -> bool {
     let state = model.read();
+    if documentation_enabled(model) && !folded {
+        let index = state.engine.editor().line_index();
+        let start = index.position_to_char_offset(line, 0);
+        let end = if line + 1 < index.line_count() {
+            index.position_to_char_offset(line + 1, 0).saturating_sub(1)
+        } else {
+            index.char_count()
+        };
+        let docs = state.docs.borrow();
+        let Some(values) = docs.cached(state.revision) else {
+            return false;
+        };
+        let presentation = crate::native_presentation::state_for_values(&values, &state.engine, 3);
+        return values
+            .get(values.partition_point(|value| value.end <= start))
+            .is_some_and(|value| {
+                value.start < end && presentation.previews(value.start, value.end)
+            });
+    }
     !folded
         && state.preferences.wrap
         && (markdown_enabled(fixture, model)
@@ -1763,6 +1947,49 @@ fn proportional_enabled(_: Option<Signal<()>>, _: Signal<NativeModel>, _: usize,
 #[cfg(all(test, feature = "markdown-preview"))]
 mod preview_tests {
     use super::*;
+
+    #[test]
+    fn documentation_source_entry_keeps_the_normal_code_grid() {
+        fn app() -> Element {
+            let mut model = use_signal(|| {
+                let snapshot = moonkale_ext_api::editor::EditorSnapshot {
+                    node: moonkale_core::NodeId::derive(
+                        &moonkale_core::SourceId::new("test:docs"),
+                        "a.rs",
+                    ),
+                    revision: Default::default(),
+                    text: "/// First\n/// body\nfn one() {}\n/// Second\nfn two() {}\n".into(),
+                    selection: None,
+                };
+                let mut model = NativeModel::new(&snapshot, Some(dioxus_code::Language::Rust));
+                model.set_preferences(crate::native_model::Preferences {
+                    wrap: false,
+                    doc_comment_preview: true,
+                    ..Default::default()
+                });
+                model
+            });
+            assert_eq!(presentation_state(None, model).provider, 3);
+            assert!(!proportional_enabled(None, model, 0, false));
+            assert!(!proportional_enabled(None, model, 1, false));
+            assert!(!proportional_enabled(None, model, 2, false));
+            assert!(proportional_enabled(None, model, 3, false));
+            model.with_mut(|state| {
+                state
+                    .engine
+                    .execute(Command::Cursor(CursorCommand::MoveTo {
+                        line: 4,
+                        column: 0,
+                    }))
+                    .unwrap();
+            });
+            assert!(presentation_state(None, model).revealed.is_none());
+            assert!(proportional_enabled(None, model, 0, false));
+            assert!(proportional_enabled(None, model, 3, false));
+            rsx! { "ok" }
+        }
+        VirtualDom::new(app).rebuild_in_place();
+    }
 
     #[test]
     fn settings_enable_markdown_without_a_fixture_context() {

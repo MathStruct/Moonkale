@@ -16,6 +16,8 @@ arborium-tree-sitter = "2.18.2"
 arborium-html = "2.18.2"
 arborium-markdown = "2.18.2"
 arborium-julia = "2.18.2"
+arborium-rust = { version = "2.18.2", optional = true }
+arborium-python = { version = "2.18.2", optional = true }
 editor-core = { path = "vendor/editor-core" }
 dioxus-code = { version = "0.1.2", default-features = false, features = ["runtime", "lang-julia", "lang-python", "lang-c", "lang-cpp", "lang-javascript", "lang-typescript", "lang-tsx", "lang-go", "lang-lean", "lang-nix", "lang-toml", "lang-json", "lang-yaml", "lang-markdown", "lang-typst", "lang-sql", "lang-graphql", "lang-html", "lang-css", "lang-bash"] }
 moonkale-core = { workspace = true }
@@ -40,7 +42,7 @@ arboard = { version = "3.6.1", optional = true, default-features = false, featur
 
 [features]
 default = ["markdown-preview"]
-markdown-preview = ["dep:unicode-segmentation", "dep:pulldown-cmark", "dep:base64"]
+markdown-preview = ["dep:arborium-rust", "dep:arborium-python", "dep:unicode-segmentation", "dep:pulldown-cmark", "dep:base64"]
 layout-fixture = ["markdown-preview"]
 native-desktop = ["dep:arboard"]
 spike-desktop = ["dioxus/desktop", "native-desktop"]

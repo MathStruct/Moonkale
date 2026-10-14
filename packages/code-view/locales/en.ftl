@@ -113,3 +113,6 @@ editor-properties-apply = Apply
 editor-properties-cancel = Cancel
 editor-properties-stale = This draft is out of date. Cancel and reopen Properties to edit the latest document.
 editor-properties-invalid = Use YAML property lines without front-matter delimiters.
+
+editor-doc-preview = Doc preview
+editor-doc-preview-title = Render documentation as Markdown; entering a preview reveals its source.

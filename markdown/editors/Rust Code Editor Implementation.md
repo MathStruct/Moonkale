@@ -4,6 +4,12 @@ description: Workspace integration of editor-core and the opt-in virtualized Rus
 tags: [editors, code, rust, implementation]
 ---
 
+## Documentation preview (2026-10-14)
+
+The opt-in native editor has a separate, default-off **Doc preview** setting for Rust, Python and Julia. Syntax-recognized documentation renders a text/code Markdown subset; source entry or selection reveals the exact owned comment/string, with code wrapping unchanged. Unsupported literals and media/execution syntax remain source or literal text. See ADR-0017 for recognition, ownership and cache rules.
+
+Functional and dev latency checks pass: 642 workspace tests, nine native browser suites and twelve full-app suites, including all three languages' CRLF save/undo/redo and lsp2; all 16 Source corpus files round-trip byte-exact. Same-file two-core typing measured Source 89/98 ms and previews 106/107 ms median/p95 with unchanged bounds. Release web/desktop 60 FPS acceptance is still pending; `editor-fps.mjs` records frame intervals and long-task diagnostics separately.
+
 ## Default renderer investigation (2026-10-07)
 
 The native fixture now has a mounted DOM probe for focus, editing, selection replacement, undo and resize. With Dioxus's default Linux configuration and no externally supplied renderer flags, it passes; an updated native pixel capture also shows the edited source. A production renderer defect was not reproduced, so no compositing override was added to Moonkale.

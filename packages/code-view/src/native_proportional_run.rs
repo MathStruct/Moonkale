@@ -98,7 +98,11 @@ pub(crate) fn ProportionalRun(
                 |(old, old_source, old_marks, old_tags, old_replacements, geometry)| {
                     let mut comparable = *old;
                     comparable.revision = key.revision;
-                    (old.revision != key.revision
+                    // A reveal elsewhere does not change this run's local
+                    // geometry. Exact source, marks and replacement equality
+                    // below still reject changes within the measured run.
+                    comparable.presentation = key.presentation;
+                    (*old != key
                         && comparable == key
                         && *old_source == source
                         && *old_marks == marks
@@ -309,10 +313,10 @@ pub(crate) fn ProportionalRun(
     rsx! {
         div {
             class: "mk-proportional-run", "data-ready": ready.to_string(), "data-measurement-status": "{measurement_status}", "data-source-start": stamp.start.to_string(), "data-font-epoch": stamp.font_epoch.to_string(), "data-font-loading": font_loading.to_string(),
-            style: "display:inline-block; vertical-align:top; width:calc(100% - 9ch); position:relative;",
+            style: if stamp.presentation.provider==3 {format!("display:inline-block; vertical-align:top; width:calc({}px - 9ch); position:relative;",stamp.viewport_width)} else {"display:inline-block; vertical-align:top; width:calc(100% - 9ch); position:relative;".to_string()},
             div {
                 id, class: "mk-proportional-text",
-                style: "font:24px/32px serif; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:4; min-height:32px; direction:ltr; user-select:none;",
+                style: if stamp.presentation.provider==3 {format!("font:14px/22px var(--mk-code-font, monospace); white-space:{}; overflow-wrap:{}; tab-size:4; min-height:22px; direction:ltr; user-select:none;",if stamp.model.peek().preferences.wrap {"pre-wrap"}else{"pre"},if stamp.model.peek().preferences.wrap {"anywhere"}else{"normal"})} else {"font:24px/32px serif; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:4; min-height:32px; direction:ltr; user-select:none;".to_string()},
                 onmounted: move |_| measure.call(()), onresize: move |event| {
                     let unchanged=event.data().get_border_box_size().ok().is_some_and(|size| measured.peek().as_ref().is_some_and(|(_,_,_,_,_,layout)| (layout.width-size.width).abs()<0.000001 && (layout.height-size.height).abs()<0.000001));
                     if !unchanged { measured.set(None); oninvalidated.call(stamp); measure.call(()); }
@@ -374,10 +378,10 @@ pub(crate) fn ProportionalRun(
                             class: "mk-native-inline-widget {replacement.style.as_ref().map(|style| style.class()).unwrap_or_default()}",
                             "data-source-start": "{replacement.start}", "data-source-end": "{replacement.end}",
                             "data-heading-level": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Heading(level, _) = style { Some(level.to_string()) } else { None }),
-                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Callout(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))).to_string(),
+                            "data-block-preview": matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Callout(_) | crate::native_decorations::InlineStyle::Documentation(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))).to_string(),
                             "data-code-language": replacement.style.as_ref().and_then(|style| if let crate::native_decorations::InlineStyle::Fenced { language, .. } = style { Some(language.clone()) } else { None }),
                             contenteditable: "false",
-                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Callout(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
+                            style: if replacement.widget.is_some() && replacement.style.is_none() { "display:inline; background:#dce8fa; border-radius:4px;" } else if matches!(replacement.style, Some(crate::native_decorations::InlineStyle::Fenced { .. } | crate::native_decorations::InlineStyle::ListItem { .. } | crate::native_decorations::InlineStyle::Image(_) | crate::native_decorations::InlineStyle::Table(_) | crate::native_decorations::InlineStyle::Callout(_) | crate::native_decorations::InlineStyle::Documentation(_) | crate::native_decorations::InlineStyle::Math(crate::native_math_parser::Math{display:true,..}))) { "display:inline-block; width:100%; max-width:100%; vertical-align:top; pointer-events:none;" } else if replacement.style.is_some() { "display:inline-block; max-width:100%; vertical-align:top; pointer-events:none;" } else { "display:inline;" },
                             if let Some(style @ (crate::native_decorations::InlineStyle::Nested(_) | crate::native_decorations::InlineStyle::Heading(_, _) | crate::native_decorations::InlineStyle::Link(_))) = &replacement.style {
                                 for (fragment_index, fragment) in fragments(style).iter().enumerate() {
                                     MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks),onlayout:media_changed,onpointer:math_pointer }
@@ -391,6 +395,8 @@ pub(crate) fn ProportionalRun(
                                         MarkdownFragment { fragment: fragment.clone(), identity: format!("{}:{fragment_index}",replacement.start), resolved: fragment_resolved(fragment,&marks),onlayout:media_changed,onpointer:math_pointer }
                                     }
                                 }
+                            } else if let Some(crate::native_decorations::InlineStyle::Documentation(doc)) = &replacement.style {
+                                DocumentationView {doc:doc.clone(),start:replacement.start, onlayout:media_changed,onpointer:math_pointer}
                             } else if let Some(crate::native_decorations::InlineStyle::Callout(callout)) = &replacement.style {
                                 CalloutView {key:"callout:{stamp.start}:{replacement.start}",callout:callout.clone(), start:replacement.start, marks:marks.clone(),onlayout:media_changed,onpointer:math_pointer}
                             } else if let Some(crate::native_decorations::InlineStyle::Table(table)) = &replacement.style {
@@ -462,6 +468,7 @@ fn fragments(
         InlineStyle::ListItem { fragments, .. } => fragments,
         InlineStyle::Table(table) => &table.fragments,
         InlineStyle::Callout(callout) => &callout.fragments,
+        InlineStyle::Documentation(doc) => &doc.fragments,
         _ => &[],
     }
 }
@@ -501,6 +508,75 @@ fn fragment_resolved(
                 })
         }
         _ => true,
+    }
+}
+
+#[component]
+fn DocumentationCode(
+    language: String,
+    text: String,
+    cached: Rc<std::cell::RefCell<Option<Vec<crate::native_decorations::CodeFragment>>>>,
+) -> Element {
+    let fragments = use_memo(use_reactive!(|language, text| {
+        if let Some(fragments) = cached.borrow().as_ref() {
+            return fragments.clone();
+        }
+
+        let result = crate::native_markdown::highlighted_code(&text, &language);
+
+        match result {
+            crate::native_decorations::InlineStyle::Fenced { fragments, .. } => {
+                *cached.borrow_mut() = Some(fragments.clone());
+                fragments
+            }
+            _ => Vec::new(),
+        }
+    }));
+    rsx! {div {class:"mk-doc-code dxc", "data-code-language":language,
+        for fragment in fragments.read().iter() {span {class:fragment.class.clone(),"{fragment.text}"}}
+    }}
+}
+
+#[component]
+fn DocumentationView(
+    doc: Rc<crate::native_doc_comments::Document>,
+    start: usize,
+    onlayout: Callback<()>,
+    onpointer: Callback<(String, MouseEvent)>,
+) -> Element {
+    use crate::native_doc_comments::Block;
+    rsx! {
+        div { class: "mk-doc-body", role: "document",
+            for block in &doc.blocks {
+                match block {
+                    Block::Text { heading, quote, marker, fragments } => rsx! {
+                        div { class: "mk-doc-row", "data-heading-level": heading.to_string(), "data-quote-depth": quote.to_string(),
+                            "data-list-marker": marker.as_ref().map(|(_, marker)|marker.clone()),
+                            style: format!("padding-left:{}px;",marker.as_ref().map_or(0,|(depth,_)|depth*16)+quote*12),
+                            for index in fragments.clone() {
+                                MarkdownFragment {fragment:doc.fragments[index].clone(),identity:format!("{start}:{index}"),resolved:true,onlayout,onpointer}
+                            }
+                        }
+                    },
+                    Block::Code { language, text, cached } => rsx! { DocumentationCode {language:language.clone(),text:text.clone(),cached:cached.clone()} },
+                    Block::Table { alignments, rows } => rsx! {
+                        div { class: "mk-table", role: "table",
+                            for (row_index, row) in rows.iter().enumerate() {
+                                div { class: "mk-table-row", role: "row", style: format!("grid-template-columns:repeat({},minmax(0,1fr));",alignments.len()),
+                                    for (column, cell) in row.iter().enumerate() {
+                                        div { class: "mk-table-cell", role: if row_index==0 {"columnheader"}else{"cell"}, style: format!("text-align:{};",alignments[column]),
+                                            for index in cell.clone() {
+                                                MarkdownFragment {fragment:doc.fragments[index].clone(),identity:format!("{start}:{index}"),resolved:true,onlayout,onpointer}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
     }
 }
 

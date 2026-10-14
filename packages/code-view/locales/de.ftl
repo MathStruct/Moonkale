@@ -113,3 +113,6 @@ editor-properties-apply = Übernehmen
 editor-properties-cancel = Abbrechen
 editor-properties-stale = Dieser Entwurf ist veraltet. Abbrechen und Eigenschaften erneut öffnen, um das aktuelle Dokument zu bearbeiten.
 editor-properties-invalid = YAML-Eigenschaften ohne Metadaten-Begrenzungszeilen eingeben.
+
+editor-doc-preview = Dokuvorschau
+editor-doc-preview-title = Dokumentation als Markdown darstellen; die Vorschau zeigt beim Bearbeiten ihren Quelltext.

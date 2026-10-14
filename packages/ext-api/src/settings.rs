@@ -245,6 +245,9 @@ pub struct EditorFile {
     /// Opt-in bounded inline preview in the Rust Markdown source editor.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub markdown_preview: Option<bool>,
+    /// Opt-in documentation previews in the native Rust/Python/Julia editor.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc_comment_preview: Option<bool>,
     /// Which code editor opens a text document when both are enabled:
     /// `codemirror` (default) or `native` (Milestone 14).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -381,6 +384,10 @@ impl SettingsFile {
             .editor
             .markdown_preview
             .or(self.editor.markdown_preview);
+        self.editor.doc_comment_preview = other
+            .editor
+            .doc_comment_preview
+            .or(self.editor.doc_comment_preview);
         self.editor.implementation = other
             .editor
             .implementation
@@ -558,6 +565,9 @@ pub struct EditorSettings {
     /// Rust source inline preview (default off).
     #[serde(default)]
     pub markdown_preview: bool,
+    /// Documentation previews in supported native code editors (default off).
+    #[serde(default)]
+    pub doc_comment_preview: bool,
     /// `codemirror` | `native` (Milestone 14).
     pub implementation: String,
     /// Rich editor typography: size in px (default 16), body and code
@@ -766,6 +776,7 @@ impl Settings {
                 indent_width: merged.editor.indent_width.map(|width| width.clamp(1, 8)),
                 markdown_rich: merged.editor.markdown_rich.unwrap_or(true),
                 markdown_preview: merged.editor.markdown_preview.unwrap_or(false),
+                doc_comment_preview: merged.editor.doc_comment_preview.unwrap_or(false),
                 implementation: merged
                     .editor
                     .implementation
@@ -1170,6 +1181,38 @@ mod layout_record_tests {
         json.as_object_mut().unwrap().remove("markdown_preview");
         let old: EditorSettings = serde_json::from_value(json).unwrap();
         assert!(!old.markdown_preview);
+    }
+    #[test]
+    fn doc_comment_preview_is_independent_optional_and_layered() {
+        let empty = SettingsFile::new();
+        assert!(
+            !Settings::resolve(&empty, &empty, &empty)
+                .editor
+                .doc_comment_preview
+        );
+        let user = SettingsFile::parse(r#"{"editor":{"doc_comment_preview":true}}"#).unwrap();
+        let workspace = SettingsFile::parse(
+            r#"{"editor":{"doc_comment_preview":false,"markdown_preview":true}}"#,
+        )
+        .unwrap();
+        assert!(
+            Settings::resolve(&user, &empty, &empty)
+                .editor
+                .doc_comment_preview
+        );
+        let resolved = Settings::resolve(&user, &workspace, &empty);
+        assert!(!resolved.editor.doc_comment_preview && resolved.editor.markdown_preview);
+        assert_eq!(
+            SettingsFile::parse(&serde_json::to_string(&user).unwrap()).unwrap(),
+            user
+        );
+        let mut json = serde_json::to_value(&resolved.editor).unwrap();
+        json.as_object_mut().unwrap().remove("doc_comment_preview");
+        assert!(
+            !serde_json::from_value::<EditorSettings>(json)
+                .unwrap()
+                .doc_comment_preview
+        );
     }
     #[test]
     fn indentation_overrides_merge_clamp_and_keep_language_defaults() {

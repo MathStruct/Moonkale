@@ -337,3 +337,17 @@ The link fixture keeps all 240 sections, 720 list/task items and 480 links. Plai
 
 
 `native-editor-properties.mjs` checks the expandable YAML bar, source-row collapse/reveal, draft cancellation, clipboard ownership, composition and mode-switch cleanup, atomic undo/redo, stale-draft rejection, delimiter guards, and CRLF-preserving add/remove edits. `live-preview-properties.mjs` verifies Save applies the draft, file/body bytes remain intact, undo/redo and Source/Preview switching work, and edits stay isolated between notes. The CI smoke list includes the full-app properties suite.
+
+
+### Documentation preview and frame measurements
+
+`native-editor-doc-preview.mjs` exercises the production-panel fixture in Rust, Python and Julia, including source entry, links, search, exact copy, composition, wrapping and history. `doc-preview.mjs` checks full-app CRLF save/history; `doc-preview-long.mjs` compares preview on/off on the same 263 KB Rust file and checks owners past 4096 characters, bounded rows and exact canonical copy. Run the long comparison in isolation, with both server and browser restricted to two cores; its existing relative limits remain unchanged.
+
+`editor-fps.mjs` measures CED-R22 frame intervals for highlighted 5000-line Rust and spec 018's 3 MB single line. It records typing, repeated held arrows, wheel/small-delta scrolling, scrollbar/selection drags and caret movement, plus supported long-animation-frame/longtask entries. Reports include build kind and browser version. It is deliberately outside run-all's strict list until release web and desktop meet the requirement. A dev run cannot establish release acceptance; this browser harness does not claim desktop WebView evidence.
+
+```sh
+# Copy the script beside the installed Playwright module, as run-all does.
+M1_ROOT=/path/to/disposable/fixture M1_SHOTS=/path/to/reports PORT=8094 \
+  FPS_BUILD=release-web node /path/to/playwright/editor-fps.mjs
+# Add FPS_STRICT=1 to fail a release web run at p95 > 16.7 ms or max > 50 ms.
+```

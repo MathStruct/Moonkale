@@ -14,6 +14,8 @@ pub(crate) enum Provider {
     Fixture,
     #[cfg(feature = "markdown-preview")]
     Markdown,
+    #[cfg(feature = "markdown-preview")]
+    Documentation,
 }
 
 #[derive(Clone, PartialEq)]
@@ -48,6 +50,8 @@ pub(crate) enum InlineStyle {
     Table(std::rc::Rc<crate::native_markdown_tables::Table>),
     #[cfg(feature = "markdown-preview")]
     Callout(std::rc::Rc<crate::native_markdown_callouts::Callout>),
+    #[cfg(feature = "markdown-preview")]
+    Documentation(std::rc::Rc<crate::native_doc_comments::Document>),
     #[cfg(feature = "markdown-preview")]
     Math(crate::native_math_parser::Math),
     #[cfg(feature = "markdown-preview")]
@@ -88,6 +92,7 @@ impl InlineStyle {
             Self::Image(_) => "mk-markdown-image",
             Self::Table(_) => "mk-markdown-table",
             Self::Callout(_) => "mk-markdown-callout",
+            Self::Documentation(_) => "mk-documentation-preview",
             Self::Math(_) => "mk-markdown-math",
             Self::Fenced { .. } => "mk-markdown-fenced dxc",
             Self::ListItem { .. } => "mk-markdown-list-item",

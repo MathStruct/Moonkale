@@ -1,6 +1,7 @@
 //! Source-owned presentation provider and explicit scalar source mapping.
 use crate::native_decorations::{Batch, Decoration, InlineStyle, Kind, Provider};
 use crate::native_layout::PresentationState;
+use dioxus::prelude::ReadableExt;
 use moonkale_ext_api::editor::DocumentRevision;
 use serde::Serialize;
 
@@ -8,12 +9,22 @@ use serde::Serialize;
 pub(crate) enum Mode {
     Fixture,
     Markdown,
+    Documentation(dioxus::prelude::Signal<crate::native_model::NativeModel>),
 }
 
 pub(crate) fn provider(mode: Mode, revision: DocumentRevision, source: &str) -> Batch {
     match mode {
         Mode::Fixture => fixture(revision, source),
         Mode::Markdown => crate::native_markdown::batch(revision, source),
+        Mode::Documentation(model) => {
+            let state = model.peek();
+            crate::native_doc_comments::Language::from_slug(state.language.unwrap().slug())
+                .map(|language| state.docs.borrow_mut().batch(language, revision, source))
+                .unwrap_or(Batch {
+                    revision,
+                    values: Vec::new(),
+                })
+        }
     }
 }
 
@@ -146,6 +157,25 @@ pub(crate) fn replacements(
     revision: DocumentRevision,
 ) -> std::rc::Rc<Vec<Replacement>> {
     use crate::native_decorations::{Decorations, Window};
+    if let Mode::Documentation(model) = mode {
+        let state = model.peek();
+        if let Some(values) = state.docs.borrow().cached(revision) {
+            return values;
+        }
+        // Local deltas already updated the normalized syntax source. Only a
+        // replacement or unsupported batch needs another engine snapshot.
+        let source = state
+            .docs
+            .borrow()
+            .updated_source(revision)
+            .unwrap_or_else(|| editor.editor().get_text());
+        return state.docs.borrow_mut().replacements(
+            crate::native_doc_comments::Language::from_slug(state.language.unwrap().slug())
+                .unwrap(),
+            revision,
+            &source,
+        );
+    }
     let length = source_length(editor);
     let source = editor.editor().text_range(0, length);
     if let Some(values) = REPLACEMENTS.with(|cache| {
@@ -193,7 +223,11 @@ pub(crate) fn state(
     state_for_values(
         &replacements(mode, editor, revision),
         editor,
-        if mode == Mode::Markdown { 2 } else { 1 },
+        match mode {
+            Mode::Markdown => 2,
+            Mode::Documentation(_) => 3,
+            Mode::Fixture => 1,
+        },
     )
 }
 
@@ -290,6 +324,53 @@ pub(crate) fn mapped_window(
     Some(MappedRuns { lines, collapsed })
 }
 
+/// Code keeps its bounded horizontal windows; only documentation materializes an owner.
+pub(crate) fn map_documentation_window(
+    editor: &editor_core::EditorStateManager,
+    lines: &mut [editor_core::HeadlessLine],
+    values: &[Replacement],
+    state: PresentationState,
+) {
+    let index = editor.editor().line_index();
+    for line in lines {
+        if line.is_fold_placeholder_appended {
+            continue;
+        }
+        let logical_start = index.position_to_char_offset(line.logical_line_index, 0);
+        let logical_end = if line.logical_line_index + 1 < index.line_count() {
+            index
+                .position_to_char_offset(line.logical_line_index + 1, 0)
+                .saturating_sub(1)
+        } else {
+            index.char_count()
+        };
+        let candidate = values.get(values.partition_point(|value| value.end <= logical_start));
+        let Some(owner) = candidate
+            .filter(|value| value.start < logical_end && state.previews(value.start, value.end))
+        else {
+            continue;
+        };
+        let start = if logical_start == owner.start && !line.is_wrapped_part {
+            owner.start
+        } else {
+            mapped_boundary(values, state, line.char_offset_start)
+        };
+        let end = mapped_boundary(
+            values,
+            state,
+            line.char_offset_end.max(logical_end.min(owner.end)),
+        );
+        line.char_offset_start = start;
+        line.char_offset_end = end;
+        line.cells = editor
+            .editor()
+            .text_range(start, end.saturating_sub(start))
+            .chars()
+            .map(|ch| editor_core::Cell::new(ch, 1))
+            .collect();
+    }
+}
+
 /// Determine collapsed continuation rows without allocating source cell arrays.
 pub(crate) fn collapsed_rows(
     editor: &editor_core::EditorStateManager,
@@ -306,12 +387,36 @@ pub(crate) fn collapsed_rows(
         .filter(|fold| fold.is_collapsed)
         .collect();
     let mut rows = Vec::new();
+    let unwrapped = collapsed_folds.is_empty()
+        && editor.editor().layout_engine().wrap_mode() == editor_core::WrapMode::None;
     for value in values
         .iter()
         .filter(|value| state.previews(value.start, value.end))
     {
         let (start_line, start_col) = index.char_offset_to_position(value.start);
         let (end_line, end_col) = index.char_offset_to_position(value.end);
+        if unwrapped {
+            for row in (if value.widget.is_none() {
+                start_line
+            } else {
+                start_line + 1
+            })..=end_line
+            {
+                let start = index.position_to_char_offset(row, 0);
+                let end = if row + 1 < index.line_count() {
+                    index.position_to_char_offset(row + 1, 0).saturating_sub(1)
+                } else {
+                    index.char_count()
+                };
+                if (value.start < start || value.widget.is_none() && value.start == start)
+                    && start < value.end
+                    && end <= value.end
+                {
+                    rows.push(row);
+                }
+            }
+            continue;
+        }
         if collapsed_folds
             .iter()
             .any(|fold| fold.start_line <= end_line && start_line <= fold.end_line)
@@ -691,6 +796,62 @@ mod tests {
         assert_eq!(preview_mask(&values, 30, Some(4..8)), 2);
         assert_eq!(preview_mask(&values, 30, Some(13..14)), 3);
         assert_eq!(preview_mask(&values, 30, Some(0..30)), 0);
+    }
+
+    #[test]
+    fn unwrapped_collapsed_rows_include_blank_and_complete_continuations() {
+        let source = "before\n/// First\n///\n/// Last\nafter\n";
+        let mut editor = editor_core::EditorStateManager::new(source, 12);
+        editor
+            .execute(editor_core::Command::View(
+                editor_core::ViewCommand::SetWrapMode {
+                    mode: editor_core::WrapMode::None,
+                },
+            ))
+            .unwrap();
+        let start = source.find("///").unwrap();
+        let end = source.find("\nafter").unwrap();
+        let values = vec![Replacement {
+            start,
+            end,
+            widget: Some("FirstLast".into()),
+            style: None,
+        }];
+        assert_eq!(collapsed_rows(&editor, &values, all(3)), vec![2, 3]);
+        assert!(
+            collapsed_rows(&editor, &values, preview_state(&values, start, None, 3)).is_empty()
+        );
+        editor.replace_folding_regions(
+            vec![editor_core::FoldRegion {
+                start_line: 1,
+                end_line: 3,
+                is_collapsed: true,
+                placeholder: "[...]".into(),
+            }],
+            false,
+        );
+        assert!(collapsed_rows(&editor, &values, all(3)).is_empty());
+    }
+
+    #[test]
+    fn documentation_mapping_preserves_bounded_code_windows() {
+        let prefix = "/// First\n/// Second\n";
+        let source = format!("{prefix}let value = {};\n", "x".repeat(100_000));
+        let editor = editor_core::EditorStateManager::new(&source, 30);
+        let mut lines = editor.get_viewport_content_window(0, 3, 0, 30).lines;
+        let code = lines[2].cells.clone();
+        let values = vec![Replacement {
+            start: 0,
+            end: prefix.chars().count() - 1,
+            widget: Some("FirstSecond".into()),
+            style: None,
+        }];
+        map_documentation_window(&editor, &mut lines, &values, all(3));
+        assert_eq!(lines[0].cells.len(), prefix.chars().count() - 1);
+        assert!(lines[1].cells.is_empty());
+        assert_eq!(lines[2].cells, code);
+        assert!(lines[2].cells.len() <= 31);
+        assert_eq!(editor.editor().get_text(), source);
     }
 
     #[test]

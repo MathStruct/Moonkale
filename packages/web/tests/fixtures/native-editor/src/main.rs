@@ -743,6 +743,7 @@ fn App() -> Element {
             .open
             .with_mut(|docs| docs.push((python.id, python_doc)));
         for (name, text) in [
+            ("nested.rs", "fn sample() {}\r\n"),
             ("nested.html", "<main>\r\n  <section>\r\n    😀 needle\r\n  </section>\r\n</main>\r\n"),
             ("nested.md", "# Outer\r\nintro\r\n## Inner\r\n```rust\r\nneedle 😀\r\n```\r\n# Next\r\nlast\r\n"),
             ("nested.lean", "namespace Demo\r\nsection Inner\r\ntheorem outer : True := by\r\n  have h : True := by\r\n    trivial -- needle 😀\r\n  exact h\r\nend Inner\r\nend Demo\r\ndef next : Nat :=\r\n  42\r\n"),
@@ -990,6 +991,18 @@ fn App() -> Element {
         button { id: "wiki-delay", onclick: move |_| WIKI_DELAY.with(|hold| hold.set(true)), "Hold wiki lookup" }
         button { id: "wiki-release", onclick: move |_| WIKI_DELAY.with(|hold| hold.set(false)), "Release wiki lookup" }
         button { id: "python", onclick: move |_| show_python.toggle(), "Python fixture" }
+        for (name, text) in [
+            ("rust", "/// # Rust docs 猫\r\n///\r\n/// **Bold** [Web](https://example.org/docs) [[Wiki]] $x$ <safe>.\r\n///\r\n/// - parent\r\n///   - child\r\n///\r\n/// ```rust,no_run\r\n/// fn example() {}\r\n/// ```\r\n///\r\n/// | A | B |\r\n/// |---|---|\r\n/// |one|two|\r\nfn sample() {}\r\n// ordinary comment\r\nlet text = \"/// ordinary string\";\r\n\r\n/** Second `documentation`. */\r\nfn another() {}\r\n"),
+            ("python", "\"\"\"# Python docs 猫\r\n\r\nModule **documentation**.\r\n\"\"\"\r\nvalue = 'ordinary string'\r\n\r\ndef sample():\r\n    \"\"\"Function `documentation`.\r\n\r\n    - item\r\n    \"\"\"\r\n    return 1\r\n\r\ndef other():\r\n    value = 2\r\n    'not first'\r\n"),
+            ("julia", "\"\"\"# Julia docs 猫\r\n\r\nFunction **documentation**.\r\n\"\"\"\r\nfunction sample(x)\r\n    return x\r\nend\r\n\r\nraw\"\"\"Type `documentation`.\"\"\"\r\nstruct Example\r\nend\r\n\r\n\"Detached string\"\r\n\r\nother(x) = x\r\n"),
+        ] {
+            button { id: "doc-{name}", onclick: move |_| {
+                let filename=match name {"rust"=>"nested.rs","python"=>"nested.py",_=>"nested.jl"};
+                let id=NodeId::derive(&doc.peek().node.source,filename);
+                if let Some(mut target)=ws.document(id) {target.write().text=text.into();}
+                show_language.set(Some(id)); let mut ws=ws;ws.docs.active.set(Some(id));layout_fixture.set(Default::default());
+            }, "{name} documentation" }
+        }
         button { id: "mount", onclick: move |_| mounted.toggle(), "Toggle mount" }
         button { id: "presence", onclick: move |_| {
             let mut members = ws.session.presence;

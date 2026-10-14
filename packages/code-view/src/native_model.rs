@@ -12,6 +12,7 @@ use moonkale_ext_api::editor::{
 pub(crate) struct Preferences {
     pub wrap: bool,
     pub markdown_preview: bool,
+    pub doc_comment_preview: bool,
     pub insert_spaces: Option<bool>,
     pub indent_width: Option<u8>,
 }
@@ -20,6 +21,7 @@ impl Default for Preferences {
         Self {
             wrap: true,
             markdown_preview: false,
+            doc_comment_preview: false,
             insert_spaces: None,
             indent_width: None,
         }
@@ -46,6 +48,8 @@ pub(crate) struct NativeModel {
     pub structure_dirty: bool,
     pub preferences: Preferences,
     pub max_columns: usize,
+    #[cfg(feature = "markdown-preview")]
+    pub docs: std::cell::RefCell<crate::native_doc_comments::Index>,
     lines: Vec<LineMetrics>,
     widths: std::collections::BTreeMap<usize, usize>,
     pub normalized_chars: usize,
@@ -66,6 +70,8 @@ impl NativeModel {
             structure_dirty: false,
             preferences: Default::default(),
             max_columns: 0,
+            #[cfg(feature = "markdown-preview")]
+            docs: std::cell::RefCell::new(Default::default()),
             lines: Vec::new(),
             widths: Default::default(),
             normalized_chars: 0,
@@ -79,7 +85,15 @@ impl NativeModel {
         let width = self.engine.editor().viewport_width();
         let previous = self.engine.get_folding_state().regions;
         let preferences = self.preferences;
+        #[cfg(feature = "markdown-preview")]
+        let mut docs = std::mem::take(self.docs.get_mut());
+        #[cfg(feature = "markdown-preview")]
+        docs.rebuild();
         *self = Self::new(snapshot, self.language);
+        #[cfg(feature = "markdown-preview")]
+        {
+            *self.docs.get_mut() = docs;
+        }
         self.set_preferences(preferences);
         let _ = self.engine.execute(editor_core::Command::View(
             editor_core::ViewCommand::SetViewportWidth { width },
@@ -129,6 +143,20 @@ impl NativeModel {
                 .filter(|line| line.crlf && byte > line.byte + line.bytes - 2)
                 .count()
         };
+        #[cfg(feature = "markdown-preview")]
+        if self.preferences.doc_comment_preview && batch.changes.len() == 1 {
+            let change = &batch.changes[0];
+            self.docs.borrow_mut().apply_delta(
+                batch.base_revision,
+                snapshot.revision,
+                normalized_byte(change.range.start)..normalized_byte(change.range.end),
+                &change.inserted_text.replace("\r\n", "\n"),
+            );
+        }
+        #[cfg(feature = "markdown-preview")]
+        if self.preferences.doc_comment_preview && batch.changes.len() != 1 {
+            self.docs.borrow_mut().rebuild();
+        }
         if let Some(buffer) = &mut self.highlight {
             let normalized = snapshot.text.replace("\r\n", "\n");
             let result = if buffer.source() == normalized {
@@ -204,6 +232,10 @@ impl NativeModel {
             return;
         }
         self.preferences = preferences;
+        #[cfg(feature = "markdown-preview")]
+        if !preferences.doc_comment_preview {
+            *self.docs.get_mut() = Default::default();
+        }
         crate::native_language::configure_preferences(
             &mut self.engine,
             self.language,
@@ -232,18 +264,33 @@ impl NativeModel {
     fn metrics(text: &str, tab: usize, terminal: bool) -> Vec<LineMetrics> {
         let mut lines: Vec<_> = text
             .split_inclusive('\n')
-            .map(|line| LineMetrics {
-                byte: 0,
-                normalized_start: 0,
-                utf16: 0,
-                bytes: line.len(),
-                units: line.encode_utf16().count() as u32,
-                chars: line.chars().count() - usize::from(line.ends_with("\r\n")),
-                crlf: line.ends_with("\r\n"),
-                width: editor_core::str_width_with_tab_width(
-                    line.trim_end_matches(['\r', '\n']),
-                    tab,
-                ),
+            .map(|line| {
+                let ascii = line.is_ascii();
+                let content = line.trim_end_matches(['\r', '\n']);
+                let printable_ascii =
+                    ascii && content.bytes().all(|byte| (b' '..=b'~').contains(&byte));
+                LineMetrics {
+                    byte: 0,
+                    normalized_start: 0,
+                    utf16: 0,
+                    bytes: line.len(),
+                    units: if ascii {
+                        line.len()
+                    } else {
+                        line.encode_utf16().count()
+                    } as u32,
+                    chars: if ascii {
+                        line.len()
+                    } else {
+                        line.chars().count()
+                    } - usize::from(line.ends_with("\r\n")),
+                    crlf: line.ends_with("\r\n"),
+                    width: if printable_ascii {
+                        content.len()
+                    } else {
+                        editor_core::str_width_with_tab_width(content, tab)
+                    },
+                }
             })
             .collect();
         if terminal && (text.is_empty() || text.ends_with('\n')) {
@@ -331,6 +378,57 @@ impl NativeModel {
         }
         self.lines.splice(start_line..=end_line, lines);
         self.index_metrics();
+    }
+    /// Bounded status text; full identifiers remain available to semantic actions.
+    pub fn cursor_word_preview(&self, canonical: &str, limit: usize) -> Option<String> {
+        if limit == 0 {
+            return None;
+        }
+        let cursor = self.engine.get_cursor_state().position;
+        let metrics = self.lines.get(cursor.line)?;
+        let line = canonical
+            .get(metrics.byte..metrics.byte + metrics.bytes)?
+            .trim_end_matches(['\r', '\n']);
+        let index = self.engine.editor().line_index();
+        let line_byte =
+            index.char_offset_to_byte_offset(index.position_to_char_offset(cursor.line, 0));
+        let byte = index
+            .char_offset_to_byte_offset(index.position_to_char_offset(cursor.line, cursor.column))
+            - line_byte;
+        let byte = byte.min(line.len());
+        let word = |ch: char| ch.is_alphanumeric() || ch == '_';
+        let anchor = if line[byte..].chars().next().is_some_and(word) {
+            byte
+        } else {
+            line[..byte]
+                .char_indices()
+                .next_back()
+                .filter(|(_, ch)| word(*ch))?
+                .0
+        };
+        let (mut start, mut left) = (anchor, 0);
+        for (byte, ch) in line[..anchor].char_indices().rev().take(limit - 1) {
+            if !word(ch) {
+                break;
+            }
+            start = byte;
+            left += 1;
+        }
+        let prefix_cut = line[..start].chars().next_back().is_some_and(word);
+        let mut end = anchor;
+        for (byte, ch) in line[anchor..].char_indices().take(limit - left) {
+            if !word(ch) {
+                break;
+            }
+            end = anchor + byte + ch.len_utf8();
+        }
+        let suffix_cut = line[end..].chars().next().is_some_and(word);
+        Some(format!(
+            "{}{}{}",
+            if prefix_cut { "…" } else { "" },
+            &line[start..end],
+            if suffix_cut { "…" } else { "" }
+        ))
     }
     pub fn cursor_line_col(&self, canonical: &str) -> (u32, u32) {
         let position = self.engine.get_cursor_state().position;
@@ -660,6 +758,59 @@ mod tests {
         }
     }
     #[test]
+    fn cursor_status_is_bounded_without_changing_semantic_words() {
+        let source = format!("😀total_sum\r\n{}", "x".repeat(3_000_000));
+        let snapshot = EditorSnapshot {
+            node: moonkale_core::NodeId::derive(
+                &moonkale_core::SourceId::new("test:word"),
+                "a.txt",
+            ),
+            revision: Default::default(),
+            text: source,
+            selection: None,
+        };
+        let mut model = NativeModel::new(&snapshot, None);
+        let _ = model.engine.execute(editor_core::Command::Cursor(
+            editor_core::CursorCommand::MoveTo { line: 0, column: 1 },
+        ));
+        assert_eq!(
+            model.cursor_word_preview(&snapshot.text, 128).as_deref(),
+            Some("total_sum")
+        );
+        let _ = model.engine.execute(editor_core::Command::Cursor(
+            editor_core::CursorCommand::MoveTo { line: 1, column: 0 },
+        ));
+        let preview = model.cursor_word_preview(&snapshot.text, 128).unwrap();
+        assert_eq!(preview, format!("{}…", "x".repeat(128)));
+        assert!(model.cursor_word_preview(&snapshot.text, 0).is_none());
+    }
+
+    #[test]
+    fn line_metrics_preserve_ascii_controls_tabs_unicode_and_crlf() {
+        for source in [
+            "plain source\r\n",
+            "\0\tcontent\r\n",
+            "ASCII\x1b\n",
+            "猫 😀e\u{301}\t\n",
+            "",
+            "tail",
+        ] {
+            let lines = NativeModel::metrics(source, 4, false);
+            for (line, actual) in source.split_inclusive('\n').zip(lines) {
+                assert_eq!(actual.units, line.encode_utf16().count() as u32);
+                assert_eq!(
+                    actual.chars,
+                    line.chars().count() - usize::from(line.ends_with("\r\n"))
+                );
+                assert_eq!(
+                    actual.width,
+                    editor_core::str_width_with_tab_width(line.trim_end_matches(['\r', '\n']), 4)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn incremental_crlf_byte_edits_match_fresh_syntax_highlighting() {
         let mut doc = RevisionedDocument::new(
             NodeId::fresh("crlf-syntax"),
@@ -938,6 +1089,7 @@ mod tests {
         model.replace(&base);
         let preferences = Preferences {
             markdown_preview: true,
+            doc_comment_preview: false,
             wrap: false,
             insert_spaces: Some(true),
             indent_width: Some(2),
@@ -976,6 +1128,7 @@ mod tests {
         let mut model = NativeModel::new(&base, None);
         model.set_preferences(Preferences {
             markdown_preview: false,
+            doc_comment_preview: false,
             wrap: false,
             insert_spaces: None,
             indent_width: Some(4),

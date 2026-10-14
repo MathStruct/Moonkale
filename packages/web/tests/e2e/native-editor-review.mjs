@@ -36,6 +36,19 @@ try {
   console.log("ok: cursor word visibility preserves source geometry during forward/backward pointer selection");
   await page.click("#large");
   await page.waitForFunction(() => document.querySelector(".canonical")?.textContent.length === 3_000_000);
+  const wrap = page.locator(".primary .mk-native-wrap");
+  await wrap.click();
+  await page.waitForFunction(() => document.querySelector(".primary .mk-native-surface")?.dataset.wrap === "false");
+  const viewport = page.locator(".primary .mk-editor-core-viewport");
+  for (const left of [3, 20]) {
+    await viewport.evaluate((el,left) => { el.scrollLeft = left; },left);
+    await page.waitForTimeout(750); // includes the periodic size measurement
+    const actual = await viewport.evaluate(el => el.scrollLeft);
+    if (Math.abs(actual-left)>1) throw Error(`horizontal scroll snapped ${left} to ${actual}`);
+  }
+  await wrap.click();
+  await page.waitForFunction(() => document.querySelector(".primary .mk-native-surface")?.dataset.wrap === "true");
+  console.log("ok: sub-cell horizontal scroll offsets survive rendering and measurement");
   const before = await page.locator(".primary").evaluate(el => ({
     rows: el.querySelectorAll(".mk-editor-core-row").length,
     cells: el.querySelector(".mk-editor-core-row").querySelectorAll(".mk-editor-core-cell").length,

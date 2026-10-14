@@ -20,6 +20,7 @@ struct NativeView {
     first_row: Signal<usize>,
     first_column: Signal<usize>,
     scroll_displacement: Signal<f64>,
+    horizontal_displacement: Signal<f64>,
     source_anchor: Signal<Option<crate::native_layout::ViewAnchor>>,
     run_heights: Signal<std::collections::BTreeMap<usize, crate::native_layout::CachedRunHeight>>,
     highlights: Signal<SearchHighlights>,
@@ -36,7 +37,14 @@ pub fn RustCodeEditorPanel(
 ) -> Element {
     // Hook state and async subscriptions belong to one document identity.
     // A host may reuse this public component while switching its node prop.
-    rsx! { RustCodeEditorView { key: "{node}", ws, node, lsp } }
+    // A key on a lone component does not trigger keyed-list reconciliation.
+    // Keep even this single child in a keyed fragment so switching documents
+    // remounts its hooks/effects instead of capturing the preceding model.
+    rsx! {
+        for scoped_node in [node] {
+            RustCodeEditorView { key: "{scoped_node}", ws, node: scoped_node, lsp }
+        }
+    }
 }
 
 #[component]
@@ -88,6 +96,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 first_row: Signal::new_in_scope(0, ScopeId::ROOT),
                 first_column: Signal::new_in_scope(0, ScopeId::ROOT),
                 scroll_displacement: Signal::new_in_scope(0.0, ScopeId::ROOT),
+                horizontal_displacement: Signal::new_in_scope(0.0, ScopeId::ROOT),
                 source_anchor: Signal::new_in_scope(None, ScopeId::ROOT),
                 run_heights: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
                 highlights: Signal::new_in_scope(SearchHighlights::default(), ScopeId::ROOT),
@@ -99,6 +108,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 view.first_row.manually_drop();
                 view.first_column.manually_drop();
                 view.scroll_displacement.manually_drop();
+                view.horizontal_displacement.manually_drop();
                 view.source_anchor.manually_drop();
                 view.run_heights.manually_drop();
                 view.highlights.manually_drop();
@@ -112,6 +122,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         mut first_row,
         mut first_column,
         scroll_displacement,
+        mut horizontal_displacement,
         source_anchor,
         run_heights,
         highlights,
@@ -136,6 +147,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         && settings.editor.markdown_preview
                         && language == Some(dioxus_code::Language::Markdown)),
                 markdown_preview: settings.editor.markdown_preview,
+                doc_comment_preview: settings.editor.doc_comment_preview,
                 insert_spaces: settings.editor.insert_spaces,
                 indent_width: settings.editor.indent_width,
             })
@@ -149,6 +161,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     && settings.editor.markdown_preview
                     && language == Some(dioxus_code::Language::Markdown)),
             markdown_preview: settings.editor.markdown_preview,
+            doc_comment_preview: settings.editor.doc_comment_preview,
             insert_spaces: settings.editor.insert_spaces,
             indent_width: settings.editor.indent_width,
         };
@@ -164,6 +177,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 .unwrap_or(0);
             first_row.set(row.saturating_sub(3));
             first_column.set(0);
+            horizontal_displacement.set(0.0);
         }
     });
     let set_indentation = Callback::new(move |(spaces, width): (Option<bool>, Option<u8>)| {
@@ -522,7 +536,9 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         .read()
         .extensions
         .is_enabled_id("dev.moonkale.editor-code", true);
-    let cursor_word = ws.cursor_word();
+    let cursor_word = (*ws.docs.active.read() == Some(node))
+        .then(|| model.read().cursor_word_preview(&doc.read().text, 128))
+        .flatten();
     let editor_settings = ws.settings.resolved.read().editor.clone();
     let preview_on = cfg!(feature = "markdown-preview")
         && editor_settings.markdown_preview
@@ -611,6 +627,15 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                             });
                         },
                         {t!(ws, L, "editor-preview")}
+                    }
+                }
+                if cfg!(feature = "markdown-preview") && matches!(language.map(|language| language.slug()), Some("rust" | "python" | "julia")) {
+                    button { class: if editor_settings.doc_comment_preview { "mk-btn mk-btn-on mk-native-doc-preview" } else { "mk-btn mk-native-doc-preview" },
+                        aria_pressed: editor_settings.doc_comment_preview.to_string(), title: t!(ws, L, "editor-doc-preview-title"),
+                        onclick: move |_| {
+                            let next = !ws.settings.resolved.peek().editor.doc_comment_preview;
+                            spawn(async move { ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next)).await; });
+                        }, {t!(ws, L, "editor-doc-preview")}
                     }
                 }
                 label { class: "mk-native-indent-control",
@@ -753,6 +778,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 first_row,
                 first_column,
                 scroll_displacement,
+                horizontal_displacement,
                 source_anchor,
                 run_heights,
                 onchange: changed,
