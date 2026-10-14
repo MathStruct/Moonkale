@@ -106,3 +106,7 @@
 .mk-callout-row + .mk-callout-row { margin-top:8px; }
 .mk-callout-row[data-heading-level="1"], .mk-callout-row[data-heading-level="2"] { font-weight:700; font-size:1.3em; }
 .mk-callout-row[data-heading-level="3"], .mk-callout-row[data-heading-level="4"], .mk-callout-row[data-heading-level="5"], .mk-callout-row[data-heading-level="6"] { font-weight:700; }
+
+.mk-native-wiki-hover { position:fixed; z-index:30; box-sizing:border-box; width:min(420px,calc(100vw - 16px)); max-height:min(260px,calc(100vh - 16px)); overflow:auto; overscroll-behavior:contain; background:var(--mk-input-bg, var(--mk-code-bg)); border:1px solid var(--mk-line-strong, var(--mk-muted)); border-radius:4px; user-select:text; }
+.mk-wiki-hover-title { font-weight:700; margin-bottom:6px; overflow-wrap:anywhere; }
+.mk-wiki-hover-body { overflow-wrap:anywhere; }

@@ -55,6 +55,7 @@ pub(crate) fn ProportionalRun(
     delay_ms: u64,
     font_loading: bool,
 ) -> Element {
+    let wiki_hover = try_use_context::<crate::native_wiki_hover::Control>();
     let replacements = crate::native_presentation::valid_replacements(&text, replacements);
     let id = use_hook(|| format!("mk-proportional-run-{}", dioxus::core::current_scope_id().0));
     let mut measured = use_signal(|| {
@@ -304,6 +305,7 @@ pub(crate) fn ProportionalRun(
         })
         .collect();
     let move_marks = marks.clone();
+    let hover_replacements = replacements.clone();
     rsx! {
         div {
             class: "mk-proportional-run", "data-ready": ready.to_string(), "data-measurement-status": "{measurement_status}", "data-source-start": stamp.start.to_string(), "data-font-epoch": stamp.font_epoch.to_string(), "data-font-loading": font_loading.to_string(),
@@ -316,6 +318,7 @@ pub(crate) fn ProportionalRun(
                     if !unchanged { measured.set(None); oninvalidated.call(stamp); measure.call(()); }
                 },
                 onmousedown: move |event| {
+                    if let Some(hover)=wiki_hover {hover.dismiss();}
                     if geometry.as_ref().and_then(|value|value.link_at(event.element_coordinates().x,event.element_coordinates().y)).is_some_and(|id|id.starts_with("math-scroll:")) {return;}
                     event.prevent_default();
                     if !ready || stamp.model.peek().revision != stamp.revision { return; }
@@ -345,7 +348,15 @@ pub(crate) fn ProportionalRun(
                         }
                     }
                 },
+                onmouseleave:move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}},
                 onmousemove: move |event| {
+                    if let Some(hover)=wiki_hover {
+                        let request=if ready && stamp.model.peek().revision==stamp.revision && !dragging() {
+                            move_geometry.as_ref().and_then(|value|value.link_at(event.element_coordinates().x,event.element_coordinates().y)).and_then(|id|preview_targets(&hover_replacements).into_iter().find(|(key,target)|key==id&&matches!(target,crate::native_links::Target::Wiki{..}))).map(|(id,target)|crate::native_wiki_hover::Request{revision:stamp.revision,identity:format!("preview:{}:{id}",stamp.start),target})
+                        } else {None};
+                        let position=if ready && stamp.model.peek().revision==stamp.revision && !dragging() {move_geometry.as_ref().and_then(|value|value.box_at(event.element_coordinates().x,event.element_coordinates().y)).map(|rect|stamp.model.peek().engine.editor().line_index().char_offset_to_position(stamp.start+rect.start))} else {None};
+                        hover.pointer(request,(event.client_coordinates().x,event.client_coordinates().y),position);
+                    }
                     if let Some(value) = &move_geometry {
                         if let Some(offset) = value.hit(event.element_coordinates().x, event.element_coordinates().y) {
                             let position = stamp.model.with(|state| state.engine.editor().line_index().char_offset_to_position(stamp.start + offset));

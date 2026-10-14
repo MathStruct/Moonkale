@@ -331,3 +331,6 @@ The link fixture keeps all 240 sections, 720 list/task items and 480 links. Plai
 
 
 `native-editor-markdown-callouts.mjs` covers standard/custom types, formatted and default titles, nested quotes, lists/tasks, hidden math, accessible folding without caret movement, modified links, narrow/wide row heights, local reveal, CRLF edits/undo/copy, composition and delayed preview disable. `live-preview-callouts.mjs` verifies folding and byte-exact CRLF save/undo/redo/copy through the full app. The long-note suite checks deep callouts alongside lists, equations, tables and images with its unchanged latency bounds.
+
+
+`native-editor-wiki-hover.mjs` verifies wiki hover in source and rendered text (paragraphs, lists, tables, callouts), heading/same-note targets, missing notes/headings, literal alias text, narrow viewport bounds, popup focus/scroll/clipboard isolation, source bracket hits, lazy lookup cancellation, and live unsaved target edits followed by discard. `live-preview-wiki-hover.mjs` covers unopened target previews without additional tabs, unsaved target text, unchanged CRLF files and modified-click navigation in the full app. The CI smoke list includes the full-app hover suite.

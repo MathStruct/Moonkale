@@ -91,3 +91,9 @@ editor-image-pixels = 图片尺寸超过像素限制
 editor-image-failed = 无法显示图片
 editor-math-failed = 无法显示此公式。点击编辑源文本。
 editor-math-config = 已忽略无效或过大的 .moonkale/katex.json，使用默认数学宏。
+
+editor-wiki-preview = Wiki 链接预览
+editor-wiki-preview-loading = 正在加载笔记…
+editor-wiki-preview-missing = 未找到笔记
+editor-wiki-preview-unavailable = 预览不可用
+editor-wiki-preview-too-large = 笔记超过 256 KiB 的预览限制

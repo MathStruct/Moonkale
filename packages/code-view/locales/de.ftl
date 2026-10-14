@@ -99,3 +99,9 @@ editor-image-pixels = Bildabmessungen überschreiten die Pixelgrenze
 editor-image-failed = Bild kann nicht angezeigt werden
 editor-math-failed = Diese Formel kann nicht dargestellt werden. Zum Bearbeiten des Quelltexts klicken.
 editor-math-config = Ungültige oder zu große .moonkale/katex.json ignoriert; Standardmakros werden verwendet.
+
+editor-wiki-preview = Vorschau des Wiki-Links
+editor-wiki-preview-loading = Notiz wird geladen…
+editor-wiki-preview-missing = Notiz nicht gefunden
+editor-wiki-preview-unavailable = Vorschau nicht verfügbar
+editor-wiki-preview-too-large = Notiz überschreitet das Vorschaulimit von 256 KiB

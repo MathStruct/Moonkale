@@ -48,6 +48,7 @@ pub(crate) fn RustEditorSurface(
     mut hover_target: Signal<Option<(usize, usize)>>,
     hover_text: Option<String>,
     hover_label: String,
+    #[props(default)] wiki_popup: Option<Element>,
     mut first_row: Signal<usize>,
     mut first_column: Signal<usize>,
     mut scroll_displacement: Signal<f64>,
@@ -339,6 +340,7 @@ pub(crate) fn RustEditorSurface(
     let mut viewport_ready = use_signal(|| false);
 
     let mut dragging = use_signal(|| false);
+    let wiki_hover = try_use_context::<crate::native_wiki_hover::Control>();
     let mut hovered_position = hover_target;
     let mut composition_preview = use_signal(String::new);
     let mut input_epoch = use_signal(|| 0u64);
@@ -769,8 +771,9 @@ pub(crate) fn RustEditorSurface(
             "data-first-row": "{first_row}",
             "data-hover-position": "{hovered_position_text}",
             tabindex: 0,
-            onmouseleave: move |_| hovered_position.set(None),
+            onmouseleave: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave();}},
             onmousedown: move |_| {
+                if let Some(hover)=wiki_hover {hover.dismiss();}
                 #[cfg(feature = "markdown-preview")]
                 if !font_loading() { vertical_intent.set(None); caret_affinity.set(None); }
                 hovered_position.set(None);
@@ -802,6 +805,7 @@ pub(crate) fn RustEditorSurface(
                 );
             },
             onkeydown: move |event| {
+                if let Some(hover)=wiki_hover {hover.dismiss();}
                 onprepare.call(());
                 if composing() {
                     return;
@@ -1124,6 +1128,7 @@ pub(crate) fn RustEditorSurface(
                 },
                 onresize: move |_| measure.call(()),
                 onscroll: move |event| {
+                    if let Some(hover)=wiki_hover {hover.dismiss();}
                     oncompletion_close.call(());
                     hovered_position.set(None);
                     if !*viewport_ready.peek() {
@@ -1245,7 +1250,7 @@ pub(crate) fn RustEditorSurface(
                                         } else { span { class: "mk-native-fold-slot", " " } }
                                         span {
                                             class: "mk-editor-core-gutter",
-                                            onmousemove: move |_| hovered_position.set(None),
+                                            onmousemove: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave_text();}},
                                             title: decorations.line_diagnostics(logical_line).map(|d| d.message.as_str()).collect::<Vec<_>>().join("\n"),
                                             if decorations.line_diagnostics(logical_line).next().is_some() {
                                                 span { class: "mk-native-diagnostic-marker", "●" }
@@ -1425,7 +1430,7 @@ pub(crate) fn RustEditorSurface(
                                         }
                                         span {
                                             class: "mk-editor-core-row-trailing-space",
-                                            onmousemove: move |_| hovered_position.set(None),
+                                            onmousemove: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave_text();}},
                                             style: "position: absolute; left: {(line.logical_line_index + 1).to_string().len().max(4) + 5 + line.segment_x_start_cells + line.cells.iter().map(|cell| cell.width).sum::<usize>()}ch; right: 0; top: 0; height: {layout.row_height()}px;",
                                             onmousedown: move |_| {
                                                 dragging.set(true);
@@ -1478,6 +1483,8 @@ pub(crate) fn RustEditorSurface(
                     }
                 }
             }
+            {wiki_popup}
+            if wiki_hover.is_none_or(|control|(control.popup)().is_none()) {
             if let Some(text) = hover_text {
                 div { class: "mk-native-hover mk-hover", role: "tooltip", aria_label: hover_label,
                     onmousedown: move |event| event.stop_propagation(),
@@ -1491,6 +1498,7 @@ pub(crate) fn RustEditorSurface(
                     tabindex: 0,
                     "{text}"
                 }
+            }
             }
             // A keyed list forces the input sink to remount after consumption.
             // A key on a static nested textarea does not replace its live value.
@@ -1519,6 +1527,7 @@ pub(crate) fn RustEditorSurface(
                         }
                     },
                     oncompositionstart: move |_| {
+                        if let Some(hover)=wiki_hover {hover.dismiss();}
                         onprepare.call(());
                         composing.set(true);
                         composition_preview.set(String::new());
@@ -1597,6 +1606,7 @@ fn NativeCell(
     width: usize,
     layout: UniformLayout,
 ) -> Element {
+    let wiki_hover = try_use_context::<crate::native_wiki_hover::Control>();
     let mark_classes = marks.classes();
     let CellMarks {
         diagnostic, wiki, ..
@@ -1609,6 +1619,7 @@ fn NativeCell(
 
             onmousedown: move |event| {
                 if event.trigger_button() == Some(MouseButton::Primary) && moonkale_ext_api::keys::primary(&event.modifiers()) {
+                    if let Some(hover)=wiki_hover {hover.dismiss();}
                     if let Some(mark) = &wiki { event.prevent_default(); event.stop_propagation(); onwiki.call(mark.target.clone()); return; }
                 }
                 dragging.set(true);
@@ -1619,7 +1630,9 @@ fn NativeCell(
                     |editor| place_caret_at(editor, Position::new(line, target_column)),
                 );
             },
+            onmouseleave:move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}},
             onmousemove: move |event| {
+                if let Some(hover)=wiki_hover {hover.pointer(None,(event.client_coordinates().x,event.client_coordinates().y),(!dragging()&&!event.held_buttons().contains(MouseButton::Primary)).then_some((line,column)));}
                 let target_column = layout.hit_column(column, width, event.element_coordinates().x);
                 if !dragging() && !event.held_buttons().contains(MouseButton::Primary) && hovered_position() != Some((line, column)) {
                     hovered_position.set(Some((line, column)));

@@ -84,6 +84,7 @@ mod native_search;
 mod native_structure;
 mod native_surface;
 mod native_wiki;
+mod native_wiki_hover;
 pub use native_links::ExternalLinkOpener;
 #[cfg(feature = "markdown-preview")]
 mod native_link_parser;

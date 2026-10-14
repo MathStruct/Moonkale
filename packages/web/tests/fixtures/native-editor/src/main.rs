@@ -13,6 +13,7 @@ thread_local! {
     static IMAGE_VERSION: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
     static IMAGE_LOG: std::cell::RefCell<Option<Signal<Vec<String>>>> = const { std::cell::RefCell::new(None) };
     static WIKI_CREATED: std::cell::RefCell<std::collections::HashMap<NodeId, (Node, String)>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    static WIKI_HOVER_TEXT: std::cell::RefCell<Option<String>> = const {std::cell::RefCell::new(None)};
     static WIKI_INDEX: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
     static WIKI_DELAY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static LSP_LOG: std::cell::RefCell<Option<Signal<Vec<String>>>> = const { std::cell::RefCell::new(None) };
@@ -589,6 +590,7 @@ impl Source for MemoryFile {
         Ok((bytes,image.version))
     }
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
+        if node==wiki_node().id {if let Some(text)=WIKI_HOVER_TEXT.with(|value|value.borrow().clone()){return Ok((text,Version::default()));}}
         if node==NodeId::derive(&self.id(),".moonkale/katex.json") {return Ok((MATH_MODE.with(|mode|match mode.get(){1=>serde_json::json!({"macros":{"\\vaultR":"\\mathbf{R}"}}).to_string(),2=>"broken".to_string(),_=>serde_json::json!({"macros":{"\\vaultR":"\\mathbb{R}"}}).to_string()}),Version::default()));}
 
         if let Some(text) =
@@ -959,6 +961,18 @@ fn App() -> Element {
             let mut target = ws.document(id).unwrap(); target.write().text = "😀 [[No]]\r\n".into();
             show_language.set(Some(id)); ws.docs.active.set(Some(id));
         }, "Wiki completion" }
+        div {id:"wiki-note-open",hidden:true,"{ws.document(wiki_node().id).is_some()}"}
+        button {id:"wiki-hover",onclick:move |_| {
+            WIKI_HOVER_TEXT.with(|value|*value.borrow_mut()=Some("---\r\ntitle: Private metadata\r\n---\r\n# Heading\r\n**Saved 猫** &amp; `code`.\r\n\r\n## Child\r\nChild body\r\n\r\n# Next\r\nOther section\r\n".into()));
+            let id=NodeId::derive(&doc.peek().node.source,"nested.md");
+            if let Some(mut markdown)=ws.document(id){markdown.write().text="before 😀\r\n\r\n[[Note é#heading|Alias <safe>]] and [[Missing]]\r\n\r\n# Local heading\r\nLocal body\r\n\r\n[[#local-heading|Local]] [[Note é#absent|Missing heading]]\r\n\r\n- [[Note é|List]]\r\n\r\n| Link |\r\n| --- |\r\n| [[Note é|Cell]] |\r\n\r\n> [!note] Callout\r\n> [[Note é|Inside]]\r\n\r\n`[[Note é]]` and ![[Note é]] and \\[[Note é]]\r\n\r\nend\r\n".into();}
+            show_language.set(Some(id));let mut ws=ws;ws.docs.active.set(Some(id));layout_fixture.set(Default::default());
+        },"Wiki hover fixture"}
+        button {id:"wiki-hover-close-target",onclick:move |_|ws.close_node(wiki_node().id),"Close wiki target"}
+        button {id:"wiki-hover-unsaved",onclick:move |_|{spawn(async move {
+            let target=wiki_node();if ws.document(target.id).is_none(){let _=ws.load_node_guarded(target.clone(),||true).await;}
+            if let Some(mut doc)=ws.document(target.id){doc.write().text="# Heading\r\nUnsaved 猫 target.\r\n".into();}
+        });},"Unsaved wiki target"}
         button { id: "wiki-index-toggle", onclick: move |_| { WIKI_INDEX.with(|enabled| enabled.set(!enabled.get())); let mut epoch = ws.sources.graph_epoch; epoch.with_mut(|epoch| *epoch += 1); }, "Toggle wiki index" }
         button { id: "wiki-delay", onclick: move |_| WIKI_DELAY.with(|hold| hold.set(true)), "Hold wiki lookup" }
         button { id: "wiki-release", onclick: move |_| WIKI_DELAY.with(|hold| hold.set(false)), "Release wiki lookup" }

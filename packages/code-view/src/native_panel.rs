@@ -70,6 +70,8 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             .collect::<Vec<_>>()
     });
     let mut hover_target = use_signal(|| None::<(usize, usize)>);
+    let wiki_hover = crate::native_wiki_hover::use_hover(ws, node, hover_target);
+    use_context_provider(move || wiki_hover);
     let hover_text = crate::native_hover::use_hover(ws, node, manager, hover_target);
     let mut session = ws
         .editor_session(node)
@@ -655,6 +657,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 hover_target,
                 hover_text: hover_text(),
                 hover_label: t!(ws, L, "editor-hover"),
+                wiki_popup: Some(rsx!{crate::native_wiki_hover::WikiPopup{control:wiki_hover,ws,onclose:move |_|focus_request.with_mut(|value|*value+=1)}}),
                 diagnostics,
                 presence: presence(),
                 wiki_marks: wiki_marks(),

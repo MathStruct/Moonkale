@@ -111,7 +111,7 @@ jobs:
       # 45 minutes in seconds. A build whose log stops growing fails after 20 (SERVE_STALL).
       SERVE_WAIT: 2700
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
-      SUITES: files rich stores palette shell wiki live-preview-math live-preview-callouts
+      SUITES: files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover
     steps:
       - uses: actions/checkout@v4
       - name: Working directory for the suites
