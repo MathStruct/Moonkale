@@ -57,6 +57,8 @@ Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence 
 
 ## What should be core, what should be a separate repository
 
+The longer discussion, with criteria and the open placements for the October 2026 requests, is [[Core and Extensions]]; the cases it should be argued from are collected in [[Use Cases]].
+
 **Core (this repository, every build):** Explorer, Search, Settings, History; the code editor, Markdown & links (+ Typst preview), Graph, Table, Terminal, Agent (with the provider library), Git, **the Flow editor** (a generic editor for `*.flow.json` with typed ports — the block libraries are what make it domain-specific, and those can live elsewhere); the core language packs; the Unicode tables. Criterion: everything a person needs to *edit code and notes and look at their data* on the first day, with no toolchain beyond Moonkale itself.
 
 **Separate repositories (under `MathStruct/`):**

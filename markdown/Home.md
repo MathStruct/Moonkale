@@ -16,6 +16,7 @@ Moonkale is a **graph-native code and knowledge editor**: it opens folders *and*
 > 4. [[Roadmap]] and [[Milestone 18 - Library Refactor]] — what comes next.
 > 5. [[Writing an Extension]] — the guide, because this project is extension-driven.
 > 6. [[North Star]] — where it is heading: a code graph in a database (Unison-like, e-graphs, IRs, several type systems) that meets a knowledge graph; and [[Work Packages]], the open work cut for several agents at once.
+> 7. [[Core and Extensions]]: where things belong, argued from [[Use Cases]].
 
 > [!note] How this vault is kept
 > - **Status lives in one place**: [[Status]]. Other pages link to it instead of repeating it.

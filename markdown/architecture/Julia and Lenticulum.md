@@ -46,4 +46,6 @@ The wire format between Julia and Moonkale (JSON lines first); whether the facto
 
 A Julia REPL with rich output comes cheapest through IJulia in the [[Notebook Editor]].
 
+**The full requirement set (2026-10-14)** is [[Lenticulum Frontend Requirements]]: LT-01 to LT-23, from three use cases (LLM internals, omics, markets).
+
 Related: [[Core Languages]] (Julia is a core language: grammar, LanguageServer.jl, REPL), [[Extension Catalogue]] (`moonkale-julia`), [[Flow Editor]], [[Graph View]], [[Case Selector]], [[Projects and Sources]] (read-only sources).

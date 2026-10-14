@@ -122,6 +122,17 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 34 | **Schema registry** view and edits through oxilite's registry API (KG-19–22) | the extension, graph view styles | 31 | M | the zoo/garden/common scenario from the spec |
 | 35 | **Layered memory**: tiramemsu as a source, statement junctions, the two-clock control, conflicts, a fact's life, saved answers (KG-27–36) | the extension, `graph-render` ★ (junction styling) | 31 | L (split) | tiramemsu's README questions answered in the UI |
 
+### Lane I: requests of 2026-10-14
+
+| WP | What | Touches | Depends on | Size | Done when |
+|---|---|---|---|---|---|
+| 36 | **Math: any delimiter, LaTeX or Typst per formula, a normaliser** ([[Math Delimiters and Renderers]]) | a shared math parser (library), `editors/markdown`, `packages/js/milkdown`; the native preview (codex) | — | M | the acceptance list in the spec |
+| 37 | **Plates and typed spaces in the flow model** (LT-03, LT-05): repetition drawn once with its multiplicity; variable spaces, shapes, units; refusal by type | `ext-api/flow.rs` ★, `editors/flow`, `graph-render` ★ (multiplicity badge) | 08 | M | an RxInfer i.i.d. plate and a unit mismatch refused, in the browser |
+| 38 | **Live runs** (LT-10, 12, 13): `Moonkale.jl`, a live source, run records (a core service, shared with WF-02) | moonkale-julia, a new run-record service, `editors/flow` | 08 | L (split: run records / Julia side / drawing) | an RxInfer run streams beliefs onto the graph and scrubs |
+| 39 | **Debugger**: a DAP service and an opt-in debug panel ([[Debugger Requirements]]), after the model debugger | new `services/dap`, a new extension, code editor decorations | 38 (model debugger first) | L | breakpoint, step and inspect in Rust and Julia |
+| 40 | **Plot extension** ([[Plotting Requirements]]): the quick look first (PLT-01 to 03, 06), then live plots (PLT-09) | a new extension, `editors/table` (Plot action) | — | M | a table result plots in one action; a selected point selects its row |
+| 41 | **Workflow runner** ([[Workflow Automation (n8n, Windmill)]]): run records and re-run from a step first | the run-record service (38), `editors/flow` | 38 | L | a three-step flow runs on file change, and each step's output is inspectable |
+
 ## A first wave
 
 Six agents with no shared hot spot:

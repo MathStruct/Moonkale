@@ -59,6 +59,25 @@ The study is [[Knowledge Graph Studio]]. Taken: almost everything. Rejected or l
 - **Instead:** nothing needed.
 - **Revisit when:** a Moonkale view is hosted in an iframe or a webview of its own.
 
+## n8n and Windmill (2026-10-14)
+
+The study is [[Workflow Automation (n8n, Windmill)]]. Licences: n8n's Sustainable Use License (source-available) and Windmill's AGPLv3 allow requirements only. Rejected or limited, each with its reason there:
+- the integration catalogue as a goal;
+- untyped JSON items with field-mapping expressions;
+- a hosted multi-tenant runner;
+- auto-generated end-user apps and forms.
+
+## Debuggers and plotting tools (2026-10-14)
+
+From [[Debugger Requirements]]:
+- VS Code's `launch.json` substitution language as is;
+- a debugger that blocks the UI.
+
+From [[Plotting Requirements]]:
+- Tableau's proprietary formats and server model;
+- a JS charting library in the core;
+- pixels as the stored artefact.
+
 ## Supabase table editor (planned)
 
 Not studied yet. The study writes its taken and adapted requirements into the [[Table Editor]] spec, and its rejections here.
