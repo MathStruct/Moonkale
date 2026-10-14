@@ -12,9 +12,9 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
-## Unreleased
+## ext-api-2026-10-14-2
 
-Turned blocks and captions (ADR-0024 §5–6).
+The second tag of the day: turned blocks and captions (ADR-0024 §5–6).
 
 **Breaking:** each of these fails to compile only where a caller builds the struct literally.
 - `moonkale-ext-api::flow::Block.turn` and `Block.mirror` are new fields. *Update:* a `Block` literal that lists every field adds `turn: 0, mirror: false`. Literals finished with `..Default::default()` keep compiling.
