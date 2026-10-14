@@ -97,6 +97,7 @@ Prior art to study (requirements only, [[Scrutiny]] rules): Unison (names as dis
 - **Queries go through the source:** a new query language is a dialect on `Query::Text` plus lifting rules, not a special path.
 - **Types and proofs are annotations with provenance:** who or what checked it, against which version. A proof goes stale when its subject changes.
 - **Syntax belongs to the reader:** the stored graph must not encode one surface syntax (no keyword spelling, no index base baked into a literal), so a projection can choose them.
+- **Three kinds of actor:** people, agents, and tools (parsers, compilers, checkers, reasoners). A tool's output is derived, carries its provenance, and goes stale with its inputs ([[Shared Work]] §5).
 - **No language is privileged:** the graph's node and edge kinds must not assume one language's concepts. A language-specific kind is namespaced by its frontend.
 - **Prefer the graph store's model over the file system's** whenever the two disagree. Files remain one source among several.
 - **The proxy until Sophia exists:** track the Unison language's internals (definitions, types, dependency DAG) as a graph source. It is a real, content-addressed code database to design against.

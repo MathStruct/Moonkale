@@ -98,6 +98,14 @@ From [[Trading with Databento]]:
 - execution-grade UI latency as a goal;
 - republishing licensed market data (a source can mark its data non-redistributable, and publishing refuses it).
 
+## Version control (2026-10-14)
+
+From [[Version Control Requirements]]:
+- assuming git everywhere (views go through a version-control trait);
+- line diffs as the only diff;
+- scraping human CLI output as the long-term interface (porcelain formats now, `gix` later);
+- storing credentials in Moonkale.
+
 ## Supabase table editor (planned)
 
 Not studied yet. The study writes its taken and adapted requirements into the [[Table Editor]] spec, and its rejections here.

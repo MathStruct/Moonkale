@@ -74,10 +74,31 @@ The short answer to "how far is it Moonkale's concern": **the database guarantee
 - **SW-31 Comments render rich**, with the renderer of §2.
 - **SW-32 Mentions:** `@person` notifies, and **`@agent` asks that agent to act** on the thread, as a task (SW-04) scoped to the anchor, under the gate, answering in the thread. It's the same pattern as replying to a review comment.
 - **SW-33 Comments drive review:** a proposal is approved with its comments resolved, or sent back with them.
-- **SW-34 Where comments live (to decide):** the [[Annotations]] design stores them in `.moonkale/annotations.jsonl` inside the folder, so they travel with git. Daniel prefers state in a database over file dumps. The proposed compromise:
-  - comments live in the **state store of the source's host**, like the entity log;
-  - an **export/import to a file** shares them through git for those who want it;
-  - comments on databases and graph stores were never going to be in a file anyway.
+- **SW-34 Where comments live (decided by Daniel, 2026-10-14: both, by setting).** Comments always live in the **state store** of the source's host, the database, at least as their working home. Two settings decide the rest:
+  - **`comments.permanent`** (default **off**): while off, the database holds comments as an **intermediary**. Open threads stay; a resolved thread is removed after a retention period (default 30 days) unless it has been exported. Turned on, the database keeps every comment for good, as it keeps the entity log.
+  - **`comments.git`** (default **off**): `off`; `on-demand` (Export comments and Import comments commands write and read `.moonkale/comments.jsonl` in the folder, one thread per line, merged by id, so they travel through git); or `sync` (the file is written on every change and read after a pull, so the repository carries them).
+
+  The settings are per source in the session, with a user default. Comments on database and graph sources live in the store only (there is no repository to export into), and the export command offers a file anywhere.
+
+## 5. Tools act on the graph too: compilers, parsers, checkers
+
+**Daniel (2026-10-14):** compilers and parsers also act on the graph, beside agents and people. They do, more than either:
+- the index's parsers create nodes and edges for every symbol;
+- language servers attach diagnostics and types;
+- reasoners infer triples (KG-15);
+- type systems and provers attach proofs ([[North Star]] §7);
+- compilers lower a definition into IR and machine code (§3 there);
+- formatters and code actions rewrite text;
+- codegen writes files (the flow libraries);
+- Lenticulum runs write beliefs (LT-10).
+
+So **tools are a third kind of actor**, with rules of their own:
+- **SW-40 Tools are actors, with identity:** a tool's output names the tool, its version and its configuration, and the versions of the inputs it read (content hashes). This is the provenance a proof annotation needs anyway.
+- **SW-41 Derived data is marked as derived:** a parser's symbol, a reasoner's inference and a compiler's IR are *derived*, never mixed with what a person or an agent authored. They show as such, can be hidden as a layer, and are never edited in place. You edit the input, and the tool reruns.
+- **SW-42 Derived data goes stale, visibly:** when an input changes, what was derived from it is marked stale until the tool reruns, never silently kept as current. That is the incremental index of WP-21 (a one-file change touches only its facts), generalised to every tool.
+- **SW-43 Tools that write go through the same doors as people:** a formatter, a code action, codegen or a migration that changes authored content is attributed (SW-06), undoable (SW-24), and, when not run by the person themselves, a proposal (SW-23). "Format on save" is the person's own action; a codegen run an agent triggers is the agent's proposal.
+- **SW-44 Derived data never conflicts with authored data:** it is recomputed, not merged. Two tools deriving the same fact differently (two type checkers, two reasoners) is a *disagreement*, shown side by side like tiramemsu's conflict review (KG-31), not a write conflict.
+- **SW-45 Humans first:** tool runs yield to interactive work. They are scheduled with priorities, cancellable, and budgeted, so a recompile never blocks the frame that shows a keystroke (CED-R22).
 
 ## Order (proposal)
 

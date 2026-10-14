@@ -8,6 +8,8 @@ Moonkale has to answer "what did this look like yesterday, and who changed it?" 
 > [!note] As built (2026-10-01)
 > The entity log exists (`core::graph::history`, Milestone 8; compaction and restore, Milestone 9) and is stored **one row per event in the state store of the folder's host** (Milestone 18 phase 5.10, [[Internal State]]; until then `.moonkale/history.jsonl` per folder, which is imported once). Git is the `extensions/git` crate over the **`git` CLI** — not `gix`, not a `vcs-git` crate. Checkpoint events reference commits. Not built: logical clocks, replica ids, a timeline scrubber in the graph, importers that emit events for databases. Open bugs: issue #17, P-086. Where the log should live next: [[Internal State]].
 
+The full frontend requirement list for git and other systems (Jujutsu, Mercurial, Pijul, data and database versioning) is [[Version Control Requirements]] (2026-10-14).
+
 ## The two models, side by side
 
 | | git (files) | entity log (graph) |
