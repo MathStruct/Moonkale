@@ -34,5 +34,6 @@ The architecture's real exit from the webview is **`dioxus-native` (Blitz)**: it
 - Revisit if: Freya gains web/wasm support **and** an embedding API, or Blitz stalls while Freya's editor stays far ahead — then the separate-process route (way 1) is the one to test first, as a desktop-only extension.
 - Open question, not checked: whether `freya_edit` can be used without the rest of Freya. If it can, its model could be compared with `editor-core` as the headless core of decision 2.
 - [[Rust-native Editor Candidates]] lists Freya's editor.
+- The same question for **egui** (2026-10-14): [[egui and Dioxus]]. No switch; egui is an interop target (the graph engine inside egui apps), and a cheap comparison spike is written down for when it comes back.
 
 Sources: [Freya README](https://github.com/marc2332/freya/blob/main/README.md), [`freya-code-editor` source](https://github.com/marc2332/freya/blob/main/crates/freya-code-editor/src/editor_ui.rs), [`freya_edit` API](https://docs.rs/freya-edit/0.4.0/freya_edit/).

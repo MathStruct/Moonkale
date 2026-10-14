@@ -148,6 +148,7 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 55 | **The benchmark runner** ([[Benchmarks]]): the bench lock, the results database, the existing benchmarks moved in, then the frame gates and the no-growth test | `packages/web/tests/e2e`, a small runner | — | M | BM-04, 09, 11 and 25 recorded in the results database on a quiet machine |
 | 56 | **Memory and the store** ([[ADR-0026 Memory and the store]], accepted): recovery snapshots of unsaved buffers, derived data keyed by input hash, cache budgets per platform | `state`, `moonkale-core`, the index | 21 | M | a killed app restores an unsaved buffer; reopening reuses the index |
 | 57 | **Crash safety, the rest** ([[Crash Safety]] steps 3 to 7): panics in tasks and handlers caught per extension, a web crash overlay, crash counting and safe mode, re-instantiating wasm modules | shell, `ext-host`, the web client | — | M | a panicking task disables only its extension; `--safe` starts clean |
+| 58 | **egui comparison spike**, only if revisited ([[egui and Dioxus]]): one egui app with the table grid and the graph engine, measured against the Dioxus panels | a throwaway crate | — | S | the benchmark numbers side by side, and a verdict |
 
 ## A first wave
 
