@@ -68,6 +68,15 @@ try {
   await open('LongPreview.md');
   await panel().locator('.mk-native-preview').click();await ready();
   const viewport=panel().locator('.mk-editor-core-viewport');
+  // Toolbar/properties height can put adjacent blocks outside the virtual window.
+  // Walk at most one viewport to mount them; keep widget and latency bounds intact.
+  const see=async(target,direction=1)=>{
+    for(let step=0;step<3 && await target.count()===0;step++){
+      await viewport.evaluate((el,direction)=>el.scrollTop+=direction*el.clientHeight/3,direction);
+      await ready();await page.waitForTimeout(150);
+    }
+    await target.waitFor();
+  };
   for(const fraction of [0,.25,.5,.75,1]){
     const before=await surface().getAttribute('data-first-row');
     await viewport.evaluate((el,fraction)=>el.scrollTop=(el.scrollHeight-el.clientHeight)*fraction,fraction);
@@ -96,13 +105,13 @@ try {
       await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);
       await ready();
     }
+    await see(panel().locator('.mk-callout').filter({hasText:`Callout ${section}`}),section===239?-1:1);
+    await see(panel().locator('.mk-math-display').filter({has:page.locator('annotation').filter({hasText:`\\frac{${section}}{${section+1}}`})}).locator('.katex'));
+    await see(panel().locator('[role=table]').filter({hasText:`Column ${section}`}));
     if(section===239) {
-      await panel().locator('.mk-preview-image[alt="Image 239"]').waitFor();
+      await see(panel().locator('.mk-preview-image[alt="Image 239"]'));
       await page.waitForFunction(()=>document.querySelector('img.mk-preview-image[alt="Image 239"]')?.naturalWidth===240);
     }
-    await panel().locator('[role=table]').filter({hasText:`Column ${section}`}).waitFor();
-    await panel().locator('.mk-callout').filter({hasText:`Callout ${section}`}).waitFor();
-    await panel().locator('.mk-math-display').filter({has:page.locator('annotation').filter({hasText:`\\frac{${section}}{${section+1}}`})}).locator('.katex').waitFor();
     console.log(`deep list ${section}: preview visible`);
   }
   // Navigate to specific headings so a viewport inside a long plain paragraph

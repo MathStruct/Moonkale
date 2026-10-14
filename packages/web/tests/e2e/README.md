@@ -334,3 +334,6 @@ The link fixture keeps all 240 sections, 720 list/task items and 480 links. Plai
 
 
 `native-editor-wiki-hover.mjs` verifies wiki hover in source and rendered text (paragraphs, lists, tables, callouts), heading/same-note targets, missing notes/headings, literal alias text, narrow viewport bounds, popup focus/scroll/clipboard isolation, source bracket hits, lazy lookup cancellation, and live unsaved target edits followed by discard. `live-preview-wiki-hover.mjs` covers unopened target previews without additional tabs, unsaved target text, unchanged CRLF files and modified-click navigation in the full app. The CI smoke list includes the full-app hover suite.
+
+
+`native-editor-properties.mjs` checks the expandable YAML bar, source-row collapse/reveal, draft cancellation, clipboard ownership, composition and mode-switch cleanup, atomic undo/redo, stale-draft rejection, delimiter guards, and CRLF-preserving add/remove edits. `live-preview-properties.mjs` verifies Save applies the draft, file/body bytes remain intact, undo/redo and Source/Preview switching work, and edits stay isolated between notes. The CI smoke list includes the full-app properties suite.

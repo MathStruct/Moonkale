@@ -160,13 +160,10 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
         // together until the link provider owns reference-definition invalidation.
         let mut ranges = Vec::new();
         let (mut depth, mut start) = (0usize, 0usize);
-        let body_start = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS)
-            .into_offset_iter()
-            .next()
-            .filter(|(event, range)| {
-                range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
-            })
-            .map_or(0, |(_, range)| range.end);
+        let body_start = crate::native_properties::front_matter(source).map_or(0, |fm| fm.end);
+        if body_start > 0 {
+            ranges.push(0..body_start);
+        }
         for (event, range) in Parser::new_ext(
             &source[body_start..],
             Options::ENABLE_TABLES | Options::ENABLE_MATH,
@@ -335,16 +332,10 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             },
         });
     };
-    // Metadata is front matter only at the beginning of the document. The
-    // parser option also accepts later fenced paragraphs, so parse the body
-    // without it and retain canonical offsets after the leading source block.
-    let body_start = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS)
-        .into_offset_iter()
-        .next()
-        .filter(|(event, range)| {
-            range.start == 0 && matches!(event, Event::Start(Tag::MetadataBlock(_)))
-        })
-        .map_or(0, |(_, range)| range.end);
+    // Only a conservative leading YAML block belongs to Properties. Parse
+    // the body without the metadata option so later thematic breaks retain
+    // CommonMark meaning, and keep all canonical offsets after the prefix.
+    let body_start = crate::native_properties::front_matter(source).map_or(0, |fm| fm.end);
     let projected = crate::native_link_parser::Projected::new(&source[body_start..]);
     for (event, range) in Parser::new_ext(
         &projected.text,
@@ -551,6 +542,17 @@ fn parse(revision: DocumentRevision, source: &str) -> Batch {
             },
         });
     }
+    if body_start > 0 {
+        values.push(Decoration {
+            provider: Provider::Markdown,
+            id: 0,
+            kind: Kind::Replace {
+                range: 0..source[..body_start].chars().count(),
+                widget: None,
+                style: None,
+            },
+        });
+    }
     values.sort_by_key(|value| value.id);
     Batch { revision, values }
 }
@@ -563,6 +565,15 @@ mod tests {
         batch(DocumentRevision(3), source)
             .values
             .into_iter()
+            .filter(|value| {
+                matches!(
+                    &value.kind,
+                    Kind::Replace {
+                        widget: Some(_),
+                        ..
+                    }
+                )
+            })
             .map(|value| {
                 let Kind::Replace {
                     range,
@@ -630,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    fn front_matter_keeps_source_without_consuming_later_setext_headings() {
+    fn front_matter_hides_only_its_source_without_consuming_later_setext_headings() {
         for metadata in ["title: Notes", "title: Notes\ntags: [test]"] {
             let source = format!("---\n{metadata}\n---\n\nBody\n---\n");
             let values = previews(&source);

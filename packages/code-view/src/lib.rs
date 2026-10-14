@@ -68,6 +68,7 @@ mod native_model;
 mod native_panel;
 #[cfg(feature = "markdown-preview")]
 mod native_presentation;
+mod native_properties;
 #[cfg(feature = "layout-fixture")]
 mod native_proportional;
 #[cfg(feature = "markdown-preview")]

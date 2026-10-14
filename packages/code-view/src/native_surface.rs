@@ -1225,7 +1225,7 @@ pub(crate) fn RustEditorSurface(
                                             }
                                         }
                                     }
-                                    div {
+                                    if text_height > 0.0 { div {
                                         class: "mk-editor-core-row",
                                         "data-line": "{line.logical_line_index}",
                                         style: "height: {text_height}px; line-height: {layout.row_height()}px; position: relative;",
@@ -1455,7 +1455,7 @@ pub(crate) fn RustEditorSurface(
                                         }
                                         }
                                     }
-                                    }
+                                    } }
                                 }
                             }
                         }

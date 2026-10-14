@@ -324,7 +324,12 @@ pub(crate) fn collapsed_rows(
         let Some(last) = editor.logical_position_to_visual_row(end_line, end_col) else {
             continue;
         };
-        for row in first + 1..=last {
+        for row in (if value.widget.is_none() {
+            first
+        } else {
+            first + 1
+        })..=last
+        {
             let Some(position) = editor.visual_position_to_logical(row, 0) else {
                 continue;
             };
@@ -341,7 +346,10 @@ pub(crate) fn collapsed_rows(
                             .map_or(0, |line| line.char_count),
                     )
                 });
-            if value.start < start && start < value.end && end <= value.end {
+            if (value.start < start || (value.widget.is_none() && value.start == start))
+                && start < value.end
+                && end <= value.end
+            {
                 rows.push(row);
             }
         }
@@ -683,6 +691,26 @@ mod tests {
         assert_eq!(preview_mask(&values, 30, Some(4..8)), 2);
         assert_eq!(preview_mask(&values, 30, Some(13..14)), 3);
         assert_eq!(preview_mask(&values, 30, Some(0..30)), 0);
+    }
+
+    #[test]
+    fn properties_hide_complete_rows_and_reveal_canonical_source() {
+        let source = "---\ntitle: 猫\n---\nBody\n";
+        let editor = editor_core::EditorStateManager::new(source, 12);
+        let values = replacements(Mode::Markdown, &editor, DocumentRevision(0));
+        assert_eq!(values.len(), 1);
+        assert!(values[0].widget.is_none());
+        assert_eq!(collapsed_rows(&editor, &values, all(2)), vec![0, 1, 2]);
+        let revealed = preview_state(&values, 5, None, 2);
+        assert!(collapsed_rows(&editor, &values, revealed).is_empty());
+        let selected = preview_state(
+            &values,
+            source.chars().count(),
+            Some(0..source.chars().count()),
+            2,
+        );
+        assert!(collapsed_rows(&editor, &values, selected).is_empty());
+        assert_eq!(editor.editor().get_text(), source);
     }
 
     #[test]

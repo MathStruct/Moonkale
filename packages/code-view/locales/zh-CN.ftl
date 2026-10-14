@@ -97,3 +97,11 @@ editor-wiki-preview-loading = 正在加载笔记…
 editor-wiki-preview-missing = 未找到笔记
 editor-wiki-preview-unavailable = 预览不可用
 editor-wiki-preview-too-large = 笔记超过 256 KiB 的预览限制
+
+editor-properties = 属性
+editor-properties-none = 无
+editor-properties-yaml = 文档元数据（YAML）
+editor-properties-apply = 应用
+editor-properties-cancel = 取消
+editor-properties-stale = 此草稿已过期。请取消并重新打开属性以编辑最新文档。
+editor-properties-invalid = 请输入 YAML 属性，不要包含元数据分隔行。

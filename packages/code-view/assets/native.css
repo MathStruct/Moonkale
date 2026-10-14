@@ -110,3 +110,10 @@
 .mk-native-wiki-hover { position:fixed; z-index:30; box-sizing:border-box; width:min(420px,calc(100vw - 16px)); max-height:min(260px,calc(100vh - 16px)); overflow:auto; overscroll-behavior:contain; background:var(--mk-input-bg, var(--mk-code-bg)); border:1px solid var(--mk-line-strong, var(--mk-muted)); border-radius:4px; user-select:text; }
 .mk-wiki-hover-title { font-weight:700; margin-bottom:6px; overflow-wrap:anywhere; }
 .mk-wiki-hover-body { overflow-wrap:anywhere; }
+
+.mk-native-properties { flex-shrink: 0; border-bottom: 1px solid var(--mk-line); }
+.mk-properties-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 0; background: var(--mk-surface); color: var(--mk-ink); text-align: left; cursor: pointer; }
+.mk-properties-summary { color: var(--mk-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-properties-edit { padding: 0 12px 8px; }
+.mk-properties-yaml { display: block; box-sizing: border-box; width: 100%; max-height: 240px; resize: vertical; margin-bottom: 8px; padding: 8px; border: 1px solid var(--mk-line); border-radius: 4px; background: var(--mk-input-bg); color: var(--mk-ink); font-family: var(--mk-code-font, monospace); }
+.mk-properties-edit .mk-btn { margin-right: 8px; }

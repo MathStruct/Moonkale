@@ -105,3 +105,11 @@ editor-wiki-preview-loading = Notiz wird geladen…
 editor-wiki-preview-missing = Notiz nicht gefunden
 editor-wiki-preview-unavailable = Vorschau nicht verfügbar
 editor-wiki-preview-too-large = Notiz überschreitet das Vorschaulimit von 256 KiB
+
+editor-properties = Eigenschaften
+editor-properties-none = keine
+editor-properties-yaml = Metadaten (YAML)
+editor-properties-apply = Übernehmen
+editor-properties-cancel = Abbrechen
+editor-properties-stale = Dieser Entwurf ist veraltet. Abbrechen und Eigenschaften erneut öffnen, um das aktuelle Dokument zu bearbeiten.
+editor-properties-invalid = YAML-Eigenschaften ohne Metadaten-Begrenzungszeilen eingeben.

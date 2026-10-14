@@ -962,6 +962,19 @@ fn App() -> Element {
             show_language.set(Some(id)); ws.docs.active.set(Some(id));
         }, "Wiki completion" }
         div {id:"wiki-note-open",hidden:true,"{ws.document(wiki_node().id).is_some()}"}
+        button { id: "markdown-properties", onclick: move |_| {
+            let id = NodeId::derive(&doc.peek().node.source, "nested.md");
+            if let Some(mut target) = ws.document(id) {
+                target.write().text = "---\r\n# comment\r\ntitle: 猫\r\ntags: [a, b]\r\naliases:\r\n  - First\r\n  - Second\r\n\r\n---  \r\n\r\n# Body 😀\r\nKeep **this** byte-exact.\r\n".into();
+            }
+            show_language.set(Some(id)); let mut ws = ws; ws.docs.active.set(Some(id));
+            layout_fixture.set(Default::default());
+        }, "Markdown properties" }
+        button { id: "properties-external", onclick: move |_| {
+            if let Some(id) = *ws.docs.active.peek() {
+                if let Some(mut target) = ws.document(id) { target.write().text.push_str("External body edit.\r\n"); }
+            }
+        }, "External properties edit" }
         button {id:"wiki-hover",onclick:move |_| {
             WIKI_HOVER_TEXT.with(|value|*value.borrow_mut()=Some("---\r\ntitle: Private metadata\r\n---\r\n# Heading\r\n**Saved 猫** &amp; `code`.\r\n\r\n## Child\r\nChild body\r\n\r\n# Next\r\nOther section\r\n".into()));
             let id=NodeId::derive(&doc.peek().node.source,"nested.md");

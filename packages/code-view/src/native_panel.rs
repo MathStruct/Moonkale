@@ -178,6 +178,28 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     let mut focus_request = use_signal(|| 0u64);
     let mut search_mode = use_signal(|| None::<bool>);
     let mut last_error: Signal<Option<String>> = use_signal(|| None);
+    let mut properties_draft = use_signal(|| None::<crate::native_properties::Draft>);
+    let mut properties_error = use_signal(|| None::<String>);
+    let mut properties_composing = use_signal(|| false);
+    let properties = use_memo(move || {
+        if !cfg!(feature = "markdown-preview")
+            || language != Some(dioxus_code::Language::Markdown)
+            || !ws.settings.resolved.read().editor.markdown_preview
+        {
+            return (false, String::new());
+        }
+        let base = session.read();
+        crate::native_properties::front_matter(&base.snapshot().text)
+            .map(|fm| (true, base.snapshot().text[fm.yaml].replace("\r\n", "\n")))
+            .unwrap_or_default()
+    });
+    use_effect(move || {
+        if !ws.settings.resolved.read().editor.markdown_preview {
+            properties_draft.set(None);
+            properties_composing.set(false);
+            properties_error.set(None);
+        }
+    });
 
     // External changes invalidate local history. The view also follows session
     // changes originating in another mounted panel, without replacing on every render.
@@ -348,7 +370,50 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         first_row.set(row);
         publish_selection(ws, node, model, session);
     });
+    let commit_properties = Callback::new(move |_: ()| {
+        if properties_composing() {
+            return false;
+        }
+        prepare_input.call(());
+        let batch = match properties_draft.peek().as_ref() {
+            None => return true,
+            Some(draft) => draft.batch(session.peek().snapshot()),
+        };
+        match batch {
+            Ok(Some(batch)) => {
+                if session
+                    .with_mut(|state| state.apply_in_place(&batch))
+                    .is_err()
+                {
+                    properties_error.set(Some(t!(ws, L, "editor-properties-stale")));
+                    return false;
+                }
+                let state = session.peek();
+                doc.write().text = state.snapshot().text.clone();
+                model.with_mut(|model| model.replace(state.snapshot()));
+                drop(state);
+                publish_selection(ws, node, model, session);
+                wiki_hover.dismiss();
+            }
+            Ok(None) => {}
+            Err(key) => {
+                properties_error.set(Some(if key == "editor-properties-stale" {
+                    t!(ws, L, "editor-properties-stale")
+                } else {
+                    t!(ws, L, "editor-properties-invalid")
+                }));
+                return false;
+            }
+        }
+        properties_draft.set(None);
+        properties_composing.set(false);
+        properties_error.set(None);
+        true
+    });
     let save = Callback::new(move |_: ()| {
+        if !commit_properties.call(()) {
+            return;
+        }
         spawn(async move {
             match ws.save(node).await {
                 Ok(()) => last_error.set(None),
@@ -357,6 +422,9 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         });
     });
     let reload = Callback::new(move |_: ()| {
+        properties_draft.set(None);
+        properties_composing.set(false);
+        properties_error.set(None);
         spawn(async move {
             match ws.reload(node).await {
                 Ok(()) => last_error.set(None),
@@ -513,7 +581,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 }
                 button {
                     class: "mk-btn",
-                    disabled: !dirty,
+                    disabled: !dirty && properties_draft.read().is_none(),
                     onclick: move |_| save.call(()),
                     {t!(ws, L, "editor-save")}
                 }
@@ -601,6 +669,22 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         },
                         "CodeMirror"
                     }
+                }
+            }
+            if preview_on {
+                crate::native_properties::Properties {
+                    ws, yaml: properties.read().1.clone(), has: properties.read().0,
+                    draft: properties_draft, composing: properties_composing, error: properties_error(),
+                    onopen: move |_| {
+                        prepare_input.call(());
+                        properties_draft.set(Some(crate::native_properties::Draft::new(session.peek().snapshot())));
+                        properties_composing.set(false);
+                        properties_error.set(None);
+                        wiki_hover.dismiss();
+                    },
+                    onapply: move |_| { if commit_properties.call(()) { focus_request.with_mut(|value| *value += 1); } },
+                    oncancel: move |_| { properties_draft.set(None); properties_composing.set(false); properties_error.set(None); focus_request.with_mut(|value| *value += 1); },
+                    onsave: save,
                 }
             }
             crate::native_rename::RenamePrompt { ws, rename }

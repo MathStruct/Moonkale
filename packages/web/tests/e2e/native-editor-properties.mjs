@@ -1,0 +1,93 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+
+const browser = await chromium.launch();
+const page = await browser.newPage({viewport: {width: 1400, height: 1600}});
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+const panel = page.locator('.language');
+const input = panel.locator('.mk-editor-core-input-sink');
+const yaml = panel.locator('.mk-properties-yaml');
+const canonical = () => page.locator('.language-canonical').textContent();
+const open = () => panel.locator('.mk-properties-head').click();
+const ready = () => page.waitForFunction(() => {
+  const runs = [...document.querySelectorAll('.language .mk-proportional-run')];
+  return runs.length && runs.every(run => run.dataset.ready === 'true' && run.dataset.fontLoading === 'false');
+});
+try {
+  await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8099}/`, {waitUntil: 'networkidle'});
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.click('#markdown-properties');
+  await panel.locator('.mk-native-preview').click();
+  await input.focus(); await page.keyboard.press('Control+End'); await ready();
+  const original = await canonical();
+  const sourceYaml = '# comment\ntitle: 猫\ntags: [a, b]\naliases:\n  - First\n  - Second\n';
+  assert.match(await panel.locator('.mk-properties-summary').textContent(), /title: 猫.*tags: \[a, b\].*aliases/);
+  assert.equal(await panel.locator('.mk-editor-core-row[data-line="0"]').count(), 0);
+  const caret = await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset');
+  await open(); await yaml.waitFor();
+  assert.equal(await yaml.inputValue(), sourceYaml);
+  assert.equal(await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset'), caret);
+  await yaml.focus(); await page.keyboard.press('Control+a'); await page.keyboard.press('Control+c');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), sourceYaml);
+  await yaml.fill(sourceYaml.replace('猫', 'Edited 😀'));
+  assert.equal(await canonical(), original);
+  await page.keyboard.press('Escape'); await yaml.waitFor({state: 'hidden'});
+  await page.waitForFunction(() => document.activeElement?.classList.contains('mk-editor-core-input-sink'));
+  assert.equal(await canonical(), original);
+
+  await open(); await yaml.fill(sourceYaml.replace('猫', 'Edited 😀'));
+  await yaml.evaluate(el => el.dispatchEvent(new CompositionEvent('compositionstart', {bubbles: true})));
+  assert.equal(await panel.locator('.mk-properties-apply').isDisabled(), true);
+  await page.keyboard.press('Control+s'); assert.equal(await canonical(), original);
+  await yaml.evaluate(el => el.dispatchEvent(new CompositionEvent('compositionend', {bubbles: true})));
+  await panel.locator('.mk-properties-apply').click(); await yaml.waitFor({state: 'hidden'});
+  assert.equal(await canonical(), original.replace('title: 猫', 'title: Edited 😀'));
+  await input.focus(); await page.keyboard.press('Control+z');
+  await page.waitForFunction(text => document.querySelector('.language-canonical').textContent === text, original);
+  await page.keyboard.press('Control+Shift+z');
+  await page.waitForFunction(text => document.querySelector('.language-canonical').textContent === text, original.replace('title: 猫', 'title: Edited 😀'));
+  await page.keyboard.press('Control+z');
+
+  await open(); await yaml.fill('title: bad\n---\nInjected');
+  await panel.locator('.mk-properties-apply').click();
+  assert.match(await panel.locator('.mk-native-properties [role=alert]').textContent(), /without front-matter delimiters/);
+  assert.equal(await canonical(), original);
+  await panel.locator('.mk-properties-cancel').click();
+  await open(); await yaml.fill('title: stale'); await page.click('#properties-external');
+  await panel.locator('.mk-properties-apply').click();
+  assert.match(await panel.locator('.mk-native-properties [role=alert]').textContent(), /out of date/);
+  assert.equal(await canonical(), original + 'External body edit.\r\n');
+  await panel.locator('.mk-properties-cancel').click();
+
+  await open(); await yaml.fill(''); await panel.locator('.mk-properties-apply').click();
+  const body = original.slice(original.indexOf('---  \r\n') + '---  \r\n'.length) + 'External body edit.\r\n';
+  assert.equal(await canonical(), body);
+  assert.equal(await panel.locator('.mk-properties-summary').textContent(), 'none');
+  await open(); await yaml.fill('title: New\ntags: [one]'); await panel.locator('.mk-properties-apply').click();
+  assert.equal(await canonical(), '---\r\ntitle: New\r\ntags: [one]\r\n---\r\n' + body);
+  await input.focus(); await page.keyboard.press('Control+End'); await ready();
+  assert.equal(await panel.locator('.mk-editor-core-row[data-line="0"]').count(), 0);
+  await page.keyboard.press('Control+f');
+  await panel.locator('.mk-search-query').fill('title: New');
+  await panel.getByRole('button', {name: 'Next', exact: true}).click(); await ready();
+  assert.equal(await panel.locator('.mk-editor-core-row[data-line="0"]').count(), 1);
+  await panel.locator('.mk-search-query').press('Escape');
+  await input.focus(); await page.keyboard.press('Control+Home'); await ready();
+  assert.equal(await panel.locator('.mk-editor-core-row[data-line="0"]').count(), 1);
+  await page.keyboard.press('Control+a');
+  const copied = await input.evaluate(el => {
+    const event = new ClipboardEvent('copy', {bubbles: true, cancelable: true, clipboardData: new DataTransfer()});
+    el.dispatchEvent(event); return event.clipboardData.getData('text/plain');
+  });
+  assert.equal(copied, (await canonical()).replaceAll('\r\n', '\n'));
+  await open();
+  await yaml.evaluate(el => el.dispatchEvent(new CompositionEvent('compositionstart', {bubbles: true})));
+  await panel.locator('.mk-native-preview').click();
+  assert.equal(await panel.locator('.mk-native-properties').count(), 0);
+  await panel.locator('.mk-native-preview').click(); await open();
+  assert.equal(await panel.locator('.mk-properties-apply').isDisabled(), false);
+  await panel.locator('.mk-properties-cancel').click();
+  assert.deepEqual(errors, []);
+  console.log('NATIVE PROPERTIES E2E: PASS');
+} finally { await browser.close(); }

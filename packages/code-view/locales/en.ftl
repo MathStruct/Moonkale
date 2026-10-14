@@ -105,3 +105,11 @@ editor-wiki-preview-loading = Loading note…
 editor-wiki-preview-missing = Note not found
 editor-wiki-preview-unavailable = Preview unavailable
 editor-wiki-preview-too-large = Note exceeds the 256 KiB preview limit
+
+editor-properties = Properties
+editor-properties-none = none
+editor-properties-yaml = Front matter (YAML)
+editor-properties-apply = Apply
+editor-properties-cancel = Cancel
+editor-properties-stale = This draft is out of date. Cancel and reopen Properties to edit the latest document.
+editor-properties-invalid = Use YAML property lines without front-matter delimiters.
