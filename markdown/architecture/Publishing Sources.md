@@ -1,6 +1,6 @@
 ---
 title: "Publishing sources — reader mode, not a static site"
-description: Reader mode (the server read-only, so published sources stay queryable) and, proposed 2026-10-14, a light static reader that publishes a repository or a knowledge graph as wiki pages with code navigation, a graph and in-browser queries. Also: why a plain static export would be pointless next to Quartz, and what is worth having instead - the existing web server in a read-only reader mode, so a published folder or database stays queryable (SQL, graph, search) by visitors; plus a plot panel later. Decision recorded 2026-09-20.
+description: Reader mode (the server read-only, so published sources stay queryable) and, as an idea for way later (2026-10-14), a light static reader that publishes a repository or a knowledge graph as wiki pages with code navigation, a graph and in-browser queries; Quartz stays until then. Also: why a plain static export would be pointless next to Quartz, and what is worth having instead - the existing web server in a read-only reader mode, so a published folder or database stays queryable (SQL, graph, search) by visitors; plus a plot panel later. Decision recorded 2026-09-20.
 tags: [architecture, web, publishing, decision]
 ---
 From [[Prompt18]] (2026-09-20), corrected the same day.
@@ -16,9 +16,12 @@ The web build already is "Moonkale on a website": the wasm client plus the serve
 - Deep links: `/doc/<key>`, `/node/<id>`, `/query?…` open the corresponding tab; per-visitor layout in `localStorage`.
 - Costs and limits, stated: it is a process, not files — hosting, caps per visitor (rows, bytes, query time, concurrent connections), and rate limiting (present for `/login`, to be generalised). Crawlability: an optional per-document HTML fallback for search engines is the *only* piece of the static idea worth keeping, and it is small.
 
-## Revisited 2026-10-14: a light static reader (proposal)
+## Revisited 2026-10-14: a light static reader (way later)
 
-Daniel asked for a lightweight, wiki-like way to browse a GitHub repository or a knowledge graph on a website, read-only, "like Quartz but with some more features reasonable for this deployment". This reopens the static half of the 2026-09-20 decision. The objection then was that a static site cannot answer queries. Two things have changed: the graph engine and the table grid are Rust/wasm components that run in a browser on their own, and small published data can be queried *in the browser*. So the proposal is **two tiers**, not one:
+> [!note] Status: an idea for much later, not scheduled
+> Daniel, 2026-10-14: the **full web version stays** the web target. A **stripped-down web version** is wanted, but only **way later**. **Quartz stays** for publishing the vault until then. Nothing below is planned work. It records the shape so the idea isn't lost.
+
+Daniel asked for a lightweight, wiki-like way to browse a GitHub repository or a knowledge graph on a website, read-only, "like Quartz but with some more features reasonable for this deployment". This would reopen one sentence of the 2026-09-20 decision above: "a static Moonkale export … is dropped as a goal". The rest of that decision (the full web client, reader mode as the server-backed way to publish) is untouched. The objection then was that a static site cannot answer queries. Two things have changed: the graph engine and the table grid are Rust/wasm components that run in a browser on their own, and small published data can be queried *in the browser*. So the proposal is **two tiers**, not one:
 
 | | **Static reader** (new) | **Reader mode** (above) |
 |---|---|---|
@@ -50,13 +53,13 @@ The point is lightness.
 - A page is HTML and one shared CSS file.
 - The reader client is a **separate, small wasm build**, with no editors, terminal, agent, LSP or sources, loaded only when the reader opens the graph, a table, or search. The engine's wasm is about 2.7 MB today; the budget for the whole reader client is a few MB, split so the graph and SQL parts load separately.
 
-### Steps (proposal; needs Daniel's go-ahead, since it reverses part of the 2026-09-20 decision)
+### Steps, if it is ever scheduled
 
 1. `moonkale publish` for a folder: Markdown and code pages, backlinks, the index as JSON, search shards, git metadata.
 2. The reader wasm client: graph view (local and global) and search.
 3. Code navigation from the index (definitions, references, call graph).
 4. Graph-source pages and the table grid with in-browser SQL (after a wasm SQL engine is chosen).
-5. A GitHub Action that publishes a repository to Pages, then **dogfooding**: publish this vault with it in place of the vendored Quartz in `site/`.
+5. A GitHub Action that publishes a repository to Pages. Whether it could one day replace Quartz for this vault is a question for then; until then the vault stays on Quartz.
 
 ## Plots and time series in a window (later)
 A **Plot panel**: line / scatter / bar / histogram over a data frame from a query (SQL/DuckDB result, a CSV view, a `graph.query` result) or a live source (the Lenticulum viewer's beliefs over time — [[Julia and Lenticulum]]). Rendered in Rust (`plotters` → SVG/canvas in wasm; no JS charting library — [[JS Interop Boundary]]). In the app: open a table → *Plot…*; in reader mode the same panel over the visitor's query. Time axis, range selector, follow mode for live data.

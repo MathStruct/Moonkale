@@ -100,8 +100,9 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 
 | WP | What | Touches | Depends on | Size | Done when |
 |---|---|---|---|---|---|
-| 28 | **Static reader**, proposed ([[Publishing Sources]], "Revisited 2026-10-14"): `moonkale publish` with pages, index, search and git metadata, plus a small reader wasm client for graph and search. Waits for Daniel's go-ahead | new `publish` crate, new `reader` web build | — | L (split per step there) | this vault publishes with it and replaces Quartz in `site/` |
 | 29 | **Reader mode**, the server half: read-only sources, visitor caps, deep links | `server`, shell | — | M | a visitor without a token browses and queries a published folder |
+
+**Not scheduled, way later:** WP-28, a stripped-down **static reader** web version ([[Publishing Sources]], "Revisited 2026-10-14"). The full web version stays the web target, and Quartz stays for the vault. No agent picks this up until Daniel schedules it.
 
 ## A first wave
 
