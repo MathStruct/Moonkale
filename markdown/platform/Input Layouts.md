@@ -101,6 +101,8 @@ These keys act only while a canvas or table has the focus. A text field always g
 
 ## 5. Seeing what's bound
 
+[[ADR-0027 Simple by default]] §4 puts shortcuts in plain sight: in every tooltip and menu, on the empty workbench, as key tips while Ctrl is held, and as once-per-command nudges. Then:
+
 - **A cheat sheet:** hold Ctrl for a second, or press F1. It's an overlay with the active preset's bindings for the focused panel, mouse buttons and F13–F24 included, and it can be printed per preset.
 - **Settings → Input:** the preset, the overrides, the mouse maps, the last key or button received, and the conflicts.
 

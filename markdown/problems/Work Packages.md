@@ -22,7 +22,7 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
 
    | Series | Next free | Reserved |
    |---|---|---|
-   | ADR | ADR-0027 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted) |
+   | ADR | ADR-0028 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted) |
    | P- | P-195 | master's log ends at P-185; codex's branch holds P-186–P-194 (unmerged). Others start at P-195 |
 
 4. **Done means mergeable:**
@@ -152,6 +152,9 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 59 | **Linked panels** ([[Linked Panels]]): link groups (lead and followers) in the session, tab stripes and markers, graph panel instances per group, Open with context, selection sync | `ext-api` (link model), shell, `editors/graph`, `editors/markdown`, `editors/table`, `editors/flow` | 46 (groups live in the session) | M | `linked-panels.mjs`: two groups with their own local graphs, marked, surviving a reload |
 | 60 | **Overview** ([[Overview]]): every open tab as a card (Ctrl+Alt+Space), grouped by link group and window, type-to-search with quick open below, extension previews, the engine's snapshot | shell, `ext-api` (`Extension::preview`), `graph-render` ★ (snapshot), the editors' previews | 59 helps (groups) | M | `overview.mjs`: twelve cards in under 100 ms, filter, switch, close |
 | 61 | **Input layouts** ([[Input Layouts]]): the five-button mouse map, F13–F24 for gamer mice, keymap presets (VS Code, Obsidian first), positional punctuation bindings on QWERTZ/AZERTY, the left-hand layout, the cheat sheet | shell (commands, keybindings), settings, the canvases and the table | — | M | `mouse.mjs` and `keymaps.mjs` per the spec |
+| 62 | **3D on monitors and in headsets** ([[3D Graphs on Monitors and in Headsets]]): meaningful depth, billboard labels and click-to-fly; a camera with several views (side-by-side and anaglyph first); text in 3D and ray picking; then OpenXR (SteamVR, Monado) and WebXR | `graph-render` ★, `editors/graph` | — (a headset from step 4) | L (split per step) | the XR budget: 90 Hz with both eyes at 10 k nodes |
+| 63 | **Simple by default** ([[ADR-0027 Simple by default]]): the two densities, the chrome budget applied to today's UI (menu bar folded, rail at seven, toolbars), extension chrome offered not imposed | shell, every panel's toolbar | — | M | `density.mjs`: Simple within budget, Detailed shows more, every command reachable in both |
+| 64 | **Shortcuts in plain sight** (ADR-0027 §4): shortcuts in every tooltip and menu, the empty-workbench hints, hold-Ctrl key tips, once-per-command nudges, the cheat sheet, the title-bar search | shell, `ext-api` (commands carry their binding to every surface) | 61 helps | M | a hold-Ctrl screenshot with badges on every visible button; nudges once and never while typing |
 
 ## A first wave
 
