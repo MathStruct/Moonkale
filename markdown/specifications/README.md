@@ -30,7 +30,7 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[022]] | Julia and Python symbols in the index/graph (tree-sitter); calls/references still not extracted for any language | done — the extractors did not run until 2026-10-02 (issue #16, fixed in [[Milestone 18 - Implementation Log\|Milestone 18]] phase 1) |
 | [[023]] | Why a pull costs a 30-minute build: two debug builds of 1.8 GB, feature changes, a thrashed `target/`; `debug = "line-tables-only"` applied: clean debug build 399 s, binaries 449 + 470 MB instead of 1.8 + 1.7 GB | done |
 | [[024]] | Go to definition / centre a graph view from the symbol under the cursor (menu, double or right click); builds on `cursor_word` and the index's symbols | documented |
-| [[025]] | A five-button mouse is the expected device: thumb buttons = back/forward, middle click = open aside, configurable; guard the webview's own button handling | documented |
+| [[025]] | A five-button mouse is required for full functionality (2026-10-14): thumb buttons = back/forward, middle click = open aside, configurable; guard the webview's own button handling. Plan in [[Input Layouts]] | required, planned |
 | [[026]] | Rich editor typography: font size, body font, code font — settings under the Markdown extension | done |
 | [[027]] | macOS keybindings: `Ctrl` in a binding means Cmd on a Mac and only Cmd; Ctrl stays the text system's (Emacs keys); `keys::primary` everywhere | done (unverified on a Mac) |
 | [[028]] | Export/import the phone's vault (and open a real folder through the Storage Access Framework): private storage is lost on every uninstall and `run-as` only works on debug builds | open |
