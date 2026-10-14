@@ -105,3 +105,10 @@ tags: [research, use-cases, planning, moc]
 - **Needs:** [[Editor Prior Art (Obsidian, VS Code, Zed)]]'s "taken" rows.
 - **Placement:** core and on-by-default extensions.
 - **Source:** Daniel, 2026-10-14.
+
+### UC-12: Switch between pieces of work
+- **Who:** anyone with more than one thing going on (Daniel: Moonkale, Lenticulum, a paper).
+- **In Moonkale:** each piece of work is a session with its own sources, layout, open documents, unsaved buffers, conversations and query history. Switching sessions swaps all of it, and nothing is lost, even unsaved edits. Sessions aren't tied to a folder, and they live in the state store, not in files.
+- **Needs:** [[ADR-0025 Sessions are the outermost state]] (WP-46).
+- **Placement:** core platform.
+- **Source:** Daniel, 2026-10-14.

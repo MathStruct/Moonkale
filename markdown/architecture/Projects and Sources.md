@@ -5,6 +5,9 @@ tags: [architecture, sources, projects, design]
 ---
 Requested in [[Prompt9]] (2026-09-19): opening several folders at once turned out to be good design, not a bug — so make it deliberate. This page is the **desired behaviour**, written before any code; the implementation plan will be a milestone note that references it. What exists today is marked *(exists)*; everything else is new.
 
+> [!note] Amended 2026-10-14: projects are **sessions**, stored in the state store
+> [[ADR-0025 Sessions are the outermost state]] (proposed) makes the saved, named state described here a **session**: the outermost unit, not bound to any folder. It holds its sources, the workspace (layout, documents, unsaved buffers, panels' state), the work done in it (conversations, query history, run records) and its settings. It is stored as rows in the state store (SQLite, [[ADR-0014 One store for internal state]]), **not** as `projects/<id>.json` files. Export and import are commands. Everything below about sources (open and close individually, read-only per pair, colours, failure notices, portable roots) still holds. Read "project" as "session", and treat the JSON file layout under "What a project stores" as superseded.
+
 ## Two words
 
 - A **source** is anything Moonkale can browse, query and (maybe) edit through the `Source` trait *(exists)*: a folder, a folder on another machine, a repository on a git host, a database, an API. A source has a `SourceDescriptor { id, display_name, family, capabilities, root }` *(exists)*; `capabilities.write` says whether it can be written at all *(exists)*.
