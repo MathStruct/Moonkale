@@ -32,7 +32,7 @@ flowchart LR
 - **GPU force-directed** (grid-binned or Barnes-Hut repulsion in compute shaders): the 100k-node path. Requires WebGPU (compute).
 - **CPU force-directed** (`fdg-sim` or own): WebGL2 fallback; degrades past ~10k.
 - **Hierarchical** (layered): call graphs, ASTs, ML models, stack traces.
-- **Radial / concentric**: local graph around a node.
+- **Radial / concentric**: local graph around a node. Local graphs per document, linked to their content and marked by a shared tab colour: [[Linked Panels]] (planned 2026-10-14).
 - Positions are persisted per saved view; re-opening doesn't reshuffle.
 
 ## The platform problem: where does the surface come from?

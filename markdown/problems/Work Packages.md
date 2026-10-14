@@ -149,6 +149,7 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 56 | **Memory and the store** ([[ADR-0026 Memory and the store]], accepted): recovery snapshots of unsaved buffers, derived data keyed by input hash, cache budgets per platform | `state`, `moonkale-core`, the index | 21 | M | a killed app restores an unsaved buffer; reopening reuses the index |
 | 57 | **Crash safety, the rest** ([[Crash Safety]] steps 3 to 7): panics in tasks and handlers caught per extension, a web crash overlay, crash counting and safe mode, re-instantiating wasm modules | shell, `ext-host`, the web client | — | M | a panicking task disables only its extension; `--safe` starts clean |
 | 58 | **egui comparison spike**, only if revisited ([[egui and Dioxus]]): one egui app with the table grid and the graph engine, measured against the Dioxus panels | a throwaway crate | — | S | the benchmark numbers side by side, and a verdict |
+| 59 | **Linked panels** ([[Linked Panels]]): link groups (lead and followers) in the session, tab stripes and markers, graph panel instances per group, Open with context, selection sync | `ext-api` (link model), shell, `editors/graph`, `editors/markdown`, `editors/table`, `editors/flow` | 46 (groups live in the session) | M | `linked-panels.mjs`: two groups with their own local graphs, marked, surviving a reload |
 
 ## A first wave
 
