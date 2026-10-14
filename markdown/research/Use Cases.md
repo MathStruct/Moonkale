@@ -31,11 +31,16 @@ tags: [research, use-cases, planning, moc]
 - **Placement:** the flow editor's generic parts here; Lenticulum's library in `moonkale-julia`.
 - **Source:** Daniel, 2026-10-14 (the reason Moonkale exists).
 
-### UC-02: LLM internals as a graph
-- **Who:** an ML researcher.
-- **In Moonkale:** compose diffusion language models with compiled functions; see layers × heads as repeated structure; open a compiled factor's IR; watch activations during denoising.
-- **Needs:** LT-03 (repetition), LT-05 (tensor spaces), LT-18, LT-12; the coarse tier.
-- **Source:** Daniel, 2026-10-14 (imagined).
+### UC-02: A language model as a statistical logic program
+- **Who:** a researcher building a new kind of language model, Daniel's group. Not transformers: a statistical Prolog in which functions and relations compose the model.
+- **In Moonkale:**
+  1. author relations, weighted rules and functions as a lifted program;
+  2. expand groundings for one query;
+  3. ask a query and read the answers with their derivations and probabilities;
+  4. train the rule weights and watch them move;
+  5. compare two weight sets on the same query.
+- **Needs:** LT-24 to LT-29, LT-25 (lifted/ground), LT-26 (proof graphs), LT-12/13 (runs), the Datalog dialect (WP-20), the coarse tier.
+- **Source:** Daniel, 2026-10-14 (corrected the same day: not transformers).
 
 ### UC-03: Omics with factors as protein behaviour
 - **Who:** a computational biologist.
@@ -80,3 +85,23 @@ tags: [research, use-cases, planning, moc]
 - **In Moonkale:** a flow of steps (a SQL query, a Julia script, a plot) runs on a schedule or on file change; each run's step outputs can be inspected.
 - **Needs:** WF-01 to WF-08 ([[Workflow Automation (n8n, Windmill)]]).
 - **Source:** Daniel, 2026-10-14 (n8n/Windmill as references).
+
+### UC-10: Trading research with Databento
+- **Who:** a trader (a friend of Daniel's) using Databento's market-data API.
+- **Today:** Databento's clients and other trading tools (to ask him which).
+- **In Moonkale:**
+  1. pull a day of futures data with its cost shown first, cached;
+  2. look at candlesticks and the order-book heatmap;
+  3. replay the open;
+  4. backtest a strategy as a run and compare parameter sets;
+  5. write a journal note that links to the moment on the chart.
+- **Needs:** TR-01 to TR-13 ([[Trading with Databento]]), typed cells, plots, run records.
+- **Placement:** its own repository.
+- **Source:** Daniel, 2026-10-14.
+
+### UC-11: Moving from Obsidian, VS Code or Zed
+- **Who:** anyone switching (Daniel; most first-day users).
+- **In Moonkale:** open the Obsidian vault as it is (wiki-links, embeds, callouts, canvases); keep VS Code's palette, keybindings and LSP habits; edit references across files in one buffer.
+- **Needs:** [[Editor Prior Art (Obsidian, VS Code, Zed)]]'s "taken" rows.
+- **Placement:** core and on-by-default extensions.
+- **Source:** Daniel, 2026-10-14.

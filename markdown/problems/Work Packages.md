@@ -133,6 +133,11 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 40 | **Plot extension** ([[Plotting Requirements]]): the quick look first (PLT-01 to 03, 06), then live plots (PLT-09) | a new extension, `editors/table` (Plot action) | — | M | a table result plots in one action; a selected point selects its row |
 | 41 | **Workflow runner** ([[Workflow Automation (n8n, Windmill)]]): run records and re-run from a step first | the run-record service (38), `editors/flow` | 38 | L | a three-step flow runs on file change, and each step's output is inspectable |
 
+| 42 | **Databento market data** ([[Trading with Databento]]): the source with cost estimates and a local cache, typed schemas, symbology; then order-book views and replay | its own repository; WP-15 (typed cells), WP-40 (plots), WP-38 (runs) | 15, 40 | L (split) | a cached day of CME futures in the grid and as candlesticks, replayed |
+| 43 | **Multibuffers over nodes** ([[Editor Prior Art (Obsidian, VS Code, Zed)]]): one editable buffer of excerpts from files, rows and code-graph definitions | `code-view`, the code editor (codex's lane) | 03 | L | references to a symbol edited in place across three files |
+| 44 | **JSON Canvas** read and write on the graph engine with canvas components | the canvas layer (WP-05), a new view | 05 | M | an Obsidian `.canvas` file opens, edits and saves back unchanged where untouched |
+| 45 | **Statistical logic programs in the flow model** (LT-24 to LT-29): relation and rule kinds, lifted/ground expansion, derivation graphs, a query box | `ext-api/flow.rs` ★, `editors/flow`, the Datalog dialect (WP-20) | 37, 20 | L | a small weighted program answers a query with its proof graph |
+
 ## A first wave
 
 Six agents with no shared hot spot:

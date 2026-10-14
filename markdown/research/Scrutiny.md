@@ -78,6 +78,26 @@ From [[Plotting Requirements]]:
 - a JS charting library in the core;
 - pixels as the stored artefact.
 
+## Obsidian, VS Code, Zed (2026-10-14)
+
+The study is [[Editor Prior Art (Obsidian, VS Code, Zed)]]. Rejected because it would limit Moonkale:
+- **Each tool's founding assumption:**
+  - Obsidian's "files are the only truth";
+  - VS Code's "every view is about a text document";
+  - Zed's "a worktree of files is the project".
+
+  Moonkale's is "everything is a node, from any source".
+- **Obsidian plugins with full app access and no permissions.** VS Code's Node extension host and iframe webviews.
+- **Zed's rule that extensions add no UI,** which would forbid Moonkale's panels.
+- **Sync, Publish, Live Share and Settings Sync as vendor services,** and assistants locked to one vendor.
+
+## Trading with Databento (2026-10-14)
+
+From [[Trading with Databento]]:
+- order entry and execution in Moonkale;
+- execution-grade UI latency as a goal;
+- republishing licensed market data (a source can mark its data non-redistributable, and publishing refuses it).
+
 ## Supabase table editor (planned)
 
 Not studied yet. The study writes its taken and adapted requirements into the [[Table Editor]] spec, and its rejections here.

@@ -1,6 +1,6 @@
 ---
 title: "Lenticulum frontend — requirements"
-description: What Moonkale must do as the frontend for Lenticulum.jl, the reason Moonkale was started. Everything the RxInfer, ModelingToolkit and Lux libraries need, and more, derived from three use cases (huge graphs of LLM internals, omics factor graphs, markets with learnable factors). From Daniel, 2026-10-14.
+description: What Moonkale must do as the frontend for Lenticulum.jl, the reason Moonkale was started. Everything the RxInfer, ModelingToolkit and Lux libraries need, and more, derived from three use cases (a language model as a statistical logic program of functions and relations, omics factor graphs, markets with learnable factors). From Daniel, 2026-10-14.
 tags: [architecture, julia, lenticulum, requirements, factor-graphs]
 ---
 **From Daniel (2026-10-14):** Lenticulum.jl (MathStruct) was, for him personally, the reason to start Moonkale. Its requirements include everything RxInfer, ModelingToolkit and Lux need, and more. Moonkale is meant to be its frontend. Imagine what one might build with it:
@@ -14,9 +14,26 @@ What exists today: the flow editor with typed ports, undirected pins, subflows a
 
 | Use case | Forces |
 |---|---|
-| **LLM internals:** diffusion language models composed with compiled functions | **tensor-valued variables** with shapes; **repetition at scale** (layers × heads × positions) that must not be drawn as millions of copies; **compiled functions as factors** whose insides open on demand (Julia IR, MLIR); activations and attention as live state on nodes; denoising steps as a time axis |
+| **A language model as a statistical logic program** (corrected 2026-10-14, see below): functions and relations compose the model, **not a transformer** | **relations and rules as first-class nodes**, with weights; the **lifted program** drawn once and its **groundings** expanded on demand (the same mechanism as plates); **derivations as proof graphs** with their probabilities ("why did it answer this?"); learnable rule weights; compiled functions as factors whose insides open on demand; denoising or inference steps as a time axis |
 | **Omics:** factors are protein behaviour, reagents, assays | factors that **cite their biology** (a UniProt id, a reaction in Reactome, a paper), so the model **meets the knowledge graph**; data bound from tables (measurements, batches, replicates); **units and concentrations** checked across wires; uncertainty everywhere; pathways imported as subgraphs |
 | **Markets:** agents and interactions with learnable factors | **time-unrolled** factor graphs (the same slice repeated per step); **learnable parameters** with training runs; streaming data; **scenarios and interventions** (change a factor, compare outcomes) without losing the original |
+
+## The language model as a statistical logic program
+
+**Correction (Daniel, 2026-10-14):** the "LLM introspection" case is not about transformers. Think of a **statistical Prolog**, where **functions and relations compose a language model**. It is something new, being developed. The nearest public relatives, for vocabulary only: probabilistic logic programming (ProbLog, PRISM), Markov logic networks, neurosymbolic languages (DeepProbLog, Scallop), and weighted Datalog. None of them is the target.
+
+What that asks of the frontend:
+- **LT-24 Relations, rules and functions as nodes (★):**
+  - a relation (a predicate) is a node with its arity and argument types;
+  - a rule (a clause) is a factor joining its head to its body literals, carrying a weight or a distribution;
+  - a function is a factor with typed inputs and outputs.
+
+  The bipartite shape holds: relations and their arguments are the variables, rules and functions the factors. So the flow editor's model and roles (ADR-0022) are the starting point, not something new.
+- **LT-25 Lifted and ground, both visible (★):** the program is authored and drawn **lifted** (rules with logic variables, once). Its **groundings** (the rule instantiated for concrete constants) are generated, counted, and expanded on demand, for one query or one constant. This is LT-03's repetition applied to logic, and what keeps a large program drawable.
+- **LT-26 Derivations as proof graphs (★):** a query's answer comes with its **derivations**: which rules fired, on which facts, with what probability each, and how they combine. They are drawn as a proof DAG on the graph and kept as an annotation on the answer ([[North Star]] §7, proofs as annotations; the same view as the knowledge-graph studio's "why?", KG-16). "Why did the model produce this?" is answered by its proof, not by attention maps.
+- **LT-27 Queries and their answers:** ask a query (a goal) in the editor, get answers ranked by probability with their derivations, and compare two models or two weight sets on the same query. This uses the logic-query level of the [[North Star]] (§8, the Datalog dialect of WP-20).
+- **LT-28 Learning the weights:** rule weights and function parameters are learnable (LT-07), training runs are records (LT-13), and a rule's weight is visible on it (its caption) and traced over a run (LT-12, plots).
+- **LT-29 Composition across kinds:** a relation may be defined by rules, by a compiled function, by data (a table: facts bound from a source, LT-09), or by a probabilistic factor. All four kinds compose in one program, and the editor shows which defines what.
 
 ## Requirements
 
@@ -86,6 +103,7 @@ What exists today: the flow editor with typed ports, undirected pins, subflows a
 | Plots (LT-17) | — | a plot extension ([[Plotting Requirements]]) |
 | Message debugger (LT-19) | — | schedule stepping, conditions, history |
 | Knowledge links (LT-08) | wiki-links, sources, the index | typed links from flow blocks to nodes |
+| Statistical logic programs (LT-24 to 29) | bipartite roles, subflows, captions | relation and rule kinds; lifted/ground expansion; derivation graphs; a query box over a running program |
 
 ## Order (proposal)
 

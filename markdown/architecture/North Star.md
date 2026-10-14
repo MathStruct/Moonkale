@@ -66,6 +66,8 @@ blocks     = "end"
 - **Shared artefacts use a stated projection.** A diff, a review comment, a copied snippet or a published page says which projection it was rendered in, and copying can choose: the reader's projection, the source language's own syntax, or canonical.
 - **The language's own syntax is always one of the choices.** Printing back to a file (item 2) is the projection "as the language writes it".
 
+A related case is a language model built as a **statistical logic program** (functions and relations, not a transformer). It is being developed, and its frontend requirements are LT-24 to LT-29 in [[Lenticulum Frontend Requirements]].
+
 Prior art to study (requirements only, [[Scrutiny]] rules): Unison (names as display metadata over hashes), JetBrains MPS and Hazel (projectional editing), Lamdu, and the code editor's fold and live-preview decorations, which already replace and hide source ranges ([[Rust Code Editor Live Preview Plan]]).
 
 ## How today's pieces map onto it
