@@ -206,6 +206,26 @@ impl UniformLayout {
         column + usize::from(local_x >= self.column_x(width) / 2.0)
     }
 
+    /// Multiple-character runs contain only width-one ASCII cells. Wide or
+    /// zero-width Unicode scalars and tabs retain individual-cell hit testing.
+    pub(crate) fn hit_run_column(
+        self,
+        column: usize,
+        characters: usize,
+        width: usize,
+        local_x: f64,
+    ) -> usize {
+        if characters <= 1 {
+            self.hit_column(column, width, local_x)
+        } else {
+            column
+                + (local_x / self.column_x(1))
+                    .round()
+                    .max(0.0)
+                    .min(characters as f64) as usize
+        }
+    }
+
     pub(crate) fn reveal_start(start: usize, capacity: usize, target: usize) -> usize {
         if target < start {
             target
@@ -220,6 +240,27 @@ impl UniformLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_runs_hit_scalar_boundaries_and_keep_wide_cells_atomic() {
+        let layout = UniformLayout::new(22.0, 8.0);
+        for (x, expected) in [
+            (-8.0, 10),
+            (3.9, 10),
+            (4.0, 11),
+            (19.9, 12),
+            (20.0, 13),
+            (100.0, 14),
+        ] {
+            assert_eq!(layout.hit_run_column(10, 4, 4, x), expected);
+        }
+        // A two-cell emoji and a four-cell tab still own only one scalar.
+        assert_eq!(layout.hit_run_column(10, 1, 2, 7.9), 10);
+        assert_eq!(layout.hit_run_column(10, 1, 2, 8.0), 11);
+        assert_eq!(layout.hit_run_column(10, 1, 4, 15.9), 10);
+        assert_eq!(layout.hit_run_column(10, 1, 4, 16.0), 11);
+        assert_eq!(layout.hit_run_column(10, 1, 0, 0.0), 11);
+    }
 
     #[test]
     fn mixed_heights_match_linear_reference() {

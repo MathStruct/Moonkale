@@ -247,9 +247,9 @@ pub(crate) fn RustEditorSurface(
             if documentation_enabled(model)
                 || state.preferences.wrap && (markdown_enabled(fixture, model) || length <= 4096)
             {
-                if let Some((first, _)) = state
-                    .engine
-                    .logical_position_to_visual(line, 0)
+                if let Some((first, _)) = direct_documentation_rows
+                    .then_some((line, 0))
+                    .or_else(|| state.engine.logical_position_to_visual(line, 0))
                     .filter(|(row, _)| state.engine.visual_to_logical_line(*row).0 == line)
                 {
                     let last_line =
@@ -271,11 +271,15 @@ pub(crate) fn RustEditorSurface(
                         .get_line(last_line)
                         .map(|value| value.char_count)
                         .unwrap_or(length);
-                    let last = state
-                        .engine
-                        .logical_position_to_visual(last_line, last_length)
-                        .map(|(row, _)| row)
-                        .unwrap_or(first);
+                    let last = if direct_documentation_rows {
+                        rows.saturating_sub(1)
+                    } else {
+                        state
+                            .engine
+                            .logical_position_to_visual(last_line, last_length)
+                            .map(|(row, _)| row)
+                            .unwrap_or(first)
+                    };
                     let cache = run_heights.read();
                     let by_row: std::collections::BTreeMap<_, _> =
                         cache.values().map(|entry| (entry.row, entry)).collect();
@@ -1288,6 +1292,32 @@ pub(crate) fn RustEditorSurface(
                             {
                                 let logical_line = line.logical_line_index;
                                 let end_offset = line.char_offset_end;
+                                let source_column = model.with(|state| state.engine.editor().line_index().char_offset_to_position(line.char_offset_start).1);
+                                // Merge ordinary ASCII cells into text runs. Keep Unicode,
+                                // tabs, widgets, and every caret/decoration boundary atomic.
+                                // This avoids allocating a DOM node per source scalar while
+                                // retaining the engine's uniform-cell pointer coordinates.
+                                let mut cell_runs = Vec::new();
+                                if !proportional_enabled(fixture, model, logical_line, line.is_fold_placeholder_appended) {
+                                    let marks: Vec<_> = (0..line.cells.len()).map(|i| decorations.cell(line.char_offset_start+i)).collect();
+                                    let selected_at = |i| selection.as_ref().is_some_and(|range| contains(range, Position::new(logical_line,source_column+i)));
+                                    let matched_at = |i| bracket_pair.is_some_and(|(a,b)| a==line.char_offset_start+i || b==line.char_offset_start+i);
+                                    let eligible = |i:usize| {let cell=&line.cells[i]; cell.width==1 && (cell.ch==' ' || cell.ch.is_ascii_graphic()) && !cell.styles.contains(&editor_core::FOLD_PLACEHOLDER_STYLE_ID) && marks[i].wiki.is_none()};
+                                    let mut start=0;
+                                    while start<line.cells.len() {
+                                        let mut end=start+1;
+                                        while end<line.cells.len() && eligible(start) && eligible(end)
+                                            && tags[row_index][start]==tags[row_index][end]
+                                            && marks[start]==marks[end] && selected_at(start)==selected_at(end)
+                                            && matched_at(start)==matched_at(end)
+                                            && cursor.offset!=line.char_offset_start+end
+                                            && decorations.search_point(line.char_offset_start+end).is_none() {
+                                            end+=1;
+                                        }
+                                        cell_runs.push(start..end);
+                                        start=end;
+                                    }
+                                }
                                 let visual_row = first_row() + row_index;
                                 #[cfg(feature = "markdown-preview")]
                                 let block_on_mount = block_mounted.clone();
@@ -1313,6 +1343,12 @@ pub(crate) fn RustEditorSurface(
                                 #[cfg(feature = "markdown-preview")]
                                 let widget_revision = model.peek().revision;
                                 rsx! {
+                                    // Key the list entry itself, including its conditional
+                                    // block and text children. A key inside an unkeyed
+                                    // fragment cannot retain overlapping virtual rows.
+                                    div {
+                                    key: "row:{logical_line}:{line.segment_x_start_cells}",
+                                    style: "display: contents;",
                                     if text_height > 0.0 || block_height > 0.0 {
                                     if block_height > 0.0 {
                                         div {
@@ -1366,7 +1402,6 @@ pub(crate) fn RustEditorSurface(
                                         }
                                     }
                                     if text_height > 0.0 { div {
-                                        key: "row:{logical_line}:{visual_row}",
                                         class: "mk-editor-core-row",
                                         "data-line": "{line.logical_line_index}",
                                         style: "height: {text_height}px; line-height: {layout.row_height()}px; position: relative;",
@@ -1492,7 +1527,9 @@ pub(crate) fn RustEditorSurface(
                                         if line.segment_x_start_cells > 0 {
                                             span { style: "display: inline-block; width: {line.segment_x_start_cells}ch;", aria_hidden: "true" }
                                         }
-                                        for (column, cell) in line.cells.iter().enumerate() {
+                                        for run in &cell_runs {
+                                            { let column=run.start; let cell=&line.cells[column];
+                                            rsx! {
                                             if line.char_offset_start + column <= line.char_offset_end && decorations.search_point(line.char_offset_start + column).is_some() {
                                                 span { class: if decorations.search_point(line.char_offset_start + column) == Some(true) { "mk-native-search-zero mk-native-search-current" } else { "mk-native-search-zero" }, aria_hidden: "true" }
                                             }
@@ -1552,12 +1589,14 @@ pub(crate) fn RustEditorSurface(
                                                                 }),
                                                         ),
                                                     )),
-                                                ch: cell.ch,
-                                                width: cell.width,
+                                                text: line.cells[run.clone()].iter().map(|cell|cell.ch).collect::<String>(),
+                                                characters: run.len(),
+                                                width: line.cells[run.clone()].iter().map(|cell|cell.width).sum(),
                                                 layout,
                                             }
                                             }
                                         }
+                                            } }
                                         if decorations.search_point(line.char_offset_end).is_some() && !line.is_fold_placeholder_appended && grid.lines.get(row_index + 1).is_none_or(|next| next.char_offset_start != line.char_offset_end) {
                                             span { class: if decorations.search_point(line.char_offset_end) == Some(true) { "mk-native-search-zero mk-native-search-current" } else { "mk-native-search-zero" }, aria_hidden: "true" }
                                         }
@@ -1607,6 +1646,7 @@ pub(crate) fn RustEditorSurface(
                                         }
                                     }
                                     } }
+                                    }
                                 }
                             }
                         }
@@ -1753,7 +1793,8 @@ fn NativeCell(
     selected: bool,
     matched: bool,
 
-    ch: char,
+    text: String,
+    characters: usize,
     width: usize,
     layout: UniformLayout,
 ) -> Element {
@@ -1774,7 +1815,7 @@ fn NativeCell(
                     if let Some(mark) = &wiki { event.prevent_default(); event.stop_propagation(); onwiki.call(mark.target.clone()); return; }
                 }
                 dragging.set(true);
-                let target_column = layout.hit_column(column, width, event.element_coordinates().x);
+                let target_column = layout.hit_run_column(column, characters, width, event.element_coordinates().x);
                 mutate(
                     model,
                     onchange,
@@ -1783,10 +1824,11 @@ fn NativeCell(
             },
             onmouseleave:move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}},
             onmousemove: move |event| {
-                if let Some(hover)=wiki_hover {hover.pointer(None,(event.client_coordinates().x,event.client_coordinates().y),(!dragging()&&!event.held_buttons().contains(MouseButton::Primary)).then_some((line,column)));}
-                let target_column = layout.hit_column(column, width, event.element_coordinates().x);
-                if !dragging() && !event.held_buttons().contains(MouseButton::Primary) && hovered_position() != Some((line, column)) {
-                    hovered_position.set(Some((line, column)));
+                let hover_column=column+layout.column_at_x(event.element_coordinates().x.max(0.0)).min(characters.saturating_sub(1));
+                if let Some(hover)=wiki_hover {hover.pointer(None,(event.client_coordinates().x,event.client_coordinates().y),(!dragging()&&!event.held_buttons().contains(MouseButton::Primary)).then_some((line,hover_column)));}
+                let target_column = layout.hit_run_column(column, characters, width, event.element_coordinates().x);
+                if !dragging() && !event.held_buttons().contains(MouseButton::Primary) && hovered_position() != Some((line, hover_column)) {
+                    hovered_position.set(Some((line, hover_column)));
                 }
                 if dragging() && event.held_buttons().contains(MouseButton::Primary) {
                     let _ = mutate(
@@ -1807,7 +1849,7 @@ fn NativeCell(
                     }
                 }
             },
-            "{ch}"
+            "{text}"
         }
     }
 }

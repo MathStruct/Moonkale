@@ -16,11 +16,9 @@ try {
     await page.keyboard.press("End");
     await page.waitForFunction(() => document.querySelector(".primary .mk-editor-cursor-word")?.getAttribute("aria-hidden") === "true");
     const first = await cells.nth(0).boundingBox();
-    const fourth = await cells.nth(3).boundingBox();
-    const start = backward ? {x: fourth.x + fourth.width * .8, y: fourth.y + fourth.height / 2}
-      : {x: first.x + first.width * .2, y: first.y + first.height / 2};
-    const end = backward ? {x: first.x + first.width * .2, y: first.y + first.height / 2}
-      : {x: fourth.x + fourth.width * .8, y: fourth.y + fourth.height / 2};
+    const cellWidth = first.width / await cells.first().evaluate(el => Array.from(el.textContent).length);
+    const start = {x: first.x + cellWidth * (backward ? 3.8 : .2), y: first.y + first.height / 2};
+    const end = {x: first.x + cellWidth * (backward ? .2 : 3.8), y: first.y + first.height / 2};
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.waitForFunction(() => document.querySelector(".primary .mk-editor-cursor-word")?.getAttribute("aria-hidden") === "false");
@@ -40,6 +38,30 @@ try {
   await wrap.click();
   await page.waitForFunction(() => document.querySelector(".primary .mk-native-surface")?.dataset.wrap === "false");
   const viewport = page.locator(".primary .mk-editor-core-viewport");
+  const largeOriginal = await page.locator(".canonical").textContent();
+  for (const backward of [false, true]) {
+    await sink.focus();
+    await page.keyboard.press("Control+Home");
+    const run = page.locator('.primary [data-line="0"] .mk-editor-core-cell').first();
+    const length = await run.evaluate(el => Array.from(el.textContent).length);
+    if (length <= 4) throw Error("large ASCII source did not use a text run");
+    const box = await run.boundingBox();
+    const cellWidth = box.width / length;
+    const left = box.x + cellWidth * .2;
+    const right = box.x + cellWidth * 3.8;
+    await page.mouse.move(backward ? right : left, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(backward ? left : right, box.y + box.height / 2, {steps: 4});
+    await page.mouse.up();
+    await page.keyboard.insertText("Q");
+    await page.waitForFunction(() => {
+      const source = document.querySelector(".canonical")?.textContent;
+      return source?.length === 2_999_997 && source.startsWith("Qxxxx");
+    });
+    await page.keyboard.press("Control+z");
+    await page.waitForFunction(expected => document.querySelector(".canonical")?.textContent === expected, largeOriginal);
+  }
+  console.log("ok: grouped ASCII pointer selection keeps exact source boundaries in both directions");
   for (const left of [3, 20]) {
     await viewport.evaluate((el,left) => { el.scrollLeft = left; },left);
     await page.waitForTimeout(750); // includes the periodic size measurement
@@ -51,13 +73,13 @@ try {
   console.log("ok: sub-cell horizontal scroll offsets survive rendering and measurement");
   const before = await page.locator(".primary").evaluate(el => ({
     rows: el.querySelectorAll(".mk-editor-core-row").length,
-    cells: el.querySelector(".mk-editor-core-row").querySelectorAll(".mk-editor-core-cell").length,
+    cells: [...el.querySelector(".mk-editor-core-row").querySelectorAll(".mk-editor-core-cell")].reduce((n,cell)=>n+Array.from(cell.textContent).length,0),
   }));
   await page.locator(".primary").evaluate(el => { el.style.height = "700px"; el.style.width = "600px"; });
   await page.waitForFunction(before => {
     const el = document.querySelector(".primary");
     return el.querySelectorAll(".mk-editor-core-row").length > before.rows
-      && el.querySelector(".mk-editor-core-row").querySelectorAll(".mk-editor-core-cell").length < before.cells;
+      && [...el.querySelector(".mk-editor-core-row").querySelectorAll(".mk-editor-core-cell")].reduce((n,cell)=>n+Array.from(cell.textContent).length,0) < before.cells;
   }, before);
   console.log("ok: resizing the dock tile updates visible rows and wrapping width");
   await page.locator(".primary .mk-native-surface").evaluate(el => { el.style.lineHeight = "30px"; });
