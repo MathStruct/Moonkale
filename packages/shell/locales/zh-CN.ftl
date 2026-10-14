@@ -312,3 +312,5 @@ wb-splitter = 调整面板组大小
 wb-splitter-hint = 拖动以调整大小。方向键调整；按住 Shift 移动更多；双击重置。
 
 cmd-editor-restart-language-server = 编辑：重启语言服务器
+ext-crashed = { $name } 因错误而停止。Moonkale 的其余部分正常运行，你的工作已保存。
+ext-crash-reload = 重新加载面板

@@ -19,6 +19,22 @@ tags: [planning, agents, operations]
 - **codex:** lane A, the code editor (WP-01, WP-02), as today.
 - **Mistral:** lane C again from about 2026-10-31.
 
+## Decisions while agents run (Daniel, 2026-10-14)
+
+The coordinator **decides** everything that isn't fundamental to the project, records the decision and its reason in the relevant page, and tells Daniel in a line:
+- naming, defaults, placements, the order of packages;
+- proposed ADRs that refine an accepted direction;
+- how a requirement is read.
+
+Only **fundamental** decisions go to Daniel, batched into one short list:
+- the project's direction and scope;
+- licensing;
+- security posture;
+- reversing an accepted ADR;
+- anything that costs money or makes a public commitment.
+
+Workers ask the coordinator, never Daniel, through their HANDOFF files.
+
 ## The first wave: four workers, because of the machine
 
 The machine has 8 cores and 30 GB of RAM. One full Rust build with linking uses most cores and several GB, and a browser suite run adds a dev server and a Chromium. **More than four builders at once makes everyone slower, not faster,** and makes the timing-sensitive suites fail for no reason. So: the coordinator, four Claude workers, and codex.

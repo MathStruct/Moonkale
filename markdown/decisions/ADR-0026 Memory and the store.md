@@ -1,10 +1,10 @@
 ---
 title: "ADR-0026 — What lives in memory, what goes to the store, and when"
 tags: [adr, state, memory, performance, storage]
-status: proposed
+status: accepted
 date: 2026-10-14
 ---
-**Status:** proposed 2026-10-14, from Daniel's request ("a decision how much should be in memory and what and when things should be stored in a database"); written by Claude. Builds on [[ADR-0014 One store for internal state]] (SQLite), [[ADR-0025 Sessions are the outermost state]] and Daniel's standing preference: **Moonkale's state goes in a database, not in file dumps.** Measured by [[Benchmarks]].
+**Status:** accepted 2026-10-14 (Daniel), the day it was proposed, from his request ("a decision how much should be in memory and what and when things should be stored in a database"); written by Claude. Builds on [[ADR-0014 One store for internal state]] (SQLite), [[ADR-0025 Sessions are the outermost state]] and Daniel's standing preference: **Moonkale's state goes in a database, not in file dumps.** Measured by [[Benchmarks]].
 
 ## Context
 

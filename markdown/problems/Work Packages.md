@@ -22,7 +22,7 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
 
    | Series | Next free | Reserved |
    |---|---|---|
-   | ADR | ADR-0027 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, proposed) |
+   | ADR | ADR-0027 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted) |
    | P- | P-195 | master's log ends at P-185; codex's branch holds P-186–P-194 (unmerged). Others start at P-195 |
 
 4. **Done means mergeable:**
@@ -146,7 +146,8 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 53 | **A version-control trait, semantic diffs, then Jujutsu** (VC-20, 21, 23): history of a node; flow and table diffs; jj as the second system | `moonkale-core` ★ (the trait), `extensions/git`, `editors/flow`, `editors/table` | 51 | L | a flow diff drawn on the canvas; the same views on a jj repository |
 | 54 | **Tools as actors** ([[Shared Work]] §5, SW-40 to 45): provenance on derived data, derived marked and stale, tool writes as proposals | `moonkale-core` ★ (provenance), the index, LSP, the flow libraries' codegen | 21 helps | L | a parser's symbols marked stale after an edit and fresh after the reparse; a codegen run reviewed as a proposal |
 | 55 | **The benchmark runner** ([[Benchmarks]]): the bench lock, the results database, the existing benchmarks moved in, then the frame gates and the no-growth test | `packages/web/tests/e2e`, a small runner | — | M | BM-04, 09, 11 and 25 recorded in the results database on a quiet machine |
-| 56 | **Memory and the store** ([[ADR-0026 Memory and the store]], proposed): recovery snapshots of unsaved buffers, derived data keyed by input hash, cache budgets per platform | `state`, `moonkale-core`, the index | ADR accepted; 21 | M | a killed app restores an unsaved buffer; reopening reuses the index |
+| 56 | **Memory and the store** ([[ADR-0026 Memory and the store]], accepted): recovery snapshots of unsaved buffers, derived data keyed by input hash, cache budgets per platform | `state`, `moonkale-core`, the index | 21 | M | a killed app restores an unsaved buffer; reopening reuses the index |
+| 57 | **Crash safety, the rest** ([[Crash Safety]] steps 3 to 7): panics in tasks and handlers caught per extension, a web crash overlay, crash counting and safe mode, re-instantiating wasm modules | shell, `ext-host`, the web client | — | M | a panicking task disables only its extension; `--safe` starts clean |
 
 ## A first wave
 
@@ -175,9 +176,12 @@ Side tasks for any agent between packages: WP-26, WP-27, and reviews.
 
 ## What only Daniel decides
 
-Batched, not blocking. Each package keeps working on its other parts until the answer arrives.
+Only fundamental decisions ([[Running Several Agents]], "Decisions while agents run"); the coordinator decides the rest. Batched, not blocking. Each package keeps working on its other parts until the answer arrives.
 
-- Which second-wave packages come first.
-- Whether WP-14's write model goes through the policy gate the way agent writes do.
-- Which Unison codebase to use as the WP-18 fixture.
-- The Supabase study's rejections (WP-12), before they are final.
+**Open fundamental questions:** none at the moment.
+
+**Decided by the coordinator (2026-10-14), formerly listed here:**
+- **The second wave's order:** WP-46 sessions, then WP-50 comments, then WP-55 benchmarks, then WP-40 plots, WP-13 pushdown, and WP-37 plates once WP-08 lands. Sessions come first because comments, run records and the memory decision all key by session.
+- **WP-14's writes go through the policy gate,** like agent writes: the gate classifies every write, a person's own edit is allowed without a prompt, and an agent's is a proposal (SW-23). One mechanism, not two.
+- **WP-18's fixture:** a small Unison codebase created in the test from scratch (a handful of definitions, one rename, one dependency chain), not a downloaded one, so the test is hermetic.
+- **WP-12:** the Supabase study's rejections become final through review by the coordinator, under the [[Scrutiny]] test. Daniel can always overturn an entry.

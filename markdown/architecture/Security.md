@@ -21,7 +21,7 @@ The pieces are described where they were built ([[Remote and Server Modes]], [[L
 | **Paths** | everything below `MOONKALE_ROOT` (server) or the opened folder (desktop) | canonicalisation in `moonkale_server::open_any`, relative keys in `project-fs` | symlinks and Windows paths escape it (#5) |
 | **Secrets** | names in settings, values never | resolved from `MOONKALE_SECRET_<NAME>`, the provider's usual variable, or `<config>/moonkale/secrets.json` (mode 600); web clients never see a value | `llm/src/secrets.rs`; an OS keychain (`keyring`) is planned, not built |
 | **The agent** | a model that may propose any tool call | the policy gate: reads allowed, writes ask, destructive always ask; SQL statements classified; every call in the audit log | `llm/src/policy.rs`, `core/src/source/risk.rs` (`Source::classify`, overridable per source since Milestone 18); Cypher is a keyword scan, and LadybugDB runs any statement on its read-only database (#9) |
-| **Extensions (wasm)** | a module with the permissions the user granted | JSON ABI v1: every host call checked against the grant; grants come from the user scope only (a folder cannot grant, Milestone 18 phase 4.5); an id belongs to the file that loaded it first, so a folder's module cannot squat a user-installed module's id and grants | `ext-host`; modules still have no fuel or memory limits (rest of #4) |
+| **Extensions (wasm)** | a module with the permissions the user granted | JSON ABI v1: every host call checked against the grant; grants come from the user scope only (a folder cannot grant, Milestone 18 phase 4.5); an id belongs to the file that loaded it first, so a folder's module cannot squat a user-installed module's id and grants | `ext-host`; fuel per call (50 M for the manifest, 5 G per command run) and 256 MB of linear memory per instance, each call in a fresh store (audit #4) |
 | **Extensions (static)** | compiled in; trusted like the rest of the binary | the tier (`core`/`optional`/`opt_in`) only decides what is on; the distribution's Cargo features decide what is in the binary | `moonkale_distribution::default_extensions()` |
 | **A folder's own settings** | `.moonkale/settings.json` of a folder you open — **data, not authority** (Milestone 18 phase 4.5) | `SettingsFile::without_authority` before the merge: no language model or agent, no auto-approved writes, no embeddings switched on, no grants, no shell, no SSH hosts; it may switch things off and deny tools (added to the user's denials). Settings shows what was ignored | `ext-api/src/settings.rs`; test `a_folder_has_no_authority` |
 | **SSH remote folders** | the system `ssh` and the user's keys; Moonkale never sees a password | the server binary uploaded per version, a per-session token typed over stdin with echo off, loopback-only port | `remote/src/session.rs`; temp names and the control socket (#18); the remote server is not checksummed yet |
@@ -106,7 +106,7 @@ Moonkale renders and parses what it opens: Markdown (HTML inside it, KaTeX, Typs
 
 **Extensions:**
 - **Static ones** are compiled in and trusted like the binary. The distribution's features decide what's included.
-- **Wasm modules** get only the permissions the user granted, and grants come from the user scope only. **To build:** fuel and memory limits, and a signed manifest for "Install from URL".
+- **Wasm modules** get only the permissions the user granted, and grants come from the user scope only. They run with **fuel** (50 M units for the manifest, 5 G per command run) and **256 MB of linear memory** per instance, each call in a fresh store, so a trap or an exhausted budget is an error for that call only. (This page said otherwise until 2026-10-14; `ext-host/src/runtime.rs` has had the limits since audit #4.) **To build:** a signed manifest for "Install from URL".
 
 **Dependencies:**
 - **To build:** `cargo deny` (licences and advisories) and `cargo audit` in CI; the JS bundles' lockfiles audited too; vendored assets (KaTeX, fonts) checked against their upstream hashes.
@@ -140,7 +140,7 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 | SSH remote | ◐ | #18 |
 | Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
 | Untrusted content | ◐ jail, link allow-list, bounds | #5, sanitising, CSP, fuzzing, #15 |
-| Wasm extensions | ◐ permissions | fuel and memory limits, signing |
+| Wasm extensions | ◐ permissions, fuel, memory limits | signing |
 | Supply chain and releases | ○ | cargo deny/audit, signing, checksums |
 | Data at rest | ○ | redaction, encryption decision |
 
