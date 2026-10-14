@@ -15,3 +15,7 @@ flow-reload = 重新加载
 flow-reload-title = 放弃修改并从文件重新加载
 flow-subsystem = 子系统
 flow-subsystem-title = 添加子系统——一个空子流程，双击进入并填充
+flow-rotate = ⟳
+flow-rotate-title = 将模块顺时针旋转四分之一圈（R）
+flow-mirror = ⇋
+flow-mirror-title = 将模块左右镜像（M）

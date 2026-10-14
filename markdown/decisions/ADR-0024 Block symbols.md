@@ -53,14 +53,25 @@ The engine already had what a drawing needs:
 
    A test checks that every kind has a symbol, that every pin is anchored, and that every point of the path stays in its box. Lux and RxInfer keep the box with the new default sides: dataflow left to right, and a factor's parameters in on the left with its variable out on the right.
 
+5. **A block turns and mirrors (amended 2026-10-14, after Daniel's go-ahead).** `Block.turn` counts quarter turns clockwise (0–3), and `Block.mirror` flips the block left to right in its own frame, before the turn. Both are omitted from the file at their defaults, so an unturned block's file is unchanged.
+   - The panel turns the box (its width and height swap on an odd turn) and every port: its side and offset map clockwise, after the mirror. The engine gets the turned box plus `InNode.turn`/`mirror`, and only the drawing needs the transform.
+   - **R** turns the selected blocks, and **M** mirrors them as seen on the canvas: for a turned block, a mirror after the turn is the opposite turn after the mirror (`Block::flip`). The block editor carries both as buttons (⟳, ⇋). Each is one undo step.
+   - A symbol with a pin on its bottom (an upright part) puts its label to its right, so the wire leaving there does not cross it.
+   - The voltage source shows only its +: a turned minus reads as a bar.
+6. **A kind may caption its blocks (amended 2026-10-14).** `BlockKind.caption` is a template under the block's name. Each `{name}` hole takes a value:
+   - for a wired port of that name, the name of the block at the wire's other end;
+   - otherwise the parameter's value, or its default;
+   - `?` if the hole names neither.
+
+   ModelingToolkit captions its parts with a value and unit (`1.0 Ω`, `100.0 N/m`). RxInfer captions each factor as it is written: `θ ~ Beta(2, 7)`, `y ~ Bernoulli(θ)`. The engine draws `InNode.caption` as a smaller, dimmer second line.
+
 ## Consequences
 
 - **The change is additive.** `BlockKind` and the engine's `InNode` gain defaulted fields. `BlockPorts` gains `symbol`: a caller that builds it literally adds `symbol: None` (inside Moonkale, only the flow panel). It shipped in `ext-api-2026-10-14`; moonkale-julia v0.5.0 is its first user.
 - **Files don't change.** The symbol belongs to the kind, not to the block. A `.flow.json` keeps its positions, and only the drawing and the pin sides differ.
+- **§5–6 are additive too.** `Block` gains `turn` and `mirror`; a literal that lists every field adds `turn: 0, mirror: false`. `BlockKind` gains `caption`, and `BlockPorts` gains `caption` (`caption: None` in a literal). They ship in the next `ext-api` tag.
 - **Not decided here:**
-  - per-block rotation or mirroring (a resistor standing upright);
   - filled regions;
-  - a parameter shown on the symbol (`R = 1 Ω`);
   - wires snapping to a grid.
 
   Each can follow when a library needs it.

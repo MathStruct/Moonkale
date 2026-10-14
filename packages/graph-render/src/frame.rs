@@ -975,6 +975,9 @@ mod tests {
             stroke: [0.0, 0.0, 0.0, 0.0],
             icon: None,
             symbol: None,
+            turn: 0,
+            mirror: false,
+            caption: None,
         }
     }
 

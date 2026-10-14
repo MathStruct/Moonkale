@@ -260,6 +260,13 @@ pub struct BlockKind {
     /// Its drawing (ADR-0024); `None` draws a box.
     #[serde(default)]
     pub symbol: Option<Symbol>,
+    /// A line shown under the block's name (ADR-0024 §6): a template
+    /// whose `{name}` holes take a parameter's value (`"{R} Ω"` →
+    /// `1.0 Ω`) — or, for a port of that name that is wired, the name of
+    /// the block at the wire's other end (`"{out} ~ Beta({a}, {b})"` →
+    /// `θ ~ Beta(2, 7)`). `None` shows no caption.
+    #[serde(default)]
+    pub caption: Option<String>,
 }
 
 /// Generated code for a flow: file name + text.
@@ -327,6 +334,34 @@ pub struct Block {
     /// `Block` gains `subflow: None` (the `ext-api` tag with this).
     #[serde(default)]
     pub subflow: Option<String>,
+    /// Quarter turns clockwise, 0–3 (ADR-0024 §5): a resistor standing
+    /// upright is a turn of 1. The drawing and the pins turn together;
+    /// the block's position stays its centre. Omitted when 0, so an
+    /// unturned block's file is unchanged.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub turn: u8,
+    /// Mirrored left to right in its own frame, before the turn (ADR-0024
+    /// §5). Omitted when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mirror: bool,
+}
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
+}
+
+impl Block {
+    /// A quarter turn clockwise, as seen on the canvas.
+    pub fn rotate(&mut self) {
+        self.turn = (self.turn + 1) % 4;
+    }
+
+    /// Mirrored left to right as seen on the canvas, whatever its turn: a
+    /// mirror after the turn is the opposite turn after the mirror.
+    pub fn flip(&mut self) {
+        self.turn = (4 - self.turn % 4) % 4;
+        self.mirror = !self.mirror;
+    }
 }
 
 /// A wire from an output port to an input port.
@@ -530,6 +565,7 @@ impl Flow {
                 params: &[],
                 role: None,
                 symbol: None,
+                caption: None,
             });
         }
         find_kind(libraries, &block.kind).map(|(_, k)| BlockPorts {
@@ -540,6 +576,7 @@ impl Flow {
             params: &k.params,
             role: k.role,
             symbol: k.symbol.as_ref(),
+            caption: k.caption.as_deref(),
         })
     }
 
@@ -604,6 +641,8 @@ pub struct BlockPorts<'a> {
     /// Its drawing (ADR-0024) — a subflow and a boundary pseudo-block
     /// have none.
     pub symbol: Option<&'a Symbol>,
+    /// Its caption template (ADR-0024 §6).
+    pub caption: Option<&'a str>,
 }
 
 /// Why a pin wire between `a` and `b` breaks the bipartite rule
@@ -782,6 +821,7 @@ pub fn inner_ports<'a>(
                 params: &[],
                 role: None,
                 symbol: None,
+                caption: None,
             });
         }
         if let Some(p) = sub.outputs.iter().find(|p| p.name == port) {
@@ -793,6 +833,7 @@ pub fn inner_ports<'a>(
                 params: &[],
                 role: None,
                 symbol: None,
+                caption: None,
             });
         }
         if let Some(p) = sub.connections.iter().find(|p| p.name == port) {
@@ -804,6 +845,7 @@ pub fn inner_ports<'a>(
                 params: &[],
                 role: None,
                 symbol: None,
+                caption: None,
             });
         }
         return None;
@@ -1213,6 +1255,7 @@ mod tests {
                     params: vec![],
                     role: None,
                     symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "dense".into(),
@@ -1225,6 +1268,7 @@ mod tests {
                     params: vec![],
                     role: None,
                     symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "flat".into(),
@@ -1237,6 +1281,7 @@ mod tests {
                     params: vec![],
                     role: None,
                     symbol: None,
+                    caption: None,
                 },
             ],
         }
@@ -1250,6 +1295,43 @@ mod tests {
             to_block: b.into(),
             to_port: "in".into(),
         }
+    }
+
+    #[test]
+    fn a_turn_and_a_mirror_round_trip_and_stay_out_of_unturned_files() {
+        let mut b = Block {
+            id: "r".into(),
+            kind: "m/resistor".into(),
+            ..Default::default()
+        };
+        let plain = serde_json::to_string(&b).unwrap();
+        assert!(
+            !plain.contains("turn") && !plain.contains("mirror"),
+            "{plain}"
+        );
+        b.rotate();
+        b.rotate();
+        b.rotate();
+        b.rotate();
+        assert_eq!(b.turn, 0, "four quarter turns are none");
+        b.rotate();
+        b.flip();
+        // A screen mirror of a quarter turn is three quarters, mirrored.
+        assert_eq!((b.turn, b.mirror), (3, true));
+        b.flip();
+        assert_eq!(
+            (b.turn, b.mirror),
+            (1, false),
+            "mirrored twice is unmirrored"
+        );
+        b.flip();
+        let text = serde_json::to_string(&b).unwrap();
+        let back: Block = serde_json::from_str(&text).unwrap();
+        assert_eq!(back, b);
+        assert!(
+            text.contains("\"turn\":3") && text.contains("\"mirror\":true"),
+            "{text}"
+        );
     }
 
     #[test]
@@ -1340,6 +1422,7 @@ mod tests {
                     params: vec![],
                     role: None,
                     symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "ground".into(),
@@ -1352,6 +1435,7 @@ mod tests {
                     params: vec![],
                     role: None,
                     symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "mass".into(),
@@ -1364,6 +1448,7 @@ mod tests {
                     params: vec![],
                     role: None,
                     symbol: None,
+                    caption: None,
                 },
             ],
         }
@@ -1547,6 +1632,7 @@ mod tests {
             params: vec![],
             role: None,
             symbol: None,
+            caption: None,
         });
         let mut f = Flow::new();
         f.blocks = vec![
@@ -1624,6 +1710,7 @@ mod tests {
             params: vec![],
             role: None,
             symbol: None,
+            caption: None,
         });
         f.blocks.push(Block {
             id: "s".into(),

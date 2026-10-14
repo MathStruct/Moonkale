@@ -1204,9 +1204,20 @@ fn draw_labels(s: &State) {
                     n.color[2] * 255.0
                 )
             };
+            // The path lives in the unturned box; the node's box is the
+            // turned one (ADR-0024 §5). Centre, turn, mirror, back to
+            // the unturned box's corner.
+            let (bw, bh) = if n.turn % 2 == 1 {
+                (2.0 * n.height, 2.0 * n.radius)
+            } else {
+                (2.0 * n.radius, 2.0 * n.height)
+            };
             ctx.save();
-            let _ = ctx.translate((x - hw) as f64, (y - hh) as f64);
-            let _ = ctx.scale(scale as f64, scale as f64);
+            let _ = ctx.translate(x as f64, y as f64);
+            let _ = ctx.rotate(n.turn as f64 * std::f64::consts::FRAC_PI_2);
+            let flip = if n.mirror { -1.0 } else { 1.0 };
+            let _ = ctx.scale(flip * scale as f64, scale as f64);
+            let _ = ctx.translate(-bw as f64 / 2.0, -bh as f64 / 2.0);
             ctx.set_stroke_style_str(&ink);
             ctx.set_line_width((if lit { 2.2 } else { 1.6 }) / scale as f64);
             ctx.stroke_with_path(&path);
@@ -1350,23 +1361,63 @@ fn draw_labels(s: &State) {
         // A symbol's label sits centred below it, as on a schematic; any
         // other node's to its right.
         let symbol = n.symbol.is_some() && !s.camera.three_d;
+        // A symbol with a pin on its bottom (an upright part) would put
+        // its label across the wire leaving there: the label moves to
+        // its right, centred on it (ADR-0024 §5).
+        let beside = symbol
+            && s.graph
+                .ports
+                .iter()
+                .any(|p| p.node == i && p.side == crate::graph::InSide::Bottom);
+        let symbol = symbol && !beside;
         let (x0, y) = if symbol {
             (x - width / 2.0, y + n.height * scale + 10.0)
+        } else if beside {
+            let lift = if n.caption.is_some() { 7.0 } else { 0.0 };
+            (x + n.radius * scale + 8.0, y - lift)
         } else {
             (x + r + 4.0, y)
         };
+        // A caption (ADR-0024 §6) is a second, smaller line under the
+        // label, centred under a symbol like the label.
+        let caption = n.caption.as_deref().filter(|c| !c.is_empty());
+        let cap_width = caption
+            .map(|c| {
+                ctx.set_font("11px 'Segoe UI', sans-serif");
+                let w = ctx
+                    .measure_text(c)
+                    .map(|m| m.width() as f32)
+                    .unwrap_or(c.len() as f32 * 6.0);
+                ctx.set_font("12px 'Segoe UI', sans-serif");
+                w
+            })
+            .unwrap_or(0.0);
         let y0 = y - 8.0;
-        let (x1, y1) = (x0 + width, y + 8.0);
+        let wide = width.max(cap_width);
+        let (bx0, x1) = if symbol {
+            (x - wide / 2.0, x + wide / 2.0)
+        } else {
+            (x0, x0 + wide)
+        };
+        let y1 = if caption.is_some() { y + 22.0 } else { y + 8.0 };
         if !hovered
             && placed
                 .iter()
-                .any(|p| x0 < p.2 && x1 > p.0 && y0 < p.3 && y1 > p.1)
+                .any(|p| bx0 < p.2 && x1 > p.0 && y0 < p.3 && y1 > p.1)
         {
             continue;
         }
-        placed.push((x0, y0, x1, y1));
+        placed.push((bx0, y0, x1, y1));
         ctx.set_fill_style_str(if hovered { &s.label_hover } else { &s.label });
         let _ = ctx.fill_text(&n.label, x0 as f64, y as f64);
+        if let Some(c) = caption {
+            let cx = if symbol { x - cap_width / 2.0 } else { x0 };
+            ctx.set_font("11px 'Segoe UI', sans-serif");
+            ctx.set_global_alpha(0.7);
+            let _ = ctx.fill_text(c, cx as f64, (y + 14.0) as f64);
+            ctx.set_global_alpha(1.0);
+            ctx.set_font("12px 'Segoe UI', sans-serif");
+        }
         drawn += 1;
     }
 }

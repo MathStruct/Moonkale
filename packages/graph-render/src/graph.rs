@@ -79,6 +79,18 @@ pub struct InNode {
     /// tint — the symbol is the block — and the label sits below.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// The symbol's quarter turns clockwise (0–3) and its left–right
+    /// mirror, applied in its own frame before the turn (ADR-0024 §5).
+    /// The host sends the turned box (`width`/`height` swap on an odd
+    /// turn) and the turned ports; only the drawing needs the transform.
+    #[serde(default)]
+    pub turn: u8,
+    #[serde(default)]
+    pub mirror: bool,
+    /// A second line under the label (ADR-0024 §6): a part's value
+    /// (`1.0 Ω`), smaller and dimmer.
+    #[serde(default)]
+    pub caption: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -463,6 +475,14 @@ pub struct InDeltaNode {
     /// A schematic symbol (ADR-0024); absent keeps the old one.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// The symbol's turn and mirror; absent keeps the old ones.
+    #[serde(default)]
+    pub turn: Option<u8>,
+    #[serde(default)]
+    pub mirror: Option<bool>,
+    /// The caption line; absent keeps the old one.
+    #[serde(default)]
+    pub caption: Option<String>,
 }
 
 /// An edge arriving through a delta: endpoints by **node id**, not index —
@@ -586,6 +606,11 @@ pub struct Node {
     pub icon: Option<String>,
     /// A schematic symbol (ADR-0024): SVG path data in the node's box.
     pub symbol: Option<String>,
+    /// The symbol's quarter turns clockwise and its mirror (ADR-0024 §5).
+    pub turn: u8,
+    pub mirror: bool,
+    /// The caption under the label (ADR-0024 §6).
+    pub caption: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -795,6 +820,9 @@ impl Graph {
                         .unwrap_or([0.0, 0.0, 0.0, 0.0]),
                     icon: n.icon,
                     symbol: n.symbol,
+                    turn: n.turn % 4,
+                    mirror: n.mirror,
+                    caption: n.caption,
                     id: n.id,
                     label: n.label,
                     kind: n.kind,
@@ -1121,6 +1149,9 @@ impl Graph {
                         .unwrap_or(old.stroke),
                     icon: n.icon.or(old.icon.clone()),
                     symbol: n.symbol.or(old.symbol.clone()),
+                    turn: n.turn.map(|t| t % 4).unwrap_or(old.turn),
+                    mirror: n.mirror.unwrap_or(old.mirror),
+                    caption: n.caption.or(old.caption.clone()),
                     degree: old.degree,
                     pinned,
                     layers: n.layers,
@@ -1167,6 +1198,9 @@ impl Graph {
                         .unwrap_or([0.0, 0.0, 0.0, 0.0]),
                     icon: n.icon,
                     symbol: n.symbol,
+                    turn: n.turn.unwrap_or(0) % 4,
+                    mirror: n.mirror.unwrap_or(false),
+                    caption: n.caption,
                     degree: 0,
                     pinned: n.pinned,
                     layers: n.layers,

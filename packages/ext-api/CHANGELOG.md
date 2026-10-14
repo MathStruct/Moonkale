@@ -12,6 +12,23 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased
+
+Turned blocks and captions (ADR-0024 §5–6).
+
+**Breaking:** each of these fails to compile only where a caller builds the struct literally.
+- `moonkale-ext-api::flow::Block.turn` and `Block.mirror` are new fields. *Update:* a `Block` literal that lists every field adds `turn: 0, mirror: false`. Literals finished with `..Default::default()` keep compiling.
+- `moonkale-ext-api::flow::BlockPorts.caption` is a new field. *Update:* a `BlockPorts` literal adds `caption: None`.
+- `moonkale-graph-render::graph::Node.turn`, `.mirror` and `.caption` are new fields. *Update:* a `Node` literal adds them. Nothing outside the crate builds one today.
+
+**moonkale-ext-api**
+- `Block.turn` (quarter turns clockwise, 0–3) and `Block.mirror` (left to right in the block's own frame, before the turn). Both are omitted from the file at their defaults. `Block::rotate()` turns a block a quarter clockwise as seen; `Block::flip()` mirrors it left to right as seen, whatever its turn.
+- `BlockKind.caption: Option<String>` (defaulted) and `BlockPorts.caption`: a template under the block's name. A `{name}` hole takes the name of the block at the other end of a wired port of that name, else the parameter's value or its default, else `?`.
+
+**moonkale-graph-render**
+- `InNode.turn` / `.mirror` turn and mirror a symbol's drawing inside the turned box the host sends; `InDeltaNode` carries them as options, and absent keeps the old values. A symbol with a bottom port puts its label to its right.
+- `InNode.caption` / `InDeltaNode.caption`: a second, smaller line under the label.
+
 ## ext-api-2026-10-14
 
 Block symbols (ADR-0024): a kind can draw as a schematic instead of a box, and ortho wires follow their ports' sides.

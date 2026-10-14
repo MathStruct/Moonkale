@@ -66,6 +66,7 @@ fn library() -> FlowLibrary {
             }],
             role: None,
             symbol: None,
+            caption: None,
         }],
         codegen: None,
         language: "none",

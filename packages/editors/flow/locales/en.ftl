@@ -19,3 +19,7 @@ flow-reload = Reload
 flow-reload-title = Discard edits and reload from the file
 flow-subsystem = Subsystem
 flow-subsystem-title = Add a subsystem — an empty subflow you enter with a double-click and fill
+flow-rotate = ⟳
+flow-rotate-title = Turn the block a quarter clockwise (R)
+flow-mirror = ⇋
+flow-mirror-title = Mirror the block left to right (M)
