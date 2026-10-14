@@ -150,6 +150,7 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 57 | **Crash safety, the rest** ([[Crash Safety]] steps 3 to 7): panics in tasks and handlers caught per extension, a web crash overlay, crash counting and safe mode, re-instantiating wasm modules | shell, `ext-host`, the web client | — | M | a panicking task disables only its extension; `--safe` starts clean |
 | 58 | **egui comparison spike**, only if revisited ([[egui and Dioxus]]): one egui app with the table grid and the graph engine, measured against the Dioxus panels | a throwaway crate | — | S | the benchmark numbers side by side, and a verdict |
 | 59 | **Linked panels** ([[Linked Panels]]): link groups (lead and followers) in the session, tab stripes and markers, graph panel instances per group, Open with context, selection sync | `ext-api` (link model), shell, `editors/graph`, `editors/markdown`, `editors/table`, `editors/flow` | 46 (groups live in the session) | M | `linked-panels.mjs`: two groups with their own local graphs, marked, surviving a reload |
+| 60 | **Overview** ([[Overview]]): every open tab as a card (Ctrl+Alt+Space), grouped by link group and window, type-to-search with quick open below, extension previews, the engine's snapshot | shell, `ext-api` (`Extension::preview`), `graph-render` ★ (snapshot), the editors' previews | 59 helps (groups) | M | `overview.mjs`: twelve cards in under 100 ms, filter, switch, close |
 
 ## A first wave
 
