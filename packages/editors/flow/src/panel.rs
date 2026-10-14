@@ -71,6 +71,15 @@ struct OutNode<'a> {
     height: f32,
     pos: [f32; 2],
     pinned: bool,
+    /// The kind's schematic (ADR-0024): SVG path data in the block's box.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    symbol: Option<&'a str>,
+    /// Quarter turns clockwise and the mirror (ADR-0024 §5).
+    turn: u8,
+    mirror: bool,
+    /// The filled caption line (ADR-0024 §6).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caption: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -121,19 +130,7 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
         let bad = issues.iter().any(|x| x.about == block.id);
         b.push(BlockOut {
             id: block.id.clone(),
-            // A factor graph's variable shows its own name (θ, y), not
-            // its kind's (ADR-0022).
-            name: match block.params.get("name") {
-                Some(n)
-                    if !n.trim().is_empty()
-                        && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
-                {
-                    n.as_str()
-                }
-                _ => resolved
-                    .map(|p| p.name)
-                    .unwrap_or_else(|| block.kind.as_str()),
-            },
+            name: display_name(block, resolved.as_ref()),
             kind: if block.subflow.is_some() {
                 "subflow"
             } else {
@@ -147,6 +144,16 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
                 kind_color(&block.kind)
             },
             pos: [block.x as f32, block.y as f32],
+            turn: block.turn,
+            mirror: block.mirror,
+            caption: caption_for(
+                block,
+                resolved.as_ref(),
+                &flow.blocks,
+                &flow.wires,
+                flow,
+                libs,
+            ),
             resolved,
         });
     }
@@ -184,6 +191,9 @@ fn subflow_scene<'a>(
             kind: "boundary/in",
             color: "#9ab7ff",
             pos: [30.0, 60.0 + 80.0 * j as f32],
+            turn: 0,
+            mirror: false,
+            caption: None,
             resolved: Some(BlockPorts {
                 name: &p.name,
                 inputs: &[],
@@ -191,6 +201,8 @@ fn subflow_scene<'a>(
                 connections: &[],
                 params: &[],
                 role: None,
+                symbol: None,
+                caption: None,
             }),
         });
     }
@@ -201,6 +213,9 @@ fn subflow_scene<'a>(
             kind: "boundary/out",
             color: "#9ab7ff",
             pos: [630.0, 60.0 + 80.0 * j as f32],
+            turn: 0,
+            mirror: false,
+            caption: None,
             resolved: Some(BlockPorts {
                 name: &p.name,
                 inputs: std::slice::from_ref(p),
@@ -208,6 +223,8 @@ fn subflow_scene<'a>(
                 connections: &[],
                 params: &[],
                 role: None,
+                symbol: None,
+                caption: None,
             }),
         });
     }
@@ -218,6 +235,9 @@ fn subflow_scene<'a>(
             kind: "boundary/pin",
             color: "#9ab7ff",
             pos: [330.0, 40.0 + 70.0 * j as f32],
+            turn: 0,
+            mirror: false,
+            caption: None,
             resolved: Some(BlockPorts {
                 name: &p.name,
                 inputs: &[],
@@ -225,6 +245,8 @@ fn subflow_scene<'a>(
                 connections: std::slice::from_ref(p),
                 params: &[],
                 role: None,
+                symbol: None,
+                caption: None,
             }),
         });
     }
@@ -235,19 +257,7 @@ fn subflow_scene<'a>(
             .any(|x| x.about == format!("{}/{}", sub.id, block.id));
         b.push(BlockOut {
             id: block.id.clone(),
-            // A factor graph's variable shows its own name (θ, y), not
-            // its kind's (ADR-0022).
-            name: match block.params.get("name") {
-                Some(n)
-                    if !n.trim().is_empty()
-                        && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
-                {
-                    n.as_str()
-                }
-                _ => resolved
-                    .map(|p| p.name)
-                    .unwrap_or_else(|| block.kind.as_str()),
-            },
+            name: display_name(block, resolved.as_ref()),
             kind: if block.subflow.is_some() {
                 "subflow"
             } else {
@@ -261,6 +271,16 @@ fn subflow_scene<'a>(
                 kind_color(&block.kind)
             },
             pos: [block.x as f32, block.y as f32],
+            turn: block.turn,
+            mirror: block.mirror,
+            caption: caption_for(
+                block,
+                resolved.as_ref(),
+                &sub.blocks,
+                &sub.wires,
+                flow,
+                libs,
+            ),
             resolved,
         });
     }
@@ -284,6 +304,109 @@ fn subflow_scene<'a>(
     )
 }
 
+/// The name a block shows: a factor graph's variable its own (θ, y),
+/// anything else its kind's (ADR-0022).
+fn display_name<'a>(block: &'a Block, resolved: Option<&BlockPorts<'a>>) -> &'a str {
+    match block.params.get("name") {
+        Some(n)
+            if !n.trim().is_empty() && resolved.is_some_and(|p| p.role == Some(Role::Variable)) =>
+        {
+            n.as_str()
+        }
+        _ => resolved
+            .map(|p| p.name)
+            .unwrap_or_else(|| block.kind.as_str()),
+    }
+}
+
+/// A block's caption (ADR-0024 §6): its kind's template with each
+/// `{name}` hole filled — a wired port of that name shows the block at
+/// the wire's other end (a boundary pseudo-block its port's name), else
+/// the parameter's value or its default; a hole naming neither is `?`.
+fn caption_for(
+    block: &Block,
+    resolved: Option<&BlockPorts>,
+    blocks: &[Block],
+    wires: &[Wire],
+    flow: &Flow,
+    libs: &[FlowLibrary],
+) -> Option<String> {
+    let template = resolved?.caption?;
+    let params = resolved.map(|p| p.params).unwrap_or(&[]);
+    let hole = |name: &str| -> String {
+        let other = wires.iter().find_map(|w| {
+            if w.from_block == block.id && w.from_port == name {
+                Some(w.to_block.as_str())
+            } else if w.to_block == block.id && w.to_port == name {
+                Some(w.from_block.as_str())
+            } else {
+                None
+            }
+        });
+        if let Some(id) = other {
+            if let Some(port) = id.strip_prefix(BOUNDARY) {
+                return port.to_string();
+            }
+            if let Some(b) = blocks.iter().find(|b| b.id == id) {
+                return display_name(b, flow.ports_of(libs, b).as_ref()).to_string();
+            }
+        }
+        block
+            .params
+            .get(name)
+            .cloned()
+            .or_else(|| {
+                params
+                    .iter()
+                    .find(|p| p.name == name)
+                    .map(|p| p.default.clone())
+            })
+            .unwrap_or_else(|| "?".into())
+    };
+    let mut out = String::new();
+    let mut rest = template;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        match rest[open..].find('}') {
+            Some(close) => {
+                out.push_str(&hole(&rest[open + 1..open + close]));
+                rest = &rest[open + close + 1..];
+            }
+            None => {
+                rest = &rest[open..];
+                break;
+            }
+        }
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
+/// A port's place once its block is mirrored (left to right, in its own
+/// frame) and then turned clockwise by quarter turns (ADR-0024 §5).
+/// Offsets run left to right along top and bottom, top to bottom along
+/// the sides — so a turn maps top to right at the same offset, right to
+/// bottom reversed, bottom to left, left to top reversed.
+fn turned(side: &'static str, offset: f32, turn: u8, mirror: bool) -> (&'static str, f32) {
+    let (mut side, mut offset) = (side, offset);
+    if mirror {
+        (side, offset) = match side {
+            "left" => ("right", offset),
+            "right" => ("left", offset),
+            other => (other, 1.0 - offset),
+        };
+    }
+    for _ in 0..turn % 4 {
+        (side, offset) = match side {
+            "top" => ("right", offset),
+            "right" => ("bottom", 1.0 - offset),
+            "bottom" => ("left", offset),
+            _ => ("top", 1.0 - offset),
+        };
+    }
+    (side, offset)
+}
+
 /// The library a document is written in: the first block — at the root,
 /// else inside a subflow — whose kind names a known library. `None` for
 /// an empty flow (the palette then starts on the first library).
@@ -297,6 +420,30 @@ fn document_library(flow: &Flow, libs: &[FlowLibrary]) -> Option<usize> {
         })
 }
 
+/// Where a port sits when no symbol anchors it (ADR-0024): inputs on
+/// the left, outputs on the right — dataflow reads left to right. Pins
+/// (ADR-0020) alternate left and right, so a two-pin part (a resistor, a
+/// spring) lies in its circuit's line instead of hanging both pins off
+/// its top. A factor's first channel is the variable it generates and
+/// leaves on the right; its parameters come in from the left
+/// (ADR-0022). A variable's one pin rides its top.
+fn default_side(direction: &str, pin: usize, pins: usize, role: Option<Role>) -> &'static str {
+    match (direction, role) {
+        ("in", _) => "left",
+        ("out", _) => "right",
+        (_, Some(Role::Variable)) => "top",
+        (_, Some(Role::Factor)) => {
+            if pin == 0 {
+                "right"
+            } else {
+                "left"
+            }
+        }
+        _ if pins == 1 || pin.is_multiple_of(2) => "left",
+        _ => "right",
+    }
+}
+
 /// One block's appearance, for [`SceneBuilder::push`] — the shape the
 /// root scope and an entered subflow share (ADR-0021 §4).
 struct BlockOut<'a> {
@@ -305,6 +452,11 @@ struct BlockOut<'a> {
     kind: &'a str,
     color: &'static str,
     pos: [f32; 2],
+    /// The block's quarter turns and mirror (ADR-0024 §5).
+    turn: u8,
+    mirror: bool,
+    /// Its filled caption (ADR-0024 §6).
+    caption: Option<String>,
     resolved: Option<BlockPorts<'a>>,
 }
 
@@ -318,8 +470,9 @@ struct SceneBuilder<'a> {
 }
 
 impl<'a> SceneBuilder<'a> {
-    /// One block: the node, and its ports — inputs on the left,
-    /// outputs on the right, acausal pins on the top edge (ADR-0020).
+    /// One block: the node, and its ports. A kind's symbol (ADR-0024)
+    /// sizes the block, draws it and anchors its pins; whatever it leaves
+    /// open follows [`default_side`].
     fn push(&mut self, block: BlockOut<'a>) {
         let BlockOut {
             id,
@@ -327,25 +480,68 @@ impl<'a> SceneBuilder<'a> {
             kind,
             color,
             pos,
+            turn,
+            mirror,
+            caption,
             resolved,
         } = block;
         let i = self.nodes.len();
         self.index.insert(id.clone(), i);
-        let (n_in, n_out) = resolved
-            .map(|p| (p.inputs.len(), p.outputs.len()))
-            .unwrap_or((0, 0));
-        // Tall enough for its ports; a little room for the label. A
-        // factor graph's variable is a circle, as on paper (ADR-0022):
-        // it has no behaviour, only the one pin factors attach to.
-        let variable = resolved.is_some_and(|p| p.role == Some(Role::Variable));
-        let (shape, width, height) = if variable {
+        let symbol = resolved.as_ref().and_then(|p| p.symbol);
+        // Every port with its direction and its place: the symbol's
+        // anchor, or the default side (offset spread below).
+        let mut ports: Vec<(&Port, &'static str, &'static str, Option<f32>)> = Vec::new();
+        if let Some(s) = &resolved {
+            let all = s
+                .inputs
+                .iter()
+                .map(|p| (p, "in"))
+                .chain(s.outputs.iter().map(|p| (p, "out")))
+                .chain(s.connections.iter().map(|p| (p, "both")));
+            let mut pin = 0;
+            for (p, direction) in all {
+                let anchor = symbol.and_then(|sym| sym.anchors.iter().find(|a| a.port == p.name));
+                let (side, offset) = match anchor {
+                    Some(a) => (a.side.as_str(), Some(a.offset)),
+                    None => {
+                        let side = default_side(direction, pin, s.connections.len(), s.role);
+                        (side, None)
+                    }
+                };
+                if direction == "both" {
+                    pin += 1;
+                }
+                ports.push((p, direction, side, offset));
+            }
+        }
+        let mut on: BTreeMap<&str, usize> = BTreeMap::new();
+        for p in ports.iter().filter(|p| p.3.is_none()) {
+            *on.entry(p.2).or_default() += 1;
+        }
+        let tallest = on.get("left").max(on.get("right")).copied().unwrap_or(0);
+        // A symbol has its own size; a box is tall enough for its ports,
+        // with a little room for the label. A factor graph's variable is
+        // a circle, as on paper (ADR-0022): it has no behaviour, only the
+        // one pin factors attach to.
+        let variable = resolved
+            .as_ref()
+            .is_some_and(|p| p.role == Some(Role::Variable));
+        let (shape, width, height) = if let Some(sym) = symbol {
+            ("rect", sym.width / 2.0, sym.height / 2.0)
+        } else if variable {
             ("circle", 14.0, 14.0)
         } else {
             (
                 "rect",
                 BLOCK_W.max(name.len() as f32 * 1.9),
-                (10.0 + 7.0 * n_in.max(n_out) as f32).max(22.0),
+                (10.0 + 7.0 * tallest as f32).max(22.0),
             )
+        };
+        // A turned block's box is the turned one (ADR-0024 §5).
+        let (width, height) = if turn % 2 == 1 {
+            (height, width)
+        } else {
+            (width, height)
         };
         self.nodes.push(OutNode {
             id,
@@ -357,40 +553,28 @@ impl<'a> SceneBuilder<'a> {
             height,
             pos,
             pinned: true, // the document (or the declaration) owns the positions
+            symbol: symbol.map(|s| s.path.as_str()),
+            turn: turn % 4,
+            mirror,
+            caption,
         });
-        if let Some(s) = resolved {
-            for (j, p) in s.inputs.iter().enumerate() {
-                self.ports.push(OutPort {
-                    node: i,
-                    name: p.name.clone(),
-                    side: "left",
-                    offset: (j + 1) as f32 / (n_in + 1) as f32,
-                    direction: "in",
-                    color: port_color(&p.ty),
-                });
-            }
-            for (j, p) in s.outputs.iter().enumerate() {
-                self.ports.push(OutPort {
-                    node: i,
-                    name: p.name.clone(),
-                    side: "right",
-                    offset: (j + 1) as f32 / (n_out + 1) as f32,
-                    direction: "out",
-                    color: port_color(&p.ty),
-                });
-            }
-            // Acausal pins ride the top edge (ADR-0020) — drawn like
-            // any port, in their domain's colour, never an arrow.
-            for (j, p) in s.connections.iter().enumerate() {
-                self.ports.push(OutPort {
-                    node: i,
-                    name: p.name.clone(),
-                    side: "top",
-                    offset: (j + 1) as f32 / (s.connections.len() + 1) as f32,
-                    direction: "both",
-                    color: port_color(&p.ty),
-                });
-            }
+        // Unanchored ports spread evenly along their side, in order.
+        let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
+        for (p, direction, side, offset) in ports {
+            let offset = offset.unwrap_or_else(|| {
+                let k = seen.entry(side).or_default();
+                *k += 1;
+                *k as f32 / (on[side] + 1) as f32
+            });
+            let (side, offset) = turned(side, offset, turn, mirror);
+            self.ports.push(OutPort {
+                node: i,
+                name: p.name.clone(),
+                side,
+                offset,
+                direction,
+                color: port_color(&p.ty),
+            });
         }
     }
 
@@ -986,6 +1170,8 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     y: 30.0 + row * 170.0,
                     params: params.clone(),
                     subflow: None, // a palette block is a library block
+                    mirror: false,
+                    turn: 0,
                 });
             });
         });
@@ -1028,6 +1214,8 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     y: 30.0 + row * 170.0,
                     params: Default::default(),
                     subflow: Some(format!("subflow-{suffix}")),
+                    mirror: false,
+                    turn: 0,
                 });
             });
         });
@@ -1053,6 +1241,31 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
         push_undo(undo_stack, redo_stack, before);
         sync(&flow, &mut last_text, &mut doc, &broken);
+    };
+
+    // R turns the given blocks a quarter clockwise, M mirrors them left
+    // to right as seen (ADR-0024 §5) — one undo step each.
+    let mut reorient = move |(ids, mirror): (Vec<String>, bool)| {
+        if broken.peek().is_some() || ids.is_empty() {
+            return;
+        }
+        let open = scope.read().clone();
+        let before = flow.read().to_json();
+        flow.with_mut(|f| {
+            let _ = f.with_scope(&open, |blocks, _| {
+                for b in blocks.iter_mut().filter(|b| ids.contains(&b.id)) {
+                    if mirror {
+                        b.flip();
+                    } else {
+                        b.rotate();
+                    }
+                }
+            });
+        });
+        if flow.read().to_json() != before {
+            push_undo(undo_stack, redo_stack, before);
+            sync(&flow, &mut last_text, &mut doc, &broken);
+        }
     };
 
     // Delete removes the selected blocks and wires (the engine only
@@ -1204,6 +1417,16 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         });
                         selected.set((Vec::new(), Vec::new()));
                         editor_pos.set(None);
+                    }
+                } else if matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("r") || c.eq_ignore_ascii_case("m"))
+                    && !e.modifiers().alt()
+                {
+                    // R turns, M mirrors the selected blocks (ADR-0024 §5).
+                    let mirror = matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("m"));
+                    let ids = selected.read().0.clone();
+                    if !ids.is_empty() {
+                        e.prevent_default();
+                        reorient((ids, mirror));
                     }
                 } else if matches!(e.key(), Key::Delete | Key::Backspace) {
                     // The editor stops its own keys (below), so a key
@@ -1362,7 +1585,19 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                         e.stop_propagation();
                                     }
                                 },
-                                div { class: "mk-flow-props-title", "{b.id}" }
+                                div { class: "mk-flow-props-title",
+                                    span { "{b.id}" }
+                                    {
+                                        let (r, m) = (b.id.clone(), b.id.clone());
+                                        let (mut turn, mut flip) = (reorient, reorient);
+                                        rsx! {
+                                            button { class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
+                                                onclick: move |_| turn((vec![r.clone()], false)), {t!(ws, L, "flow-rotate")} }
+                                            button { class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
+                                                onclick: move |_| flip((vec![m.clone()], true)), {t!(ws, L, "flow-mirror")} }
+                                        }
+                                    }
+                                }
                                 for p in k.params.iter() {
                                     {
                                         let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
@@ -1620,6 +1855,7 @@ fn wire(
 mod tests {
     use super::*;
     use moonkale_ext_api::flow::Subflow;
+    use moonkale_ext_api::flow::{Anchor, Side, Symbol};
 
     /// A `.flow.json` whose wire names a deleted block parses — `validate`
     /// reports it — and must not panic the scene build (the review's #2).
@@ -1690,6 +1926,8 @@ mod tests {
                     connections: vec![pin("p"), pin("n")],
                     params: vec![],
                     role: None,
+                    symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "ground".into(),
@@ -1701,6 +1939,8 @@ mod tests {
                     connections: vec![pin("g")],
                     params: vec![],
                     role: None,
+                    symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "src".into(),
@@ -1712,6 +1952,8 @@ mod tests {
                     connections: vec![],
                     params: vec![],
                     role: None,
+                    symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "mass".into(),
@@ -1729,6 +1971,8 @@ mod tests {
                     }],
                     params: vec![],
                     role: None,
+                    symbol: None,
+                    caption: None,
                 },
                 BlockKind {
                     id: "sink".into(),
@@ -1740,6 +1984,8 @@ mod tests {
                     connections: vec![],
                     params: vec![],
                     role: None,
+                    symbol: None,
+                    caption: None,
                 },
             ],
         }
@@ -1996,7 +2242,7 @@ mod tests {
     }
 
     #[test]
-    fn to_scene_draws_pins_on_the_top_edge_and_equations_without_arrows() {
+    fn to_scene_draws_pins_on_the_sides_and_equations_without_arrows() {
         let libs = vec![pin_lib()];
         let mut f = Flow::new();
         f.blocks = vec![
@@ -2041,11 +2287,211 @@ mod tests {
         // The equation carries no arrow; the dataflow wire does.
         assert!(!scene.edges.iter().find(|e| e.id == "w1").unwrap().directed);
         assert!(scene.edges.iter().find(|e| e.id == "w2").unwrap().directed);
-        // Pins ride the top edge, drawn `both`.
-        let pins: Vec<&OutPort> = scene.ports.iter().filter(|p| p.side == "top").collect();
+        // A two-pin part lies in its line — p left, n right — and a lone
+        // pin takes the left (ADR-0024); none rides the top. Drawn `both`.
+        let pins: Vec<&OutPort> = scene
+            .ports
+            .iter()
+            .filter(|p| p.direction == "both")
+            .collect();
         assert_eq!(pins.len(), 3, "2 + 1 + 0 + 0 resistor/ground pins");
-        assert!(pins.iter().all(|p| p.direction == "both"));
-        assert!(pins.iter().any(|p| p.name == "p" && p.node == 0));
+        let side = |node: usize, name: &str| {
+            pins.iter()
+                .find(|p| p.node == node && p.name == name)
+                .unwrap()
+                .side
+        };
+        assert_eq!(side(0, "p"), "left");
+        assert_eq!(side(0, "n"), "right");
+        assert_eq!(side(1, "g"), "left");
+        assert!(
+            scene.nodes.iter().all(|n| n.symbol.is_none()),
+            "no kind draws a symbol"
+        );
+    }
+
+    #[test]
+    fn a_turn_maps_each_side_clockwise_and_a_mirror_swaps_left_and_right() {
+        // A point at offset t on each side, turned a quarter clockwise.
+        assert_eq!(turned("top", 0.2, 1, false), ("right", 0.2));
+        assert_eq!(turned("right", 0.2, 1, false), ("bottom", 0.8));
+        assert_eq!(turned("bottom", 0.2, 1, false), ("left", 0.2));
+        assert_eq!(turned("left", 0.2, 1, false), ("top", 0.8));
+        // Four turns are none; two put left on the right, reversed.
+        assert_eq!(turned("left", 0.3, 4, false), ("left", 0.3));
+        let (side, offset) = turned("left", 0.25, 2, false);
+        assert_eq!(side, "right");
+        assert!((offset - 0.75).abs() < 1e-6);
+        // The mirror comes first, in the block's own frame.
+        assert_eq!(turned("left", 0.25, 0, true), ("right", 0.25));
+        assert_eq!(turned("top", 0.25, 0, true), ("top", 0.75));
+        assert_eq!(turned("left", 0.5, 1, true), ("bottom", 0.5));
+    }
+
+    #[test]
+    fn a_turned_block_swaps_its_box_and_turns_its_pins() {
+        let mut lib = pin_lib();
+        let r = lib.blocks.iter_mut().find(|k| k.id == "resistor").unwrap();
+        r.symbol = Some(Symbol {
+            width: 80.0,
+            height: 32.0,
+            path: "M 0 16 H 80".into(),
+            anchors: vec![
+                Anchor {
+                    port: "p".into(),
+                    side: Side::Left,
+                    offset: 0.5,
+                },
+                Anchor {
+                    port: "n".into(),
+                    side: Side::Right,
+                    offset: 0.5,
+                },
+            ],
+        });
+        let libs = vec![lib];
+        let mut f = Flow::new();
+        f.blocks = vec![Block {
+            id: "r".into(),
+            kind: "m/resistor".into(),
+            turn: 1,
+            ..Default::default()
+        }];
+        let scene = to_scene(&f, &libs, &[]);
+        let n = &scene.nodes[0];
+        assert_eq!(
+            (n.width, n.height, n.turn),
+            (16.0, 40.0, 1),
+            "standing upright"
+        );
+        let side = |name: &str| scene.ports.iter().find(|p| p.name == name).unwrap().side;
+        assert_eq!((side("p"), side("n")), ("top", "bottom"));
+        // Mirrored left to right as seen, an upright part keeps its ends
+        // (the drawing flips across its own axis).
+        f.blocks[0].flip();
+        let scene = to_scene(&f, &libs, &[]);
+        let side = |name: &str| scene.ports.iter().find(|p| p.name == name).unwrap().side;
+        assert_eq!((side("p"), side("n")), ("top", "bottom"));
+        assert_eq!((scene.nodes[0].turn, scene.nodes[0].mirror), (3, true));
+        // Turned on to lie down again, mirrored: p on the right.
+        f.blocks[0].rotate();
+        let scene = to_scene(&f, &libs, &[]);
+        let side = |name: &str| scene.ports.iter().find(|p| p.name == name).unwrap().side;
+        assert_eq!((side("p"), side("n")), ("right", "left"));
+    }
+
+    #[test]
+    fn a_caption_fills_its_holes_from_wires_then_params_then_defaults() {
+        let mut lib = rx_lib();
+        let k = lib.blocks.iter_mut().find(|k| k.id == "normal").unwrap();
+        k.caption = Some("{out} ~ N({mean}, {variance}) {s}".into());
+        k.params = vec![moonkale_ext_api::flow::Param {
+            name: "variance".into(),
+            kind: ParamKind::Float,
+            default: "1.0".into(),
+        }];
+        let libs = vec![lib];
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "f".into(),
+                kind: "rx/normal".into(),
+                params: [("s".to_string(), "2".to_string())].into(),
+                ..Default::default()
+            },
+            Block {
+                id: "t".into(),
+                kind: "rx/variable".into(),
+                params: [("name".to_string(), "θ".to_string())].into(),
+                ..Default::default()
+            },
+        ];
+        let caption = |f: &Flow| {
+            to_scene(f, &libs, &[])
+                .nodes
+                .iter()
+                .find(|n| n.id == "f")
+                .unwrap()
+                .caption
+                .clone()
+        };
+        // Unwired: a hole naming nothing is `?`, a parameter its value or
+        // its default.
+        assert_eq!(caption(&f).as_deref(), Some("? ~ N(?, 1.0) 2"));
+        // A wired port names the block at the other end.
+        f.wires = vec![Wire {
+            id: "w".into(),
+            from_block: "t".into(),
+            from_port: "x".into(),
+            to_block: "f".into(),
+            to_port: "out".into(),
+        }];
+        assert_eq!(caption(&f).as_deref(), Some("θ ~ N(?, 1.0) 2"));
+        let scene = to_scene(&f, &libs, &[]);
+        let t = scene.nodes.iter().find(|n| n.id == "t").unwrap();
+        assert!(t.caption.is_none(), "a kind without a template has none");
+    }
+
+    #[test]
+    fn a_symbol_sizes_the_block_draws_it_and_anchors_its_pins() {
+        let mut lib = pin_lib();
+        let k = lib.blocks.iter_mut().find(|k| k.id == "ground").unwrap();
+        k.symbol = Some(Symbol {
+            width: 30.0,
+            height: 24.0,
+            path: "M 15 0 V 10 M 3 10 H 27".into(),
+            anchors: vec![Anchor {
+                port: "g".into(),
+                side: Side::Top,
+                offset: 0.5,
+            }],
+        });
+        let r = lib.blocks.iter_mut().find(|k| k.id == "resistor").unwrap();
+        // Anchors only one pin: the other keeps its default side.
+        r.symbol = Some(Symbol {
+            width: 60.0,
+            height: 20.0,
+            path: "M 0 10 H 60".into(),
+            anchors: vec![Anchor {
+                port: "p".into(),
+                side: Side::Bottom,
+                offset: 0.25,
+            }],
+        });
+        let libs = vec![lib];
+        let mut f = Flow::new();
+        f.blocks = vec![
+            Block {
+                id: "g".into(),
+                kind: "m/ground".into(),
+                ..Default::default()
+            },
+            Block {
+                id: "r".into(),
+                kind: "m/resistor".into(),
+                ..Default::default()
+            },
+        ];
+        let scene = to_scene(&f, &libs, &[]);
+        let g = &scene.nodes[0];
+        assert_eq!(g.symbol, Some("M 15 0 V 10 M 3 10 H 27"));
+        assert_eq!(
+            (g.shape, g.width, g.height),
+            ("rect", 15.0, 12.0),
+            "half-extents"
+        );
+        let port = |node: usize, name: &str| {
+            scene
+                .ports
+                .iter()
+                .find(|p| p.node == node && p.name == name)
+                .unwrap()
+        };
+        assert_eq!(port(0, "g").side, "top");
+        assert_eq!(port(1, "p").side, "bottom");
+        assert_eq!(port(1, "p").offset, 0.25);
+        assert_eq!(port(1, "n").side, "right", "unanchored: the default rule");
+        assert_eq!(port(1, "n").offset, 0.5);
     }
 
     // ---- ADR-0021: subflows ---------------------------------------------
@@ -2093,7 +2539,7 @@ mod tests {
             },
         ];
         // An equation onto the subsystem's declared pin, drawn like any
-        // pin wire — without an arrow, from the block's top edge.
+        // pin wire — without an arrow, from the block's left edge.
         f.wires = vec![Wire {
             id: "w1".into(),
             from_block: "sub_1".into(),
@@ -2114,13 +2560,13 @@ mod tests {
             "a boundary pin wire is an equation"
         );
         // The declared boundary is the parent block's ports: the input on
-        // the left, the output on the right, the pin on the top.
+        // the left, the output on the right, the lone pin on the left too.
         let port = |name: &str| scene.ports.iter().find(|p| p.name == name && p.node == 0);
         assert_eq!(port("x").unwrap().side, "left");
         assert_eq!(port("x").unwrap().direction, "in");
         assert_eq!(port("y").unwrap().side, "right");
         assert_eq!(port("y").unwrap().direction, "out");
-        assert_eq!(port("p").unwrap().side, "top");
+        assert_eq!(port("p").unwrap().side, "left");
         assert_eq!(port("p").unwrap().direction, "both");
     }
 

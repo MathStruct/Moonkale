@@ -51,10 +51,13 @@ Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence 
 | Remote folder (SSH), git-host repositories, API (OpenAPI) sources | [[Projects and Sources]] | optional | this repo (sources are core-adjacent) | ssh / tokens |
 | Julia REPL, LanguageServer.jl, Lean infoview | [[Core Languages]] | opt-in | `MathStruct/moonkale-julia`, `moonkale-lean` | Julia / Lean toolchains |
 | Julia depot read-only source (`Project.toml`/`Manifest.toml` → `~/.julia/packages`), ModelingToolkit Simulink-like editor, **Lenticulum.jl factor-graph editor and live viewer** + `Moonkale.jl` companion | [[Julia and Lenticulum]] | opt-in | `MathStruct/moonkale-julia` — never in the standard web build | Julia; a running Julia session for live state |
+| **Knowledge Graph Studio**: the frontend for oxilite (RDF, SPARQL, reasoning, SHACL, schema registry) and tiramemsu (layered, bitemporal memory), on their crates as they are; plus a language-server contribution point for `oxilite studio-server` | [[Knowledge Graph Studio]] (proposal, 2026-10-14) | opt-in | its own repository, like `moonkale-julia` | the `oxilite` and `tiramemsu` crates; `oxilite studio-server` for language features |
 | Plain-text tier for huge files, coarse graph tier | [[Case Selector]] | core (backends, not extensions) | this repo | — |
 | Remote runtime on the phone for wasm extensions + "Install from URL" | [[Android Extensions and Bundling]] | core mechanism | this repo | — |
 
 ## What should be core, what should be a separate repository
+
+The longer discussion, with criteria and the open placements for the October 2026 requests, is [[Core and Extensions]]; the cases it should be argued from are collected in [[Use Cases]].
 
 **Core (this repository, every build):** Explorer, Search, Settings, History; the code editor, Markdown & links (+ Typst preview), Graph, Table, Terminal, Agent (with the provider library), Git, **the Flow editor** (a generic editor for `*.flow.json` with typed ports — the block libraries are what make it domain-specific, and those can live elsewhere); the core language packs; the Unicode tables. Criterion: everything a person needs to *edit code and notes and look at their data* on the first day, with no toolchain beyond Moonkale itself.
 
@@ -84,7 +87,7 @@ What is good: the boundaries that exist are real — JS behind traits with a pro
 1. `distribution`/platform catalogue + `ui` without extension deps + Cargo features per extension (`--no-default-features` builds Explorer/Search/Settings/Code/Markdown/Graph only).
 2. History → `packages/extensions/history`; git types → git crate; file-opener contribution replaces the driver calls in the Explorer.
 3. Server contribution point; git/LSP/terminal/typst relays move into their crates behind `server` features.
-4. ~~`packages/extensions/lux` → `MathStruct/moonkale-julia`~~ — **done in Milestone 18 phase 6.4**: it depends on `moonkale-ext-api` by git tag (`lib-v1` at `v0.1.0`, `ext-api-2026-10-12` since the pins); Moonkale pulls it by git behind `julia` and patches the contract to its own path; CI here checks the distribution with `--features julia`. The flow editor stays here. Since ADR-0020 it carries the Lux.jl block library and the ModelingToolkit one (acausal, domain-typed pins, `circuit.jl` codegen, the `mtk` extension); since ADR-0022 (v0.4.0) also the **RxInfer** one (a bipartite factor graph of variables and distribution factors, `inference.jl` codegen, the `rxinfer` extension).
+4. ~~`packages/extensions/lux` → `MathStruct/moonkale-julia`~~ — **done in Milestone 18 phase 6.4**: it depends on `moonkale-ext-api` by git tag (`lib-v1` at `v0.1.0`, `ext-api-2026-10-12` since the pins); Moonkale pulls it by git behind `julia` and patches the contract to its own path; CI here checks the distribution with `--features julia`. The flow editor stays here. Since ADR-0020 it carries the Lux.jl block library and the ModelingToolkit one (acausal, domain-typed pins, `circuit.jl` codegen, the `mtk` extension); since ADR-0022 (v0.4.0) also the **RxInfer** one (a bipartite factor graph of variables and distribution factors, `inference.jl` codegen, the `rxinfer` extension); since ADR-0024 (v0.5.0) its kinds draw as symbols, and since v0.6.0 they carry captions.
 5. `Workspace` split into services.
 
 ## Changelog of this page

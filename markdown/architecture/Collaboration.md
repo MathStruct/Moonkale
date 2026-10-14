@@ -5,6 +5,8 @@ tags: [architecture, collaboration]
 ---
 Collaboration in Moonkale grows out of something that already ships: **the session bus**. Every window or tab of one user is a *peer*; a user on another machine is a peer behind the server. Same messages, different transport — so the multi-window feature built in Milestone 1 is the first, zero-latency, single-actor form of collaboration. This note extends it to many people. Related: [[Version Management]] (the entity log is the shared history), [[LLM and RAG]] (agents are peers too).
 
+Several people and agents in one session, and what the database guarantees versus what Moonkale adds when they edit the same graph, are in [[Shared Work]] (2026-10-14).
+
 ## Layers
 
 ```mermaid

@@ -16,6 +16,10 @@ This plan turns [[Code Editor Requirements]] into staged deliverables. It keeps 
 
 The plan is deliberately engine-neutral. First prove a candidate has an editor-owned caret/selection model, efficient change reporting, virtualized rendering, a usable Dioxus integration, and a path to decorations. The existing `dioxus-code-editor` textarea/highlight component is a useful grammar baseline, but it does not meet those capabilities by itself. The current M1 prototype still uses it and therefore does not pass M0. See [[Rust Code Editor M0 Spike]] for the engine comparison and provisional lead candidate. Do not treat removal of `document::eval` alone as satisfying editor-owned selection.
 
+## Performance target — 60 FPS (CED-R22, 2026-10-14)
+
+Daniel set the bar: the Rust code editor runs at **60 FPS**: typing, held arrows, scrolling, selection drag and caret movement, in an ordinary highlighted source file and in the 3 MB document. The gate is p95 frame interval ≤ 16.7 ms and no frame over 50 ms, on web and desktop, release build. The current implementation does not meet it. This gate applies from now on, not only at M5: each milestone's acceptance records the frame numbers, and a feature that pushes them over the bar is not done. First step: a benchmark suite (Playwright, `requestAnimationFrame` intervals during scripted typing and scrolling, both files) that prints p50/p95/max and the long frames' causes, run per release.
+
 ## Delivery shape
 
 | Milestone | User-visible outcome | Main requirements | Gate to continue |

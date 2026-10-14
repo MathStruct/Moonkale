@@ -137,3 +137,6 @@
    is carried. */
 .wb-tab { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .mk-touch-dragging, .mk-touch-dragging * { -webkit-user-select: none; user-select: none; }
+/* An extension panel that failed (shell.rs `guarded`): a notice in its place. */
+.mk-ext-crash { padding: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; color: var(--wb-ink); }
+.mk-ext-crash-detail { max-width: 100%; overflow: auto; font-size: 11px; opacity: 0.7; white-space: pre-wrap; }

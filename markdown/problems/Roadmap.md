@@ -3,7 +3,7 @@ title: "Roadmap"
 description: What comes next and in which order — the library refactor, the internal store, then the features waiting for them — and the seventeen milestones so far.
 tags: [problems, planning]
 ---
-Where things stand today is [[Status]]; the anticipated hard problems and their state are the [[Problem Ranking]] (`R-nn`). This page is the **order**.
+Where things stand today is [[Status]]; the anticipated hard problems and their state are the [[Problem Ranking]] (`R-nn`). This page is the **order**; the open work cut into parallel packages for several agents is [[Work Packages]], and the direction behind it is the [[North Star]].
 
 ## Next
 

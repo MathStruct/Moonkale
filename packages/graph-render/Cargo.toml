@@ -21,7 +21,7 @@ web-sys = { version = "0.3", features = [
     "Performance",
     "Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "CanvasRenderingContext2d",
     "MouseEvent", "PointerEvent", "WheelEvent", "DomRect", "CssStyleDeclaration", "TextMetrics",
-    "KeyboardEvent", "EventListener",
+    "KeyboardEvent", "EventListener", "Path2d",
 ] }
 wgpu = { version = "30", default-features = false, features = ["webgpu", "webgl", "wgsl"] }
 console_error_panic_hook = "0.1"

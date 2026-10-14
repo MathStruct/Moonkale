@@ -1,13 +1,32 @@
 .mk-table { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mk-table-query { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-bottom: 1px solid var(--wb-line); background: var(--wb-surface); }
 .mk-table-sql { flex: 1; font: 12.5px 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC', monospace; padding: 6px 8px; border-radius: 4px; resize: vertical; border: 1px solid var(--wb-line); background: var(--wb-sunken); color: var(--wb-ink); }
-.mk-table-grid-host { flex: 1; min-height: 0; overflow: auto; }
-.mk-table-meta { padding: 4px 8px; font-size: 11px; opacity: 0.7; }
+.mk-table-grid-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.mk-table-meta { display: flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 11px; }
+.mk-table-meta > :not(input) { opacity: 0.7; }
+.mk-table-filter { margin-left: auto; width: 180px; font-size: 11.5px; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--wb-line); background: var(--wb-sunken); color: var(--wb-ink); }
 .mk-table-msg { padding: 12px; opacity: 0.7; }
 .mk-table-error { color: var(--wb-danger); opacity: 1; font-family: 'JetBrains Mono', 'Noto Sans Mono CJK SC', monospace; font-size: 12px; white-space: pre-wrap; }
-.mk-table-grid { border-collapse: collapse; font-size: 12.5px; font-family: 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC', monospace; }
-.mk-table-grid th { position: sticky; top: 0; background: var(--wb-surface); text-align: left; padding: 4px 10px; border-bottom: 1px solid var(--wb-line); font-weight: 600; }
-.mk-table-grid td { padding: 3px 10px; border-bottom: 1px solid var(--mk-grid); white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
-.mk-table-grid tr:hover td { background: var(--wb-hover); }
+/* The virtualised grid (grid.rs): one scroll box; a sizer as tall and wide
+   as every row and column; the drawn window positioned inside it. Row and
+   header heights must match ROW_H and HEAD_H. */
+.mk-table-grid { flex: 1; min-height: 0; overflow: auto; outline: none; font-size: 12.5px; font-family: 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC', monospace; }
+.mk-table-grid:focus-visible { box-shadow: inset 0 0 0 1px var(--wb-accent); }
+.mk-table-sizer { position: relative; }
+.mk-table-head { position: sticky; top: 0; z-index: 2; display: flex; height: 26px; box-sizing: border-box; background: var(--wb-surface); border-bottom: 1px solid var(--wb-line); }
+.mk-table-body { position: absolute; left: 0; }
+.mk-table-row { display: flex; height: 24px; }
+.mk-table-row:hover > .mk-table-cell { background: var(--wb-hover); }
+.mk-table-gap { flex: none; }
+.mk-table-num { position: sticky; left: 0; z-index: 1; flex: none; width: 56px; box-sizing: border-box; padding-right: 8px; text-align: right; line-height: 24px; font-size: 11px; color: var(--wb-ink-faint); background: var(--wb-surface); border-right: 1px solid var(--wb-line); }
+.mk-table-hnum { z-index: 3; line-height: 26px; }
+.mk-table-hcell { position: relative; flex: none; box-sizing: border-box; padding: 0 14px 0 10px; line-height: 26px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; user-select: none; }
+.mk-table-hcell:hover { background: var(--wb-hover); }
+.mk-table-arrow { margin-left: 4px; font-size: 9px; opacity: 0.8; }
+.mk-table-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: col-resize; }
+.mk-table-resize:hover { background: var(--wb-accent); opacity: 0.5; }
+.mk-table-cell { flex: none; box-sizing: border-box; padding: 0 10px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid var(--mk-grid); }
+.mk-cell-cursor { box-shadow: inset 0 0 0 2px var(--wb-accent); }
 .mk-cell-null { opacity: 0.4; font-style: italic; }
 .mk-cell-num { text-align: right; }
+.mk-cell-bytes { opacity: 0.6; }

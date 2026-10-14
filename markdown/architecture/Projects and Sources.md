@@ -5,6 +5,9 @@ tags: [architecture, sources, projects, design]
 ---
 Requested in [[Prompt9]] (2026-09-19): opening several folders at once turned out to be good design, not a bug — so make it deliberate. This page is the **desired behaviour**, written before any code; the implementation plan will be a milestone note that references it. What exists today is marked *(exists)*; everything else is new.
 
+> [!note] Amended 2026-10-14: projects are **sessions**, stored in the state store
+> [[ADR-0025 Sessions are the outermost state]] (proposed) makes the saved, named state described here a **session**: the outermost unit, not bound to any folder. It holds its sources, the workspace (layout, documents, unsaved buffers, panels' state), the work done in it (conversations, query history, run records) and its settings. It is stored as rows in the state store (SQLite, [[ADR-0014 One store for internal state]]), **not** as `projects/<id>.json` files. Export and import are commands. Everything below about sources (open and close individually, read-only per pair, colours, failure notices, portable roots) still holds. Read "project" as "session", and treat the JSON file layout under "What a project stores" as superseded.
+
 ## Two words
 
 - A **source** is anything Moonkale can browse, query and (maybe) edit through the `Source` trait *(exists)*: a folder, a folder on another machine, a repository on a git host, a database, an API. A source has a `SourceDescriptor { id, display_name, family, capabilities, root }` *(exists)*; `capabilities.write` says whether it can be written at all *(exists)*.
@@ -38,6 +41,14 @@ Explorer roots, tabs and the status bar show the lock; the reason is in the tool
 
 ### Colours
 Each source in a project has an **accent colour**: chosen by the user or assigned deterministically from a palette (hash of the source id, so it is stable across machines). It appears as a stripe on the Explorer root, on the tab of every document from that source, in the editor's header line, as a tint on the source's nodes in the graph, and next to the file name in the status bar. Themes define the palette (eight colours that work on both dark and light backgrounds); the colour never carries meaning beyond "this source" — read-only is the lock, not a colour.
+
+### Large roots: a drive, the home folder, `/`
+Someone on Windows opened the whole of `E:` (P-195). Opening a very large root has to work, but cheaply and honestly:
+- **What stays cheap by design:** the Explorer lists one directory at a time; the index stops at 5 000 files; the watcher uses one native recursive watch on Windows and macOS, and has a directory budget elsewhere (past it the source is unwatched, with ↻).
+- **To build:**
+  - when the root is a drive root, the filesystem root, or the home folder (or the first listing finds more than a threshold), the Sources panel shows a notice: "a very large folder: the index covers the first 5 000 files, watching is off; open a subfolder for everything";
+  - per source, an "index this subtree" action for the part someone actually works in;
+  - system folders (`$RECYCLE.BIN`, `System Volume Information`) are always skipped.
 
 ## Projects
 

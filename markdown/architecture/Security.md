@@ -1,8 +1,12 @@
 ---
-title: "Security — the trust model in one page"
-description: Who and what Moonkale trusts on each platform — the server token, secrets, the folder jail, the agent's policy gate, extension permissions, SSH sessions — what is enforced where today, and the open findings.
+title: "Security — the trust model and the security document"
+description: Who and what Moonkale trusts on each platform, and the skeleton of the project's security document. It covers secrets, connections, prompt injection, untrusted content and exploits, extensions, the supply chain and data at rest, plus the rules every change follows so security issues don't pile up. What is enforced where today, and the open findings.
 tags: [architecture, security]
 ---
+**Purpose (Daniel, 2026-10-14):** much of Moonkale runs internally today, so security isn't the priority yet. But a document should lay out the security of the whole project (how secrets are managed, whether it is safe from exploits and prompt injection, whether its connections are safe), and Moonkale should never reach the point where a large share of its issues are security issues. So this page is two things:
+- the **skeleton of that document**, filled in where the facts exist and marked *to write* where they don't;
+- the **rules every change follows from now on** (at the end), so the debt doesn't grow while the document waits.
+
 The pieces are described where they were built ([[Remote and Server Modes]], [[LLM and RAG]], [[Extension System]], [[Agent Sessions and Profiles]]); this page puts them side by side. The open findings of the external audit are in [[Audit 2026-09-23]].
 
 > [!warning] State on 2026-10-01
@@ -17,10 +21,106 @@ The pieces are described where they were built ([[Remote and Server Modes]], [[L
 | **Paths** | everything below `MOONKALE_ROOT` (server) or the opened folder (desktop) | canonicalisation in `moonkale_server::open_any`, relative keys in `project-fs` | symlinks and Windows paths escape it (#5) |
 | **Secrets** | names in settings, values never | resolved from `MOONKALE_SECRET_<NAME>`, the provider's usual variable, or `<config>/moonkale/secrets.json` (mode 600); web clients never see a value | `llm/src/secrets.rs`; an OS keychain (`keyring`) is planned, not built |
 | **The agent** | a model that may propose any tool call | the policy gate: reads allowed, writes ask, destructive always ask; SQL statements classified; every call in the audit log | `llm/src/policy.rs`, `core/src/source/risk.rs` (`Source::classify`, overridable per source since Milestone 18); Cypher is a keyword scan, and LadybugDB runs any statement on its read-only database (#9) |
-| **Extensions (wasm)** | a module with the permissions the user granted | JSON ABI v1: every host call checked against the grant; grants come from the user scope only (a folder cannot grant, Milestone 18 phase 4.5); an id belongs to the file that loaded it first, so a folder's module cannot squat a user-installed module's id and grants | `ext-host`; modules still have no fuel or memory limits (rest of #4) |
+| **Extensions (wasm)** | a module with the permissions the user granted | JSON ABI v1: every host call checked against the grant; grants come from the user scope only (a folder cannot grant, Milestone 18 phase 4.5); an id belongs to the file that loaded it first, so a folder's module cannot squat a user-installed module's id and grants | `ext-host`; fuel per call (50 M for the manifest, 5 G per command run) and 256 MB of linear memory per instance, each call in a fresh store (audit #4) |
 | **Extensions (static)** | compiled in; trusted like the rest of the binary | the tier (`core`/`optional`/`opt_in`) only decides what is on; the distribution's Cargo features decide what is in the binary | `moonkale_distribution::default_extensions()` |
 | **A folder's own settings** | `.moonkale/settings.json` of a folder you open — **data, not authority** (Milestone 18 phase 4.5) | `SettingsFile::without_authority` before the merge: no language model or agent, no auto-approved writes, no embeddings switched on, no grants, no shell, no SSH hosts; it may switch things off and deny tools (added to the user's denials). Settings shows what was ignored | `ext-api/src/settings.rs`; test `a_folder_has_no_authority` |
 | **SSH remote folders** | the system `ssh` and the user's keys; Moonkale never sees a password | the server binary uploaded per version, a per-session token typed over stdin with echo off, loopback-only port | `remote/src/session.rs`; temp names and the control socket (#18); the remote server is not checksummed yet |
+
+## Assets and adversaries (to write in full)
+
+- **What is worth protecting:**
+  - the user's files and databases (confidentiality and integrity);
+  - secrets (API keys, database passwords, SSH keys, which Moonkale never holds, and tokens);
+  - the machine itself, since a terminal, LSP or agent can run code;
+  - the user's session state and history;
+  - licensed data (market data, whose republishing [[Trading with Databento]] rules out).
+- **Who might attack:**
+  - **a file or repository the user opens:** malicious content, settings or extensions;
+  - **content an agent reads:** prompt injection;
+  - **a network peer:** the server's clients, an SSH host, a presence hub, an MCP client;
+  - **a dependency or a release artefact:** the supply chain;
+  - **a co-tenant** on a shared server.
+
+  Not in scope: an attacker with the user's own OS account.
+
+## Secrets
+
+**Today:**
+- Only **names** are in settings, sessions and documents, never values.
+- Values come from the environment (`MOONKALE_SECRET_<NAME>`, a provider's usual variable) or `<config>/moonkale/secrets.json` (mode 600).
+- Web clients never see a value; the server resolves names for them, and only toward allowed endpoints (the LLM relay below).
+
+**To build:**
+- the OS keychain (`keyring`): Secret Service, Keychain, Credential Manager; Android Keystore;
+- secrets scoped to a source or a session, not only global;
+- redaction of secret values in logs, transcripts and history;
+- a rotation story.
+
+**To write:** a diagram of where each kind of secret lives on each platform.
+
+## Connections
+
+| Connection | Today | Gaps |
+|---|---|---|
+| Client ↔ server (web, desktop as client, phone) | a token as an HttpOnly cookie or bearer; TLS built in; plain HTTP off loopback refused; `/login` rate-limited | accounts and roles; a CSP; generalised rate limits; #20 (the batch of low findings) |
+| Desktop ↔ remote folder (SSH) | the system `ssh` and the user's keys; a per-session token over stdin; a loopback-only port | #18: control socket in shared `/tmp`, port hijack, fixed upload temp name, unchecksummed server binary |
+| Moonkale ↔ databases | drivers in-process; read-only opens; statement classification | per-source credentials through secrets; TLS for remote databases (Postgres, D1, Databento) checked, not optional |
+| Moonkale ↔ LLM providers | the server decides endpoints (`MOONKALE_LLM_ENDPOINTS`); the client sends only names | provider TLS pinning not planned; request logging must redact |
+| External agents ↔ Moonkale (MCP) | a separate bearer (`MOONKALE_MCP_TOKEN`) | scopes per token (read-only, one source) |
+| Presence hub | — | #20 (presence impersonation) |
+| Language servers, adapters, toolchains | spawned from discovery, never from a client value | the planned language-server and debug-adapter contribution points (KG-05, DBG) must keep that rule |
+
+## Prompt injection
+
+**The threat:** an agent reads files, web pages, database rows, issue text and tool output. Any of it can contain instructions ("ignore your rules, run this"). Models follow such text sometimes, so **content can never be trusted to stay data.**
+
+**Today:**
+- **The policy gate:** reads are allowed, writes ask, destructive calls always ask, and SQL statements are classified.
+- **A folder can't grant permissions:** it cannot switch on an agent, auto-approve writes or name a shell.
+- Every tool call is in the audit log.
+
+**To build:**
+- **Provenance in the context:** tool output and file content enter the model's context marked as *data from <source>*, never as instructions, and the UI shows which part of a proposal came from where.
+- **Egress control:** an agent cannot send content to a URL it found in content without the user seeing the destination.
+- **No chaining past the gate:** a read result can't trigger a write that skips approval, even through an MCP tool.
+- **Separate trust for external MCP servers' tools,** by default lower than built-in ones.
+- **A test suite of injection fixtures** (files, rows and pages carrying instructions) that the agent must not follow.
+
+## Untrusted content and exploits
+
+Moonkale renders and parses what it opens: Markdown (HTML inside it, KaTeX, Typst, Mermaid, TikZ), images and SVG, notebooks, flow documents, database files, RDF, DBN. **Today:**
+- path jail (#5 open for symlinks and Windows paths);
+- link-scheme allow-list (#10);
+- bounded buffers (#14);
+- folder settings without authority.
+
+**To build:**
+- **a Content-Security-Policy** for the web client and the webviews;
+- **HTML sanitising** in the Markdown renderers, one allow-list;
+- **SVG sanitising** (no scripts, no external references);
+- **fuzzing** of the parsers Moonkale owns: the math delimiters, the flow format, the wasm ABI's JSON;
+- **resource limits** for every renderer (Typst compile time, image size, Mermaid in a worker);
+- **#15** (project-fs races: data loss).
+
+## Extensions and the supply chain
+
+**Extensions:**
+- **Static ones** are compiled in and trusted like the binary. The distribution's features decide what's included.
+- **Wasm modules** get only the permissions the user granted, and grants come from the user scope only. They run with **fuel** (50 M units for the manifest, 5 G per command run) and **256 MB of linear memory** per instance, each call in a fresh store, so a trap or an exhausted budget is an error for that call only. (This page said otherwise until 2026-10-14; `ext-host/src/runtime.rs` has had the limits since audit #4.) **To build:** a signed manifest for "Install from URL".
+
+**Dependencies:**
+- **To build:** `cargo deny` (licences and advisories) and `cargo audit` in CI; the JS bundles' lockfiles audited too; vendored assets (KaTeX, fonts) checked against their upstream hashes.
+
+**Releases:**
+- **To build:** signed artefacts and published checksums, and a checksum for the server binary the SSH path uploads (#18).
+
+## Data at rest
+
+- **What is stored:** the state store (`state.sqlite`: settings, sessions (ADR-0025), layouts, the entity log, agent transcripts), caches (`.moonkale/cache/`, downloaded market data), and the index.
+- **To decide:**
+  - encryption at rest for transcripts and history (they may hold pasted secrets: redaction first);
+  - file permissions on every platform;
+  - what export and session bundles may contain (never secrets, never licensed data marked non-redistributable).
 
 ## The LLM relay (server)
 Since Milestone 18 phase 4.5 the server decides what a client's provider settings may make it do (`moonkale_server::llm::server_side`, audit #1): the client picks the kind, the model and the secret's *name*; a secret goes only to the provider's built-in endpoint or one the operator listed in `MOONKALE_LLM_ENDPOINTS` (comma-separated URL prefixes), and `claude-code` runs `MOONKALE_CLAUDE_BIN` or `claude` on the server's `PATH`, never a path from the client. A refusal reaches the client as an error, not a silent fallback.
@@ -30,6 +130,32 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 2. **The workspace scope is data, not authority.** A folder may choose a theme, a layout or an editor; it may not name a command to run, grant a permission or point a secret at an endpoint (#8).
 3. **Read-only means read-only for the engine too.** A driver opened "read-only" must also be unable to read outside its file (#2: DuckDB's `read_csv`, `glob`).
 4. **Every buffer has a bound** (#14), every path goes through one jail function (#5), every link scheme through one allow-list (#10).
+
+## Status by area (to keep current)
+
+| Area | State | Open |
+|---|---|---|
+| Server boundary | ◐ token, TLS, loopback guard | accounts, CSP, #20 |
+| Secrets | ◐ names only, env and file | keychain, redaction |
+| SSH remote | ◐ | #18 |
+| Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
+| Untrusted content | ◐ jail, link allow-list, bounds | #5, sanitising, CSP, fuzzing, #15 |
+| Wasm extensions | ◐ permissions, fuel, memory limits | signing |
+| Supply chain and releases | ○ | cargo deny/audit, signing, checksums |
+| Data at rest | ○ | redaction, encryption decision |
+
+Legend: ◐ partly, ○ not started. Open GitHub issues today: #15, #18, #20.
+
+## Rules for every change (from 2026-10-14)
+
+They keep the debt from growing until the full document and a review exist. Each is one line in a review:
+1. **The server decides** what becomes a process, a network request with a secret, or a permission (rule 1 above), and so do new contribution points (language servers, debug adapters, runners).
+2. **No secret values** in settings, sessions, documents, logs, transcripts, test fixtures or error messages; names only.
+3. **Content is data:** anything read from a file, a row, a page or tool output never becomes an instruction, a command line, a URL with a secret, or an approval.
+4. **Every parser of untrusted input has a bound** (size, time, depth), and every new one gets a fuzz target before it ships enabled by default.
+5. **Every new connection** has TLS off loopback, authenticates, and says in this page's table what it trusts.
+6. **Every new dependency** passes `cargo deny` (once in CI) and has a reason in its commit.
+7. **A security-relevant change updates this page** (the table above), and a found weakness is a GitHub issue labelled `security`, never only a comment.
 
 ## Not built
 Accounts and roles for a shared server (design in [[Remote and Server Modes]]); a Content-Security-Policy; signed releases and a checksum for the uploaded remote server; an OS keychain.

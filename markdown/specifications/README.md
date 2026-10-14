@@ -36,3 +36,26 @@ Small, numbered notes (`001.md`, `002.md`, …) on how a UI element should behav
 | [[028]] | Export/import the phone's vault (and open a real folder through the Storage Access Framework): private storage is lost on every uninstall and `run-as` only works on debug builds | open |
 | [[029]] | The Android app's name and launcher icon come from a post-build patch that Gradle's caches can defeat (an APK said "Mobile" with the template icon); verify the artefact, then move it into configuration | partly done |
 | [[030]] | The UI in English, German and Chinese; themes (dark, light, follow system, user/extension themes) | open — after Milestone 18 phase 4 (per-extension strings and settings) |
+
+## Planned — not yet numbered
+
+Requests that are agreed but have no spec number yet. Daniel numbers them when he writes the spec; until then they live here.
+
+- **Components on the canvas** (2026-10-14). Small Dioxus components drawn over the graph and flow renderer, for example a table node in a schema editor (Supabase-like), a node's settings edited in place, or an Obsidian-like canvas of documents. They show only when zoomed in far enough, and only a few at a time. The shape:
+  - a DOM layer above the GPU canvas and the label overlay, moved by one CSS transform per camera change, with components placed in canvas coordinates;
+  - a node marked as embedded keeps its rectangle in the engine (wires, ports, drag, layout); only its label and symbol give way to the component;
+  - below a screen size or off-screen, the component unmounts and the plain rectangle remains;
+  - clicks pass through the layer except on components, and a card's header drags its node;
+  - 2D only.
+
+  What's missing:
+  1. a camera-change event from the engine, which today reports only hover, click, double-click and settled;
+  2. the embed flag;
+  3. one shared layer component for the graph view, the flow editor and a canvas view;
+  4. a contribution point for an extension to supply a node kind's view.
+
+  The flow editor's parameter editor already floats over the canvas from the engine's screen reports, and is the first user.
+- **Code editor at 60 FPS** (2026-10-14): requirement CED-R22 in [[Code Editor Requirements]], the gate in [[Rust Code Editor Roadmap]]. p95 frame interval ≤ 16.7 ms while typing, scrolling and selecting, in an ordinary file and the 3 MB one, web and desktop. The current Rust editor does not meet it yet.
+- **A stripped-down static reader** (2026-10-14, **way later**): a repository or a knowledge graph published as wiki-like pages, Quartz-like but with code navigation, Moonkale's graph and in-browser SQL. It sits beside the full web version, not in place of it. Quartz stays for the vault until then. Notes in [[Publishing Sources]] ("Revisited 2026-10-14").
+- **Math in any delimiter, LaTeX or Typst** (2026-10-14): `$`, `$$`, `\(`, `\[` and their doubled-backslash forms all work. Each formula renders as LaTeX (KaTeX) or Typst math, whichever it is, and errors only when both fail. A command normalises a file or folder to one convention. Spec in [[Math Delimiters and Renderers]], WP-36.
+- **Shared work in a session** (2026-10-14): several people and agents in one session (roles, agents with a sponsor, tasks, an approval inbox, attribution); concurrent edits on one graph, where the database guarantees each write and Moonkale adds awareness, conflicts, proposals and per-actor undo; comments on anything, with `@agent` mentions. In [[Shared Work]], WP-48 to WP-50. Conversations already render Markdown.

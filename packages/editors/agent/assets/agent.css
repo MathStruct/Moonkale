@@ -38,3 +38,23 @@
 .mk-agent-running-count { font-size: 11px; color: var(--wb-accent); }
 .mk-agent-close { padding: 0 8px; }
 .mk-agent-toolbar { flex-wrap: wrap; row-gap: 4px; }
+/* Messages as Markdown (markdown.rs): the bubble keeps pre-wrap for plain
+   text, the rendered blocks space themselves. */
+.mk-md { white-space: normal; }
+.mk-md > :first-child { margin-top: 0; }
+.mk-md > :last-child { margin-bottom: 0; }
+.mk-md p, .mk-md ul, .mk-md ol, .mk-md blockquote, .mk-md table, .mk-md pre { margin: 0.4em 0; }
+.mk-md h3, .mk-md h4, .mk-md h5 { margin: 0.6em 0 0.3em; font-size: 1em; font-weight: 600; }
+.mk-md h3 { font-size: 1.1em; }
+.mk-md ul, .mk-md ol { padding-left: 1.4em; }
+.mk-md blockquote { border-left: 3px solid var(--mk-line-strong); padding-left: 8px; color: var(--mk-muted); }
+.mk-md code { font-family: 'JetBrains Mono', Consolas, 'Noto Sans Mono CJK SC', monospace; font-size: 0.92em; background: var(--mk-raised); padding: 0 3px; border-radius: 3px; }
+.mk-md pre { white-space: pre; overflow-x: auto; background: var(--mk-raised); padding: 6px 8px; border-radius: 5px; }
+.mk-md pre code { background: none; padding: 0; }
+.mk-md table { border-collapse: collapse; }
+.mk-md td { border: 1px solid var(--mk-line-strong); padding: 2px 6px; }
+.mk-md thead td { font-weight: 600; }
+.mk-md-math { font-family: 'JetBrains Mono', Consolas, monospace; font-style: italic; }
+.mk-md-math-block { display: block; text-align: center; margin: 0.4em 0; }
+.mk-md-image { color: var(--mk-muted); }
+.mk-md li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.2em; }

@@ -645,22 +645,7 @@ fn polyline_into(graph: &Graph, e: &Edge, extra: f32, out: &mut Vec<[f32; 3]>) {
                 out.push(a_end);
                 out.push(b_end);
             }
-            Route::Ortho { stub } => {
-                // The flow route (spec 031 SS2): out of the source toward
-                // the target, across, in — three segments whose corners
-                // stay square (arrowheads ride the tangents naturally).
-                let gap = (b_end[0] - a_end[0]).abs();
-                let stub = stub.unwrap_or((gap * 0.5).max(8.0));
-                let corner = if b_end[0] >= a_end[0] {
-                    a_end[0] + stub
-                } else {
-                    a_end[0] - stub
-                };
-                out.push(a_end);
-                out.push([corner, a_end[1], a_end[2]]);
-                out.push([corner, b_end[1], b_end[2]]);
-                out.push(b_end);
-            }
+            Route::Ortho { stub } => ortho_into(graph, e, a_end, b_end, stub, out),
             Route::Bezier { offset } => {
                 let (dx, dy) = (b_end[0] - a_end[0], b_end[1] - a_end[1]);
                 let len = (dx * dx + dy * dy).sqrt().max(1e-3);
@@ -683,6 +668,139 @@ fn polyline_into(graph: &Graph, e: &Edge, extra: f32, out: &mut Vec<[f32; 3]>) {
                 }
             }
         }
+    }
+}
+
+/// How far a wire leaves its port before it turns (world units): a
+/// short stub, so the wire visibly comes out of the pin's side.
+const ORTHO_STUB: f32 = 12.0;
+
+/// The flow route (spec 031 §2; ADR-0024 made it side-aware): out of
+/// each port along its side's normal, square corners between. Pins that
+/// face each other meet half-way across — the classic three segments.
+/// Pins facing the same way meet beyond the farther one; pins facing
+/// away (a capacitor's right pin back to a source's left) detour round
+/// the parts instead of running through them. `stub` overrides the
+/// facing case's corner, as before; a parallel's extra steps the route.
+fn ortho_into(
+    graph: &Graph,
+    e: &Edge,
+    a_end: [f32; 3],
+    b_end: [f32; 3],
+    stub: Option<f32>,
+    out: &mut Vec<[f32; 3]>,
+) {
+    let side = |node: usize, port: &Option<String>| {
+        port.as_deref().and_then(|name| {
+            graph
+                .ports
+                .iter()
+                .find(|p| p.node == node && p.name == name)
+                .map(|p| p.side)
+        })
+    };
+    let toward = |from: [f32; 3], to: [f32; 3]| {
+        if to[0] >= from[0] {
+            [1.0, 0.0]
+        } else {
+            [-1.0, 0.0]
+        }
+    };
+    let dir = |s: InSide| match s {
+        InSide::Right => [1.0f32, 0.0f32],
+        InSide::Left => [-1.0, 0.0],
+        InSide::Top => [0.0, -1.0],
+        InSide::Bottom => [0.0, 1.0],
+    };
+    let d0 = side(e.a, &e.a_port)
+        .map(dir)
+        .unwrap_or_else(|| toward(a_end, b_end));
+    let d1 = side(e.b, &e.b_port)
+        .map(dir)
+        .unwrap_or_else(|| toward(b_end, a_end));
+    let z = a_end[2];
+    let mut pts: Vec<[f32; 2]> = Vec::with_capacity(6);
+    // Work along the first end's axis: `u` is the axis it leaves on, `v`
+    // the other — one code path for horizontal and vertical pins.
+    let horizontal = d0[1] == 0.0;
+    let (u, v) = if horizontal { (0, 1) } else { (1, 0) };
+    let at = |pu: f32, pv: f32| {
+        let mut q = [0.0; 2];
+        q[u] = pu;
+        q[v] = pv;
+        q
+    };
+    let (p0, p1) = ([a_end[0], a_end[1]], [b_end[0], b_end[1]]);
+    let extent = |i: usize| {
+        let n = &graph.nodes[i];
+        let half = if n.shape == crate::graph::Shape::Circle {
+            [n.radius, n.radius]
+        } else {
+            [n.radius, n.height]
+        };
+        (n.x, n.y, half)
+    };
+    pts.push(p0);
+    if d1[v] == 0.0 {
+        // Both ends leave along `u`.
+        let gap = (p1[u] - p0[u]).abs();
+        let facing = d0[u] * (p1[u] - p0[u]) > 0.0 && d1[u] * (p0[u] - p1[u]) > 0.0;
+        if facing {
+            let st = stub.unwrap_or((gap * 0.5).max(8.0));
+            let c = p0[u] + d0[u] * st;
+            pts.push(at(c, p0[v]));
+            pts.push(at(c, p1[v]));
+        } else if d0[u] == d1[u] {
+            let c = if d0[u] > 0.0 {
+                p0[u].max(p1[u]) + ORTHO_STUB
+            } else {
+                p0[u].min(p1[u]) - ORTHO_STUB
+            };
+            pts.push(at(c, p0[v]));
+            pts.push(at(c, p1[v]));
+        } else {
+            // Facing away: out, round, in. The detour runs between the
+            // two parts when there is room, else past both.
+            let s0 = p0[u] + d0[u] * ORTHO_STUB;
+            let s1 = p1[u] + d1[u] * ORTHO_STUB;
+            let (ax, ay, ah) = extent(e.a);
+            let (bx, by, bh) = extent(e.b);
+            let (ac, bc) = ([ax, ay][v], [bx, by][v]);
+            let (a_lo, a_hi) = (ac - ah[v], ac + ah[v]);
+            let (b_lo, b_hi) = (bc - bh[v], bc + bh[v]);
+            let detour = if a_hi + 2.0 * ORTHO_STUB < b_lo {
+                (a_hi + b_lo) / 2.0
+            } else if b_hi + 2.0 * ORTHO_STUB < a_lo {
+                (b_hi + a_lo) / 2.0
+            } else {
+                a_hi.max(b_hi) + 2.0 * ORTHO_STUB
+            };
+            pts.push(at(s0, p0[v]));
+            pts.push(at(s0, detour));
+            pts.push(at(s1, detour));
+            pts.push(at(s1, p1[v]));
+        }
+    } else {
+        // One end leaves along `u`, the other along `v`: one corner when
+        // each points toward the other, else out of both and across.
+        let reach0 = d0[u] * (p1[u] - p0[u]) > 0.0;
+        let reach1 = d1[v] * (p0[v] - p1[v]) > 0.0;
+        if reach0 && reach1 {
+            pts.push(at(p1[u], p0[v]));
+        } else {
+            let s0 = p0[u] + d0[u] * ORTHO_STUB;
+            let s1 = p1[v] + d1[v] * ORTHO_STUB;
+            pts.push(at(s0, p0[v]));
+            pts.push(at(s0, s1));
+            pts.push(at(p1[u], s1));
+        }
+    }
+    pts.push(p1);
+    pts.dedup_by(|a, b| (a[0] - b[0]).abs() < 1e-4 && (a[1] - b[1]).abs() < 1e-4);
+    out.extend(pts.into_iter().map(|q| [q[0], q[1], z]));
+    // The last point carries the target's depth.
+    if let Some(last) = out.last_mut() {
+        last[2] = b_end[2];
     }
 }
 
@@ -856,6 +974,10 @@ mod tests {
             sized: false,
             stroke: [0.0, 0.0, 0.0, 0.0],
             icon: None,
+            symbol: None,
+            turn: 0,
+            mirror: false,
+            caption: None,
         }
     }
 
@@ -1685,6 +1807,62 @@ mod tests {
             "angle {}",
             f.arrows[0].angle
         );
+    }
+
+    #[test]
+    fn an_ortho_route_detours_round_pins_that_face_away() {
+        // ADR-0024: a capacitor's right pin back to a source's left pin,
+        // both on one line — the route must not run through the parts
+        // between them. It leaves right, drops below both, crosses, and
+        // comes up into the left pin from the left.
+        let rect = |id: &str, x: f32| {
+            let mut n = node(id, x, 0.0);
+            n.shape = crate::graph::Shape::Rect;
+            n.radius = 20.0;
+            n.height = 10.0;
+            n
+        };
+        let mut e = edge(0, 1);
+        e.route = Route::Ortho { stub: None };
+        e.a_port = Some("n".into());
+        e.b_port = Some("p".into());
+        let mut g = graph(vec![rect("c", 200.0), rect("v", 0.0)], vec![e]);
+        g.ports = vec![
+            port(0, "n", InSide::Right, 0.5),
+            port(1, "p", InSide::Left, 0.5),
+        ];
+        let f = build_frame(&g, false);
+        let pts: Vec<[f32; 3]> = std::iter::once(f.segs[0].a)
+            .chain(f.segs.iter().map(|s| s.b))
+            .collect();
+        assert_eq!(pts.len(), 6, "out, down, across, up, in: {pts:?}");
+        let (start, end) = (pts[0], pts[5]);
+        assert!(pts[1][0] > start[0], "leaves to the right");
+        assert!(pts[4][0] < end[0], "enters from the left");
+        let below = pts[2][1];
+        assert!(below > 10.0, "the crossing runs below both parts: {below}");
+        assert_eq!(pts[2][1], pts[3][1], "one level across");
+        for w in pts.windows(2) {
+            assert!(w[0][0] == w[1][0] || w[0][1] == w[1][1], "square corners");
+        }
+    }
+
+    #[test]
+    fn an_ortho_route_meets_same_facing_pins_beyond_the_farther() {
+        let mut e = edge(0, 1);
+        e.route = Route::Ortho { stub: None };
+        e.a_port = Some("a".into());
+        e.b_port = Some("b".into());
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 50.0, 60.0)], vec![e]);
+        g.ports = vec![
+            port(0, "a", InSide::Right, 0.5),
+            port(1, "b", InSide::Right, 0.5),
+        ];
+        let f = build_frame(&g, false);
+        assert_eq!(f.segs.len(), 3);
+        let b_port = f.segs[2].b[0];
+        assert!(f.segs[1].a[0] > b_port, "the turn lies past b's pin");
+        assert_eq!(f.segs[1].a[0], f.segs[1].b[0], "a vertical leg");
     }
 
     #[test]

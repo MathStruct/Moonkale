@@ -65,6 +65,8 @@ fn library() -> FlowLibrary {
                 default: "1".into(),
             }],
             role: None,
+            symbol: None,
+            caption: None,
         }],
         codegen: None,
         language: "none",

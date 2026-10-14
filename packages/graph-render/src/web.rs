@@ -37,8 +37,8 @@ struct State {
     /// every frame while true — the clock moves even when nothing is
     /// dirty. Recomputed wherever the graph changes.
     animates: bool,
-    /// Any node carries an icon (spec 031 §2, stage 8): gates the
-    /// overlay's icon scan — a second pass over every node per frame
+    /// Any node carries an icon (spec 031 §2, stage 8) or a symbol
+    /// (ADR-0024): gates the overlay's ink scan — a second pass over every node per frame
     /// that a 100 k-node graph must not pay for nothing.
     has_icons: bool,
     /// The pointer's canvas position — the edge label rides it.
@@ -524,7 +524,7 @@ impl GraphView {
         s.pos_rev += 1;
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
-        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_icons = has_ink(&s.graph);
         s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         s.dirty = true;
         Ok(())
@@ -560,7 +560,7 @@ impl GraphView {
         s.pos_rev += 1;
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
-        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_icons = has_ink(&s.graph);
         s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         s.dirty = true;
         true
@@ -678,7 +678,7 @@ impl GraphView {
             s.pos_rev += 1;
             s.attr_rev += 1;
             s.animates = animates(&s.graph);
-            s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+            s.has_icons = has_ink(&s.graph);
             s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
             s.dirty = true;
             return Ok(());
@@ -691,7 +691,7 @@ impl GraphView {
         s.pos_rev += 1;
         s.attr_rev += 1;
         s.animates = animates(&s.graph);
-        s.has_icons = s.graph.nodes.iter().any(|n| n.icon.is_some());
+        s.has_icons = has_ink(&s.graph);
         s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
         // A rough fit up front so the first frames are on screen; fit again when settled.
         let g = std::mem::take(&mut s.graph);
@@ -1140,6 +1140,13 @@ fn request_frame(f: &Closure<dyn FnMut()>) {
     }
 }
 
+/// Any node with overlay ink — an icon or a symbol (ADR-0024).
+fn has_ink(g: &Graph) -> bool {
+    g.nodes
+        .iter()
+        .any(|n| n.icon.is_some() || n.symbol.is_some())
+}
+
 fn draw_labels(s: &State) {
     let ctx = &s.overlay;
     let (w, h) = (
@@ -1161,6 +1168,62 @@ fn draw_labels(s: &State) {
     // few), and only when the projected size can hold it. The scan is a
     // second pass over every node per frame, so it waits until some node
     // actually carries an icon.
+    // Symbols (ADR-0024): a node's schematic, stroked over its faint
+    // body — the symbol is the block. Its box is the node's (`0 0 2·r
+    // 2·h` world units), so it zooms with the canvas; the stroke stays
+    // ~1.6 px. Hovered or selected, it is inked in the hover colour.
+    if s.has_icons && !s.camera.three_d {
+        ctx.set_line_join("round");
+        ctx.set_line_cap("round");
+        for (i, n) in s.graph.nodes.iter().enumerate() {
+            let Some(d) = n.symbol.as_deref() else {
+                continue;
+            };
+            if !node_visible(&s.graph, i) {
+                continue;
+            }
+            let (x, y) = s.camera.world_to_screen(n.x, n.y);
+            let (hw, hh) = (n.radius * scale, n.height * scale);
+            if x + hw < 0.0 || y + hh < 0.0 || x - hw > s.camera.width || y - hh > s.camera.height {
+                continue;
+            }
+            if hw < 4.0 {
+                continue; // LOD: the faint body is all a speck needs
+            }
+            let Ok(path) = web_sys::Path2d::new_with_path_string(d) else {
+                continue;
+            };
+            let lit = Some(i) == s.hovered || s.selected.nodes.contains(&n.id);
+            let ink = if lit {
+                s.label_hover.clone()
+            } else {
+                format!(
+                    "rgb({:.0},{:.0},{:.0})",
+                    n.color[0] * 255.0,
+                    n.color[1] * 255.0,
+                    n.color[2] * 255.0
+                )
+            };
+            // The path lives in the unturned box; the node's box is the
+            // turned one (ADR-0024 §5). Centre, turn, mirror, back to
+            // the unturned box's corner.
+            let (bw, bh) = if n.turn % 2 == 1 {
+                (2.0 * n.height, 2.0 * n.radius)
+            } else {
+                (2.0 * n.radius, 2.0 * n.height)
+            };
+            ctx.save();
+            let _ = ctx.translate(x as f64, y as f64);
+            let _ = ctx.rotate(n.turn as f64 * std::f64::consts::FRAC_PI_2);
+            let flip = if n.mirror { -1.0 } else { 1.0 };
+            let _ = ctx.scale(flip * scale as f64, scale as f64);
+            let _ = ctx.translate(-bw as f64 / 2.0, -bh as f64 / 2.0);
+            ctx.set_stroke_style_str(&ink);
+            ctx.set_line_width((if lit { 2.2 } else { 1.6 }) / scale as f64);
+            ctx.stroke_with_path(&path);
+            ctx.restore();
+        }
+    }
     if s.has_icons {
         for (i, n) in s.graph.nodes.iter().enumerate() {
             let Some(icon) = n.icon.as_deref() else {
@@ -1295,18 +1358,66 @@ fn draw_labels(s: &State) {
             .measure_text(&n.label)
             .map(|m| m.width() as f32)
             .unwrap_or(n.label.len() as f32 * 6.5);
-        let (x0, y0) = (x + r + 4.0, y - 8.0);
-        let (x1, y1) = (x0 + width, y + 8.0);
+        // A symbol's label sits centred below it, as on a schematic; any
+        // other node's to its right.
+        let symbol = n.symbol.is_some() && !s.camera.three_d;
+        // A symbol with a pin on its bottom (an upright part) would put
+        // its label across the wire leaving there: the label moves to
+        // its right, centred on it (ADR-0024 §5).
+        let beside = symbol
+            && s.graph
+                .ports
+                .iter()
+                .any(|p| p.node == i && p.side == crate::graph::InSide::Bottom);
+        let symbol = symbol && !beside;
+        let (x0, y) = if symbol {
+            (x - width / 2.0, y + n.height * scale + 10.0)
+        } else if beside {
+            let lift = if n.caption.is_some() { 7.0 } else { 0.0 };
+            (x + n.radius * scale + 8.0, y - lift)
+        } else {
+            (x + r + 4.0, y)
+        };
+        // A caption (ADR-0024 §6) is a second, smaller line under the
+        // label, centred under a symbol like the label.
+        let caption = n.caption.as_deref().filter(|c| !c.is_empty());
+        let cap_width = caption
+            .map(|c| {
+                ctx.set_font("11px 'Segoe UI', sans-serif");
+                let w = ctx
+                    .measure_text(c)
+                    .map(|m| m.width() as f32)
+                    .unwrap_or(c.len() as f32 * 6.0);
+                ctx.set_font("12px 'Segoe UI', sans-serif");
+                w
+            })
+            .unwrap_or(0.0);
+        let y0 = y - 8.0;
+        let wide = width.max(cap_width);
+        let (bx0, x1) = if symbol {
+            (x - wide / 2.0, x + wide / 2.0)
+        } else {
+            (x0, x0 + wide)
+        };
+        let y1 = if caption.is_some() { y + 22.0 } else { y + 8.0 };
         if !hovered
             && placed
                 .iter()
-                .any(|p| x0 < p.2 && x1 > p.0 && y0 < p.3 && y1 > p.1)
+                .any(|p| bx0 < p.2 && x1 > p.0 && y0 < p.3 && y1 > p.1)
         {
             continue;
         }
-        placed.push((x0, y0, x1, y1));
+        placed.push((bx0, y0, x1, y1));
         ctx.set_fill_style_str(if hovered { &s.label_hover } else { &s.label });
         let _ = ctx.fill_text(&n.label, x0 as f64, y as f64);
+        if let Some(c) = caption {
+            let cx = if symbol { x - cap_width / 2.0 } else { x0 };
+            ctx.set_font("11px 'Segoe UI', sans-serif");
+            ctx.set_global_alpha(0.7);
+            let _ = ctx.fill_text(c, cx as f64, (y + 14.0) as f64);
+            ctx.set_global_alpha(1.0);
+            ctx.set_font("12px 'Segoe UI', sans-serif");
+        }
         drawn += 1;
     }
 }

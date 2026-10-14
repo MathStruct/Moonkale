@@ -44,6 +44,8 @@ pub use moonkale_lsp::{LspTransport, LspTransportFuture, SpawnLsp};
 pub use moonkale_terminal::{SpawnTerminal, SpawnTerminalFuture, TerminalBackend};
 pub use remote_dialog::RemoteDialog;
 pub use server_dialog::ServerDialog;
+#[doc(hidden)]
+pub use shell::guarded as guard_extension_panel;
 pub use shell::Shell;
 pub use titlebar::TitleBar;
 

@@ -3,6 +3,9 @@ title: "Agent Sessions and Profiles"
 description: How the Agent panel runs several agents at once — saved agents (language-model profiles) in settings, one chosen per session, sessions side by side with their history in the folder — locally and on the server; and how Claude Code logs in.
 tags: [architecture, agent, llm, settings]
 ---
+> [!note] Renamed 2026-10-14: these are **conversations** in the UI
+> "Session" now means the outermost unit of state ([[ADR-0025 Sessions are the outermost state]]). What this page calls an agent session is a **conversation** wherever users see it. The code, the store's `agent_sessions` table and this page's file name keep the old word until the sessions migration. Messages render as Markdown since the same day (`editors/agent/src/markdown.rs`: no raw HTML, safe link schemes only, images never loaded).
+
 Built in [[Milestone 15 - Agents, Profiles and Connections]] from [[Prompt24]]. Background: [[LLM and RAG]], [[Claude Code Extension]].
 
 ## Saved agents (profiles)

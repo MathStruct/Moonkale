@@ -12,6 +12,18 @@
 //! appear later are added as they are created. Events for hidden paths, for
 //! paths the root `.gitignore` excludes and for Moonkale's own temporary
 //! files are dropped; access events are ignored.
+//!
+//! **Large roots.** Someone opened a whole drive (`E:\`): one watch per
+//! directory meant walking millions of them up front, and on Windows one
+//! open handle each. So:
+//! - on Windows and macOS the OS watches a tree natively
+//!   (ReadDirectoryChangesW, FSEvents), so the root gets **one recursive
+//!   watch**, and nothing is walked;
+//! - elsewhere (inotify) the per-directory watches have a budget
+//!   ([`MAX_WATCHED_DIRS`]). A root with more visible directories is not
+//!   watched at all, and the source reports itself unwatched (the Sources
+//!   panel's ↻), rather than half-watched, which would miss changes
+//!   silently.
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::FolderWatch;
@@ -27,6 +39,13 @@ mod native {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{mpsc, Arc, Mutex};
     use std::time::Duration;
+
+    /// The most directories watched one by one (inotify). Past it the root
+    /// is not watched (see the module docs).
+    pub const MAX_WATCHED_DIRS: usize = 20_000;
+
+    /// Whether the OS watches a whole tree with one recursive watch.
+    const NATIVE_RECURSIVE: bool = cfg!(any(windows, target_os = "macos"));
 
     /// Entries kept in the log; a client further behind gets `reset`.
     const LOG_CAP: usize = 4096;
@@ -59,6 +78,11 @@ mod native {
         /// Start watching `root` (canonical). Walks the visible directories
         /// once, so call it off the async executor (`spawn_blocking`).
         pub fn start(root: &Path) -> std::io::Result<Self> {
+            Self::start_with_budget(root, MAX_WATCHED_DIRS)
+        }
+
+        /// [`FolderWatch::start`] with an explicit directory budget (tests).
+        pub fn start_with_budget(root: &Path, budget: usize) -> std::io::Result<Self> {
             let root = root.to_path_buf();
             // A per-start base, so a client still holding a position from an
             // earlier watcher (a restarted server) is told to reset rather
@@ -76,26 +100,27 @@ mod native {
                 wake: tokio::sync::Notify::new(),
             });
             let (tx, rx) = mpsc::channel();
-            let mut watcher = notify::recommended_watcher(tx).map_err(to_io)?;
-            let mut watched = HashSet::new();
-            watch_tree(&mut watcher, &mut watched, &root, &root)?;
+            let watcher = notify::recommended_watcher(tx).map_err(to_io)?;
+            let mut watches = Watches {
+                watcher,
+                dirs: HashSet::new(),
+                budget,
+            };
+            if NATIVE_RECURSIVE {
+                watches
+                    .watcher
+                    .watch(&root, RecursiveMode::Recursive)
+                    .map_err(to_io)?;
+            } else {
+                watch_tree(&mut watches, &root, &root)?;
+            }
             let stop = Arc::new(AtomicBool::new(false));
             let filter = Filter::new(&root);
             let thread_shared = shared.clone();
             let thread_stop = stop.clone();
             std::thread::Builder::new()
                 .name("moonkale-watch".into())
-                .spawn(move || {
-                    run(
-                        watcher,
-                        watched,
-                        rx,
-                        root,
-                        filter,
-                        thread_shared,
-                        thread_stop,
-                    )
-                })?;
+                .spawn(move || run(watches, rx, root, filter, thread_shared, thread_stop))?;
             Ok(Self { shared, stop })
         }
 
@@ -170,13 +195,19 @@ mod native {
         std::io::Error::other(e.to_string())
     }
 
-    /// One non-recursive watch per visible directory under `dir`.
-    fn watch_tree(
-        watcher: &mut RecommendedWatcher,
-        watched: &mut HashSet<PathBuf>,
-        root: &Path,
-        dir: &Path,
-    ) -> std::io::Result<()> {
+    /// The watcher, the directories it watches one by one, and how many it
+    /// may (unused with a native recursive watch).
+    struct Watches {
+        watcher: RecommendedWatcher,
+        dirs: HashSet<PathBuf>,
+        budget: usize,
+    }
+
+    /// One non-recursive watch per visible directory under `dir`, until
+    /// the budget is reached: then an error, and the walk stops there (a
+    /// whole drive is never walked to the end).
+    fn watch_tree(watches: &mut Watches, root: &Path, dir: &Path) -> std::io::Result<()> {
+        let budget = watches.budget;
         // Rooted at `root` so parent .gitignore files apply, pruned to `dir`.
         let walk = WalkBuilder::new(root)
             .hidden(true)
@@ -194,8 +225,15 @@ mod native {
             if !entry.file_type().is_some_and(|t| t.is_dir()) || !path.starts_with(dir) {
                 continue;
             }
-            if watched.insert(path.to_path_buf()) {
-                watcher
+            if !watches.dirs.contains(path) && watches.dirs.len() >= budget {
+                return Err(std::io::Error::other(format!(
+                    "more than {budget} directories to watch under {}; not watching it (open a subfolder, or refresh with ↻)",
+                    root.display()
+                )));
+            }
+            if watches.dirs.insert(path.to_path_buf()) {
+                watches
+                    .watcher
                     .watch(path, RecursiveMode::NonRecursive)
                     .map_err(to_io)?;
             }
@@ -243,8 +281,7 @@ mod native {
     }
 
     fn run(
-        mut watcher: RecommendedWatcher,
-        mut watched: HashSet<PathBuf>,
+        mut watches: Watches,
         rx: mpsc::Receiver<notify::Result<notify::Event>>,
         root: PathBuf,
         filter: Filter,
@@ -268,13 +305,13 @@ mod native {
                 };
                 // A directory that appeared (created, moved in): watch it
                 // and everything visible below it.
-                if path.is_dir() && !watched.contains(path) {
-                    let _ = watch_tree(&mut watcher, &mut watched, &root, path);
+                if !NATIVE_RECURSIVE && path.is_dir() && !watches.dirs.contains(path) {
+                    let _ = watch_tree(&mut watches, &root, path);
                 }
                 // A watched directory that went away: forget it (the OS
                 // dropped its watch already).
                 if !path.exists() {
-                    watched.retain(|w| !w.starts_with(path));
+                    watches.dirs.retain(|w| !w.starts_with(path));
                 }
                 changed.push(rel);
             }

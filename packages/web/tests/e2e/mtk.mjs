@@ -392,6 +392,41 @@ try {
     console.log(`\n  rc_filter_1_capacitor_1.v at t=5.0: ${v}`);
     if (v < 0.98 || v > 1.0) throw new Error(`the subsystem RC did not charge to 99 % (got ${v})`);
   });
+  await step("ADR-0024 §5: R stands a resistor upright, the mirror button flips it, the file keeps both", async () => {
+    fs.writeFileSync(`${ROOT}/turn.flow.json`, JSON.stringify({ version: 1, blocks: [{ id: "r1", kind: "mtk/resistor", x: 0, y: 0, params: { R: "1.0" } }], wires: [] }));
+    await page.click(".mk-tree-row[title='turn.flow.json']");
+    await page.waitForFunction(() => [...document.querySelectorAll(".mk-flow-status")].some((e) => e.offsetParent !== null && e.dataset.blocks === "1"), null, { timeout: 15000 });
+    await sleep(800);
+    // Several flow tabs are open by now: ask the visible one's view.
+    const view = (fn, ...args) => page.evaluate(({ fn, args }) => {
+      const [, v] = Object.entries(window.moonkale.flowViews).find(([k]) => document.getElementById(k + "-ov")?.offsetParent);
+      return v[fn](...args);
+    }, { fn, args });
+    const screenOf = (id) => view("node_screen_position", id);
+    const portOf = (id, port) => view("port_screen_position", id, port);
+    const before = await portOf("r1", "p");
+    const c0 = await screenOf("r1");
+    if (!(before[0] < c0[0] - 5)) throw new Error("p does not start on the left");
+    const box = await canvasRect();
+    await page.mouse.click(box.x + c0[0], box.y + c0[1]);
+    await page.waitForSelector(".mk-flow-props", { timeout: 5000 });
+    await page.keyboard.press("r");
+    await sleep(500);
+    const c = await screenOf("r1");
+    const up = await portOf("r1", "p");
+    const down = await portOf("r1", "n");
+    console.log(`\n  turned: p ${up.map((n) => n.toFixed(0))}, n ${down.map((n) => n.toFixed(0))}, centre ${c.map((n) => n.toFixed(0))}`);
+    if (!(up[1] < c[1] - 5 && down[1] > c[1] + 5)) throw new Error("R did not stand the resistor upright");
+    await page.click(".mk-flow-props .mk-flow-mirror");
+    await sleep(400);
+    await page.keyboard.press("Control+s");
+    let saved = "";
+    for (let i = 0; i < 30 && !/"mirror"/.test(saved); i++) { await sleep(200); saved = fs.readFileSync(`${ROOT}/turn.flow.json`, "utf8"); }
+    const r1 = JSON.parse(saved).blocks[0];
+    console.log(`  saved: turn ${r1.turn}, mirror ${r1.mirror}`);
+    if (r1.turn !== 3 || r1.mirror !== true) throw new Error(`the file holds turn ${r1.turn}, mirror ${r1.mirror}`);
+    await page.screenshot({ path: `${S}/mtk-turned.png` });
+  });
   console.log("\nMTK E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

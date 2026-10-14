@@ -856,8 +856,9 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                 for (i, item) in items().into_iter().enumerate() {
                     {
                         match item {
-                            Item::User(t) => rsx! { div { key: "{i}", class: "mk-agent-msg mk-agent-user", "{t}" } },
-                            Item::Assistant(t) => rsx! { div { key: "{i}", class: "mk-agent-msg mk-agent-assistant", "{t}" } },
+                            // Messages read as Markdown, safely (markdown.rs).
+                            Item::User(t) => rsx! { div { key: "{i}", class: "mk-agent-msg mk-agent-user", crate::markdown::Markdown { text: t.clone() } } },
+                            Item::Assistant(t) => rsx! { div { key: "{i}", class: "mk-agent-msg mk-agent-assistant", crate::markdown::Markdown { text: t.clone() } } },
                             Item::Error(t) => rsx! { div { key: "{i}", class: "mk-agent-msg mk-agent-error", "{t}" } },
                             Item::Tool { name, input, class, decision, outcome, summary, .. } => rsx! {
                                 div { key: "{i}", class: "mk-agent-tool",

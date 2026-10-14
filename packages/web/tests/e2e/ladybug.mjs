@@ -43,8 +43,8 @@ try {
     const q = await page.$eval(".mk-table-sql", (t) => t.value);
     console.log("\n  query:", q);
     if (!/MATCH \(n:Person\)/.test(q)) throw new Error("expected Cypher default");
-    await page.waitForSelector(".mk-table-grid tbody tr", { timeout: 15000 });
-    const n = await page.$$eval(".mk-table-grid tbody tr", (r) => r.length);
+    await page.waitForSelector(".mk-table-grid .mk-table-row", { timeout: 15000 });
+    const n = await page.$$eval(".mk-table-grid .mk-table-row", (r) => r.length);
     if (n !== 3) throw new Error(`expected 3 people, got ${n}`);
   });
   await step("a path query returns nodes+edges; Show in Graph appears", async () => {

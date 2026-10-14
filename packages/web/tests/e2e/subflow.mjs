@@ -97,7 +97,7 @@ try {
     // required ports (resistor p/n, ground g, mass flange, dense in).
     if (s.issues !== 5) throw new Error("expected the five non-subflow issues: " + JSON.stringify(s));
   });
-  await step("the declared boundary is on the block: x left, y right, p top", async () => {
+  await step("the declared boundary is on the block: x left, y right, the lone pin p left below x", async () => {
     const node = await screenOf("sub_1");
     const px = await portOf("sub_1", "x");
     const py = await portOf("sub_1", "y");
@@ -106,7 +106,10 @@ try {
     if (await portOf("sub_1", "nope")) throw new Error("a port the subflow does not declare exists");
     if (!(px[0] < node[0] - 10)) throw new Error("x is not on the left edge");
     if (!(py[0] > node[0] + 10)) throw new Error("y is not on the right edge");
-    if (!(pp[1] < node[1] - 10)) throw new Error("p is not on the top edge");
+    // ADR-0024: no pin rides the top; a lone pin takes the left, spread
+    // below the input it shares the side with.
+    if (!(pp[0] < node[0] - 10)) throw new Error("p is not on the left edge");
+    if (!(pp[1] > px[1] + 4)) throw new Error("p does not sit below x");
     console.log(`\n  node at ${node.map((n) => n.toFixed(0))} — x ${px.map((n) => n.toFixed(0))}, y ${py.map((n) => n.toFixed(0))}, p ${pp.map((n) => n.toFixed(0))}`);
   });
   await step("a pin through the boundary: the resistor and the ground join it (a bus)", async () => {

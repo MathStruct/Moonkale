@@ -365,10 +365,10 @@ pub fn Shell() -> Element {
                 editor_panel = Some(c.id.clone());
             }
             let home = home_tile(is_narrow, c.home);
-            let mut panel =
-                Panel::new(c.id.as_str(), c.title.as_str(), home, ext.render(&c.id, ws))
-                    .with_closable(c.closable)
-                    .with_home_zone(home_zone(&current_layout, home));
+            let content = guarded(ws, c.title.clone(), ext.render(&c.id, ws));
+            let mut panel = Panel::new(c.id.as_str(), c.title.as_str(), home, content)
+                .with_closable(c.closable)
+                .with_home_zone(home_zone(&current_layout, home));
             // Tab accessories: the unsaved dot, and the git status letter of
             // the document's file (Milestone 7).
             let vcs = c.node.and_then(|n| ws.document(n)).and_then(|d| {
@@ -895,4 +895,66 @@ fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
         splitter_label: t!(ws, L, "wb-splitter"),
         splitter_hint: t!(ws, L, "wb-splitter-hint"),
     }
+}
+
+/// An extension's panel inside an error boundary (2026-10-14): a panic or an
+/// error while it renders shows a notice with **Reload** in that panel,
+/// instead of blanking the window. Native builds catch render panics
+/// (Dioxus turns them into errors); the web client is built with
+/// `panic = "abort"`, where only a page reload recovers. The session's
+/// state is in the store (ADR-0025, ADR-0026), so a reload loses no work.
+pub fn guarded(ws: Workspace, title: String, content: Element) -> Element {
+    remember_panics();
+    rsx! {
+        ErrorBoundary {
+            handle_error: move |errors: ErrorContext| {
+                // Dioxus keeps a render panic's payload private; the hook
+                // below kept its message.
+                let detail = LAST_PANIC
+                    .lock()
+                    .ok()
+                    .and_then(|mut p| p.take())
+                    .or_else(|| errors.error().map(|e| e.to_string()))
+                    .unwrap_or_default();
+                rsx! {
+                    div { class: "mk-ext-crash", role: "alert",
+                        p { {t!(ws, L, "ext-crashed", name = title.clone())} }
+                        if !detail.is_empty() { pre { class: "mk-ext-crash-detail", "{detail}" } }
+                        button { class: "mk-btn", onclick: move |_| errors.clear_errors(),
+                            {t!(ws, L, "ext-crash-reload")}
+                        }
+                    }
+                }
+            },
+            {content}
+        }
+    }
+}
+
+/// The last panic's message and location, for the panel's notice.
+static LAST_PANIC: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Once per process: a panic hook that keeps the message for [`guarded`],
+/// then runs the hook that was there before (the default prints it).
+fn remember_panics() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let msg = info
+                .payload()
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| info.payload().downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "a panic".into());
+            let at = info
+                .location()
+                .map(|l| format!(" at {}:{}", l.file(), l.line()))
+                .unwrap_or_default();
+            if let Ok(mut last) = LAST_PANIC.lock() {
+                *last = Some(format!("{msg}{at}"));
+            }
+            previous(info);
+        }));
+    });
 }

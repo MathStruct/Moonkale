@@ -1,265 +1,69 @@
-You are an expert [0.7 Dioxus](https://dioxuslabs.com/learn/0.7) assistant. Dioxus 0.7 changes every api in dioxus. Only use this up to date documentation. `cx`, `Scope`, and `use_state` are gone
+# AGENTS.md — start here
 
-Provide concise code examples with detailed descriptions
+You are working on **Moonkale**, a graph-native code and knowledge editor in Rust and Dioxus 0.7. It opens folders and database connections, shows everything as one graph, and is driven by extensions. It runs on the desktop (Linux, plus macOS and Windows builds), the web (wasm client + server) and Android. Its long-term target is the [North Star](markdown/architecture/North%20Star.md): code as a graph in a database, Unison-like, where several languages, IRs, e-graphs and type systems live on one graph, proofs are annotations, and the code graph meets a knowledge graph. The near-term driver is the factor-graph editor for Lenticulum.jl ([Julia and Lenticulum](markdown/architecture/Julia%20and%20Lenticulum.md)).
 
-# Dioxus Dependency
+`markdown/` is the design record (an Obsidian vault, published as the website). Read it before changing things; update it when you do.
 
-You can add Dioxus to your `Cargo.toml` like this:
+## Read first
 
-```toml
-[dependencies]
-dioxus = { version = "0.7.1" }
+1. `markdown/Home.md`: the map of the vault.
+2. `markdown/Status.md`: what is built. Check its date; where the code disagrees, the code wins, so fix the page.
+3. `markdown/problems/Work Packages.md`: **pick your work here.** With several agents at once, read `markdown/problems/Running Several Agents.md` too (slots, ports, who merges, who writes memory). It has the open work as packages, the hot-spot owners, the reserved ADR and P- numbers, and the definition of done.
+4. `markdown/architecture/Project Structure.md` and `markdown/Development.md`: crates, building, running.
+5. `markdown/testing/How to Write Tests.md`, `packages/web/tests/e2e/README.md`: unit tests and the browser suites.
+6. `markdown/specifications/README.md`: Daniel's small numbered specs, and the planned, unnumbered ones.
+7. The ADRs in `markdown/decisions/`: the decisions that hold. Don't relitigate an accepted one without a new ADR.
 
-[features]
-default = ["web", "webview", "server"]
-web = ["dioxus/web"]
-webview = ["dioxus/desktop"]
-server = ["dioxus/server"]
-```
+## How the agents work together
 
-# Launching your application
+- **Worktrees.** Claude keeps `master` and the main checkout (`~/Code/Moonkale/Moonkale`). Every other agent works in its own worktree (`~/Code/Moonkale/Moonkale-<agent>`) on its own branch: `codex`, `dev-mistral`, `dev-claude`, or `wp-NN-<slug>` for a work package. Contributor branches merge into master only when Daniel says so.
+- **Target dirs.** Each worktree builds into its own `CARGO_TARGET_DIR` (for example `target/agent`). Never share another worktree's target dir. Never build in `/tmp`: it is tmpfs and too small.
+- **Handoffs.** Notes between agents are untracked `*-from-<agent>.md` files in the receiver's worktree root (`HANDOFF-…`, `NEXT-…`, `REVIEW-…`). Read yours when you start.
+- **Numbers.** ADR and P- numbers come from the reservation table in Work Packages. Problems go into `markdown/problems/Problem Log.md` with `markdown/templates/Problem Template.md`; decisions use `markdown/templates/ADR Template.md`.
 
-You need to create a main function that sets up the Dioxus runtime and mounts your root component.
-
-```rust
-use dioxus::prelude::*;
-
-fn main() {
-	dioxus::launch(App);
-}
-
-#[component]
-fn App() -> Element {
-	rsx! { "Hello, Dioxus!" }
-}
-```
-
-Then serve with `dx serve`:
+## Before you commit: the gates (what CI runs)
 
 ```sh
-curl -sSL http://dioxus.dev/install.sh | sh
-dx serve
+cargo fmt --all --check
+python3 tools/check-deps.py        # layering rules
+python3 tools/check-colors.py      # no hard-coded colours outside the theme
+python3 tools/check-strings.py     # every UI string in en, de and zh-CN, every id used
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo check -p moonkale-distribution --no-default-features
+cargo check -p moonkale-distribution --features julia
+RUSTDOCFLAGS="-D warnings" cargo doc -p moonkale-core -p moonkale-ext-api -p moonkale-graph-render --no-deps
+cargo check -p web --target wasm32-unknown-unknown --features web
 ```
 
-# UI with RSX
+Then the browser suites of what you touched:
 
-```rust
-rsx! {
-	div {
-		class: "container", // Attribute
-		color: "red", // Inline styles
-		width: if condition { "100%" }, // Conditional attributes
-		"Hello, Dioxus!"
-	}
-	// Prefer loops over iterators
-	for i in 0..5 {
-		div { "{i}" } // use elements or components directly in loops
-	}
-	if condition {
-		div { "Condition is true!" } // use elements or components directly in conditionals
-	}
-
-	{children} // Expressions are wrapped in brace
-	{(0..5).map(|i| rsx! { span { "Item {i}" } })} // Iterators must be wrapped in braces
-}
+```sh
+MOONKALE_E2E=~/.cache/moonkale-e2e-<agent> PORT=<your port> packages/web/tests/e2e/serve.sh start
+MOONKALE_E2E=… PORT=… packages/web/tests/e2e/run-all.sh <suite> …
+packages/web/tests/e2e/serve.sh stop
 ```
 
-# Assets
+## Rules that have bitten before
 
-The asset macro can be used to link to local files to use in your project. All links start with `/` and are relative to the root of your project.
+- **Never `pkill dx`** (or any `pkill -f` pattern that matches other sessions): it kills Daniel's desktop dev server. Stop your server with `serve.sh stop`; it tracks the PID.
+- **Never commit `.secrets/`.** Never use a bare `git stash`: the stack is shared across worktrees. Use a WIP commit, or a stash with a unique message applied by SHA.
+- **Before a fast-forward or merge, check the incoming paths against ignored files in the way.** A checkout once replaced the ignored `.secrets/` with a tracked link (P-163).
+- **Pushing tags or contributor branches** to `MathStruct/Moonkale` needs Daniel's go-ahead. Push over https (`https://github.com/MathStruct/Moonkale.git`); there is no ssh agent.
+- **The graph engine's wasm is committed** (`packages/graph-assets/assets/graph_render*`). After changing `packages/graph-render`, rebuild it with `bash packages/graph-render/build.sh` and commit the output.
+- **The library crates are versioned by tag** (`ext-api-YYYY-MM-DD`, see `packages/ext-api/CHANGELOG.md`). A change that can break a caller gets a CHANGELOG entry, and the next tag carries it. `MathStruct/moonkale-julia` (Lux, ModelingToolkit and RxInfer flow libraries) depends on such a tag. Moonkale pulls it behind the `julia` feature, by its own tag. While developing both, use uncommitted `[patch]` sections.
+- **UI strings** live in each crate's `locales/{en,de,zh-CN}.ftl`. Daniel reads German and some Chinese.
+- **Native desktop runs on Wayland:** no synthetic input injection there. Desktop behaviour is tested through VirtualDom harness tests and the web build, and Daniel tests real input himself.
+- **Security rules for every change** are at the end of `markdown/architecture/Security.md`: the server decides, no secret values anywhere, content is data, bounded parsers, safe connections, audited dependencies, and the page kept current. Apply them in review.
+- **Keep docs in step:** the feature's page, `Status.md`, and `markdown/extensions/Extension Catalogue.md` whenever an extension is added, removed or moved.
 
-```rust
-rsx! {
-	img {
-		src: asset!("/assets/image.png"),
-		alt: "An image",
-	}
-}
-```
+## Dioxus 0.7 in brief
 
-## Styles
-
-The `document::Stylesheet` component will inject the stylesheet into the `<head>` of the document
-
-```rust
-rsx! {
-	document::Stylesheet {
-		href: asset!("/assets/styles.css"),
-	}
-}
-```
-
-# Components
-
-Components are the building blocks of apps
-
-* Component are functions annotated with the `#[component]` macro.
-* The function name must start with a capital letter or contain an underscore.
-* A component re-renders only under two conditions:
-	1.  Its props change (as determined by `PartialEq`).
-	2.  An internal reactive state it depends on is updated.
-
-```rust
-#[component]
-fn Input(mut value: Signal<String>) -> Element {
-	rsx! {
-		input {
-            value,
-			oninput: move |e| {
-				*value.write() = e.value();
-			},
-			onkeydown: move |e| {
-				if e.key() == Key::Enter {
-					value.write().clear();
-				}
-			},
-		}
-	}
-}
-```
-
-Each component accepts function arguments (props)
-
-* Props must be owned values, not references. Use `String` and `Vec<T>` instead of `&str` or `&[T]`.
-* Props must implement `PartialEq` and `Clone`.
-* To make props reactive and copy, you can wrap the type in `ReadOnlySignal`. Any reactive state like memos and resources that read `ReadOnlySignal` props will automatically re-run when the prop changes.
-
-# State
-
-A signal is a wrapper around a value that automatically tracks where it's read and written. Changing a signal's value causes code that relies on the signal to rerun.
-
-## Local State
-
-The `use_signal` hook creates state that is local to a single component. You can call the signal like a function (e.g. `my_signal()`) to clone the value, or use `.read()` to get a reference. `.write()` gets a mutable reference to the value.
-
-Use `use_memo` to create a memoized value that recalculates when its dependencies change. Memos are useful for expensive calculations that you don't want to repeat unnecessarily.
-
-```rust
-#[component]
-fn Counter() -> Element {
-	let mut count = use_signal(|| 0);
-	let mut doubled = use_memo(move || count() * 2); // doubled will re-run when count changes because it reads the signal
-
-	rsx! {
-		h1 { "Count: {count}" } // Counter will re-render when count changes because it reads the signal
-		h2 { "Doubled: {doubled}" }
-		button {
-			onclick: move |_| *count.write() += 1, // Writing to the signal rerenders Counter
-			"Increment"
-		}
-		button {
-			onclick: move |_| count.with_mut(|count| *count += 1), // use with_mut to mutate the signal
-			"Increment with with_mut"
-		}
-	}
-}
-```
-
-## Context API
-
-The Context API allows you to share state down the component tree. A parent provides the state using `use_context_provider`, and any child can access it with `use_context`
-
-```rust
-#[component]
-fn App() -> Element {
-	let mut theme = use_signal(|| "light".to_string());
-	use_context_provider(|| theme); // Provide a type to children
-	rsx! { Child {} }
-}
-
-#[component]
-fn Child() -> Element {
-	let theme = use_context::<Signal<String>>(); // Consume the same type
-	rsx! {
-		div {
-			"Current theme: {theme}"
-		}
-	}
-}
-```
-
-# Async
-
-For state that depends on an asynchronous operation (like a network request), Dioxus provides a hook called `use_resource`. This hook manages the lifecycle of the async task and provides the result to your component.
-
-* The `use_resource` hook takes an `async` closure. It re-runs this closure whenever any signals it depends on (reads) are updated
-* The `Resource` object returned can be in several states when read:
-1. `None` if the resource is still loading
-2. `Some(value)` if the resource has successfully loaded
-
-```rust
-let mut dog = use_resource(move || async move {
-	// api request
-});
-
-match dog() {
-	Some(dog_info) => rsx! { Dog { dog_info } },
-	None => rsx! { "Loading..." },
-}
-```
-
-# Routing
-
-All possible routes are defined in a single Rust `enum` that derives `Routable`. Each variant represents a route and is annotated with `#[route("/path")]`. Dynamic Segments can capture parts of the URL path as parameters by using `:name` in the route string. These become fields in the enum variant.
-
-The `Router<Route> {}` component is the entry point that manages rendering the correct component for the current URL.
-
-You can use the `#[layout(NavBar)]` to create a layout shared between pages and place an `Outlet<Route> {}` inside your layout component. The child routes will be rendered in the outlet.
-
-```rust
-#[derive(Routable, Clone, PartialEq)]
-enum Route {
-	#[layout(NavBar)] // This will use NavBar as the layout for all routes
-		#[route("/")]
-		Home {},
-		#[route("/blog/:id")] // Dynamic segment
-		BlogPost { id: i32 },
-}
-
-#[component]
-fn NavBar() -> Element {
-	rsx! {
-		a { href: "/", "Home" }
-		Outlet<Route> {} // Renders Home or BlogPost
-	}
-}
-
-#[component]
-fn App() -> Element {
-	rsx! { Router::<Route> {} }
-}
-```
-
-```toml
-dioxus = { version = "0.7.1", features = ["router"] }
-```
-
-# Fullstack
-
-Fullstack enables server rendering and ipc calls. It uses Cargo features (`server` and a client feature like `web`) to split the code into a server and client binaries.
-
-```toml
-dioxus = { version = "0.7.1", features = ["fullstack"] }
-```
-
-## Server Functions
-
-Use the `#[post]` / `#[get]` macros to define an `async` function that will only run on the server. On the server, this macro generates an API endpoint. On the client, it generates a function that makes an HTTP request to that endpoint.
-
-```rust
-#[post("/api/double/:path/&query")]
-async fn double_server(number: i32, path: String, query: i32) -> Result<i32, ServerFnError> {
-	tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-	Ok(number * 2)
-}
-```
-
-## Hydration
-
-Hydration is the process of making a server-rendered HTML page interactive on the client. The server sends the initial HTML, and then the client-side runs, attaches event listeners, and takes control of future rendering.
-
-### Errors
-The initial UI rendered by the component on the client must be identical to the UI rendered on the server.
-
-* Use the `use_server_future` hook instead of `use_resource`. It runs the future on the server, serializes the result, and sends it to the client, ensuring the client has the data immediately for its first render.
-* Any code that relies on browser-specific APIs (like accessing `localStorage`) must be run *after* hydration. Place this code inside a `use_effect` hook.
+This repo uses Dioxus **0.7**; older APIs (`cx`, `Scope`, `use_state`) are gone.
+- Components are `#[component] fn Name(props…) -> Element`. Props are owned (`String`, `Vec<T>`), `Clone + PartialEq`. Wrap heavy props in a pointer-compared newtype rather than cloning them each render.
+- State: `use_signal`, `use_memo`, `use_resource`, plus context (`use_context_provider` / `use_context`). Read with `.read()` or `sig()`, write with `.write()`, `.set()` or `.with_mut()`; read without subscribing with `.peek()`.
+- Don't hold a signal guard across an `.await`; `clippy.toml` bans it. Don't read and write the same signal in one expression (take the value first).
+- `rsx!` takes loops and `if` directly; iterators go in braces. Use `key:` on list items.
+- Element events used here: `onmounted` (gives `MountedData`: `get_client_rect`, `scroll`, `set_focus`), `onresize`, `onscroll` (`scroll_top`, `client_height`, …), keyboard and pointer events.
+- `document::eval` is the escape hatch to JS. Avoid it for editor state ([JS Interop Boundary](markdown/architecture/JS%20Interop%20Boundary.md)).
+- Reference: https://dioxuslabs.com/learn/0.7

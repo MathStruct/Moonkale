@@ -5,6 +5,9 @@ tags: [architecture, collaboration, design]
 ---
 From [[Prompt19]] (2026-09-20): plan for annotations/comments that can occur in files and sources — "like issues in GitHub" — for later. Related: [[Collaboration]] (presence, history), [[Projects and Sources]] (git-host repositories as sources), [[Graph-Native Model]].
 
+> [!note] 2026-10-14: [[Shared Work]] §4 extends this, and **storage is decided**
+> Anchors on flow blocks, cells and proposals; rich rendering; `@agent` mentions. **Storage (Daniel):** comments always live in the source host's state store. `comments.permanent` (default off) keeps them there for good; while it's off, the store is an intermediary, and resolved threads expire unless exported. `comments.git` (`off` / `on-demand` / `sync`) exports and imports `.moonkale/comments.jsonl` for git. The JSONL storage below is superseded as *storage*, and survives as the export format.
+
 ## What an annotation is
 A small document anchored to a place:
 

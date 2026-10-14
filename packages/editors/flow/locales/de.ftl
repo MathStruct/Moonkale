@@ -19,3 +19,7 @@ flow-reload = Neu laden
 flow-reload-title = Änderungen verwerfen und aus der Datei neu laden
 flow-subsystem = Teilsystem
 flow-subsystem-title = Ein Teilsystem hinzufügen — ein leerer Untergraph, den man mit einem Doppelklick öffnet und füllt
+flow-rotate = ⟳
+flow-rotate-title = Den Block um eine Vierteldrehung im Uhrzeigersinn drehen (R)
+flow-mirror = ⇋
+flow-mirror-title = Den Block links–rechts spiegeln (M)

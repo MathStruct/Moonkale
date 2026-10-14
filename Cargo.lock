@@ -7078,6 +7078,7 @@ dependencies = [
  "moonkale-llm",
  "moonkale-project-fs",
  "moonkale-state",
+ "pulldown-cmark",
  "serde",
  "serde_json",
  "tempfile",
@@ -7283,8 +7284,8 @@ dependencies = [
 
 [[package]]
 name = "moonkale-ext-lux"
-version = "0.4.0"
-source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.4.0#c22e00521048be58460a8337c45cc04dac31c059"
+version = "0.6.0"
+source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.6.0#66a050473514c9ec8a16bfe63092c1ec1928a42a"
 dependencies = [
  "dioxus",
  "moonkale-ext-api",

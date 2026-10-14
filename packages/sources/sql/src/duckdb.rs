@@ -19,7 +19,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
-pub const ROW_CAP: usize = 500;
+/// The most rows one text query returns. The table editor's grid is
+/// virtualised, so the cap guards memory and transfer, not drawing.
+pub const ROW_CAP: usize = 50_000;
 /// Data files a folder exposes as tables.
 pub const DATA_EXTENSIONS: &[&str] = &["csv", "tsv", "parquet"];
 pub const DUCKDB_EXTENSIONS: &[&str] = &["duckdb", "ddb"];
