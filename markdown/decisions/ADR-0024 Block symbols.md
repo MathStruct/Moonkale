@@ -55,7 +55,7 @@ The engine already had what a drawing needs:
 
 ## Consequences
 
-- **The change is additive.** `BlockKind` and the engine's `InNode` gain defaulted fields. `BlockPorts` gains `symbol`: a caller that builds it literally adds `symbol: None` (inside Moonkale, only the flow panel). It rides under the CHANGELOG's Unreleased section, and the next `ext-api` tag carries it. A library that wants symbols needs that tag.
+- **The change is additive.** `BlockKind` and the engine's `InNode` gain defaulted fields. `BlockPorts` gains `symbol`: a caller that builds it literally adds `symbol: None` (inside Moonkale, only the flow panel). It shipped in `ext-api-2026-10-14`; moonkale-julia v0.5.0 is its first user.
 - **Files don't change.** The symbol belongs to the kind, not to the block. A `.flow.json` keeps its positions, and only the drawing and the pin sides differ.
 - **Not decided here:**
   - per-block rotation or mirroring (a resistor standing upright);

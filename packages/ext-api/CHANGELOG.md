@@ -12,9 +12,9 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
-## Unreleased
+## ext-api-2026-10-14
 
-Block symbols (ADR-0024): a kind can draw as a schematic instead of a box.
+Block symbols (ADR-0024): a kind can draw as a schematic instead of a box, and ortho wires follow their ports' sides.
 
 **Breaking:** each of these fails to compile only where a caller builds the struct literally.
 - `moonkale-ext-api::flow::BlockPorts.symbol` is a new field. *Update:* a `BlockPorts` literal adds `symbol: None`. `BlockKind.symbol` itself is defaulted, so kinds finished with `..Default::default()` keep compiling.
