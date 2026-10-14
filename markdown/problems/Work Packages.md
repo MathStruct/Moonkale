@@ -110,6 +110,18 @@ Later in lane E, after a structure editor exists:
 
 **Not scheduled, way later:** WP-28, a stripped-down **static reader** web version ([[Publishing Sources]], "Revisited 2026-10-14"). The full web version stays the web target, and Quartz stays for the vault. No agent picks this up until Daniel schedules it.
 
+### Lane H: knowledge graphs (RDF and layered memory), proposed
+
+The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowledge Graph Studio]]). It lives in its own repository, like moonkale-julia. Not scheduled.
+
+| WP | What | Touches | Depends on | Size | Done when |
+|---|---|---|---|---|---|
+| 31 | **An oxilite store as a source**: SPARQL in the table, CONSTRUCT/DESCRIBE in the graph view, read-only (KG-01, 08, 09) | new extension repo; `ext-api` source contract | — | M | a demo store queried and drawn in the browser suite |
+| 32 | **A language-server contribution point**, then `oxilite studio-server` for SPARQL, Turtle, Datalog and Cypher; run, explain, pins (KG-03, 05, 06) | `services/lsp-local` (discovery), ext-api ★ | 31 | M | completion from the store's vocabulary in a pinned `.rq` |
+| 33 | **Trust**: resource view, inferred badges, "why?" proof trees as annotations, live SHACL diagnostics (KG-12, 15–17) | the extension; annotations (WP-19) helps | 31 | M | the demo's deliberate SHACL violation shows at its line, with its proof |
+| 34 | **Schema registry** view and edits through oxilite's registry API (KG-19–22) | the extension, graph view styles | 31 | M | the zoo/garden/common scenario from the spec |
+| 35 | **Layered memory**: tiramemsu as a source, statement junctions, the two-clock control, conflicts, a fact's life, saved answers (KG-27–36) | the extension, `graph-render` ★ (junction styling) | 31 | L (split) | tiramemsu's README questions answered in the UI |
+
 ## A first wave
 
 Six agents with no shared hot spot:

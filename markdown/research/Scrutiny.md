@@ -37,6 +37,28 @@ The study is [[External Code Intelligence Projects]]; its section "What should n
 - base-plus-local-delta overlays before there is a multi-user requirement;
 - their performance targets as promises.
 
+## oxilite studio (2026-10-14)
+
+The study is [[Knowledge Graph Studio]]. Taken: almost everything. Rejected or limited:
+
+### oxilite studio — the graph view caps at 1 500 nodes
+- **What it is:** the node-link model is built and drawn up to 1 500 nodes; the rest are counted.
+- **Why not:** a cap of that size fits Cytoscape in a webview, and Moonkale's engine draws 100 k. A cap here would hide exactly the large ontologies and memories the studio is for.
+- **Instead:** the graph engine, with level of detail; the coarse tier (WP-06) past that.
+- **Revisit when:** never for the cap itself; the engine's limits are the bar.
+
+### oxilite studio — results are cut at a row limit
+- **What it is:** rows beyond `oxilite.query.rowLimit` are dropped, and server paging is listed as still to come.
+- **Why not (as is):** a silent cap loses data in the one view meant to show it.
+- **Instead:** the virtualised table grid holds the whole result up to the source's cap and says when the source truncated; pushdown paging is WP-13. Like tiramemsu's budgets, an over-budget answer is an error, never a quiet truncation.
+- **Revisit when:** —
+
+### oxilite studio — VS Code webview workarounds
+- **What it is:** a mailbox that holds a panel's last message until the webview is ready, and link-styled buttons instead of `<a>`, because notebook hosts intercept links.
+- **Why not:** they work around VS Code's webview hosting, which Moonkale doesn't have. Moonkale renders Dioxus components in its own tree.
+- **Instead:** nothing needed.
+- **Revisit when:** a Moonkale view is hosted in an iframe or a webview of its own.
+
 ## Supabase table editor (planned)
 
 Not studied yet. The study writes its taken and adapted requirements into the [[Table Editor]] spec, and its rejections here.

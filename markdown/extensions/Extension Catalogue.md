@@ -51,6 +51,7 @@ Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence 
 | Remote folder (SSH), git-host repositories, API (OpenAPI) sources | [[Projects and Sources]] | optional | this repo (sources are core-adjacent) | ssh / tokens |
 | Julia REPL, LanguageServer.jl, Lean infoview | [[Core Languages]] | opt-in | `MathStruct/moonkale-julia`, `moonkale-lean` | Julia / Lean toolchains |
 | Julia depot read-only source (`Project.toml`/`Manifest.toml` → `~/.julia/packages`), ModelingToolkit Simulink-like editor, **Lenticulum.jl factor-graph editor and live viewer** + `Moonkale.jl` companion | [[Julia and Lenticulum]] | opt-in | `MathStruct/moonkale-julia` — never in the standard web build | Julia; a running Julia session for live state |
+| **Knowledge Graph Studio**: the frontend for oxilite (RDF, SPARQL, reasoning, SHACL, schema registry) and tiramemsu (layered, bitemporal memory), on their crates as they are; plus a language-server contribution point for `oxilite studio-server` | [[Knowledge Graph Studio]] (proposal, 2026-10-14) | opt-in | its own repository, like `moonkale-julia` | the `oxilite` and `tiramemsu` crates; `oxilite studio-server` for language features |
 | Plain-text tier for huge files, coarse graph tier | [[Case Selector]] | core (backends, not extensions) | this repo | — |
 | Remote runtime on the phone for wasm extensions + "Install from URL" | [[Android Extensions and Bundling]] | core mechanism | this repo | — |
 
