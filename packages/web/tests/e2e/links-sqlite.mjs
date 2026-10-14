@@ -35,8 +35,8 @@ try {
   await step("click the users table → table panel with 3 rows", async () => {
     await page.click(".mk-tree-db >> text=users");
     await page.waitForSelector(".mk-table-grid", { timeout: 15000 });
-    const rows = await page.$$eval(".mk-table-grid tbody tr", (els) => els.length);
-    const head = await page.$$eval(".mk-table-grid th", (els) => els.map((e) => e.textContent));
+    const rows = await page.$$eval(".mk-table-grid .mk-table-row", (els) => els.length);
+    const head = await page.$$eval(".mk-table-grid .mk-table-hname", (els) => els.map((e) => e.textContent));
     if (rows !== 3 || head.join() !== "id,name,score") throw new Error(`rows=${rows} head=${head}`);
     const nulls = await page.$$eval(".mk-cell-null", (els) => els.length);
     if (nulls !== 1) throw new Error(`nulls ${nulls}`);
@@ -44,7 +44,7 @@ try {
   await step("custom SQL runs; a write is refused with a clear message", async () => {
     await page.fill(".mk-table-sql", "SELECT name FROM users WHERE score > 2");
     await page.click(".mk-table button");
-    await page.waitForFunction(() => document.querySelectorAll(".mk-table-grid tbody tr").length === 1, null, { timeout: 10000 });
+    await page.waitForFunction(() => document.querySelectorAll(".mk-table-grid .mk-table-row").length === 1, null, { timeout: 10000 });
     await page.fill(".mk-table-sql", "DELETE FROM users");
     await page.click(".mk-table button");
     await page.waitForSelector(".mk-table-error", { timeout: 10000 });

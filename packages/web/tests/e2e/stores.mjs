@@ -12,13 +12,13 @@ page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) log
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 const showSources = async () => { if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer"); };
 const grid = async () => ({
-  head: await page.$$eval(".mk-table:visible .mk-table-grid th", (e) => e.map((x) => x.textContent.trim())),
-  rows: await page.$$eval(".mk-table:visible .mk-table-grid tbody tr", (e) => e.map((r) => [...r.querySelectorAll("td")].map((c) => c.textContent.trim()))),
+  head: await page.$$eval(".mk-table:visible .mk-table-grid .mk-table-hname", (e) => e.map((x) => x.textContent.trim())),
+  rows: await page.$$eval(".mk-table:visible .mk-table-grid .mk-table-row", (e) => e.map((r) => [...r.querySelectorAll(".mk-table-cell")].map((c) => c.textContent.trim()))),
 });
 const run = async (q, rows) => {
   await page.fill(".mk-table:visible .mk-table-sql", q);
   await page.click(".mk-table:visible button");
-  await page.waitForFunction((n) => [...document.querySelectorAll(".mk-table")].some((t) => t.offsetParent && t.querySelectorAll(".mk-table-grid tbody tr").length === n), rows, { timeout: 10000 });
+  await page.waitForFunction((n) => [...document.querySelectorAll(".mk-table")].some((t) => t.offsetParent && t.querySelectorAll(".mk-table-grid .mk-table-row").length === n), rows, { timeout: 10000 });
 };
 /** Click a store in the tree; wait for its source header and one child. */
 const openStore = async (file, name, child) => {
@@ -82,7 +82,7 @@ try {
     await page.click(".mk-tree-db >> text=settings · 2");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     const q = await page.inputValue(".mk-table:visible .mk-table-sql");
-    if (!/^scan settings limit 200$/.test(q)) throw new Error("default query: " + q);
+    if (!/^scan settings limit 1000$/.test(q)) throw new Error("default query: " + q);
     const g = await grid();
     if (g.head.join() !== "key,value" || JSON.stringify(g.rows) !== JSON.stringify([["font", "Inter"], ["theme", "dark"]])) throw new Error(JSON.stringify(g));
     await run("get settings theme", 1);

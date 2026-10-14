@@ -20,7 +20,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-pub const ROW_CAP: usize = 500;
+/// The most rows one text query returns. The table editor's grid is
+/// virtualised, so the cap guards memory and transfer, not drawing.
+pub const ROW_CAP: usize = 50_000;
 
 pub struct TursoSource {
     id: SourceId,
