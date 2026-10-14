@@ -22,7 +22,7 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
 
    | Series | Next free | Reserved |
    |---|---|---|
-   | ADR | ADR-0026 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, proposed) |
+   | ADR | ADR-0026 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted) |
    | P- | P-195 | master's log ends at P-185; codex's branch holds P-186–P-194 (unmerged). Others start at P-195 |
 
 4. **Done means mergeable:**
@@ -136,8 +136,11 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 43 | **Multibuffers over nodes** ([[Editor Prior Art (Obsidian, VS Code, Zed)]]): one editable buffer of excerpts from files, rows and code-graph definitions | `code-view`, the code editor (codex's lane) | 03 | L | references to a symbol edited in place across three files |
 | 44 | **JSON Canvas** read and write on the graph engine with canvas components | the canvas layer (WP-05), a new view | 05 | M | an Obsidian `.canvas` file opens, edits and saves back unchanged where untouched |
 | 45 | **Statistical logic programs in the flow model** (LT-24 to LT-29): relation and rule kinds, lifted/ground expansion, derivation graphs, a query box | `ext-api/flow.rs` ★, `editors/flow`, the Datalog dialect (WP-20) | 37, 20 | L | a small weighted program answers a query with its proof graph |
-| 46 | **Sessions** ([[ADR-0025 Sessions are the outermost state]], proposed): session tables in the state store, the switcher, migrating per-folder rows into the Default session, export and import | `state`, shell, `editors/agent` (conversations), `moonkale-core` ★ (settings scopes) | — | M (after Daniel accepts the ADR) | switch two sessions with different sources and an unsaved buffer each; nothing lost |
+| 46 | **Sessions** ([[ADR-0025 Sessions are the outermost state]], accepted): session tables in the state store, the switcher, migrating per-folder rows into the Default session, export and import | `state`, shell, `editors/agent` (conversations), `moonkale-core` ★ (settings scopes) | — | M | switch two sessions with different sources and an unsaved buffer each; nothing lost |
 | 47 | **Security hygiene in CI** ([[Security]] rules 4 and 6): `cargo deny` and `cargo audit`, JS lockfile audit, the first fuzz targets (math delimiters, the flow format) | `.github`, `deny.toml`, new fuzz crates | — | S | CI fails on a new advisory |
+| 48 | **Participants, roles and agent tasks** ([[Shared Work]] SW-01 to 08): roles per session, agents with sponsors, a task queue, an approval inbox, attribution, budgets | server (accounts first), shell, `editors/agent`, the entity log | accounts on the server; 46 | L (split) | two people and an agent in one session, the agent's writes approved from the inbox |
+| 49 | **Proposals and optimistic writes** (SW-20, 21, 23): versioned writes through `Source`, a conflict view, changesets reviewed and applied atomically | `moonkale-core` ★ (write API, R-41), `sources/*`, a review view | — | L | an agent's two-file edit and a SQL update applied as one reviewed proposal; a stale write refused and shown |
+| 50 | **Comments** ([[Annotations]] steps + SW-30, 31, 34): threads on text, nodes, flow blocks, cells; rich rendering; `@agent` mentions later | `moonkale-core` (Annotation kind), ext-api, editors, the state store | — | M | a comment on a flow block and one on a table cell, both found in the Annotations panel |
 
 ## A first wave
 

@@ -1,10 +1,10 @@
 ---
 title: "ADR-0025 — Sessions are the outermost state, kept in the state store"
 tags: [adr, sessions, projects, state, sources]
-status: proposed
+status: accepted
 date: 2026-10-14
 ---
-**Status:** proposed 2026-10-14, from Daniel's request; written by Claude. It supersedes the *storage* part of [[Projects and Sources]] (one JSON file per project) and builds on [[ADR-0014 One store for internal state]] (SQLite). Related: [[Internal State]], [[Agent Sessions and Profiles]], [[Collaboration]].
+**Status:** accepted 2026-10-14 (Daniel), the same day it was proposed; written by Claude. It supersedes the *storage* part of [[Projects and Sources]] (one JSON file per project) and builds on [[ADR-0014 One store for internal state]] (SQLite). Related: [[Internal State]], [[Agent Sessions and Profiles]], [[Collaboration]].
 
 ## Context
 
@@ -31,7 +31,9 @@ date: 2026-10-14
 
 **"Project" and "session":** one concept, not two. The Projects page's *project* is this *session*; the page keeps its design for sources (open and close individually, read-only per pair, colours, failure notices, roots for portable paths) and drops its JSON storage.
 
-**A name collision to settle:** *agent sessions* (conversations with the agent, [[Agent Sessions and Profiles]]) already use the word. Proposed: in the UI, the outer thing is a **session**, and the agent's become **conversations**. The code and the store keep `agent_sessions` until a migration renames it.
+**The name collision, settled (Daniel, 2026-10-14):** the agent's sessions are now **conversations** in the UI (English, German „Unterhaltung", Chinese 对话), and **session** means only this outer unit. The code and the store keep `agent_sessions` until the sessions migration renames it. Terminal and SSH sessions keep their word: those are processes, not saved state.
+
+**Several people and agents in one session** is the next layer: participants, roles, approvals, attribution. [[Shared Work]] has it.
 
 ## Consequences
 

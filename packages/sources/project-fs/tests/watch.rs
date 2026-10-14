@@ -104,3 +104,25 @@ async fn an_unknown_position_asks_for_a_reset_and_an_idle_poll_returns_empty() {
         (start.seq, 0, false)
     );
 }
+
+/// A whole drive (`E:\`) was opened once: one watch per directory walked
+/// millions of them. Past the directory budget the root is not watched at
+/// all (the source then reports itself unwatched), and the walk stops at
+/// the budget instead of finishing. On Windows and macOS one recursive
+/// watch covers any size, so there is no budget to exceed.
+#[test]
+fn a_root_with_more_directories_than_the_budget_is_not_watched() {
+    let dir = tempfile::tempdir().unwrap();
+    for i in 0..12 {
+        fs::create_dir_all(dir.path().join(format!("d{i}/inner"))).unwrap();
+    }
+    let small = moonkale_project_fs::watch::FolderWatch::start_with_budget(dir.path(), 8);
+    let roomy = moonkale_project_fs::watch::FolderWatch::start_with_budget(dir.path(), 100);
+    assert!(roomy.is_ok(), "25 directories fit a budget of 100");
+    if cfg!(any(windows, target_os = "macos")) {
+        assert!(small.is_ok(), "a native recursive watch has no budget");
+    } else {
+        let err = small.err().expect("25 directories exceed a budget of 8");
+        assert!(err.to_string().contains("more than 8 directories"), "{err}");
+    }
+}

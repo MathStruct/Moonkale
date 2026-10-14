@@ -5,6 +5,9 @@ tags: [architecture, collaboration, design]
 ---
 From [[Prompt19]] (2026-09-20): plan for annotations/comments that can occur in files and sources — "like issues in GitHub" — for later. Related: [[Collaboration]] (presence, history), [[Projects and Sources]] (git-host repositories as sources), [[Graph-Native Model]].
 
+> [!note] 2026-10-14: [[Shared Work]] §4 extends this
+> Anchors on flow blocks, cells and proposals, rich rendering, `@agent` mentions, and a proposal to keep comments in the source host's state store, with an export to a file for git (instead of `.moonkale/annotations.jsonl` as the storage).
+
 ## What an annotation is
 A small document anchored to a place:
 

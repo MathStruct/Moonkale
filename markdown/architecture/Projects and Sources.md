@@ -42,6 +42,14 @@ Explorer roots, tabs and the status bar show the lock; the reason is in the tool
 ### Colours
 Each source in a project has an **accent colour**: chosen by the user or assigned deterministically from a palette (hash of the source id, so it is stable across machines). It appears as a stripe on the Explorer root, on the tab of every document from that source, in the editor's header line, as a tint on the source's nodes in the graph, and next to the file name in the status bar. Themes define the palette (eight colours that work on both dark and light backgrounds); the colour never carries meaning beyond "this source" — read-only is the lock, not a colour.
 
+### Large roots: a drive, the home folder, `/`
+Someone on Windows opened the whole of `E:` (P-195). Opening a very large root has to work, but cheaply and honestly:
+- **What stays cheap by design:** the Explorer lists one directory at a time; the index stops at 5 000 files; the watcher uses one native recursive watch on Windows and macOS, and has a directory budget elsewhere (past it the source is unwatched, with ↻).
+- **To build:**
+  - when the root is a drive root, the filesystem root, or the home folder (or the first listing finds more than a threshold), the Sources panel shows a notice: "a very large folder: the index covers the first 5 000 files, watching is off; open a subfolder for everything";
+  - per source, an "index this subtree" action for the part someone actually works in;
+  - system folders (`$RECYCLE.BIN`, `System Volume Information`) are always skipped.
+
 ## Projects
 
 ### What a project stores

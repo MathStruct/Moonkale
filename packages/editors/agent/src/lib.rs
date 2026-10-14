@@ -10,6 +10,7 @@
 
 mod extension;
 pub mod host;
+pub mod markdown;
 mod panel;
 mod transcript;
 
