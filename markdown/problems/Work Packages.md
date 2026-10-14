@@ -86,6 +86,12 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 | 21 | **Persisted, incremental index**: the Recoco/Thread findings ([[External Code Intelligence Projects]], next steps) | `services/index`, state store | — | L (split per acceptance test listed there) | reopening reuses the index; a one-file change touches only its facts |
 | 22 | **Calls and references** in the index, for the core languages | `services/index` | — (coordinate with 21) | M | call edges for Rust/Julia/Python fixtures |
 
+Later in lane E, after a structure editor exists:
+
+| WP | What | Touches | Depends on | Size | Done when |
+|---|---|---|---|---|---|
+| 30 | **Declarative rendering settings** ([[North Star]], "Proposal: declarative rendering settings"): a `[render]` settings schema (keywords, index base, blocks, type annotations, macros, operators), and projections over typed nodes that parse back. First as a design note with the invertibility rules and the index-base case worked out; code only after WP-18/19 give typed nodes | settings schema, a projection crate, the code view | 18, 19; a structure editor | L (design first: S) | design: the schema, the invertibility rules, and three worked examples (`fn`/`function`, 0/1-based index, collapsed macros) reviewed by Daniel |
+
 ### Lane F: platform, security, upkeep
 
 | WP | What | Touches | Depends on | Size | Done when |
