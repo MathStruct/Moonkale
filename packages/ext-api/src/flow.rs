@@ -149,6 +149,69 @@ impl Role {
     }
 }
 
+/// A block's drawing (ADR-0024): a schematic symbol instead of a plain
+/// box — a capacitor's plates, a resistor's zigzag, ground's bars — and
+/// where its pins sit on it. A kind without one draws as a box, its pins
+/// placed by the editor's default rule.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Symbol {
+    /// The symbol's width in canvas units (a default box is 92 wide).
+    pub width: f32,
+    /// Its height in canvas units (a default box is 44 tall).
+    pub height: f32,
+    /// SVG path data in the box `0 0 width height`, stroked in the
+    /// block's colour (`M 0 11 H 14 M 14 3 V 19 …`). Only the path
+    /// syntax — no fills, no other SVG elements.
+    pub path: String,
+    /// Where each port sits on the symbol's box. A port not named here
+    /// falls back to the default rule.
+    #[serde(default)]
+    pub anchors: Vec<Anchor>,
+}
+
+/// One port's place on a [`Symbol`]'s box: a side, and how far along it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Anchor {
+    /// The port's name.
+    pub port: String,
+    /// The side it sits on.
+    pub side: Side,
+    /// 0..1 along the side, left to right or top to bottom; 0.5 is its
+    /// middle.
+    #[serde(default = "half")]
+    pub offset: f32,
+}
+
+fn half() -> f32 {
+    0.5
+}
+
+/// A side of a block's box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Side {
+    /// The left edge.
+    Left,
+    /// The right edge.
+    Right,
+    /// The top edge.
+    Top,
+    /// The bottom edge.
+    Bottom,
+}
+
+impl Side {
+    /// The side's name as the graph engine spells it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Side::Left => "left",
+            Side::Right => "right",
+            Side::Top => "top",
+            Side::Bottom => "bottom",
+        }
+    }
+}
+
 /// A parameter of a block (units, activation, …).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Param {
@@ -194,6 +257,9 @@ pub struct BlockKind {
     /// is outside the rule.
     #[serde(default)]
     pub role: Option<Role>,
+    /// Its drawing (ADR-0024); `None` draws a box.
+    #[serde(default)]
+    pub symbol: Option<Symbol>,
 }
 
 /// Generated code for a flow: file name + text.
@@ -463,6 +529,7 @@ impl Flow {
                 connections: &s.connections,
                 params: &[],
                 role: None,
+                symbol: None,
             });
         }
         find_kind(libraries, &block.kind).map(|(_, k)| BlockPorts {
@@ -472,6 +539,7 @@ impl Flow {
             connections: &k.connections,
             params: &k.params,
             role: k.role,
+            symbol: k.symbol.as_ref(),
         })
     }
 
@@ -533,6 +601,9 @@ pub struct BlockPorts<'a> {
     /// Its bipartite role (ADR-0022) — a subflow and a boundary
     /// pseudo-block have none.
     pub role: Option<Role>,
+    /// Its drawing (ADR-0024) — a subflow and a boundary pseudo-block
+    /// have none.
+    pub symbol: Option<&'a Symbol>,
 }
 
 /// Why a pin wire between `a` and `b` breaks the bipartite rule
@@ -710,6 +781,7 @@ pub fn inner_ports<'a>(
                 connections: &[],
                 params: &[],
                 role: None,
+                symbol: None,
             });
         }
         if let Some(p) = sub.outputs.iter().find(|p| p.name == port) {
@@ -720,6 +792,7 @@ pub fn inner_ports<'a>(
                 connections: &[],
                 params: &[],
                 role: None,
+                symbol: None,
             });
         }
         if let Some(p) = sub.connections.iter().find(|p| p.name == port) {
@@ -730,6 +803,7 @@ pub fn inner_ports<'a>(
                 connections: one(p),
                 params: &[],
                 role: None,
+                symbol: None,
             });
         }
         return None;
@@ -1138,6 +1212,7 @@ mod tests {
                     connections: vec![],
                     params: vec![],
                     role: None,
+                    symbol: None,
                 },
                 BlockKind {
                     id: "dense".into(),
@@ -1149,6 +1224,7 @@ mod tests {
                     connections: vec![],
                     params: vec![],
                     role: None,
+                    symbol: None,
                 },
                 BlockKind {
                     id: "flat".into(),
@@ -1160,6 +1236,7 @@ mod tests {
                     connections: vec![],
                     params: vec![],
                     role: None,
+                    symbol: None,
                 },
             ],
         }
@@ -1262,6 +1339,7 @@ mod tests {
                     connections: vec![pin("p", "electrical", true), pin("n", "electrical", true)],
                     params: vec![],
                     role: None,
+                    symbol: None,
                 },
                 BlockKind {
                     id: "ground".into(),
@@ -1273,6 +1351,7 @@ mod tests {
                     connections: vec![pin("g", "electrical", false)],
                     params: vec![],
                     role: None,
+                    symbol: None,
                 },
                 BlockKind {
                     id: "mass".into(),
@@ -1284,6 +1363,7 @@ mod tests {
                     connections: vec![pin("flange", "mechanical", false)],
                     params: vec![],
                     role: None,
+                    symbol: None,
                 },
             ],
         }
@@ -1466,6 +1546,7 @@ mod tests {
             }],
             params: vec![],
             role: None,
+            symbol: None,
         });
         let mut f = Flow::new();
         f.blocks = vec![
@@ -1542,6 +1623,7 @@ mod tests {
             connections: vec![],
             params: vec![],
             role: None,
+            symbol: None,
         });
         f.blocks.push(Block {
             id: "s".into(),

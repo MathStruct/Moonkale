@@ -49,10 +49,13 @@ try {
     await page.evaluate((json) => Object.values(window.moonkale.graphViews)[0].set_graph(json), JSON.stringify(flow));
     await page.waitForFunction(() => Object.values(window.moonkale.graphViews)[0].layout_state()[0] === 0, null, { timeout: 20000 });
     await sleep(700);
-    // Two ortho wires × three segments; two heads.
+    // Two ortho wires; two heads. The settled layout may leave a block
+    // on the far side of its neighbour, and the route then detours round
+    // it (ADR-0024): three segments when the ports face each other, up
+    // to five when they face away.
     const fr = await frame();
     console.log("\n  frame [segs, arrows, ports, …]:", JSON.stringify(fr));
-    if (fr[0] !== 6) throw new Error(`wanted 6 segments (3 per ortho wire), got ${fr[0]}`);
+    if (fr[0] < 6 || fr[0] > 10) throw new Error(`wanted 3–5 segments per ortho wire, got ${fr[0]}`);
     if (fr[1] !== 2) throw new Error(`wanted 2 heads, got ${fr[1]}`);
   });
   await step("hier_layout lines the chain up left-to-right and pins it", async () => {
@@ -62,6 +65,9 @@ try {
     console.log(`\n  columns: src ${src[0].toFixed(0)}, dense ${dense[0].toFixed(0)}, loss ${loss[0].toFixed(0)}`);
     if (!(src[0] < dense[0] - 50 && dense[0] < loss[0] - 50)) throw new Error("the chain is not left-to-right");
     if (Math.abs(src[1] - dense[1]) > 4 || Math.abs(dense[1] - loss[1]) > 4) throw new Error("the rows do not line up");
+    // Lined up, every pair of ports faces each other: no detours.
+    const lined = await frame();
+    if (lined[0] > 6) throw new Error(`a lined-up chain still detours: ${lined[0]} segments`);
     // The host's harvest: every block named with its world position.
     const wp = JSON.parse(await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].node_positions()));
     const ids = Object.keys(wp).sort();

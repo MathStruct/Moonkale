@@ -12,6 +12,21 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased
+
+Block symbols (ADR-0024): a kind can draw as a schematic instead of a box.
+
+**Breaking:** each of these fails to compile only where a caller builds the struct literally.
+- `moonkale-ext-api::flow::BlockPorts.symbol` is a new field. *Update:* a `BlockPorts` literal adds `symbol: None`. `BlockKind.symbol` itself is defaulted, so kinds finished with `..Default::default()` keep compiling.
+- `moonkale-graph-render::graph::Node.symbol` is a new field. *Update:* a `Node` literal adds `symbol: None`. Nothing outside the crate builds one today.
+
+**moonkale-ext-api**
+- `flow::Symbol { width, height, path, anchors }`, `flow::Anchor { port, side, offset }` and `flow::Side { Left, Right, Top, Bottom }`. A symbol's `path` is SVG path data in its `0 0 width height` box, stroked in the block's colour. Its anchors place ports on the box's sides. `BlockKind.symbol: Option<Symbol>` (defaulted) and `BlockPorts.symbol` carry it.
+
+**moonkale-graph-render**
+- `InNode.symbol` / `InDeltaNode.symbol`: path data in the node's box (`0 0 2·width 2·height`). The label overlay strokes it, the body draws as a faint tint (still the hit area), and the label sits centred below. A delta without one keeps the old symbol.
+- The ortho route reads its ports' sides. Ports that face each other meet half-way (the three segments as before). Ports facing the same way meet beyond the farther one, and ports facing away detour round both nodes instead of running through them.
+
 ## ext-api-2026-10-13-2
 
 The second tag of the day (the bipartite rule, ADR-0022; the subflow scopes, ADR-0021 stage B; the editor's LSP and preview work).

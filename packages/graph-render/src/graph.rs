@@ -73,6 +73,12 @@ pub struct InNode {
     /// per-node ink for the few).
     #[serde(default)]
     pub icon: Option<String>,
+    /// A schematic symbol (ADR-0024): SVG path data in the node's box
+    /// (`0 0 2·width 2·height`, world units), stroked on the label
+    /// overlay in the node's colour. The body then draws as a faint
+    /// tint — the symbol is the block — and the label sits below.
+    #[serde(default)]
+    pub symbol: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -454,6 +460,9 @@ pub struct InDeltaNode {
     /// An overlay glyph; absent keeps the old one on a replace.
     #[serde(default)]
     pub icon: Option<String>,
+    /// A schematic symbol (ADR-0024); absent keeps the old one.
+    #[serde(default)]
+    pub symbol: Option<String>,
 }
 
 /// An edge arriving through a delta: endpoints by **node id**, not index —
@@ -575,6 +584,8 @@ pub struct Node {
     /// An overlay glyph (spec 031 §2, stage 8): drawn only while hovered
     /// or selected.
     pub icon: Option<String>,
+    /// A schematic symbol (ADR-0024): SVG path data in the node's box.
+    pub symbol: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -783,6 +794,7 @@ impl Graph {
                         .and_then(|c| parse_hex(c, 1.0))
                         .unwrap_or([0.0, 0.0, 0.0, 0.0]),
                     icon: n.icon,
+                    symbol: n.symbol,
                     id: n.id,
                     label: n.label,
                     kind: n.kind,
@@ -1108,6 +1120,7 @@ impl Graph {
                         .and_then(|c| parse_hex(c, 1.0))
                         .unwrap_or(old.stroke),
                     icon: n.icon.or(old.icon.clone()),
+                    symbol: n.symbol.or(old.symbol.clone()),
                     degree: old.degree,
                     pinned,
                     layers: n.layers,
@@ -1153,6 +1166,7 @@ impl Graph {
                         .and_then(|c| parse_hex(c, 1.0))
                         .unwrap_or([0.0, 0.0, 0.0, 0.0]),
                     icon: n.icon,
+                    symbol: n.symbol,
                     degree: 0,
                     pinned: n.pinned,
                     layers: n.layers,

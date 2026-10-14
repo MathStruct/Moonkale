@@ -698,12 +698,19 @@ impl Renderer {
             // aligned) but draws nothing (spec 031 §3).
             let hidden = !self.frame.node_visible.get(i).copied().unwrap_or(true);
             let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
+            // A symbol is the block (ADR-0024): its body is a faint tint
+            // the overlay's strokes sit on — and still the hit area.
+            if n.symbol.is_some() {
+                color[3] = if h || sel { 0.16 } else { 0.08 };
+            }
             if hidden {
                 color[3] = 0.0;
             }
             NodeAttr {
                 color,
-                radius: if h {
+                radius: if h && n.symbol.is_some() {
+                    n.radius
+                } else if h {
                     n.radius * 1.4
                 } else if sel {
                     n.radius * 1.15
