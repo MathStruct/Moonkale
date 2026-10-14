@@ -22,7 +22,7 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
 
    | Series | Next free | Reserved |
    |---|---|---|
-   | ADR | ADR-0026 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted) |
+   | ADR | ADR-0027 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, proposed) |
    | P- | P-195 | master's log ends at P-185; codex's branch holds P-186–P-194 (unmerged). Others start at P-195 |
 
 4. **Done means mergeable:**
@@ -145,8 +145,12 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 52 | **Git everyday, the rest** (VC-03, 05, 09, 10, 11): hunks and lines, branches, blame, reflog recovery, stash | `extensions/git` | — | M | each in the git suite |
 | 53 | **A version-control trait, semantic diffs, then Jujutsu** (VC-20, 21, 23): history of a node; flow and table diffs; jj as the second system | `moonkale-core` ★ (the trait), `extensions/git`, `editors/flow`, `editors/table` | 51 | L | a flow diff drawn on the canvas; the same views on a jj repository |
 | 54 | **Tools as actors** ([[Shared Work]] §5, SW-40 to 45): provenance on derived data, derived marked and stale, tool writes as proposals | `moonkale-core` ★ (provenance), the index, LSP, the flow libraries' codegen | 21 helps | L | a parser's symbols marked stale after an edit and fresh after the reparse; a codegen run reviewed as a proposal |
+| 55 | **The benchmark runner** ([[Benchmarks]]): the bench lock, the results database, the existing benchmarks moved in, then the frame gates and the no-growth test | `packages/web/tests/e2e`, a small runner | — | M | BM-04, 09, 11 and 25 recorded in the results database on a quiet machine |
+| 56 | **Memory and the store** ([[ADR-0026 Memory and the store]], proposed): recovery snapshots of unsaved buffers, derived data keyed by input hash, cache budgets per platform | `state`, `moonkale-core`, the index | ADR accepted; 21 | M | a killed app restores an unsaved buffer; reopening reuses the index |
 
 ## A first wave
+
+How to run it (assignments, prompts, and what collides on one machine) is [[Running Several Agents]].
 
 Six agents with no shared hot spot:
 

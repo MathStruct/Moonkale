@@ -8,7 +8,7 @@ You are working on **Moonkale**, a graph-native code and knowledge editor in Rus
 
 1. `markdown/Home.md`: the map of the vault.
 2. `markdown/Status.md`: what is built. Check its date; where the code disagrees, the code wins, so fix the page.
-3. `markdown/problems/Work Packages.md`: **pick your work here.** It has the open work as packages, the hot-spot owners, the reserved ADR and P- numbers, and the definition of done.
+3. `markdown/problems/Work Packages.md`: **pick your work here.** With several agents at once, read `markdown/problems/Running Several Agents.md` too (slots, ports, who merges, who writes memory). It has the open work as packages, the hot-spot owners, the reserved ADR and P- numbers, and the definition of done.
 4. `markdown/architecture/Project Structure.md` and `markdown/Development.md`: crates, building, running.
 5. `markdown/testing/How to Write Tests.md`, `packages/web/tests/e2e/README.md`: unit tests and the browser suites.
 6. `markdown/specifications/README.md`: Daniel's small numbered specs, and the planned, unnumbered ones.
