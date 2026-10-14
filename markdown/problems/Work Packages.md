@@ -81,7 +81,7 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 | WP | What | Touches | Depends on | Size | Done when |
 |---|---|---|---|---|---|
 | 18 | **Unison codebase as a graph source**: definitions, types and the dependency DAG, content-addressed (`NodeId::from_content`). The proxy for Sophia | new `sources/unison` | — | M | a Unison codebase opens as a source and draws in the graph view |
-| 19 | **Annotations layer** ([[Annotations]]): typed annotations with provenance, shown as engine layers | `moonkale-core` ★, ext-api, graph view | — | M | annotations on index nodes, toggled as layers |
+| 19 | **Annotations layer** ([[Annotations]]): typed annotations with provenance, shown as engine layers, including **proof** annotations (equivalence, implication, memory safety, safe concurrency) with their checker, the versions checked and stale state ([[North Star]] §7) | `moonkale-core` ★, ext-api, graph view | — | M | annotations on index nodes, toggled as layers |
 | 20 | **A Datalog dialect** over graph sources: rules and queries, results lifted into nodes and edges, shown in the table and graph views | new crate, `Query::Text` dialect | 19 helps | M | rule queries over the index fixture |
 | 21 | **Persisted, incremental index**: the Recoco/Thread findings ([[External Code Intelligence Projects]], next steps) | `services/index`, state store | — | L (split per acceptance test listed there) | reopening reuses the index; a one-file change touches only its facts |
 | 22 | **Calls and references** in the index, for the core languages | `services/index` | — (coordinate with 21) | M | call edges for Rust/Julia/Python fixtures |
@@ -95,6 +95,13 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 | 25 | **Projects** (spec [[003]], R-40) and cross-source links (R-16) | shell, state store | — | L | per the spec |
 | 26 | **CI breadth and flakes**: more browser suites in CI, the `stores` tree-row flake, `live-preview-long`'s noisy bound | `.github`, `packages/web/tests/e2e` | — | S | named suites in CI, three green runs in a row |
 | 27 | **Status refresh**: [[Status]] still describes 2026-10-01 | docs | — | S | checked against the code |
+
+### Lane G: publishing
+
+| WP | What | Touches | Depends on | Size | Done when |
+|---|---|---|---|---|---|
+| 28 | **Static reader**, proposed ([[Publishing Sources]], "Revisited 2026-10-14"): `moonkale publish` with pages, index, search and git metadata, plus a small reader wasm client for graph and search. Waits for Daniel's go-ahead | new `publish` crate, new `reader` web build | — | L (split per step there) | this vault publishes with it and replaces Quartz in `site/` |
+| 29 | **Reader mode**, the server half: read-only sources, visitor caps, deep links | `server`, shell | — | M | a visitor without a token browses and queries a published folder |
 
 ## A first wave
 
