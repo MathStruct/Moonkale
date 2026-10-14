@@ -36,7 +36,20 @@ Moonkale already grows chrome quickly: a menu bar, an activity rail with about t
    - **Gentle nudges:** the third time in a day someone runs a command with the mouse that has a shortcut, a small, non-blocking hint appears once for that command ("Ctrl+Alt+Space does this"). One setting turns them off, and they never interrupt typing.
    - **The cheat sheet** (F1, or hold Ctrl longer) lists the focused panel's bindings, mouse buttons included ([[Input Layouts]] §5).
    - **Getting Started** has one page of the ten shortcuts that matter, per preset, printable.
-5. **Defaults over options:** a setting is added only when a reasonable default can't be found. Settings are searchable and grouped, so a new option doesn't make the Settings panel the new spaceship.
+5. **No forced switches between mouse and keyboard (Daniel, 2026-10-14):** GNOME's search, where you just type and get there, is the model. The constant back and forth between mouse and keyboard that some applications require is the thing to avoid. So:
+   - **Type to search, anywhere.** When no text field has the focus and the focused panel doesn't use letters itself (a canvas or table in the left-hand layout does), typing a letter opens the title bar's search with that letter in it: files, symbols, nodes, commands and open tabs in one list, as in GNOME's overview. **`/`** does the same everywhere, even on a canvas.
+   - **Every flow can be finished from the keyboard alone:**
+     - a dialog or prompt takes the focus when it opens, Enter confirms, Escape cancels, and the focus returns where it was;
+     - a new panel takes the focus;
+     - every list, tree, grid, graph and flow has keyboard navigation.
+
+     No step needs "now click here".
+   - **Every frequent flow can be finished from the mouse alone,** with the five buttons, context menus, the overview on a mouse button (F13), and drag and drop, so someone in a mouse-heavy session (graph, flow) never reaches for the keyboard for routine actions.
+   - **No flow forces a switch in its middle:**
+     - a keyboard-started action doesn't end in a dialog that needs a click;
+     - a mouse-started one doesn't end in a field that needs typing before anything else works, except where text is the point, like naming a file.
+   - **Checked in tests:** a keyboard-only journey (`journey-keyboard.mjs`: open a folder, find a note, follow a link, open with context, run a query, switch tabs in the overview, all without the mouse) and a mouse-only journey (`journey-mouse.mjs`, the same with five buttons and menus).
+6. **Defaults over options:** a setting is added only when a reasonable default can't be found. Settings are searchable and grouped, so a new option doesn't make the Settings panel the new spaceship.
 
 ## Consequences
 
