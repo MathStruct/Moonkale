@@ -5,7 +5,7 @@ tags: [architecture, vision, sophia, lenticulum, moc]
 ---
 **From Daniel (2026-10-14):** the programming target is something like Unison, where the statements of the language are stored in a database. Imagine a future language in which types, functions and dataflows are all tracked, to a degree. Many e-graphs, annotations, intermediate representations and DSLs all live inside that graph. Think of a dependently typed Julia with Prolog-like elements, stored in a database like Unison's, checked by several systems (dependent, cubical, algebraic, …), and compiling down to assembly, LLVM and MLIR. This code graph intersects a knowledge graph. That is what Moonkale, as an editor, should be able to serve. `MathStruct/Sophia` is where these ideas are being worked out ([[Graph-Native Model]] has the content-addressed identity it needs).
 
-This page is a direction, not a plan. Concrete work comes from it through the [[Work Packages]], ADRs and specs. Where a decision today would close this off, the decision changes or goes to [[Scrutiny]] with its reason.
+This page is a direction, not a plan. Its first two specification gaps are now written up (2026-10-15): [[Code Graph Schema]] (definitions, identity, names and edges for many languages; a draft) and [[ADR-0028 Files or the graph]] (whether files or the graph are the truth for code; proposed, for Daniel). Concrete work comes from it through the [[Work Packages]], ADRs and specs. Where a decision today would close this off, the decision changes or goes to [[Scrutiny]] with its reason.
 
 **Amended the same day (Daniel):** this is planning for **many programming languages on the same graph**, not one future language. Existing languages (Rust, Julia, Python, C/C++, Lean, …) are **parsed into the graph**, so their definitions sit beside each other and beside the future language's. **Annotations can be proofs**: of equivalence, implication, memory safety, safe concurrency, and more.
 
@@ -74,7 +74,7 @@ Prior art to study (requirements only, [[Scrutiny]] rules): Unison (names as dis
 
 | Need | Today | Gap |
 |---|---|---|
-| Content-addressed nodes, names as edges | `NodeId::from_content` in the model | no source uses it yet; Sophia is design-only |
+| Content-addressed nodes, names as edges | `NodeId::from_content` in the model; the schema in [[Code Graph Schema]] (draft) | no source uses it yet; Sophia is design-only |
 | Graph as primary, text as a view | flow editor (diagram is the document), graph view | no structure editor over code; the code editor edits text files |
 | Layers / IR levels | engine layers; flow subflows (enter/leave a level) | provenance edges between levels; a level switcher |
 | E-graphs | engine groups, hyperedges, simplices (spec 031) | e-class collapse/expand; rewrite provenance |
