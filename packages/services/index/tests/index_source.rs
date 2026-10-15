@@ -44,7 +44,7 @@ async fn links_resolve_by_stem_path_and_phantom() {
     let dir = vault();
     let (_, index) = open(&dir).await;
     let s = index.stats();
-    assert_eq!((s.files, s.links, s.symbols), (5, 6, 4), "{s:?}");
+    assert_eq!((s.files, s.links, s.symbols), (5, 6, 3), "{s:?}");
 
     let all = index
         .query(Query::All {
@@ -117,7 +117,7 @@ def main():
     let symbols = index
         .query(Query::All {
             limit: 100,
-            kinds: Some(vec![NodeKind::Symbol]),
+            kinds: Some(vec![NodeKind::definition()]),
         })
         .await
         .unwrap();
@@ -414,7 +414,7 @@ async fn refresh_follows_rename_delete_and_new_directories() {
     let symbols = index
         .query(Query::All {
             limit: 100,
-            kinds: Some(vec![NodeKind::Symbol]),
+            kinds: Some(vec![NodeKind::definition()]),
         })
         .await
         .unwrap();
@@ -447,4 +447,189 @@ async fn files(index: &IndexSource) -> Vec<String> {
     let mut keys: Vec<String> = all.nodes.iter().map(|n| n.native_key.clone()).collect();
     keys.sort();
     keys
+}
+
+#[tokio::test]
+async fn code_graph_calls_ranges_provenance_and_body_edit_identity() {
+    use moonkale_core::{graph::code, Value};
+    let dir = tempfile::tempdir().unwrap();
+    for (path, src) in [
+        ("lib.rs", "use external::Thing;\nfn target() {}\nfn caller() { target(); missing(); }\n"),
+        ("m.jl", "import External\ntarget() = 1\ncaller() = target() + missing()\n"),
+        ("m.py", "import external\ndef target():\n    pass\ndef caller():\n    target()\n    missing()\n"),
+    ] { fs::write(dir.path().join(path), src).unwrap(); }
+    let (folder, index) = open(&dir).await;
+    let before = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    for path in ["lib.rs", "m.jl", "m.py"] {
+        let find = |name: &str| {
+            before
+                .nodes
+                .iter()
+                .find(|n| {
+                    n.kind.is_definition()
+                        && n.native_key.starts_with(&format!("{path}#"))
+                        && n.props.get("name") == Some(&Value::Text(name.into()))
+                })
+                .unwrap()
+        };
+        let caller = find("caller");
+        let target = find("target");
+        assert!(
+            before
+                .edges
+                .iter()
+                .any(|e| e.from == caller.id && e.to == target.id && e.kind == EdgeKind::Calls),
+            "{path}: {:?}",
+            before.edges
+        );
+        assert!(before
+            .edges
+            .iter()
+            .any(|e| e.from == caller.id && e.to == target.id && e.kind == EdgeKind::References));
+        assert!(before
+            .edges
+            .iter()
+            .any(|e| e.from == caller.id && e.kind == EdgeKind::Custom(code::UNRESOLVED.into())));
+        let file = before.nodes.iter().find(|n| n.native_key == path).unwrap();
+        let occurrence = before
+            .edges
+            .iter()
+            .find(|e| e.from == file.id && e.to == caller.id && e.kind == EdgeKind::Defines)
+            .unwrap();
+        assert!(occurrence.props.contains_key("start_byte"));
+        assert!(occurrence.props.contains_key("end_byte"));
+        assert!(before
+            .edges
+            .iter()
+            .any(|e| e.to == caller.id && e.kind == EdgeKind::Custom(code::NAMES.into())));
+        assert!(
+            before
+                .edges
+                .iter()
+                .any(|e| e.from == file.id && e.kind == EdgeKind::Custom(code::IMPORTS.into())),
+            "{path}: imports"
+        );
+        let (text, version) = folder.fetch_text(file.id).await.unwrap();
+        folder
+            .apply(Transaction::write_text(
+                file.id,
+                version,
+                TextPatch::whole(text.replace("missing()", "other()"), text.chars().count()),
+            ))
+            .await
+            .unwrap();
+        index.refresh(file.id).await.unwrap();
+        let after = index.query(Query::Node(caller.id)).await.unwrap();
+        assert_eq!(after.nodes[0].id, caller.id);
+        assert_ne!(after.nodes[0].props.get("input"), caller.props.get("input"));
+    }
+    let after = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    assert!(!after.nodes.iter().any(|n| n.label == "missing"));
+    for props in after
+        .nodes
+        .iter()
+        .filter(|n| n.source == index.id())
+        .map(|n| &n.props)
+        .chain(
+            after
+                .edges
+                .iter()
+                .filter(|e| e.kind != EdgeKind::Contains)
+                .map(|e| &e.props),
+        )
+    {
+        for key in ["by", "by_version", "input", "derived_at"] {
+            assert!(props.contains_key(key), "{key}: {props:?}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn syntactic_resolution_does_not_guess_dispatch_or_shadowed_names() {
+    use moonkale_core::{graph::code, Value};
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("a.py"),
+        "def target(): pass\ndef caller(target):\n    target()\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("b.rs"),
+        "fn target() {} fn caller() { target(); target(); external::target(); }",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("c.jl"),
+        "target(x::Int) = x\ntarget(x::String) = x\ncaller() = target(1)\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("d.jl"),
+        "target() = 1\ncaller(target) = target()\n",
+    )
+    .unwrap();
+    let (_, index) = open(&dir).await;
+    let graph = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    for path in ["a.py", "c.jl", "d.jl"] {
+        let caller = graph
+            .nodes
+            .iter()
+            .find(|n| {
+                n.native_key.starts_with(path)
+                    && n.props.get("name") == Some(&Value::Text("caller".into()))
+            })
+            .unwrap();
+        let calls: Vec<_> = graph
+            .edges
+            .iter()
+            .filter(|e| e.from == caller.id && e.kind == EdgeKind::Calls)
+            .collect();
+        assert_eq!(calls.len(), 1, "{path}");
+        let target = graph.nodes.iter().find(|n| n.id == calls[0].to).unwrap();
+        assert_eq!(
+            target.kind,
+            NodeKind::Custom(code::UNRESOLVED.into()),
+            "{path}"
+        );
+    }
+    let target = graph
+        .nodes
+        .iter()
+        .find(|n| n.native_key == "b.rs#fn:target")
+        .unwrap();
+    let call = graph
+        .edges
+        .iter()
+        .find(|e| e.to == target.id && e.kind == EdgeKind::Calls)
+        .unwrap();
+    assert_eq!(call.props.get("count"), Some(&Value::Int(2)));
+    assert!(
+        matches!(call.props.get("ranges"), Some(Value::Text(ranges)) if ranges.split(',').count() == 2)
+    );
+    let legacy = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: Some(vec![NodeKind::Symbol]),
+        })
+        .await
+        .unwrap();
+    assert!(legacy.nodes.iter().any(|n| n.id == target.id));
 }

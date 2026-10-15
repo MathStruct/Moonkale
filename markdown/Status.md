@@ -31,9 +31,10 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Notebook editor** | 📝 | [[Notebook Editor]] |
 | **Agent** (sessions, saved agents, policy gate, MCP, server sessions, Claude Code) | ✅ | [[Agent Sessions and Profiles]]; wedges (#13) |
 | **Search** (BM25 + embeddings) | ✅ | in memory, rebuilt on open |
-| **Index**: wiki-links, Rust symbols | ✅ | |
-| **Index**: Julia, Python symbols | ✅ | fixed 2026-10-02 on `refactor` (issue #16 — the extractors never ran before) |
-| **Index**: calls/references, other languages | 📝 | [[Core Languages]] |
+| **Index**: wiki-links, Rust definitions | ✅ | WP-65: shared L2 kinds, stable location ids, ranged occurrences, names and provenance; index rows rechecked 2026-10-15 — [[Code Graph Schema]] |
+| **Index**: Julia, Python definitions | ✅ | WP-65: same shared schema; Julia overload ids use signatures rather than order |
+| **Index**: Rust/Julia/Python calls, references and imports | ◐ | WP-22: conservative same-file syntax resolution, explicit unresolved targets; compiler-backed dispatch and cross-file resolution remain open — [[Code Graph Schema]] |
+| **Index**: other languages | 📝 | [[Core Languages]] |
 | **Git** (changes, diff, stage, commit, history graph) | ✅ | the `git` CLI; no push/pull |
 | **History** (entity log, restore, compaction) | ✅ | one row per event in the folder host's state store (Milestone 18 phase 5.10; was JSONL); #17, P-086 |
 | **Presence** (who's here, cursor lines, desktop hub client) | ✅ | |

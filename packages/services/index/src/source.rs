@@ -190,7 +190,7 @@ impl IndexSource {
         *self.stats.w() = IndexStats {
             files,
             links: g.count_edge_kind(&moonkale_core::EdgeKind::Links),
-            symbols: g.count_kind(&NodeKind::Symbol),
+            symbols: g.count_kind(&NodeKind::definition()),
             truncated,
         };
         Ok(())
@@ -216,7 +216,7 @@ impl IndexSource {
         let mut s = self.stats.w();
         s.files = g.count_kind(&NodeKind::File);
         s.links = g.count_edge_kind(&moonkale_core::EdgeKind::Links);
-        s.symbols = g.count_kind(&NodeKind::Symbol);
+        s.symbols = g.count_kind(&NodeKind::definition());
     }
 
     fn extract_into(&self, file: &Node, text: &str) {
@@ -228,7 +228,17 @@ impl IndexSource {
                 ContentRef::Text { lang, .. } => lang.as_deref(),
                 _ => None,
             }) {
-                Some("markdown") => d.merge(wikilinks::extract(&g, &self.id, file, text)),
+                Some("markdown") => {
+                    let mut links = wikilinks::extract(&g, &self.id, file, text);
+                    let provenance = crate::extract::provenance(text);
+                    for node in &mut links.nodes {
+                        node.props.extend(provenance.clone());
+                    }
+                    for edge in &mut links.edges {
+                        edge.props.extend(provenance.clone());
+                    }
+                    d.merge(links);
+                }
                 Some("rust") => d.merge(symbols_rust::extract(&self.id, file, text)),
                 Some("julia") => d.merge(symbols_julia::extract(&self.id, file, text)),
                 Some("python") => d.merge(symbols_python::extract(&self.id, file, text)),

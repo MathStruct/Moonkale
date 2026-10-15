@@ -4,6 +4,7 @@
 //! `applies()`/`extract()` and extension-contributed extractors arrive with
 //! the language contribution point.
 
+mod references;
 pub mod symbols_julia;
 pub mod symbols_python;
 pub mod symbols_rust;
@@ -47,12 +48,15 @@ pub struct Symbol<'a> {
     pub name: &'a str,
     /// 1-based line of the definition.
     pub line: usize,
+    pub syntax: arborium_tree_sitter::Node<'a>,
+    pub identity: Option<String>,
 }
 
 /// A symbol as the parent of nested ones.
 pub struct Parent {
     pub id: NodeId,
     pub key: String,
+    pub kind: String,
 }
 
 /// One file's symbols: builds their nodes and edges with stable keys.
@@ -60,7 +64,8 @@ pub struct Parent {
 /// The native key is the path of the definition, not its position:
 /// `"<file>#<kind>:<name>"`, nested ones `"<parent key>/<kind>:<name>"`
 /// (`src/lib.rs#impl:A/fn:new`). The n-th repeat of a key in one file
-/// (two `impl A` blocks, Julia methods of one function) gets `~n`.
+/// (for example two `impl A` blocks) gets `~n`. Julia methods use
+/// their whitespace-normalised signature before duplicate numbering.
 /// Inserting or deleting lines therefore keeps every symbol's id; only
 /// renaming it, moving it to another parent, or adding a same-named
 /// sibling before it changes one. The line lives in the `line` property.
@@ -69,23 +74,45 @@ pub struct Symbols<'a> {
     file: &'a Node,
     seen: HashMap<String, usize>,
     pub derived: Derived,
+    provenance: moonkale_core::graph::Properties,
+    lang: String,
 }
 
 impl<'a> Symbols<'a> {
-    pub fn new(index: &'a SourceId, file: &'a Node) -> Self {
+    pub fn new(index: &'a SourceId, file: &'a Node, text: &str) -> Self {
         Self {
             index,
             file,
             seen: HashMap::new(),
             derived: Derived::default(),
+            lang: match &file.content {
+                Some(moonkale_core::ContentRef::Text {
+                    lang: Some(lang), ..
+                }) => lang.clone(),
+                _ => file.language_hint().unwrap_or("unknown").into(),
+            },
+            provenance: provenance(text),
         }
+    }
+
+    /// Resolve only a unique same-file name in a containing lexical scope.
+    pub fn finish(self, root: arborium_tree_sitter::Node, text: &str) -> Derived {
+        references::extract(
+            self.derived,
+            self.index,
+            self.file,
+            &self.provenance,
+            root,
+            text,
+        )
     }
 
     /// Add one symbol; returns it as the parent of the ones nested in it.
     pub fn add(&mut self, s: Symbol) -> Parent {
+        let identity = s.identity.as_deref().unwrap_or(s.name);
         let base = match s.parent {
-            Some(p) => format!("{}/{}:{}", p.key, s.kind, s.name),
-            None => format!("{}#{}:{}", self.file.native_key, s.kind, s.name),
+            Some(p) => format!("{}/{}:{}", p.key, s.kind, identity),
+            None => format!("{}#{}:{}", self.file.native_key, s.kind, identity),
         };
         let n = self.seen.entry(base.clone()).or_insert(0);
         *n += 1;
@@ -93,17 +120,72 @@ impl<'a> Symbols<'a> {
         let id = derived_id(self.index, &key);
         let d = &mut self.derived;
         d.nodes.push(Node {
-            props: [("line".to_string(), Value::Int(s.line as i64))].into(),
+            props: {
+                let mut props = self.provenance.clone();
+                props.extend([
+                    ("line".into(), Value::Int(s.line as i64)),
+                    ("name".into(), Value::Text(s.name.into())),
+                    ("lang".into(), Value::Text(self.lang.clone())),
+                    ("frontend".into(), Value::Text("moonkale-index".into())),
+                    (
+                        "frontend_version".into(),
+                        Value::Text(env!("CARGO_PKG_VERSION").into()),
+                    ),
+                    (
+                        "def_kind".into(),
+                        Value::Text(
+                            match s.kind {
+                                "fn" | "def"
+                                    if s.parent.is_some_and(|p| {
+                                        matches!(p.kind.as_str(), "impl" | "trait" | "class")
+                                    }) =>
+                                {
+                                    "method"
+                                }
+                                "fn" | "def" | "function" => "function",
+                                "struct" | "enum" | "class" | "type" | "union"
+                                | "primitive type" => "type",
+                                "trait" | "abstract type" => "interface",
+                                "mod" | "module" => "module",
+                                "const" | "static" => "constant",
+                                other => other,
+                            }
+                            .into(),
+                        ),
+                    ),
+                ]);
+                props
+            },
             id,
             source: self.index.clone(),
-            kind: NodeKind::Symbol,
+            kind: if s.kind == "impl" {
+                NodeKind::Custom("rust:Impl".into())
+            } else {
+                NodeKind::definition()
+            },
             label: format!("{} {}", s.kind, s.name),
             native_key: key.clone(),
             content: None,
             version: self.file.version,
         });
         d.edges.push(Edge {
-            props: Default::default(),
+            props: {
+                let mut props = self.provenance.clone();
+                props.extend([
+                    (
+                        "start_byte".into(),
+                        Value::Int(s.syntax.start_byte() as i64),
+                    ),
+                    ("end_byte".into(), Value::Int(s.syntax.end_byte() as i64)),
+                    ("start_line".into(), Value::Int(s.line as i64)),
+                    (
+                        "end_line".into(),
+                        Value::Int(s.syntax.end_position().row as i64 + 1),
+                    ),
+                    ("syntax_path".into(), Value::Text(syntax_path(s.syntax))),
+                ]);
+                props
+            },
             source: self.index.clone(),
             from: self.file.id,
             to: id,
@@ -111,15 +193,93 @@ impl<'a> Symbols<'a> {
         });
         if let Some(p) = s.parent {
             d.edges.push(Edge {
-                props: Default::default(),
+                props: self.provenance.clone(),
                 source: self.index.clone(),
                 from: p.id,
                 to: id,
                 kind: EdgeKind::Contains,
             });
         }
-        Parent { id, key }
+        if s.kind == "impl" {
+            return Parent {
+                id,
+                key,
+                kind: s.kind.into(),
+            };
+        }
+        let name_key = match s.parent {
+            Some(parent) => format!("name:{}/{}", parent.key, s.name),
+            None => format!("name:{}#{}", self.file.native_key, s.name),
+        };
+        let name_id = derived_id(self.index, &name_key);
+        if !d.nodes.iter().any(|n| n.id == name_id) {
+            d.nodes.push(Node {
+                id: name_id,
+                source: self.index.clone(),
+                kind: NodeKind::Custom(moonkale_core::graph::code::NAME.into()),
+                label: s.name.into(),
+                native_key: name_key,
+                content: None,
+                version: self.file.version,
+                props: self.provenance.clone(),
+            });
+        }
+        d.edges.push(Edge {
+            source: self.index.clone(),
+            from: name_id,
+            to: id,
+            kind: EdgeKind::Custom(moonkale_core::graph::code::NAMES.into()),
+            props: self.provenance.clone(),
+        });
+        Parent {
+            id,
+            key,
+            kind: s.kind.into(),
+        }
     }
+}
+
+/// Input identity is a domain-separated UUID-v5 digest of exact file bytes.
+/// It is independent of a source's potentially mtime-based `Version`.
+pub fn provenance(text: &str) -> moonkale_core::graph::Properties {
+    [
+        ("by".into(), Value::Text("moonkale-index".into())),
+        (
+            "by_version".into(),
+            Value::Text(env!("CARGO_PKG_VERSION").into()),
+        ),
+        (
+            "input".into(),
+            Value::Text(NodeId::derive(&SourceId::new("index-input-v1"), text).to_string()),
+        ),
+        (
+            "derived_at".into(),
+            Value::Int(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64,
+            ),
+        ),
+    ]
+    .into()
+}
+
+/// Child indices in the actual tree (including unnamed punctuation nodes).
+fn syntax_path(mut node: arborium_tree_sitter::Node) -> String {
+    let mut path = Vec::new();
+    while let Some(parent) = node.parent() {
+        let mut cursor = parent.walk();
+        if let Some(index) = parent
+            .children(&mut cursor)
+            .position(|child| child.id() == node.id())
+        {
+            path.push(index.to_string());
+        }
+        node = parent;
+    }
+    path.reverse();
+    path.join("/")
 }
 
 #[cfg(test)]
@@ -146,6 +306,10 @@ mod tests {
     fn symbols(d: &super::Derived) -> Vec<(String, NodeId, i64)> {
         d.nodes
             .iter()
+            .filter(|n| {
+                n.kind == NodeKind::definition()
+                    || matches!(&n.kind, NodeKind::Custom(k) if k == "rust:Impl")
+            })
             .map(|n| {
                 let Some(Value::Int(line)) = n.props.get("line") else {
                     panic!("{} has no line", n.native_key)
@@ -216,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn julia_methods_are_numbered_in_order() {
+    fn julia_methods_use_signatures() {
         let index = SourceId::new("index:test");
         let f = file("src/M.jl", "julia");
         let src = "module M\nf(x::Int) = 1\nf(x::Float64) = 2\nend\n";
@@ -228,9 +392,28 @@ mod tests {
             keys,
             [
                 "src/M.jl#module:M",
-                "src/M.jl#module:M/function:f",
-                "src/M.jl#module:M/function:f~2"
+                "src/M.jl#module:M/function:f(x::Int)",
+                "src/M.jl#module:M/function:f(x::Float64)"
             ]
         );
+    }
+    #[test]
+    fn julia_method_ids_survive_reordering_and_body_changes() {
+        let index = SourceId::new("index:test");
+        let f = file("a.jl", "julia");
+        let before = super::symbols_julia::extract(&index, &f, "f(x::Int) = 1\nf(x::String) = 2\n");
+        let after =
+            super::symbols_julia::extract(&index, &f, "f(x::String) = 42\nf(x::Int) = 77\n");
+        let mut before = symbols(&before)
+            .into_iter()
+            .map(|(key, id, _)| (key, id))
+            .collect::<Vec<_>>();
+        let mut after = symbols(&after)
+            .into_iter()
+            .map(|(key, id, _)| (key, id))
+            .collect::<Vec<_>>();
+        before.sort();
+        after.sort();
+        assert_eq!(before, after);
     }
 }

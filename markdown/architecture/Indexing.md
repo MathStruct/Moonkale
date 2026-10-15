@@ -4,8 +4,8 @@ tags: [architecture, index]
 ---
 Crate: `index`. The index turns *files and rows* into a *graph* by deriving what sources don't know: symbols, links, outlines, embeddings, stack frames. It is exposed as `IndexSource`, so its output is just more nodes and edges.
 
-> [!note] As built (2026-10-01)
-> - **Extractors**: wiki-links (markdown) and tree-sitter symbols for Rust; Julia and Python extractors exist but **never run** because `walk::wants_text` only fetches markdown and Rust (issue #16). No headings/front matter nodes, no imports, no calls/references (spec [[022]]).
+> [!note] Index rechecked 2026-10-15 (WP-65/WP-22)
+> - **Extractors**: wiki-links and tree-sitter definitions for Rust, Julia and Python. The three languages run through the same dispatch. Definitions have location ids, names, ranged occurrences, lexical containment and provenance; syntactic calls/references/imports resolve unique same-file names and preserve other targets as `Unresolved`. See [[Code Graph Schema]] for exact coverage and limitations. No headings/front matter nodes yet.
 > - **Parsing** is native tree-sitter through `arborium` (shared with the Rust code editor, P-113) — not `.wasm` grammars; the index runs on desktop and the server, and the web/phone query the server's.
 > - **Storage is memory**: the graph, BM25 postings (hand-written, `search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) are rebuilt on every open. No sqlite/duckdb store, no tantivy, no usearch, no `recoco`. A persisted index is part of [[Internal State]].
 > - **LSP as a second extractor** and the `precision` field are not built.

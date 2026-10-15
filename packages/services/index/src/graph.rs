@@ -236,7 +236,12 @@ impl IndexGraph {
         let mut nodes: Vec<&Node> = self
             .nodes
             .values()
-            .filter(|n| kinds.is_none_or(|ks| ks.contains(&n.kind)))
+            .filter(|n| {
+                kinds.is_none_or(|ks| {
+                    ks.contains(&n.kind)
+                        || (ks.contains(&NodeKind::Symbol) && n.kind.is_definition())
+                })
+            })
             .collect();
         nodes.sort_by_key(|n| (rank(&n.kind), n.native_key.clone()));
         let truncated = nodes.len() > limit;
@@ -256,7 +261,7 @@ fn rank(kind: &NodeKind) -> u8 {
         NodeKind::Directory => 0,
         NodeKind::File => 1,
         NodeKind::Page => 2,
-        NodeKind::Symbol => 3,
+        k if k.is_definition() => 3,
         _ => 4,
     }
 }

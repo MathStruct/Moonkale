@@ -6,6 +6,7 @@ const S = process.env.M1_SHOTS ?? ".";
 const browser = await firefox.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
+let unresolvedHidden = 0;
 try {
   await step("open folder → index is built and reported", async () => {
     await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
@@ -40,11 +41,11 @@ try {
   await step("unresolved toggle changes the node count (filters reach the query)", async () => {
     const before = Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
     await page.click(".mk-graph-check:has-text('unresolved') input");
-    await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === b - 1, before, { timeout: 10000 });
+    await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) < b, before, { timeout: 10000 });
+    unresolvedHidden = before - Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
   });
   await step("save a markdown edit → index refresh → graph re-queried", async () => {
-    // Phantoms are currently off (previous step). Turning them back on adds "Missing";
-    // the saved [[Another]] link adds one more phantom: +2 in total.
+    // Restore the previous unresolved nodes plus the newly saved wiki target.
     const before = Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));
     await page.click(".mk-tree-file >> text=Home.md");
     await page.waitForSelector(".cm-content");
@@ -53,7 +54,7 @@ try {
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("Saved Home.md"), null, { timeout: 10000 });
     await page.click(".wb-tab[id^='wb-tab-graph']");
     await page.click(".mk-graph-check:has-text('unresolved') input");
-    await page.waitForFunction((b) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === b + 2, before, { timeout: 15000 });
+    await page.waitForFunction(({b, hidden}) => Number(document.querySelector(".mk-graph-info").getAttribute("data-nodes")) === b + hidden + 1, { b: before, hidden: unresolvedHidden }, { timeout: 15000 });
   });
   await step("spec 020: a second folder joins the same graph, coloured, and the picker narrows to one", async () => {
     const before = Number(await page.$eval(".mk-graph-info", (e) => e.getAttribute("data-nodes")));

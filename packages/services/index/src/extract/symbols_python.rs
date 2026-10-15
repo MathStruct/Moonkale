@@ -17,9 +17,9 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let Some(tree) = parser.parse(text, None) else {
         return Derived::default();
     };
-    let mut symbols = Symbols::new(index, file);
+    let mut symbols = Symbols::new(index, file, text);
     walk(text.as_bytes(), tree.root_node(), None, &mut symbols);
-    symbols.derived
+    symbols.finish(tree.root_node(), text)
 }
 
 fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
@@ -53,6 +53,8 @@ fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols
             kind: short,
             name,
             line: def.start_position().row + 1,
+            syntax: def,
+            identity: None,
         });
         // Methods and nested classes; functions inside functions are not symbols.
         if short == "class" {
@@ -86,7 +88,15 @@ mod tests {
         };
         let src = "import os\n\ndef free(x):\n    def inner(): pass\n    return x\n\n@dataclass\nclass A:\n    x: int = 0\n    def method(self):\n        return self.x\n    @property\n    def p(self):\n        return 1\n";
         let d = extract(&index, &file, src);
-        let labels: Vec<_> = d.nodes.iter().map(|n| n.label.as_str()).collect();
+        let labels: Vec<_> = d
+            .nodes
+            .iter()
+            .filter(|n| {
+                n.kind == NodeKind::definition()
+                    || matches!(&n.kind, NodeKind::Custom(k) if k == "rust:Impl")
+            })
+            .map(|n| n.label.as_str())
+            .collect();
         assert_eq!(labels, ["def free", "class A", "def method", "def p"]);
         let contains = d
             .edges

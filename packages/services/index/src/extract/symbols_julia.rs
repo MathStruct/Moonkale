@@ -33,9 +33,9 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let Some(tree) = parser.parse(text, None) else {
         return Derived::default();
     };
-    let mut symbols = Symbols::new(index, file);
+    let mut symbols = Symbols::new(index, file, text);
     walk(text.as_bytes(), tree.root_node(), None, &mut symbols);
-    symbols.derived
+    symbols.finish(tree.root_node(), text)
 }
 
 /// The identifier a definition head boils down to.
@@ -112,6 +112,15 @@ fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols
             kind: short,
             name: &name,
             line: child.start_position().row + 1,
+            syntax: child,
+            identity: if short == "function" {
+                child
+                    .named_child(0)
+                    .and_then(|n| n.utf8_text(src).ok())
+                    .map(|s| s.split_whitespace().collect::<String>())
+            } else {
+                None
+            },
         });
         // Definitions inside a module.
         if short == "module" {
@@ -161,7 +170,15 @@ end
 end
 "#;
         let d = extract(&index, &file, src);
-        let labels: Vec<_> = d.nodes.iter().map(|n| n.label.as_str()).collect();
+        let labels: Vec<_> = d
+            .nodes
+            .iter()
+            .filter(|n| {
+                n.kind == NodeKind::definition()
+                    || matches!(&n.kind, NodeKind::Custom(k) if k == "rust:Impl")
+            })
+            .map(|n| n.label.as_str())
+            .collect();
         assert_eq!(
             labels,
             [

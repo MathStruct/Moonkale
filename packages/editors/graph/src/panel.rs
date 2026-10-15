@@ -165,7 +165,9 @@ fn kind_name(k: &NodeKind) -> &'static str {
         NodeKind::File => "file",
         NodeKind::Directory => "directory",
         NodeKind::Page => "page",
-        NodeKind::Symbol => "symbol",
+        k if k.is_definition() || matches!(&k, NodeKind::Custom(name) if name == "rust:Impl") => {
+            "symbol"
+        }
         NodeKind::Table => "table",
         NodeKind::Database => "database",
         NodeKind::Column => "column",
@@ -564,12 +566,19 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             }
             if f.symbols {
                 kinds.push(NodeKind::Symbol);
+                kinds.push(NodeKind::definition());
+                kinds.push(NodeKind::Custom("rust:Impl".into()));
             }
             if f.folders {
                 kinds.push(NodeKind::Directory);
             }
             if f.phantoms {
                 kinds.push(NodeKind::Page);
+                if f.symbols {
+                    kinds.push(NodeKind::Custom(
+                        moonkale_core::graph::code::UNRESOLVED.into(),
+                    ));
+                }
             }
             let query = match (m, active) {
                 (Mode::Local, Some(node)) => Query::Neighbours {
@@ -905,7 +914,7 @@ async fn open_node(mut ws: Workspace, node: Node) {
                 ws.set_status(e.to_string());
             }
         }
-        NodeKind::Symbol => {
+        k if k.is_definition() || matches!(&k, NodeKind::Custom(name) if name == "rust:Impl") => {
             let Some(index) = ws.index() else { return };
             if let Ok(res) = index
                 .source

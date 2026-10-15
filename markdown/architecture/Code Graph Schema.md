@@ -35,7 +35,7 @@ It builds on:
 | **L3 Elaborated** | what an elaborator knows: resolved types, trait and method dispatch, macro expansions, effects | derived, on demand | real elaborators (rust-analyzer, Julia's lowering and inference, Lean's environment) |
 | **L4+ IR** | MIR or Julia's typed IR, MLIR dialects, LLVM IR, assembly | derived, on demand | compilers, as tools ([[Shared Work]] §5) |
 
-Provenance edges (`LoweredTo` / `LoweredFrom`) connect a node in one layer to the nodes it became in the next. Today L0 exists, L2 exists in part (`Symbol` nodes), and the rest doesn't.
+Provenance edges (`LoweredTo` / `LoweredFrom`) connect a node in one layer to the nodes it became in the next. Today L0 exists, the index emits L2 `Definition`/`Name` nodes and syntactic references for Rust, Julia and Python (WP-65/WP-22), and the remaining layers are unbuilt.
 
 ## 3. Definitions
 
@@ -103,7 +103,7 @@ This is today's derived id, extended past files. It stays stable while the defin
 
 A **name** is a `Name` node: a namespace path, for example `crate::graph::layout` plus `relax` (Rust), `Lenticulum.Nodes.factor` (Julia), or `pkg.mod.fn` (Python). It has a `Names(Name → Definition)` edge to the *location* id. Store-backed sources point names at the content id.
 
-- A rename moves or recreates the `Name`.
+- A rename moves or recreates the `Name`. For file-backed code the location id also changes because the symbol path includes the name; only the future content id is rename-invariant.
 - Re-exports (`pub use`, Julia `export`, Python `__all__` or `from x import y`) are further `Names` edges into the same definition, with a `visibility` property.
 - Two names for one definition is normal.
 
@@ -157,7 +157,7 @@ A node is **stale** when its input hash no longer matches. Views show stale resu
   - a comment or doc edit changes neither id;
   - a body change keeps the location id and changes the content id, and the content ids of its dependants;
   - a mutually recursive pair gets a shared component;
-  - a renamed function keeps both ids, and only the `Name` changes;
+  - a renamed function keeps its content id, changes its location id, and changes the `Name`;
   - an unresolved reference shows up as `Unresolved`.
 - **The Unison source (WP-18):** a Unison codebase already *is* this model (definitions by hash, names as metadata, a dependency DAG). Loading it into §3 to §6 without new shared kinds is the test that the schema is general. If it needs new shared kinds, the schema changes before the frontends multiply.
 
@@ -176,3 +176,17 @@ A node is **stale** when its input hash no longer matches. Views show stale resu
 - Rust macros that generate items (`macro_rules!` making functions): are generated items definitions with a `GeneratedBy` edge, or only L3? Leaning towards L3, with the call site as a reference.
 - Python's dynamic definitions (`setattr`, metaclasses): out of scope for L2. An elaborator can add them at L3.
 - How a `Definition` of a store-backed language (Sophia) differs: it doesn't, apart from having no `Defines` edge. To be confirmed with WP-18.
+
+## Implementation contract (WP-65/WP-22, 2026-10-15)
+
+- The existing core represents kinds with built-in enum variants plus `Custom(String)`, rather than a bare string. New vocabulary is additive string constants in `moonkale_core::graph::code`, used as `Custom` values; existing `Contains`, `Defines`, `Calls` and `References` keep their wire encoding. Legacy `Symbol` values remain readable, and the index accepts a legacy `Symbol` filter for definitions. No node/edge model or enum-variant change is needed.
+- This step migrates the existing extractors' items. Rust impl containers become `rust:Impl`, not definitions; they retain ranged `Defines` occurrences so the existing graph navigation can open their file. Bound Rust/Python functions carry `def_kind=method`. Extraction of additional fields, variants, module-level assignments, Julia generic-function containers and non-definition module-body nodes remains frontend coverage work; this step does not claim those units are implemented.
+- Location keys keep the existing `path#kind:name/…` form. Rust impl keys include self type and optional trait. Julia method keys use the whitespace-normalised complete signature (including `where` and return annotations), not their order among other overloads. Identical keys receive `~2`, `~3`, etc. A duplicate inserted before another identical signature may change its duplicate index; semantic equivalence and move tracking belong to WP-66.
+- `Defines` carries half-open UTF-8 `start_byte`/`end_byte`, 1-based `start_line`/`end_line`, and `syntax_path` (slash-separated child indices, including unnamed tokens, in the parsed tree). `line` remains on nodes for legacy consumers. `Names` points from a file-qualified namespace name to each definition; Julia overloads share a name node. Name nodes are metadata and excluded from the graph panel's normal symbol filter.
+- Resolution is deliberately syntactic and same-file: only an unambiguous visible bare name resolves. Possible local shadows, overload dispatch, qualified/dynamic calls and external imports remain `Unresolved` nodes with the spelling in the label. A `Calls` edge also produces `References`. Imports retain an `Imports` edge to their unresolved target. An `Unresolved` edge additionally marks each unresolved use. No compiler, dependency loader, macro expansion, code execution, or network lookup runs.
+- A file represents its implicit module until explicit module/body coverage is added. Top-level uses and imports originate there; uses within explicit definitions originate in the innermost extracted item. This extends the edge table's definition/module origins to `File` for implicit modules. Rust impl occurrences are likewise an explicit extension of the occurrence table.
+- Calls/references aggregate by `(from,to,kind)` with `count` and a `ranges` text property: comma-separated `start:end` UTF-8 ranges. `start_byte`/`end_byte` retain the first encountered occurrence. Ranges are not promised in source order. The property representation follows today's scalar `Value` model; a future typed range-list value may replace it with a migration.
+- Provenance uses `by=moonkale-index`, the crate version as `by_version`, an `input` UUID-v5 digest of the exact file bytes under the `index-input-v1` domain, and Unix seconds in `derived_at`. This input digest is independent of mtime-based source versions and is not a WP-66 content id. It is for freshness, not cryptographic authentication. Wiki-link derivatives carry the same provenance. Mirrored folder nodes and folder containment keep their source metadata.
+- The existing 5,000-file / 512 KiB-per-text-file walk bounds apply; the reference pass uses an explicit traversal stack. Refresh atomically replaces a file's definitions, names, unresolved nodes and derived edges. There is no cross-file semantic resolution or persistence in this step (WP-21 remains separate).
+
+The rename test above was corrected because location paths include names (§4); keeping both ids through a rename would contradict that definition. The implicit-module and impl-occurrence exceptions make current navigation possible without pretending L1 printing or full frontend coverage exists. Content ids (WP-66) and printing back (WP-67) are unchanged and unimplemented here.

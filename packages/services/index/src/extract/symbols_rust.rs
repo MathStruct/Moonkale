@@ -36,9 +36,9 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     let Some(tree) = parser.parse(text, None) else {
         return Derived::default();
     };
-    let mut symbols = Symbols::new(index, file);
+    let mut symbols = Symbols::new(index, file, text);
     walk(text.as_bytes(), tree.root_node(), None, &mut symbols);
-    symbols.derived
+    symbols.finish(tree.root_node(), text)
 }
 
 fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
@@ -75,6 +75,8 @@ fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols
             kind: short,
             name: &name,
             line: child.start_position().row + 1,
+            syntax: child,
+            identity: None,
         });
         // Items inside impl/mod/trait bodies.
         if let Some(body) = child.child_by_field_name("body") {
@@ -106,7 +108,15 @@ mod tests {
         };
         let src = "pub struct A;\nimpl A {\n    pub fn new() -> Self { A }\n}\nfn free() {}\nmod m { pub fn inner() {} }\n";
         let d = extract(&index, &file, src);
-        let labels: Vec<_> = d.nodes.iter().map(|n| n.label.as_str()).collect();
+        let labels: Vec<_> = d
+            .nodes
+            .iter()
+            .filter(|n| {
+                n.kind == NodeKind::definition()
+                    || matches!(&n.kind, NodeKind::Custom(k) if k == "rust:Impl")
+            })
+            .map(|n| n.label.as_str())
+            .collect();
         assert_eq!(
             labels,
             ["struct A", "impl A", "fn new", "fn free", "mod m", "fn inner"]
