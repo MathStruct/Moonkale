@@ -1,6 +1,6 @@
 ---
 title: "Crash safety — what happens when an extension fails, and what comes back"
-description: Whether Moonkale survives an extension crashing and can reload it. Per kind of extension (wasm modules, compiled-in Rust, out-of-process tools) and per platform (native desktop, the web client, the phone): what is contained today, what was added on 2026-10-14 (a boundary around every panel), and the steps to make every failure contained, visible and recoverable without losing work.
+description: "Whether Moonkale survives an extension crashing and can reload it. Per kind of extension (wasm modules, compiled-in Rust, out-of-process tools) and per platform (native desktop, the web client, the phone): what is contained today, what was added on 2026-10-14 (a boundary around every panel), and the steps to make every failure contained, visible and recoverable without losing work."
 tags: [architecture, reliability, extensions]
 ---
 **Question (Daniel, 2026-10-14):** is Moonkale crash-safe when an extension crashes, and could it reload extensions when that happens? **Partly. It depends on the kind of extension and on the platform.** Since 2026-10-14 every extension panel has its own boundary with a **Reload** button.

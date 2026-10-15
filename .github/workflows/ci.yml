@@ -42,6 +42,10 @@ jobs:
         run: python3 tools/check-colors.py
       - name: UI strings in English, German and Chinese, every id used and defined (spec 030)
         run: python3 tools/check-strings.py
+      - name: Vault front matter parses (one bad page stops the site build)
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || pip install pyyaml
+          python3 tools/check-frontmatter.py
 
   math-renderer:
     name: KaTeX renderer + bundle consistency

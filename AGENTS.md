@@ -28,6 +28,7 @@ cargo fmt --all --check
 python3 tools/check-deps.py        # layering rules
 python3 tools/check-colors.py      # no hard-coded colours outside the theme
 python3 tools/check-strings.py     # every UI string in en, de and zh-CN, every id used
+python3 tools/check-frontmatter.py # vault pages' front matter parses (quote values containing ": ")
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo check -p moonkale-distribution --no-default-features

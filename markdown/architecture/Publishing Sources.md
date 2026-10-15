@@ -1,6 +1,6 @@
 ---
 title: "Publishing sources — reader mode, not a static site"
-description: Reader mode (the server read-only, so published sources stay queryable) and, as an idea for way later (2026-10-14), a light static reader that publishes a repository or a knowledge graph as wiki pages with code navigation, a graph and in-browser queries; Quartz stays until then. Also: why a plain static export would be pointless next to Quartz, and what is worth having instead - the existing web server in a read-only reader mode, so a published folder or database stays queryable (SQL, graph, search) by visitors; plus a plot panel later. Decision recorded 2026-09-20.
+description: "Reader mode (the server read-only, so published sources stay queryable) and, as an idea for way later (2026-10-14), a light static reader that publishes a repository or a knowledge graph as wiki pages with code navigation, a graph and in-browser queries; Quartz stays until then. Also: why a plain static export would be pointless next to Quartz, and what is worth having instead - the existing web server in a read-only reader mode, so a published folder or database stays queryable (SQL, graph, search) by visitors; plus a plot panel later. Decision recorded 2026-09-20."
 tags: [architecture, web, publishing, decision]
 ---
 From [[Prompt18]] (2026-09-20), corrected the same day.

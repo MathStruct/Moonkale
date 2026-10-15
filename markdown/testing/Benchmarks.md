@@ -1,6 +1,6 @@
 ---
 title: "Benchmarks — what to measure, how, and against which budget"
-description: The benchmark catalogue for Moonkale: CPU, GPU and frame time, memory, network, storage I/O and load on a shared server. Each has a fixture, a metric, a budget (or "baseline first") and where it runs. Also the method (quiet machine, medians, results kept in a database) and what exists today. 2026-10-14.
+description: "The benchmark catalogue for Moonkale: CPU, GPU and frame time, memory, network, storage I/O and load on a shared server. Each has a fixture, a metric, a budget (or \"baseline first\") and where it runs. Also the method (quiet machine, medians, results kept in a database) and what exists today. 2026-10-14."
 tags: [testing, performance, benchmarks]
 ---
 **Why (Daniel, 2026-10-14):** a document of benchmarking tasks for Moonkale, covering performance on CPU and GPU, memory consumption, internet usage and load balancing. What lives in memory and what goes to the database is decided beside it, in [[ADR-0026 Memory and the store]].
