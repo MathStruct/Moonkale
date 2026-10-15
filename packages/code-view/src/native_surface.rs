@@ -922,7 +922,8 @@ pub(crate) fn RustEditorSurface(
     };
     rsx! {
         div {
-            class: "mk-native-surface {theme_class}",
+            // `dxc`: the highlight theme's token colours are scoped to it.
+            class: "mk-native-surface dxc {theme_class}",
             "data-engine": "editor-core",
             "data-cursor-offset": "{cursor.offset}",
 

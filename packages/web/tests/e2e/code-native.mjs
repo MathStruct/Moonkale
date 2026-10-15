@@ -28,6 +28,15 @@ try {
   await panel.locator(".mk-native-surface").waitFor();
   await step("Rust syntax, localized input and exact folder save", async () => {
     if (!await panel.locator(".mk-editor-core-cell[class*=a-]").count()) throw Error("missing syntax highlighting");
+    // The classes must also colour: the theme's rules are scoped to `.dxc`
+    // (the surface once lacked it, so every token drew in the plain ink).
+    const colours = await panel.locator(".mk-editor-core-cell").evaluateAll((cells) => {
+      const viewport = cells[0]?.closest(".mk-editor-core-viewport");
+      const plain = viewport && getComputedStyle(viewport).color;
+      const keyword = cells.find((c) => /\ba-k\b/.test(c.className));
+      return { plain, keyword: keyword && getComputedStyle(keyword).color };
+    });
+    if (!colours.keyword || colours.keyword === colours.plain) throw Error(`highlight classes draw no colour: ${JSON.stringify(colours)}`);
     await input().focus(); await page.keyboard.press("Control+Home"); await page.keyboard.type("// native\n");
     await panel.locator(".mk-editor-dirty").waitFor(); await save(`// native\n${original}`);
   });
