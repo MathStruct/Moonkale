@@ -3757,6 +3757,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "moonkale-lsp-local"
+version = "0.1.0"
+dependencies = [
+ "futures-channel",
+ "moonkale-lsp",
+]
+
+[[package]]
 name = "moonkale-native-editor-host"
 version = "0.1.0"
 dependencies = [
@@ -3767,6 +3775,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-lsp",
+ "moonkale-lsp-local",
  "serde_json",
 ]
 

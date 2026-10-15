@@ -28,7 +28,7 @@ A native Inspector wheel trace then identified redundant synchronous resize IPC:
 
 After segment compaction, two further full-matrix attempts abort CPU-idle preflight after six and fourteen cases. The latter reproduces preview wheel 17/210 ms and also records Source typing 41/51 ms and preview scrollbar 31/54 ms; results remain variable and incomplete. Reports: `/tmp/moonkale-desktop-fps-compact{,-retry}-20261015*`. A partial full-sequence Inspector/Heap trace timed out stopping the profilers and did not correlate the 210 ms frame; captured GC peaks near 13 ms, so it does not establish GC causation.
 
-Software GL includes CPU painting/compositing costs as well as Rust/DOM/layout; it does not establish hardware GPU performance. The latest strict release web rerun passes all 21 cases, p95 approximately 16.67 ms and max 33.33 ms (`/tmp/moonkale-fps-web-compact-20261015/editor-fps.json`). WP-02 and Daniel’s real desktop acceptance remain open. WP-03 default cutover has not started.
+Software GL includes CPU painting/compositing costs as well as Rust/DOM/layout; it does not establish hardware GPU performance. The latest strict release web rerun passes all 21 cases, p95 approximately 16.67 ms and max 33.33 ms (`/tmp/moonkale-fps-web-compact-20261015/editor-fps.json`). WP-02 and Daniel’s real desktop acceptance remain open. WP-03 acceptance work is recorded below; default cutover remains gated.
 
 ## Performance target — 60 FPS (CED-R22, 2026-10-14)
 
@@ -151,7 +151,7 @@ The first opt-in vertical slice is implemented in `packages/code-view/src/native
 
 ### M3 — Language Server Protocol
 
-**Diagnostics slice (2026-10-06):** document synchronization and diagnostics now run through the shared manager in Rust views. Gutter markers, underlines and clickable messages are connected; versioned stale reports and empty publications are handled. Deterministic production-panel browser coverage passes for Unicode/CRLF positions and duplicate/remount lifecycle. Hover is now implemented with debounce, cancellation, UTF-16 coordinates, keyboard activation and stale-result handling. Completion now supports async suggestions, keyboard/mouse acceptance, stale-result cancellation and atomic text/additional edits. F12 definition now reveals same-file/folded targets and opens cross-file targets in the originating source, with stale-request and post-load guards. F2 rename now has a focused prompt, guarded multi-file staging, per-document undo, unsaved closed-file targets and LSP synchronization. Mod-. code actions now include diagnostic context, preferred/disabled entries, lazy resolve and guarded multi-file edits. Shift-F12 references list and reveal deduplicated same-file/folded/cross-file results. Server command execution and real-server/native UI acceptance remain open. See [[Rust Code Editor Implementation]].
+**Diagnostics slice (2026-10-06):** document synchronization and diagnostics now run through the shared manager in Rust views. Gutter markers, underlines and clickable messages are connected; versioned stale reports and empty publications are handled. Deterministic production-panel browser coverage passes for Unicode/CRLF positions and duplicate/remount lifecycle. Hover is now implemented with debounce, cancellation, UTF-16 coordinates, keyboard activation and stale-result handling. Completion now supports async suggestions, keyboard/mouse acceptance, stale-result cancellation and atomic text/additional edits. F12 definition now reveals same-file/folded targets and opens cross-file targets in the originating source, with stale-request and post-load guards. F2 rename now has a focused prompt, guarded multi-file staging, per-document undo, unsaved closed-file targets and LSP synchronization. Mod-. code actions now include diagnostic context, preferred/disabled entries, lazy resolve and guarded multi-file edits. Shift-F12 references list and reveal deduplicated same-file/folded/cross-file results. Live browser/native UI integration is now covered by the WP-03 acceptance record below; command-only server actions remain outside the shared client's supported feature set. See [[Rust Code Editor Implementation]].
 
 1. Preserve `LspManager` ownership/session lifecycle and the current per-language/per-folder sharing model. The editor requests work with stable IDs and zero-based line/UTF-16-column positions; the panel translates results only once.
 2. Add incoming diagnostic marks/gutter and readable message affordance; replace/clear marks when diagnostics update.
@@ -166,7 +166,7 @@ The first opt-in vertical slice is implemented in `packages/code-view/src/native
 1. Feed `Workspace::cursor`/`cursor_word()` from the engine's actual caret (not from guessed key events); use a throttle comparable to the current 250 ms report. Validate UTF-16 vs internal position conversion.
 2. Render presence marks by line and user initials; update on presence changes and document identity changes without remounting the editor. **Implemented:** native gutter subscribes to workspace presence, excludes this window and other files, and shows initials once per logical line with member names in the tooltip. Dedicated gutter space preserves line numbers, diagnostics and folding controls.
 3. Add Markdown Source wiki spans, resolved/unresolved styling, async `[[` candidate lookup, no duplicate close brackets, modifier-click following, and refresh when text/index epoch changes. **Implemented:** shared Rust lookup APIs drive native marks and completion; guarded follow/create preserves source identity and rejects stale navigation. Unicode/CRLF, index refresh, atomic completion undo and delayed-reply browser checks cover the native Markdown surface.
-4. Support shell reveal from search, trace, definition and other callers; selection and scroll are placed correctly. Exercise agent/reload/workspace replacement while open, multiple document tabs/windows, and panel moves/remounts. **Browser integration covered:** workspace API reveals use canonical text and UTF-16 coordinates; activation restores retained caret/word context; replacement, reload, dock moves and close/reopen ordering have deterministic coverage. Two browser windows exercise real session offers/acknowledgements. Only saved tabs are offered; unsaved edits remain in the origin even when added after an offer. Native OS gestures and platform/real-server acceptance remain gates.
+4. Support shell reveal from search, trace, definition and other callers; selection and scroll are placed correctly. Exercise agent/reload/workspace replacement while open, multiple document tabs/windows, and panel moves/remounts. **Browser integration covered:** workspace API reveals use canonical text and UTF-16 coordinates; activation restores retained caret/word context; replacement, reload, dock moves and close/reopen ordering have deterministic coverage. Two browser windows exercise real session offers/acknowledgements. Only saved tabs are offered; unsaved edits remain in the origin even when added after an offer. Native OS gestures and platform acceptance remain gates; live-server UI evidence is recorded below.
 
 **Exit:** current wiki, presence and reveal workflows pass on Rust editor, including non-BMP text preceding a wiki span or cursor.
 
@@ -212,3 +212,63 @@ This plan depends on the replacement requirements in [[Code Editor Requirements]
 ### Bounded private-cache follow-up — 2026-10-15
 
 With master `0aef7472` (private persistent cache/data/config homes), the release fixture was rebuilt. One three-case wheel warm-up attempt and one full 21-case guarded attempt both aborted before launching a case: aggregate CPU never met two consecutive <=10% samples in six attempts. No cache-warm comparison or new frame result is available; neither attempt proves or disproves removal of the prior210ms preview-wheel pause. Raw preflight samples and logs: `/tmp/moonkale-next3-{warmup,desktop}*`. No further headless gate iteration is planned in this run. The real GPU/desktop check remains Daniel's final acceptance; its commands, files, seven gestures and strict versus calibrated criteria are in the coordinator handoff. WP-03 proceeds through its own milestone gates while this desktop acceptance remains explicitly open.
+
+
+### WP-03 — M3 integration acceptance (2026-10-15)
+
+The existing M3 implementation now has a shared live-server UI gate rather than
+separate protocol-only evidence. `lsp.mjs` and `lsp2.mjs` select Rust with
+`LSP_EDITOR=native` and CodeMirror with `LSP_EDITOR=codemirror`, using the same
+scenarios and an engine adapter. Hover and F12 websocket requests are checked
+against canonical UTF-16 positions after an emoji/CJK comment in CRLF source.
+Diagnostics/save-to-clear, completion, unsaved rename, stale-prompt rejection,
+reference reveal and lazy edit-based code actions are exercised through the UI.
+
+The desktop fixture also has an explicit live-server mode and an owned-display
+runner, `native-editor-live-lsp.py`. Native GTK WebKit passes diagnostics, hover,
+F12, F2 rename, Shift-F12 references, extract-variable code action and completion
+against rust-analyzer 1.98.1. Its report retains original/final CRLF text and user
+agent; disk bytes stay unchanged. This closes the earlier **native UI + live LSP**
+integration gap. It uses DOM events, so physical input/IME acceptance remains a
+separate check. No production editor behavior or default changes in this step.
+
+Command-only server actions remain unsupported by both implementations. The shared
+client filters them; declared edits and lazy edit resolution retain existing
+behavior, without executing `workspace/executeCommand`. This is the current parity
+boundary, not a new permission to execute commands. Server-command support is a
+separate feature, not a reason to bypass the M5 gates.
+
+The latest release web frame evidence remains the unchanged 21/21 strict matrix
+above (p95 about 16.67 ms, max 33.33 ms); this test-only work does not change the
+production render/input path. Daniel's physical-desktop frame check remains open,
+so functional LSP acceptance does not close CED-R22 or authorize default cutover.
+
+### WP-03 — remaining default-cutover gates
+
+| Gate | Evidence / required next action |
+| --- | --- |
+| M3 functional parity | Shared fake-server regressions, real-server protocol and browser/native UI checks; exact commands in the E2E README. |
+| M4 context | Existing Rust wiki, presence, Unicode caret/word, reveal/replacement/remount and real two-browser-window scenarios; retain their native OS gesture limitation. |
+| CED-R22 desktop | Daniel's physical GPU/session 21-case check, including the preview-wheel pause. Do not repeat WP-02 headless profiling. |
+| Native input and accessibility | Earlier Linux OS/IME evidence is in [[Rust Code Editor Native Acceptance]]; integrated accessibility and platform matrix still require review. DOM LSP input is not a replacement for these checks. |
+| Android | Integrated editing, IME, clipboard, selection, source/wiki and LSP availability smoke remain unaccepted. No device run in this step. |
+| M5 size/build/dependencies | Comparable release size, memory and clean/incremental build-cost review, followed by settings/per-document migration and retirement only after preceding gates pass. |
+
+Rust remains opt-in. Keep CodeMirror and its settings/bundle until M5; do not treat
+partial platform evidence as permission to remove the fallback. macOS and Windows
+remain explicitly unverified here. Reserved P-198 and ADR-0029 are unused.
+
+
+WP-03 regression verification: all eleven selected Chromium production-panel
+suites pass: `native-editor-{diagnostics,hover,completion,definition,rename,tools,
+wiki,presence,integration,windows,workspace}.mjs`. The M4 subset covers Unicode
+caret/word context, presence identity/lifecycle, wiki stale replies, reveal,
+external replacement/reload, dock remount and actual two-browser-window offers
+without moving unsaved buffers. Logs: `target/wp03-e2e/{suite}.log` and
+`/tmp/moonkale-wp03-fake-checks.log`. These are browser context gates, not native
+window-manager gesture or cross-platform acceptance. All AGENTS.md repository
+gates pass (671 tests including doctests); desktop fixture Clippy/build also pass.
+
+The final shared live browser matrix passes all four runs: `lsp` and `lsp2` on
+Rust and on the CodeMirror control (Firefox, unchanged release web host). Both
+save flows verify exact CRLF bytes. Matrix log: `/tmp/moonkale-wp03-lsp.log`.

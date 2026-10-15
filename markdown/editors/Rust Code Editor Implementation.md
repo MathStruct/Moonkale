@@ -357,3 +357,28 @@ Added feature-gated `native_widgets::PreviewBlock`, a reusable container for pro
 `native-editor-widgets.mjs` verifies independent duplicate panes, event isolation, composition Escape, source anchor/focus, unmodified undo history, height alignment, delayed toggles, resize, scrolling and removal. `native-editor-renderer.py --x11 --widgets --os-input` selects a dedicated WebKit DOM probe and an owned-window OS runner. Real widget typing/navigation, Escape, source edit/undo and Edit source pass. Existing layout, multiline and integration browser suites pass, alongside 99 code-view tests, default/native-desktop/layout-fixture Clippy, desktop build, syntax/formatting and repository checks. The globally intercepted Ctrl-period shortcut is covered in Chromium rather than OS automation.
 
 This is still an opt-in synthetic provider. It does not enable Markdown preview or change the default backend. General inline controls, persistent provider state and real widget-input IME remain future work. The next provider step needs its own bounded Markdown feature plan.
+
+
+## WP-03: live LSP UI acceptance — 2026-10-15
+
+The implementation's existing LSP features now run through the real rust-analyzer
+browser scenarios on either engine (`LSP_EDITOR=native|codemirror`). Shared tests
+check UTF-16 wire positions after non-BMP text in CRLF source, diagnostics and save,
+completion, F12, unsaved rename/stale cancellation, references and edit-based code
+actions. The test adapter reads rendered source rows, not the hidden input value,
+and uses narrow keyboard selections for cleanup without multiline source replacement. Editor-specific undo grouping and
+native proactive prompt cancellation remain legitimate behavior differences.
+
+The desktop fixture optionally discovers a live installed server via the existing
+`moonkale-lsp-local` service, an optional desktop-only fixture dependency. With no
+`MOONKALE_LSP_ROOT`, it retains the deterministic transport. Its isolated runner
+creates its own Cargo workspace/target and display; a fixture-only WebKit DOM probe
+passes all seven LSP features with Unicode/CRLF and verifies that unsaved edits do
+not write the corpus. No new production connection, authority, JS editor-state
+bridge or runtime dependency is introduced. The probe's eval acknowledgement keeps
+its report channel alive until Rust receives the result.
+
+See [[Rust Code Editor Roadmap]], [[Rust Code Editor Native Acceptance]] and the
+E2E README for commands, evidence and remaining gates. Command-only actions remain
+unsupported by the shared client; default cutover, physical-desktop CED-R22,
+Android and accessibility acceptance are still open.

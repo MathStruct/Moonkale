@@ -9,6 +9,14 @@ Related notes: [[Code Editor]], [[Code Editor Implementations]], [[JS Interop Bo
 
 Delivery sequence, first-milestone implementation steps and proposed test cases: [[Rust Code Editor Roadmap]].
 
+> [!note] Implementation update — 2026-10-15
+> The comparisons below describe the 2026-10-03 baseline. The current opt-in Rust
+> panel uses editor-core with Rust-owned selection/deltas/history and implements
+> search/folds, LSP, wiki/presence, wrapping and preview. Live browser and native
+> WebKit LSP integration is recorded in [[Rust Code Editor Roadmap]]. The older
+> textarea and missing-feature descriptions below are historical, not current
+> limitations. Rust remains opt-in pending the platform, accessibility and frame gates.
+
 ## Scope and terminology
 
 “Editor” here means the interactive text editing surface inside `moonkale-code-view`, currently implemented by the CodeMirror 6 bundle. It does not mean the whole Moonkale application, a language server, or the Markdown WYSIWYG view. `moonkale-code-view::CodeEditorPanel` is shared by the generic Code extension and Markdown's Source mode; replacing its editor therefore affects both. Markdown's Rich mode is a separate Milkdown view.

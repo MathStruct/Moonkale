@@ -353,6 +353,19 @@ fn respond_hover(
     let text = format!("```rust\nhover at {line}:{column}\n```\n\n<safe> docs");
     sender.unbounded_send(serde_json::json!({"jsonrpc":"2.0", "id":request["id"], "result":{"contents":{"kind":"markdown","value":text}}}).to_string()).unwrap();
 }
+fn fixture_lsp(language: String, root: String) -> moonkale_lsp::LspTransportFuture {
+    #[cfg(feature = "desktop")]
+    if std::env::var_os("MOONKALE_LSP_ROOT").is_some() {
+        return Box::pin(async move {
+            let spec = moonkale_lsp_local::discover::find(&language)
+                .ok_or_else(|| format!("no installed language server for {language}"))?;
+            let args: Vec<&str> = spec.args.iter().map(String::as_str).collect();
+            let transport = moonkale_lsp_local::StdioTransport::spawn(&spec.program, &args, &root)?;
+            Ok(Box::new(transport) as Box<dyn moonkale_lsp::LspTransport>)
+        });
+    }
+    fake_lsp(language, root)
+}
 fn fake_lsp(_: String, _: String) -> moonkale_lsp::LspTransportFuture {
     Box::pin(async {
         let (sender, incoming) = futures_channel::mpsc::unbounded();
@@ -412,6 +425,14 @@ fn DesktopApp() -> Element {
         div {
             class: "desktop-fixture",
             onmounted: move |_| {
+                if let Some(path) = std::env::var_os("MOONKALE_LSP_REPORT") {
+                    spawn(async move {
+                        let mut eval = document::eval(include_str!("lsp-probe.js"));
+                        let result: serde_json::Value = eval.recv().await.expect("native live LSP probe");
+                        std::fs::write(path, result.to_string()).expect("write native live LSP result");
+                        let _ = eval.send(serde_json::Value::Null);
+                    });
+                }
                 if let Some(path) = std::env::var_os("MOONKALE_PROPORTIONAL_PROBE") {
                     spawn(async move {
                         let mut eval = document::eval(include_str!("proportional-probe.js"));
@@ -689,7 +710,7 @@ fn App() -> Element {
                 openers: &moonkale_core::source::opener::NO_OPENERS,
             },
             processes: moonkale_ext_api::Processes {
-                lsp: Some(fake_lsp),
+                lsp: Some(fixture_lsp),
                 ..Default::default()
             },
             persistence: Default::default(),
@@ -703,10 +724,15 @@ fn App() -> Element {
         ws.settings
             .resolved
             .with_mut(|settings| settings.editor.wrap = true);
-        let source = SourceId::new("folder:/tmp/native-fixture");
+        #[cfg(feature = "desktop")]
+        let live_root = std::env::var("MOONKALE_LSP_ROOT").ok();
+        #[cfg(not(feature = "desktop"))]
+        let live_root: Option<String> = None;
+        let source = SourceId::new(format!("folder:{}", live_root.as_deref().unwrap_or("/tmp/native-fixture")));
         let (file_name, text) = {
             #[cfg(feature = "desktop")]
-            { fps::initial_document().unwrap_or_else(|| ("main.rs".into(), "fn main() {\n    // 😀中 Unicode\n}\n".into())) }
+            { live_root.as_ref().map(|root| ("src/main.rs".into(), std::fs::read_to_string(std::path::Path::new(root).join("src/main.rs")).expect("live LSP fixture source")))
+                .or_else(fps::initial_document).unwrap_or_else(|| ("main.rs".into(), "fn main() {\n    // 😀中 Unicode\n}\n".into())) }
             #[cfg(not(feature = "desktop"))]
             { ("main.rs".to_string(), "fn main() {\n    // 😀中 Unicode\n}\n".to_string()) }
         };

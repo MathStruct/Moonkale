@@ -18,7 +18,7 @@ Acceptance recorded 2026-10-07. Rust remains opt-in.
 | Web production regression | Pass | Workspace suite, including Unicode, synthetic composition, clipboard, folding, language indentation, history and 3 MB virtualization. |
 | Real IME, accessibility, theme changes | Pending | Earlier spike/manual Pinyin and synthetic browser composition do not accept the current integrated component. |
 | Android, macOS, Windows | Not run | No acceptance on these targets in this continuation. |
-| Native UI with live LSP | Pending | Native UI uses deterministic fixture server; live server is tested independently through the shared protocol client. |
+| Native UI with live LSP | Pass (2026-10-15) | Production panel + installed rust-analyzer on owned GTK WebKit display; DOM input, not physical OS/IME or FPS acceptance. See follow-up below. |
 
 After the stable context-row fix, the browser 3 MB check measured 886 ms with 20 rows and 2080 cells in a debug build. This is a regression observation, not the M5 comparative performance benchmark.
 
@@ -208,3 +208,20 @@ This remains an opt-in synthetic provider over a bounded source prefix, rather t
 ### 2026-10-09 — Interactive preview widgets
 
 After building the standalone desktop fixture, `native-editor-renderer.py target/debug/moonkale-native-editor-host --x11 --widgets --os-input` passes native WebKit content expansion/height alignment, local input, composition Escape isolation and source-return DOM checks, followed by real XWayland pointer focus, local typing/navigation, Escape to the source anchor, source edit/undo and Edit source. The runner owns and stops its fixture process. Browser `native-editor-widgets.mjs` additionally verifies clipboard events, shortcuts, independent duplicate panes, delayed measurements, partial scrolling and provider removal. Ctrl-period is globally intercepted on this desktop, so OS automation omits that key and relies on browser shortcut-isolation coverage. Real IME inside widget inputs remains unverified.
+
+
+### WP-03: native UI with live rust-analyzer — 2026-10-15
+
+`native-editor-live-lsp.py` now accepts the combined production-panel/native
+adapter/live-server path on a private display. All seven checks pass against
+rust-analyzer 1.98.1: diagnostic messages, hover, F12 definition, unsaved F2 rename,
+Shift-F12 references/reveal, lazy extract-variable code action and completion.
+The canonical report preserves CRLF and emoji/CJK source; the runner verifies
+unchanged disk bytes. GTK WebKit user agent: AppleWebKit/605.1.15, Version/60.5.
+Report from this run: `target/wp03-native-live-1.json`; runner/build logs are
+`/tmp/moonkale-wp03-native-{live,build}.log`. Commands are in the E2E README.
+
+This uses fixture-only DOM input. It closes the combined native UI/live-server
+gap, while physical input/IME, accessibility, other platforms and CED-R22 keep
+their own acceptance criteria. The runner stops its display on success/failure;
+no production renderer configuration changed. Rust remains opt-in.

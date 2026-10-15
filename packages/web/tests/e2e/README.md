@@ -25,6 +25,46 @@ Screenshots land in `M1_SHOTS`. Cargo ignores `.mjs` files in `tests/`.
 
 `graph.mjs`, `links-sqlite.mjs`, `terminal.mjs`, `typst.mjs`, `lsp.mjs`, `ladybug.mjs` expect a fixture folder as `MOONKALE_ROOT` containing: `Home.md` (`See [[Alpha]] and [[notes/Beta]] and [[Missing]].`), `Alpha.md`, `notes/Beta.md`, `data.sqlite` (any table), `report.typ`, a cargo crate (`Cargo.toml` + `src/main.rs` with `fn add(a: u32, b: u32) -> u32` and a deliberate `let wrong: String = total;`), and `people.lbug` (Person/City node tables, Knows/LivesIn rel tables — see `packages/sources/graph/tests/ladybug.rs` for the Cypher). `lsp.mjs` needs `rust-analyzer` on the server's PATH.
 
+`lsp.mjs` and `lsp2.mjs` share the engine adapter in `lsp-editor.mjs`.
+The default is CodeMirror; run the same scenarios on Rust with:
+
+```sh
+LSP_EDITOR=native MOONKALE_E2E=… PORT=… packages/web/tests/e2e/run-all.sh lsp lsp2
+# Control run, with the fixture reset by run-all between suites:
+LSP_EDITOR=codemirror MOONKALE_E2E=… PORT=… packages/web/tests/e2e/run-all.sh lsp lsp2
+```
+
+Both use disposable `M1_ROOT/src/main.rs`, add an emoji/CJK comment before the
+call and convert the fixture to CRLF. They observe actual websocket hover and
+definition positions, then verify diagnostics, completion, rename/stale prompt,
+references and edit-based code actions through the UI. Editor text comes from
+visible source rows; neither suite reads the Rust input sink as document text.
+Edits and cleanup use narrow keyboard selections, avoiding browser-specific
+multiline `insertText` behavior. Undo cleanup allows each engine's own typing
+transaction grouping. The adapter is for these small fixtures, not a
+whole-document reader for virtualized large files.
+
+The standalone production panel can also use live rust-analyzer in native WebKit:
+
+```sh
+CARGO_TARGET_DIR="$PWD/packages/web/tests/fixtures/native-editor/target" \
+  cargo build --manifest-path packages/web/tests/fixtures/native-editor/Cargo.toml \
+  --no-default-features --features desktop
+python3 packages/web/tests/e2e/native-editor-live-lsp.py \
+  packages/web/tests/fixtures/native-editor/target/debug/moonkale-native-editor-host \
+  --report target/native-live-lsp-result.json
+```
+
+Use `heavy.sh` for the build and runner. The runner creates a private display and
+Cargo corpus under this worktree's `target/native-live-lsp`, keeps rust-analyzer's
+build output there, rejects an existing report/display and stops its owned display
+on exit. The fixture discovers the installed server through the existing local
+service when `MOONKALE_LSP_ROOT` is set; ordinary browser/native fixtures retain
+their deterministic server. The result records all seven LSP features, original
+and final canonical CRLF text and WebKit metadata. Edits remain unsaved. DOM input
+checks the native adapter and live-server integration; it does not accept physical
+OS input, IME, accessibility, other platforms or CED-R22 frame timing.
+
 `graph.mjs` **edits** `Home.md` (adds `[[Another]]`) — restore it before running `links-sqlite.mjs` (P-059).
 
 ## Fixture script and the full run (Milestone 6)
