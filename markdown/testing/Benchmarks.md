@@ -18,7 +18,7 @@ None of them keeps its results over time. This page turns them into one catalogu
 ## Method
 
 - **The reference machine** is the development box: 8 cores, 30 GB RAM, an RTX 3080 (10 GB), NVMe, Linux on Wayland. Plus the phone (Galaxy S10e) for mobile budgets, and CI runners **only for coarse regressions** (they're noisy and have no GPU).
-- **A quiet machine.** A benchmark takes the bench lock (`flock ~/.cache/moonkale-bench.lock`) and refuses to run while builds or other agents' browser suites are running (see [[Running Several Agents]]). Numbers from a busy machine are not recorded.
+- **A quiet machine.** A benchmark takes the bench lock (`flock ~/.cache/moonkale-slots/bench.lock`, beside the build slots so a sandboxed agent that may write that one directory can take it) and refuses to run while builds or other agents' browser suites are running (see [[Running Several Agents]]). Numbers from a busy machine are not recorded.
 - **Medians over runs:** a warm-up first, then N runs (N ≥ 5), recording median, p95 and max. Frame metrics use `requestAnimationFrame` intervals, latency uses `performance.now()` around the action, and memory uses RSS (native) and `performance.measureUserAgentSpecificMemory` (web, where available).
 - **Results are kept in a database, not in logs:** each run appends a row (benchmark, commit, platform, metric, value, timestamp) to `~/.cache/moonkale-bench/results.sqlite`. Moonkale opens that file as a source, so the history is a table and, with the plot extension, a chart ([[Plotting Requirements]]). A release's summary row goes into this page.
 - **Budgets:** a benchmark with a budget fails when over it. Where none is set, the first job is a **baseline**; the budget follows from it and from use.
