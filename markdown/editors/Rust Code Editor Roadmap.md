@@ -207,3 +207,8 @@ The uniform geometry boundary and variable-height index are implemented. A featu
 ## Related decisions
 
 This plan depends on the replacement requirements in [[Code Editor Requirements]], current implementation notes in `packages/code-view` and `packages/editors/code-native`, the layer/testing guidance in [[Project Structure]] and [[Testing Strategy]], and the documented language set in [[Core Languages]]. Do not update the general product milestone numbering: this is a **code editor sub-roadmap**.
+
+
+### Bounded private-cache follow-up — 2026-10-15
+
+With master `0aef7472` (private persistent cache/data/config homes), the release fixture was rebuilt. One three-case wheel warm-up attempt and one full 21-case guarded attempt both aborted before launching a case: aggregate CPU never met two consecutive <=10% samples in six attempts. No cache-warm comparison or new frame result is available; neither attempt proves or disproves removal of the prior210ms preview-wheel pause. Raw preflight samples and logs: `/tmp/moonkale-next3-{warmup,desktop}*`. No further headless gate iteration is planned in this run. The real GPU/desktop check remains Daniel's final acceptance; its commands, files, seven gestures and strict versus calibrated criteria are in the coordinator handoff. WP-03 proceeds through its own milestone gates while this desktop acceptance remains explicitly open.
