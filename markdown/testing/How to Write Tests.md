@@ -233,7 +233,7 @@ tools/headless.sh stop                        # the apps it started, the input h
   - `HEADLESS_GPU=1` opts out of software GL.
   - The graph canvas under software GL is not verified yet.
 - **Typing speed** is about human speed (`HEADLESS_KEY_GAP`, 30 ms between key events). Faster typing loses keys in the app's controlled inputs.
-- **State:** PIDs, logs and the input socket are in `target/headless/` (or `$HEADLESS_DIR`). Logs: `moonkale.log`, `sway.log`.
+- **State:** PIDs, logs, the input socket and sway's own runtime dir with its Wayland socket (`run/`) are in `target/headless/` (or `$HEADLESS_DIR`), so nothing lands in `/run/user` and a sandbox that can write only the worktree can still run it. Logs: `moonkale.log`, `sway.log`.
 - **Still for Daniel:** real keyboard, IME and pointer behaviour on his own KDE session.
 
 ## 8. How I'd go about it, day to day
