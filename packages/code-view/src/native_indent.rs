@@ -205,7 +205,7 @@ pub(crate) fn closing(model: &NativeModel, ch: char) -> Option<IndentEdit> {
         {
             return None;
         }
-        let candidate = dioxus_code::advanced::Buffer::new(language, &source).ok()?;
+        let candidate = crate::native_highlight::Buffer::new(language, &source).ok()?;
         let structure = crate::native_structure::Structure::new(Some(&candidate), Some(language));
         let opener = *structure.pairs.get(&offset)?;
         source.chars().take(opener).filter(|ch| *ch == '\n').count()

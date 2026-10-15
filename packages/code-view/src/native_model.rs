@@ -1,8 +1,6 @@
 //! Rust model and localized delta adapter; independent of the Dioxus view.
-use dioxus_code::{
-    advanced::{Buffer, SourceEdit},
-    Language,
-};
+use crate::native_highlight::Buffer;
+use dioxus_code::{advanced::SourceEdit, Language};
 use editor_core::{EditorStateManager, Position, TextDelta};
 use moonkale_ext_api::editor::{
     DocumentRevision, EditBatch, EditorSnapshot, TextChange, Utf16Selection,
@@ -733,6 +731,7 @@ fn delta_batch_with_mapping(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_highlight::Buffer;
     use editor_core::{Command, CursorCommand, EditCommand, TextDeltaEdit};
     use moonkale_core::NodeId;
     use moonkale_ext_api::editor::RevisionedDocument;

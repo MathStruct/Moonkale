@@ -12,7 +12,7 @@ flowchart LR
     D[Document: Rope + version]
     T["trait CodeEditorBackend"]
     CM[backend::codemirror]
-    NA[backend::native — future]
+    NA[backend::native — opt-in]
     D <--> T
     T --- CM
     T --- NA
@@ -35,6 +35,10 @@ Same shape for `milkdown` ↔ `RichTextBackend` and `xterm` ↔ `TerminalBackend
 
 ## Transport
 `document::eval` (Dioxus, renderer-agnostic — works in browser, WebView2, WKWebView, WebKitGTK, and the mobile webviews). **As built in Milestone 1**: one eval per mounted editor; JS → Rust with `dioxus.send(value)`, Rust → JS with `eval.send(value)` / `await dioxus.recv()` — Dioxus's own channel, no `CustomEvent`s and no global listeners. The initial text is sent over the channel, never formatted into the script. See `packages/js/codemirror/PROTOCOL.md` and `packages/editors/code/editor-code.md`. Binary (terminal output) will use base64 initially; a `SharedArrayBuffer` path is an optimisation.
+
+## Rust editor geometry adapters
+
+The opt-in Rust editor uses small DOM adapters without an editor bundle. Rust owns source, cursor/selection, history, language knowledge and presentation ranges. Browser code reports geometry, font and resize observations and transports input. `native_resize_watch.js` pools a `ResizeObserver`, suppresses its initial entries (Rust measures on mount), and sends finite dimension changes through the asynchronous eval channel rather than desktop's synchronous DOM event IPC. A removal observer closes detached/replaced registrations and disconnects the pool when empty. Receivers are bound to their Dioxus scope; Rust checks live revision/width/presentation before accepting geometry. The adapter's global registry contains only mounted-node geometry subscriptions.
 
 ## Cost we accept
 Latency of a JSON hop per keystroke. CodeMirror applies the edit locally first (optimistic) and Rust reconciles; conflicts are rare (single user) and resolved by Rust re-sending the canonical text. This is the same trade Zed's remote mode and VS Code's extension host make.

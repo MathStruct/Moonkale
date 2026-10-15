@@ -13,6 +13,7 @@ base64 = { version = "0.22", optional = true }
 unicode-segmentation = { version = "1", optional = true }
 arborium = { version = "2.18.2", default-features = false }
 arborium-tree-sitter = "2.18.2"
+arborium-theme = "2.18.2"
 arborium-html = "2.18.2"
 arborium-markdown = "2.18.2"
 arborium-julia = "2.18.2"

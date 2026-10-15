@@ -1,5 +1,6 @@
 //! Derived structural pairs and conservative fold ranges over normalized engine text.
-use dioxus_code::{advanced::Buffer, Language};
+use crate::native_highlight::Buffer;
+use dioxus_code::Language;
 use editor_core::FoldRegion;
 use std::collections::{BTreeMap, BTreeSet};
 

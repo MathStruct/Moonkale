@@ -87,9 +87,20 @@ try {
   assert.ok(Math.abs((await page.locator('.primary .mk-proportional-text > span').first().evaluate(el=>el.getBoundingClientRect().width))-replacementWidth)>1,'An already loaded replacement face refreshes geometry');
   assert.equal(await cursor(),offset);
   const count=await watcherCount();
+  const primaryRuns=await page.locator('.primary .mk-proportional-text').count();
+  await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.resize-watch')]?.watchers.size??0)>=count,primaryRuns);
+  const resizeCount=await page.evaluate(()=>window[Symbol.for('moonkale.geometry.resize-watch')]?.watchers.size??0);
   await page.click('#mount');await page.locator('.primary').waitFor({state:'detached'});
   await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0)===count-1,count);
+  await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.resize-watch')]?.watchers.size??0)===count,resizeCount-primaryRuns);
   await page.click('#mount');await ready();
+  // Remount resets the fixture's DOM width, so the visible run count can change.
+  // Every current node must have exactly one live watcher, with no stale nodes.
+  await page.waitForFunction(()=>{
+    const nodes=[...document.querySelectorAll('.mk-proportional-text')];
+    const watchers=[...(window[Symbol.for('moonkale.geometry.resize-watch')]?.watchers.values()??[])];
+    return nodes.length===watchers.length&&watchers.every(value=>nodes.includes(value.node)&&value.node.isConnected);
+  });
   await page.waitForFunction(count=>(window[Symbol.for('moonkale.geometry.font-watch')]?.watchers.size??0)===count,count);
   assert.equal(await cursor(),offset);assert.equal(await page.locator('.canonical').textContent(),original);
   await page.click('#show-proportional');await page.waitForFunction(()=>document.querySelector('.proportional-probe')?.dataset.ready==='true');

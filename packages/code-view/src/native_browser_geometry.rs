@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 struct Segment {
     start: usize,
     end: usize,
@@ -132,13 +132,16 @@ pub(crate) async fn measure_with_status(id: &str, text: &str) -> Result<Geometry
     measure_presented(id, text, &[]).await
 }
 
-pub(crate) async fn measure_presented(
-    id: &str,
+// Replaced source is an atomic rectangle in the browser. Preserve its first
+// complete grapheme as a representative, instead of serializing thousands of
+// duplicate segment objects that the browser's measured set would discard.
+fn measurement_segments(
     text: &str,
     replacements: &[crate::native_presentation::Replacement],
-) -> Result<Geometry, String> {
+) -> (Vec<Segment>, usize) {
     let (mut scalar, mut utf16) = (0, 0);
-    let segments: Vec<_> = text
+    let mut covered = std::collections::BTreeSet::new();
+    let segments = text
         .graphemes(true)
         .map(|value| {
             let start = scalar;
@@ -152,7 +155,22 @@ pub(crate) async fn measure_presented(
                 utf16_end: utf16,
             }
         })
+        .filter(|segment| {
+            replacements
+                .iter()
+                .find(|value| value.start <= segment.start && segment.end <= value.end)
+                .is_none_or(|value| covered.insert(value.start))
+        })
         .collect();
+    (segments, scalar)
+}
+
+pub(crate) async fn measure_presented(
+    id: &str,
+    text: &str,
+    replacements: &[crate::native_presentation::Replacement],
+) -> Result<Geometry, String> {
+    let (segments, scalar) = measurement_segments(text, replacements);
     let mut eval = document::eval(include_str!("native_browser_geometry.js"));
     let images = replacements.iter().filter(|value|matches!(value.style,Some(crate::native_decorations::InlineStyle::Image(_))))
         .map(|value|serde_json::json!({"start":value.start,"end":value.end,"id":format!("image:{}",value.start)})).collect::<Vec<_>>();
@@ -220,9 +238,89 @@ pub(crate) async fn watch_fonts(id: &str, changed: Callback<FontNotice>) {
     }
 }
 
+#[derive(Deserialize)]
+pub(crate) struct ResizeNotice {
+    pub width: f64,
+    pub height: f64,
+}
+
+/// Watch actual dimension changes without forwarding initial ResizeObserver
+/// entries through desktop's synchronous event IPC. The caller measures on mount.
+/// Both the receiving task and the observed DOM node own the watcher lifetime.
+pub(crate) async fn watch_resize(id: &str, changed: Callback<ResizeNotice>) {
+    let mut eval = document::eval(include_str!("native_resize_watch.js"));
+    if eval.send(serde_json::json!({"id":id})).is_err() {
+        return;
+    }
+    while let Ok(notice) = eval.recv::<ResizeNotice>().await {
+        if notice.width.is_finite() && notice.height.is_finite() {
+            changed.call(notice);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn atomic_preview_requests_have_bounded_segment_metadata() {
+        let text = "x".repeat(16_384);
+        let replacement = crate::native_presentation::Replacement {
+            start: 0,
+            end: text.len(),
+            widget: Some("preview".into()),
+            style: None,
+        };
+        let (segments, length) = measurement_segments(&text, &[replacement]);
+        assert_eq!(length, 16_384);
+        assert_eq!(segments.len(), 1);
+        assert_eq!(
+            segments[0],
+            Segment {
+                start: 0,
+                end: 1,
+                utf16_start: 0,
+                utf16_end: 1
+            }
+        );
+    }
+    #[test]
+    fn compact_preview_segments_preserve_canonical_unicode_coordinates() {
+        let text = "a👩🏽‍💻é中z";
+        let replacement = crate::native_presentation::Replacement {
+            start: 5,
+            end: 8,
+            widget: Some("preview".into()),
+            style: None,
+        };
+        let (all, length) = measurement_segments(text, &[]);
+        let (compact, compact_length) = measurement_segments(text, &[replacement]);
+        assert_eq!(compact_length, length);
+        assert_eq!(length, 9);
+        assert_eq!(
+            compact,
+            vec![
+                all[0].clone(),
+                all[1].clone(),
+                all[2].clone(),
+                all[4].clone()
+            ]
+        );
+        assert_eq!(
+            compact.last().unwrap().utf16_end,
+            text.encode_utf16().count()
+        );
+        let partial = crate::native_presentation::Replacement {
+            start: 1,
+            end: 2,
+            widget: None,
+            style: None,
+        };
+        assert_eq!(
+            measurement_segments("éx", &[partial]).0,
+            measurement_segments("éx", &[]).0
+        );
+    }
     #[test]
     fn proportional_hits_use_measured_grapheme_boundaries_and_wrapped_affinity() {
         let geometry = Geometry {

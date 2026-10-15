@@ -52,6 +52,7 @@ pub(crate) use native_layout::LayoutFixture;
 mod native_browser_geometry;
 #[cfg(feature = "markdown-preview")]
 mod native_doc_comments;
+mod native_highlight;
 mod native_lean_folding;
 mod native_lsp_tools;
 #[cfg(feature = "markdown-preview")]

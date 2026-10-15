@@ -7009,6 +7009,7 @@ dependencies = [
  "arborium-markdown",
  "arborium-python",
  "arborium-rust",
+ "arborium-theme",
  "arborium-tree-sitter",
  "base64 0.22.1",
  "cc",

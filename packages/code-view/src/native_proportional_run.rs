@@ -187,6 +187,18 @@ pub(crate) fn ProportionalRun(
             measure.call(());
         })
     };
+    let resized = use_callback(move |notice: native_browser_geometry::ResizeNotice| {
+        let unchanged = measured
+            .peek()
+            .as_ref()
+            .is_some_and(|(_, _, _, _, _, layout)| {
+                (layout.width - notice.width).abs() < 1e-6
+                    && (layout.height - notice.height).abs() < 1e-6
+            });
+        if !unchanged {
+            media_changed.call(());
+        }
+    });
     let geometry = measured
         .read()
         .as_ref()
@@ -310,6 +322,7 @@ pub(crate) fn ProportionalRun(
         .collect();
     let move_marks = marks.clone();
     let hover_replacements = replacements.clone();
+    let resize_id = id.clone();
     rsx! {
         div {
             class: "mk-proportional-run", "data-ready": ready.to_string(), "data-measurement-status": "{measurement_status}", "data-source-start": stamp.start.to_string(), "data-font-epoch": stamp.font_epoch.to_string(), "data-font-loading": font_loading.to_string(),
@@ -317,9 +330,10 @@ pub(crate) fn ProportionalRun(
             div {
                 id, class: "mk-proportional-text",
                 style: if stamp.presentation.provider==3 {format!("font:14px/22px var(--mk-code-font, monospace); white-space:{}; overflow-wrap:{}; tab-size:4; min-height:22px; direction:ltr; user-select:none;",if stamp.model.peek().preferences.wrap {"pre-wrap"}else{"pre"},if stamp.model.peek().preferences.wrap {"anywhere"}else{"normal"})} else {"font:24px/32px serif; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:4; min-height:32px; direction:ltr; user-select:none;".to_string()},
-                onmounted: move |_| measure.call(()), onresize: move |event| {
-                    let unchanged=event.data().get_border_box_size().ok().is_some_and(|size| measured.peek().as_ref().is_some_and(|(_,_,_,_,_,layout)| (layout.width-size.width).abs()<0.000001 && (layout.height-size.height).abs()<0.000001));
-                    if !unchanged { measured.set(None); oninvalidated.call(stamp); measure.call(()); }
+                onmounted: move |_| {
+                    measure.call(());
+                    let id = resize_id.clone();
+                    spawn(async move { native_browser_geometry::watch_resize(&id,resized).await; });
                 },
                 onmousedown: move |event| {
                     if let Some(hover)=wiki_hover {hover.dismiss();}
