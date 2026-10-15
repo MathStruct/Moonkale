@@ -188,6 +188,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-198 Rust editor accessibility and backend activation]] | Empty input context and Tab trapping; backend selection needed a second extension switch. Bounded canonical live context, keyboard focus mode/link/hover paths, actual browser/AT-SPI checks and one-setting activation are implemented. Default stays CodeMirror pending desktop/Android acceptance. | resolved | WP-03 M5 |
 
+| [[P-199 Ladybug prebuilt metadata writes a read-only registry]] | The archive downloads into Cargo OUT_DIR, but its downloader then writes registry-local env metadata, returns failure and falls back to source/CMake. A normal retry reuses the complete archive and retains symbol localization; upstream metadata destination remains open. | open | WP-03 M5 build evidence |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

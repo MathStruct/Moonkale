@@ -6,9 +6,11 @@ No network/cargo cache coldness or default-cutover size saving is implied.
 """
 import argparse
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import time
 
@@ -19,6 +21,29 @@ parser.add_argument('--prebuilt-theme-assets', action='store_true', help='read-o
 parser.add_argument('--desktop', action='store_true', help='also build the actual desktop app in this worktree existing, partially cached target')
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[4]
+
+
+def web_wasm_path():
+    """Follow the shipped entry point, ignoring stale fingerprinted assets."""
+    public = repo / 'target/dx/web/release/web/public'
+    modules = re.findall(r'<script\b[^>]*\bsrc="([^"]+)"', (public / 'index.html').read_text())
+    paths = set()
+    for module in modules:
+        bootstrap = (public / module.lstrip('/')).resolve()
+        if not bootstrap.is_relative_to(public.resolve()):
+            raise ValueError('web bootstrap escapes public directory')
+        for asset in re.findall(r'module_or_path\s*:\s*["\']([^"\']+\.wasm)["\']', bootstrap.read_text()):
+            path = (public / asset.lstrip('/') if asset.startswith('/') else bootstrap.parent / asset).resolve()
+            if not path.is_relative_to(public.resolve()) or not path.is_file():
+                raise ValueError('invalid shipped web wasm path')
+            paths.add(path)
+    if len(paths) != 1:
+        raise ValueError(f'expected one shipped main wasm, found {len(paths)}')
+    return paths.pop()
+
+
+# Fail before spending time on builds if the release web bundle is unavailable.
+web_wasm = web_wasm_path()
 target, report = args.target.resolve(), args.report.resolve()
 if not target.is_relative_to(repo / 'target') or target.exists():
     parser.error('target must be a new directory under this worktree/target')
@@ -54,6 +79,17 @@ for phase in ['fresh_target', 'no_change', 'application_rebuild']:
     report.write_text(json.dumps(result, indent=2))
     if process.returncode:
         raise SystemExit(process.returncode)
+for name, path in {
+    'native_fixture': target / 'release/moonkale-native-editor-host',
+    'web_server_with_both_backends': repo / 'target/dx/web/release/web/server',
+    'web_wasm_with_both_backends': web_wasm,
+    'codemirror_bundle': repo / 'packages/code-view/assets/codemirror.js',
+}.items():
+    data = path.read_bytes()
+    result['artifacts'][name] = {'path': str(path.relative_to(repo)), 'sha256': hashlib.sha256(data).hexdigest(),
+                                 'bytes': len(data), 'gzip_bytes': len(gzip.compress(data, mtime=0))}
+report.write_text(json.dumps(result, indent=2))
+
 if args.desktop:
     desktop_env = dict(env, CARGO_TARGET_DIR=str(repo / 'target'))
     # Other native dependencies use DOCS_RS to skip actual library linking.
@@ -93,16 +129,12 @@ if args.desktop:
     report.write_text(json.dumps(result, indent=2))
     if process.returncode:
         raise SystemExit(process.returncode)
-for name, path in {
-    'native_fixture': target / 'release/moonkale-native-editor-host',
-    'web_server_with_both_backends': repo / 'target/dx/web/release/web/server',
-    'web_wasm_with_both_backends': repo / 'target/dx/web/release/web/public/wasm/web_bg.wasm',
-    'codemirror_bundle': repo / 'packages/code-view/assets/codemirror.js',
-}.items():
-    data = path.read_bytes()
-    result['artifacts'][name] = {'bytes': len(data), 'gzip_bytes': len(gzip.compress(data, mtime=0))}
+
 if args.desktop:
-    data = (repo / 'target/release/moonkale').read_bytes()
-    result['artifacts']['desktop_app_with_both_backends'] = {'bytes': len(data), 'gzip_bytes': len(gzip.compress(data, mtime=0))}
+    path = repo / 'target/release/moonkale'
+    data = path.read_bytes()
+    result['artifacts']['desktop_app_with_both_backends'] = {
+        'path': str(path.relative_to(repo)), 'sha256': hashlib.sha256(data).hexdigest(),
+        'bytes': len(data), 'gzip_bytes': len(gzip.compress(data, mtime=0))}
 report.write_text(json.dumps(result, indent=2))
 print(f'EDITOR BUILD COST: PASS — {report}')

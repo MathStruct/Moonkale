@@ -494,7 +494,10 @@ A missing generated CSS asset is still an error; no source permissions change.
 
 This reserves both heavy slots without sharing another worktree's target. It
 records fresh-target, no-change and application-only rebuild times/compiler RSS
-under the same release profile, then raw/gzip artifact sizes. `--desktop` also builds
+under the same release profile, then raw/gzip artifact sizes. The main web wasm
+is resolved from the shipped HTML/bootstrap rather than a fixed path or the newest
+file in an accumulated assets directory; paths and SHA-256 hashes identify the
+measured artifacts. Build the release web bundle first. `--desktop` also builds
 the actual desktop app against this worktree's existing dependency target. It does not claim
 cold compiler/filesystem caches, application RSS or size savings from changing a
 default while both backends still ship. See the vault's Rust Code Editor
