@@ -211,6 +211,31 @@ firefox --headless --profile /tmp/ff --window-size=1400,900 --screenshot /tmp/sh
 ```
 Assert on the DOM (dump `document.body.innerHTML` via a tiny Playwright script) or compare screenshots against a baseline with a tolerance. Start with 2–3 flows: app boots, a panel can be docked, a file opens. Add a WebKitGTK desktop E2E only when the graph surface work starts ([[ADR-0011 Desktop graph surface strategy]]).
 
+### The desktop app on a private display
+
+`tools/headless.sh` (2026-10-15) gives each worktree its own **headless Wayland display**: a sway with no screen. The desktop app runs there and is clicked, typed into and screenshotted, and nothing appears on the user's screen. Several agents can run one each at once.
+
+```sh
+tools/headless.sh start                       # sway + input; prints WAYLAND_DISPLAY
+tools/headless.sh run MOONKALE_CONFIG_DIR=$PWD/target/headless/cfg \
+    target/dx/moonkale/release/linux/app/moonkale
+tools/headless.sh click 200 128               # left; or: click X Y right|middle
+tools/headless.sh type "/path/to/folder"      # printable ASCII, US keymap
+tools/headless.sh key Return ctrl+a ctrl+shift+p
+tools/headless.sh shot target/headless/shot.png
+tools/headless.sh stop                        # the apps it started, the input helper, sway
+```
+
+- **Tools:** `sway`, `grim`, `xkbcli` (libxkbcommon) and Python 3, all in `nix develop`.
+- **Input** comes from `tools/headless-input.py`, which keeps one virtual pointer and one keyboard attached. It replaced `wlrctl` and `wtype`: each of their calls adds a device and removes it right away, and the app lost clicks and dropped letters at random.
+- **Rendering:**
+  - Apps get Mesa's software GL by default. With the NVIDIA driver, WebKit's web process crashes in `libnvidia-eglcore` on a headless sway once a pointer or a screen capture is involved, which is also why wayvnc was dropped.
+  - `HEADLESS_GPU=1` opts out of software GL.
+  - The graph canvas under software GL is not verified yet.
+- **Typing speed** is about human speed (`HEADLESS_KEY_GAP`, 30 ms between key events). Faster typing loses keys in the app's controlled inputs.
+- **State:** PIDs, logs and the input socket are in `target/headless/` (or `$HEADLESS_DIR`). Logs: `moonkale.log`, `sway.log`.
+- **Still for Daniel:** real keyboard, IME and pointer behaviour on his own KDE session.
+
 ## 8. How I'd go about it, day to day
 
 1. **Write the fake first.** Before the first real `Source`, write `FakeSource` (in-memory nodes/edges, records calls). Every editor and the shell test against it; real sources get integration tests that prove they behave like the fake.

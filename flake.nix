@@ -107,9 +107,9 @@
             pkg-config nodejs_22
           ] ++ runtimeLibs
           # Headless desktop tests: each agent runs its own sway
-          # (WLR_BACKENDS=headless), drives it with wtype/wlrctl and
+          # (WLR_BACKENDS=headless), drives it with tools/headless.sh and
           # screenshots it with grim, so nothing touches the user's display.
-          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [ sway wtype wlrctl grim ]);
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (with pkgs; [ sway grim libxkbcommon python3 ]);
           # WebKitGTK on NVIDIA/Wayland: see markdown/platform/Linux Desktop Setup.md
           # WEBKIT_DISABLE_DMABUF_RENDERER = "1";
         };
