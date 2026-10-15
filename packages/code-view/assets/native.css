@@ -1,5 +1,5 @@
 .mk-crust { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.mk-native-surface { flex: 1 1 auto; display: flex; min-height: 0; flex-direction: column; position: relative; font: 14px/22px var(--mk-code-font, monospace); }
+.mk-native-surface { flex: 1 1 auto; display: flex; min-height: 0; flex-direction: column; position: relative; font: 14px/22px var(--mk-code-font, monospace); border:2px solid transparent; }
 .mk-native-surface .mk-editor-core-viewport { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--mk-code-bg); color: var(--mk-code-ink); font: 14px/22px var(--mk-code-font, monospace); white-space: pre; user-select: none; outline: none; }
 .mk-native-surface .mk-editor-core-gutter { color: var(--mk-muted); }
 .mk-native-surface .mk-editor-core-selected { background: var(--mk-code-selection); }
@@ -128,8 +128,9 @@
 
 /* Stable assistive context; no full-document mirror or layout contribution. */
 .mk-native-a11y-only { position:absolute; width:1px; height:1px; padding:0; margin:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-.mk-native-surface:focus-within { outline:2px solid var(--mk-code-ink); outline-offset:-2px; }
-.mk-crust :is(button, input, select, textarea, [tabindex]):focus-visible { outline:2px solid var(--mk-ink, currentColor); outline-offset:-2px; }
+/* Reserve the ring's space: an ancestor outline makes virtual subtree replacement expensive. */
+.mk-native-surface:focus-within { border-color:var(--mk-code-ink); }
+.mk-crust :is(button, input, select, textarea, [tabindex]):not(.mk-native-surface):focus-visible { outline:2px solid var(--mk-ink, currentColor); outline-offset:-2px; }
 @media (prefers-reduced-motion: reduce) {
   .mk-crust *, .mk-crust *::before, .mk-crust *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
 }

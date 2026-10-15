@@ -48,6 +48,20 @@ migration data to the user's settings. A single release-default constant remains
 `codemirror`. Restore the active UTF-16 selection when mounting the Rust view;
 keep canonical document identity, dirty buffers and explicit fallback choices.
 
+## NEXT-5 performance follow-up
+
+The new unconditional surface focus outline caused a reproducible release-web
+preview-scrollbar regression (20/21 strict, failing p95 33.335 ms). Chromium
+profiling identifies synchronous DOM replacement, and a same-build rule
+removal/restoration isolates this decoration. Selector-only, focus-visible and overlay changes did
+not pass the first-drag gate. Reserve a transparent 2 px surface border and change
+its color on focus-within; exclude the surface from generic control outlines.
+Focus keeps the same visible boundary without changing layout. Each measured
+drag must reset input focus/caret/viewport; repetitions without that reset hid the
+initial failure in an earlier diagnostic. Keep the control focus
+rules, canonical live context and selection restoration. Exact reports and final
+gates are in [[Rust Code Editor Accessibility and Cutover]].
+
 ## Lesson
 
 A hidden input is an input transport, not an accessible document model. Test the

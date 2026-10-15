@@ -4,6 +4,24 @@ description: Workspace integration of editor-core and the opt-in virtualized Rus
 tags: [editors, code, rust, implementation]
 ---
 
+## Focus outline and virtualized subtree replacement (2026-10-15)
+
+NEXT-4's unconditional ancestor focus outline (`:focus-within`) regressed release-web documentation-preview
+scrollbar dragging to 33.335 ms p95. The Chromium CPU profile attributes about
+955 ms to `replaceWith` over the gesture, versus 83 ms layout and 51 ms style
+updates. Removing/restoring the rule on the same running build removes/restores
+the steady failure; removing only the separate control focus rule does not.
+Changing only the selector or using focus-visible/overlay rings did not pass the
+first-drag gate. The final CSS reserves a transparent 2 px surface border and
+changes its color on focus-within; the generic control outline excludes the
+surface itself. This retains a visible ring for source and descendant focus
+without an outline on the virtual rows' ancestor. Focus does not move layout;
+the viewport's mounted rectangle accounts for the 4 px reserved in each dimension.
+Canonical accessibility context, selection restoration, keyboard exits and visible
+focus remain. The keyboard suite checks the surface ring on entry, exit, return
+and descendant hover focus. See [[Rust Code Editor Accessibility and Cutover]]
+for retained diagnostic reports and the final release matrix.
+
 ## Profile-led geometry transport (2026-10-15)
 
 A WebKit Inspector wheel trace recorded 1070 synchronous resize events for 69 scroll events. Proportional runs now share a geometry-only resize observer, skip redundant initial entries and report actual dimension changes asynchronously. Removal/replacement closes subscriptions; the last removal disconnects both observers. Rust still owns source, selection, presentation and stale-geometry validation. The browser font/remount suite verifies exactly one watcher per live run and cleanup after unmount.

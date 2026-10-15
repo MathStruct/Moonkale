@@ -7,6 +7,15 @@ const panel = page.locator('.primary [data-editor=rust]');
 const sink = panel.locator('.mk-editor-core-input-sink');
 const status = panel.locator('[role=status]');
 const canonical = () => page.locator('.canonical').textContent();
+const expectSourceFocus = async focused => {
+  await page.waitForFunction(focused => {
+    const surface = document.querySelector('.primary .mk-native-surface');
+    const style = getComputedStyle(surface);
+    const visible = parseFloat(style.borderTopWidth) >= 2 && style.borderTopStyle !== 'none'
+      && style.borderTopColor !== 'rgba(0, 0, 0, 0)';
+    return surface.contains(document.activeElement) === focused && visible === focused;
+  }, focused);
+};
 const tabTo = async (locator, backwards = false) => {
   for (let n = 0; n < 250; n++) {
     if (await locator.evaluate(el => el === document.activeElement)) return;
@@ -20,6 +29,7 @@ try {
   await sink.waitFor();
   const original = await canonical();
   await tabTo(sink);
+  await expectSourceFocus(true);
   await page.waitForFunction(() => document.querySelector('.primary [role=status]')?.textContent.includes('Line 1, column 1'));
   const snapshot = await panel.ariaSnapshot();
   if (!snapshot.includes('textbox "Code editor') || !snapshot.includes('main.rs')) throw Error(`missing named input: ${snapshot}`);
@@ -37,8 +47,10 @@ try {
   await page.waitForFunction(() => document.querySelector('.primary [role=status]').textContent.includes('Tab moves focus'));
   await page.keyboard.press('Tab');
   if (await sink.evaluate(el => el === document.activeElement)) throw Error('keyboard trapped in source');
+  await expectSourceFocus(false);
   await page.keyboard.press('Shift+Tab');
   if (!await sink.evaluate(el => el === document.activeElement)) throw Error('Shift+Tab did not return to source');
+  await expectSourceFocus(true);
   await page.keyboard.press('Control+m');
   await page.keyboard.press('Control+Home');
   await page.keyboard.press('Tab');
@@ -57,6 +69,7 @@ try {
   await page.keyboard.press('Enter');
   await panel.getByRole('tooltip').waitFor();
   await tabTo(panel.getByRole('tooltip'));
+  await expectSourceFocus(true);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.activeElement?.classList.contains('mk-editor-core-input-sink'));
   await page.keyboard.press('Control+m');
@@ -67,9 +80,9 @@ try {
   await page.waitForFunction(() => document.activeElement?.classList.contains('mk-editor-core-input-sink'));
   const focus = await panel.locator('.mk-native-surface').evaluate(el => {
     const style = getComputedStyle(el);
-    return { width: style.outlineWidth, style: style.outlineStyle };
+    return { width: style.borderTopWidth, style: style.borderTopStyle, color: style.borderTopColor };
   });
-  if (parseFloat(focus.width) < 2 || focus.style === 'none') throw Error('source focus is not visible');
+  if (parseFloat(focus.width) < 2 || focus.style === 'none' || focus.color === 'rgba(0, 0, 0, 0)') throw Error('source focus is not visible');
   if (await canonical() !== original) throw Error('keyboard navigation changed source');
   // Actual platform accessibility tree, including descriptions (not just DOM attributes).
   const cdp = await page.context().newCDPSession(page);

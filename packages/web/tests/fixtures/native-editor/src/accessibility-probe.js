@@ -18,7 +18,10 @@ try {
   await key('End', 'End');
   await key('ArrowLeft', 'ArrowLeft', {shiftKey:true});
   await wait(() => root().querySelector('[role=status]').textContent.includes('Selection from line 2'));
-  await dioxus.send({passed:true, context:root().querySelector('[role=status]').textContent});
+  const style = getComputedStyle(root().querySelector('.mk-native-surface'));
+  const focus = {width:style.borderTopWidth, style:style.borderTopStyle, color:style.borderTopColor};
+  if (parseFloat(focus.width) < 2 || focus.style === 'none' || focus.color === 'rgba(0, 0, 0, 0)') throw Error('native source focus is not visible');
+  await dioxus.send({passed:true, context:root().querySelector('[role=status]').textContent, focus});
 } catch (error) {
   await dioxus.send({passed:false, error:String(error)});
 }

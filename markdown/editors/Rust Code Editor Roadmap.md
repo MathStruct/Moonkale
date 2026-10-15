@@ -296,6 +296,16 @@ The latest NEXT-4 strict release-web matrix is 20/21: preview-on scrollbar
 dragging measured p95/max33.335ms. Keep this failure distinct from the earlier
 21/21 WP-02 run. No new physical-desktop acceptance is claimed.
 
+NEXT-5 reproduces that failure, isolates the ancestor focus outline with a
+Chromium profile and same-build CSS comparison, and replaces it with a reserved
+transparent border whose color changes on focus. The rebuilt strict release-web
+matrix passes **21/21**: every p95 <=16.670 ms; largest frame 33.335 ms; preview
+scrollbar p95/max 16.670/33.335 ms. Raw
+`target/next5-fps-final/editor-fps.json`; Chromium153.0.8010.12, bench lock and both
+heavy slots held, bounded quiet-CPU preflight recorded. First-drag resets are
+preserved. Keyboard/native focus checks verify the border, and no accessibility
+context or selection restoration is removed. Desktop/Android gates stay open.
+
 Build/size measurements, complete test commands, remaining device/frame checks
 and the staged zero-consumer retirement audit live in the acceptance record.
 Daniel's physical-desktop CED-R22 matrix and Android acceptance remain required

@@ -29,3 +29,10 @@ keyboard focus escape/wiki follow and actual browser/AT-SPI semantic checks.
 See [[Rust Code Editor Accessibility and Cutover]] for limits, validation and the
 conditional fallback/retirement plan; physical desktop frames and Android remain
 gates before the default flip.
+
+NEXT-5 reserves a transparent 2 px surface border and changes its color on focus.
+The former ancestor outline caused expensive virtual subtree replacement during
+preview scrollbar dragging. The source keeps a visible focus boundary, including
+focused hover/tools, and individual controls keep their outlines. Input/help/status
+semantics and reduced motion are retained. Focus cannot change layout; geometry
+uses the viewport's mounted rectangle inside the reserved border.
