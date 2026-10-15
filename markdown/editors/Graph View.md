@@ -26,13 +26,13 @@ flowchart LR
 | Popup with node/edge content | pick buffer → `fetch(NodeId)` → popup (declarative `moonkale_shell::Tree` template from a `RendererContribution`, or custom Dioxus for static extensions) |
 | Arrow colours / directions | per-edge colour + arrowhead flags in the instance buffer; colour by kind, source, property, or extension style |
 | Subgraphs | `subgraph` module: expand/collapse neighbourhoods (issues `Query::Neighbours`), filters, isolate selection, saved views stored as nodes |
-| 3D | same buffers; perspective camera; z from layout or a property (time, layer); depth-sorted edges, fog |
+| 3D | same buffers; perspective camera; z from layout or a property (time, layer); depth-sorted edges, fog. Stereo and headsets (OpenXR, WebXR) are planned in [[3D Graphs on Monitors and in Headsets]] |
 
 ## Layouts
 - **GPU force-directed** (grid-binned or Barnes-Hut repulsion in compute shaders): the 100k-node path. Requires WebGPU (compute).
 - **CPU force-directed** (`fdg-sim` or own): WebGL2 fallback; degrades past ~10k.
 - **Hierarchical** (layered): call graphs, ASTs, ML models, stack traces.
-- **Radial / concentric**: local graph around a node.
+- **Radial / concentric**: local graph around a node. Local graphs per document, linked to their content and marked by a shared tab colour: [[Linked Panels]] (planned 2026-10-14).
 - Positions are persisted per saved view; re-opening doesn't reshuffle.
 
 ## The platform problem: where does the surface come from?

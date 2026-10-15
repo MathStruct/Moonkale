@@ -330,3 +330,6 @@ wb-splitter-hint = Ziehen ändert die Größe. Pfeiltasten ändern sie; mit Umsc
 cmd-editor-restart-language-server = Bearbeiten: Sprachserver neu starten
 ext-crashed = { $name } wurde mit einem Fehler beendet. Der Rest von Moonkale läuft weiter, und deine Arbeit ist gespeichert.
 ext-crash-reload = Panel neu laden
+panel-settings = Einstellungen für { $name }
+panel-settings-close = Einstellungen schließen
+panel-settings-all = Alle Einstellungen unter Erweiterungen …

@@ -23,3 +23,5 @@ flow-rotate = ⟳
 flow-rotate-title = Turn the block a quarter clockwise (R)
 flow-mirror = ⇋
 flow-mirror-title = Mirror the block left to right (M)
+flow-layout-title = Arrange the blocks left to right, by their wires
+flow-fit-title = Fit the whole flow into the view

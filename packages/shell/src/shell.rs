@@ -365,7 +365,26 @@ pub fn Shell() -> Element {
                 editor_panel = Some(c.id.clone());
             }
             let home = home_tile(is_narrow, c.home);
-            let content = guarded(ws, c.title.clone(), ext.render(&c.id, ws));
+            // The extension's settings, offered beside its panel (2026-10-14).
+            let settings = ext.settings(ws, moonkale_ext_api::SettingsTarget::User);
+            // The popover names the extension, not the document.
+            let ext_name = {
+                let m = ext.manifest();
+                let own =
+                    moonkale_ext_api::i18n::tr(ext.locales(), &ws.lang(), "extension-name", None);
+                if own == "extension-name" {
+                    m.name.to_string()
+                } else {
+                    own
+                }
+            };
+            let content = guarded(
+                ws,
+                c.title.clone(),
+                ext.render(&c.id, ws),
+                settings,
+                ext_name,
+            );
             let mut panel = Panel::new(c.id.as_str(), c.title.as_str(), home, content)
                 .with_closable(c.closable)
                 .with_home_zone(home_zone(&current_layout, home));
@@ -903,8 +922,81 @@ fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
 /// (Dioxus turns them into errors); the web client is built with
 /// `panic = "abort"`, where only a page reload recovers. The session's
 /// state is in the store (ADR-0025, ADR-0026), so a reload loses no work.
-pub fn guarded(ws: Workspace, title: String, content: Element) -> Element {
+pub fn guarded(
+    ws: Workspace,
+    title: String,
+    content: Element,
+    settings: Option<Element>,
+    extension: String,
+) -> Element {
     remember_panics();
+    rsx! { PanelFrame { ws, title, content, settings, extension } }
+}
+
+/// The frame around every extension panel: its error boundary, and its
+/// extension's settings as a popover next to it (2026-10-14). The panel's
+/// toolbar shows the gear (`moonkale_ext_api::icons::PanelSettingsButton`)
+/// through the context provided here; the popover holds the same settings
+/// the Extensions panel shows under the extension's row, for the user
+/// scope.
+#[component]
+fn PanelFrame(
+    ws: Workspace,
+    title: String,
+    content: Element,
+    settings: Option<Element>,
+    extension: String,
+) -> Element {
+    let mut open = use_signal(|| false);
+    let available = settings.is_some();
+    let label = t!(ws, L, "panel-settings", name = extension.clone());
+    use_context_provider(|| moonkale_ext_api::icons::PanelSettings {
+        available,
+        open,
+        label,
+    });
+    let boundary = boundary(ws, title.clone(), content);
+    rsx! {
+        div { class: "mk-panel-frame",
+            {boundary}
+            if open() {
+                if let Some(section) = settings {
+                    div {
+                        class: "mk-panel-settings",
+                        role: "dialog",
+                        aria_label: t!(ws, L, "panel-settings", name = extension.clone()),
+                        // Dialogs take the focus (ADR-0027 §5), so Escape
+                        // closes it straight away.
+                        tabindex: "-1",
+                        onmounted: move |e| { spawn(async move { let _ = e.data().set_focus(true).await; }); },
+                        onkeydown: move |e| {
+                            if e.key() == Key::Escape {
+                                e.stop_propagation();
+                                open.set(false);
+                            }
+                        },
+                        div { class: "mk-panel-settings-head",
+                            span { {t!(ws, L, "panel-settings", name = extension.clone())} }
+                            moonkale_ext_api::icons::IconButton {
+                                icon: "close",
+                                label: t!(ws, L, "panel-settings-close"),
+                                onclick: move |_| open.set(false),
+                            }
+                        }
+                        div { class: "mk-panel-settings-body", {section} }
+                        button { class: "mk-btn mk-panel-settings-all", r#type: "button",
+                            onclick: move |_| { open.set(false); ws.dispatch(Command::ShowPanel("extensions")); },
+                            {t!(ws, L, "panel-settings-all")}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The error boundary of [`guarded`].
+fn boundary(ws: Workspace, title: String, content: Element) -> Element {
     rsx! {
         ErrorBoundary {
             handle_error: move |errors: ErrorContext| {

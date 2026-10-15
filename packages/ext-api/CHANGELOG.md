@@ -12,6 +12,13 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased
+
+Nothing breaking.
+
+**moonkale-ext-api**
+- `icons` (new module): `Icon` (moved from the shell, with toolbar icons added: save, reload, wrap, swap, layout, fit, zoom-in, zoom-out, actual-size, code, close), `IconButton` (a symbol, its description and shortcut as the tooltip, its label as hidden text), and `PanelSettings` with `PanelSettingsButton` (the gear that opens an extension's settings beside its panel; the shell provides the context).
+
 ## ext-api-2026-10-14-2
 
 The second tag of the day: turned blocks and captions (ADR-0024 §5–6).

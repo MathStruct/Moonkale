@@ -282,3 +282,9 @@ Declare `platforms = ["desktop", "web"]` if you depend on a capability that isn'
 - [ ] panels keep state outside the tree
 - [ ] `platforms` is honest
 - [ ] README with screenshots
+
+## Toolbars and settings (2026-10-14)
+
+- **Toolbar buttons are symbols:** use `moonkale_ext_api::icons::IconButton { icon, label, description, shortcut, … }`. The label is hidden text (screen readers and tests), the tooltip is the description plus the shortcut. One primary action per panel may keep its words ([[ADR-0027 Simple by default]]).
+- **Settings beside the panel:** put `moonkale_ext_api::icons::PanelSettingsButton {}` at the end of your toolbar. It shows a gear when your extension's `settings()` returns something, and the shell opens those settings next to your panel. Nothing else to wire.
+

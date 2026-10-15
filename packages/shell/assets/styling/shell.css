@@ -140,3 +140,14 @@
 /* An extension panel that failed (shell.rs `guarded`): a notice in its place. */
 .mk-ext-crash { padding: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; color: var(--wb-ink); }
 .mk-ext-crash-detail { max-width: 100%; overflow: auto; font-size: 11px; opacity: 0.7; white-space: pre-wrap; }
+/* Toolbar icon buttons (ext-api icons.rs, ADR-0027): the symbol shows, the
+   label is the tooltip and hidden text. */
+.mk-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 3px 5px; min-width: 26px; }
+.mk-icon-btn .mk-icon { width: 16px; height: 16px; }
+.mk-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* An extension's settings next to its panel (shell.rs `PanelFrame`). */
+.mk-panel-frame { position: relative; width: 100%; height: 100%; }
+.mk-panel-settings { position: absolute; top: 34px; right: 8px; z-index: 20; width: min(360px, calc(100% - 16px)); max-height: calc(100% - 48px); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--wb-line); border-radius: 8px; background: var(--wb-surface); color: var(--wb-ink); box-shadow: 0 6px 24px var(--mk-shadow, transparent); }
+.mk-panel-settings-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
+.mk-panel-settings-all { align-self: flex-start; }
+.mk-panel-settings:focus { outline: none; }

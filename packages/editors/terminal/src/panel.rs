@@ -233,6 +233,8 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         {t!(ws, L, "terminal-trace")}
                     }
                 }
+                span { class: "mk-term-spacer" }
+                moonkale_ext_api::icons::PanelSettingsButton {}
             }
             div { class: "mk-term-body",
                 if !available {

@@ -47,6 +47,7 @@ pub mod media;
 /// extensions may not use it (audit #4).
 pub const BUILTIN_ID_PREFIX: &str = "dev.moonkale.";
 pub mod i18n;
+pub mod icons;
 
 /// `ext-api`'s own strings (spec 030): the workspace's status messages.
 pub(crate) static L: i18n::Locales = &[

@@ -334,3 +334,6 @@ wb-splitter-hint = Drag to resize. Arrow keys resize; Shift moves farther; doubl
 cmd-editor-restart-language-server = Edit: Restart Language Server
 ext-crashed = { $name } stopped with an error. The rest of Moonkale is fine, and your work is saved.
 ext-crash-reload = Reload panel
+panel-settings = Settings for { $name }
+panel-settings-close = Close settings
+panel-settings-all = All settings in Extensions…
