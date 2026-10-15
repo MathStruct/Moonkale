@@ -87,7 +87,12 @@ EOF
       [0-9]|[12][0-9]|3[0-2]) gl+=(LP_NUM_THREADS="$HEADLESS_GL_THREADS") ;;
       *) echo "HEADLESS_GL_THREADS must be an integer in [0, 32]" >&2; exit 2 ;;
     esac
-    clean_env LANG="${LANG:-C.UTF-8}" "${gl[@]}" "$@" > "$dir/$name.log" 2>&1 &
+    # Private cache, data and config homes (kept across runs, so Mesa's shader
+    # cache and WebKit's storage are warm): test runs don't touch the user's,
+    # and a sandbox that can write only the worktree doesn't make them fail.
+    mkdir -p "$dir/home/cache" "$dir/home/data" "$dir/home/config"
+    clean_env LANG="${LANG:-C.UTF-8}" XDG_CACHE_HOME="$dir/home/cache" XDG_DATA_HOME="$dir/home/data" \
+      XDG_CONFIG_HOME="$dir/home/config" "${gl[@]}" "$@" > "$dir/$name.log" 2>&1 &
     echo $! >> "$dir/apps.pid"
     echo "pid $! · log $dir/$name.log"
     ;;
