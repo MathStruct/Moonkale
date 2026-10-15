@@ -53,7 +53,6 @@ packages/web/tests/e2e/serve.sh stop
 - **The graph engine's wasm is committed** (`packages/graph-assets/assets/graph_render*`). After changing `packages/graph-render`, rebuild it with `bash packages/graph-render/build.sh` and commit the output.
 - **The library crates are versioned by tag** (`ext-api-YYYY-MM-DD`, see `packages/ext-api/CHANGELOG.md`). A change that can break a caller gets a CHANGELOG entry, and the next tag carries it. `MathStruct/moonkale-julia` (Lux, ModelingToolkit and RxInfer flow libraries) depends on such a tag. Moonkale pulls it behind the `julia` feature, by its own tag. While developing both, use uncommitted `[patch]` sections.
 - **UI strings** live in each crate's `locales/{en,de,zh-CN}.ftl`. Daniel reads German and some Chinese.
-- **Native desktop runs on Wayland:** no synthetic input injection there. Desktop behaviour is tested through VirtualDom harness tests and the web build, and Daniel tests real input himself.
 - **Security rules for every change** are at the end of `markdown/architecture/Security.md`: the server decides, no secret values anywhere, content is data, bounded parsers, safe connections, audited dependencies, and the page kept current. Apply them in review.
 - **Keep docs in step:** the feature's page, `Status.md`, and `markdown/extensions/Extension Catalogue.md` whenever an extension is added, removed or moved.
 
