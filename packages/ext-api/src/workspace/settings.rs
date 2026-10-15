@@ -343,40 +343,86 @@ impl Workspace {
         };
         // With a state store the layout goes there and the folder file keeps
         // only what the folder shares; a layout change no longer touches it.
-        let file = if self.config.persistence.state.is_some() {
+        if self.config.persistence.state.is_some() {
             use crate::settings::LayoutRecord;
             let layout = LayoutRecord::of(&file);
             if layout != LayoutRecord::of(&before) {
                 let key = moonkale_state::Key::new().str(folder.as_str());
                 self.state_put(&key, &layout).await;
             }
-            let shared = LayoutRecord::strip(&file);
-            if shared == LayoutRecord::strip(&before) && !self.folder_file_has_layout(&folder).await
+            if LayoutRecord::strip(&file) == LayoutRecord::strip(&before)
+                && !self.folder_file_has_layout(&folder).await
             {
                 return;
             }
-            shared
-        } else {
-            file
-        };
-        let Some(src) = self.source(&folder) else {
+        }
+        self.write_folder_settings(folder).await;
+    }
+
+    /// Write the folder's settings file from the current state. Saves never
+    /// overlap: one that starts while another is writing only asks it to run
+    /// once more, and each run builds the text from the state at that moment,
+    /// so the file ends with the newest settings. Overlapping writes lost
+    /// changes and, through the folder source's `(mtime, len)` versions,
+    /// could replace only part of the file (the first start with a state store
+    /// saves twice in quick succession: "version conflict" on Android,
+    /// 2026-10-15).
+    async fn write_folder_settings(mut self, folder: SourceId) {
+        let mut gate = self.settings.folder_write;
+        if gate.peek().writing {
+            gate.write().again = true;
+            return;
+        }
+        gate.set(FolderWrite {
+            writing: true,
+            again: false,
+        });
+        // Reopen the gate even if this task is dropped mid-write.
+        struct Reopen(Signal<FolderWrite>);
+        impl Drop for Reopen {
+            fn drop(&mut self) {
+                self.0.set(FolderWrite::default());
+            }
+        }
+        let _reopen = Reopen(gate);
+        loop {
+            gate.write().again = false;
+            self.write_folder_settings_once(&folder).await;
+            if !gate.peek().again {
+                break;
+            }
+        }
+    }
+
+    async fn write_folder_settings_once(&mut self, folder: &SourceId) {
+        let Some(src) = self.source(folder) else {
             return;
         };
-        let text = file.to_json();
+        let latest = self.settings.workspace.peek().clone();
+        let text = if self.config.persistence.state.is_some() {
+            crate::settings::LayoutRecord::strip(&latest).to_json()
+        } else {
+            latest.to_json()
+        };
         let result = match self
-            .node_at_path(&folder, crate::settings::WORKSPACE_FILE)
+            .node_at_path(folder, crate::settings::WORKSPACE_FILE)
             .await
         {
             Some(node) => {
-                let chars = src
-                    .fetch_text(node.id)
-                    .await
-                    .map(|(t, _)| t.chars().count())
-                    .unwrap_or(0);
+                // Against the version just read, not the index's, which may
+                // not have seen the previous write yet. A file that already
+                // says the same is left alone.
+                let (on_disk, version) = match src.fetch_text(node.id).await {
+                    Ok(read) => read,
+                    Err(_) => (String::new(), node.version),
+                };
+                if on_disk == text {
+                    return;
+                }
                 src.apply(Transaction::write_text(
                     node.id,
-                    node.version,
-                    TextPatch::whole(&text, chars),
+                    version,
+                    TextPatch::whole(&text, on_disk.chars().count()),
                 ))
                 .await
             }
@@ -411,6 +457,14 @@ impl Workspace {
     }
 }
 
+/// Whether the folder's settings file is being written, and whether another
+/// save asked for one more write meanwhile.
+#[derive(Clone, Copy, Default, PartialEq)]
+pub(crate) struct FolderWrite {
+    writing: bool,
+    again: bool,
+}
+
 /// The settings files of both scopes and what they resolve to. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
 #[derive(Clone, Copy)]
 pub struct SettingsState {
@@ -427,6 +481,8 @@ pub struct SettingsState {
     /// build renders on the server first and hydration keeps that markup, so
     /// the first render must not depend on whose system it is.
     pub system_language: Signal<String>,
+    /// Serialises writes of the folder's settings file.
+    pub(crate) folder_write: Signal<FolderWrite>,
 }
 
 impl SettingsState {
@@ -444,6 +500,7 @@ impl SettingsState {
             workspace: Signal::new_in_scope(crate::settings::SettingsFile::new(), ScopeId::ROOT),
             folder: Signal::new_in_scope(None, ScopeId::ROOT),
             system_language: Signal::new_in_scope(crate::i18n::FALLBACK.to_string(), ScopeId::ROOT),
+            folder_write: Signal::new_in_scope(FolderWrite::default(), ScopeId::ROOT),
         }
     }
 }

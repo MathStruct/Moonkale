@@ -23,7 +23,7 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
    | Series | Next free | Reserved |
    |---|---|---|
    | ADR | ADR-0029 | ADR-0028 Claude (files or the graph, accepted: B), ADR-0023 codex (native editor frame measurements, merged), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted) |
-   | P- | P-200 | P-199 codex (Ladybug prebuilt metadata in a read-only registry, NEXT-5); P-198 codex (Rust editor accessibility/backend activation, committed 80d4cb96); P-186–P-194, P-196 (editor frames) and P-197 (documentation previews) are codex's, merged 2026-10-15; P-195 is whole-drive watching (Claude) |
+   | P- | P-202 | P-200 reserved for codex's WP-66 run; P-201 Claude (workspace-settings writes overlapped); P-199 codex (Ladybug prebuilt metadata in a read-only registry, NEXT-5); P-198 codex (Rust editor accessibility/backend activation, committed 80d4cb96); P-186–P-194, P-196 (editor frames) and P-197 (documentation previews) are codex's, merged 2026-10-15; P-195 is whole-drive watching (Claude) |
 
 4. **Done means mergeable:**
    - the gates (fmt, layering, colours, strings, tests, clippy, docs, wasm check);
