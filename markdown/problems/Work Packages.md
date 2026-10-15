@@ -103,7 +103,7 @@ Later in lane E, after a structure editor exists:
 | 23 | **Security issues** #15 (project-fs races, data loss), #18 (SSH), #20 (server batch) | `sources/project-fs`, `services/remote`, `server` | — | M (one per issue) | the issue's repro as a test, closed |
 | 24 | **Android**: specs [[028]] (vault export/import, SAF folders) and [[029]] (name and icon from configuration) | `mobile` | — | M | on the S10e (release APK) |
 | 25 | **Projects** (spec [[003]], R-40) and cross-source links (R-16) | shell, state store | — | L | per the spec |
-| 26 | **CI breadth and flakes**: more browser suites in CI, the `stores` tree-row flake, `live-preview-long`'s noisy bound | `.github`, `packages/web/tests/e2e` | — | S | named suites in CI, three green runs in a row |
+| 26 | **CI breadth and flakes**: more browser suites in CI, the `stores` tree-row flake, `live-preview-long`'s noisy bound. The "web-build stall" (2026-10-15, third time) was a cold-cache C++ rebuild hitting `serve.sh`'s 20-minute deadline; CI now allows 60 minutes and relies on `SERVE_STALL` for real stalls | `.github`, `packages/web/tests/e2e` | — | S | named suites in CI, three green runs in a row |
 | 27 | **Status refresh**: [[Status]] still describes 2026-10-01 | docs | — | S | checked against the code |
 
 ### Lane G: publishing

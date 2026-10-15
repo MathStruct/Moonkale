@@ -145,6 +145,13 @@ jobs:
       - name: Fixture
         run: packages/web/tests/e2e/fixture.sh "$MOONKALE_E2E/m2root"
       - name: Start the web build (dx serve)
+        # A cold cache (after a Cargo.lock change) rebuilds the bundled C++
+        # stores (DuckDB, RocksDB, LadybugDB) and takes longer than serve.sh's
+        # 20-minute default; a real stall is still caught by SERVE_STALL (no
+        # change in the dx log or the target dir for 20 minutes).
+        env:
+          SERVE_WAIT: "3600"
+        timeout-minutes: 70
         run: packages/web/tests/e2e/serve.sh start
       - name: Suites
         run: packages/web/tests/e2e/run-all.sh $SUITES
