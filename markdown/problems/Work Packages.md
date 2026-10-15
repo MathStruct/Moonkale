@@ -22,8 +22,8 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
 
    | Series | Next free | Reserved |
    |---|---|---|
-   | ADR | ADR-0028 | ADR-0023 codex (open), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted) |
-   | P- | P-195 | master's log ends at P-185; codex's branch holds P-186–P-194 (unmerged). Others start at P-195 |
+   | ADR | ADR-0028 | ADR-0023 codex (native editor frame measurements, merged), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted) |
+   | P- | P-198 | P-186–P-194, P-196 (editor frames) and P-197 (documentation previews) are codex's, merged 2026-10-15; P-195 is whole-drive watching (Claude) |
 
 4. **Done means mergeable:**
    - the gates (fmt, layering, colours, strings, tests, clippy, docs, wasm check);
