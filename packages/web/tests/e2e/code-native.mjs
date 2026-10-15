@@ -37,6 +37,9 @@ try {
       return { plain, keyword: keyword && getComputedStyle(keyword).color };
     });
     if (!colours.keyword || colours.keyword === colours.plain) throw Error(`highlight classes draw no colour: ${JSON.stringify(colours)}`);
+    // Soft keyboards must not capitalise or correct code (the sink is empty after each key).
+    const hints = await input().evaluate((t) => ["autocapitalize", "autocorrect", "autocomplete", "spellcheck"].map((a) => t.getAttribute(a)));
+    if (hints.join() !== "off,off,off,false") throw Error(`input sink keyboard hints: ${hints}`);
     await input().focus(); await page.keyboard.press("Control+Home"); await page.keyboard.type("// native\n");
     await panel.locator(".mk-editor-dirty").waitFor(); await save(`// native\n${original}`);
   });

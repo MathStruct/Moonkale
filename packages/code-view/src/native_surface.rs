@@ -1752,6 +1752,13 @@ pub(crate) fn RustEditorSurface(
             for epoch in [input_epoch()] {
                 textarea {
                     class: "mk-editor-core-input-sink",
+                    // The sink is emptied after every keystroke, so a soft
+                    // keyboard always sees an empty field: without these it
+                    // capitalised every letter and auto-corrected words
+                    // (Gboard on Android, 2026-10-15).
+                    "autocapitalize": "off",
+                    "autocorrect": "off",
+                    "autocomplete": "off",
                     aria_autocomplete: "list",
                     aria_controls: if !completion_items.is_empty() { Some(completion_id.clone()) } else { None },
                     aria_activedescendant: if !completion_items.is_empty() { Some(format!("{completion_id}-{}", completion_selected())) } else { None },
