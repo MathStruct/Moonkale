@@ -11,6 +11,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+# A system SDK without an NDK (Arch's /opt/android-sdk) can't build this; fall
+# back to the user's SDK. Gradle refuses differing ANDROID_HOME and
+# ANDROID_SDK_ROOT, so both point at the one chosen.
+if ! ls -d "$ANDROID_HOME"/ndk/* >/dev/null 2>&1 && ls -d "$HOME/Android/Sdk"/ndk/* >/dev/null 2>&1; then
+  ANDROID_HOME="$HOME/Android/Sdk"
+fi
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
 NDK_DIR="$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)"
 export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$NDK_DIR}" NDK_HOME="${NDK_HOME:-$NDK_DIR}"
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk}"
