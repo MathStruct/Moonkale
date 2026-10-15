@@ -31,5 +31,10 @@ await page.waitForFunction(()=>document.querySelectorAll('.language img.mk-previ
  await page.click('#image-version');await page.waitForFunction(()=>[...document.querySelectorAll('.language img.mk-preview-image')].every(img=>img.complete&&img.naturalWidth===120)&&document.querySelectorAll('.language img.mk-preview-image').length===2);await ready();
  await input.focus();await page.keyboard.press('Control+a');await ready();assert.equal(await panel.locator('.mk-image-block').count(),0);
  const copy=await input.evaluate(el=>{const event=new ClipboardEvent('copy',{bubbles:true,cancelable:true,clipboardData:new DataTransfer()});el.dispatchEvent(event);return event.clipboardData.getData('text/plain');});assert.equal(copy,original.replaceAll('\r\n','\n'));
- assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);console.log('NATIVE MARKDOWN IMAGES E2E: PASS');
+ assert.equal(await canonical.textContent(),original);
+ await input.focus();await page.keyboard.press('Control+Home');
+ for(let i=0;i<Array.from(original.replaceAll('\r\n','\n').split('![**猫**]')[0]).length+1;i++) await page.keyboard.press('ArrowRight');
+ await page.keyboard.press('Control+Enter');
+ await page.waitForFunction(()=>document.querySelector('#active-key').textContent==='pics/Café.svg');
+ assert.deepEqual(errors,[]);console.log('NATIVE MARKDOWN IMAGES E2E: PASS');
 }finally{await browser.close();}

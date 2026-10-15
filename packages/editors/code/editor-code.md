@@ -64,3 +64,14 @@ E2E: `packages/web/tests/e2e/lsp.mjs` (deliberate type error → gutter marker; 
 
 ## Milestone 18 phase 4.1
 - The component — `panel.rs` (`CodeEditorPanel`, `toggle_wrap`), `backend/` (CodeMirror), `lsp.rs` (`LspManager`) and `assets/` (the CodeMirror bundle, `panel.css`) — moved to `packages/code-view` (`moonkale-code-view`); this crate keeps the extension (`extension.rs`) and re-exports the rest. Markdown's Source mode depends on `code-view`, not on this extension. The bundle now builds into `packages/code-view/assets/codemirror.js`.
+
+
+2026-10-15 (WP-03): `editor.implementation = "native"` activates the shipped Rust
+adapter unless explicitly disabled. The core Code editor also honors it in
+minimal distributions. `settings::DEFAULT_CODE_EDITOR` is still `codemirror`.
+Active canonical selections and unsaved documents survive switching; no settings
+or source rewrite is required. Rust has bounded live accessibility context,
+keyboard focus escape/wiki follow and actual browser/AT-SPI semantic checks.
+See [[Rust Code Editor Accessibility and Cutover]] for limits, validation and the
+conditional fallback/retirement plan; physical desktop frames and Android remain
+gates before the default flip.

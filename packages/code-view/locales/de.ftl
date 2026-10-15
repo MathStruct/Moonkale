@@ -116,3 +116,9 @@ editor-properties-invalid = YAML-Eigenschaften ohne Metadaten-Begrenzungszeilen 
 
 editor-doc-preview = Dokuvorschau
 editor-doc-preview-title = Dokumentation als Markdown darstellen; die Vorschau zeigt beim Bearbeiten ihren Quelltext.
+
+editor-a11y-help = Mit den Pfeiltasten den Quelltext lesen und den Cursor bewegen. { $primary }+M wechselt zwischen Fokuswechsel und Einrücken mit Tab. { $primary }+Enter öffnet den Link oder das Bild am Cursor. Escape schließt Werkzeuge.
+editor-a11y-position = Zeile { $line }, Spalte { $column }.
+editor-a11y-selection = Auswahl von Zeile { $line }, Spalte { $column } bis Zeile { $end_line }, Spalte { $end_column }.
+editor-a11y-tab-focus = Tab wechselt den Fokus.
+editor-a11y-tab-indent = Tab rückt ein.

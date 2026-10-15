@@ -30,11 +30,13 @@ impl Extension for NativeCodeExtension {
     }
 
     fn manifest(&self) -> Manifest {
-        Manifest::opt_in(
+        let mut manifest = Manifest::opt_in(
             "dev.moonkale.editor-code-native",
             "Code Editor (Rust)",
             "A code editor without JavaScript bundles: editor-core, tree-sitter highlighting in Rust for every core language (Lean, Nix and Typst included). Language-server diagnostics included.",
-        )
+        );
+        manifest.default_enabled = moonkale_ext_api::settings::DEFAULT_CODE_EDITOR == "native";
+        manifest
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {

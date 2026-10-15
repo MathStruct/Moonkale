@@ -220,9 +220,10 @@ impl Workspace {
         }
         let s = self.settings.resolved.read();
         let codemirror = s.extensions.is_enabled_id("dev.moonkale.editor-code", true);
-        let native = s
-            .extensions
-            .is_enabled_id("dev.moonkale.editor-code-native", false);
+        let native = s.extensions.is_enabled_id(
+            "dev.moonkale.editor-code-native",
+            crate::settings::DEFAULT_CODE_EDITOR == "native",
+        );
         match (codemirror, native) {
             (true, false) => "codemirror",
             (false, true) => "native",
@@ -255,9 +256,10 @@ impl Workspace {
         let which = choice.unwrap_or_else(|| {
             let s = self.settings.resolved.peek();
             let codemirror = s.extensions.is_enabled_id("dev.moonkale.editor-code", true);
-            let native = s
-                .extensions
-                .is_enabled_id("dev.moonkale.editor-code-native", false);
+            let native = s.extensions.is_enabled_id(
+                "dev.moonkale.editor-code-native",
+                crate::settings::DEFAULT_CODE_EDITOR == "native",
+            );
             match (codemirror, native) {
                 (true, false) => "codemirror",
                 (false, true) => "native",

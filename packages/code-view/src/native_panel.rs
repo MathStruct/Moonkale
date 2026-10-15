@@ -152,6 +152,20 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 indent_width: settings.editor.indent_width,
             })
         });
+        // An in-session backend change keeps the active canonical caret/range.
+        // CodeMirror's report is UTF-16, including CRLF and non-BMP characters.
+        if *ws.docs.active.peek() == Some(node) {
+            if let Some((anchor, head)) = *ws.docs.selection.peek() {
+                let revision = session.peek().snapshot().revision;
+                session.with_mut(|state| {
+                    state.set_selection(
+                        revision,
+                        moonkale_ext_api::editor::Utf16Selection { anchor, head },
+                    );
+                });
+                model.with_mut(|state| state.restore_selection(session.peek().snapshot()));
+            }
+        }
     });
     use_effect(move || {
         let settings = ws.settings.resolved.read();
@@ -788,7 +802,11 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 onfold: move |(line, collapsed)| fold.call((Some(line), collapsed)),
                 fold_label: t!(ws, L, "editor-fold"),
                 unfold_label: t!(ws, L, "editor-unfold"),
-                label: t!(ws, L, "editor-rust-label"),
+                label: format!("{} — {}", t!(ws, L, "editor-rust-label"), title),
+                accessibility_help: t!(ws, L, "editor-a11y-help", primary = moonkale_ext_api::keys::primary_name()),
+                accessibility_position: move |(line, column)| t!(ws, L, "editor-a11y-position", line = line, column = column),
+                accessibility_selection: move |(line, column, end_line, end_column)| t!(ws, L, "editor-a11y-selection", line = line, column = column, end_line = end_line, end_column = end_column),
+                accessibility_tab_mode: move |moves: bool| if moves { t!(ws, L, "editor-a11y-tab-focus") } else { t!(ws, L, "editor-a11y-tab-indent") },
                 theme_class: theme.classes(),
             }
         }

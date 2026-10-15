@@ -619,11 +619,19 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let version = d.version;
     drop(d);
 
+    let canonical_selection = if *ws.docs.active.read() == Some(node) {
+        *ws.docs.selection.read()
+    } else {
+        None
+    };
     rsx! {
         moonkale_ext_api::Stylesheet { href: PANEL_CSS }
         document::Script { src: backend::codemirror::BUNDLE, defer: true }
         div {
             class: "mk-editor",
+            "data-editor": "codemirror",
+            "data-selection-anchor": canonical_selection.map(|(anchor, _)| anchor.to_string()),
+            "data-selection-head": canonical_selection.map(|(_, head)| head.to_string()),
             // Ctrl+S / Cmd+S anywhere in the panel, including inside CodeMirror.
             onkeydown: move |e| {
                 let mods = e.modifiers();

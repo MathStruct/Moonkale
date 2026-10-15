@@ -11,6 +11,7 @@ try {
   const original = await page.locator(".canonical").textContent();
   await page.click("#layout-mixed");
   const viewport = page.locator(".primary .mk-editor-core-viewport");
+  const uniformHeight = original.split("\n").length * 22;
   await page.waitForFunction(() => document.querySelector('.primary [data-line="1"]')?.getBoundingClientRect().height === 66);
   assert.equal(await page.locator(".primary .mk-layout-fixture-block").evaluate(el => el.getBoundingClientRect().height), 110);
   await page.locator(".primary .mk-layout-fixture-block").evaluate(el => { el.style.height = "143px"; });
@@ -19,12 +20,16 @@ try {
     const b = document.querySelector('.primary [data-line="2"]')?.getBoundingClientRect();
     return a && b && b.y - a.y === 231;
   });
+  // Physical sibling positions change immediately; virtual height retention
+  // acknowledges the asynchronous measurement separately, before unmounting it.
+  await page.waitForFunction(height => document.querySelector('.primary .mk-editor-core-viewport').scrollHeight === height, uniformHeight + 44 + 143);
   await page.locator(".primary .mk-layout-fixture-block").evaluate(el => { el.style.height = "110px"; });
   await page.waitForFunction(() => {
     const a = document.querySelector('.primary [data-line="0"]')?.getBoundingClientRect();
     const b = document.querySelector('.primary [data-line="2"]')?.getBoundingClientRect();
     return a && b && b.y - a.y === 198;
   });
+  await page.waitForFunction(height => document.querySelector('.primary .mk-editor-core-viewport').scrollHeight === height, uniformHeight + 44 + 110);
   const row0 = await page.locator('.primary [data-line="0"]').boundingBox();
   const row2 = await page.locator('.primary [data-line="2"]').boundingBox();
   assert.equal(row2.y - row0.y, 198);

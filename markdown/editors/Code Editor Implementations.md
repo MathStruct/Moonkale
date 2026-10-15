@@ -3,6 +3,38 @@ title: "Code editor implementations — CodeMirror and the Rust one"
 description: Two code editors behind one document model — the CodeMirror bundle and a Rust/Dioxus editor built on dioxus-code-editor — how a document picks one, how to switch, what each can and cannot do, and whether the editor knows the word under the cursor.
 tags: [editors, code, architecture, design]
 ---
+
+## Current implementations — 2026-10-15
+
+CodeMirror is still the release default. The Rust view uses editor-core and a
+virtualized Dioxus surface over the same canonical Workspace documents; the old
+textarea-only implementation below is historical.
+
+| Area | CodeMirror | Rust |
+| --- | --- | --- |
+| Input/model | CodeMirror state/view behind the JS bridge; Workspace canonical text | Rust-owned engine/caret/selection, localized revisioned edits, Workspace history; textarea only transports input |
+| Highlighting | Bundled language grammars | tree-sitter through Arborium, all core languages |
+| LSP | shared Rust manager | shared manager; live browser/native WebKit acceptance |
+| Source context | wiki, presence, search, folds, wrap | wiki, presence, search/replace, folds, wrap; default-off Markdown/documentation previews |
+| Accessibility | existing framework surface; no new claim here | one named input, bounded canonical live context, keyboard focus mode/wiki follow, browser AX/native AT-SPI semantics checked |
+| Default | **current default/fallback** | opt-in; default prepared, not flipped |
+
+`editor.implementation = "native"` now activates the shipped adapter unless it
+is explicitly disabled. Per-document toolbar choices remain session overrides.
+The core Code extension also honors native selection in minimal distributions.
+Canonical text/dirty state and the active UTF-16 selection survive a backend
+change; CodeMirror's private pre-switch undo stack is not imported into Rust.
+Saved tabs restore under the selected backend when the folder reopens.
+
+See [[Rust Code Editor Accessibility and Cutover]] for exact migration behavior,
+accessibility limitations, build/size evidence, the one-constant release gate and
+the conditional CodeMirror retirement plan. Daniel's real-desktop frame matrix
+and Android acceptance still gate the default flip.
+
+## Historical Milestone 14 record
+
+The following describes the initial textarea adapter, not today's Rust surface.
+
 From [[Prompt22]] (2026-09-21): build an extension around [`dioxus-code-editor`](https://crates.io/crates/dioxus-code-editor) next to the CodeMirror one, make switching work like the terminals, and answer: *is the code editor aware of the word the cursor is on?* Design decided here, built in [[Milestone 14 - Rust Code Editor]]. Background: [[ADR-0008 Rust owns the document, JS is a view]], [[JS Interop Boundary]], [[JavaScript Inventory]], [[Case Selector]].
 
 ## What `dioxus-code-editor` is

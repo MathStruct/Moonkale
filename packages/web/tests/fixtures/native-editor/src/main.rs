@@ -425,6 +425,14 @@ fn DesktopApp() -> Element {
         div {
             class: "desktop-fixture",
             onmounted: move |_| {
+                if let Some(path) = std::env::var_os("MOONKALE_ACCESSIBILITY_PROBE") {
+                    spawn(async move {
+                        let mut eval = document::eval(include_str!("accessibility-probe.js"));
+                        let result: serde_json::Value = eval.recv().await.expect("native accessibility probe");
+                        std::fs::write(path, result.to_string()).expect("write accessibility probe");
+                        let _ = eval.send(serde_json::Value::Null);
+                    });
+                }
                 if let Some(path) = std::env::var_os("MOONKALE_LSP_REPORT") {
                     spawn(async move {
                         let mut eval = document::eval(include_str!("lsp-probe.js"));
@@ -934,6 +942,8 @@ fn App() -> Element {
         button { id:"tools-release", onclick:move |_| TOOLS_DELAYED.with(|pending| { for (sender,request) in pending.borrow_mut().drain(..) { respond_tools(&sender,&request,1); } }), "Release tools replies" }
         button { id:"review-actions", onclick:move |_| { let mut ws=ws; ws.dispatch(Command::Editor(EditorAction::CodeActions)); }, "Review actions" }
         button { id:"editor-backend", onclick:move |_| codemirror.toggle(), "Switch editor backend" }
+        button { id:"accessibility-light", onclick:move |_| { let mut ws=ws; ws.shell.theme_light.set(true); }, "Light theme" }
+        button { id:"accessibility-dark", onclick:move |_| { let mut ws=ws; ws.shell.theme_light.set(false); }, "Dark theme" }
         button { id:"lsp-crash", onclick:move |_| LSP_SEND.with(|sender| { if let Some(sender) = sender.borrow().as_ref() { sender.close_channel(); } }), "Restart language server" }
         button { id:"tools-diagnostics", onclick:move |_| LSP_SEND.with(|sender| { if let Some(sender)=sender.borrow().as_ref() { sender.unbounded_send(serde_json::json!({"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///tmp/native-fixture/%6dain.rs","diagnostics":[{"range":{"start":{"line":0,"character":2},"end":{"line":0,"character":5}},"severity":1,"message":"Fix old","code":"E42","source":"fake","data":{"token":99},"customField":"preserved"}]}}).to_string()).unwrap(); } }), "Tool diagnostics" }
         for (mode, name) in [(1u8,"normal"),(2,"slow"),(3,"empty"),(4,"error"),(5,"cross"),(6,"invalid"),(7,"overlap"),(8,"outside"),(9,"malformed"),(10,"stale-version"),(11,"versioned"),(12,"missing")] {
@@ -993,7 +1003,7 @@ fn App() -> Element {
         if let Some(id) = show_language() { div { class: "harness-editor language", RustCodeEditorPanel { ws, node: id, lsp } } }
         div { id: "active-source", hidden: true, "{ws.docs.active.read().and_then(|id| ws.document(id)).map(|doc| doc.peek().node.source.to_string()).unwrap_or_default()}" }
         button { id: "wiki-code", onclick: move |_| { let mut target = doc; target.write().text = "😀 [[Note é]]".into(); }, "Wiki in code" }
-        div { id: "active-key", hidden: true, "{ws.docs.active.read().and_then(|id| ws.document(id)).map(|doc| doc.peek().node.native_key.clone()).unwrap_or_default()}" }
+        div { id: "active-key", hidden: true, "{ws.docs.active.read().and_then(|id| ws.open_node_by_id(id)).map(|node| node.native_key).unwrap_or_default()}" }
         button { id: "wiki", onclick: move |_| {
             let mut ws = ws;
             let id = NodeId::derive(&doc.peek().node.source, "nested.md");

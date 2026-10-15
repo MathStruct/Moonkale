@@ -63,8 +63,14 @@ pub(crate) fn RustEditorSurface(
     fold_label: String,
     unfold_label: String,
     label: String,
+    accessibility_help: String,
+    accessibility_position: Callback<(usize, usize), String>,
+    accessibility_selection: Callback<(usize, usize, usize, usize), String>,
+    accessibility_tab_mode: Callback<bool, String>,
     theme_class: String,
 ) -> Element {
+    let mut accessibility_focused = use_signal(|| false);
+    let mut tab_moves_focus = use_signal(|| false);
     let completion_id = use_hook(|| {
         format!(
             "mk-native-completions-{}",
@@ -896,6 +902,24 @@ pub(crate) fn RustEditorSurface(
     let preedit = composition_preview();
     let sink_label = label.clone();
 
+    let help_id = format!("{completion_id}-help");
+    let status_id = format!("{completion_id}-status");
+    let description_ids = format!("{help_id} {status_id}");
+    let accessibility_status = if accessibility_focused() {
+        let context = model.with(crate::native_accessibility::context);
+        let position = accessibility_position.call((context.line, context.column));
+        let selection = context
+            .selection
+            .map(|range| accessibility_selection.call(range))
+            .unwrap_or_default();
+        format!(
+            "{position} {selection} {} {}",
+            accessibility_tab_mode.call(tab_moves_focus()),
+            context.excerpt
+        )
+    } else {
+        String::new()
+    };
     rsx! {
         div {
             class: "mk-native-surface {theme_class}",
@@ -910,7 +934,11 @@ pub(crate) fn RustEditorSurface(
             "data-doc-preview": model.read().preferences.doc_comment_preview.to_string(),
             "data-first-row": "{first_row}",
             "data-hover-position": "{hovered_position_text}",
-            tabindex: 0,
+            tabindex: -1,
+            role: "group",
+            aria_label: label.clone(),
+            onfocusin: move |_| accessibility_focused.set(true),
+            onfocusout: move |_| accessibility_focused.set(false),
             onmouseleave: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave();}},
             onmousedown: move |_| {
                 if let Some(hover)=wiki_hover {hover.dismiss();}
@@ -964,6 +992,13 @@ pub(crate) fn RustEditorSurface(
                 let modifiers = event.modifiers();
                 let primary = moonkale_ext_api::keys::primary(&modifiers);
                 let shift = modifiers.contains(Modifiers::SHIFT);
+                if primary && !shift && !modifiers.contains(Modifiers::ALT) && matches!(&key, Key::Character(value) if value.eq_ignore_ascii_case("m")) {
+                    event.prevent_default(); event.stop_propagation();
+                    let next = !*tab_moves_focus.peek(); tab_moves_focus.set(next);
+                    oncompletion_close.call(());
+                    return;
+                }
+                if key == Key::Tab && tab_moves_focus() { return; }
                 if (primary && !shift && !modifiers.contains(Modifiers::ALT) && key == Key::Character(".".into())) || (key == Key::F12 && modifiers == Modifiers::SHIFT) {
                     event.prevent_default(); event.stop_propagation(); oncompletion_close.call(()); oncancel_definition.call(()); ondismiss_rename.call(());
                     if key == Key::F12 { onreferences.call(()); } else { onactions.call(()); }
@@ -989,6 +1024,22 @@ pub(crate) fn RustEditorSurface(
                         Key::Enter | Key::Tab => { event.prevent_default(); event.stop_propagation(); oncompletion_accept.call(completion_selected()); return; }
                         Key::Escape => { event.prevent_default(); event.stop_propagation(); oncompletion_close.call(()); return; }
                         _ => {}
+                    }
+                }
+                if primary && key == Key::Enter {
+                    let offset = model.peek().engine.get_cursor_state().offset;
+                    if let Some(mark) = wiki_marks.iter().find(|mark| mark.start <= offset && offset < mark.end) {
+                        event.prevent_default(); event.stop_propagation(); onwiki.call(mark.target.clone()); return;
+                    }
+                    #[cfg(feature = "markdown-preview")]
+                    {
+                    let values = presentation_index.peek().values.clone();
+                    if let Some(target) = crate::native_proportional_run::preview_target_at(&values, offset) {
+                        event.prevent_default(); event.stop_propagation(); onlink.call(target); return;
+                    }
+                    if let Some(image) = crate::native_proportional_run::preview_image_at(&values, offset) {
+                        event.prevent_default(); event.stop_propagation(); onimage.call(image); return;
+                    }
                     }
                 }
                 if primary {
@@ -1240,9 +1291,8 @@ pub(crate) fn RustEditorSurface(
             div {
                 class: "mk-editor-core-viewport",
                 id: viewport_id.clone(),
-                role: "textbox",
+                role: "region",
                 aria_label: label.clone(),
-                aria_multiline: "true",
 
                 onmounted: move |event: MountedEvent| {
                     *viewport_on_mount.borrow_mut() = Some(event.data.clone());
@@ -1677,20 +1727,25 @@ pub(crate) fn RustEditorSurface(
             {wiki_popup}
             if wiki_hover.is_none_or(|control|(control.popup)().is_none()) {
             if let Some(text) = hover_text {
-                div { class: "mk-native-hover mk-hover", role: "tooltip", aria_label: hover_label,
+                { let input_mounted = input_mounted.clone(); rsx! { div { class: "mk-native-hover mk-hover", role: "tooltip", aria_label: hover_label,
                     onmousedown: move |event| event.stop_propagation(),
                     oncopy: move |event| event.stop_propagation(),
                     oncut: move |event| event.stop_propagation(),
                     onpaste: move |event| event.stop_propagation(),
                     onkeydown: move |event| {
                         event.stop_propagation();
-                        if event.key() == Key::Escape { hover_target.set(None); }
+                        if event.key() == Key::Escape {
+                            event.prevent_default(); hover_target.set(None);
+                            if let Some(element) = input_mounted.borrow().as_ref().cloned() { spawn(async move { let _ = element.set_focus(true).await; }); }
+                        }
                     },
                     tabindex: 0,
                     "{text}"
-                }
+                } } }
             }
             }
+            p { id: help_id, class: "mk-native-a11y-only", "{accessibility_help}" }
+            div { id: status_id, class: "mk-native-a11y-only", role: "status", aria_live: "polite", aria_atomic: "true", "{accessibility_status}" }
             // A keyed list forces the input sink to remount after consumption.
             // A key on a static nested textarea does not replace its live value.
             for epoch in [input_epoch()] {
@@ -1700,10 +1755,12 @@ pub(crate) fn RustEditorSurface(
                     aria_controls: if !completion_items.is_empty() { Some(completion_id.clone()) } else { None },
                     aria_activedescendant: if !completion_items.is_empty() { Some(format!("{completion_id}-{}", completion_selected())) } else { None },
                     aria_label: sink_label.clone(),
-                    tabindex: -1,
+                    aria_describedby: description_ids.clone(),
+                    aria_multiline: "true",
+                    tabindex: 0,
                     key: "{epoch}",
                     value: "",
-                    style: "position: fixed; left: -10000px; top: 0; width: 1px; height: 1px; opacity: 0;",
+                    style: "position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none;",
                     onmounted: {
                         let mounted = mount_on_mount_input.clone();
                         move |event: MountedEvent| {

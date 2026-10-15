@@ -26,6 +26,14 @@ try {
  await page.click('#markdown-links');await panel.locator('.mk-native-preview').click();
  await panel.evaluate(el=>el.style.height='950px');await preview();
  const original=await canonical.textContent();const normalized=original.replaceAll('\r\n','\n');
+ // Canonical caret navigation can follow ordinary links while their source is revealed.
+ await input.focus();await page.keyboard.press('Control+Home');
+ for(let i=0;i<Array.from(normalized.slice(0,normalized.indexOf('[**Web'))).length+1;i++) await page.keyboard.press('ArrowRight');
+ assert.equal(Number(await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset')),Array.from(normalized.slice(0,normalized.indexOf('[**Web'))).length+1);
+ await page.keyboard.press('Control+Enter');
+ await page.waitForFunction(()=>document.querySelector('.opened-links').textContent.includes('https://example.org/path?q=1#part'));
+ assert.equal(await canonical.textContent(),original,'Keyboard follow preserves canonical bytes');
+ await preview();
  assert.deepEqual(await links.allTextContents(),['Web 猫','Alias <safe>','site','local','Mail','Task alias','Reference','https://example.org/auto']);
  assert.equal(await panel.locator('safe').count(),0,'Alias is text, not HTML');
  assert.equal(await links.filter({hasText:'Web 猫'}).getAttribute('data-strong'),'true');

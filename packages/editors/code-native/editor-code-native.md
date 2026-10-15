@@ -18,3 +18,14 @@ Markdown Source now supports resolved/unresolved wiki marks, async `[[` completi
 Workspace reveals synchronize canonical text before placing the UTF-16 caret. Retained tabs republish cursor/word context on activation, dock moves preserve view state, and close/reopen does not replay old reveals. Cross-window moves support saved tabs; dirty offers are refused and edits made after an offer stay in the origin. Native OS gestures and remaining platform acceptance are still open.
 
 The tree-sitter runtime uses Arborium (the same `links = "tree-sitter"` runtime as the index). The code-view build script supplies missing wasm `stderr`/`fprintf` stubs; editor-core's local fork uses `web_time` for undo timing.
+
+
+2026-10-15 (WP-03): `editor.implementation = "native"` activates the shipped Rust
+adapter unless explicitly disabled. The core Code editor also honors it in
+minimal distributions. `settings::DEFAULT_CODE_EDITOR` is still `codemirror`.
+Active canonical selections and unsaved documents survive switching; no settings
+or source rewrite is required. Rust has bounded live accessibility context,
+keyboard focus escape/wiki follow and actual browser/AT-SPI semantic checks.
+See [[Rust Code Editor Accessibility and Cutover]] for limits, validation and the
+conditional fallback/retirement plan; physical desktop frames and Android remain
+gates before the default flip.

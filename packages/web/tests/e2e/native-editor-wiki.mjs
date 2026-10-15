@@ -31,6 +31,14 @@ try {
   await page.waitForFunction(() => document.querySelector("#active-key")?.textContent === "Note é.md");
   if (await page.locator("#active-source").textContent() !== "folder:/tmp/native-fixture") throw Error("Resolved link opened from the wrong folder");
   console.log("ok: Unicode marks, unresolved styling, index refresh and modifier navigation");
+  await page.click("#wiki");
+  await resolved.first().waitFor();
+  await input().focus();
+  await page.keyboard.press("Control+Home");
+  for (let n = 0; n < 8; n++) await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Control+Enter");
+  await page.waitForFunction(() => document.querySelector("#active-key")?.textContent === "Note é.md");
+  console.log("ok: keyboard-only primary-Enter follows the Unicode wiki-link at the caret");
   await page.click("#wiki-completion");
   await input().focus();
   await page.keyboard.press("Control+Home");

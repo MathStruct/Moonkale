@@ -382,3 +382,24 @@ See [[Rust Code Editor Roadmap]], [[Rust Code Editor Native Acceptance]] and the
 E2E README for commands, evidence and remaining gates. Command-only actions remain
 unsupported by the shared client; default cutover, physical-desktop CED-R22,
 Android and accessibility acceptance are still open.
+
+
+## NEXT-4: accessibility and backend migration — 2026-10-15
+
+The surface exposes a file-named input with stable help and bounded canonical
+context, caret and selection endpoints through a polite atomic status. The
+virtualized reading region no longer claims to be a second editable textbox.
+Input focus is reachable by Tab, primary-M toggles focus traversal/indentation,
+primary-Enter follows source wiki-links, hover Escape restores input focus, and
+focus/reduced-motion styles use theme tokens. Actual Chromium AX and GTK WebKit
+AT-SPI trees are checked. This is bounded context, not a full accessible text
+mirror or speech transcript; details in [[Rust Code Editor Accessibility and Cutover]].
+
+The active Workspace UTF-16 selection is restored on Rust panel mount, preserving
+CRLF/non-BMP and reversed ranges across backend changes. `DEFAULT_CODE_EDITOR`
+remains `codemirror` and centralizes a later guarded default flip. Resolving the
+existing native preference activates the shipped adapter unless disabled; the
+core Code extension can honor it without the optional adapter in minimal builds.
+Stored settings, document bytes and per-document overrides are not rewritten.
+The full-app migration test covers live unsaved buffers and restored saved tabs.
+CodeMirror's pre-switch private undo stack is not imported into Rust history.

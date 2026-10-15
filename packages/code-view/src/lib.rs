@@ -34,6 +34,7 @@ mod edit;
 #[doc(hidden)]
 pub mod editor_core_spike;
 pub mod lsp;
+mod native_accessibility;
 mod native_completion;
 mod native_decorations;
 mod native_definition;

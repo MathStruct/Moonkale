@@ -250,13 +250,13 @@ so functional LSP acceptance does not close CED-R22 or authorize default cutover
 | M3 functional parity | Shared fake-server regressions, real-server protocol and browser/native UI checks; exact commands in the E2E README. |
 | M4 context | Existing Rust wiki, presence, Unicode caret/word, reveal/replacement/remount and real two-browser-window scenarios; retain their native OS gesture limitation. |
 | CED-R22 desktop | Daniel's physical GPU/session 21-case check, including the preview-wheel pause. Do not repeat WP-02 headless profiling. |
-| Native input and accessibility | Earlier Linux OS/IME evidence is in [[Rust Code Editor Native Acceptance]]; integrated accessibility and platform matrix still require review. DOM LSP input is not a replacement for these checks. |
+| Native input and accessibility | Earlier Linux OS/IME evidence is in [[Rust Code Editor Native Acceptance]]. Chromium keyboard/AX and native AT-SPI semantics now pass; bounded-context and spoken-reader/platform limits are in [[Rust Code Editor Accessibility and Cutover]]. |
 | Android | Integrated editing, IME, clipboard, selection, source/wiki and LSP availability smoke remain unaccepted. No device run in this step. |
-| M5 size/build/dependencies | Comparable release size, memory and clean/incremental build-cost review, followed by settings/per-document migration and retirement only after preceding gates pass. |
+| M5 size/build/dependencies | Reproducible build/size evidence, tested one-setting migration and the conditional retirement plan are in [[Rust Code Editor Accessibility and Cutover]]. Default flip remains gated. |
 
 Rust remains opt-in. Keep CodeMirror and its settings/bundle until M5; do not treat
 partial platform evidence as permission to remove the fallback. macOS and Windows
-remain explicitly unverified here. Reserved P-198 and ADR-0029 are unused.
+remain explicitly unverified here. P-198 records this acceptance work; ADR-0029 remains unused.
 
 
 WP-03 regression verification: all eleven selected Chromium production-panel
@@ -272,3 +272,31 @@ gates pass (671 tests including doctests); desktop fixture Clippy/build also pas
 The final shared live browser matrix passes all four runs: `lsp` and `lsp2` on
 Rust and on the CodeMirror control (Firefox, unchanged release web host). Both
 save flows verify exact CRLF bytes. Matrix log: `/tmp/moonkale-wp03-lsp.log`.
+
+
+### NEXT-4 — accessibility and prepared cutover (2026-10-15)
+
+[[Rust Code Editor Accessibility and Cutover]] is the M5 acceptance record and
+conditional retirement plan. The Rust surface now has one file-named editable
+input, bounded canonical live caret/selection context, keyboard Tab-focus mode,
+keyboard link/image following and hover focus return, visible token-based focus and
+reduced-motion rules. Actual Chromium AX and native GTK WebKit AT-SPI tree checks
+pass; this is not a spoken-reader transcript or a full editable-text document API.
+The sampled built-in source contrast minima are 5.54:1 light and 4.58:1 dark.
+
+The existing `editor.implementation` setting now suffices to activate Rust unless
+explicitly disabled. Resolution preserves raw settings; explicit per-document
+fallback stays effective. Full-app migration verifies unsaved buffers, active
+canonical UTF-16 selection, exact CRLF/Unicode saves and restored saved tabs.
+`settings::DEFAULT_CODE_EDITOR` centralizes the future default, including minimal
+distributions and native adapter activation. It remains **codemirror**, with a
+deliberate guard test. No CodeMirror consumer, asset or fallback is removed.
+
+The latest NEXT-4 strict release-web matrix is 20/21: preview-on scrollbar
+dragging measured p95/max33.335ms. Keep this failure distinct from the earlier
+21/21 WP-02 run. No new physical-desktop acceptance is claimed.
+
+Build/size measurements, complete test commands, remaining device/frame checks
+and the staged zero-consumer retirement audit live in the acceptance record.
+Daniel's physical-desktop CED-R22 matrix and Android acceptance remain required
+before flipping the default. macOS/Windows remain explicitly unverified.
