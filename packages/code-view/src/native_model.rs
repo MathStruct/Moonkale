@@ -105,7 +105,14 @@ impl NativeModel {
             });
         }
         self.engine.replace_folding_regions(folds, false);
+        self.restore_selection(snapshot);
+        self.reveal_cursor();
+    }
+    pub(crate) fn restore_selection(&mut self, snapshot: &EditorSnapshot) {
         if let Some(selection) = snapshot.selection {
+            let _ = self.engine.execute(editor_core::Command::Cursor(
+                editor_core::CursorCommand::ClearSelection,
+            ));
             let anchor = utf16_position(&snapshot.text, selection.anchor);
             let head = utf16_position(&snapshot.text, selection.head);
             let _ = self.engine.execute(editor_core::Command::Cursor(
@@ -123,7 +130,6 @@ impl NativeModel {
                 ));
             }
         }
-        self.reveal_cursor();
     }
     #[cfg(test)]
     pub fn update_highlight(&mut self, snapshot: &EditorSnapshot, batch: &EditBatch) {

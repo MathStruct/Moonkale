@@ -2,7 +2,7 @@
 
 use crate::L;
 use dioxus::prelude::*;
-use moonkale_code_view::CodeEditorPanel;
+use moonkale_code_view::{CodeEditorPanel, RustCodeEditorPanel};
 use moonkale_core::NodeId;
 use moonkale_ext_api::prelude::*;
 use moonkale_ext_api::{i18n::Locales, t};
@@ -40,7 +40,7 @@ impl Extension for CodeEditorExtension {
         Manifest::core(
             "dev.moonkale.editor-code",
             "Code Editor",
-            "CodeMirror editor with language-server support.",
+            "Code editor with Rust and CodeMirror views and language-server support.",
         )
     }
 
@@ -70,7 +70,19 @@ impl Extension for CodeEditorExtension {
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id) {
             Some(node) => {
-                rsx! { CodeEditorPanel { ws, node, lsp: moonkale_code_view::lsp::LspManager::for_workspace(ws) } }
+                // Minimal distributions need no optional extension to honor the
+                // backend setting. Explicit extension disabling still falls back.
+                let native = ws.editor_for(node) == "native"
+                    && ws.settings.resolved.read().extensions.is_enabled_id(
+                        "dev.moonkale.editor-code-native",
+                        moonkale_ext_api::settings::DEFAULT_CODE_EDITOR == "native",
+                    );
+                let lsp = moonkale_code_view::lsp::LspManager::for_workspace(ws);
+                if native {
+                    rsx! { RustCodeEditorPanel { ws, node, lsp } }
+                } else {
+                    rsx! { CodeEditorPanel { ws, node, lsp } }
+                }
             }
             None => rsx! { "unknown panel {panel_id}" },
         }

@@ -16,7 +16,8 @@ Acceptance recorded 2026-10-07. Rust remains opt-in.
 | Native pointer drag | Pass | Real OS forward/backward selection, replacement and undo; cursor-word visibility no longer shifts the viewport. |
 | Default Dioxus renderer | Probe passes | Native DOM focus/edit/selection/undo/resize and an updated pixel capture pass without externally supplied renderer flags. Current PID-scoped OS retry cannot find a mapped owned window; it is not counted as an OS-input pass. |
 | Web production regression | Pass | Workspace suite, including Unicode, synthetic composition, clipboard, folding, language indentation, history and 3 MB virtualization. |
-| Real IME, accessibility, theme changes | Pending | Earlier spike/manual Pinyin and synthetic browser composition do not accept the current integrated component. |
+| Real IME and platform themes | Pending | Earlier spike/manual Pinyin and synthetic browser composition do not accept the current integrated component. |
+| Accessibility semantics (2026-10-15) | Automated pass | Chromium AX/keyboard and GTK WebKit AT-SPI names/help/live caret-selection context; built-in source token contrast. Bounded context, not a full editable-text API or speech transcript; see [[Rust Code Editor Accessibility and Cutover]]. |
 | Android, macOS, Windows | Not run | No acceptance on these targets in this continuation. |
 | Native UI with live LSP | Pass (2026-10-15) | Production panel + installed rust-analyzer on owned GTK WebKit display; DOM input, not physical OS/IME or FPS acceptance. See follow-up below. |
 
@@ -225,3 +226,14 @@ This uses fixture-only DOM input. It closes the combined native UI/live-server
 gap, while physical input/IME, accessibility, other platforms and CED-R22 keep
 their own acceptance criteria. The runner stops its display on success/failure;
 no production renderer configuration changed. Rust remains opt-in.
+
+
+### NEXT-4: native accessibility semantics — 2026-10-15
+
+The private-display accessibility runner passes actual GTK WebKit AT-SPI names,
+keyboard help and a polite atomic status text interface carrying canonical caret
+and selection context. Report: `target/next4-native-accessibility-5.json`.
+Chromium additionally passes the keyboard journey, real AX tree, reduced motion
+and sampled built-in light/dark source contrast. See [[Rust Code Editor Accessibility and Cutover]]
+for commands, the bounded-text contract and the remaining spoken/platform limits.
+This does not substitute for physical-desktop frames or Android acceptance.

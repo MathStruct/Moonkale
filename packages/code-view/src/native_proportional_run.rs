@@ -508,6 +508,37 @@ pub(crate) fn preview_targets(
         .collect()
 }
 
+/// Resolve a keyboard follow action from canonical scalar coordinates, including
+/// a replacement temporarily revealed by the caret. No DOM geometry is needed.
+pub(crate) fn preview_target_at(
+    values: &[crate::native_presentation::Replacement],
+    offset: usize,
+) -> Option<crate::native_links::Target> {
+    values.iter().find_map(|value| {
+        fragments(value.style.as_ref()?)
+            .iter()
+            .find_map(|fragment| {
+                let link = fragment.link.as_ref()?;
+                (value.start + link.range.start <= offset && offset < value.start + link.range.end)
+                    .then(|| link.target.clone())
+            })
+    })
+}
+
+pub(crate) fn preview_image_at(
+    values: &[crate::native_presentation::Replacement],
+    offset: usize,
+) -> Option<crate::native_image_parser::Image> {
+    values.iter().find_map(|value| match &value.style {
+        Some(crate::native_decorations::InlineStyle::Image(image))
+            if value.start <= offset && offset < value.end =>
+        {
+            Some(image.clone())
+        }
+        _ => None,
+    })
+}
+
 fn fragment_resolved(
     fragment: &crate::native_decorations::InlineFragment,
     marks: &[CellMarks],

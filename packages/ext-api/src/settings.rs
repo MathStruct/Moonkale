@@ -213,6 +213,10 @@ impl ExtensionsFile {
     }
 }
 
+/// The release code-editor default. Keep CodeMirror until the platform/frame gates pass.
+/// Changing this one value also changes the Rust extension's default activation.
+pub const DEFAULT_CODE_EDITOR: &str = "codemirror";
+
 /// The terminal, as stored.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -248,8 +252,9 @@ pub struct EditorFile {
     /// Opt-in documentation previews in the native Rust/Python/Julia editor.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc_comment_preview: Option<bool>,
-    /// Which code editor opens a text document when both are enabled:
-    /// `codemirror` (default) or `native` (Milestone 14).
+    /// Which code editor opens a text document: `codemirror` or `native`.
+    /// Native also activates its shipped extension unless explicitly disabled.
+    /// Unset/unknown values use [`DEFAULT_CODE_EDITOR`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation: Option<String>,
     /// Rich (Milkdown) editor typography (Prompt23): font size in px,
@@ -649,7 +654,10 @@ impl Default for Settings {
             search: SearchSettings { embeddings: true },
             agent: AgentSettings::default(),
             terminal: TerminalSettings::default(),
-            editor: EditorSettings::default(),
+            editor: EditorSettings {
+                implementation: DEFAULT_CODE_EDITOR.into(),
+                ..Default::default()
+            },
             keybindings: BTreeMap::new(),
             user_name: default_user_name(),
             extensions: ExtensionsSettings::default(),
@@ -717,6 +725,30 @@ impl Settings {
             }
             merged.policy.denied_tools = (!denied.is_empty()).then_some(denied);
         }
+        let implementation = match merged.editor.implementation.as_deref() {
+            Some("native") => "native",
+            Some("codemirror") => "codemirror",
+            _ => DEFAULT_CODE_EDITOR,
+        };
+        // A backend choice is enough to activate the shipped Rust extension.
+        // Explicit user disabling still wins; never rewrite persisted settings.
+        if implementation == "native"
+            && !merged
+                .extensions
+                .disabled
+                .iter()
+                .any(|id| id == "dev.moonkale.editor-code-native")
+            && !merged
+                .extensions
+                .enabled
+                .iter()
+                .any(|id| id == "dev.moonkale.editor-code-native")
+        {
+            merged
+                .extensions
+                .enabled
+                .push("dev.moonkale.editor-code-native".into());
+        }
         let d = Settings::default();
         let flat = resolve_llm(&merged.llm, &d.llm);
         // Every profile, Default first; the default agent's settings are
@@ -777,10 +809,7 @@ impl Settings {
                 markdown_rich: merged.editor.markdown_rich.unwrap_or(true),
                 markdown_preview: merged.editor.markdown_preview.unwrap_or(false),
                 doc_comment_preview: merged.editor.doc_comment_preview.unwrap_or(false),
-                implementation: merged
-                    .editor
-                    .implementation
-                    .unwrap_or_else(|| "codemirror".into()),
+                implementation: implementation.into(),
                 rich_font_size: merged.editor.rich_font_size.unwrap_or(16).clamp(8, 48),
                 rich_font: merged.editor.rich_font.unwrap_or_default(),
                 rich_code_font: merged.editor.rich_code_font.unwrap_or_default(),
@@ -864,6 +893,55 @@ pub fn default_user_name() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editor_cutover_resolution_preserves_explicit_choices_without_rewriting_files() {
+        let empty = SettingsFile::new();
+        let resolved = Settings::resolve(&empty, &empty, &empty);
+        assert_eq!(resolved.editor.implementation, DEFAULT_CODE_EDITOR);
+        assert_eq!(
+            DEFAULT_CODE_EDITOR, "codemirror",
+            "flip only after desktop/Android acceptance"
+        );
+        for choice in ["codemirror", "native", "unknown"] {
+            let mut user = SettingsFile::new();
+            user.editor.implementation = Some(choice.into());
+            let before = user.clone();
+            let resolved = Settings::resolve(&user, &empty, &empty);
+            assert_eq!(user, before);
+            assert_eq!(
+                resolved.editor.implementation,
+                if choice == "unknown" {
+                    DEFAULT_CODE_EDITOR
+                } else {
+                    choice
+                }
+            );
+            assert_eq!(
+                resolved
+                    .extensions
+                    .is_enabled_id("dev.moonkale.editor-code-native", false),
+                choice == "native"
+            );
+        }
+        let mut user = SettingsFile::new();
+        user.editor.implementation = Some("native".into());
+        user.extensions
+            .disabled
+            .push("dev.moonkale.editor-code-native".into());
+        let resolved = Settings::resolve(&user, &empty, &empty);
+        assert!(!resolved
+            .extensions
+            .is_enabled_id("dev.moonkale.editor-code-native", true));
+        let mut folder = SettingsFile::new();
+        folder.editor.implementation = Some("codemirror".into());
+        assert_eq!(
+            Settings::resolve(&user, &folder, &empty)
+                .editor
+                .implementation,
+            "codemirror"
+        );
+    }
 
     #[test]
     fn merge_order_and_scope() {

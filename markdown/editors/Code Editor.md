@@ -9,7 +9,7 @@ Rust replacement milestones: [[Rust Code Editor Roadmap]]. M1 code and verificat
 
 ## Architecture
 - **Document in Rust**: `ropey::Rope` + version + undo stack. Edits become `core` patches ([[ADR-0009 Patches not snapshots]]).
-- **Backend options**: CodeMirror 6 remains the default via [[JS Interop Boundary]]. An opt-in `RustCodeEditorPanel` now exists in `packages/code-view`; see [[Rust Code Editor Implementation]] for its current limits and verification status.
+- **Backend options**: CodeMirror 6 remains the default via [[JS Interop Boundary]]. The opt-in `RustCodeEditorPanel` in `packages/code-view` has live LSP/context acceptance, bounded accessibility context and tested backend migration. See [[Rust Code Editor Implementation]] and [[Rust Code Editor Accessibility and Cutover]] for its contract and remaining physical-desktop/Android gates. The default is prepared but unflipped.
 - **Decorations are data**: `Highlight`, `Fold`, `Diagnostic`, `InlayHint`, `Gutter` produced by [[Indexing]] (tree-sitter) and [[LSP and Terminal]], consumed by any backend. The CodeMirror bundle therefore ships **no language packages**.
 
 ## Languages (initial)

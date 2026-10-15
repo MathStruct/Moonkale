@@ -17,6 +17,7 @@ Rules:
 Nothing breaking.
 
 **moonkale-ext-api**
+- `settings::DEFAULT_CODE_EDITOR` centralizes the future backend cutover (still `codemirror`). Resolving `editor.implementation = "native"` activates the shipped Rust extension without changing stored files; explicit extension disabling and per-document choices retain priority. Unknown implementation strings resolve to the release default.
 - `icons` (new module): `Icon` (moved from the shell, with toolbar icons added: save, reload, wrap, swap, layout, fit, zoom-in, zoom-out, actual-size, code, close), `IconButton` (a symbol, its description and shortcut as the tooltip, its label as hidden text), and `PanelSettings` with `PanelSettingsButton` (the gear that opens an extension's settings beside its panel; the shell provides the context).
 
 ## ext-api-2026-10-14-2

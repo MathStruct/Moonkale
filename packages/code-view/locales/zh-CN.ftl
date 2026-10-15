@@ -108,3 +108,9 @@ editor-properties-invalid = 请输入 YAML 属性，不要包含元数据分隔�
 
 editor-doc-preview = 文档预览
 editor-doc-preview-title = 将文档注释显示为 Markdown；编辑预览时显示源码。
+
+editor-a11y-help = 使用方向键阅读源码并移动光标。{ $primary }+M 切换 Tab 键的焦点移动和缩进功能。{ $primary }+Enter 打开光标处的链接或图片。Escape 关闭工具。
+editor-a11y-position = 第 { $line } 行，第 { $column } 列。
+editor-a11y-selection = 从第 { $line } 行第 { $column } 列选择到第 { $end_line } 行第 { $end_column } 列。
+editor-a11y-tab-focus = Tab 移动焦点。
+editor-a11y-tab-indent = Tab 缩进。

@@ -116,3 +116,9 @@ editor-properties-invalid = Use YAML property lines without front-matter delimit
 
 editor-doc-preview = Doc preview
 editor-doc-preview-title = Render documentation as Markdown; entering a preview reveals its source.
+
+editor-a11y-help = Use arrow keys to read and move through source. { $primary }+M toggles whether Tab moves focus or indents. { $primary }+Enter follows a link or image at the caret. Escape closes tools.
+editor-a11y-position = Line { $line }, column { $column }.
+editor-a11y-selection = Selection from line { $line }, column { $column } to line { $end_line }, column { $end_column }.
+editor-a11y-tab-focus = Tab moves focus.
+editor-a11y-tab-indent = Tab indents.

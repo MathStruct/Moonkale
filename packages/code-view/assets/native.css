@@ -125,3 +125,11 @@
 .mk-doc-row[data-list-marker]::before { content:attr(data-list-marker) " "; }
 .mk-doc-row:not([data-quote-depth="0"]) { border-left:2px solid var(--mk-line); }
 .mk-doc-code { font:14px/22px var(--mk-code-font, monospace); white-space:pre-wrap; overflow-wrap:anywhere; padding:8px; border:1px solid var(--mk-line); border-radius:4px; }
+
+/* Stable assistive context; no full-document mirror or layout contribution. */
+.mk-native-a11y-only { position:absolute; width:1px; height:1px; padding:0; margin:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.mk-native-surface:focus-within { outline:2px solid var(--mk-code-ink); outline-offset:-2px; }
+.mk-crust :is(button, input, select, textarea, [tabindex]):focus-visible { outline:2px solid var(--mk-ink, currentColor); outline-offset:-2px; }
+@media (prefers-reduced-motion: reduce) {
+  .mk-crust *, .mk-crust *::before, .mk-crust *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+}

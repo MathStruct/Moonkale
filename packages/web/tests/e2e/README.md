@@ -448,3 +448,54 @@ controls Mesa render workers for profiling and is recorded in the summary; the
 default remains Mesa’s own choice. Missing recorder results retain a screenshot.
 
 Desktop FPS preflight samples aggregate `/proc/stat` activity before each mode and gesture. It requires two consecutive samples at or below 10% active CPU within six attempts; all samples are retained in the summary. Settling occurs before input, never by discarding a failed gesture. Hold the bench lock and both heavy slots throughout the run.
+
+
+### Rust editor accessibility, migration and build costs (WP-03 M5)
+
+`native-editor-accessibility.mjs` runs the production-panel fixture's keyboard
+journey, actual Chromium accessibility tree, focus/reduced-motion checks and
+source contrast using the production theme palette (`MOONKALE_REPO` required).
+`native-editor-wiki.mjs` also checks primary-Enter navigation. Run these with the
+other native fixture suites. `editor-migration.mjs` uses the ordinary full app and
+disposable fixture (`src/main.rs` and `second.txt`): backend selection alone enables
+Rust, live dirty buffers/active Unicode selection survive, per-file fallback
+outranks global changes and saved tabs restore after reopening the folder.
+
+The native accessibility runner needs the installed Python GI Atspi typelib,
+`dbus-run-session` and the usual headless dependencies:
+
+```sh
+python3 packages/web/tests/e2e/native-editor-accessibility.py \
+  packages/web/tests/fixtures/native-editor/target/debug/moonkale-native-editor-host \
+  --report target/native-accessibility-result.json
+```
+
+Use heavy.sh. It creates a private session/accessibility bus and short temporary
+runtime sockets, with builds and retained reports/logs in the worktree. It reads
+only its own AT-SPI tree, verifies the input/help and canonical status text plus
+`live=polite`, and stops its display. No physical input or spoken-reader claim.
+
+Build-cost measurement (fresh worktree-local target, already downloaded packages):
+
+```sh
+flock ~/.cache/moonkale-slots/bench.lock \
+  env MOONKALE_SLOTS=1 ~/.claude/projects/-home-daniel-Code-Moonkale/scratchpad/heavy.sh \
+  flock ~/.cache/moonkale-slots/2 \
+  python3 packages/web/tests/e2e/editor-build-cost.py \
+  --target target/editor-clean-measurement --report target/editor-build-cost.json --desktop
+```
+
+If the registry is read-only but its generated dioxus-code theme CSS already
+exists, add `--prebuilt-theme-assets`. This uses upstream's `DOCS_RS=1` path to
+skip regenerating registry assets during the fixture build. For the desktop target it first seeds only `cargo build -p dioxus-code` in that
+mode, then explicitly removes the variable for the actual product build, so native
+database dependencies still build/link. The two phases are reported separately.
+A missing generated CSS asset is still an error; no source permissions change.
+
+This reserves both heavy slots without sharing another worktree's target. It
+records fresh-target, no-change and application-only rebuild times/compiler RSS
+under the same release profile, then raw/gzip artifact sizes. `--desktop` also builds
+the actual desktop app against this worktree's existing dependency target. It does not claim
+cold compiler/filesystem caches, application RSS or size savings from changing a
+default while both backends still ship. See the vault's Rust Code Editor
+Accessibility and Cutover page for the retirement sequence and remaining gates.
