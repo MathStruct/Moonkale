@@ -1,11 +1,11 @@
 ---
 title: "Code Graph Schema — definitions, identity and edges for many languages on one graph"
-description: "Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. Depends on ADR-0028 for whether the graph may be edited."
+description: "Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches."
 tags: [architecture, code-graph, spec, draft, north-star]
 ---
 **Status:** draft, 2026-10-15 (Claude). It fills the gap noted in [[North Star]]: "a definition is a node, keyed by the hash of its normalised structure, with names as edges to it" had no schema behind it.
 - **Identity, kinds, edges, layers and provenance** are Claude's to decide, under the North Star's constraints. They're reviewed like any spec.
-- **Whether the code graph can be *edited*,** and where its truth lives, is [[ADR-0028 Files or the graph]], Daniel's decision. This page works under either answer and says where it differs.
+- **Where the truth lives** is [[ADR-0028 Files or the graph]], accepted 2026-10-15 as option B: files stay the truth for file-backed code, graph-side edits print back as text patches (Rust first), and store-backed sources hold their own truth.
 
 It builds on:
 - [[Graph-Native Model]]: nodes, edges, open kinds, properties;
@@ -168,7 +168,7 @@ A node is **stale** when its input hash no longer matches. Views show stale resu
 3. `Calls`, `References` and `Imports` (WP-22), and `Unresolved`.
 4. The Unison source against this schema (WP-18).
 5. Content ids, behind a feature, with the fixture tests of §9.
-6. L1 lossless syntax and printing back: only if ADR-0028 chooses B (or C).
+6. L1 lossless syntax and printing back (WP-67; ADR-0028 accepted B), Rust first.
 
 ## 11. Open questions (non-fundamental: decided when their step comes)
 

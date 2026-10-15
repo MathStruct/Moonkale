@@ -1,10 +1,10 @@
 ---
 title: "ADR-0028 — Files or the graph: what is the truth for code"
 tags: [adr, architecture, code-graph, versioning]
-status: proposed
+status: accepted
 date: 2026-10-15
 ---
-**Status:** proposed 2026-10-15, for Daniel to decide. It's a fundamental decision (direction): Claude wrote the options and recommends one, and nothing is built on it until it's accepted. Related: [[North Star]], [[Code Graph Schema]] (the draft that depends on this), [[ADR-0008 Rust owns the document, JS is a view]], [[ADR-0009 Patches not snapshots]], [[ADR-0012 Two histories]], [[Version Control Requirements]], [[Graph-Native Model]].
+**Status:** accepted 2026-10-15 by Daniel: **option B**. Graph-side edits on file-backed code are in scope, language by language, Rust first. Sophia's storage is deferred (below). Claude wrote the options. Related: [[North Star]], [[Code Graph Schema]] (the draft that depends on this), [[ADR-0008 Rust owns the document, JS is a view]], [[ADR-0009 Patches not snapshots]], [[ADR-0012 Two histories]], [[Version Control Requirements]], [[Graph-Native Model]].
 
 ## Context
 
@@ -108,13 +108,13 @@ Unison's model for all languages: code lives in the store; files are written out
 - Option A is B without the printer. B can start as A, since the `truth` field defaults to `files` and graph-side edits are refused until a language's printer exists, so choosing B now costs nothing until the printer is built.
 - Option C can be revisited per source later: a source can always declare `store`.
 
-## Questions for Daniel
+## Decision (Daniel, 2026-10-15)
 
-1. **A, B or C?** (Recommended: B.)
-2. **If B: are structural edits on file-backed code in scope** (rename, move and rewrites from graph and e-graph views, projection edits), or is the graph view read-only for file-backed code for now? (Recommended: in scope, language by language, Rust first.)
-3. **Sophia's own definitions:** are they store-backed from the start (Unison-like), or files first? (Recommended: store-backed. It's the case B exists for, and WP-18's Unison source is the rehearsal.)
+1. **Option B.**
+2. **Structural edits on file-backed code are in scope**: rename, move, rewrites from graph and e-graph views, and projection edits. They're done language by language, **Rust first**.
+3. **Sophia's own definitions: deferred.** There are no real Sophia definitions yet, so where they live is decided once there are some. Daniel's alternative is to build a **base Sophia**, even a somewhat non-functional one, to find out what its definitions need. That's an optional work package (WP-68), not scheduled. The `truth: store` mode is still built, for the Unison source (WP-18), which needs it anyway.
 
-## Consequences (if B is accepted)
+## Consequences
 
 - **The source descriptor gets `truth: files | store`.** Default `files`; every existing source is `files`.
 - **[[Code Graph Schema]]:**

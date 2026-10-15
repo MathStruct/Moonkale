@@ -22,7 +22,7 @@ The [[Roadmap]] is the order and [[Status]] is where things stand. This page cut
 
    | Series | Next free | Reserved |
    |---|---|---|
-   | ADR | ADR-0029 | ADR-0028 Claude (files or the graph, proposed), ADR-0023 codex (native editor frame measurements, merged), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted) |
+   | ADR | ADR-0029 | ADR-0028 Claude (files or the graph, accepted: B), ADR-0023 codex (native editor frame measurements, merged), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted) |
    | P- | P-198 | P-186–P-194, P-196 (editor frames) and P-197 (documentation previews) are codex's, merged 2026-10-15; P-195 is whole-drive watching (Claude) |
 
 4. **Done means mergeable:**
@@ -87,7 +87,8 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 | 22 | **Calls and references** in the index, for the core languages | `services/index` | — (coordinate with 21) | M | call edges for Rust/Julia/Python fixtures |
 | 65 | **Code graph schema, steps 1–2** ([[Code Graph Schema]] §10): the shared kinds and `Definition` nodes (today's `Symbol` migrated, with `def_kind`), location ids for definitions, `Contains`/`Defines`/`Names`, for Rust, Julia and Python | `moonkale-core` ★ (kind constants), `services/index` | — | M | the index fixture yields `Definition` nodes with stable location ids across body edits |
 | 66 | **Content ids** ([[Code Graph Schema]] §4): the normaliser per core language, BLAKE3 over canonical bytes, mutual-recursion components, behind a feature | `services/index`, `moonkale-core` | 65, 22 | M | the §9 fixture tests (rename, move, comment, body change, recursion) |
-| 67 | **Lossless syntax and printing back** (L1; only if [[ADR-0028 Files or the graph]] chooses B or C): trivia attached to tokens, structural edits as minimal text patches, Rust first | `services/index`, `code-view`, the document path | 65, ADR-0028 accepted | L | a rename and a move from the graph view leave every byte outside the edit unchanged |
+| 67 | **Lossless syntax and printing back** (L1; [[ADR-0028 Files or the graph]] accepted B, 2026-10-15): trivia attached to tokens, structural edits as minimal text patches, Rust first; the `truth: files \| store` field on the source descriptor and the conflict path for graph-side edits | `services/index`, `code-view`, the document path, `moonkale-core` ★ (descriptor) | 65 | L | a rename and a move from the graph view leave every byte outside the edit unchanged |
+| 68 | **A base Sophia** (optional, not scheduled; Daniel, 2026-10-15): a small, even partly non-functional core of the language, enough to find out what its definitions need from the store, before ADR-0028's deferred question is settled | its own repository or crate, `sources/*` | 18 helps | M | a handful of Sophia definitions stored, named and drawn |
 
 Later in lane E, after a structure editor exists:
 
