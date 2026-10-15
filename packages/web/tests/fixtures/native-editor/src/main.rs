@@ -449,8 +449,10 @@ fn DesktopApp() -> Element {
             },
             if std::env::var_os("MOONKALE_FPS_REPORT").is_some() {
                 fps::FrameRecorder {}
+                fps::EditorHost {}
+            } else {
+                App {}
             }
-            App {}
         }
     }
 }

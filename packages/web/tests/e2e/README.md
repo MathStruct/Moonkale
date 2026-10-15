@@ -377,7 +377,17 @@ recording and use native Undo to restore typing afterward.
 
 The report includes p50/p95/max, intervals, trusted-event counts, WebView/viewport
 metadata and available long-task observations. Insufficient/no-op gestures and
-development recordings cannot pass. No synthetic desktop input is injected.
+development recordings cannot pass. The manual recorder injects no input. For an automated private-display run, use
+`editor-fps-desktop.py --binary <release-fixture> --corpus <directory> --report <new-json-path>`.
+It supplies compositor input through `tools/headless.sh`, validates all 21 cases
+and stops the display on exit. See How to Write Tests §7 for bounded gestures
+and the software GL limitation; real-desktop acceptance remains Daniel’s check.
 The recorder is fixture instrumentation; `editor-fps-recorder.mjs` checks its
 browser transport and trusted-input accounting with `MOONKALE_REPO` and `PORT`.
 That check does not establish desktop frame acceptance.
+
+The desktop recorder reports unrounded `performance.now()` callback intervals,
+with the WebView's rAF deltas retained as `rafIntervals`. Integer rAF deltas alone
+cannot resolve the 16.7 ms gate. The clock/gate regression runs without a browser:
+`node --test packages/web/tests/e2e/editor-fps-recorder-clock.test.mjs`. It does
+not establish actual WebView clock precision or desktop performance.

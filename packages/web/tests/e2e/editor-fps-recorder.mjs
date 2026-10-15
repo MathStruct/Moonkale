@@ -27,14 +27,16 @@ try {
   }, script);
   await page.waitForTimeout(100);
   for (let n = 0; n < 10; n++) {
-    await page.keyboard.insertText('x');
+    await page.keyboard.type('x');
     await page.waitForTimeout(20);
   }
   const sample = await pending;
-  assert.equal(sample.events.input, 10);
+  assert.equal(sample.events.typedKeys, 10);
   assert.equal(sample.interacted, true);
   assert.ok(sample.frames >= 30);
   assert.ok(sample.p95 > 0 && sample.max >= sample.p95);
+  assert.equal(sample.clock, 'performance.now');
+  assert.equal(sample.rafIntervals.length, sample.intervals.length);
   assert.equal(sample.build, 'dev-desktop');
   assert.equal(sample.passed, false, 'a development recording cannot pass release acceptance');
   assert.equal(await page.locator('.canonical').textContent(), 'x'.repeat(10) + original);

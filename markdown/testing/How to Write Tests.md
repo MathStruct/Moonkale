@@ -222,6 +222,11 @@ tools/headless.sh run MOONKALE_CONFIG_DIR=$PWD/target/headless/cfg \
 tools/headless.sh click 200 128               # left; or: click X Y right|middle
 tools/headless.sh type "/path/to/folder"      # printable ASCII, US keymap
 tools/headless.sh key Return ctrl+a ctrl+shift+p
+tools/headless.sh hold right 5               # compositor key repeat; maximum 10 seconds
+tools/headless.sh wheel vertical .25 70 .08   # pixel delta, count, gap in seconds
+tools/headless.sh move 300 400                # absolute output coordinates
+tools/headless.sh press                      # left button; move, then release to drag
+tools/headless.sh release
 tools/headless.sh shot target/headless/shot.png
 tools/headless.sh stop                        # the apps it started, the input helper, sway
 ```
@@ -233,7 +238,9 @@ tools/headless.sh stop                        # the apps it started, the input h
   - `HEADLESS_GPU=1` opts out of software GL.
   - The graph canvas under software GL is not verified yet.
 - **Typing speed** is about human speed (`HEADLESS_KEY_GAP`, 30 ms between key events). Faster typing loses keys in the app's controlled inputs.
-- **State:** PIDs, logs and the input socket are in `target/headless/` (or `$HEADLESS_DIR`). Logs: `moonkale.log`, `sway.log`.
+- **State:** PIDs, logs, the input socket and sway’s private runtime directory with its Wayland socket (`run/`) are in `target/headless/` (or `$HEADLESS_DIR`), so the display can run in a sandbox that writes only the worktree. Logs: `moonkale.log`, `sway.log`.
+- **Bounded gestures:** wheel accepts vertical/horizontal pixel deltas in [-1000, 1000], 1–200 events, gaps of 0.01–1 second and at most 15 seconds total. Hold accepts a named key or printable unshifted key, for at most 10 seconds; it releases the key in a `finally` block. Motion is bounded by the configured output (maximum 16384 pixels per axis).
+- **Desktop frame harness:** `packages/web/tests/e2e/editor-fps-desktop.py --binary <release-fixture> --corpus <directory> --report <new-json-path>` drives all 21 production-panel cases on a private 1500×1100 display, verifies the selected case and observed interaction, writes raw/summary JSON and stops its display even on failure. It uses compositor input, including key repeat and small pixel wheel deltas; the recorder observes trusted WebView events. Its fixed coordinates are specific to this fixture. Software GL results measure CPU-side Rust/DOM/layout costs and do not establish hardware GPU compositing performance. A pass is necessary, not sufficient: Daniel’s real-desktop check is the final acceptance.
 - **Still for Daniel:** real keyboard, IME and pointer behaviour on his own KDE session.
 
 ## 8. How I'd go about it, day to day

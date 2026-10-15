@@ -13,6 +13,10 @@ Speaks the Wayland wire protocol directly (standard library only).
   headless-input.py send SOCKET CMD  run one command and wait for it:
       type TEXT        type printable ASCII text (US keymap)
       key COMBO…       press keys, e.g. Return, Tab, ctrl+a, ctrl+shift+p
+      hold KEY SECONDS hold one key for up to 10 seconds
+      wheel AXIS AMOUNT COUNT GAP  bounded pixel scrolling, up to 15 seconds
+      motion X Y WIDTH HEIGHT     absolute pointer position within output
+      button press|release        left pointer button
 
 Clicks go through sway's own `seat - cursor` commands, which need the pointer
 this keeps attached.
@@ -156,6 +160,61 @@ class Wayland:
 
 def run(wl, line):
     cmd, _, arg = line.partition(" ")
+    if cmd == "motion":
+        try:
+            x, y, width, height = map(int, arg.split())
+        except ValueError:
+            return "error: motion X Y WIDTH HEIGHT"
+        if not 0 <= x <= width <= 16384 or not 0 <= y <= height <= 16384 or not width or not height:
+            return "error: motion coordinates exceed output bounds"
+        ms = int((time.monotonic() - wl.t0) * 1000)
+        wl.sock.sendall(msg(POINTER, 1, struct.pack("<IIIII", ms, x, y, width, height)) + msg(POINTER, 4))
+        return "ok"
+    if cmd == "button":
+        if arg not in ("press", "release"):
+            return "error: button press|release"
+        ms = int((time.monotonic() - wl.t0) * 1000)
+        wl.sock.sendall(msg(POINTER, 2, struct.pack("<III", ms, 0x110, int(arg == "press"))) + msg(POINTER, 4))
+        return "ok"
+    if cmd == "hold":
+        parts = arg.split()
+        if len(parts) != 2:
+            return "error: hold KEY SECONDS"
+        code = NAMED.get(parts[0].lower(), KEYS.get(parts[0]))
+        try:
+            duration = float(parts[1])
+        except ValueError:
+            return "error: invalid hold duration"
+        if code is None or not 0 < duration <= 10:
+            return "error: unknown key or duration outside (0, 10]"
+        wl.key(code, True)
+        try:
+            time.sleep(duration)
+        finally:
+            wl.key(code, False)
+        return "ok"
+    if cmd == "wheel":
+        parts = arg.split()
+        if len(parts) != 4 or parts[0] not in ("vertical", "horizontal"):
+            return "error: wheel vertical|horizontal AMOUNT COUNT GAP"
+        try:
+            amount, count, gap = float(parts[1]), int(parts[2]), float(parts[3])
+        except ValueError:
+            return "error: invalid wheel values"
+        if not -1000 <= amount <= 1000 or not 1 <= count <= 200 or not 0.01 <= gap <= 1 or count * gap > 15:
+            return "error: wheel values exceed bounds"
+        axis = 0 if parts[0] == "vertical" else 1
+        # zwlr_virtual_pointer_v1: axis_source(5), axis(3), frame(4).
+        # Finger source preserves small pixel deltas through the compositor.
+        for _ in range(count):
+            ms = int((time.monotonic() - wl.t0) * 1000)
+            wl.sock.sendall(msg(POINTER, 5, struct.pack("<I", 1))
+                            + msg(POINTER, 3, struct.pack("<IIi", ms, axis, round(amount * 256)))
+                            + msg(POINTER, 4))
+            time.sleep(gap)
+        ms = int((time.monotonic() - wl.t0) * 1000)
+        wl.sock.sendall(msg(POINTER, 6, struct.pack("<II", ms, axis)) + msg(POINTER, 4))
+        return "ok"
     if cmd == "type":
         for c in arg:
             if c in KEYS:

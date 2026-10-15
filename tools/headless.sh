@@ -10,10 +10,15 @@
 #   tools/headless.sh click X Y [right|middle]
 #   tools/headless.sh type TEXT              type text into the focused window
 #   tools/headless.sh key NAME…              press keys (Tab, Return, ctrl+s, …)
+#   tools/headless.sh hold KEY SECONDS       hold one key (at most 10 seconds)
+#   tools/headless.sh wheel vertical|horizontal AMOUNT COUNT GAP
+#   tools/headless.sh move X Y               move within the output
+#   tools/headless.sh press|release          left pointer button for dragging
 #   tools/headless.sh shot FILE.png          screenshot
 #   tools/headless.sh stop                   stop the apps it started and the display
 #
-# State (env, PIDs, logs) lives in $HEADLESS_DIR, default <worktree>/target/headless.
+# State (env, PIDs, logs, and sway's runtime dir with its sockets) lives in
+# $HEADLESS_DIR, default <worktree>/target/headless.
 set -euo pipefail
 
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
@@ -31,7 +36,7 @@ tool() {
 load() {
   [[ -f $dir/env ]] || { echo "no display; run: $0 start" >&2; exit 1; }
   # shellcheck disable=SC1091
-  . "$dir/env"; export WAYLAND_DISPLAY SWAYSOCK
+  . "$dir/env"; export WAYLAND_DISPLAY SWAYSOCK XDG_RUNTIME_DIR
 }
 
 # A clean environment: the caller's (often a KDE session's) variables break GTK
@@ -54,9 +59,12 @@ output HEADLESS-1 resolution $size
 xwayland disable
 default_border none
 focus_follows_mouse no
-exec sh -c 'printf "WAYLAND_DISPLAY=%s\nSWAYSOCK=%s\n" "\$WAYLAND_DISPLAY" "\$SWAYSOCK" > "$dir/env.tmp" && mv "$dir/env.tmp" "$dir/env"'
+exec sh -c 'printf "WAYLAND_DISPLAY=%s\nSWAYSOCK=%s\nXDG_RUNTIME_DIR=%s\n" "\$WAYLAND_DISPLAY" "\$SWAYSOCK" "\$XDG_RUNTIME_DIR" > "$dir/env.tmp" && mv "$dir/env.tmp" "$dir/env"'
 EOF
-    WAYLAND_DISPLAY='' clean_env WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER=${HEADLESS_RENDERER:-pixman} \
+    # A private runtime dir: sway's sockets stay inside the worktree (no
+    # litter in /run/user, and it works in sandboxes that can write only there).
+    rt=$dir/run; mkdir -p "$rt"; chmod 700 "$rt"
+    WAYLAND_DISPLAY='' XDG_RUNTIME_DIR=$rt clean_env WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER=${HEADLESS_RENDERER:-pixman} \
       "$(command -v sway || echo sway)" ${HEADLESS_SWAY_ARGS:-} -c "$dir/sway.config" > "$dir/sway.log" 2>&1 &
     echo $! > "$dir/sway.pid"
     for _ in $(seq 50); do [[ -f $dir/env ]] && break; sleep 0.1; done
@@ -84,6 +92,18 @@ EOF
     tool swaymsg -q seat - cursor set "$2" "$3"
     tool swaymsg -q seat - cursor press "$button"
     tool swaymsg -q seat - cursor release "$button"
+    ;;
+  hold|wheel)
+    load; input_action=$1; shift
+    python3 -I "$root/tools/headless-input.py" send "$dir/input.sock" "$input_action" "$@"
+    ;;
+  move)
+    load
+    size=$(awk '/^output HEADLESS-1 resolution / {print $4; exit}' "$dir/sway.config")
+    python3 -I "$root/tools/headless-input.py" send "$dir/input.sock" motion "$2" "$3" "${size%x*}" "${size#*x}"
+    ;;
+  press|release)
+    load; python3 -I "$root/tools/headless-input.py" send "$dir/input.sock" button "$1"
     ;;
   type)
     load; shift; python3 -I "$root/tools/headless-input.py" send "$dir/input.sock" type "$*"

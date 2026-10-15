@@ -11,6 +11,70 @@ pub fn initial_document() -> Option<(String, String)> {
     ))
 }
 
+/// Use the production panel without full-text observer DOM nodes from the
+/// correctness fixture, which would add megabytes of unrelated render work.
+#[component]
+pub fn EditorHost() -> Element {
+    use moonkale_core::*;
+    use moonkale_ext_api::{document::Document, Workspace, WorkspaceConfig};
+    let (ws, node, doc) = use_hook(|| {
+        let (name, text) = initial_document().expect("MOONKALE_FPS_SOURCE");
+        let mut ws = Workspace::new(WorkspaceConfig {
+            folders: moonkale_ext_api::FolderAccess {
+                open: super::open,
+                pick: None,
+                attach: super::attach,
+                reopen_last: false,
+                openers: &moonkale_core::source::opener::NO_OPENERS,
+            },
+            processes: Default::default(),
+            persistence: Default::default(),
+            network: Default::default(),
+            runtimes: Default::default(),
+            services: &super::SERVICES,
+        });
+        ws.settings
+            .user
+            .with_mut(|file| file.editor.wrap = Some(false));
+        ws.settings
+            .resolved
+            .with_mut(|settings| settings.editor.wrap = false);
+        let source = SourceId::new("folder:/tmp/native-fps-fixture");
+        let node = Node {
+            id: NodeId::derive(&source, &name),
+            source: source.clone(),
+            kind: NodeKind::File,
+            label: name.clone(),
+            native_key: name,
+            content: None,
+            props: Default::default(),
+            version: Version(0),
+        };
+        ws.add_source(std::sync::Arc::new(super::MemoryFile {
+            descriptor: SourceDescriptor {
+                id: source,
+                root: node.id,
+                display_name: "FPS fixture".into(),
+                family: SourceFamily::Folder,
+                capabilities: Default::default(),
+            },
+            saved: std::sync::Mutex::new((text.clone(), node.version)),
+        }));
+        let doc = Signal::new_in_scope(
+            Document::new(node.clone(), text, node.version),
+            ScopeId::ROOT,
+        );
+        ws.docs.open.with_mut(|docs| docs.push((node.id, doc)));
+        ws.docs.active.set(Some(node.id));
+        (ws, node.id, doc)
+    });
+    let lsp = use_hook(moonkale_code_view::lsp::LspManager::new);
+    rsx! {
+        div { class: "fps-canonical-size", hidden: true, "data-bytes": doc.read().text.len().to_string() }
+        div { class: "harness-editor primary", moonkale_code_view::RustCodeEditorPanel { ws, node, lsp } }
+    }
+}
+
 #[component]
 pub fn FrameRecorder() -> Element {
     let mut gesture = use_signal(|| "typing".to_owned());
