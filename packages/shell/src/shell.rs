@@ -297,7 +297,7 @@ pub fn Shell() -> Element {
             }
             Some(Command::Docs) => {
                 let _ = dioxus::document::eval(
-                    "window.open('https://mathstruct.github.io/Moonkale/', '_blank');",
+                    "window.open('https://mathstruct.org/Moonkale/', '_blank');",
                 );
             }
             Some(Command::About) => {

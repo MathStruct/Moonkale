@@ -363,4 +363,4 @@ jobs:
             A prototype: expect breaking changes between releases.
 
             Packages for Linux (tarball, .deb, Arch — built on Arch), Android (arm64 APK, release-signed), Windows (.msi / .exe, unsigned) and macOS (.dmg, unsigned).
-            Install instructions: https://mathstruct.github.io/Moonkale/packaging/Install
+            Install instructions: https://mathstruct.org/Moonkale/packaging/Install

@@ -58,7 +58,7 @@ fn ExtensionsPanel(ws: Workspace) -> Element {
                 ExtensionsList { ws, target: target() }
                 p { class: "mk-muted",
                     {t!(ws, L, "extensions-catalogue-before")}
-                    a { href: "https://mathstruct.github.io/Moonkale/extensions/Extension-Catalogue", target: "_blank", {t!(ws, L, "extensions-catalogue")} }
+                    a { href: "https://mathstruct.org/Moonkale/extensions/Extension-Catalogue", target: "_blank", {t!(ws, L, "extensions-catalogue")} }
                     {t!(ws, L, "extensions-catalogue-after")}
                 }
             }

@@ -10,7 +10,7 @@
 **A graph-native code and knowledge editor.**
 
 [![Latest release](https://img.shields.io/github/v/release/MathStruct/Moonkale?label=download&color=4c8dff)](https://github.com/MathStruct/Moonkale/releases/latest)
-[![Docs](https://img.shields.io/badge/docs-vault-7bd88f)](https://mathstruct.github.io/Moonkale/)
+[![Docs](https://img.shields.io/badge/docs-vault-7bd88f)](https://mathstruct.org/Moonkale/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
 > [!WARNING]
@@ -33,7 +33,7 @@ for desktop, web and Android. It is **extension-driven**: the built-in editors
 are extensions with no privileged access.
 
 The long-term goal is a graphical editor for factor graphs
-([Lenticulum.jl](https://mathstruct.github.io/Moonkale/architecture/Julia-and-Lenticulum)),
+([Lenticulum.jl](https://mathstruct.org/Moonkale/architecture/Julia-and-Lenticulum)),
 where a diagram stays a diagram instead of becoming code.
 
 ## What works today
@@ -69,7 +69,7 @@ Tested on Linux (desktop and browser) and on one Android phone:
 
 Windows and macOS builds are produced but **untested**: nobody on the project
 has those machines. Area by area, with what is still missing:
-[Status](https://mathstruct.github.io/Moonkale/Status).
+[Status](https://mathstruct.org/Moonkale/Status).
 
 ## Planned
 
@@ -88,7 +88,7 @@ has those machines. Area by area, with what is still missing:
   Rust replacements.
 
 The design notes behind all of this, one note per decision, are the
-[documentation site](https://mathstruct.github.io/Moonkale/).
+[documentation site](https://mathstruct.org/Moonkale/).
 
 ## Install
 
@@ -106,8 +106,8 @@ Releases are named by date, `YYMMDD-proto` (e.g. `260927-proto`), and the files
 | Windows / macOS | `.msi` / `.exe` / `.dmg` | **unsigned and untested**, see the install page |
 
 Details and troubleshooting:
-[Install](https://mathstruct.github.io/Moonkale/packaging/Install).
-New to it? [Getting Started](https://mathstruct.github.io/Moonkale/Getting-Started)
+[Install](https://mathstruct.org/Moonkale/packaging/Install).
+New to it? [Getting Started](https://mathstruct.org/Moonkale/Getting-Started)
 explains Moonkale for people who use VS Code and Obsidian. To build it
 yourself: [Development](markdown/Development.md).
 
@@ -116,7 +116,7 @@ yourself: [Development](markdown/Development.md).
 Bugs, ideas and "I cannot get it to work" all welcome: [open an
 issue](https://github.com/MathStruct/Moonkale/issues/new/choose). Reports on
 Windows and macOS are especially useful, since that's the only testing those
-builds get. More in [Feedback](https://mathstruct.github.io/Moonkale/Feedback).
+builds get. More in [Feedback](https://mathstruct.org/Moonkale/Feedback).
 
 ## License
 
@@ -124,6 +124,6 @@ builds get. More in [Feedback](https://mathstruct.github.io/Moonkale/Feedback).
 software under its own permissive licenses: DuckDB, LadybugDB, wasmtime,
 Typst, tree-sitter, ICU4X, CodeMirror, Milkdown, xterm.js, KaTeX and its
 fonts (OFL). No GPL-only dependency is included. The full list:
-[Licensing](https://mathstruct.github.io/Moonkale/platform/Licensing).
+[Licensing](https://mathstruct.org/Moonkale/platform/Licensing).
 
-Moonkale is a [MathStruct](https://mathstruct.github.io/) project.
+Moonkale is a [MathStruct](https://mathstruct.org/) project.

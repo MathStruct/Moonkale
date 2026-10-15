@@ -287,7 +287,7 @@ status-kept-open =
        *[other] { $n } ungespeicherte Dokumente bleiben offen
     }
 status-no-folder = Kein Ordner ist geöffnet
-status-about = Moonkale { $version } – graphbasierter Code- und Wissenseditor · mathstruct.github.io/Moonkale
+status-about = Moonkale { $version } – graphbasierter Code- und Wissenseditor · mathstruct.org/Moonkale
 editor = Editor
 rail-title = { $label } – erneut klicken zum Ausblenden
 people = Personen

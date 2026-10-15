@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         These are the most valuable reports and the hardest to act on quickly. Decisions live in the vault under
-        [decisions](https://mathstruct.github.io/Moonkale/decisions/) — if one of them is what you disagree with, name it.
+        [decisions](https://mathstruct.org/Moonkale/decisions/) — if one of them is what you disagree with, name it.
   - type: textarea
     id: what
     attributes:

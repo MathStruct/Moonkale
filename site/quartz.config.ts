@@ -14,8 +14,8 @@ const config: QuartzConfig = {
     enablePopovers: true,
     analytics: null,
     locale: "en-US",
-    // project page under the organisation site: https://mathstruct.github.io/Moonkale/
-    baseUrl: "mathstruct.github.io/Moonkale",
+    // project page under the organisation site: https://mathstruct.org/Moonkale/
+    baseUrl: "mathstruct.org/Moonkale",
     // `Prompt*` are the working prompts that drove the design sessions; kept in the
     // vault for provenance, not published.
     ignorePatterns: ["private", ".obsidian", ".tikz-cache", "Prompt*", "prompts"],
@@ -96,8 +96,8 @@ const config: QuartzConfig = {
       }),
       Plugin.Assets(),
       Plugin.Static(),
-      // no Plugin.CNAME(): this is a project page under mathstruct.github.io,
-      // not a custom domain
+      // no Plugin.CNAME(): this is a project page; it inherits mathstruct.org
+      // from the organisation's site, and a CNAME here would take that over
       Plugin.Favicon(),
       Plugin.NotFoundPage(),
       // Plugin.CustomOgImages(),  // disabled: slows the build considerably

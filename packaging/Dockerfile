@@ -18,7 +18,7 @@ FROM ubuntu:24.04
 # So GitHub links the package to this repository and shows a description.
 LABEL org.opencontainers.image.source="https://github.com/MathStruct/Moonkale" \
       org.opencontainers.image.description="moonkale-server: the Moonkale server and its browser client — open a folder over HTTP, with terminal, git, language servers and agent sessions on this machine." \
-      org.opencontainers.image.documentation="https://mathstruct.github.io/Moonkale/packaging/Install" \
+      org.opencontainers.image.documentation="https://mathstruct.org/Moonkale/packaging/Install" \
       org.opencontainers.image.licenses="MIT"
 
 ARG TARBALL

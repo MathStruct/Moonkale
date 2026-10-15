@@ -73,7 +73,7 @@ install -m644 README.md LICENSE "$STAGE/share/doc/moonkale/"
   echo
   echo "Moonkale itself is MIT (LICENSE). The binaries also contain the crates"
   echo "and the JavaScript bundles listed below, under their own licences."
-  echo "Overview: https://mathstruct.github.io/Moonkale/platform/Licensing"
+  echo "Overview: https://mathstruct.org/Moonkale/platform/Licensing"
   echo
   if command -v cargo-license >/dev/null 2>&1; then
     cargo license --avoid-build-deps --avoid-dev-deps 2>/dev/null || true

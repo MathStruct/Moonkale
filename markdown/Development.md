@@ -133,7 +133,7 @@ Source images live in `/assets` (`Moonkale.png` 1254², `Moonkale512.png`, `Moon
 
 The repository root is the Obsidian vault (`.obsidian/` at the root); the notes live in `markdown/`. Installed Obsidian plugins — Inline TikZ, Wypst (Typst), Markdown Tabs, Excalidraw, Document Comments — have matching build-time support in the site where it exists (TikZ, Typst, Tabs; Mermaid is built in).
 
-The website <https://mathstruct.github.io/Moonkale/> is built with [Quartz 4](https://quartz.jzhao.xyz), vendored in `site/` from the [MathStruct site](https://github.com/MathStruct/mathstruct.github.io) so both share the same plugins and look. Pushing to `master` runs `.github/workflows/deploy.yml`, which builds `markdown/` and deploys to GitHub Pages.
+The website <https://mathstruct.org/Moonkale/> is built with [Quartz 4](https://quartz.jzhao.xyz), vendored in `site/` from the [MathStruct site](https://github.com/MathStruct/mathstruct.github.io) so both share the same plugins and look. Pushing to `master` runs `.github/workflows/deploy.yml`, which builds `markdown/` and force-pushes the result as a single commit to the **`gh-pages`** branch. GitHub Pages serves that branch (Settings → Pages → Deploy from a branch: `gh-pages`, `/`, since 2026-10-15). The address comes from the organisation's site, which carries the `mathstruct.org` domain, so `gh-pages` has no `CNAME` file. Branch history is not kept: each deploy replaces it.
 
 Preview locally:
 
@@ -147,7 +147,7 @@ Conventions:
 - `index.md` is the landing page; `Home.md` is the full map of contents.
 - Frontmatter: `title` (optional — the filename is used otherwise), `description`, `tags`. ADRs carry `status` and `date`; problems carry `status` and `phase`.
 - `templates/` and `Prompt*.md` are not published (`ignorePatterns` in `site/quartz.config.ts`).
-- Diagrams: Mermaid fences render everywhere. ```` ```tikz ```` and ```` ```typst ```` fences and `$…$` math also render on the site (Typst first, KaTeX fallback — see the MathStruct [authoring guide](https://mathstruct.github.io/guides/authoring) for the rules).
+- Diagrams: Mermaid fences render everywhere. ```` ```tikz ```` and ```` ```typst ```` fences and `$…$` math also render on the site (Typst first, KaTeX fallback — see the MathStruct [authoring guide](https://mathstruct.org/guides/authoring) for the rules).
 - Every problem hit during implementation gets a note via [[Problem Template]] and a row in [[Problem Log]].
 - Versioning of the vault itself is plain git; versioning *inside* Moonkale is described in [[Version Management]].
 - **Status is kept in one place, [[Status]]**, updated at the end of every milestone; the landing page, [[Home]] and the [[Roadmap]] link to it rather than repeating it.

@@ -291,7 +291,7 @@ status-kept-open =
        *[other] { $n } unsaved documents left open
     }
 status-no-folder = No folder is open
-status-about = Moonkale { $version } — graph-native code and knowledge editor · mathstruct.github.io/Moonkale
+status-about = Moonkale { $version } — graph-native code and knowledge editor · mathstruct.org/Moonkale
 editor = Editor
 rail-title = { $label } — click again to hide
 people = People

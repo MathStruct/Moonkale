@@ -45,4 +45,4 @@ It is written in Rust with [Dioxus](https://dioxuslabs.com), targets desktop, we
 | Planning and records | [[Status]] · [[Roadmap]] · [[Problem Ranking]] · [[Problem Log]] · [[Audit 2026-09-23]] · [[specifications/README\|Specifications]] · milestones 1–18 in [[Home#Milestones\|Home]] |
 | Contributing | [[Development]] — building, running, and how this site is published · [[Feedback]] |
 
-Source: [github.com/MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) · Part of [MathStruct](https://mathstruct.github.io/).
+Source: [github.com/MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) · Part of [MathStruct](https://mathstruct.org/).

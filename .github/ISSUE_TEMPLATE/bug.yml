@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Moonkale is version 0.1 and rough at the edges — a report is welcome even when you are not sure it is a bug.
-        Every reported problem ends up in the [Problem Log](https://mathstruct.github.io/Moonkale/problems/Problem-Log) with its cause and fix.
+        Every reported problem ends up in the [Problem Log](https://mathstruct.org/Moonkale/problems/Problem-Log) with its cause and fix.
   - type: textarea
     id: what
     attributes:

@@ -9,7 +9,7 @@ export const sharedPageComponents: SharedLayout = {
   footer: Component.Footer({
     links: {
       GitHub: "https://github.com/MathStruct/Moonkale",
-      MathStruct: "https://mathstruct.github.io/",
+      MathStruct: "https://mathstruct.org/",
     },
   }),
 }
