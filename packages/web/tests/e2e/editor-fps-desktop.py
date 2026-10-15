@@ -7,6 +7,7 @@ edits or input injection into the WebView. Screen coordinates target the fixed
 """
 import argparse
 import json
+import os
 import pathlib
 import subprocess
 import time
@@ -16,6 +17,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--binary", type=pathlib.Path, required=True)
 parser.add_argument("--corpus", type=pathlib.Path, required=True)
 parser.add_argument("--report", type=pathlib.Path, required=True)
+parser.add_argument("--gesture", choices=["typing", "held-arrows", "wheel", "small-scroll-deltas", "scrollbar-drag", "selection-drag", "caret-movement"], help="Diagnostic subset only; does not establish the full matrix")
 args = parser.parse_args()
 args.binary = args.binary.resolve()
 args.report = args.report.resolve()
@@ -26,6 +28,33 @@ GESTURES = ["typing", "held-arrows", "wheel", "small-scroll-deltas",
 def command(*words):
     return subprocess.run([str(ROOT / "tools/headless.sh"), *map(str, words)],
                           cwd=ROOT, check=True, capture_output=True, text=True)
+
+
+def idle_cpu_sample(label, seconds=1.2):
+    # Locks coordinate agents, but cannot account for unrelated host jobs.
+    # Sample real utilisation rather than load averages left over from a build.
+    def cpu_ticks():
+        with open("/proc/stat") as stats:
+            values = list(map(int, stats.readline(512).split()[1:9]))
+        if len(values) != 8:
+            raise RuntimeError("Cannot validate quiet-machine CPU accounting")
+        return sum(values), values[3] + values[4]
+    consecutive = 0
+    for attempt in range(6):
+        before = cpu_ticks()
+        time.sleep(seconds)
+        after = cpu_ticks()
+        elapsed = after[0] - before[0]
+        if elapsed <= 0:
+            raise RuntimeError("Cannot validate quiet-machine CPU accounting")
+        active = max(0.0, min(1.0, 1 - (after[1]-before[1])/elapsed))
+        quiet = active <= .10
+        cpu_samples.append({"phase": label, "attempt": attempt + 1,
+                            "activeFraction": active, "quiet": quiet})
+        consecutive = consecutive + 1 if quiet else 0
+        if consecutive >= 2:
+            return
+    raise RuntimeError(f"Host did not settle below 10% CPU for two consecutive samples (last {active:.1%}); no timing acceptance")
 
 
 def samples():
@@ -51,9 +80,12 @@ def drag(start, end):
         command("release")
 
 
+expected_cases = 3 if args.gesture else 21
 results = []
+cpu_samples = []
 try:
     for name, preview in [("FpsSource.rs", False), ("FpsSource.rs", True), ("FpsThreeMb.txt", False)]:
+        idle_cpu_sample(f"before {name}/{preview}", 1.0)
         command("start", "1500x1100")
         command("run", f"MOONKALE_FPS_SOURCE={args.corpus.resolve() / name}",
                 f"MOONKALE_FPS_REPORT={args.report}", args.binary)
@@ -63,8 +95,10 @@ try:
             command("click", 505, 148)
             time.sleep(1)
         for index, gesture in enumerate(GESTURES):
+            if args.gesture and gesture != args.gesture:
+                continue
             # Reload the memory source, restoring edits and resetting history.
-            command("click", 368, 148)
+            command("click", 464 if horizontal else 368, 148)
             time.sleep(1)
             command("click", 90, 230)
             command("key", "ctrl+Home")
@@ -72,6 +106,8 @@ try:
             command("key", "Home", *(["Down"] * index), "Return")
             before = len(samples())
             command("click", 220, 106)
+            # Gather an idle refresh baseline before the first intended input.
+            idle_cpu_sample(f"{name}/{preview}/{gesture}")
             if gesture in ("typing", "held-arrows"):
                 command("click", 90, 230)
                 command("key", "ctrl+Home")
@@ -96,6 +132,7 @@ try:
                 time.sleep(.2)
             observed = samples()
             if len(observed) <= before:
+                command("shot", ROOT / "target/headless/fps-missing-result.png")
                 raise RuntimeError(f"No recorder result for {name}/{preview}/{gesture}")
             sample = observed[-1]
             if sample.get("gesture") != gesture or sample.get("preview") != preview or name not in sample.get("name", ""):
@@ -103,17 +140,22 @@ try:
                 raise RuntimeError(f"UI selected an unexpected case: {sample}")
             results.append(sample)
             print(json.dumps({"name": name, "preview": preview, "gesture": gesture,
-                              **{key: sample.get(key) for key in ["frames", "p95", "max", "interacted", "passed"]}}), flush=True)
+                              **{key: sample.get(key) for key in ["frames", "p95", "max", "quantized", "gate", "refreshInterval", "droppedFrames", "strictPassed", "interacted", "passed"]}}), flush=True)
         command("shot", ROOT / f"target/headless/fps-{name}-{preview}.png")
         command("stop")
 finally:
     command("stop")
     args.report.with_suffix(".summary.json").write_text(json.dumps({
         "platform": "headless-wayland", "compositor": "sway",
-        "renderer": "pixman and Mesa software GL", "scope": "production native panel fixture",
-        "cases": len(results), "passed": len(results) == 21 and all(row["passed"] for row in results),
+        "renderer": "GPU requested (verify driver)" if os.environ.get("HEADLESS_GPU") == "1" else "pixman and Mesa software GL", "softwareThreads": os.environ.get("HEADLESS_GL_THREADS", "Mesa default"), "scope": "production native panel fixture",
+        "cpuSamples": cpu_samples, "maximumIdleCpuFraction": .10,
+        "requiredQuietSamples": 2, "maximumQuietAttempts": 6,
+        "cases": len(results), "expectedCases": expected_cases, "completeMatrix": len(results) == 21,
+        "passed": len(results) == expected_cases and all(row["passed"] for row in results),
+        "strictPassed": len(results) == expected_cases and all(row.get("strictPassed", False) for row in results),
+        "acceptance": "software GL is necessary, not sufficient; real desktop check remains open",
         "results": results,
     }, indent=2))
-if len(results) != 21 or not all(row["passed"] for row in results):
+if len(results) != expected_cases or not all(row["passed"] for row in results):
     raise SystemExit("DESKTOP FPS: GATE NOT MET; raw failures preserved")
-print("DESKTOP FPS: PASS (isolated headless Wayland)")
+print(f"DESKTOP FPS: PASS ({len(results)} isolated headless cases; complete matrix: {len(results) == 21})")

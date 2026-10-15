@@ -109,7 +109,7 @@ pub fn FrameRecorder() -> Element {
                         Ok::<_,String>(sample)
                     }.await;
                     match result {
-                        Ok(sample) => status.set(format!("{}: p95 {} ms, max {} ms, {} frames; passed: {}. Saved to MOONKALE_FPS_REPORT.", selected, sample["p95"], sample["max"], sample["frames"], sample["passed"])),
+                        Ok(sample) => status.set(format!("{}: p95 {} ms, max {} ms, {} frames; {} passed: {}, strict: {}. Saved to MOONKALE_FPS_REPORT.", selected, sample["p95"], sample["max"], sample["frames"], sample["gate"], sample["passed"], sample["strictPassed"])),
                         Err(error) => status.set(format!("Recorder failed: {error}")),
                     }
                     recording.set(false);

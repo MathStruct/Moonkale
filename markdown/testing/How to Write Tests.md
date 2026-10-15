@@ -236,11 +236,13 @@ tools/headless.sh stop                        # the apps it started, the input h
 - **Rendering:**
   - Apps get Mesa's software GL by default. With the NVIDIA driver, WebKit's web process crashes in `libnvidia-eglcore` on a headless sway once a pointer or a screen capture is involved, which is also why wayvnc was dropped.
   - `HEADLESS_GPU=1` opts out of software GL.
+  - `HEADLESS_GL_THREADS=0..32` optionally controls Mesa’s `LP_NUM_THREADS` for profiling (0 disables render worker threads); unset keeps Mesa’s default. The desktop report records this override. See [Mesa environment variables](https://docs.mesa3d.org/envvars.html#envvar-LP_NUM_THREADS).
   - The graph canvas under software GL is not verified yet.
 - **Typing speed** is about human speed (`HEADLESS_KEY_GAP`, 30 ms between key events). Faster typing loses keys in the app's controlled inputs.
 - **State:** PIDs, logs, the input socket and sway's own runtime dir with its Wayland socket (`run/`) are in `target/headless/` (or `$HEADLESS_DIR`), so nothing lands in `/run/user` and a sandbox that can write only the worktree can still run it. Logs: `moonkale.log`, `sway.log`.
 - **Bounded gestures:** wheel accepts vertical/horizontal pixel deltas in [-1000, 1000], 1–200 events, gaps of 0.01–1 second and at most 15 seconds total. Hold accepts a named key or printable unshifted key, for at most 10 seconds; it releases the key in a `finally` block. Motion is bounded by the configured output (maximum 16384 pixels per axis).
 - **Desktop frame harness:** `packages/web/tests/e2e/editor-fps-desktop.py --binary <release-fixture> --corpus <directory> --report <new-json-path>` drives all 21 production-panel cases on a private 1500×1100 display, verifies the selected case and observed interaction, writes raw/summary JSON and stops its display even on failure. It uses compositor input, including key repeat and small pixel wheel deltas; the recorder observes trusted WebView events. Its fixed coordinates are specific to this fixture. Software GL results measure CPU-side Rust/DOM/layout costs and do not establish hardware GPU compositing performance. A pass is necessary, not sufficient: Daniel’s real-desktop check is the final acceptance.
+- **Timing precision:** the desktop recorder retains both callback-entry and rAF clocks. GTK WebKit quantizes both to 1 ms here; the report labels the calibrated vsync fallback separately from the original strict interval gate (ADR-0023). Acquire `~/.cache/moonkale-slots/bench.lock` and both heavy slots for measurements; the idle baseline must contain at least 30 frames and have a median no slower than 17 ms. Software GL also includes CPU painting/compositing costs, not just editor layout.
 - **Still for Daniel:** real keyboard, IME and pointer behaviour on his own KDE session.
 
 ## 8. How I'd go about it, day to day
@@ -251,3 +253,5 @@ tools/headless.sh stop                        # the apps it started, the input h
 4. **Reproduce bugs as tests.** Every `P-nnn` in [[Problem Log]] that has a code fix gets a regression test named after it.
 5. **Keep the fast suite under a minute.** Move anything slower to `#[ignore]` + CI.
 6. **Platform gates are tests too.** `cargo check -p web --target wasm32-unknown-unknown` is the test that says "no native crate leaked"; wire it into `cargo xtask check` so it isn't forgotten.
+
+Desktop FPS preflight samples aggregate `/proc/stat` activity before each mode and gesture. It requires two consecutive samples at or below 10% active CPU within six attempts; all samples are retained in the summary. Settling occurs before input, never by discarding a failed gesture. Hold the bench lock and both heavy slots throughout the run.

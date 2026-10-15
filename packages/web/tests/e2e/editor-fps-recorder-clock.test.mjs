@@ -9,7 +9,7 @@ const record = new Function('dioxus', 'document', 'performance', 'requestAnimati
   'cancelAnimationFrame', 'setTimeout', 'clearTimeout', 'navigator',
   `return (async () => {${source}})();`);
 
-async function sample({step = 1000 / 60, build = 'release-desktop', stall = 0} = {}) {
+async function sample({step = 1000 / 60, build = 'release-desktop', stall = 0, integerClock = false, idleTicks = 0, idleStep = 16} = {}) {
   let now = 0, tick, output;
   const listeners = new Map();
   const viewport = {scrollLeft: 0, scrollTop: 0, clientWidth: 1500, clientHeight: 900,
@@ -23,13 +23,18 @@ async function sample({step = 1000 / 60, build = 'release-desktop', stall = 0} =
     recv: async () => ({gesture: 'typing', durationMs: 1000, build}),
     send: value => { output = value; },
   }, {querySelector: selector => selector.startsWith('.primary') ? panel : size},
-  {now: () => now}, callback => {tick = callback; return 1;}, () => {}, () => 1, () => {},
+  {now: () => integerClock ? Math.floor(now) : now}, callback => {tick = callback; return 1;}, () => {}, () => 1, () => {},
   {userAgent: 'clock regression'});
   await Promise.resolve();
+  for (let n = 0; n < idleTicks; n++) {
+    now += idleStep;
+    tick(Math.round(now));
+  }
+  const began = now;
   for (let n = 0; n < 5; n++) listeners.get('keydown')({isTrusted: true, key: 'x'});
   size.dataset.bytes = '105';
   // The WebView's rAF clock is quantized; callback-entry time is fractional.
-  for (let n = 0; now < 1100; n++) {
+  for (let n = 0; now - began < 1100; n++) {
     now += n === 10 && stall ? stall : step;
     tick(Math.round(now));
   }
@@ -62,4 +67,44 @@ test('a single frame above 50 ms still fails', async () => {
 
 test('development measurements cannot pass', async () => {
   assert.equal((await sample({build: 'dev-desktop'})).passed, false);
+});
+
+
+test('quantized 60 Hz uses calibrated cadence and never claims strict precision', async () => {
+  const result = await sample({integerClock: true, idleTicks: 60});
+  assert.equal(result.quantized, true);
+  assert.equal(result.gate, 'calibrated-vsync');
+  assert.equal(result.refreshInterval, 16);
+  assert.equal(result.droppedFrameThreshold, 24);
+  assert.equal(result.droppedFrames, 0);
+  assert.equal(result.strictPassed, false);
+  assert.equal(result.passed, true);
+});
+
+test('quantized double frames fail the calibrated cadence gate', async () => {
+  const result = await sample({integerClock: true, idleTicks: 60, step: 32});
+  assert.ok(result.droppedFrames > 0);
+  assert.equal(result.passed, false);
+});
+
+test('slow idle calibration cannot relax the target', async () => {
+  const result = await sample({integerClock: true, idleTicks: 60, idleStep: 32});
+  assert.equal(result.refreshInterval, 32);
+  assert.equal(result.droppedFrameThreshold, null);
+  assert.equal(result.passed, false);
+});
+
+test('missing idle calibration cannot pass a quantized clock', async () => {
+  const result = await sample({integerClock: true});
+  assert.equal(result.quantized, true);
+  assert.equal(result.passed, false);
+});
+
+
+test('quantized cadence still rejects a single frame above 50 ms', async () => {
+  const result = await sample({integerClock: true, idleTicks: 60, stall: 60});
+  assert.ok(result.p95 <= result.droppedFrameThreshold);
+  assert.ok(result.max > 50);
+  assert.equal(result.cadencePassed, false);
+  assert.equal(result.passed, false);
 });

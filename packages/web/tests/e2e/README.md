@@ -391,3 +391,20 @@ with the WebView's rAF deltas retained as `rafIntervals`. Integer rAF deltas alo
 cannot resolve the 16.7 ms gate. The clock/gate regression runs without a browser:
 `node --test packages/web/tests/e2e/editor-fps-recorder-clock.test.mjs`. It does
 not establish actual WebView clock precision or desktop performance.
+
+When GTK WebKit quantizes both clocks, the desktop report uses a calibrated
+vsync fallback: at least 30 idle frames, median baseline no slower than 17 ms,
+p95 ≤1.5×baseline and max ≤50 ms. It retains `strictPassed: false`, raw timings,
+idle samples, missed-frame count and `gate: "calibrated-vsync"`; this does not
+establish the original sub-millisecond 16.7 ms desktop gate. The driver waits
+1.2 seconds after arming for calibration. Fractional clocks keep the original
+gate. Acquire `~/.cache/moonkale-slots/bench.lock` and both heavy slots before
+timing runs, and run no builds or other suites concurrently.
+
+Use `editor-fps-desktop.py --gesture wheel` (or another gesture) for a three-case
+diagnostic subset. The summary records `expectedCases` and `completeMatrix`;
+a subset cannot establish all 21 cases. `HEADLESS_GL_THREADS=0..32` optionally
+controls Mesa render workers for profiling and is recorded in the summary; the
+default remains Mesa’s own choice. Missing recorder results retain a screenshot.
+
+Desktop FPS preflight samples aggregate `/proc/stat` activity before each mode and gesture. It requires two consecutive samples at or below 10% active CPU within six attempts; all samples are retained in the summary. Settling occurs before input, never by discarding a failed gesture. Hold the bench lock and both heavy slots throughout the run.

@@ -82,6 +82,11 @@ EOF
     # WebKit's GPU path crashes in libnvidia-eglcore on a headless sway once a
     # pointer is attached, so apps get Mesa's software GL (HEADLESS_GPU=1 opts out).
     gl=(); [[ ${HEADLESS_GPU:-0} == 1 ]] || gl=(__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json LIBGL_ALWAYS_SOFTWARE=1)
+    case ${HEADLESS_GL_THREADS:-} in
+      "") ;;
+      [0-9]|[12][0-9]|3[0-2]) gl+=(LP_NUM_THREADS="$HEADLESS_GL_THREADS") ;;
+      *) echo "HEADLESS_GL_THREADS must be an integer in [0, 32]" >&2; exit 2 ;;
+    esac
     clean_env LANG="${LANG:-C.UTF-8}" "${gl[@]}" "$@" > "$dir/$name.log" 2>&1 &
     echo $! >> "$dir/apps.pid"
     echo "pid $! · log $dir/$name.log"
