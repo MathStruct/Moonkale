@@ -40,7 +40,7 @@ graph-selection-none = nichts ausgewählt
 
 # Experimental structural editing
 structural-edit = Rust-Funktion bearbeiten (experimentell)
-structural-warning = Eine Namensänderung der Deklaration aktualisiert keine Referenzen. Anwenden ändert den ungespeicherten Puffer; separat speichern.
+structural-warning = Deklarationsnamen ändern nur die Deklaration. Umbenennen mit Referenzen benötigt einen Sprachserver-Plan für eine einzelne Datei. Anwenden ändert den ungespeicherten Puffer; separat speichern.
 structural-busy = Plan wird erstellt…
 structural-workers-busy = Planer ausgelastet; erneut versuchen.
 structural-unavailable = Strukturelle Planung ist nicht verfügbar.
@@ -64,3 +64,9 @@ structural-original = Original
 structural-proposed = Vorschlag
 structural-current = Aktuell
 structural-read-only = Strukturelle Änderungen sind nur für beschreibbare dateibasierte Quellen verfügbar.
+
+structural-rename = Mit Referenzen umbenennen (eine Datei)
+structural-rename-multi-file = Die Umbenennung benötigt Änderungen in einer anderen Datei. Der gesamte Plan wurde abgelehnt; es wurde nichts geändert.
+structural-rename-unavailable = Der Rust-Sprachserver ist für diesen Ordner nicht verfügbar.
+structural-rename-timeout = Zeitüberschreitung beim Umbenennen. Erneut versuchen.
+structural-rename-invalid = Der Sprachserver konnte keinen unterstützten Umbenennungsplan erstellen.

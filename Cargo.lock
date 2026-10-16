@@ -7153,6 +7153,7 @@ name = "moonkale-editor-graph"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "moonkale-code-view",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-graph-assets",

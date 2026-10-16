@@ -511,3 +511,5 @@ Build both halves with `SERVE_FEATURES=julia,structural-edits` and run
 preview/discard, unsaved Apply, native undo/redo/save, move/conflict/recompute,
 and endpoint bounds. Repeat with `STRUCTURAL_EDITOR=codemirror` to cover the
 CodeMirror mirror/undo/save path. CI runs both backends. The default all-suites list excludes this opt-in feature.
+
+`graph-rename` requires `structural-edits` on server/client and rust-analyzer. It drives reference-aware graph Rename with unsaved calls, recursion, shadowed locals, exact comments/CRLF, grouped undo/redo, complete multi-file refusal and retained conflicts. Repeat with `STRUCTURAL_EDITOR=codemirror`; default is native.

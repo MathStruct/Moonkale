@@ -40,7 +40,7 @@ graph-selection-none = nothing selected
 
 # Experimental structural editing
 structural-edit = Edit Rust function (experimental)
-structural-warning = Changing a declaration name does not update references. Apply changes the unsaved buffer; save separately.
+structural-warning = Declaration-name changes update only the declaration. Rename with references requires a single-file language-server plan. Apply changes the unsaved buffer; save separately.
 structural-busy = Planning…
 structural-workers-busy = Planner busy; try again.
 structural-unavailable = Structural planning is unavailable.
@@ -64,3 +64,9 @@ structural-original = Original
 structural-proposed = Proposed
 structural-current = Current
 structural-read-only = Only writable Files sources support structural editing.
+
+structural-rename = Rename with references (single file)
+structural-rename-multi-file = Rename needs edits in another file. The entire plan was refused; no changes were applied.
+structural-rename-unavailable = Rust language server is unavailable for this folder.
+structural-rename-timeout = Rename timed out. Try again.
+structural-rename-invalid = The language server could not produce a supported rename plan.

@@ -155,7 +155,7 @@ jobs:
             check_name: browser structural edits
             features: julia,structural-edits
             browser: chromium
-            suites: structural-edits graph-a11y
+            suites: structural-edits graph-rename graph-a11y
     env:
       # A cold debug build of server + client can take longer than serve.sh's default 20 minutes:
       # 45 minutes in seconds. A build whose log stops growing fails after 20 (SERVE_STALL).
@@ -189,6 +189,9 @@ jobs:
         run: |
           mkdir -p "$MOONKALE_E2E/e2e"
           cd "$MOONKALE_E2E/e2e" && npm init -y >/dev/null && npm i playwright && npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Rust analyzer for graph rename
+        if: matrix.name == 'structural'
+        run: rustup component add rust-analyzer
       - name: Fixture
         run: packages/web/tests/e2e/fixture.sh "$MOONKALE_E2E/m2root"
       - name: Start the web build (dx serve)
@@ -206,7 +209,7 @@ jobs:
         if: matrix.name == 'structural'
         env:
           STRUCTURAL_EDITOR: codemirror
-        run: packages/web/tests/e2e/run-all.sh structural-edits
+        run: packages/web/tests/e2e/run-all.sh structural-edits graph-rename
       - name: Server log and screenshots on failure
         if: failure()
         run: tail -100 "$MOONKALE_E2E"/dx-*.log || true

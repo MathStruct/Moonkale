@@ -192,6 +192,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-207 CodeMirror external edits must preserve UTF-16 boundaries]] | The common-prefix/suffix replacement could emit a lone surrogate for supplementary-plane identifier changes. External diffs now widen over whole UTF-16 pairs, in addition to CRLF, and remain isolated undo entries. | resolved | WP-67 integration |
 
+| [[P-208 Graph rename must refuse incomplete file subsets]] | Reference-aware graph Rename accepts complete single-file LSP plans and refuses multi-file plans in full. Resolver inputs and connection versions stay guarded through preview and Apply. | resolved | WP-67 slice 4 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

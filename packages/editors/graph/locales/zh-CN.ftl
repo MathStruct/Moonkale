@@ -40,7 +40,7 @@ graph-selection-none = 未选择任何内容
 
 # Experimental structural editing
 structural-edit = 编辑 Rust 函数（实验性）
-structural-warning = 修改声明名称不会更新引用。应用只修改未保存的缓冲区，请另行保存。
+structural-warning = 修改声明名称只更新声明。更新引用的重命名需要语言服务器提供单个文件的完整计划。应用只修改未保存的缓冲区，请另行保存。
 structural-busy = 正在规划…
 structural-workers-busy = 规划器忙，请重试。
 structural-unavailable = 结构编辑规划不可用。
@@ -64,3 +64,9 @@ structural-original = 原文
 structural-proposed = 建议
 structural-current = 当前
 structural-read-only = 仅可写的文件来源支持结构编辑。
+
+structural-rename = 重命名并更新引用（单个文件）
+structural-rename-multi-file = 重命名需要修改其他文件。整个计划已被拒绝，未应用任何更改。
+structural-rename-unavailable = 此文件夹的 Rust 语言服务器不可用。
+structural-rename-timeout = 重命名超时，请重试。
+structural-rename-invalid = 语言服务器无法生成受支持的重命名计划。

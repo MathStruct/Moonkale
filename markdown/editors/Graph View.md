@@ -98,10 +98,10 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 
 Desktop and web builds with the default-off `structural-edits` feature offer
 **Edit Rust function (experimental)** for a selected Rust function definition.
-Explicit declaration-name and same-file move controls lead to an escaped,
+Explicit declaration-name, reference-aware single-file rename and same-file move controls lead to an escaped,
 range-highlighted preview. Apply changes the open unsaved buffer through its
 normal undo history; it does not save. Conflicts retain the old preview beside
 current source and require recomputation and fresh function confirmation.
-Dragging continues to arrange the graph. Reference-aware rename, nested
+Dragging continues to arrange the graph. Rename uses rust-analyzer and refuses the whole plan if another file must change. Nested
 operations, Store writes and cross-file moves are not provided. See
 [[Rust Lossless Syntax and Patches]] for limits, platform wiring and tests.
