@@ -7248,6 +7248,7 @@ dependencies = [
  "js-sys",
  "moonkale-core",
  "moonkale-ext-abi",
+ "moonkale-index",
  "moonkale-llm-types",
  "moonkale-lsp",
  "moonkale-project-fs",

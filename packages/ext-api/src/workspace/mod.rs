@@ -27,6 +27,7 @@ mod documents;
 mod extensions;
 mod history;
 mod processes;
+pub mod proposals;
 mod remote;
 mod session;
 mod settings;

@@ -184,6 +184,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 | [[P-202 Lossless edits must conserve syntax tokens]] | Error-free parses could lose code after an EOF-comment move. The default-off Rust planner now preserves function count and the complete terminal token inventory, rejects unsafe placements, validates names and checks final output size. | resolved | WP-67 slice 1 |
 | [[P-203 Nested browser fixtures cannot load in rust-analyzer]] | Fixtures under target inherited Moonkale's workspace and failed Cargo metadata, so lsp2 never received diagnostics. Generated fixture manifests now include an empty workspace table; assertions/timeouts unchanged. | resolved | WP-67 verification |
 
+| [[P-204 Structural proposals must retain document identity]] | A syntax hash alone cannot guard editor history, close/reopen, source replacement or source-version changes. Bounded Workspace proposals now check these identities and revisions, preserve previews on conflict and use ordinary undo/save paths. | resolved | WP-67 slice 2 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

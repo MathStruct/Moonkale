@@ -1,9 +1,9 @@
 ---
 title: "Rust Lossless Syntax and Patches"
-description: "WP-67 foundation: source truth metadata, exact Rust syntax snapshots and guarded pure patch plans; graph editing and document integration remain later slices."
+description: "WP-67 foundation: source truth metadata, exact Rust syntax snapshots and guarded pure patch plans; revision-aware document proposals are built; graph controls and conflict UI remain later slices."
 tags: [architecture, code-graph, rust, syntax, patches]
 ---
-**Built, experimental and off by default, 2026-10-16:** WP-67 slice 1. Implements the foundation of [[ADR-0028 Files or the graph]] option B, without exposing a graph refactoring action. See [[Code Graph Schema]], [[Indexing]] and [[P-202 Lossless edits must conserve syntax tokens]].
+**Built, experimental and off by default, 2026-10-16:** WP-67 slices 1–2. Implements the foundation of [[ADR-0028 Files or the graph]] option B, without exposing a graph refactoring action. See [[Code Graph Schema]], [[Indexing]] and [[P-202 Lossless edits must conserve syntax tokens]].
 
 ## Source truth is metadata, not permission
 
@@ -32,7 +32,31 @@ let move_before_first = syntax.plan_move_function(1, Some(0))?;
 - `RustEditPlan` exposes read-only `input_hash()` and `edits()`. Each `RustTextEdit` has a UTF-8 byte range, expected removed text and inserted text. Its `apply_to(current)` checks the exact input hash, all boundaries, expected text, overlap and final size before constructing output right-to-left. Stale text is rejected, not rebased automatically. Output limits count the final size, so an equal-size move at the cap is valid.
 - Planned output is reparsed and must retain the function count. Moves additionally preserve the complete multiset of terminal token kind/spelling pairs. Grammar validity alone is insufficient: an unterminated EOF line comment can swallow another item while leaving a valid parse. Such placements return `InvalidPlacement`. No unsafe partial plan is returned.
 
-Neither planning nor `apply_to` writes a file, edits a Workspace buffer, changes revisions/history, saves or refreshes the index. The returned String is a proposed result for a future document-layer consumer. `SyntaxEditError` distinguishes invalid names/functions/ranges, overlap, stale input, invalid placement, malformed syntax and limits.
+Neither planning nor `apply_to` writes a file, edits a Workspace buffer, changes revisions/history, saves or refreshes the index. The returned String is a proposed result; the explicit document adapter below performs the separate in-memory commit. `SyntaxEditError` distinguishes invalid names/functions/ranges, overlap, stale input, invalid placement, malformed syntax and limits.
+
+## Revision-aware document adapter
+
+`Workspace::document_edit_base(node)` captures an already-open document's unsaved text, editor revision, source version, generational document/session handles and source instance. It supports writable `Files` sources only; Store ownership is not implemented by this adapter. A stale editor mirror returns `Changed` instead of overwriting the canonical buffer. Capture on the UI thread, clone the snapshot text for background syntax planning, then return byte edits to the UI thread:
+
+```rust,ignore
+let base = ws.document_edit_base(node)?;
+let syntax = RustSyntaxSnapshot::parse(&base.snapshot().text)?;
+let plan = syntax.plan_declaration_rename(0, "new_name")?;
+plan.apply_to(&base.snapshot().text)?; // verify the syntax plan's exact input
+let proposal = base.propose(plan.edits().iter().map(|edit| TextChange {
+    range: edit.range.clone(),
+    removed_text: edit.removed_text.clone(),
+    inserted_text: edit.inserted_text.clone(),
+}).collect())?;
+// Present proposal.base().text and proposal.preview() as plain data.
+let committed = proposal.apply(ws)?; // no save
+```
+
+`workspace::proposals` is engine-neutral; it depends on the existing `TextChange`/`EditBatch` contract, not the index/parser. A native-only development dependency tests this exact bridge with real Rust plans. Normal builds and wasm do not acquire the parser dependency through ext-api.
+
+`propose` validates ranges, expected removed bytes, UTF-8 and overlap in a disposable editor session before exposing a preview. Base/output are capped at 512 KiB, edits at 4,096, and total removed/inserted payload at 1 MiB. `apply` rechecks source instance and Files/write capability, document/session identity, source version, editor revision, canonical text and editor text before a synchronous commit. Even a close/reopen or edit/undo returning identical bytes cannot accept the old proposal. Invalid or conflicting application changes no buffer/history. A successful edit is one ordinary undo entry, retains current live selection rebased in UTF-16, and marks the document dirty through the existing text/saved comparison. A no-op creates no history entry. Other editor views observe the same session and canonical document.
+
+Conflicts are typed (`Closed`, `UnsupportedSource`, `Changed`, `LimitExceeded`, `Invalid`). `apply(&self, ...)` retains the base and preview on failure: a consumer can compare those with the current document, discard the proposal by dropping it, or capture a new base and rerun the planner. Old ranges are never automatically rebased. The backing source is not fetched or written during application; external file changes remain the responsibility of the ordinary version-checked `Workspace::save`. Its `SourceError::Conflict` leaves the proposed buffer dirty and undoable. There is no new conflict dialog or graph action in this API slice.
 
 ## Evidence and the next slice
 
@@ -40,4 +64,6 @@ Tests cover byte-exact Rust corpus reconstruction (including real project source
 
 CI runs both experimental index features alongside the feature-off workspace checks. The final handoff records the exact gate/browser evidence. No new dependency or graph-render bundle change is introduced by this slice.
 
-**WP-67 is not complete.** Next: a revision-aware adapter from these byte edits into Workspace's existing `EditBatch`/history and document save path, plus conflict presentation. Reference-aware rename and graph controls require that adapter and a resolver/LSP plan; cross-file move additionally needs an explicit multi-document failure/undo policy because Source transactions permit partial success. No graph action, autosave, mode/default flip, multi-file atomicity or semantic-equivalence guarantee is claimed here.
+**WP-67 is not complete.** Next: graph controls with explicit preview/conflict presentation using this adapter. Reference-aware rename and graph controls require that adapter and a resolver/LSP plan; cross-file move additionally needs an explicit multi-document failure/undo policy because Source transactions permit partial success. No graph action, autosave, mode/default flip, multi-file atomicity or semantic-equivalence guarantee is claimed here.
+
+Document-adapter integration tests additionally cover real Rust declaration edits and moves, exact Unicode/CRLF output, live selection, one-step undo/redo, revision ABA, close/reopen ABA, source replacement, permission/truth changes, canonical-buffer drift, source-version changes, malformed/overlapping edits, bounds, no-op history and a failed save followed by explicit recomputation. See [[P-204 Structural proposals must retain document identity]].

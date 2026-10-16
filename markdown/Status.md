@@ -35,7 +35,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Index**: Julia, Python definitions | ✅ | WP-65: same shared schema; Julia overload ids use signatures rather than order |
 | **Index**: Rust/Julia/Python calls, references and imports | ◐ | WP-22: conservative same-file syntax resolution, explicit unresolved targets; compiler-backed dispatch and cross-file resolution remain open — [[Code Graph Schema]] |
 | **Index**: content identities (Rust/Julia/Python) | ◐ | WP-66: default-off explicit requests, versioned syntactic normalization, canonical recursion components, bounded caches and freshness guards; conservative syntax subset and same-file resolution, not semantic equivalence — [[Code Graph Schema]] |
-| **Code graph**: Rust lossless syntax and patch planning | ◐ | WP-67 slice 1: default-off exact snapshots and guarded pure declaration-name/same-file function-move plans; source truth metadata built, graph/document/conflict integration remains open — [[Rust Lossless Syntax and Patches]] |
+| **Code graph**: Rust lossless syntax and patch planning | ◐ | WP-67 slices 1–2 (2026-10-16): default-off exact Rust plans plus a bounded revision-aware Workspace adapter, previews, grouped undo and typed conflicts; graph controls and conflict UI remain open — [[Rust Lossless Syntax and Patches]] |
 | **Index**: other languages | 📝 | [[Core Languages]] |
 | **Git** (changes, diff, stage, commit, history graph) | ✅ | the `git` CLI; no push/pull |
 | **History** (entity log, restore, compaction) | ✅ | one row per event in the folder host's state store (Milestone 18 phase 5.10; was JSONL); #17, P-086 |
