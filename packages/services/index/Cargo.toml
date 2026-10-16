@@ -5,10 +5,18 @@ edition.workspace = true
 license.workspace = true
 description = "Parsing and indexing: wiki-links and tree-sitter symbols derived from other sources, exposed as a Source. Native only."
 
+[features]
+default = []
+content-ids = ["dep:blake3", "dep:moonkale-state", "dep:serde", "dep:serde_json"]
+
 [dependencies]
 moonkale-core = { workspace = true }
 moonkale-llm = { workspace = true }
 regex = "1"
+blake3 = { version = "1", optional = true }
+moonkale-state = { workspace = true, optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # The tree-sitter runtime and grammars come from arborium (tree-sitter

@@ -34,6 +34,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Index**: wiki-links, Rust definitions | ✅ | WP-65: shared L2 kinds, stable location ids, ranged occurrences, names and provenance; index rows rechecked 2026-10-15 — [[Code Graph Schema]] |
 | **Index**: Julia, Python definitions | ✅ | WP-65: same shared schema; Julia overload ids use signatures rather than order |
 | **Index**: Rust/Julia/Python calls, references and imports | ◐ | WP-22: conservative same-file syntax resolution, explicit unresolved targets; compiler-backed dispatch and cross-file resolution remain open — [[Code Graph Schema]] |
+| **Index**: content identities (Rust/Julia/Python) | ◐ | WP-66: default-off explicit requests, versioned syntactic normalization, canonical recursion components, bounded caches and freshness guards; conservative syntax subset and same-file resolution, not semantic equivalence — [[Code Graph Schema]] |
 | **Index**: other languages | 📝 | [[Core Languages]] |
 | **Git** (changes, diff, stage, commit, history graph) | ✅ | the `git` CLI; no push/pull |
 | **History** (entity log, restore, compaction) | ✅ | one row per event in the folder host's state store (Milestone 18 phase 5.10; was JSONL); #17, P-086 |

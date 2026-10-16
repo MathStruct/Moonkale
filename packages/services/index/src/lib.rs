@@ -30,3 +30,7 @@ pub mod walk;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use source::{IndexSource, IndexStats};
+
+/// Lazy, versioned syntactic identities (WP-66); disabled by default.
+#[cfg(all(feature = "content-ids", not(target_arch = "wasm32")))]
+pub mod content;

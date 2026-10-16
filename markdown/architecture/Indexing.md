@@ -4,10 +4,11 @@ tags: [architecture, index]
 ---
 Crate: `index`. The index turns *files and rows* into a *graph* by deriving what sources don't know: symbols, links, outlines, embeddings, stack frames. It is exposed as `IndexSource`, so its output is just more nodes and edges.
 
-> [!note] Index rechecked 2026-10-15 (WP-65/WP-22)
+> [!note] Index rechecked 2026-10-16 (WP-65/WP-22/WP-66)
 > - **Extractors**: wiki-links and tree-sitter definitions for Rust, Julia and Python. The three languages run through the same dispatch. Definitions have location ids, names, ranged occurrences, lexical containment and provenance; syntactic calls/references/imports resolve unique same-file names and preserve other targets as `Unresolved`. See [[Code Graph Schema]] for exact coverage and limitations. No headings/front matter nodes yet.
 > - **Parsing** is native tree-sitter through `arborium` (shared with the Rust code editor, P-113) — not `.wasm` grammars; the index runs on desktop and the server, and the web/phone query the server's.
 > - **Storage is memory**: the graph, BM25 postings (hand-written, `search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) are rebuilt on every open. No sqlite/duckdb store, no tantivy, no usearch, no `recoco`. A persisted index is part of [[Internal State]].
+> - **Content identities**: experimental `moonkale-index/content-ids`, off by default. Explicit async requests hash normalized Rust/Julia/Python syntax and same-file recursive dependencies; a bounded memory cache and optional state-store adapter are available. Unsupported syntax fails explicitly. No eager workspace hashing or UI activation. See [[Code Graph Schema]] for v1 rules.
 > - **LSP as a second extractor** and the `precision` field are not built.
 > - Stack traces live in their own crate, `moonkale-trace` (`TraceSource`), not in `index::trace`.
 

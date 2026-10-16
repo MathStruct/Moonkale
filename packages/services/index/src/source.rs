@@ -46,6 +46,10 @@ pub struct IndexSource {
     search: RwLock<SearchIndex>,
     /// Embedding provider for hybrid search (`None` = BM25 only).
     embedder: Option<Arc<dyn moonkale_llm::Provider>>,
+    #[cfg(feature = "content-ids")]
+    content_cache: Arc<std::sync::Mutex<crate::content::Cache>>,
+    #[cfg(feature = "content-ids")]
+    content_generation: std::sync::atomic::AtomicU64,
 }
 
 /// Batch size for embedding requests.
@@ -77,9 +81,150 @@ impl IndexSource {
             limits: Limits::default(),
             search: RwLock::new(SearchIndex::default()),
             embedder: embedder.filter(|e| e.supports_embed()),
+            #[cfg(feature = "content-ids")]
+            content_cache: Arc::new(std::sync::Mutex::new(crate::content::Cache::default())),
+            #[cfg(feature = "content-ids")]
+            content_generation: std::sync::atomic::AtomicU64::new(0),
         };
         this.rebuild().await?;
         Ok(this)
+    }
+
+    /// Attach an optional rebuildable persistent content-id cache. No source
+    /// text is persisted. Ordinary constructors retain bounded memory caching.
+    #[cfg(feature = "content-ids")]
+    pub fn with_content_id_store(self, store: Arc<dyn moonkale_state::StateStore>) -> Self {
+        self.content_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .set_store(store);
+        self
+    }
+
+    /// Compute one definition and its reachable same-file dependencies on demand.
+    /// Work and store I/O run on a blocking worker, never the input/UI thread.
+    /// Refreshing the index during a request rejects the result as stale.
+    #[cfg(feature = "content-ids")]
+    pub async fn content_id(
+        &self,
+        definition: NodeId,
+    ) -> Result<crate::content::ContentIdentity, crate::content::ContentIdError> {
+        use crate::content::{ContentIdError as Error, MAX_FILE_BYTES};
+        use std::sync::atomic::Ordering;
+        let (file, selector, indexed_input, generation) = {
+            let graph = self.graph.r();
+            let node = graph
+                .node(definition)
+                .filter(|n| n.kind.is_definition())
+                .ok_or(Error::NotDefinition)?;
+            let file_id = graph
+                .edges()
+                .find(|e| e.kind == moonkale_core::EdgeKind::Defines && e.to == definition)
+                .map(|e| e.from)
+                .ok_or(Error::NotDefinition)?;
+            let file = graph.node(file_id).cloned().ok_or(Error::NotDefinition)?;
+            (
+                file,
+                node.native_key.clone(),
+                node.props.get("input").cloned(),
+                self.content_generation.load(Ordering::SeqCst),
+            )
+        };
+        let (text, _) = self
+            .folder
+            .fetch_text(file.id)
+            .await
+            .map_err(|_| Error::SourceUnavailable)?;
+        if text.len() > MAX_FILE_BYTES {
+            return Err(Error::LimitExceeded);
+        }
+        let cache = self.content_cache.clone();
+        let index = self.id.clone();
+        let worker_file = file.clone();
+        let (identities, input) = tokio::task::spawn_blocking(move || {
+            if crate::extract::provenance(&text).get("input") != indexed_input.as_ref() {
+                return Err(Error::StaleInput);
+            }
+            let input = *blake3::hash(text.as_bytes()).as_bytes();
+            // File selector scopes location-keyed cache payloads; never part of the content digest.
+            let key = crate::content::Cache::key(&input, &format!("{}:{}", index, selector));
+            let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+            let identities =
+                if let Some(cached) = cache.get(&key).filter(|c| c.contains_key(&definition)) {
+                    cached
+                } else {
+                    let calculated =
+                        crate::content::calculate(&index, &worker_file, &text, definition)?;
+                    cache.put(key, calculated.clone());
+                    calculated
+                };
+            Ok::<_, Error>((identities, input))
+        })
+        .await
+        .map_err(|_| Error::WorkerFailed)??;
+        // Fetch again before publication: an external edit may precede watcher refresh.
+        let (fresh, _) = self
+            .folder
+            .fetch_text(file.id)
+            .await
+            .map_err(|_| Error::StaleInput)?;
+        if fresh.len() > MAX_FILE_BYTES {
+            return Err(Error::LimitExceeded);
+        }
+        let unchanged = tokio::task::spawn_blocking(move || {
+            blake3::hash(fresh.as_bytes()).as_bytes() == &input
+        })
+        .await
+        .map_err(|_| Error::WorkerFailed)?;
+        if !unchanged {
+            return Err(Error::StaleInput);
+        }
+        let mut graph = self.graph.w();
+        if self.content_generation.load(Ordering::SeqCst) != generation
+            || graph.node(definition).is_none()
+        {
+            return Err(Error::StaleInput);
+        }
+        if identities.keys().any(|id| !graph.nodes.contains_key(id)) {
+            return Err(Error::StaleInput);
+        }
+        for (id, identity) in &identities {
+            let node = graph.nodes.get_mut(id).ok_or(Error::StaleInput)?;
+            node.props
+                .insert("content_id".into(), Value::Text(identity.id.to_string()));
+            node.props.insert(
+                "content_digest".into(),
+                Value::Text(
+                    blake3::Hash::from_bytes(identity.digest)
+                        .to_hex()
+                        .to_string(),
+                ),
+            );
+            node.props.insert(
+                "content_normalizer".into(),
+                Value::Int(identity.normalizer_version as i64),
+            );
+            node.props.insert(
+                "content_component".into(),
+                Value::Text(
+                    blake3::Hash::from_bytes(identity.component_digest)
+                        .to_hex()
+                        .to_string(),
+                ),
+            );
+            node.props.insert(
+                "content_component_index".into(),
+                Value::Int(identity.component_index as i64),
+            );
+            node.props.insert(
+                "content_component_size".into(),
+                Value::Int(identity.component_size as i64),
+            );
+        }
+        identities
+            .get(&definition)
+            .cloned()
+            .ok_or(Error::NotDefinition)
     }
 
     /// Embed every chunk that has no vector yet, in batches. Safe to call
@@ -246,10 +391,34 @@ impl IndexSource {
             }
             d
         };
-        self.graph
-            .write()
-            .unwrap()
-            .set_derived(file.id, derived.nodes, derived.edges);
+        let mut graph = self.graph.w();
+        #[cfg(feature = "content-ids")]
+        {
+            self.content_generation
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            // No previously computed identity may outlive its dependency input.
+            let affected: Vec<_> = graph
+                .edges()
+                .filter(|e| e.from == file.id && e.kind == moonkale_core::EdgeKind::Defines)
+                .map(|e| e.to)
+                .collect();
+            for id in affected {
+                let Some(node) = graph.nodes.get_mut(&id) else {
+                    continue;
+                };
+                for key in [
+                    "content_id",
+                    "content_digest",
+                    "content_normalizer",
+                    "content_component",
+                    "content_component_index",
+                    "content_component_size",
+                ] {
+                    node.props.remove(key);
+                }
+            }
+        }
+        graph.set_derived(file.id, derived.nodes, derived.edges);
     }
 }
 
