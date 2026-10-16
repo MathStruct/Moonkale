@@ -1,6 +1,7 @@
 // Experimental graph operations through the real renderer, remote planner and editor.
 import { chromium } from "playwright";
 import fs from "node:fs";
+import { pathToFileURL } from "node:url";
 const root = process.env.M1_ROOT;
 if (!root) throw Error("M1_ROOT must name a disposable fixture");
 const file = `${root}/graph-edit.rs`;
@@ -31,6 +32,7 @@ async function definitions() {
 }
 async function selectNode(name) {
   await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+  if (await test('discard').isVisible()) await test('discard').click();
   const nodes = await definitions();
   const node = nodes.find(node => node.native_key === `graph-edit.rs#fn:${name}`);
   if (!node) throw Error(`missing definition ${name}`);
@@ -69,17 +71,27 @@ async function save(expected) {
 }
 const sent = [];
 let holdRename = false, renameId, heldReply, onHeld;
+let injectAt = 0, injectId, injectTarget;
 const decode = payload => { const frame = JSON.parse(String(payload)); return typeof frame === 'string' ? JSON.parse(frame) : frame; };
 await page.routeWebSocket(/\/api\/lsp/, socket => {
   const server = socket.connectToServer();
   socket.onMessage(message => {
     const frame = decode(message);
-    if (frame.method === 'textDocument/rename') { sent.push(frame); if (holdRename) renameId = frame.id; }
+    if (frame.method === 'textDocument/rename') {
+      sent.push(frame); if (holdRename) renameId = frame.id;
+      if (sent.length === injectAt) injectId = frame.id;
+    }
     server.send(message);
   });
   server.onMessage(message => {
     const frame = decode(message);
-    if (holdRename && renameId !== undefined && frame.id === renameId) {
+    if (injectId !== undefined && frame.id === injectId) {
+      injectId = undefined;
+      frame.result.documentChanges ??= [];
+      frame.result.documentChanges.push({textDocument:{uri:injectTarget,version:null},edits:[{range:{start:{line:0,character:0},end:{line:0,character:0}},newText:'// unexpected\n'}]});
+      const encoded = JSON.stringify(frame);
+      socket.send(typeof JSON.parse(String(message)) === 'string' ? JSON.stringify(encoded) : encoded);
+    } else if (holdRename && renameId !== undefined && frame.id === renameId) {
       heldReply = () => socket.send(message); onHeld();
     } else socket.send(message);
   });
@@ -138,17 +150,59 @@ try {
     await page.keyboard.press('Control+z'); await save(original + extra);
     await page.keyboard.press('Control+y'); await save(changed);
   });
-  await step('multi-file rename is refused in full', async () => {
+  await step('new authoritative targets and outside-folder plans are refused in full', async () => {
+    for (const [offset, target, expected] of [
+      [2, pathToFileURL(`${root}/graph-consumer.rs`).href, 'set of affected files changed'],
+      [1, 'file:///outside-moonkale/consumer.rs', 'inside the current folder'],
+    ]) {
+      await begin('新名'); await test('function').selectOption('0'); await test('operation').selectOption('rename');
+      injectAt = sent.length + offset; injectTarget = target;
+      await test('name').fill('not_applied'); await test('preview').click();
+      await test('rename-error').waitFor();
+      if (!(await test('rename-error').textContent()).includes(expected)) throw Error('wrong target preflight refusal');
+      if (await test('proposed').count() || !await test('apply').isDisabled()) throw Error('incomplete plan retained an applicable subset');
+      if (fs.readFileSync(file,'utf8') !== changed || fs.readFileSync(`${root}/graph-consumer.rs`,'utf8') !== 'pub fn caller() { crate::second(); }\n') throw Error('rejected target plan wrote source');
+    }
+  });
+  await step('multi-file preview, grouped keyboard/button history and separate saving', async () => {
     await begin('second');
     await test('function').selectOption('1'); await test('operation').selectOption('rename');
     await test('name').fill('other'); await test('preview').click();
-    await test('rename-error').waitFor();
-    if (!(await test('rename-error').textContent()).includes('entire plan was refused')) throw Error('wrong rejection');
-    if (!await test('apply').isDisabled() || await test('proposed').count()) throw Error('partial rename exposed');
-    if (fs.readFileSync(file, 'utf8') !== changed || fs.readFileSync(`${root}/graph-consumer.rs`, 'utf8') !== 'pub fn caller() { crate::second(); }\n') throw Error('rejected plan changed files');
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="structural-file"]').length === 2);
+    const previews = await test('proposed').allTextContents();
+    if (!previews.some(text => text.includes('pub fn other()')) || !previews.some(text => text.includes('crate::other()'))) throw Error('missing complete multi-file preview');
+    const consumer = `${root}/graph-consumer.rs`;
+    const caller = 'pub fn caller() { crate::second(); }\n';
+    if (fs.readFileSync(file,'utf8') !== changed || fs.readFileSync(consumer,'utf8') !== caller) throw Error('preview saved source');
+    await test('apply').click();
+    await test('save-all').waitFor(); await test('save-all').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="structural-save-result"]').length === 2);
+    const both = changed.replace('pub fn second()', 'pub fn other()');
+    if (fs.readFileSync(file,'utf8') !== both || fs.readFileSync(consumer,'utf8') !== caller.replace('second','other')) throw Error('Save affected files did not save both');
+    // A newer edit in either file blocks the entire operation.
+    await openSource(); await input().focus(); await page.keyboard.press('Control+End'); await page.keyboard.type(' ');
+    await page.locator(".wb-tab[id^='wb-tab-graph']").click(); await test('undo').click(); await test('group-error').waitFor();
+    if (fs.readFileSync(consumer,'utf8') !== caller.replace('second','other')) throw Error('blocked undo wrote another file');
+    await openSource(); await input().focus(); await page.keyboard.press('Control+z'); // only newer space
+    await page.keyboard.press('Control+z'); // whole rename
+    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await page.waitForFunction(() => !document.querySelector('[data-testid="structural-redo"]')?.disabled);
+    if (fs.readFileSync(file,'utf8') !== both) throw Error('Undo rename wrote disk');
+    await test('redo').click();
+    await page.waitForFunction(() => !document.querySelector('[data-testid="structural-undo"]')?.disabled);
+    // Undo from the other document must also restore both files.
+    await page.locator('.wb-tab').filter({hasText:'graph-consumer.rs'}).click();
+    await input().focus(); await page.keyboard.press('Control+z');
+    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await page.waitForFunction(() => !document.querySelector('[data-testid="structural-redo"]')?.disabled);
+    await openSource(); await save(changed);
+    await page.locator('.wb-tab').filter({hasText:'graph-consumer.rs'}).click();
+    await input().focus(); await page.keyboard.press('Control+s');
+    await page.waitForFunction(() => ![...document.querySelectorAll('.mk-editor-dirty')].some(e => e.offsetParent !== null));
+    if (fs.readFileSync(consumer,'utf8') !== caller) throw Error('group undo did not restore caller');
   });
   await step('semantic preview survives conflict and requires recomputation', async () => {
-    await test('function').selectOption('0'); await semanticPreview('final_name');
+    await begin('新名'); await test('function').selectOption('0'); await semanticPreview('final_name');
     const preview = await test('proposed').textContent();
     await openSource(); await input().focus(); await page.keyboard.press('Control+Home'); await page.keyboard.type('// newer ');
     await page.locator(".wb-tab[id^='wb-tab-graph']").click();

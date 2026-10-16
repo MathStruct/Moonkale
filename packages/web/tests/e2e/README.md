@@ -512,7 +512,7 @@ preview/discard, unsaved Apply, native undo/redo/save, move/conflict/recompute,
 and endpoint bounds. Repeat with `STRUCTURAL_EDITOR=codemirror` to cover the
 CodeMirror mirror/undo/save path. CI runs both backends. The default all-suites list excludes this opt-in feature.
 
-`graph-rename` requires `structural-edits` on server/client and rust-analyzer. It drives reference-aware graph Rename with unsaved calls, recursion, shadowed locals, exact comments/CRLF, grouped undo/redo, complete multi-file refusal and retained conflicts. Repeat with `STRUCTURAL_EDITOR=codemirror`; default is native.
+`graph-rename` requires `structural-edits` on server/client and rust-analyzer. It drives reference-aware graph Rename with unsaved calls, recursion, shadowed locals, exact comments/CRLF, grouped undo/redo, complete two-file preview/apply, separate saves, newer-edit blocking, history from either document and retained conflicts. Repeat with `STRUCTURAL_EDITOR=codemirror`; default is native.
 
 ### Startup recovery and evidence
 
@@ -538,3 +538,5 @@ successful runs that recovered on the second attempt.
 Run `python3 packages/web/tests/e2e/test-serve.py` for deterministic recovery and
 ownership tests. They use fake time/HTTP and real isolated process trees, including
 a stubborn descendant and an unrelated process that must survive cleanup.
+
+`group-history` probes the committed CodeMirror bundle without a server: history checks never mutate, keyboard/menu group routing survives remounts, held input and stale cancellation tokens cannot cross a barrier, and undo/redo retain their opaque markers. Run through `run-all.sh group-history`.

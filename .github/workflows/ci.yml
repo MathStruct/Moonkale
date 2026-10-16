@@ -155,7 +155,7 @@ jobs:
             check_name: browser structural edits
             features: julia,structural-edits
             browser: chromium
-            suites: structural-edits graph-rename graph-a11y
+            suites: structural-edits graph-rename group-history graph-a11y
     env:
       # Both attempts share one hour; only 20 minutes of inactivity triggers a retry.
       SERVE_WAIT: 3600

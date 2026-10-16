@@ -40,7 +40,7 @@ graph-selection-none = 未选择任何内容
 
 # Experimental structural editing
 structural-edit = 编辑 Rust 函数（实验性）
-structural-warning = 修改声明名称只更新声明。更新引用的重命名需要语言服务器提供单个文件的完整计划。应用只修改未保存的缓冲区，请另行保存。
+structural-warning = 重命名应用当前文件夹内的完整计划。应用只更改未保存的缓冲区，请另行保存。修改声明名称只更新声明。
 structural-busy = 正在规划…
 structural-workers-busy = 规划器忙，请重试。
 structural-unavailable = 结构编辑规划不可用。
@@ -65,8 +65,24 @@ structural-proposed = 建议
 structural-current = 当前
 structural-read-only = 仅可写的文件来源支持结构编辑。
 
-structural-rename = 重命名并更新引用（单个文件）
-structural-rename-multi-file = 重命名需要修改其他文件。整个计划已被拒绝，未应用任何更改。
+structural-rename = 重命名并更新引用
+structural-rename-multi-file = 重命名只能修改当前文件夹内的文件，整个计划已被拒绝。
 structural-rename-unavailable = 此文件夹的 Rust 语言服务器不可用。
 structural-rename-timeout = 重命名超时，请重试。
 structural-rename-invalid = 语言服务器无法生成受支持的重命名计划。
+structural-targets-changed = 受影响的文件集合已改变，请重新计算重命名。
+structural-undo = 撤销重命名
+structural-redo = 重做重命名
+structural-save-all = 保存受影响的文件
+structural-group-blocked = 请先撤销受影响文件中较新的编辑。已关闭、替换或过期的历史无法恢复。
+structural-saved = 已保存
+structural-already-saved = 已保存过
+structural-save-changed = 有较新编辑，已跳过
+structural-save-conflict = 保存冲突，缓冲区已保留
+structural-save-failed = 保存失败，缓冲区已保留
+structural-save-closed = 已关闭，已跳过
+structural-save-read-only = 只读，已跳过
+
+structural-file-changed = 文件已更改，请重新计算预览。
+structural-file-closed = 文件或其数据源已关闭或替换。
+structural-file-read-only = 数据源已不再是可写的文件内容。

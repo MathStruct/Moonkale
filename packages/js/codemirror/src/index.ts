@@ -8,7 +8,7 @@ import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/sea
 import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } from "@codemirror/language"
 import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
-import { EditorState, StateEffect, StateField, RangeSet, Compartment, type Text } from "@codemirror/state"
+import { EditorState, StateEffect, StateField, RangeSet, Compartment, type Text, type Transaction, type TransactionSpec } from "@codemirror/state"
 import { gutter, GutterMarker, Decoration, type DecorationSet } from "@codemirror/view"
 import {
   EditorView,
@@ -20,7 +20,7 @@ import {
   rectangularSelection,
   crosshairCursor,
 } from "@codemirror/view"
-import { defaultKeymap, history, historyKeymap, isolateHistory, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
+import { defaultKeymap, history, historyKeymap, historyField, invertedEffects, isolateHistory, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
 import { openSearchPanel } from "@codemirror/search"
 import { foldAll, unfoldAll } from "@codemirror/language"
 import { themeFromTokens } from "./theme"
@@ -34,11 +34,15 @@ const primaryKey = (e: MouseEvent | KeyboardEvent) => (/Mac|iPhone|iPad/.test(na
 /** Spec 018 / P-037: the view reports *splices* (UTF-16 offsets into the
  *  document before the change, in document order), never the whole text. */
 export type Splice = { from: number; to: number; insert: string }
-type OnChange = (changes: Splice[], length: number) => void
+type OnChange = (changes: Splice[], length: number, stamp?: { epoch: number; sequence: number; workspace: boolean }) => void
 /** Language-feature hooks: Rust answers hover requests asynchronously and
  *  receives go-to-definition requests. Positions are LSP-style
  *  (0-based line, UTF-16 column). */
 type Features = {
+  sessionKey?: string
+  epoch?: number
+  sequence?: number
+  onGroupHistory?: (group: string, redo: boolean) => void
   onHover?: (id: number, line: number, col: number) => void
   onDefinition?: (line: number, col: number) => void
   /** Milestone 7 (all optional): completion proposals are answered with
@@ -67,6 +71,13 @@ export type PresenceMark = { line: number; label: string }
 export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
 type Entry = {
   view: EditorView
+  detached?: EditorState
+  epoch: number
+  sequence: number
+  workspace: boolean
+  held?: string
+  cancelled?: string
+  frozen: Compartment
   wrap: Compartment
   indentation: Compartment
   features: Features
@@ -76,6 +87,89 @@ type Entry = {
 }
 
 const views = new WeakMap<HTMLElement, Entry>()
+const sessions = new Map<string, Entry>()
+const marker = StateEffect.define<{ group: string; undo: boolean }>()
+function stateOf(e: Entry): EditorState { return e.detached ?? e.view.state }
+function targetOf(e: Entry) {
+  return { state: stateOf(e), dispatch: (tr: Transaction) => {
+    if (e.detached) e.detached = tr.state
+    else e.view.dispatch(tr)
+  } }
+}
+// History transactions use filter:false. Inspect their dispatch, never a filter.
+function boundary(e: Entry, redo: boolean): string | undefined {
+  let group: string | undefined
+  ;(redo ? cmRedo : cmUndo)({ state: stateOf(e), dispatch: tr => {
+    group = tr.effects.find(f => f.is(marker))?.value.group
+  } })
+  return group
+}
+function userHistory(e: Entry, redo: boolean): boolean {
+  if (e.held) return true
+  return (redo ? cmRedo : cmUndo)({ state: stateOf(e), dispatch: tr => {
+    const effect = tr.effects.find(f => f.is(marker))
+    if (effect) e.features.onGroupHistory?.(effect.value.group, redo)
+    else targetOf(e).dispatch(tr)
+  } })
+}
+function groupExtensions(e: Entry) {
+  return [
+    invertedEffects.of(tr => tr.effects.filter(f => f.is(marker)).map(f => marker.of({ group: f.value.group, undo: !f.value.undo }))),
+    EditorState.transactionFilter.of(tr => {
+      if (e.held && tr.docChanged && !e.workspace) return []
+      return tr
+    }),
+  ]
+}
+type GroupRequest = { phase: string; direction: string; group: string; token: string; text: string; epoch: number; sequence: number }
+function groupSession(key: string, r: GroupRequest): boolean {
+  if (!/^[0-9]{1,20}$/.test(r.token)) return false
+  const e = sessions.get(key)
+  if (!e) return false
+  if (r.phase === "cancel") {
+    if (!e.cancelled || BigInt(r.token) > BigInt(e.cancelled)) e.cancelled = r.token
+    // A view remounted after a lost commit may have no hold. Only a newer
+    // canonical epoch can repair that case; ordinary refused preparation must
+    // leave queued user input alone.
+    if (e.held === r.token || (!e.held && r.epoch > e.epoch)) {
+      e.held = undefined; targetOf(e).dispatch(stateOf(e).update({ effects: e.frozen.reconfigure([]) }))
+      if (r.epoch >= e.epoch) {
+        e.epoch = r.epoch; e.sequence = r.sequence; e.workspace = true
+        try {
+          if (stateOf(e).sliceDoc() !== r.text) targetOf(e).dispatch(stateOf(e).update(replacement(stateOf(e), r.text, marker.of({ group: r.group, undo: false }))))
+        } finally { e.workspace = false }
+      }
+    }
+    return true
+  }
+  if (r.phase === "prepare") {
+    if ((e.cancelled && BigInt(r.token) <= BigInt(e.cancelled)) || e.held || e.epoch !== r.epoch || e.sequence !== r.sequence || stateOf(e).sliceDoc() !== r.text) return false
+    if (r.direction !== "apply" && boundary(e, r.direction === "redo") !== r.group) return false
+    e.held = r.token
+    targetOf(e).dispatch(stateOf(e).update({ effects: e.frozen.reconfigure(EditorState.readOnly.of(true)) }))
+    return true
+  }
+  if (e.held !== r.token || r.epoch < e.epoch) return false
+  e.epoch = r.epoch; e.sequence = 0; e.workspace = true
+  try {
+    if (r.direction === "apply") targetOf(e).dispatch(stateOf(e).update(replacement(stateOf(e), r.text, marker.of({ group: r.group, undo: false }))))
+    else {
+      // History commands refuse readOnly states, even with a prepared dispatch.
+      // Release it only for this synchronous authorized command; the hold still
+      // blocks all ordinary input until cancel completes the protocol.
+      targetOf(e).dispatch(stateOf(e).update({ effects: e.frozen.reconfigure([]) }))
+      ;(r.direction === "redo" ? cmRedo : cmUndo)(targetOf(e))
+      targetOf(e).dispatch(stateOf(e).update({ effects: e.frozen.reconfigure(EditorState.readOnly.of(true)) }))
+    }
+    return stateOf(e).sliceDoc() === r.text
+  } finally { e.workspace = false }
+}
+function dropSession(key: string): void { sessions.delete(key) }
+function pruneSessions(keys: string[]): void {
+  const keep = new Set(keys)
+  for (const key of sessions.keys()) if (!keep.has(key)) sessions.delete(key)
+}
+
 
 // Presence gutter (Milestone 9): other people's initials next to the line they are on.
 class PresenceMarker extends GutterMarker {
@@ -173,7 +267,8 @@ function cmPos(view: EditorView, line: number, col: number): number {
 
 function mount(el: HTMLElement, text: string, onChange: OnChange, features: Features = {}): void {
   destroy(el)
-  const entry: Partial<Entry> = { pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment(), indentation: new Compartment(), features }
+  const cached = features.sessionKey ? sessions.get(features.sessionKey) : undefined
+  const entry: Partial<Entry> = { epoch: features.epoch ?? 0, sequence: features.sequence ?? 0, workspace: false, held: cached?.held, cancelled: cached?.cancelled, frozen: new Compartment(), pendingHover: new Map(), nextHover: 1, pendingCompletion: new Map(), wrap: new Compartment(), indentation: new Compartment(), features }
   const hover = hoverTooltip(async (v, pos) => {
     if (!features.onHover) return null
     const { line, col } = lspPos(v, pos)
@@ -279,8 +374,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
       features.onCursor!(line, col, toText(u.view.state.doc, anchor, u.view.state.lineBreak.length - 1), toText(u.view.state.doc, head, u.view.state.lineBreak.length - 1))
     }, 250)
   })
-  const view = new EditorView({
-    state: EditorState.create({
+  const config = {
       doc: text,
       extensions: [
         EditorState.lineSeparator.of(separatorOf(text)),
@@ -296,6 +390,8 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         rectangularSelection(),
         crosshairCursor(),
         history(),
+        entry.frozen!.of(cached?.held ? EditorState.readOnly.of(true) : []),
+        ...groupExtensions(entry as Entry),
         // Find/replace (Milestone 7): CodeMirror's panel; Ctrl+H opens it too
         // (replacements are ordinary document changes, so Rust sees them
         // through onChange like typing).
@@ -307,7 +403,10 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         wikiClick,
         keymap.of(completionKeymap),
         featureKeys,
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        keymap.of([...defaultKeymap, ...historyKeymap.map(binding => ({ ...binding,
+          run: binding.run === cmUndo ? () => userHistory(entry as Entry, false) : binding.run === cmRedo ? () => userHistory(entry as Entry, true) : binding.run,
+          shift: binding.shift === cmRedo ? () => userHistory(entry as Entry, true) : binding.shift,
+        })), indentWithTab]),
         lintGutter(),
         hover,
         gotoDef,
@@ -319,15 +418,19 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
             u.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
               changes.push({ from: toText(old, fromA, extra), to: toText(old, toA, extra), insert: inserted.sliceString(0, inserted.length, sep) })
             })
-            onChange(changes, toText(u.state.doc, u.state.doc.length, extra))
+            if (!entry.workspace) entry.sequence = (entry.sequence ?? 0) + 1
+            onChange(changes, toText(u.state.doc, u.state.doc.length, extra), { epoch: entry.epoch ?? 0, sequence: entry.sequence ?? 0, workspace: !!entry.workspace })
           }
         }),
       ],
-    }),
-    parent: el,
-  })
+    }
+  const initial = cached && stateOf(cached).sliceDoc() === text
+    ? EditorState.create({ ...config, selection: stateOf(cached).selection, extensions: [...config.extensions, historyField.init(() => stateOf(cached).field(historyField))] })
+    : EditorState.create(config)
+  const view = new EditorView({ state: initial, parent: el })
   entry.view = view
   views.set(el, entry as Entry)
+  if (features.sessionKey) sessions.set(features.sessionKey, entry as Entry)
 }
 
 /** Replace all diagnostics (LSP coordinates → document offsets). */
@@ -419,13 +522,18 @@ function setCursor(el: HTMLElement, line: number, col: number): void {
 
 /** Adopt a Workspace edit as one isolated undo transaction. Fires onChange
  *  like any other transaction so Rust and the view agree. */
-function setText(el: HTMLElement, text: string): void {
-  const view = views.get(el)?.view
-  if (!view) return
+function setText(el: HTMLElement, text: string, epoch?: number): void {
+  const e = views.get(el)
+  if (!e || e.held || (epoch !== undefined && epoch < e.epoch)) return
+  e.epoch = epoch ?? e.epoch; e.sequence = 0; e.workspace = true
+  try { e.view.dispatch(replacement(e.view.state, text)) }
+  finally { e.workspace = false }
+}
+function replacement(state: EditorState, text: string, effect?: StateEffect<unknown>): TransactionSpec {
   // Replace only the changed middle (common prefix/suffix kept) so the
   // cursor and scroll position survive a rename or an agent edit.
-  const old = view.state.sliceDoc()
-  if (old === text) return
+  const old = state.sliceDoc()
+  if (old === text) return {}
   let start = 0
   const max = Math.min(old.length, text.length)
   while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++
@@ -440,8 +548,7 @@ function setText(el: HTMLElement, text: string): void {
   // Never cut a "\r\n" in two (P-164): widen the changed middle over it.
   if (start > 0 && old.charCodeAt(start - 1) === 13) start--
   if (endOld < old.length && old.charCodeAt(endOld) === 10 && old.charCodeAt(endOld - 1) === 13) { endOld++; endNew++ }
-  const state = view.state
-  view.dispatch({ changes: { from: fromText(state, start), to: fromText(state, endOld), insert: text.slice(start, endNew) }, annotations: isolateHistory.of("full") })
+  return { changes: { from: fromText(state, start), to: fromText(state, endOld), insert: text.slice(start, endNew) }, annotations: isolateHistory.of("full"), effects: effect ? [effect] : [] }
 }
 
 function getText(el: HTMLElement): string | undefined {
@@ -453,18 +560,19 @@ function focus(el: HTMLElement): void {
 }
 
 function undo(el: HTMLElement): void {
-  const view = views.get(el)?.view
-  if (view) cmUndo(view)
+  const entry = views.get(el)
+  if (entry) userHistory(entry, false)
 }
 
 function redo(el: HTMLElement): void {
-  const view = views.get(el)?.view
-  if (view) cmRedo(view)
+  const entry = views.get(el)
+  if (entry) userHistory(entry, true)
 }
 
 function destroy(el: HTMLElement): void {
   const e = views.get(el)
   if (e) {
+    e.detached = e.view.state
     e.view.destroy()
     views.delete(el)
   }
@@ -477,4 +585,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }
+window.moonkale.codemirror = { mount, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }

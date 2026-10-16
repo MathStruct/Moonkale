@@ -8,6 +8,7 @@
 use dioxus::prelude::*;
 
 pub mod codemirror;
+pub use crate::group_history::Stamp as ViewStamp;
 
 /// Events a backend reports to the panel.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -20,7 +21,13 @@ pub enum BackendEvent {
     /// The document changed: splices in UTF-16 offsets into the text
     /// *before* the change, in document order (spec 018, P-037), and the
     /// view's length afterwards (UTF-16 units) as a consistency check.
-    Spliced { changes: Vec<Splice>, length: u32 },
+    Spliced {
+        changes: Vec<Splice>,
+        length: u32,
+        stamp: ViewStamp,
+    },
+    /// A coordinated history boundary was reached without changing the view.
+    GroupHistory { group: u64, redo: bool },
     /// The view wants hover text at an LSP position; answer with `hover_result`.
     Hover { id: u32, line: u32, col: u32 },
     /// F12 at a position.
@@ -145,6 +152,19 @@ pub fn mount(
 ) -> Box<dyn CodeEditorBackend> {
     Box::new(codemirror::CodeMirrorBackend::mount(
         element_id, initial, language, wrap, on_event,
+    ))
+}
+
+pub(crate) fn mount_bound(
+    element_id: String,
+    initial: String,
+    language: Option<String>,
+    wrap: bool,
+    on_event: Callback<BackendEvent>,
+    binding: crate::group_history::Binding,
+) -> Box<dyn CodeEditorBackend> {
+    Box::new(codemirror::CodeMirrorBackend::mount_bound(
+        element_id, initial, language, wrap, on_event, binding,
     ))
 }
 

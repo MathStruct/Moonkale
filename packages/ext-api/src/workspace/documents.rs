@@ -536,6 +536,7 @@ impl Workspace {
 
     /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
+        super::grouped_edits::forget_document(self, node);
         self.begin_document_navigation();
         let pending_reveal = *self.docs.reveal.peek();
         if let Some(reveal) = pending_reveal {

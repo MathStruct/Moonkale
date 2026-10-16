@@ -3,7 +3,7 @@ title: "Rust Lossless Syntax and Patches"
 description: "WP-67 foundation: source truth metadata, exact Rust syntax snapshots and guarded pure patch plans; revision-aware proposals and opt-in desktop/web graph controls with preview/conflict handling are built."
 tags: [architecture, code-graph, rust, syntax, patches]
 ---
-**Built, experimental and off by default, 2026-10-16:** WP-67 slices 1–4. Implements the foundation of [[ADR-0028 Files or the graph]] option B through opt-in graph actions. See [[Code Graph Schema]], [[Indexing]] and [[P-202 Lossless edits must conserve syntax tokens]].
+**Built, experimental and off by default, 2026-10-16:** WP-67 slices 1–5. Implements the foundation of [[ADR-0028 Files or the graph]] option B through opt-in graph actions. See [[Code Graph Schema]], [[Indexing]] and [[P-202 Lossless edits must conserve syntax tokens]].
 
 ## Source truth is metadata, not permission
 
@@ -64,7 +64,7 @@ Tests cover byte-exact Rust corpus reconstruction (including real project source
 
 CI runs both experimental index features alongside the feature-off workspace checks. The final handoff records the exact gate/browser evidence. No new dependency or graph-render bundle change is introduced by this slice.
 
-**WP-67 remains conservative and experimental.** Graph controls and explicit conflict presentation are now implemented behind `structural-edits`; reference-aware rename now uses complete single-file rust-analyzer plans; multi-file rename and cross-file move remain unimplemented. Cross-file work needs an explicit multi-document failure/undo policy because Source transactions permit partial success. No autosave, mode/default flip, multi-file atomicity or semantic-equivalence guarantee is claimed here.
+**WP-67 remains conservative and experimental.** Graph controls and explicit conflict presentation are now implemented behind `structural-edits`; reference-aware rename now uses complete same-folder rust-analyzer plans with coordinated buffer history and explicit per-file saves; cross-file move remains unimplemented. Source transactions permit partial success, so saving is never a disk-wide transaction. No autosave, mode/default flip, multi-file atomicity or semantic-equivalence guarantee is claimed here.
 
 Document-adapter integration tests additionally cover real Rust declaration edits and moves, exact Unicode/CRLF output, live selection, one-step undo/redo, revision ABA, close/reopen ABA, source replacement, permission/truth changes, canonical-buffer drift, source-version changes, malformed/overlapping edits, bounds, no-op history and a failed save followed by explicit recomputation. See [[P-204 Structural proposals must retain document identity]].
 
@@ -72,7 +72,7 @@ Document-adapter integration tests additionally cover real Rust declaration edit
 
 Build desktop or web with `--features structural-edits` (web's server and wasm client must both enable it). The feature is forwarded through distribution to the graph panel and through the app to the planner service. Default builds expose neither controls nor planner endpoint. No renderer bundle changes or new default setting are required; dragging remains graph layout only.
 
-Select one Rust function definition in the graph and choose **Edit Rust function (experimental)**. The panel offers **Change declaration name**, **Rename with references (single file)** and **Move function**, with a same-file **Move before** selector or **End of file**. The declaration-name action changes only a declaration token; the separate Rename action uses the language server. The source file is resolved using the selected node's own index and Defines edge, then loaded in the background without replacing unsaved edits. Old index provenance/ranges preselect a function only when they match the captured input; otherwise choose a function from the freshly parsed snapshot. Only top-level functions returned by the planner can be edited.
+Select one Rust function definition in the graph and choose **Edit Rust function (experimental)**. The panel offers **Change declaration name**, **Rename with references** and **Move function**, with a same-file **Move before** selector or **End of file**. The declaration-name action changes only a declaration token; the separate Rename action uses the language server. The source file is resolved using the selected node's own index and Defines edge, then loaded in the background without replacing unsaved edits. Old index provenance/ranges preselect a function only when they match the captured input; otherwise choose a function from the freshly parsed snapshot. Only top-level functions returned by the planner can be edited.
 
 Preview renders original/proposed text as plain escaped source with exact replacement ranges highlighted. Apply uses the existing proposal adapter, creates one undo entry and leaves the buffer unsaved. Open its normal source tab to undo/redo or save. Discard drops review state without changing a document. Conflict retains original/proposed text alongside current text, disables Apply and requires **Recompute** followed by an explicit fresh function/destination choice and another preview. Completed review state survives panel remounts in Workspace-owned signals. Selection changes or dismissal invalidate pending work; snapshot validation rejects responses after document edits, session replacement or closure.
 
@@ -93,37 +93,60 @@ common-prefix/suffix diff over complete UTF-16 surrogate pairs and CRLF.
 Protocol probes cover both surrogate boundaries, and the graph workflow renames
 supplementary-plane Rust identifiers end to end ([[P-207 CodeMirror external edits must preserve UTF-16 boundaries]]).
 
-## Reference-aware graph rename (slice 4)
+## Reference-aware graph rename (slices 4–5)
 
-**Rename with references (single file)** uses the existing shared rust-analyzer
-session, on desktop and web, against the selected function's exact declaration
-name byte offset. The lossless planner first validates the snapshot-bound target
-and requested name. The code-view component converts the offset to UTF-16,
-synchronizes open unsaved buffers, retains the source document's LSP lease, and
-requests `textDocument/rename`. Startup retains the manager's existing 30-second
-timeout; the rename request has a five-second timeout. No new server endpoint,
-compiler launcher, dependency or graph renderer asset is introduced.
+**Rename with references** uses the shared rust-analyzer connection on desktop
+and web. The pure lossless planner first validates the snapshot-bound function
+and requested identifier. Code-view converts the declaration byte offset to
+UTF-16 and synchronizes open unsaved buffers. A discovery request identifies
+files; targets load in the background without replacing unsaved buffers or
+changing focus. A second authoritative request runs against captured bases. A
+new target in that response requires **Recompute**, never a partial application.
+Startup retains the manager's 30-second timeout; each rename request is limited
+to five seconds. Resource operations and targets outside the originating writable
+folder source are refused in full. This is rename under the server's current
+project configuration, not proof of completeness across generated/disabled code.
 
-Every returned URI and document version is checked before constructing a preview.
-If **any** returned target requires another file, the **whole plan is refused**;
-local edits are never extracted from a multi-file rename. Malformed/resource
-operations are rejected by the existing checked LSP decoder. URI aliases share
-identity, paths must stay within the originating folder, edits are bounded to
-4096 / 1 MiB payload and the document adapter's 512 KiB input/output. UTF-16 ranges
-are converted through the existing validated Unicode/CRLF path; overlap and
-invalid boundaries are rejected. Empty plans are reported without an Apply button.
+Every target uses the existing Unicode/CRLF-safe range converter and checks
+source/document/session identity, exact text/revision and backing version. Open
+resolver buffers and the language-server connection/version remain guarded
+through preview and Apply. Duplicate path aliases, overlaps and malformed
+ranges are refused. Limits are **64 files, 4096 edits, 4 MiB aggregate edit
+payload and 8 MiB combined original/proposed text**, with the existing per-file
+**512 KiB input/output and 1 MiB edit payload** limits. No new dependency, server
+endpoint or compiler launcher is introduced.
 
-The origin's source/document/session identity, version and revision are rechecked
-after startup and response. Open document handles, text and editor revisions,
-along with the originating language-server connection and document version, must
-remain unchanged during the request and are retained as a guard checked again before Apply. The resulting original/proposed preview,
-conflict retention, fresh recomputation, discard, grouped undo and separate save
-use the same path as other graph proposals. This is language-server rename under
-its current project configuration, not a proof of completeness across disabled
-code, generated code or every possible build. Files not loaded in the client are
-resolved by the language server; there is no new disk-wide snapshot transaction.
+`MultiDocumentEditProposal` composes immutable per-file proposals. Preview shows
+each file's original/proposed text and retains it on conflict. Apply prepares
+CodeMirror views under a five-second barrier, then validates and stages all
+buffer/history results before one synchronous commit. There are no awaits or
+fallible edits between canonical assignments. Apply never writes a source.
+Cancellation, input revision/sequence stamps and held views prevent queued input
+from overwriting the committed group.
 
-`graph-rename` runs with both editor backends against a real Rust crate and
-rust-analyzer: recursion and unsaved calls change, comments and shadowed locals
-stay exact, multi-file plans change nothing, and conflicts retain the preview.
-See [[P-208 Graph rename must refuse incomplete file subsets]].
+**Undo rename / Redo rename**, keyboard Ctrl+Z/Y and the Edit menu use the same
+coordinator in both editors. Any newer edit in any participant blocks the whole
+group until that local history is restored. No inverse patch is rebased over
+newer work. CodeMirror history, including opaque group effects, survives panel
+remounts for the open document's lifetime; closing/reopening or switching editor
+implementation retires affected groups. The coordinator retains at most **32
+groups / 32 MiB**. Unknown/retired markers block instead of falling back to a
+single-file undo. Lost commit acknowledgements retire history and resynchronize
+held views to canonical buffers; already committed buffers remain complete.
+
+**Save affected files** is separate: it uses normal Workspace saves for only the
+reviewed text, skips newer buffers, continues after failures and reports Saved,
+Already saved, Changed, Closed, Read only, Conflict or Failed per file. Successful
+writes are never automatically rolled back. Group undo/redo always changes
+buffers only, including after partial saving; dirty flags compare against each
+file's actual saved text. No cross-file move or disk-wide atomicity is claimed.
+
+`graph-rename` runs against a real Rust crate and rust-analyzer in both editors:
+unsaved calls, recursion, comments, shadowing, exact CRLF, two-file preview,
+Apply, separate saves, newer-edit blocking and undo from either document. Injected responses verify that a new authoritative target or an outside-folder target refuses the whole plan.
+`group-history` verifies CodeMirror's public protocol against the committed
+bundle: non-mutating history probes, menu/keyboard routing, retained group
+effects across remounts, held input, token isolation and redo. Core tests cover
+all-buffer refusal, guarded history and partial-save behavior.
+See [[P-208 Graph rename must refuse incomplete file subsets]] and
+[[P-210 Multi-document rename needs coordinated history]].

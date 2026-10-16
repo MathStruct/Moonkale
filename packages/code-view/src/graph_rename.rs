@@ -1,5 +1,5 @@
-//! Reference-aware, single-file rename proposals shared with the graph editor.
-//! No LSP edit is applied here; multi-file plans are refused in full.
+//! Reference-aware rename proposals shared with the graph editor.
+//! Complete same-folder plans are prepared twice; no LSP edit is applied here.
 use crate::{lsp::LspManager, native_workspace_edit::edit_batch_bounded, uri};
 use dioxus::prelude::{ReadableExt, Signal};
 use futures_util::future::{select, Either};
@@ -26,6 +26,8 @@ pub enum RenameError {
     Timeout,
     /// The edit count or payload exceeded the proposal budget.
     Limit,
+    /// The authoritative response introduced an unprepared target. Recompute.
+    TargetsChanged,
 }
 
 struct OpenBase {
@@ -125,13 +127,13 @@ fn single_file_changes(
 /// Startup uses the manager's existing timeout; rename itself is capped at 5 s.
 /// The resulting proposal remains unsaved and uses ordinary document history.
 /// Retain the returned guard alongside the preview and validate it before Apply.
-pub async fn propose(
+async fn request(
     ws: Workspace,
     node: &Node,
     base: &DocumentEditBase,
     byte: usize,
     name: &str,
-) -> Result<(DocumentEditProposal, RenameGuard), RenameError> {
+) -> Result<(WorkspaceEdit, RenameGuard), RenameError> {
     base.validate(ws).map_err(|_| RenameError::Stale)?;
     if base.snapshot().node != node.id || name.is_empty() || name.len() > 256 {
         return Err(RenameError::Invalid);
@@ -196,6 +198,24 @@ pub async fn propose(
     };
     base.validate(ws).map_err(|_| RenameError::Stale)?;
     guard.validate(ws)?;
+    Ok((edit, guard))
+}
+
+/// Legacy single-file proposal API; multi-file plans remain refused here.
+pub async fn propose(
+    ws: Workspace,
+    node: &Node,
+    base: &DocumentEditBase,
+    byte: usize,
+    name: &str,
+) -> Result<(DocumentEditProposal, RenameGuard), RenameError> {
+    let (edit, guard) = request(ws, node, base, byte, name).await?;
+    let root = node
+        .source
+        .as_str()
+        .strip_prefix("folder:")
+        .ok_or(RenameError::Unavailable)?;
+    let version = guard.version;
     let changes = single_file_changes(base.snapshot(), root, &node.native_key, version, &edit)?;
     if !changes
         .iter()
@@ -208,6 +228,147 @@ pub async fn propose(
         _ => RenameError::Invalid,
     })?;
     Ok((proposal, guard))
+}
+
+/// Discover/load complete targets, then request a snapshot-guarded authoritative rename.
+/// Only writable files within the originating folder are accepted.
+pub async fn propose_multi(
+    ws: Workspace,
+    node: &Node,
+    base: &DocumentEditBase,
+    byte: usize,
+    name: &str,
+) -> Result<
+    (
+        moonkale_ext_api::workspace::grouped_edits::MultiDocumentEditProposal,
+        RenameGuard,
+    ),
+    RenameError,
+> {
+    propose_multi_guarded(ws, node, base, byte, name, || true).await
+}
+
+/// As propose_multi, cancelling file loading and the second request when review expires.
+pub async fn propose_multi_guarded(
+    ws: Workspace,
+    node: &Node,
+    base: &DocumentEditBase,
+    byte: usize,
+    name: &str,
+    current: impl Fn() -> bool,
+) -> Result<
+    (
+        moonkale_ext_api::workspace::grouped_edits::MultiDocumentEditProposal,
+        RenameGuard,
+    ),
+    RenameError,
+> {
+    use moonkale_ext_api::workspace::grouped_edits::MultiDocumentEditProposal;
+    let root = node
+        .source
+        .as_str()
+        .strip_prefix("folder:")
+        .ok_or(RenameError::Unavailable)?;
+    let (discovery, first_guard) = request(ws, node, base, byte, name).await?;
+    if !current() {
+        return Err(RenameError::Stale);
+    }
+    let paths = targets(root, &discovery)?;
+    let manager = first_guard.manager;
+    let mut prepared = std::collections::BTreeMap::new();
+    let mut bytes = 0usize;
+    for path in paths {
+        let target = crate::native_definition::resolve_target(ws, node, &path)
+            .await
+            .map_err(|_| RenameError::Unavailable)?;
+        if !matches!(
+            ws.load_node_guarded(target.clone(), || current() && base.validate(ws).is_ok())
+                .await,
+            Ok(true)
+        ) {
+            return Err(RenameError::Stale);
+        }
+        let captured = ws
+            .document_edit_base(target.id)
+            .map_err(|_| RenameError::Stale)?;
+        bytes = bytes.saturating_add(captured.snapshot().text.len());
+        if bytes > 8 * 1024 * 1024 {
+            return Err(RenameError::Limit);
+        }
+        manager.retain_workspace_document(ws, &target, first_guard.session.clone(), root, "rust");
+        prepared.insert(path, captured);
+    }
+    if !current() {
+        return Err(RenameError::Stale);
+    }
+    let (edit, guard) = request(ws, node, base, byte, name).await?;
+    if !current() {
+        return Err(RenameError::Stale);
+    }
+    for path in targets(root, &edit)? {
+        if !prepared.contains_key(&path) {
+            return Err(RenameError::TargetsChanged);
+        }
+    }
+    for (uri, version) in &edit.versions {
+        if manager.peek_document_version(uri) != Some(*version) {
+            return Err(RenameError::Stale);
+        }
+    }
+    let mut files = vec![];
+    let mut origin_changed = false;
+    for (uri, edits) in &edit.changes {
+        let path = uri::relative_file(root, uri).ok_or(RenameError::MultiFile)?;
+        let captured = prepared.get(&path).ok_or(RenameError::TargetsChanged)?;
+        captured.validate(ws).map_err(|_| RenameError::Stale)?;
+        let batch = edit_batch_bounded(captured.snapshot(), edits, 1024 * 1024)
+            .map_err(|_| RenameError::Invalid)?;
+        if captured.snapshot().node == node.id {
+            origin_changed = batch
+                .changes
+                .iter()
+                .any(|c| c.range.start == byte && c.inserted_text == name);
+        }
+        if !batch.changes.is_empty() {
+            files.push(
+                captured
+                    .propose(batch.changes)
+                    .map_err(|_| RenameError::Invalid)?,
+            );
+        }
+    }
+    if !origin_changed {
+        return Err(RenameError::Invalid);
+    }
+    guard.validate(ws)?;
+    let proposal = MultiDocumentEditProposal::new(files).map_err(|_| RenameError::Limit)?;
+    Ok((proposal, guard))
+}
+
+fn targets(
+    root: &str,
+    edit: &WorkspaceEdit,
+) -> Result<std::collections::BTreeSet<String>, RenameError> {
+    let mut paths = std::collections::BTreeSet::new();
+    let mut count = 0usize;
+    let mut bytes = 0usize;
+    for (uri, edits) in &edit.changes {
+        let path = uri::relative_file(root, uri).ok_or(RenameError::MultiFile)?;
+        if !paths.insert(path) {
+            return Err(RenameError::Invalid);
+        }
+        count += edits.len();
+        for edit in edits {
+            bytes = bytes.saturating_add(edit.new_text.len());
+        }
+    }
+    for (uri, _) in &edit.versions {
+        paths.insert(uri::relative_file(root, uri).ok_or(RenameError::MultiFile)?);
+    }
+    if paths.len() > 64 || count > 4096 || bytes > 4 * 1024 * 1024 {
+        return Err(RenameError::Limit);
+    }
+    Ok(paths)
 }
 
 #[cfg(test)]
@@ -307,5 +468,34 @@ mod tests {
             single_file_changes(large.snapshot(), "/project", "main.rs", 1, &plan),
             Err(RenameError::Limit)
         );
+    }
+    #[test]
+    fn complete_target_preflight_checks_folder_aliases_and_aggregate_limits() {
+        let mut plan = WorkspaceEdit {
+            changes: vec![
+                ("file:///project/main.rs".into(), vec![edit(1, 3, 6, "new")]),
+                (
+                    "file:///project/sub/consumer.rs".into(),
+                    vec![edit(0, 0, 3, "new")],
+                ),
+            ],
+            versions: vec![],
+        };
+        assert_eq!(targets("/project", &plan).unwrap().len(), 2);
+        plan.changes
+            .push(("file://localhost/project/%6dain.rs".into(), vec![]));
+        assert_eq!(targets("/project", &plan), Err(RenameError::Invalid));
+        plan.changes.pop();
+        plan.versions.push(("file:///outside/main.rs".into(), 1));
+        assert_eq!(targets("/project", &plan), Err(RenameError::MultiFile));
+        plan.versions.clear();
+        plan.changes[0].1 = vec![edit(0, 0, 0, "x"); 4096];
+        assert_eq!(targets("/project", &plan), Err(RenameError::Limit));
+        plan.changes[0].1 = vec![edit(0, 0, 0, &"x".repeat(4 * 1024 * 1024))];
+        assert_eq!(targets("/project", &plan), Err(RenameError::Limit));
+        plan.changes = (0..65)
+            .map(|i| (format!("file:///project/{i}.rs"), vec![]))
+            .collect();
+        assert_eq!(targets("/project", &plan), Err(RenameError::Limit));
     }
 }

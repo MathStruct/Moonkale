@@ -196,6 +196,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-209 CI startup stalls must retain evidence]] | CI now keeps per-attempt startup logs/process diagnostics and permits one inactivity-only retry inside the original deadline. Owned process-group cleanup covers compiler/server descendants; compiler failures and process exits do not retry. Original tooling-stage stall remains unproven. | resolved (recovery/evidence) | WP-26 |
 
+| [[P-210 Multi-document rename needs coordinated history]] | Two-pass complete same-folder rename plans stage all buffers, coordinate marked native/CodeMirror history and save explicitly per file with partial-success results. Newer edits block all-file undo; history probes and menu/keyboard commands guard CodeMirror dispatch, including remounts and held input. | resolved (experimental) | WP-67 slice 5 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

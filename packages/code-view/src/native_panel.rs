@@ -56,6 +56,9 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             div { class: "mk-editor-failed", {t!(ws, L, "editor-document-closed")} }
         };
     };
+    use_hook(move || {
+        moonkale_ext_api::workspace::grouped_edits::register_view(ws, node, "native", None)
+    });
     let diagnostics = crate::native_diagnostics::use_diagnostics(ws, node, manager);
     let (wiki_marks, follow_wiki) = crate::native_wiki::use_wiki(ws, node);
     let follow_link = crate::native_links::use_follow(ws, node);
@@ -378,6 +381,11 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     });
 
     let history = Callback::new(move |undo: bool| {
+        if let Some(group) = moonkale_ext_api::workspace::grouped_edits::next_group(ws, node, !undo)
+        {
+            crate::group_history::restore(ws, group, !undo);
+            return;
+        }
         let canonical = doc.peek().text.clone();
         if session.peek().snapshot().text != canonical {
             let _ = session.with_mut(|state| state.replace_from_workspace(canonical));

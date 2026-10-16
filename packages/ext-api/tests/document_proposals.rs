@@ -376,3 +376,398 @@ fn save_completion_acknowledges_only_the_submitted_snapshot() {
         assert!(doc.peek().dirty());
     });
 }
+
+fn second_group_doc(mut ws: Workspace) -> NodeId {
+    let mut n = node();
+    n.id = NodeId::fresh("group-second");
+    n.native_key = "second.rs".into();
+    let doc = Signal::new_in_scope(
+        Document::new(n.clone(), TEXT.into(), n.version),
+        ScopeId::ROOT,
+    );
+    ws.docs.open.with_mut(|docs| docs.push((n.id, doc)));
+    n.id
+}
+fn group_proposal(
+    ws: Workspace,
+    second: NodeId,
+) -> moonkale_ext_api::workspace::grouped_edits::MultiDocumentEditProposal {
+    let files = [node().id, second]
+        .into_iter()
+        .map(|id| {
+            let base = ws.document_edit_base(id).unwrap();
+            let start = base.snapshot().text.find("old").unwrap();
+            base.propose(vec![TextChange {
+                range: start..start + 3,
+                removed_text: "old".into(),
+                inserted_text: "新名".into(),
+            }])
+            .unwrap()
+        })
+        .collect();
+    moonkale_ext_api::workspace::grouped_edits::MultiDocumentEditProposal::new(files).unwrap()
+}
+#[test]
+fn grouped_apply_and_guarded_history_are_atomic_and_preserve_newer_edits() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        let proposal = group_proposal(ws, second);
+        let id = proposal.apply(ws).now_or_never().unwrap().unwrap();
+        for node in [node().id, second] {
+            assert_eq!(
+                ws.document(node).unwrap().peek().text,
+                TEXT.replacen("old", "新名", 1)
+            );
+        }
+        let mut session = ws.editor_session(second).unwrap();
+        let base = session.peek().snapshot().clone();
+        session
+            .write()
+            .apply(&moonkale_ext_api::editor::EditBatch {
+                node: second,
+                base_revision: base.revision,
+                changes: vec![TextChange {
+                    range: 0..0,
+                    removed_text: String::new(),
+                    inserted_text: "// newer\r\n".into(),
+                }],
+                selection: None,
+            })
+            .unwrap();
+        ws.document(second).unwrap().write().text = session.peek().snapshot().text.clone();
+        assert!(groups::restore(ws, id, false)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        assert!(ws.document(node().id).unwrap().peek().text.contains("新名"));
+        let restored = session.write().undo().unwrap().unwrap();
+        ws.document(second).unwrap().write().text = restored.text;
+        groups::restore(ws, id, false)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        for node in [node().id, second] {
+            assert_eq!(ws.document(node).unwrap().peek().text, TEXT);
+        }
+        groups::restore(ws, id, true)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        assert_eq!(groups::is_applied(ws, id), Some(true));
+        // Closing one participant permanently retires the coordinated history.
+        ws.close_node(second);
+        assert!(groups::restore(ws, id, false)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        assert!(ws.document(node().id).unwrap().peek().text.contains("新名"));
+    });
+}
+#[test]
+fn group_validation_and_view_refusal_never_partially_commit() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        let proposal = group_proposal(ws, second);
+        ws.document(second).unwrap().write().version = Version(9);
+        assert!(proposal.apply(ws).now_or_never().unwrap().is_err());
+        assert_eq!(
+            ws.editor_session(node().id)
+                .unwrap()
+                .peek()
+                .snapshot()
+                .revision
+                .0,
+            0
+        );
+        assert_eq!(ws.document(node().id).unwrap().peek().text, TEXT);
+        let proposal = group_proposal(ws, second);
+        groups::register_view(
+            ws,
+            second,
+            "test",
+            Some(std::rc::Rc::new(|_| Box::pin(async { false }))),
+        );
+        assert!(proposal.apply(ws).now_or_never().unwrap().is_err());
+        assert_eq!(ws.document(node().id).unwrap().peek().text, TEXT);
+        assert_eq!(ws.document(second).unwrap().peek().text, TEXT);
+    });
+}
+#[test]
+fn group_partial_save_retains_failed_buffers_and_undo_is_buffer_only() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    struct Partial;
+    #[moonkale_core::async_trait]
+    impl Source for Partial {
+        fn id(&self) -> SourceId {
+            Files.id()
+        }
+        fn descriptor(&self) -> SourceDescriptor {
+            Files.descriptor()
+        }
+        async fn query(&self, _: Query) -> Result<QueryResult, SourceError> {
+            Ok(Default::default())
+        }
+        async fn fetch_text(&self, _: NodeId) -> Result<(String, Version), SourceError> {
+            Ok((TEXT.into(), Version(0)))
+        }
+        async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
+            let moonkale_core::Op::WriteText { node: target, .. } = tx.ops[0] else {
+                panic!("write only")
+            };
+            if target == node().id {
+                Ok(Applied {
+                    results: vec![moonkale_core::OpResult::Ok {
+                        node: target,
+                        version: Version(1),
+                    }],
+                })
+            } else {
+                Err(SourceError::Conflict {
+                    expected: Version(0),
+                    actual: Version(2),
+                })
+            }
+        }
+    }
+    let (dom, mut ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        ws.add_source(std::sync::Arc::new(Partial));
+        let second = second_group_doc(ws);
+        let id = group_proposal(ws, second)
+            .apply(ws)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        let results = groups::save(ws, id).now_or_never().unwrap();
+        assert_eq!(results[0].status, groups::FileSaveStatus::Saved);
+        assert_eq!(results[1].status, groups::FileSaveStatus::Conflict);
+        assert!(!ws.document(node().id).unwrap().peek().dirty());
+        assert!(ws.document(second).unwrap().peek().dirty());
+        let results = groups::save(ws, id).now_or_never().unwrap();
+        assert_eq!(results[0].status, groups::FileSaveStatus::AlreadySaved);
+        assert_eq!(results[1].status, groups::FileSaveStatus::Conflict);
+        groups::restore(ws, id, false)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        assert!(ws.document(node().id).unwrap().peek().dirty());
+        assert!(!ws.document(second).unwrap().peek().dirty());
+    });
+}
+
+#[test]
+fn grouped_history_rejects_branching_redo_and_backend_changes() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        groups::register_view(ws, node().id, "native", None);
+        let first = group_proposal(ws, second)
+            .apply(ws)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        groups::restore(ws, first, false)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        // Applying a new group after undo creates a new history branch.
+        let next = group_proposal(ws, second)
+            .apply(ws)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        assert!(groups::restore(ws, first, true)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        assert_eq!(groups::is_applied(ws, next), Some(true));
+        groups::register_view(ws, node().id, "codemirror", None);
+        assert_eq!(groups::is_applied(ws, next), None);
+        assert!(groups::restore(ws, next, false)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        for id in [node().id, second] {
+            assert!(ws.document(id).unwrap().peek().text.contains("新名"));
+        }
+    });
+}
+
+#[test]
+fn grouped_limits_and_superseded_review_refuse_before_mutation() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        assert!(groups::MultiDocumentEditProposal::new(vec![]).is_err());
+        assert!(groups::MultiDocumentEditProposal::new(vec![rename(ws); 65]).is_err());
+        assert!(groups::MultiDocumentEditProposal::new(vec![rename(ws); 2]).is_err());
+        assert!(group_proposal(ws, second)
+            .apply_guarded(ws, || false)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        for id in [node().id, second] {
+            assert_eq!(ws.document(id).unwrap().peek().text, TEXT);
+        }
+    });
+}
+
+#[test]
+fn postcommit_view_failure_retires_history_without_losing_complete_buffers() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        groups::register_view(
+            ws,
+            second,
+            "test",
+            Some(std::rc::Rc::new(|r| {
+                Box::pin(async move { r.phase != "commit" })
+            })),
+        );
+        let id = group_proposal(ws, second)
+            .apply(ws)
+            .now_or_never()
+            .unwrap()
+            .unwrap();
+        assert_eq!(groups::is_applied(ws, id), None);
+        assert!(groups::restore(ws, id, false)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        for id in [node().id, second] {
+            assert!(ws.document(id).unwrap().peek().text.contains("新名"));
+        }
+    });
+}
+
+#[test]
+fn dropping_preparation_releases_the_group_without_mutating_buffers() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        groups::register_view(
+            ws,
+            second,
+            "held",
+            Some(std::rc::Rc::new(|_| Box::pin(std::future::pending()))),
+        );
+        assert!(group_proposal(ws, second)
+            .apply(ws)
+            .now_or_never()
+            .is_none());
+        for id in [node().id, second] {
+            assert_eq!(ws.document(id).unwrap().peek().text, TEXT);
+        }
+        groups::register_view(ws, second, "native", None);
+        assert!(group_proposal(ws, second)
+            .apply(ws)
+            .now_or_never()
+            .unwrap()
+            .is_ok());
+    });
+}
+
+#[test]
+fn aggregate_text_budget_is_checked_before_apply() {
+    use moonkale_ext_api::workspace::grouped_edits::MultiDocumentEditProposal;
+    let (dom, mut ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let mut proposals = vec![];
+        for i in 0..9 {
+            let mut n = node();
+            n.id = NodeId::fresh(&format!("large-group-{i}"));
+            let text = "x".repeat(500 * 1024);
+            let doc =
+                Signal::new_in_scope(Document::new(n.clone(), text, n.version), ScopeId::ROOT);
+            ws.docs.open.with_mut(|docs| docs.push((n.id, doc)));
+            proposals.push(
+                ws.document_edit_base(n.id)
+                    .unwrap()
+                    .propose(vec![TextChange {
+                        range: 0..1,
+                        removed_text: "x".into(),
+                        inserted_text: "y".into(),
+                    }])
+                    .unwrap(),
+            );
+        }
+        assert_eq!(
+            MultiDocumentEditProposal::new(proposals)
+                .err()
+                .unwrap()
+                .reason,
+            ProposalConflict::LimitExceeded
+        );
+        for (_, doc) in ws.docs.open.peek().iter().skip(1) {
+            assert!(doc.peek().text.starts_with('x'));
+        }
+    });
+}
+
+#[test]
+fn evicted_group_markers_never_fall_back_to_partial_history() {
+    use futures_util::FutureExt;
+    use moonkale_ext_api::workspace::grouped_edits as groups;
+    let (dom, ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let second = second_group_doc(ws);
+        let mut ids = vec![];
+        for i in 0..33 {
+            let files = [node().id, second]
+                .into_iter()
+                .map(|id| {
+                    ws.document_edit_base(id)
+                        .unwrap()
+                        .propose(vec![TextChange {
+                            range: 0..0,
+                            removed_text: String::new(),
+                            inserted_text: format!("// {i}\r\n"),
+                        }])
+                        .unwrap()
+                })
+                .collect();
+            ids.push(
+                groups::MultiDocumentEditProposal::new(files)
+                    .unwrap()
+                    .apply(ws)
+                    .now_or_never()
+                    .unwrap()
+                    .unwrap(),
+            );
+        }
+        assert_eq!(groups::is_applied(ws, ids[0]), None);
+        for id in ids.iter().skip(1).rev() {
+            groups::restore(ws, *id, false)
+                .now_or_never()
+                .unwrap()
+                .unwrap();
+        }
+        assert_eq!(groups::next_group(ws, node().id, false), Some(ids[0]));
+        assert!(groups::restore(ws, ids[0], false)
+            .now_or_never()
+            .unwrap()
+            .is_err());
+        for node in [node().id, second] {
+            assert_eq!(
+                ws.document(node).unwrap().peek().text,
+                format!("// 0\r\n{TEXT}")
+            );
+        }
+    });
+}

@@ -25,6 +25,7 @@ use std::sync::Arc;
 mod config;
 mod documents;
 mod extensions;
+pub mod grouped_edits;
 mod history;
 mod processes;
 pub mod proposals;

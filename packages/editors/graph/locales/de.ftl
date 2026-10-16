@@ -40,7 +40,7 @@ graph-selection-none = nichts ausgewählt
 
 # Experimental structural editing
 structural-edit = Rust-Funktion bearbeiten (experimentell)
-structural-warning = Deklarationsnamen ändern nur die Deklaration. Umbenennen mit Referenzen benötigt einen Sprachserver-Plan für eine einzelne Datei. Anwenden ändert den ungespeicherten Puffer; separat speichern.
+structural-warning = Umbenennen wendet einen vollständigen Plan innerhalb dieses Ordners an. Anwenden ändert ungespeicherte Puffer; separat speichern. Deklarationsnamen ändern nur die Deklaration.
 structural-busy = Plan wird erstellt…
 structural-workers-busy = Planer ausgelastet; erneut versuchen.
 structural-unavailable = Strukturelle Planung ist nicht verfügbar.
@@ -65,8 +65,24 @@ structural-proposed = Vorschlag
 structural-current = Aktuell
 structural-read-only = Strukturelle Änderungen sind nur für beschreibbare dateibasierte Quellen verfügbar.
 
-structural-rename = Mit Referenzen umbenennen (eine Datei)
-structural-rename-multi-file = Die Umbenennung benötigt Änderungen in einer anderen Datei. Der gesamte Plan wurde abgelehnt; es wurde nichts geändert.
+structural-rename = Mit Referenzen umbenennen
+structural-rename-multi-file = Umbenennen kann nur Dateien im aktuellen Ordner ändern. Der gesamte Plan wurde abgelehnt.
 structural-rename-unavailable = Der Rust-Sprachserver ist für diesen Ordner nicht verfügbar.
 structural-rename-timeout = Zeitüberschreitung beim Umbenennen. Erneut versuchen.
 structural-rename-invalid = Der Sprachserver konnte keinen unterstützten Umbenennungsplan erstellen.
+structural-targets-changed = Die betroffenen Dateien haben sich geändert. Umbenennung neu berechnen.
+structural-undo = Umbenennung rückgängig
+structural-redo = Umbenennung wiederholen
+structural-save-all = Betroffene Dateien speichern
+structural-group-blocked = Zuerst neuere Änderungen in den betroffenen Dateien rückgängig machen. Geschlossener, ersetzter oder abgelaufener Verlauf kann nicht wiederhergestellt werden.
+structural-saved = Gespeichert
+structural-already-saved = Bereits gespeichert
+structural-save-changed = Neuere Änderungen; übersprungen
+structural-save-conflict = Speicherkonflikt; Puffer erhalten
+structural-save-failed = Speichern fehlgeschlagen; Puffer erhalten
+structural-save-closed = Geschlossen; übersprungen
+structural-save-read-only = Schreibgeschützt; übersprungen
+
+structural-file-changed = Die Datei wurde geändert. Vorschau neu berechnen.
+structural-file-closed = Die Datei oder ihre Quelle wurde geschlossen oder ersetzt.
+structural-file-read-only = Die Quelle ist kein beschreibbarer Dateiinhalt mehr.

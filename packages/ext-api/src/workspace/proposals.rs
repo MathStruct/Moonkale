@@ -16,7 +16,7 @@ const MAX_CHANGES: usize = 4096;
 pub struct DocumentEditBase {
     document: Signal<Document>,
     session: Signal<RevisionedDocument>,
-    source: Arc<dyn Source>,
+    pub(super) source: Arc<dyn Source>,
     snapshot: EditorSnapshot,
     version: Version,
 }
@@ -24,7 +24,7 @@ pub struct DocumentEditBase {
 /// An immutable proposed edit. Applying it never saves the backing source.
 #[derive(Clone)]
 pub struct DocumentEditProposal {
-    base: DocumentEditBase,
+    pub(super) base: DocumentEditBase,
     changes: Vec<TextChange>,
     preview: String,
 }
@@ -51,7 +51,7 @@ impl DocumentEditBase {
         self.live(ws).map(|_| ())
     }
 
-    fn live(
+    pub(super) fn identity(
         &self,
         ws: Workspace,
     ) -> Result<(Signal<Document>, Signal<RevisionedDocument>), ProposalConflict> {
@@ -87,6 +87,14 @@ impl DocumentEditBase {
             return Err(ProposalConflict::Closed);
         }
         writable_files(&source)?;
+        Ok((doc, session))
+    }
+
+    pub(super) fn live(
+        &self,
+        ws: Workspace,
+    ) -> Result<(Signal<Document>, Signal<RevisionedDocument>), ProposalConflict> {
+        let (doc, session) = self.identity(ws)?;
         let live = session.peek();
         let live = live.snapshot();
         if live.revision != self.snapshot.revision
@@ -145,6 +153,11 @@ impl DocumentEditBase {
 }
 
 impl DocumentEditProposal {
+    /// Recheck this file's exact captured identity, text, revision and authority.
+    pub fn validate(&self, ws: Workspace) -> Result<(), ProposalConflict> {
+        self.base.validate(ws)
+    }
+
     /// Captured text and revision for a conflict comparison.
     pub fn base(&self) -> &EditorSnapshot {
         self.base.snapshot()
@@ -231,7 +244,7 @@ fn writable_files(source: &SourceHandle) -> Result<(), ProposalConflict> {
     }
 }
 
-fn rebase_selection(
+pub(super) fn rebase_selection(
     base: &EditorSnapshot,
     changes: &[TextChange],
 ) -> Option<crate::editor::Utf16Selection> {

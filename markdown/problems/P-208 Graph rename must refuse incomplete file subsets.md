@@ -33,3 +33,8 @@ A unavailable. C remains future work. No autosave or new source transaction.
 A single-document preview may accept only a complete single-document refactoring.
 The current document alone is insufficient for async freshness: also check the
 server connection/version and open buffers used by the resolver.
+
+**2026-10-16 follow-up:** option C is now implemented for complete plans within
+one writable folder source, with coordinated history and separate per-file saves.
+The incomplete-subset prohibition still holds. See
+[[P-210 Multi-document rename needs coordinated history]].

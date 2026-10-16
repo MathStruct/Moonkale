@@ -7,6 +7,7 @@ use moonkale_ext_api::{
     editor::TextChange,
     structural::{FunctionHandle, Operation, PlanError, PlanRequest, StructuralPlanner},
     t,
+    workspace::grouped_edits::{self, FileSaveResult, FileSaveStatus, MultiDocumentEditProposal},
     workspace::proposals::{DocumentEditBase, DocumentEditProposal, ProposalConflict},
     Command, Workspace,
 };
@@ -28,15 +29,34 @@ struct Review {
     rename_guard: Option<Rc<RenameGuard>>,
     name: String,
     proposal: Option<ReviewProposal>,
+    multi: Option<Rc<MultiDocumentEditProposal>>,
+    group: Option<u64>,
+    group_error: bool,
+    saves: Vec<FileSaveResult>,
     conflict: bool,
     error: Option<PlanError>,
     applied: bool,
 }
 #[derive(Clone)]
-struct ReviewProposal(Rc<DocumentEditProposal>);
+enum ReviewProposal {
+    Single(Rc<DocumentEditProposal>),
+    Multi(Rc<MultiDocumentEditProposal>, usize),
+}
+impl ReviewProposal {
+    fn doc(&self) -> &DocumentEditProposal {
+        match self {
+            Self::Single(doc) => doc,
+            Self::Multi(multi, index) => &multi.files()[*index],
+        }
+    }
+}
 impl PartialEq for ReviewProposal {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0)
+        match (self, other) {
+            (Self::Single(a), Self::Single(b)) => Rc::ptr_eq(a, b),
+            (Self::Multi(a, i), Self::Multi(b, j)) => i == j && Rc::ptr_eq(a, b),
+            _ => false,
+        }
     }
 }
 
@@ -239,6 +259,10 @@ async fn recompute(ws: Workspace, mut state: Signal<Review>) {
             state.target = None;
             state.before = None;
             state.proposal = None;
+            state.multi = None;
+            state.group = None;
+            state.saves.clear();
+            state.group_error = false;
             state.conflict = false;
             state.applied = false;
             state.busy = false;
@@ -280,6 +304,10 @@ async fn preview(ws: Workspace, mut state: Signal<Review>) {
         state.rename_error = None;
         state.rename_guard = None;
         state.proposal = None;
+        state.multi = None;
+        state.group = None;
+        state.saves.clear();
+        state.group_error = false;
     });
     let Some(planner) = ws.service::<StructuralPlanner>() else {
         error(state, generation, PlanError::Unavailable);
@@ -303,7 +331,15 @@ async fn preview(ws: Workspace, mut state: Signal<Review>) {
                 let name = state.peek().name.clone();
                 let result = match (file, response.edits.first()) {
                     (Some(file), Some(edit)) => {
-                        graph_rename::propose(ws, &file, &base, edit.start, &name).await
+                        graph_rename::propose_multi_guarded(
+                            ws,
+                            &file,
+                            &base,
+                            edit.start,
+                            &name,
+                            || current(state, generation),
+                        )
+                        .await
                     }
                     _ => Err(RenameError::Invalid),
                 };
@@ -318,7 +354,7 @@ async fn preview(ws: Workspace, mut state: Signal<Review>) {
                     state.busy = false;
                     match result {
                         Ok((proposal, guard)) => {
-                            state.proposal = Some(ReviewProposal(Rc::new(proposal)));
+                            state.multi = Some(Rc::new(proposal));
                             state.rename_guard = Some(Rc::new(guard));
                         }
                         Err(e) => state.rename_error = Some(e),
@@ -337,7 +373,7 @@ async fn preview(ws: Workspace, mut state: Signal<Review>) {
                 .collect();
             match base.propose(changes) {
                 Ok(proposal) => state.with_mut(|state| {
-                    state.proposal = Some(ReviewProposal(Rc::new(proposal)));
+                    state.proposal = Some(ReviewProposal::Single(Rc::new(proposal)));
                     state.busy = false;
                 }),
                 Err(_) => error(state, generation, PlanError::Invalid),
@@ -387,7 +423,14 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
         .rename_guard
         .as_ref()
         .is_some_and(|guard| guard.validate(ws).is_err());
-    let conflict = review.conflict || (!review.applied && (drift || resolver_drift));
+    let group_applied = review
+        .group
+        .and_then(|id| grouped_edits::is_applied(ws, id));
+    let multi_drift = review
+        .multi
+        .as_ref()
+        .is_some_and(|multi| multi.validate(ws).is_err());
+    let conflict = review.conflict || (!review.applied && (drift || resolver_drift || multi_drift));
     rsx! {
         div { class: "mk-structural", "data-testid": "structural-controls", "data-selected-node": selected.as_ref().map(|node| node.id.to_string()).unwrap_or_default(),
             button { class: "mk-btn", disabled: !eligible || review.busy,
@@ -418,13 +461,14 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                             RenameError::Stale => t!(ws, L, "structural-conflict"),
                             RenameError::Invalid => t!(ws, L, "structural-rename-invalid"),
                             RenameError::Limit => t!(ws, L, "structural-limit"),
+                            RenameError::TargetsChanged => t!(ws, L, "structural-targets-changed"),
                         }} }
                     }
                     label { {t!(ws, L, "structural-function")}
                         select { "data-testid": "structural-function", value: review.target.map(|index| index.to_string()).unwrap_or_default(), disabled: review.busy,
                             onchange: move |event| { let target = event.value().parse::<usize>().ok(); state.with_mut(|state| {
                                 state.target = target; if state.before == target { state.before = None; } state.name = target.and_then(|index| state.functions.get(index)).map(|function| function.name.clone()).unwrap_or_default();
-                                state.proposal = None; state.rename_guard = None; state.rename_error = None; state.applied = false;
+                                state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false;
                             }); },
                             option { value: "", {t!(ws, L, "structural-choose")} }
                             for (index, function) in review.functions.iter().enumerate() {
@@ -434,7 +478,7 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     }
                     label { {t!(ws, L, "structural-operation")}
                         select { "data-testid": "structural-operation", value: if review.moving { "move" } else if review.renaming { "rename" } else { "name" }, disabled: review.busy,
-                            onchange: move |event| state.with_mut(|state| { state.moving = event.value() == "move"; state.renaming = event.value() == "rename"; state.rename_error = None; state.proposal = None; state.rename_guard = None; state.rename_error = None; state.applied = false; }),
+                            onchange: move |event| state.with_mut(|state| { state.moving = event.value() == "move"; state.renaming = event.value() == "rename"; state.rename_error = None; state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }),
                             option { value: "name", {t!(ws, L, "structural-name")} }
                             option { value: "move", {t!(ws, L, "structural-move")} }
                             option { value: "rename", {t!(ws, L, "structural-rename")} }
@@ -443,7 +487,7 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     if review.moving {
                         label { {t!(ws, L, "structural-before")}
                             select { "data-testid": "structural-before", value: review.before.map(|index| index.to_string()).unwrap_or_default(), disabled: review.busy,
-                                onchange: move |event| state.with_mut(|state| { state.before = event.value().parse().ok(); state.proposal = None; state.rename_guard = None; state.rename_error = None; state.applied = false; }),
+                                onchange: move |event| state.with_mut(|state| { state.before = event.value().parse().ok(); state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }),
                                 option { value: "", {t!(ws, L, "structural-end")} }
                                 for (index, function) in review.functions.iter().enumerate() {
                                     if Some(index) != review.target { option { value: "{index}", "{function.name} · {function.line}" } }
@@ -453,30 +497,97 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     } else {
                         label { {if review.renaming { t!(ws, L, "structural-rename") } else { t!(ws, L, "structural-name") }}
                             input { "data-testid": "structural-name", value: "{review.name}", disabled: review.busy,
-                                oninput: move |event| state.with_mut(|state| { state.name = event.value(); state.proposal = None; state.rename_guard = None; state.rename_error = None; state.applied = false; }) }
+                                oninput: move |event| state.with_mut(|state| { state.name = event.value(); state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }) }
                         }
                     }
                     if conflict { p { role: "alert", {t!(ws, L, "structural-conflict")} } }
                     if review.applied { p { role: "status", {t!(ws, L, "structural-applied")} } }
                     button { class: "mk-btn", "data-testid": "structural-preview", disabled: review.busy || review.target.is_none() || conflict || review.applied,
                         onclick: move |_| { spawn(preview(ws, state)); }, {t!(ws, L, "structural-preview")} }
-                    button { class: "mk-btn", "data-testid": "structural-apply", disabled: review.busy || review.proposal.is_none() || conflict || review.applied,
+                    button { class: "mk-btn", "data-testid": "structural-apply", disabled: review.busy || (review.proposal.is_none() && review.multi.is_none()) || conflict || review.applied,
                         onclick: move |_| {
+                            let multi = state.peek().multi.clone();
+                            if let Some(multi) = multi {
+                                let guard = state.peek().rename_guard.clone();
+                                let generation = state.peek().generation;
+                                state.with_mut(|state| { state.busy = true; state.group_error = false; });
+                                dioxus::core::spawn_forever(async move {
+                                    let result = multi.apply_guarded(ws, || current(state, generation) && guard.as_ref().is_none_or(|guard| guard.validate(ws).is_ok())).await;
+                                    if !state.peek().open || !state.peek().multi.as_ref().is_some_and(|live| Rc::ptr_eq(live, &multi)) { return; }
+                                    state.with_mut(|state| { state.busy = false; match result {
+                                        Ok(group) => { state.group = Some(group); state.applied = true; state.conflict = false; },
+                                        Err(_) => { state.conflict = true; state.group_error = true; },
+                                    }});
+                                });
+                                return;
+                            }
                             let proposal = state.peek().proposal.clone();
                             if let Some(proposal) = proposal {
                                 let guard = state.peek().rename_guard.clone();
                                 let result = guard.as_ref().map(|guard| guard.validate(ws)).transpose()
-                                    .map_err(|_| ProposalConflict::Changed).and_then(|_| proposal.0.apply(ws));
+                                    .map_err(|_| ProposalConflict::Changed).and_then(|_| proposal.doc().apply(ws));
                                 match result {
                                     Ok(_) => state.with_mut(|state| { state.applied = true; state.conflict = false; }),
                                     Err(e) => state.with_mut(|state| { state.conflict = true; state.error = Some(proposal_error(e)); }),
                                 }
                             }
                         }, {t!(ws, L, "structural-apply")} }
+                    if review.group_error { p { role: "alert", "data-testid": "structural-group-error", {t!(ws, L, "structural-group-blocked")} } }
+                    if let Some(group) = review.group {
+                        button { class: "mk-btn", "data-testid": "structural-undo", disabled: review.busy || group_applied != Some(true),
+                            onclick: move |_| { state.with_mut(|s| { s.busy=true; s.group_error=false; }); dioxus::core::spawn_forever(async move {
+                                let result = grouped_edits::restore(ws,group,false).await;
+                                if state.peek().open && state.peek().group == Some(group) { state.with_mut(|s| {s.busy=false;s.group_error=result.is_err();}); }
+                            }); }, {t!(ws,L,"structural-undo")} }
+                        button { class: "mk-btn", "data-testid": "structural-redo", disabled: review.busy || group_applied != Some(false),
+                            onclick: move |_| { state.with_mut(|s| { s.busy=true; s.group_error=false; }); dioxus::core::spawn_forever(async move {
+                                let result = grouped_edits::restore(ws,group,true).await;
+                                if state.peek().open && state.peek().group == Some(group) { state.with_mut(|s| {s.busy=false;s.group_error=result.is_err();}); }
+                            }); }, {t!(ws,L,"structural-redo")} }
+                        button { class: "mk-btn", "data-testid": "structural-save-all", disabled: review.busy || group_applied != Some(true),
+                            onclick: move |_| { state.with_mut(|s| s.busy=true); dioxus::core::spawn_forever(async move {
+                                let results = grouped_edits::save(ws,group).await;
+                                if state.peek().open && state.peek().group == Some(group) { state.with_mut(|s| {s.busy=false;s.saves=results;}); }
+                            }); }, {t!(ws,L,"structural-save-all")} }
+                    }
+                    for result in &review.saves {
+                        p { "data-testid": "structural-save-result", "{ws.document(result.node).map(|doc| doc.read().node.native_key.clone()).unwrap_or_else(||result.node.to_string())}: ",
+                            {match result.status {
+                                FileSaveStatus::Saved => t!(ws,L,"structural-saved"),
+                                FileSaveStatus::AlreadySaved => t!(ws,L,"structural-already-saved"),
+                                FileSaveStatus::Changed => t!(ws,L,"structural-save-changed"),
+                                FileSaveStatus::Closed => t!(ws,L,"structural-save-closed"),
+                                FileSaveStatus::ReadOnly => t!(ws,L,"structural-save-read-only"),
+                                FileSaveStatus::Conflict => t!(ws,L,"structural-save-conflict"),
+                                FileSaveStatus::Failed => t!(ws,L,"structural-save-failed"),
+                            }}
+                        }
+                    }
                     button { class: "mk-btn", "data-testid": "structural-recompute", disabled: review.busy || review.file.is_none(),
                         onclick: move |_| { spawn(recompute(ws, state)); }, {t!(ws, L, "structural-recompute")} }
                     button { class: "mk-btn", "data-testid": "structural-discard",
                         onclick: move |_| { let generation = state.peek().generation.wrapping_add(1); state.set(Review { generation, ..Default::default() }); }, {t!(ws, L, "structural-discard")} }
+                    if let Some(multi) = &review.multi {
+                        for (index, file) in multi.files().iter().enumerate() {
+                            section { key: "{file.base().node}", "data-testid": "structural-file", "data-node": "{file.base().node}",
+                                h4 { "{ws.document(file.base().node).map(|doc|doc.read().node.native_key.clone()).unwrap_or_else(||file.base().node.to_string())}" }
+                                if !review.applied {
+                                    if let Err(error) = file.validate(ws) {
+                                        p { role: "alert", "data-testid": "structural-file-conflict", {match error {
+                                            ProposalConflict::Closed => t!(ws,L,"structural-file-closed"),
+                                            ProposalConflict::UnsupportedSource => t!(ws,L,"structural-file-read-only"),
+                                            _ => t!(ws,L,"structural-file-changed"),
+                                        }} }
+                                    }
+                                }
+                                div { class: "mk-structural-columns",
+                                    div { h4 { {t!(ws,L,"structural-original")} } SourcePreview { proposal: ReviewProposal::Multi(multi.clone(),index), proposed: false } }
+                                    div { h4 { {t!(ws,L,"structural-proposed")} } SourcePreview { proposal: ReviewProposal::Multi(multi.clone(),index), proposed: true } }
+                                    if conflict { div { h4 { {t!(ws,L,"structural-current")} } pre { "data-testid":"structural-current", "{ws.document(file.base().node).map(|doc|doc.read().text.clone()).unwrap_or_default()}" } } }
+                                }
+                            }
+                        }
+                    }
                     if let Some(proposal) = &review.proposal {
                         div { class: "mk-structural-columns",
                             div { h4 { {t!(ws, L, "structural-original")} } SourcePreview { proposal: proposal.clone(), proposed: false } }
@@ -515,11 +626,11 @@ fn preview_parts(text: &str, changes: &[TextChange], proposed: bool) -> Vec<(boo
 #[component]
 fn SourcePreview(proposal: ReviewProposal, proposed: bool) -> Element {
     let text = if proposed {
-        proposal.0.preview()
+        proposal.doc().preview()
     } else {
-        &proposal.0.base().text
+        &proposal.doc().base().text
     };
-    let parts = preview_parts(text, proposal.0.changes(), proposed);
+    let parts = preview_parts(text, proposal.doc().changes(), proposed);
     rsx! { pre { "data-testid": if proposed { "structural-proposed" } else { "structural-original" },
         for (index, (changed, text)) in parts.into_iter().enumerate() {
             if changed { mark { key: "{index}", "{text}" } } else { span { key: "{index}", "{text}" } }

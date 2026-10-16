@@ -35,6 +35,7 @@ mod edit;
 #[doc(hidden)]
 pub mod editor_core_spike;
 pub mod graph_rename;
+mod group_history;
 pub mod lsp;
 mod native_accessibility;
 mod native_completion;

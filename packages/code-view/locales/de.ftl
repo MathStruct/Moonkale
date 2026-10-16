@@ -122,3 +122,5 @@ editor-a11y-position = Zeile { $line }, Spalte { $column }.
 editor-a11y-selection = Auswahl von Zeile { $line }, Spalte { $column } bis Zeile { $end_line }, Spalte { $end_column }.
 editor-a11y-tab-focus = Tab wechselt den Fokus.
 editor-a11y-tab-indent = Tab rückt ein.
+
+editor-group-history-blocked = Diese Umbenennung kann nicht rückgängig gemacht oder wiederholt werden. Zuerst neuere Änderungen in { $file } rückgängig machen; möglicherweise ist der gemeinsame Verlauf nicht mehr verfügbar.

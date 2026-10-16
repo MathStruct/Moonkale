@@ -122,3 +122,5 @@ editor-a11y-position = Line { $line }, column { $column }.
 editor-a11y-selection = Selection from line { $line }, column { $column } to line { $end_line }, column { $end_column }.
 editor-a11y-tab-focus = Tab moves focus.
 editor-a11y-tab-indent = Tab indents.
+
+editor-group-history-blocked = Cannot undo or redo this rename. Undo newer edits in { $file } first, or the coordinated history is no longer available.

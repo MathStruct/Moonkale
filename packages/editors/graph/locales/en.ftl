@@ -40,7 +40,7 @@ graph-selection-none = nothing selected
 
 # Experimental structural editing
 structural-edit = Edit Rust function (experimental)
-structural-warning = Declaration-name changes update only the declaration. Rename with references requires a single-file language-server plan. Apply changes the unsaved buffer; save separately.
+structural-warning = Rename applies a complete plan within this folder. Apply changes unsaved buffers; save separately. Declaration-name changes update only the declaration.
 structural-busy = Planning…
 structural-workers-busy = Planner busy; try again.
 structural-unavailable = Structural planning is unavailable.
@@ -65,8 +65,24 @@ structural-proposed = Proposed
 structural-current = Current
 structural-read-only = Only writable Files sources support structural editing.
 
-structural-rename = Rename with references (single file)
-structural-rename-multi-file = Rename needs edits in another file. The entire plan was refused; no changes were applied.
+structural-rename = Rename with references
+structural-rename-multi-file = Rename can only edit files inside the current folder. The whole plan was refused.
 structural-rename-unavailable = Rust language server is unavailable for this folder.
 structural-rename-timeout = Rename timed out. Try again.
 structural-rename-invalid = The language server could not produce a supported rename plan.
+structural-targets-changed = The set of affected files changed. Recompute the rename.
+structural-undo = Undo rename
+structural-redo = Redo rename
+structural-save-all = Save affected files
+structural-group-blocked = Undo newer edits in the affected files first. Closed, replaced or retired history cannot be restored.
+structural-saved = Saved
+structural-already-saved = Already saved
+structural-save-changed = Newer edits; skipped
+structural-save-conflict = Save conflict; buffer retained
+structural-save-failed = Save failed; buffer retained
+structural-save-closed = Closed; skipped
+structural-save-read-only = Read-only; skipped
+
+structural-file-changed = The file changed. Recompute this preview.
+structural-file-closed = The file or its source was closed or replaced.
+structural-file-read-only = The source is no longer writable file content.
