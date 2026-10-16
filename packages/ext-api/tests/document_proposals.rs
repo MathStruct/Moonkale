@@ -323,3 +323,56 @@ fn proposal_limits_and_noop_are_explicit() {
             .is_none());
     });
 }
+
+#[test]
+fn save_completion_acknowledges_only_the_submitted_snapshot() {
+    use futures_util::FutureExt;
+    use std::sync::{Arc, Mutex};
+    struct HeldSave(Mutex<Option<futures_channel::oneshot::Receiver<()>>>);
+    #[moonkale_core::async_trait]
+    impl Source for HeldSave {
+        fn id(&self) -> SourceId {
+            node().source
+        }
+        fn descriptor(&self) -> SourceDescriptor {
+            Files.descriptor()
+        }
+        async fn query(&self, _: Query) -> Result<QueryResult, SourceError> {
+            Ok(QueryResult::default())
+        }
+        async fn fetch_text(&self, _: NodeId) -> Result<(String, Version), SourceError> {
+            Ok((TEXT.into(), Version::default()))
+        }
+        async fn apply(&self, _: Transaction) -> Result<Applied, SourceError> {
+            let receiver = self.0.lock().unwrap().take().unwrap();
+            receiver.await.unwrap();
+            Ok(Applied {
+                results: vec![moonkale_core::OpResult::Ok {
+                    node: node().id,
+                    version: Version(42),
+                }],
+            })
+        }
+    }
+    let (dom, mut ws) = setup();
+    dom.in_scope(ScopeId::ROOT, || {
+        let (release, receiver) = futures_channel::oneshot::channel();
+        ws.add_source(Arc::new(HeldSave(Mutex::new(Some(receiver)))));
+        rename(ws).apply(ws).unwrap();
+        let mut doc = ws.document(node().id).unwrap();
+        let submitted = doc.peek().text.clone();
+        let mut saving = std::pin::pin!(ws.save(node().id));
+        assert!(saving.as_mut().now_or_never().is_none());
+        doc.write().text.push_str("// newer unsaved edit\r\n");
+        release.send(()).unwrap();
+        saving.as_mut().now_or_never().unwrap().unwrap();
+        assert_eq!(doc.peek().saved, submitted);
+        assert_eq!(
+            ws.history.log.peek().text_at(node().id, None),
+            Some(submitted)
+        );
+        assert_eq!(doc.peek().version, Version(42));
+        assert!(doc.peek().text.ends_with("// newer unsaved edit\r\n"));
+        assert!(doc.peek().dirty());
+    });
+}

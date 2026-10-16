@@ -6,6 +6,8 @@ license.workspace = true
 description = "Which extensions a Moonkale app ships (Milestone 18 phase 4.1): the catalogue, one Cargo feature per optional extension. Without default features: Explorer, Search, Settings, Extensions, Graph, Links, Code, Markdown."
 
 [features]
+# Experimental Rust structural edit previews; off by default.
+structural-edits = ["moonkale-editor-graph/structural-edits"]
 default = ["code-native", "table", "image", "terminal", "terminal-native", "agent", "flow", "git", "history"]
 code-native = ["dep:moonkale-editor-code-native"]
 table = ["dep:moonkale-editor-table"]

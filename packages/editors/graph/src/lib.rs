@@ -15,6 +15,8 @@
 
 pub mod extension;
 pub mod panel;
+#[cfg(feature = "structural-edits")]
+mod structural;
 
 /// This crate's strings (spec 030): English, German, Chinese.
 pub(crate) static L: moonkale_ext_api::i18n::Locales = &[

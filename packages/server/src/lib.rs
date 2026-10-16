@@ -43,6 +43,8 @@ pub mod host_state;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod relay;
 mod remote;
+#[cfg(feature = "structural-edits")]
+pub mod structural;
 mod terminal;
 pub mod themes;
 pub use llm::ProviderInfo;

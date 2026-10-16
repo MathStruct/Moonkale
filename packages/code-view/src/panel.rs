@@ -110,6 +110,13 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     if doc.peek().text != text {
                         doc.with_mut(|d| d.text = text.clone());
                     }
+                    // A structural review may have created a Rust revision mirror.
+                    // CodeMirror owns its own undo; external mirror adoption invalidates
+                    // old proposals, while an echoed Workspace edit preserves history.
+                    let mirror = ws.docs.editor_sessions.peek().get(&node).copied();
+                    if let Some(mut mirror) = mirror {
+                        let _ = mirror.with_mut(|state| state.replace_from_workspace(text.clone()));
+                    }
                     if let Some((_, _, uri)) = ident.as_ref() {
                         lsp.update_document(uri, &text, &doc.peek().saved);
                     }

@@ -139,7 +139,7 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 | Secrets | ◐ names only, env and file | keychain, redaction |
 | SSH remote | ◐ | #18 |
 | Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
-| Untrusted content | ◐ jail, link allow-list, bounds; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed | #5, sanitising, CSP, fuzzing, #15 |
+| Untrusted content | ◐ jail, link allow-list, bounds; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed; opt-in structural planning is pure, authenticated on web, capped at 4 MiB raw/512 KiB decoded input, two non-queued workers, and existing parser limits; source bytes are never logged or rendered as HTML | #5, sanitising, CSP, fuzzing, #15 |
 | Wasm extensions | ◐ permissions, fuel, memory limits | signing |
 | Supply chain and releases | ○ | cargo deny/audit, signing, checksums |
 | Data at rest | ○ | redaction, encryption decision |

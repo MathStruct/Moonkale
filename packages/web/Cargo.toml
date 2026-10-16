@@ -35,6 +35,8 @@ tracing = "0.1"
 web-sys = { version = "0.3", features = ["Window", "Storage"] }
 
 [features]
+# Experimental Rust structural edit previews; off by default.
+structural-edits = ["moonkale-distribution/structural-edits", "moonkale-server/structural-edits"]
 default = []
 web = ["dioxus/web"]
 server = ["dioxus/server", "moonkale-server/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio", "moonkale-distribution/server"]

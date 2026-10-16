@@ -79,6 +79,14 @@ jobs:
       - name: Committed renderer matches its source
         run: git -C "$GITHUB_WORKSPACE" diff --exit-code -- packages/ext-api/assets/katex-renderer.js
 
+      - name: CodeMirror typecheck and committed bundle consistency
+        working-directory: packages/js/codemirror
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npm run build
+          git -C "$GITHUB_WORKSPACE" diff --exit-code -- packages/code-view/assets/codemirror.js
+
   test:
     name: test + clippy + wasm check
     runs-on: ubuntu-24.04
@@ -106,6 +114,12 @@ jobs:
         run: |
           cargo test -p moonkale-index --features content-ids,lossless-syntax --locked
           cargo clippy -p moonkale-index --features content-ids,lossless-syntax --all-targets --locked -- -D warnings
+      - name: Experimental structural planner and graph review
+        run: |
+          cargo test -p moonkale-server -p moonkale-editor-graph --features moonkale-server/structural-edits,moonkale-editor-graph/structural-edits --locked
+          cargo clippy -p moonkale-server -p moonkale-editor-graph --features moonkale-server/structural-edits,moonkale-editor-graph/structural-edits --all-targets --locked -- -D warnings
+          cargo check -p desktop --features structural-edits --locked
+          cargo check -p web --target wasm32-unknown-unknown --features web,structural-edits --locked
       - name: The wasm runtime with the example extension (feature wasmtime is off by default)
         run: cargo test -p moonkale-ext-host --features wasmtime --locked
       - name: The state store's reference (redb) and recommended (SQLite) backends through the conformance suite
@@ -126,14 +140,29 @@ jobs:
         if: always()
 
   e2e:
-    name: browser smoke suites
+    name: ${{ matrix.check_name }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            check_name: browser smoke suites
+            features: julia
+            browser: firefox
+            suites: files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
+          - name: structural
+            check_name: browser structural edits
+            features: julia,structural-edits
+            browser: chromium
+            suites: structural-edits graph-a11y
     env:
       # A cold debug build of server + client can take longer than serve.sh's default 20 minutes:
       # 45 minutes in seconds. A build whose log stops growing fails after 20 (SERVE_STALL).
       SERVE_WAIT: 2700
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
-      SUITES: files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
+      SUITES: ${{ matrix.suites }}
+      SERVE_FEATURES: ${{ matrix.features }}
     steps:
       - uses: actions/checkout@v4
       - name: Working directory for the suites
@@ -156,10 +185,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Playwright (Firefox)
+      - name: Playwright (${{ matrix.browser }})
         run: |
           mkdir -p "$MOONKALE_E2E/e2e"
-          cd "$MOONKALE_E2E/e2e" && npm init -y >/dev/null && npm i playwright && npx playwright install --with-deps firefox
+          cd "$MOONKALE_E2E/e2e" && npm init -y >/dev/null && npm i playwright && npx playwright install --with-deps ${{ matrix.browser }}
       - name: Fixture
         run: packages/web/tests/e2e/fixture.sh "$MOONKALE_E2E/m2root"
       - name: Start the web build (dx serve)
@@ -173,13 +202,18 @@ jobs:
         run: packages/web/tests/e2e/serve.sh start
       - name: Suites
         run: packages/web/tests/e2e/run-all.sh $SUITES
+      - name: Structural edits with CodeMirror
+        if: matrix.name == 'structural'
+        env:
+          STRUCTURAL_EDITOR: codemirror
+        run: packages/web/tests/e2e/run-all.sh structural-edits
       - name: Server log and screenshots on failure
         if: failure()
         run: tail -100 "$MOONKALE_E2E"/dx-*.log || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: e2e-shots
+          name: e2e-shots-${{ matrix.name }}
           path: ${{ runner.temp }}/e2e/shots
       - name: Stop the server
         if: always()

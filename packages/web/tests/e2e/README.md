@@ -502,3 +502,12 @@ the actual desktop app against this worktree's existing dependency target. It do
 cold compiler/filesystem caches, application RSS or size savings from changing a
 default while both backends still ship. See the vault's Rust Code Editor
 Accessibility and Cutover page for the retirement sequence and remaining gates.
+
+### Experimental Rust graph edits
+
+Build both halves with `SERVE_FEATURES=julia,structural-edits` and run
+`run-all.sh structural-edits`. This suite requires Chromium's software GL (as
+`graph-a11y` does). It covers real graph selection, remote planning, safe source
+preview/discard, unsaved Apply, native undo/redo/save, move/conflict/recompute,
+and endpoint bounds. Repeat with `STRUCTURAL_EDITOR=codemirror` to cover the
+CodeMirror mirror/undo/save path. CI runs both backends. The default all-suites list excludes this opt-in feature.

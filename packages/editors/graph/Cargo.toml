@@ -13,3 +13,7 @@ moonkale-graph-assets = { workspace = true }
 moonkale-trace = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[features]
+# Experimental Rust structural edit previews; off by default.
+structural-edits = []

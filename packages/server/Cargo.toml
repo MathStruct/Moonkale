@@ -51,6 +51,8 @@ webpki-roots = "1"
 moonkale-sources-graph = { workspace = true, optional = true, features = ["helix", "ladybug"] }
 
 [features]
+# Experimental Rust structural edit previews; off by default.
+structural-edits = ["dep:moonkale-index", "moonkale-index/lossless-syntax"]
 server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-lsp-local", "dep:moonkale-state-stores", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime"]
 
 [dev-dependencies]

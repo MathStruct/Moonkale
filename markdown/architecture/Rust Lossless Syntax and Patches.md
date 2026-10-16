@@ -1,9 +1,9 @@
 ---
 title: "Rust Lossless Syntax and Patches"
-description: "WP-67 foundation: source truth metadata, exact Rust syntax snapshots and guarded pure patch plans; revision-aware document proposals are built; graph controls and conflict UI remain later slices."
+description: "WP-67 foundation: source truth metadata, exact Rust syntax snapshots and guarded pure patch plans; revision-aware proposals and opt-in desktop/web graph controls with preview/conflict handling are built."
 tags: [architecture, code-graph, rust, syntax, patches]
 ---
-**Built, experimental and off by default, 2026-10-16:** WP-67 slices 1–2. Implements the foundation of [[ADR-0028 Files or the graph]] option B, without exposing a graph refactoring action. See [[Code Graph Schema]], [[Indexing]] and [[P-202 Lossless edits must conserve syntax tokens]].
+**Built, experimental and off by default, 2026-10-16:** WP-67 slices 1–3. Implements the foundation of [[ADR-0028 Files or the graph]] option B, without exposing a graph refactoring action. See [[Code Graph Schema]], [[Indexing]] and [[P-202 Lossless edits must conserve syntax tokens]].
 
 ## Source truth is metadata, not permission
 
@@ -56,7 +56,7 @@ let committed = proposal.apply(ws)?; // no save
 
 `propose` validates ranges, expected removed bytes, UTF-8 and overlap in a disposable editor session before exposing a preview. Base/output are capped at 512 KiB, edits at 4,096, and total removed/inserted payload at 1 MiB. `apply` rechecks source instance and Files/write capability, document/session identity, source version, editor revision, canonical text and editor text before a synchronous commit. Even a close/reopen or edit/undo returning identical bytes cannot accept the old proposal. Invalid or conflicting application changes no buffer/history. A successful edit is one ordinary undo entry, retains current live selection rebased in UTF-16, and marks the document dirty through the existing text/saved comparison. A no-op creates no history entry. Other editor views observe the same session and canonical document.
 
-Conflicts are typed (`Closed`, `UnsupportedSource`, `Changed`, `LimitExceeded`, `Invalid`). `apply(&self, ...)` retains the base and preview on failure: a consumer can compare those with the current document, discard the proposal by dropping it, or capture a new base and rerun the planner. Old ranges are never automatically rebased. The backing source is not fetched or written during application; external file changes remain the responsibility of the ordinary version-checked `Workspace::save`. Its `SourceError::Conflict` leaves the proposed buffer dirty and undoable. There is no new conflict dialog or graph action in this API slice.
+Conflicts are typed (`Closed`, `UnsupportedSource`, `Changed`, `LimitExceeded`, `Invalid`). `apply(&self, ...)` retains the base and preview on failure: a consumer can compare those with the current document, discard the proposal by dropping it, or capture a new base and rerun the planner. Old ranges are never automatically rebased. The backing source is not fetched or written during application; external file changes remain the responsibility of the ordinary version-checked `Workspace::save`. Its `SourceError::Conflict` leaves the proposed buffer dirty and undoable. The optional graph UI below consumes this contract.
 
 ## Evidence and the next slice
 
@@ -64,6 +64,31 @@ Tests cover byte-exact Rust corpus reconstruction (including real project source
 
 CI runs both experimental index features alongside the feature-off workspace checks. The final handoff records the exact gate/browser evidence. No new dependency or graph-render bundle change is introduced by this slice.
 
-**WP-67 is not complete.** Next: graph controls with explicit preview/conflict presentation using this adapter. Reference-aware rename and graph controls require that adapter and a resolver/LSP plan; cross-file move additionally needs an explicit multi-document failure/undo policy because Source transactions permit partial success. No graph action, autosave, mode/default flip, multi-file atomicity or semantic-equivalence guarantee is claimed here.
+**WP-67 remains conservative and experimental.** Graph controls and explicit conflict presentation are now implemented behind `structural-edits`; semantic reference-aware rename and cross-file operations remain unimplemented. Reference-aware rename still requires a resolver/LSP plan; cross-file move needs an explicit multi-document failure/undo policy because Source transactions permit partial success. No autosave, mode/default flip, multi-file atomicity or semantic-equivalence guarantee is claimed here.
 
 Document-adapter integration tests additionally cover real Rust declaration edits and moves, exact Unicode/CRLF output, live selection, one-step undo/redo, revision ABA, close/reopen ABA, source replacement, permission/truth changes, canonical-buffer drift, source-version changes, malformed/overlapping edits, bounds, no-op history and a failed save followed by explicit recomputation. See [[P-204 Structural proposals must retain document identity]].
+
+## Experimental graph controls (slice 3)
+
+Build desktop or web with `--features structural-edits` (web's server and wasm client must both enable it). The feature is forwarded through distribution to the graph panel and through the app to the planner service. Default builds expose neither controls nor planner endpoint. No renderer bundle changes or new default setting are required; dragging remains graph layout only.
+
+Select one Rust function definition in the graph and choose **Edit Rust function (experimental)**. The panel offers **Change declaration name** and **Move function**, with a same-file **Move before** selector or **End of file**. This changes only a declaration token, not references. The source file is resolved using the selected node's own index and Defines edge, then loaded in the background without replacing unsaved edits. Old index provenance/ranges preselect a function only when they match the captured input; otherwise choose a function from the freshly parsed snapshot. Only top-level functions returned by the planner can be edited.
+
+Preview renders original/proposed text as plain escaped source with exact replacement ranges highlighted. Apply uses the existing proposal adapter, creates one undo entry and leaves the buffer unsaved. Open its normal source tab to undo/redo or save. Discard drops review state without changing a document. Conflict retains original/proposed text alongside current text, disables Apply and requires **Recompute** followed by an explicit fresh function/destination choice and another preview. Completed review state survives panel remounts in Workspace-owned signals. Selection changes or dismissal invalidate pending work; snapshot validation rejects responses after document edits, session replacement or closure.
+
+`ext-api::structural` defines the pure protocol and optional StructuralPlanner service. Function handles include the entire input digest and syntax range; they cannot be reused on another snapshot. Desktop uses local blocking workers; web uses POST `/api/structural/plan` behind the existing auth/origin gate. The endpoint is content-only: no paths, source lookup, code execution or file writes. The auth middleware caps the request body at 4 MiB before deserialization; decoded source is at most 512 KiB, functions/edits at most 4096, combined edit payload at most 1 MiB, and at most two parser jobs run per process with immediate Busy rejection. Existing tree-sitter size/depth/work/time limits apply. UI errors are localized categories rather than raw source/parser output.
+
+See [[P-205 Graph previews must reject stale asynchronous results]]. The browser suite `structural-edits` requires the feature-enabled server/client build and exercises the real graph renderer, remote planner and native editor together.
+
+CodeMirror retains its own undo stack. When it emits a change, any existing Rust
+revision mirror adopts the canonical text, invalidating outstanding proposals;
+an unchanged echo of an applied Workspace edit preserves the Rust history.
+Both backends are exercised by the structural browser workflow. Save completion
+records exactly the submitted snapshot, so later edits remain dirty while the
+source write is pending ([[P-206 Save completion must acknowledge submitted text]]).
+The Graph review remains visible after attaching a previously unopened source tab.
+
+CodeMirror Workspace replacements use isolated undo boundaries and widen their
+common-prefix/suffix diff over complete UTF-16 surrogate pairs and CRLF.
+Protocol probes cover both surrogate boundaries, and the graph workflow renames
+supplementary-plane Rust identifiers end to end ([[P-207 CodeMirror external edits must preserve UTF-16 boundaries]]).

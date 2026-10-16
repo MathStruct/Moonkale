@@ -20,7 +20,7 @@ import {
   rectangularSelection,
   crosshairCursor,
 } from "@codemirror/view"
-import { defaultKeymap, history, historyKeymap, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
+import { defaultKeymap, history, historyKeymap, isolateHistory, indentWithTab, toggleComment, undo as cmUndo, redo as cmRedo } from "@codemirror/commands"
 import { openSearchPanel } from "@codemirror/search"
 import { foldAll, unfoldAll } from "@codemirror/language"
 import { themeFromTokens } from "./theme"
@@ -417,9 +417,8 @@ function setCursor(el: HTMLElement, line: number, col: number): void {
   e.view.focus()
 }
 
-/** Replace the whole document without going through the user's undo history
- *  boundary semantics (used after reload/revert). Fires onChange like any
- *  other transaction so Rust and the view agree. */
+/** Adopt a Workspace edit as one isolated undo transaction. Fires onChange
+ *  like any other transaction so Rust and the view agree. */
 function setText(el: HTMLElement, text: string): void {
   const view = views.get(el)?.view
   if (!view) return
@@ -432,11 +431,17 @@ function setText(el: HTMLElement, text: string): void {
   while (start < max && old.charCodeAt(start) === text.charCodeAt(start)) start++
   let endOld = old.length, endNew = text.length
   while (endOld > start && endNew > start && old.charCodeAt(endOld - 1) === text.charCodeAt(endNew - 1)) { endOld--; endNew-- }
+  // A common prefix/suffix can end inside a surrogate pair (P-207).
+  // Rust receives scalar-aligned UTF-16 splice coordinates and valid strings.
+  const low = (code: number) => code >= 0xdc00 && code <= 0xdfff
+  const high = (code: number) => code >= 0xd800 && code <= 0xdbff
+  if (start > 0 && low(old.charCodeAt(start)) && high(old.charCodeAt(start - 1))) start--
+  if (endOld < old.length && low(old.charCodeAt(endOld)) && high(old.charCodeAt(endOld - 1))) { endOld++; endNew++ }
   // Never cut a "\r\n" in two (P-164): widen the changed middle over it.
   if (start > 0 && old.charCodeAt(start - 1) === 13) start--
   if (endOld < old.length && old.charCodeAt(endOld) === 10 && old.charCodeAt(endOld - 1) === 13) { endOld++; endNew++ }
   const state = view.state
-  view.dispatch({ changes: { from: fromText(state, start), to: fromText(state, endOld), insert: text.slice(start, endNew) } })
+  view.dispatch({ changes: { from: fromText(state, start), to: fromText(state, endOld), insert: text.slice(start, endNew) }, annotations: isolateHistory.of("full") })
 }
 
 function getText(el: HTMLElement): string | undefined {

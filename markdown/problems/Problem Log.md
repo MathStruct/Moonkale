@@ -186,6 +186,12 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-204 Structural proposals must retain document identity]] | A syntax hash alone cannot guard editor history, close/reopen, source replacement or source-version changes. Bounded Workspace proposals now check these identities and revisions, preserve previews on conflict and use ordinary undo/save paths. | resolved | WP-67 slice 2 |
 
+| [[P-205 Graph previews must reject stale asynchronous results]] | Experimental graph reviews use snapshot-bound handles, request generations and non-mutating document validation. Stale work cannot apply; conflicts retain previews and require fresh selection/recomputation. | resolved | WP-67 slice 3 |
+
+| [[P-206 Save completion must acknowledge submitted text]] | A save could acknowledge edits made after its source write began and incorrectly clear dirty state. Completion now records the submitted snapshot and its character count; newer edits stay dirty. | resolved | WP-67 integration |
+
+| [[P-207 CodeMirror external edits must preserve UTF-16 boundaries]] | The common-prefix/suffix replacement could emit a lone surrogate for supplementary-plane identifier changes. External diffs now widen over whole UTF-16 pairs, in addition to CRLF, and remain isolated undo entries. | resolved | WP-67 integration |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

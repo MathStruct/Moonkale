@@ -46,6 +46,59 @@ pub enum ProposalConflict {
 }
 
 impl DocumentEditBase {
+    /// Recheck an asynchronous plan's captured identity without mutating text/history.
+    pub fn validate(&self, ws: Workspace) -> Result<(), ProposalConflict> {
+        self.live(ws).map(|_| ())
+    }
+
+    fn live(
+        &self,
+        ws: Workspace,
+    ) -> Result<(Signal<Document>, Signal<RevisionedDocument>), ProposalConflict> {
+        let id = self.snapshot.node;
+        let doc = ws
+            .docs
+            .open
+            .peek()
+            .iter()
+            .find(|(node, _)| *node == id)
+            .map(|(_, doc)| *doc)
+            .ok_or(ProposalConflict::Closed)?;
+        let session = ws
+            .docs
+            .editor_sessions
+            .peek()
+            .get(&id)
+            .copied()
+            .ok_or(ProposalConflict::Closed)?;
+        // Compare generational handles before dereferencing a possibly disposed session.
+        if doc != self.document || session != self.session {
+            return Err(ProposalConflict::Closed);
+        }
+        let source = ws
+            .sources
+            .open
+            .peek()
+            .iter()
+            .find(|source| source.descriptor.id == doc.peek().node.source)
+            .cloned()
+            .ok_or(ProposalConflict::Closed)?;
+        if !Arc::ptr_eq(&source.source, &self.source) {
+            return Err(ProposalConflict::Closed);
+        }
+        writable_files(&source)?;
+        let live = session.peek();
+        let live = live.snapshot();
+        if live.revision != self.snapshot.revision
+            || live.text != self.snapshot.text
+            || doc.peek().text != self.snapshot.text
+            || doc.peek().version != self.version
+        {
+            return Err(ProposalConflict::Changed);
+        }
+        Ok((doc, session))
+    }
+
     /// Exact unsaved text and revision against which a planner must run.
     pub fn snapshot(&self) -> &EditorSnapshot {
         &self.snapshot
@@ -97,6 +150,11 @@ impl DocumentEditProposal {
         self.base.snapshot()
     }
 
+    /// Validated replacements for rendering an exact range-based review.
+    pub fn changes(&self) -> &[TextChange] {
+        &self.changes
+    }
+
     /// Proposed text; safe to display as data, never execute as markup/code.
     pub fn preview(&self) -> &str {
         &self.preview
@@ -107,45 +165,8 @@ impl DocumentEditProposal {
     /// A later ordinary `Workspace::save` performs backing-version validation.
     pub fn apply(&self, ws: Workspace) -> Result<EditorSnapshot, ProposalConflict> {
         let id = self.base.snapshot.node;
-        let mut doc = ws
-            .docs
-            .open
-            .peek()
-            .iter()
-            .find(|(node, _)| *node == id)
-            .map(|(_, doc)| *doc)
-            .ok_or(ProposalConflict::Closed)?;
-        let mut session = ws
-            .docs
-            .editor_sessions
-            .peek()
-            .get(&id)
-            .copied()
-            .ok_or(ProposalConflict::Closed)?;
-        // Compare generational handles before dereferencing a possibly disposed session.
-        if doc != self.base.document || session != self.base.session {
-            return Err(ProposalConflict::Closed);
-        }
-        let source = ws
-            .sources
-            .open
-            .peek()
-            .iter()
-            .find(|source| source.descriptor.id == doc.peek().node.source)
-            .cloned()
-            .ok_or(ProposalConflict::Closed)?;
-        if !Arc::ptr_eq(&source.source, &self.base.source) {
-            return Err(ProposalConflict::Closed);
-        }
-        writable_files(&source)?;
+        let (mut doc, mut session) = self.base.live(ws)?;
         let live = session.peek().snapshot().clone();
-        if live.revision != self.base.snapshot.revision
-            || live.text != self.base.snapshot.text
-            || doc.peek().text != self.base.snapshot.text
-            || doc.peek().version != self.base.version
-        {
-            return Err(ProposalConflict::Changed);
-        }
         let selection = rebase_selection(&live, &self.changes);
         let batch = EditBatch {
             node: id,

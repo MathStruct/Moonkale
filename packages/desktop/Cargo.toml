@@ -50,6 +50,8 @@ futures-util = { version = "0.3", default-features = false }
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "wayland"] }
 
 [features]
+# Experimental Rust structural edit previews; off by default.
+structural-edits = ["moonkale-distribution/structural-edits", "moonkale-server/structural-edits"]
 default = []
 desktop = ["dioxus/desktop", "moonkale-code-view/native-desktop"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]

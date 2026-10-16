@@ -569,7 +569,7 @@ impl Workspace {
     /// and leave the document dirty.
     pub async fn save(mut self, node: NodeId) -> Result<(), SourceError> {
         let mut doc = self.document(node).ok_or(SourceError::NotFound)?;
-        let (source_id, version, patch, key, before) = {
+        let (source_id, version, patch, key, before, submitted) = {
             let d = doc.read();
             (
                 d.node.source.clone(),
@@ -577,6 +577,7 @@ impl Workspace {
                 d.patch(),
                 d.node.native_key.clone(),
                 d.saved.clone(),
+                d.text.clone(),
             )
         };
         let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
@@ -585,8 +586,13 @@ impl Workspace {
             .await?;
         match applied.version_of(node) {
             Some(v) => {
-                let chars_after = doc.peek().text.chars().count();
-                doc.with_mut(|d| d.mark_saved(v));
+                let chars_after = submitted.chars().count();
+                // An edit during the await remains dirty: only the submitted
+                // snapshot reached the source, not the current buffer (P-206).
+                doc.with_mut(|d| {
+                    d.saved = submitted;
+                    d.version = v;
+                });
                 self.set_status(t!(self, L, "saved", name = key.clone()));
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).

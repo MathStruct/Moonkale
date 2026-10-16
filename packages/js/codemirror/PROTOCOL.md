@@ -10,7 +10,7 @@ the same messages.
 | function | effect |
 |---|---|
 | `mount(el, text, onChange, features?)` | create an editor inside `el` showing `text`; `onChange(fullText)` after every document change. `features.onHover(id, line, col)` and `features.onDefinition(line, col)` are optional LSP hooks (0-based line, UTF-16 column) |
-| `setText(el, text)` | replace the whole document (reload / revert); fires `onChange` |
+| `setText(el, text)` | adopt a Workspace replacement (reload / revert / structural proposal) as one isolated undo transaction, preserving CRLF and UTF-16 scalar boundaries; fires `onChange` |
 | `setIndentation(el, spaces, width)` | apply optional indentation overrides; both null restore backend defaults; no document edit |
 | `getText(el)` | current document text |
 | `focus(el)` | focus the editor |
