@@ -220,6 +220,7 @@ impl Source for FolderSource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id.clone(),
             display_name: self
                 .root

@@ -14,7 +14,7 @@ Rules:
 
 ## Unreleased
 
-Nothing breaking.
+**Breaking for Rust struct literals:** `SourceDescriptor` gains `truth: SourceTruth` (ADR-0028). Add `truth: Default::default()` to existing constructors. Old serialized descriptors still deserialize as `Files`; new values serialize as `"files"`/`"store"`. This is content ownership, not a write permission. No tag is cut by this change.
 
 **moonkale-core**
 - Additive `graph::code` string constants define the shared L2 vocabulary; new kinds use existing `Custom` values. `NodeKind::definition()` constructs the new kind and `is_definition()` reads it and legacy `Symbol` values. No enum variants, fields, or legacy wire encodings change.

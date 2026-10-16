@@ -550,6 +550,7 @@ impl Source for WikiIndex {
     }
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id(),
             root: NodeId::derive(&self.id(), "root"),
             display_name: "Wiki fixture".into(),
@@ -762,6 +763,7 @@ fn App() -> Element {
         let decoy = SourceId::new("folder:/tmp/decoy");
         ws.add_source(Arc::new(MemoryFile {
             descriptor: SourceDescriptor {
+                truth: Default::default(),
                 id: decoy.clone(),
                 root: NodeId::derive(&decoy, "root"),
                 display_name: "decoy".into(),
@@ -772,6 +774,7 @@ fn App() -> Element {
         }));
         ws.add_source(Arc::new(MemoryFile {
             descriptor: SourceDescriptor {
+                truth: Default::default(),
                 id: source,
                 root: node.id,
                 display_name: "fixture".into(),

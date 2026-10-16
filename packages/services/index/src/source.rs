@@ -431,6 +431,7 @@ impl Source for IndexSource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id.clone(),
             display_name: {
                 let s = self.stats();

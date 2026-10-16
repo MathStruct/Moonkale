@@ -52,6 +52,6 @@ pub use id::{NodeId, SourceId};
 pub use source::async_trait;
 pub use source::{
     Applied, Capabilities, Changes, Direction, Op, OpResult, Openers, Query, QueryResult, Risk,
-    Shape, Source, SourceDescriptor, SourceFamily, SourceOpener, Splice, Table, TextDialect,
-    TextPatch, Transaction,
+    Shape, Source, SourceDescriptor, SourceFamily, SourceOpener, SourceTruth, Splice, Table,
+    TextDialect, TextPatch, Transaction,
 };

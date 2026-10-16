@@ -180,6 +180,7 @@ impl<S: KvStore> Source for KvSource<S> {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id.clone(),
             display_name: self.database_node().label,
             family: SourceFamily::KeyValue,

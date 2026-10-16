@@ -97,6 +97,7 @@ impl Source for TraceSource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id.clone(),
             display_name: format!("trace: {}", self.title.chars().take(40).collect::<String>()),
             family: SourceFamily::Custom("trace".into()),

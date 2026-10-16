@@ -1503,6 +1503,7 @@ mod ownership_tests {
         }
         fn descriptor(&self) -> moonkale_core::SourceDescriptor {
             moonkale_core::SourceDescriptor {
+                truth: Default::default(),
                 id: self.id(),
                 root: moonkale_core::NodeId::derive(&self.id(), "root"),
                 display_name: "project".into(),

@@ -96,3 +96,24 @@ impl Source for RemoteSource {
             .map_err(transport)?
     }
 }
+
+#[cfg(test)]
+mod truth_tests {
+    use super::*;
+    #[test]
+    fn transport_preserves_store_ownership_without_granting_writes() {
+        let id = SourceId::new("unison:fixture");
+        let descriptor = SourceDescriptor {
+            truth: moonkale_core::SourceTruth::Store,
+            root: NodeId::derive(&id, "root"),
+            id,
+            display_name: "Store fixture".into(),
+            family: moonkale_core::SourceFamily::Custom("unison".into()),
+            capabilities: Default::default(),
+        };
+        let wire = serde_json::to_string(&descriptor).unwrap();
+        let remote = RemoteSource::from_descriptor(serde_json::from_str(&wire).unwrap());
+        assert_eq!(remote.descriptor(), descriptor);
+        assert!(!remote.descriptor().capabilities.write);
+    }
+}

@@ -52,6 +52,7 @@ pub fn EditorHost() -> Element {
         };
         ws.add_source(std::sync::Arc::new(super::MemoryFile {
             descriptor: SourceDescriptor {
+                truth: Default::default(),
                 id: source,
                 root: node.id,
                 display_name: "FPS fixture".into(),

@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 fn descriptor(id: &str, family: SourceFamily) -> SourceDescriptor {
     let id = SourceId::new(id);
     SourceDescriptor {
+        truth: Default::default(),
         root: NodeId::derive(&id, ""),
         id,
         display_name: "x".into(),

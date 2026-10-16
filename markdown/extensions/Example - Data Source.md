@@ -25,7 +25,8 @@ impl SourceFactory for CsvDirFactory {
 
 impl Source for CsvDirSource {
     fn descriptor(&self) -> SourceDescriptor {
-        // family Sql, dialect csvdir, capabilities READ | TEXT_QUERY(Sql) | FULLTEXT
+        // family Sql, truth: Default::default() (external source owns the data),
+        // dialect csvdir, capabilities READ | TEXT_QUERY(Sql) | FULLTEXT
         // schema graph: one Table node per file, Column nodes with Contains edges
     }
     async fn query(&self, q: Query) -> Result<QueryResult, SourceError> {
