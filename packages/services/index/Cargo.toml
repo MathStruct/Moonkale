@@ -7,6 +7,7 @@ description = "Parsing and indexing: wiki-links and tree-sitter symbols derived 
 
 [features]
 default = []
+lossless-syntax = ["dep:blake3"]
 content-ids = ["dep:blake3", "dep:moonkale-state", "dep:serde", "dep:serde_json"]
 
 [dependencies]

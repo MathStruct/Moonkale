@@ -139,7 +139,7 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 | Secrets | ◐ names only, env and file | keychain, redaction |
 | SSH remote | ◐ | #18 |
 | Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
-| Untrusted content | ◐ jail, link allow-list, bounds; default-off content normalizer has byte/depth/work/parser limits and checksummed bounded caches (WP-66) | #5, sanitising, CSP, fuzzing, #15 |
+| Untrusted content | ◐ jail, link allow-list, bounds; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks (WP-66/67); content caches are bounded/checksummed | #5, sanitising, CSP, fuzzing, #15 |
 | Wasm extensions | ◐ permissions, fuel, memory limits | signing |
 | Supply chain and releases | ○ | cargo deny/audit, signing, checksums |
 | Data at rest | ○ | redaction, encryption decision |

@@ -9,6 +9,7 @@ Crate: `index`. The index turns *files and rows* into a *graph* by deriving what
 > - **Parsing** is native tree-sitter through `arborium` (shared with the Rust code editor, P-113) — not `.wasm` grammars; the index runs on desktop and the server, and the web/phone query the server's.
 > - **Storage is memory**: the graph, BM25 postings (hand-written, `search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) are rebuilt on every open. No sqlite/duckdb store, no tantivy, no usearch, no `recoco`. A persisted index is part of [[Internal State]].
 > - **Content identities**: experimental `moonkale-index/content-ids`, off by default. Explicit async requests hash normalized Rust/Julia/Python syntax and same-file recursive dependencies; a bounded memory cache and optional state-store adapter are available. Unsupported syntax fails explicitly. No eager workspace hashing or UI activation. See [[Code Graph Schema]] for v1 rules.
+> - **Rust L1 foundation**: default-off `lossless-syntax` snapshots preserve exact bytes/trivia and return guarded pure patch plans. No graph/document edits are enabled; see [[Rust Lossless Syntax and Patches]].
 > - **LSP as a second extractor** and the `precision` field are not built.
 > - Stack traces live in their own crate, `moonkale-trace` (`TraceSource`), not in `index::trace`.
 

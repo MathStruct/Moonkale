@@ -58,3 +58,9 @@ let identity = index.content_id(definition_id).await?;
 ```
 
 CI runs the feature-enabled index tests and Clippy in addition to feature-off workspace gates. `tools/check-content-id-deps.py` generates an isolated target-only manifest from the workspace lockfile and checks BLAKE3's graph with pinned cargo-deny 0.20.2 (advisories, licenses, bans and sources), verifying that every audited crate version/checksum matches production. This is scoped to the new hashing dependency; the broader workspace supply-chain policy remains WP-47.
+
+## WP-67 slice 1: lossless Rust syntax (2026-10-16)
+
+The separate default-off `lossless-syntax` feature exports `lossless::{RustSyntaxSnapshot, RustEditPlan, RustTextEdit, RustFunction, SyntaxToken, SyntaxEditError}`. It reuses optional BLAKE3 and needs no new dependency. Snapshots preserve exact Rust bytes/tree/token/trivia partitions; pure declaration-name and same-file top-level function-move plans validate exact inputs, byte ranges, grammar and move token conservation. `apply_to` returns a proposed String, without touching documents or sources. Resource limits and the explicit trivia ownership policy are in [[Rust Lossless Syntax and Patches]]. No reference-aware rename, graph controls, cross-file move, document adapter or conflict UI is claimed. Existing constructors now supply the core SourceTruth default; remote descriptor preservation remains the remote layer's responsibility.
+
+`cargo test -p moonkale-index --features content-ids,lossless-syntax --locked` exercises both opt-in features. CI uses the same feature combination. Neither is an application default.

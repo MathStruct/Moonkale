@@ -35,7 +35,7 @@ It builds on:
 | **L3 Elaborated** | what an elaborator knows: resolved types, trait and method dispatch, macro expansions, effects | derived, on demand | real elaborators (rust-analyzer, Julia's lowering and inference, Lean's environment) |
 | **L4+ IR** | MIR or Julia's typed IR, MLIR dialects, LLVM IR, assembly | derived, on demand | compilers, as tools ([[Shared Work]] §5) |
 
-Provenance edges (`LoweredTo` / `LoweredFrom`) connect a node in one layer to the nodes it became in the next. Today L0 exists, the index emits L2 `Definition`/`Name` nodes and syntactic references for Rust, Julia and Python (WP-65/WP-22), and the remaining layers are unbuilt.
+Provenance edges (`LoweredTo` / `LoweredFrom`) connect a node in one layer to the nodes it became in the next. Today L0 exists, the index emits L2 `Definition`/`Name` nodes and syntactic references for Rust, Julia and Python (WP-65/WP-22), and a default-off Rust L1 snapshot/patch-planning foundation exists (WP-67 slice 1); document integration and the other derived layers remain unbuilt.
 
 ## 3. Definitions
 
@@ -230,3 +230,8 @@ Limits: 512 KiB per file, 4,096 definitions per input file and reachable closure
 Before computing, fetched bytes must match indexed provenance. Before publishing, bytes are fetched again, the index generation is checked, and every affected node must still exist. Refresh removes previously published identities for that file; deletion removes its definitions. No old id is published over a concurrently refreshed graph. Unrefreshed source changes can still make an already-published graph snapshot stale until the existing watcher/refresh path runs; this feature adds no new watcher guarantee.
 
 Three-language integration fixtures cover moves/renames/trivia, body and dependency changes, recursion, unresolved references, observable spelling, lexical shadowing, optional persistent reopen, refresh/deletion, concurrent refresh and parser limits. Unit tests cover ordered wiring, disconnected components, canonicalization exhaustion, byte-budget eviction and invalid cache records. See [[P-200 Lazy syntactic content identities]] and `packages/services/index/index.md`.
+
+
+## WP-67 slice 1 (2026-10-16)
+
+The native, default-off `lossless-syntax` feature now provides exact Rust token/trivia snapshots and pure guarded declaration-name/move plans. `SourceDescriptor.truth` is built with backwards-compatible `Files` deserialization and explicit `Store` metadata; existing sources remain externally authoritative. No graph editing, document mutation, reference-aware rename or cross-file move is exposed. See [[Rust Lossless Syntax and Patches]] for the byte/trivia ownership policy, bounds, move-token conservation and the remaining document/conflict slice. Content identities and exact input hashes have different purposes; a doc-only change preserves the former but invalidates an old structural edit plan.
