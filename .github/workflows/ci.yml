@@ -157,14 +157,16 @@ jobs:
             browser: chromium
             suites: structural-edits graph-rename graph-a11y
     env:
-      # A cold debug build of server + client can take longer than serve.sh's default 20 minutes:
-      # 45 minutes in seconds. A build whose log stops growing fails after 20 (SERVE_STALL).
-      SERVE_WAIT: 2700
+      # Both attempts share one hour; only 20 minutes of inactivity triggers a retry.
+      SERVE_WAIT: 3600
+      SERVE_ATTEMPTS: 2
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
       SUITES: ${{ matrix.suites }}
       SERVE_FEATURES: ${{ matrix.features }}
     steps:
       - uses: actions/checkout@v4
+      - name: Startup recovery tests
+        run: python3 packages/web/tests/e2e/test-serve.py
       - name: Working directory for the suites
         run: echo "MOONKALE_E2E=$RUNNER_TEMP/e2e" >> "$GITHUB_ENV"
       - name: Free disk space
@@ -199,8 +201,6 @@ jobs:
         # stores (DuckDB, RocksDB, LadybugDB) and takes longer than serve.sh's
         # 20-minute default; a real stall is still caught by SERVE_STALL (no
         # change in the dx log or the target dir for 20 minutes).
-        env:
-          SERVE_WAIT: "3600"
         timeout-minutes: 70
         run: packages/web/tests/e2e/serve.sh start
       - name: Suites
@@ -214,10 +214,13 @@ jobs:
         if: failure()
         run: tail -100 "$MOONKALE_E2E"/dx-*.log || true
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: e2e-shots-${{ matrix.name }}
-          path: ${{ runner.temp }}/e2e/shots
+          path: |
+            ${{ runner.temp }}/e2e/shots
+            ${{ runner.temp }}/e2e/dx-*.log
+          retention-days: 7
       - name: Stop the server
         if: always()
         run: packages/web/tests/e2e/serve.sh stop

@@ -159,3 +159,5 @@ They keep the debt from growing until the full document and a review exist. Each
 
 ## Not built
 Accounts and roles for a shared server (design in [[Remote and Server Modes]]); a Content-Security-Policy; signed releases and a checksum for the uploaded remote server; an OS keychain.
+
+Browser CI startup diagnostics contain only the owned process group’s executable names, process state, disk availability and progress timestamps. No environment or process argument dump is taken. Servers launch in a dedicated session; cleanup checks the recorded PID birth identity and signals only that process group, including orphaned descendants (P-209). Build logs/screenshots are retained for seven days.

@@ -72,7 +72,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | iOS | 📝 |
 
 ## Most important open problems
-1. **CI is new** (R-39, phase 0 of [[Milestone 18 - Library Refactor]]) — only six of the 47 browser suites run there.
+1. **CI breadth** (R-39, WP-26) — default browser smoke suites plus the opt-in structural matrix; startup has a shared 60-minute budget, at most two inactivity-only attempts and retained diagnostics ([[P-209 CI startup stalls must retain evidence]]). Several suites remain local-only; three consecutive green runs are still the WP-26 acceptance target.
 2. **Security findings** — [[Audit 2026-09-23]], [[Security]]. #1, #4, #8 fixed in their structural part on `refactor` (Milestone 18 phase 4.5); the others are open. Don't expose a server beyond a trusted network.
 3. **The core is a library** on `refactor`: `moonkale-core`, `moonkale-ext-api` (documented, `CHANGELOG.md`) and `moonkale-graph-render` (a Rust API, no Moonkale deps) tagged `lib-v1`; the shell depends on no extension; no layering exceptions. `Workspace` is still one large facade — R-37, [[Milestone 18 - Library Refactor]].
 4. **Internal state**: SQLite chosen ([[ADR-0014 One store for internal state]]); layouts, user settings, the entity log and agent sessions are in the store (phase 5); nothing syncs yet — R-36, [[Internal State]].

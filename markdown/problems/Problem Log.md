@@ -194,6 +194,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-208 Graph rename must refuse incomplete file subsets]] | Reference-aware graph Rename accepts complete single-file LSP plans and refuses multi-file plans in full. Resolver inputs and connection versions stay guarded through preview and Apply. | resolved | WP-67 slice 4 |
 
+| [[P-209 CI startup stalls must retain evidence]] | CI now keeps per-attempt startup logs/process diagnostics and permits one inactivity-only retry inside the original deadline. Owned process-group cleanup covers compiler/server descendants; compiler failures and process exits do not retry. Original tooling-stage stall remains unproven. | resolved (recovery/evidence) | WP-26 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.
