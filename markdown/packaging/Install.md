@@ -56,6 +56,8 @@ GitHub's runners build `moonkale-<release>-windows-x64-setup.exe` / `.msi` and `
 
 Signing needs a certificate (Windows, ~€200/yr) or an Apple Developer account (macOS notarisation, $99/yr); neither exists yet. If you try one of these builds, please say what happened in an issue — that is the only testing they get ([[Feedback]]).
 
+**Building from source on Windows** (first done 2026-10-17, P-213): Visual Studio Build Tools with *Desktop development with C++*, rustup (`x86_64-pc-windows-msvc`), Git, `dioxus-cli` 0.7.10, the WebView2 runtime (already present on current Windows 10/11), **and LLVM**: the desktop app always links RocksDB, whose `bindgen` build script needs `libclang.dll`. `winget install LLVM.LLVM`, then `$env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"` before `cargo` or `dx`. GitHub's Windows runners ship LLVM, which is why CI never noticed. Then `cd packages\desktop` and `dx serve --platform desktop --features desktop`.
+
 ## After installing
 - Start it, *File → Open Folder…*, and open a `.md` or `.rs` file. If the editor shows "Loading editor…" forever, the assets were not found next to the binary: tell us the install method.
 - NVIDIA + Wayland on Linux and the window stays blank: start with `WEBKIT_DISABLE_DMABUF_RENDERER=1 moonkale` (see [[Linux Desktop Setup]]).
