@@ -59,6 +59,10 @@ fn header(source: &str, start: usize) -> Option<(String, Option<bool>, Range<usi
 }
 
 pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)> {
+    crate::markdown_guard::parse(source, || previews_parsed(source)).unwrap_or_default()
+}
+
+fn previews_parsed(source: &str) -> Vec<(Range<usize>, String, InlineStyle)> {
     let body_start = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS)
         .into_offset_iter()
         .next()

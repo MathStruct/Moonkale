@@ -108,6 +108,11 @@ pub(crate) fn file_path(from: &str, path: &str) -> Option<String> {
 
 #[cfg(feature = "markdown-preview")]
 pub(crate) fn heading_position(text: &str, fragment: &str) -> Option<(u32, u32)> {
+    crate::markdown_guard::parse(text, || heading_position_parsed(text, fragment)).flatten()
+}
+
+#[cfg(feature = "markdown-preview")]
+fn heading_position_parsed(text: &str, fragment: &str) -> Option<(u32, u32)> {
     use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
     let fragment = decode(fragment)?;
     if fragment.is_empty() {

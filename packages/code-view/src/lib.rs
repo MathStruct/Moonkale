@@ -37,6 +37,8 @@ pub mod editor_core_spike;
 pub mod graph_rename;
 mod group_history;
 pub mod lsp;
+#[cfg(feature = "markdown-preview")]
+mod markdown_guard;
 mod native_accessibility;
 mod native_completion;
 mod native_decorations;
@@ -116,3 +118,29 @@ mod native_images;
 
 mod preferences;
 pub use preferences::{editor_settings, native_commands, run_native_command};
+
+#[cfg(all(test, feature = "markdown-preview"))]
+mod markdown_crash_regression {
+    use super::*;
+    use moonkale_ext_api::editor::DocumentRevision;
+
+    #[test]
+    fn fuzz_crash_keeps_source_through_every_public_parser_boundary() {
+        for source in markdown_guard::CRASH_INPUTS {
+            assert!(native_math_parser::displays(source).is_empty());
+            assert!(native_image_parser::previews(source).is_empty());
+            assert!(native_markdown_tables::previews(source).is_empty());
+            assert!(native_markdown_lists::previews(source).is_empty());
+            assert!(native_markdown_callouts::previews(source).is_empty());
+            let batch = native_markdown::batch(DocumentRevision(1), source);
+            assert_eq!(batch.revision, DocumentRevision(1));
+            assert!(batch.values.is_empty());
+            assert!(native_properties::front_matter(source).is_none());
+            assert!(native_links::heading_position(source, "heading").is_none());
+        }
+        // An unsuccessful presentation must not poison a retained parser cache.
+        assert!(!native_markdown::batch(DocumentRevision(2), "# Good")
+            .values
+            .is_empty());
+    }
+}

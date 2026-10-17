@@ -297,7 +297,14 @@ input and assertion as a normal `#[test]` in
 `packages/code-view/src/native_math_parser.rs` or `packages/ext-api/src/flow.rs`;
 verify it fails before and passes after the fix. Do not commit generated corpora,
 coverage, targets or crash dumps containing private source. Commit only reviewed
-seeds/regression inputs. The initial local 60-second runs found no crash.
+seeds/regression inputs. The initial local 60-second runs found no crash. CI subsequently found P-212:
+`p-212-crash.md` is the original 128-byte input; the other three P-212 seeds are
+nine-byte minimized/substituted inputs. They also feed stable production tests
+(`cargo test -p moonkale-code-view --lib` and
+`cargo test -p moonkale-editor-agent --lib`). The production guard bypasses NUL,
+vertical tab and form feed before parsing on all profiles; unwind builds also
+catch failed complete parse operations. Do not remove the control guard after a
+native-only catch test passes: the wasm release uses `panic=abort`.
 
 Dependency checks: `python3 tools/check-security.py rust` requires cargo-deny
 0.20.2 and cargo-audit 0.22.2. `--db-root <writable-directory>` relocates the two

@@ -18,7 +18,9 @@ Existing Rust/npm findings are dated exceptions, awaiting Daniel's upgrade
 choices; they are not fixed. Two separate non-blocking nightly parser fuzz jobs
 run for 60 seconds each. Local runs completed 2,140,753 math and 8,218,925 flow
 inputs without crashes; 18 parser tests and nine gate regression tests pass.
-The math normaliser remains planned; the target covers today's math range parser.
+The first CI math crash (P-212) now has source-preserving production guards and
+four corpus regressions; 216 code-view and five agent unit tests pass (code-view
+uses the supported `DOCS_RS=1` registry-write bypass); browser verification remains due. The math normaliser remains planned; the target covers today's math range parser.
 See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
 older whole-product inventory date above is unchanged; this paragraph checks only
 WP-47, not every area below.

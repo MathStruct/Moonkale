@@ -95,6 +95,8 @@ Moonkale renders and parses what it opens: Markdown (HTML inside it, KaTeX, Typs
 - folder settings without authority.
 - **Built — fuzzing (WP-47, 2026-10-17):** `fuzz/` compiles the production math range parser and `Flow::parse` directly. Separate nightly CI jobs run each for 60 seconds with 64 KiB inputs, a 10-second per-input timeout and 2 GiB RSS limit; failures are non-blocking and crash inputs are uploaded for regression tests. The planned WP-36 delimiter normaliser does not exist yet; it and the wasm ABI JSON still need targets;
 
+- **Parser crash containment (P-212, 2026-10-17):** Markdown presentation rejects NUL, vertical tab and form feed before pulldown-cmark construction, retaining original source on desktop and abort-profile wasm. Unwind builds also catch complete parse failures and discard partial results. Diagnostics are fixed, content-free text; rejected controls log once per process. Stable regressions exercise math, block/list/table/callout/image preview, wiki projection/hover/heading lookup, native front matter, documentation and agent messages; four corpus seeds retain the first CI crash and minimized variants. No parser upgrade is available; upstream #1129 remains open. This prevents the known crash family on abort builds, not arbitrary future parser panics. See [[P-212 Markdown offset iterator can panic]].
+
 **To build:**
 - **a Content-Security-Policy** for the web client and the webviews;
 - **HTML sanitising** in the Markdown renderers, one allow-list;

@@ -342,6 +342,12 @@ async fn fetch(ws: Workspace, from: Node, request: Request, epoch: u64) -> Resul
 
 #[cfg(feature = "markdown-preview")]
 fn snippet(text: &str, target: &Target) -> (Status, String) {
+    crate::markdown_guard::parse(text, || snippet_parsed(text, target))
+        .unwrap_or_else(|| (Status::Unavailable, String::new()))
+}
+
+#[cfg(feature = "markdown-preview")]
+fn snippet_parsed(text: &str, target: &Target) -> (Status, String) {
     use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
     if text.contains('\0') {
         return (Status::Unavailable, String::new());
@@ -422,6 +428,11 @@ fn snippet(_: &str, _: &Target) -> (Status, String) {
 
 #[cfg(feature = "markdown-preview")]
 fn tokens(text: &str) -> Vec<Token> {
+    crate::markdown_guard::parse(text, || tokens_parsed(text)).unwrap_or_default()
+}
+
+#[cfg(feature = "markdown-preview")]
+fn tokens_parsed(text: &str) -> Vec<Token> {
     use pulldown_cmark::{Event, Options, Parser, Tag};
     let raw = moonkale_ext_api::wiki::spans(text);
     if raw.is_empty() {
@@ -599,5 +610,25 @@ mod tests {
             Status::TooLarge
         );
         assert_eq!(snippet("binary\0text", &wiki(None)).0, Status::Unavailable);
+    }
+}
+
+#[cfg(all(test, feature = "markdown-preview"))]
+mod p212_regression {
+    #[test]
+    fn crash_retains_unparsed_source() {
+        for source in crate::markdown_guard::CRASH_INPUTS {
+            let target = super::Target::Wiki {
+                page: "Note".into(),
+                heading: None,
+            };
+            assert!(matches!(
+                super::snippet(source, &target).0,
+                super::Status::Unavailable
+            ));
+            assert!(super::tokens(source).is_empty());
+            // Force the wiki-token parser path even for the minimized input.
+            assert!(super::tokens(&format!("{source}\n[[Note]]")).is_empty());
+        }
     }
 }

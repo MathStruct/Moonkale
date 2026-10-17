@@ -142,7 +142,7 @@ The frontend for oxilite and tiramemsu, using their crates as they are ([[Knowle
 | 44 | **JSON Canvas** read and write on the graph engine with canvas components | the canvas layer (WP-05), a new view | 05 | M | an Obsidian `.canvas` file opens, edits and saves back unchanged where untouched |
 | 45 | **Statistical logic programs in the flow model** (LT-24 to LT-29): relation and rule kinds, lifted/ground expansion, derivation graphs, a query box | `ext-api/flow.rs` ★, `editors/flow`, the Datalog dialect (WP-20) | 37, 20 | L | a small weighted program answers a query with its proof graph |
 | 46 | **Sessions** ([[ADR-0025 Sessions are the outermost state]], accepted): session tables in the state store, the switcher, migrating per-folder rows into the Default session, export and import | `state`, shell, `editors/agent` (conversations), `moonkale-core` ★ (settings scopes) | — | M | switch two sessions with different sources and an unsaved buffer each; nothing lost |
-| 47 | **Security hygiene in CI** — implemented 2026-10-17, awaiting coordinator review: blocking Rust auditors with shared dated exceptions, all six JS lockfiles, 63 vendored hashes, two non-blocking nightly 60 s parser targets; the planned math normaliser still needs a target when built | `.github`, `deny.toml`, `tools`, standalone `fuzz/` | — | S | New Rust advisory/yank or high/critical npm advisory fails; existing findings explicitly deferred, no upgrades; [[Security]] |
+| 47 | **Security hygiene in CI** — implemented 2026-10-17, awaiting coordinator review: blocking Rust auditors with shared dated exceptions, all six JS lockfiles, 63 vendored hashes, two non-blocking nightly 60 s parser targets; P-212 first CI crash now contained at production Markdown boundaries with four regression seeds; 216 code-view and five agent tests pass with supported registry-write bypass; browser gates pending; the planned math normaliser still needs a target when built | `.github`, `deny.toml`, `tools`, standalone `fuzz/` | — | S | New Rust advisory/yank or high/critical npm advisory fails; existing findings explicitly deferred, no upgrades; [[Security]] |
 | 48 | **Participants, roles and agent tasks** ([[Shared Work]] SW-01 to 08): roles per session, agents with sponsors, a task queue, an approval inbox, attribution, budgets | server (accounts first), shell, `editors/agent`, the entity log | accounts on the server; 46 | L (split) | two people and an agent in one session, the agent's writes approved from the inbox |
 | 49 | **Proposals and optimistic writes** (SW-20, 21, 23): versioned writes through `Source`, a conflict view, changesets reviewed and applied atomically | `moonkale-core` ★ (write API, R-41), `sources/*`, a review view | — | L | an agent's two-file edit and a SQL update applied as one reviewed proposal; a stale write refused and shown |
 | 50 | **Comments** ([[Annotations]] steps + SW-30, 31, 34): threads on text, nodes, flow blocks, cells; rich rendering; `@agent` mentions later | `moonkale-core` (Annotation kind), ext-api, editors, the state store | — | M | a comment on a flow block and one on a table cell, both found in the Annotations panel |
@@ -197,3 +197,16 @@ Only fundamental decisions ([[Running Several Agents]], "Decisions while agents 
 - **WP-14's writes go through the policy gate,** like agent writes: the gate classifies every write, a person's own edit is allowed without a prompt, and an agent's is a proposal (SW-23). One mechanism, not two.
 - **WP-18's fixture:** a small Unison codebase created in the test from scratch (a handful of definitions, one rename, one dependency chain), not a downloaded one, so the test is hermetic.
 - **WP-12:** the Supabase study's rejections become final through review by the coordinator, under the [[Scrutiny]] test. Daniel can always overturn an entry.
+
+### WP-26 structural-edits selection race (2026-10-17)
+
+CI [39050073252 attempt 1](https://github.com/MathStruct/Moonkale/actions/runs/39050073252/attempts/1),
+jobs 117446675535 (attempt 1) and 117449161202 (attempt 2) both passed the first five CodeMirror structural-edits steps, then
+timed out in `selectNode` while beginning the move test after save/undo/redo.
+A source/index graph refresh can replace the pinned test graph before its click.
+The suite now waits for rendered frames and retries real pointer selection with
+fresh index IDs and coordinates inside the existing 30-second bound; the exact
+selected-node assertion remains. Local browser verification has not been run; three consecutive CI passes remain due.
+Code-view unit tests can run with dioxus-code's supported `DOCS_RS=1` asset-generation
+bypass in the read-only registry sandbox; normal browser asset generation still
+requires a writable registry.

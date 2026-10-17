@@ -10,6 +10,14 @@ Crate: `editors/markdown`. The knowledge half of the project.
 - Milkdown round-trips to Markdown; we store Markdown, so ProseMirror-only state is intentionally lost. That's what makes the backend replaceable.
 - **Rust-side model** (`pulldown-cmark` → block tree) exists regardless of backend: outline, link extraction, embeds and rename-propagation work without JS.
 
+**Parser fallback (P-212, 2026-10-17):** the native Markdown presentation,
+math/list/table/callout/image providers, wiki preview and documentation rendering
+retain plain source when parsing fails. NUL, vertical tab and form feed bypass
+pulldown-cmark before parsing on every profile; unwind builds also catch complete
+parse failures. The known 0.13.4 offset-iterator crash is covered by stable tests
+and four fuzz corpus inputs. Canonical bytes are unchanged; see
+[[P-212 Markdown offset iterator can panic]] and [[Security]].
+
 ## Links are edges
 Every link is a `Links` edge extracted by [[Indexing]]. Backlinks = `Query::Neighbours{direction: In, kind: Links}`. The "local graph" pane is the [[Graph View]] at depth 1 — no separate implementation. Links can target **any node**, including a database row or a symbol: `[[users]]` may resolve to a Postgres table. Resolution uses Obsidian's shortest-unique-path rules, extended with source scoping.
 
