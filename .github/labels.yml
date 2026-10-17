@@ -34,3 +34,6 @@
 - name: platform:web
   color: ededed
   description: The browser build or a Moonkale server
+- name: security
+  color: b60205
+  description: A weakness - Security.md rule 7 files every found one as an issue
