@@ -50,11 +50,13 @@ pub trait Source: MaybeSendSync {
     /// queries come later.
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError>;
 
-    /// The text body of a node plus the version it was read at.
+    /// The text body plus its exact content version. Use this version for
+    /// `WriteText.expected`; a query node may carry only a metadata hint.
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError>;
 
     /// The raw bytes of a node (images and other blobs, spec 008). Default:
-    /// unsupported — text-only sources need not implement it.
+    /// unsupported — text-only sources need not implement it. The returned
+    /// content version may differ from a query node's metadata hint.
     async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
         let _ = node;
         Err(SourceError::Unsupported("binary content".into()))

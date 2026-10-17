@@ -607,13 +607,19 @@ impl Source for MemoryFile {
             }
             Query::Text {dialect,text} if dialect=="path" => Ok(QueryResult {nodes:if text==".moonkale/katex.json" {vec![Node {id:NodeId::derive(&self.id(),".moonkale/katex.json"),source:self.id(),kind:NodeKind::File,label:"katex.json".into(),native_key:text,content:Some(ContentRef::Text {len:64,lang:None}),props:Default::default(),version:Version(MATH_MODE.with(|mode|mode.get()) as u64)}]}else {fixture_images(&self.id()).into_iter().filter(|node|node.native_key==text).collect()},..Default::default()}),
             Query::All {..}=>Ok(QueryResult {nodes:fixture_images(&self.id()),..Default::default()}),
-            Query::Node(id) => Ok(WIKI_CREATED.with(|created| {
-                created
-                    .borrow()
-                    .get(&id)
-                    .map(|(node, _)| QueryResult::single(node.clone()))
-                    .unwrap_or_default()
-            })),
+            Query::Node(id) => {
+                if let Some(image) = fixture_images(&self.id()).into_iter().find(|node| node.id == id) {
+                    Ok(QueryResult::single(image))
+                } else {
+                    Ok(WIKI_CREATED.with(|created| {
+                        created
+                            .borrow()
+                            .get(&id)
+                            .map(|(node, _)| QueryResult::single(node.clone()))
+                            .unwrap_or_default()
+                    }))
+                }
+            },
             Query::Children(id) if id == folder.id => Ok(QueryResult::single(target)),
             _ => Ok(QueryResult::default()),
         }

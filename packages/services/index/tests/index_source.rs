@@ -633,3 +633,61 @@ async fn syntactic_resolution_does_not_guess_dispatch_or_shadowed_names() {
         .unwrap();
     assert!(legacy.nodes.iter().any(|n| n.id == target.id));
 }
+
+#[tokio::test]
+async fn invalid_utf8_is_reported_and_recovery_clears_the_diagnostic() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("bad.md"), [0xff, 0xfe]).unwrap();
+    let folder = Arc::new(FolderSource::open(dir.path()).unwrap());
+    let index = IndexSource::build(folder.clone()).await.unwrap();
+    let node = folder
+        .query(Query::Children(folder.root_id()))
+        .await
+        .unwrap()
+        .nodes[0]
+        .id;
+    let r = index.query(Query::Node(node)).await.unwrap();
+    assert_eq!(
+        r.nodes[0].props.get("index_error"),
+        Some(&moonkale_core::Value::Text("text read failed".into()))
+    );
+    fs::write(dir.path().join("bad.md"), "# valid").unwrap();
+    index.refresh(node).await.unwrap();
+    let r = index.query(Query::Node(node)).await.unwrap();
+    assert!(!r.nodes[0].props.contains_key("index_error"));
+}
+
+#[tokio::test]
+async fn encoding_failure_removes_previously_indexed_symbols_and_search_chunks() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("lib.rs"), "pub fn distinct_marker() {}\n").unwrap();
+    let folder = Arc::new(FolderSource::open(dir.path()).unwrap());
+    let index = IndexSource::build(folder.clone()).await.unwrap();
+    let node = folder
+        .query(Query::Children(folder.root_id()))
+        .await
+        .unwrap()
+        .nodes[0]
+        .id;
+    assert_eq!(index.stats().symbols, 1);
+    fs::write(dir.path().join("lib.rs"), [0xff]).unwrap();
+    index.refresh(node).await.unwrap();
+    assert_eq!(index.stats().symbols, 0);
+    assert!(index
+        .query(Query::Children(node))
+        .await
+        .unwrap()
+        .nodes
+        .is_empty());
+    let results = index
+        .query(Query::Text {
+            dialect: "search".into(),
+            text: "distinct_marker".into(),
+        })
+        .await
+        .unwrap();
+    assert!(results.nodes.is_empty());
+    assert!(index.query(Query::Node(node)).await.unwrap().nodes[0]
+        .props
+        .contains_key("index_error"));
+}

@@ -7421,10 +7421,12 @@ dependencies = [
 name = "moonkale-project-fs"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "ignore",
  "moonkale-core",
  "notify",
  "rustix 1.1.4",
+ "same-file",
  "tempfile",
  "tokio",
 ]

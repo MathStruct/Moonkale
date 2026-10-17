@@ -15,7 +15,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | area | state | notes |
 |---|---|---|
 | **Workbench** (docking, rail, menus, palette, quick open, keybindings, phone shell) | ✅ | [[ADR-0010 dioxus-workbench for layout]], spec [[009]], [[011]] |
-| **Folders** (open several, watch disk, file ops, trash, find/replace) | ✅ | Milestone 7, 16; races in issue #15; symlinks escape the root (#5) |
+| **Folders** (open several, watch disk, file ops, trash, find/replace) | ✅ | Milestone 7, 16; WP-23 (2026-10-17): metadata-only listings with separate fetched content versions, locked/rechecked saves, consistent directory versions, bounded directional neighbourhoods and native no-replace moves; final external-writer race remains #15; symlink swaps remain #5 |
 | **Remote folders over SSH**, desktop as a server's client | ✅ | Milestone 11; hardening #18 |
 | **Projects** (saved sets of sources, selector, sync) | 📝 | [[Projects and Sources]], spec [[003]] |
 | **Code editor** — CodeMirror (LSP, highlighting, wiki-links, presence) | ✅ | splices (spec [[018]]); full-text LSP sync (#19) |
@@ -31,7 +31,7 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 | **Notebook editor** | 📝 | [[Notebook Editor]] |
 | **Agent** (sessions, saved agents, policy gate, MCP, server sessions, Claude Code) | ✅ | [[Agent Sessions and Profiles]]; wedges (#13) |
 | **Search** (BM25 + embeddings) | ✅ | in memory, rebuilt on open |
-| **Index**: wiki-links, Rust definitions | ✅ | WP-65: shared L2 kinds, stable location ids, ranged occurrences, names and provenance; index rows rechecked 2026-10-15 — [[Code Graph Schema]] |
+| **Index**: wiki-links, Rust definitions | ✅ | WP-23: failed text reads carry a content-free node diagnostic, cleared on recovery; WP-65: shared L2 kinds, stable location ids, ranged occurrences, names and provenance; index rows rechecked 2026-10-15 — [[Code Graph Schema]] |
 | **Index**: Julia, Python definitions | ✅ | WP-65: same shared schema; Julia overload ids use signatures rather than order |
 | **Index**: Rust/Julia/Python calls, references and imports | ◐ | WP-22: conservative same-file syntax resolution, explicit unresolved targets; compiler-backed dispatch and cross-file resolution remain open — [[Code Graph Schema]] |
 | **Index**: content identities (Rust/Julia/Python) | ◐ | WP-66: default-off explicit requests, versioned syntactic normalization, canonical recursion components, bounded caches and freshness guards; conservative syntax subset and same-file resolution, not semantic equivalence — [[Code Graph Schema]] |

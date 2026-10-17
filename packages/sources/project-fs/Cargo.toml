@@ -8,6 +8,10 @@ description = "Folder projects as a Source: file tree, content, atomic writes. N
 [dependencies]
 moonkale-core = { workspace = true }
 ignore = "0.4"
+# Content versions hash fetched/written bytes; listings use metadata only (#15).
+blake3 = "1"
+# Portable open-handle/path identity checks (also used transitively by ignore).
+same-file = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 notify = "8.2.0"

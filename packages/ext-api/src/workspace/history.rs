@@ -277,30 +277,8 @@ impl Workspace {
         let Some(folder) = self.settings.folder.peek().clone() else {
             return;
         };
-        let Some(src) = self.source(&folder) else {
-            return;
-        };
         let text = self.history.log.peek().to_jsonl();
-        let result = match self.node_at_path(&folder, HISTORY_FILE).await {
-            Some(node) => {
-                let chars = src
-                    .fetch_text(node.id)
-                    .await
-                    .map(|(t, _)| t.chars().count())
-                    .unwrap_or(0);
-                src.apply(Transaction::write_text(
-                    node.id,
-                    node.version,
-                    TextPatch::whole(&text, chars),
-                ))
-                .await
-            }
-            None => {
-                let root = src.descriptor().root;
-                src.apply(Transaction::create_text(root, HISTORY_FILE, text))
-                    .await
-            }
-        };
+        let result = self.write_text_at(&folder, HISTORY_FILE, &text).await;
         if let Err(e) = result {
             tracing::warn!("history: could not write {HISTORY_FILE}: {e}");
         }

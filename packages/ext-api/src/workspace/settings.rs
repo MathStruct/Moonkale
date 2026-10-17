@@ -408,24 +408,22 @@ impl Workspace {
             .node_at_path(folder, crate::settings::WORKSPACE_FILE)
             .await
         {
-            Some(node) => {
-                // Against the version just read, not the index's, which may
-                // not have seen the previous write yet. A file that already
-                // says the same is left alone.
-                let (on_disk, version) = match src.fetch_text(node.id).await {
-                    Ok(read) => read,
-                    Err(_) => (String::new(), node.version),
-                };
-                if on_disk == text {
-                    return;
+            Some(node) => match src.fetch_text(node.id).await {
+                // A listing hint is never a save precondition. Refuse unreadable
+                // state instead of fabricating an empty body and a version.
+                Ok((on_disk, version)) => {
+                    if on_disk == text {
+                        return;
+                    }
+                    src.apply(Transaction::write_text(
+                        node.id,
+                        version,
+                        TextPatch::whole(&text, on_disk.chars().count()),
+                    ))
+                    .await
                 }
-                src.apply(Transaction::write_text(
-                    node.id,
-                    version,
-                    TextPatch::whole(&text, on_disk.chars().count()),
-                ))
-                .await
-            }
+                Err(error) => Err(error),
+            },
             None => {
                 let root = src.descriptor().root;
                 src.apply(Transaction::create_text(

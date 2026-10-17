@@ -134,15 +134,11 @@ impl Workspace {
         let src = self.source(source).ok_or(SourceError::NotFound)?;
         let result = match self.node_at_path(source, rel).await {
             Some(node) => {
-                let chars = src
-                    .fetch_text(node.id)
-                    .await
-                    .map(|(t, _)| t.chars().count())
-                    .unwrap_or(0);
+                let (current, version) = src.fetch_text(node.id).await?;
                 src.apply(Transaction::write_text(
                     node.id,
-                    node.version,
-                    TextPatch::whole(text, chars),
+                    version,
+                    TextPatch::whole(text, current.chars().count()),
                 ))
                 .await?
             }
