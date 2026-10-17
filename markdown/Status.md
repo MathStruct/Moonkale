@@ -10,6 +10,19 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 ## Numbers
 40 crates · 46 900 lines of Rust · ~1 000 lines of TypeScript in four view bundles · 146 Rust tests · 47 browser suites (Playwright) · CI since 2026-10-01: fmt, layering rules, tests, clippy, wasm check, six browser suites (R-39) · releases `YYMMDD-proto` for Arch, Debian, Nix, tarball, Windows, macOS, Android ([[Install]]).
 
+## Security CI (WP-47, checked 2026-10-17)
+
+Blocking all-feature Rust licence/source/advisory checks, cargo-audit, six JS
+lockfile audits and offline SHA-256 checks for 63 vendored files are implemented.
+Existing Rust/npm findings are dated exceptions, awaiting Daniel's upgrade
+choices; they are not fixed. Two separate non-blocking nightly parser fuzz jobs
+run for 60 seconds each. Local runs completed 2,140,753 math and 8,218,925 flow
+inputs without crashes; 18 parser tests and nine gate regression tests pass.
+The math normaliser remains planned; the target covers today's math range parser.
+See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
+older whole-product inventory date above is unchanged; this paragraph checks only
+WP-47, not every area below.
+
 ## By area
 
 | area | state | notes |

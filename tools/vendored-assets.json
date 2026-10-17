@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "groups": [
+    {
+      "root": "packages/ext-api/assets/katex",
+      "version": "0.18.7",
+      "upstream": "https://registry.npmjs.org/katex/-/katex-0.18.7.tgz",
+      "provenance": "All 20 woff2 fonts verified byte-for-byte on 2026-10-17. CSS verified against package/dist/katex.min.css after removing the unused woff/truetype fallback URLs (only woff2 ships). Upstream tarball SHA-256 9a80a3fba2367e99bf67b52bfff52e9534c8c7f198e4eaa12699e4f1df9a0bda",
+      "sha256": {
+        "fonts/KaTeX_AMS-Regular.woff2": "0cdd387c9590a1a9f9794560022dbb59654a7d86f187aa0c81495ad42d3a7308",
+        "fonts/KaTeX_Caligraphic-Bold.woff2": "de7701e42cf1f4cf0b766c03fb27977207eee2f4fd5d76fa82188406da43ea4c",
+        "fonts/KaTeX_Caligraphic-Regular.woff2": "5d53e70ad607c2352162dec9e0923fb54ecdafaccbf604cd8dcf7d00facb989b",
+        "fonts/KaTeX_Fraktur-Bold.woff2": "74444efd593c005e3f4573b44524704c0af0a937fe911cca9e94068d0d140d3f",
+        "fonts/KaTeX_Fraktur-Regular.woff2": "51814d270d06ff0255dba0799994fa4d8c84d11f09951d47595f4abb1f3602dc",
+        "fonts/KaTeX_Main-Bold.woff2": "0f60d1b897938ec918c8ce073092411baf9438f6739465693ff18b0f9d20b021",
+        "fonts/KaTeX_Main-BoldItalic.woff2": "99cd42a3c072d918f2f44984a807cf7aa16e13545fd0875fc07c6c65f99e715b",
+        "fonts/KaTeX_Main-Italic.woff2": "97479ca6cce906abc961ecac96faa5f9ca2e61b8e7670d475826bcdee9a7c267",
+        "fonts/KaTeX_Main-Regular.woff2": "c2342cd8b869e01752a9321dc17213fc40d4d04c79688c1d43f2cf316abd7866",
+        "fonts/KaTeX_Math-BoldItalic.woff2": "dc47344dbb6cb5b655c8460d561f4df5f501b90c804ad3c6cec65fe322351ab1",
+        "fonts/KaTeX_Math-Italic.woff2": "7af58c5ec8f132a2ddde9027c6d7814decce4d3b822a11192a42a20e2e973264",
+        "fonts/KaTeX_SansSerif-Bold.woff2": "e99ae51144bf1232efcc1bfe5add36262c6866b0faab24fa75740e1b98577a62",
+        "fonts/KaTeX_SansSerif-Italic.woff2": "00b26ac825e2095056396e0553b8ac26d3f8ad158c3826e28b4c45b385c4714a",
+        "fonts/KaTeX_SansSerif-Regular.woff2": "68e8c73ef42afd3ccec58bf0fba302cce448938e7fc020a5e31f8a952eee1342",
+        "fonts/KaTeX_Script-Regular.woff2": "036d4e95149b69ff9bcc0cd55771efeb25ffa3947293e69acd78d5ac328c684b",
+        "fonts/KaTeX_Size1-Regular.woff2": "6b47c40166b6dbe21a5dfca7718413f2147fd2399be1ba605d8ad39cedf25dfe",
+        "fonts/KaTeX_Size2-Regular.woff2": "d04c54219f9eaec6d4d4fd42dfb28785975a4794d6b2fc71e566b9cd6db842dd",
+        "fonts/KaTeX_Size3-Regular.woff2": "73d591271b1604960cb10bb90fee021670af7297017e0e98480b332d11f51995",
+        "fonts/KaTeX_Size4-Regular.woff2": "a4af7d414440a1c1790825cfb700cf9cf43b0f2c4b04f0ebc523011ad9853ec0",
+        "fonts/KaTeX_Typewriter-Regular.woff2": "71d517d67827787cfabdf186914cc3358eda539e37931941f2b2fd4a21f68c0b",
+        "katex.min.css": "15c7fee15321f33725febf8fe624d12a76fbf8efe27c02307273e82a6478d0db"
+      }
+    },
+    {
+      "root": "packages/code-view/vendor/editor-core",
+      "version": "0.5.0",
+      "upstream": "https://crates.io/api/v1/crates/editor-core/0.5.0/download",
+      "provenance": "Reviewed local fork, not byte-identical upstream. Local changes recorded in MOONKALE_PATCHES.md; hashes cover reviewed working tree on 2026-10-17.",
+      "sha256": {
+        "Cargo.toml": "66576107fd55c5971781752891d88178734d09f98d925d2be901b78bb15d8f42",
+        "LICENSE-APACHE": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb",
+        "LICENSE-MIT": "30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652",
+        "MOONKALE_PATCHES.md": "12a7a35da4036eea6055921f8db1f43235a94865a2e32186add867adcc41d219",
+        "README.md": "435b1c7d2b7c8ef164da0bb9141f7a21975036b7058e6ae1cde46052bcf67c96",
+        "src/anchors.rs": "308137f513fa2576487c19c5c3058851fb9f7ba871155ecfecffef07d54cde96",
+        "src/commands.rs": "4b5c161764a04bd8605fe77a3f5ee8c6cd7bcf08d8504be1f4f70238fbfa6c33",
+        "src/cursor_ops.rs": "e5a014a1a0cbcb8b1bfde1460ed4b5e79755289788108423c34cc5bb1d17d272",
+        "src/decorations.rs": "74e10f7843eddc44d8c93bb3872664fcebd1d150f7ce882438f68e761dc44f6e",
+        "src/delta.rs": "5c1ca5d4f626c460833332b5a810002c48fa5da90d55ad7c0338ac62babcd25f",
+        "src/diagnostics.rs": "800505415e0e3607d3eb56cd79cff135eb987e03af123959c7070363da0eff9c",
+        "src/edit_ops.rs": "c07e890087409d2ab046ce04d4e360c9562f2af69afda440239eced09f3caad8",
+        "src/intelligence.rs": "d1581fddea85c1bb2051cc0fb7664a225dedf3b86fd121c82cc437fa6c0e91cf",
+        "src/intervals.rs": "03500c47f176ff65582620f65be1b6d3623c5f42b729652a3e4981e567f26803",
+        "src/layout.rs": "3933b6de0af9642d5be219a1fb9272f836aacadc502a83511117914fe633a046",
+        "src/lib.rs": "fdb6f24f91520e09e0a0fb3573a466c8d8b8d981162a79dc317aa5722f931c86",
+        "src/line_ending.rs": "c2a805dd4b4f01bdcb04bab5057fb3bc6956e5848af74784d2b1f4b7d20335ef",
+        "src/line_index.rs": "d49515c88ee37694cb28c89e167dee2df8f8578efb13a11bd6b4c9239b73825d",
+        "src/line_ops.rs": "97766535488c0e0a755e181e2ed4d5d1aeb7eabd607d89681f94ce2201597bf4",
+        "src/model.rs": "5392d0d6b2ae7538dd97b26a909e26d5b09a83ab06431ad92eea26d4f263782a",
+        "src/processing.rs": "f38b5341e98c0e3e863d55c933b5de6cdd4b18353b1fef2e122657bdc7f7ea2e",
+        "src/render_grid.rs": "54b358761ac4cd7ba0b75c1f94a91ac6f2907fdc9aea2e0729f6e36f5cbf58bc",
+        "src/search.rs": "2228f41d4da41d2823bc8e9d90fa2ec5b32ba8cea36a8c3b70201c02af63908e",
+        "src/selection_set.rs": "6071ed5503731ddcc0b8fdc9452cd47eb888edcc95aa724cf66df9186bddb1e3",
+        "src/snapshot.rs": "f6ce68a1b1e4d48374a601c9bd28d8316673808552e937a3a627bc164306693f",
+        "src/snippets.rs": "64fdcad4501baf0ea65d0f6d387bcde322043d83b5bcecaf2ad8531b2e11ad23",
+        "src/state.rs": "dc933f329ba60abf9aa7e7456e9a2ba837ab9621be29c2218b7b672ce2b21019",
+        "src/storage.rs": "0ed615de582316b9d69ae86de614bcefb53536e12d93ad49d0d2d3df875c3d73",
+        "src/symbols.rs": "dd34377f948addf41bc7ebcaa2648f27e1c04257e339feed1c4a94c289c248f7",
+        "src/text.rs": "5e2ef7dfaf85838ea7111ea97e2f07acbe867df3c136d53a4069cd744b270b10",
+        "src/text_buffer.rs": "ca3d61ac197fe6e1416ff380c24392279143b8cece3e939385afaebd2b5f5c00",
+        "src/undo.rs": "ea36f15be7a0dbb76db6d480c9db05d4fae8075769255894bd48a385c3c275ab",
+        "src/visual_rows.rs": "95b1ba710b18c0557ac85299c216b761cd7415a66e29bd1d3152da5f5b139805",
+        "src/workspace.rs": "758851f2608dd08bea138dfd8953bdeb1f8e838d9f223a77971a4239a7ca289e"
+      }
+    },
+    {
+      "root": "packages/code-view/vendor/dioxus-code-editor",
+      "version": "0.1.2",
+      "upstream": "https://crates.io/api/v1/crates/dioxus-code-editor/0.1.2/download",
+      "provenance": "Reviewed local fork, not byte-identical upstream. Local changes recorded in UPSTREAM.md; hashes cover reviewed working tree on 2026-10-17.",
+      "sha256": {
+        "Cargo.toml": "ad6d770f70a5fb54c621d01421a4cc6822cd75fe5ab418af6184176a2d800285",
+        "README.md": "cfce550a5121556b91bcf63c4c554fcca986627cf81b70e0b19b8ace1a123384",
+        "UPSTREAM.md": "43d03fb1ac3fd04a5465b4b05300b10dc8d112ca44e7360915db388ba059afc0",
+        "assets/dioxus-code-editor.css": "48568097f9639b495d5c567313e708948b1221675feda1e042602c5865081f6a",
+        "src/edit_capture/desktop.rs": "27bdfcd4363c0987fcdae703efe4d96b7207b287ab14b2c4701dd2c3777e710a",
+        "src/edit_capture/web.rs": "4002337aa6f9845472b88b502067e106008cb5b89b600d490716e9358cd8e90b",
+        "src/edit_capture.rs": "0fab13a0b60cede3ec788b73ff7b8ae97d1ea93dc6916f26f81cc7ebcca8fc78",
+        "src/lib.rs": "a261607125939bace1b1a4a42b4f6a6da44687f243d64250a96bc136d5d799da"
+      }
+    }
+  ]
+}

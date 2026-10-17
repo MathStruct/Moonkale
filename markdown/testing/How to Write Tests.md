@@ -255,3 +255,57 @@ tools/headless.sh stop                        # the apps it started, the input h
 6. **Platform gates are tests too.** `cargo check -p web --target wasm32-unknown-unknown` is the test that says "no native crate leaked"; wire it into `cargo xtask check` so it isn't forgotten.
 
 Desktop FPS preflight samples aggregate `/proc/stat` activity before each mode and gesture. It requires two consecutive samples at or below 10% active CPU within six attempts; all samples are retained in the summary. Settling occurs before input, never by discarding a failed gesture. Hold the bench lock and both heavy slots throughout the run.
+
+
+## 8. Parser fuzzing and dependency gates (WP-47)
+
+`fuzz/` is a standalone cargo-fuzz crate with its own workspace and lockfile. It
+includes the actual production source files instead of copying parser code or
+compiling the Dioxus UI. Ordinary `cargo test --workspace` needs no nightly or
+libFuzzer build. Check its existing parser regressions on stable:
+
+```sh
+CARGO_TARGET_DIR="$PWD/target/agent" cargo test --manifest-path fuzz/Cargo.toml --locked --lib
+cargo fmt --manifest-path fuzz/Cargo.toml --check
+```
+
+Install cargo-fuzz **0.13.2** with `cargo install cargo-fuzz --version 0.13.2 --locked`.
+Use a nightly with its rust-src component if building the standard library (CI
+pins nightly-2026-09-29). Run heavy commands through your slot wrapper and keep
+`CARGO_TARGET_DIR` absolute and inside your own worktree:
+
+```sh
+CARGO_TARGET_DIR="$PWD/target/agent" cargo +nightly fuzz run math_delimiters -- -max_total_time=60 -max_len=65536 -rss_limit_mb=2048 -timeout=10
+CARGO_TARGET_DIR="$PWD/target/agent" cargo +nightly fuzz run flow_format -- -max_total_time=60 -max_len=65536 -rss_limit_mb=2048 -timeout=10
+```
+
+`math_delimiters` exercises the existing Markdown display-math range parser,
+checking ordered UTF-8 ranges and the 16 KiB TeX bound. WP-36's planned delimiter
+normaliser is not built on this branch and must get its own target when added.
+`flow_format` exercises `Flow::parse` and successful JSON serialization/reparsing.
+The harness limits are smoke-test budgets, not proof that the production parsers
+have sufficient bounds. Seed corpora include Unicode and code/metadata exclusions
+and an empty/subflow document. Normal parser tests compile in the standalone crate
+too. The new libFuzzer harness dependency is isolated to that crate; its exact
+version matches the existing production lockfile's transitive libfuzzer-sys.
+
+CI runs separate non-blocking jobs. Crashes land in `fuzz/artifacts/<target>/`
+and are uploaded even after failure. Reproduce with
+`cargo +nightly fuzz run <target> fuzz/artifacts/<target>/<crash-file>`. Reduce with
+`cargo +nightly fuzz tmin <target> <crash-file>`. Before a fix, add the minimized
+input and assertion as a normal `#[test]` in
+`packages/code-view/src/native_math_parser.rs` or `packages/ext-api/src/flow.rs`;
+verify it fails before and passes after the fix. Do not commit generated corpora,
+coverage, targets or crash dumps containing private source. Commit only reviewed
+seeds/regression inputs. The initial local 60-second runs found no crash.
+
+Dependency checks: `python3 tools/check-security.py rust` requires cargo-deny
+0.20.2 and cargo-audit 0.22.2. `--db-root <writable-directory>` relocates the two
+RustSec caches without changing `deny.toml`. `python3 tools/check-security.py js`
+audits all checked-in JS lockfiles without installs or scripts (npm registry
+access required). `python3 tools/check-vendored.py` and
+`python3 tools/test-security.py` run offline. New findings fail; existing dated
+exceptions and their limitations are in [[Security]]. To update vendored bytes,
+verify upstream/version and documented local patches first, then change the
+reviewed SHA-256 entries in `tools/vendored-assets.json` explicitly; CI never
+fetches or silently regenerates them.

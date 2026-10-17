@@ -1,0 +1,651 @@
+{
+  "schema": 1,
+  "exceptions": [
+    {
+      "lockfile": "packages/js/milkdown/package-lock.json",
+      "package": "dompurify",
+      "url": "https://github.com/advisories/GHSA-p98j-92pf-mc4p",
+      "versions": [
+        "3.4.15"
+      ],
+      "title": "DOMPurify: IN_PLACE: node-removing afterSanitize hook leaves detached subtree event handlers armed, causing DOM XSS",
+      "severity": "low",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "packages/js/milkdown/package-lock.json",
+      "package": "dompurify",
+      "url": "https://github.com/advisories/GHSA-6688-9rhm-gjv2",
+      "versions": [
+        "3.4.15"
+      ],
+      "title": "DOMPurify: IN_PLACE returns a force-removed rawtext root whose text carries attacker markup \u2014 pure HTML reparse executes",
+      "severity": "low",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "packages/js/milkdown/package-lock.json",
+      "package": "katex",
+      "url": "https://github.com/advisories/GHSA-238p-pmpm-9mq7",
+      "versions": [
+        "0.16.47"
+      ],
+      "title": "KaTeX: Existing prototype pollution can bypass trust restrictions",
+      "severity": "low",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "packages/js/milkdown/package-lock.json",
+      "package": "source-map-js",
+      "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+      "versions": [
+        "1.2.1"
+      ],
+      "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@isaacs/brace-expansion",
+      "url": "https://github.com/advisories/GHSA-7h2j-956f-4vf2",
+      "versions": [
+        "5.0.0"
+      ],
+      "title": "@isaacs/brace-expansion has Uncontrolled Resource Consumption",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-wh4c-j3r5-mjhp",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: XML injection via unsafe CDATA serialization allows attacker-controlled markup insertion",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-2v35-w6hq-6mfw",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Uncontrolled recursion in XML serialization leads to DoS",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-f6ww-3ggp-fr8h",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom has XML injection through unvalidated DocumentType serialization",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-x6wf-f3px-wcqx",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom has XML node injection through unvalidated processing instruction serialization",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-j759-j44w-7fr8",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom has XML node injection through unvalidated comment serialization",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-6gmq-8vp8-gcm6",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: XML fragment injection via invalid EntityReference.nodeName during requireWellFormed serialization",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-w2rr-34g9-rvrj",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Element name injection via createElement() bypasses requireWellFormed",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-4w3w-2rp5-g8jm",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Attribute name injection via setAttribute() bypasses requireWellFormed",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-c7q8-3ch8-vqpv",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Processing Instruction Target Injection Bypasses requireWellFormed",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-27p8-2357-5qqv",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: DocType `name` Injection Bypasses requireWellFormed",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-6h8r-xr42-gp59",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Parser silently accepts a not-well-formed end tag whose name is followed by a line break and trailing content",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-8344-3jmq-59r6",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Quadratic-time attribute deduplication",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-x4fp-j954-r2f4",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: End-tag Whitespace-Trim Regex ReDoS \u2014 quadratic backtracking in the 0.8.x end-tag parser",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-965w-775f-mr7g",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Quadratic-memory consumption",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "@xmldom/xmldom",
+      "url": "https://github.com/advisories/GHSA-93r5-fhx6-vmg9",
+      "versions": [
+        "0.8.10"
+      ],
+      "title": "xmldom: Quadratic-time parsing via the malformed-input recovery path \u2014 `parseElementStartPart` re-scan and `normalize()` adjacent-text merge",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-v6h2-p8h4-qcjw",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion Regular Expression Denial of Service vulnerability",
+      "severity": "low",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-f886-m6hf-6m8v",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: Zero-step sequence causes process hang and memory exhaustion",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "brace-expansion",
+      "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+      "versions": [
+        "1.1.11"
+      ],
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "braces",
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "versions": [
+        "3.0.3"
+      ],
+      "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "fflate",
+      "url": "https://github.com/advisories/GHSA-px8p-9vwx-vf98",
+      "versions": [
+        "0.7.4"
+      ],
+      "title": "fflate unzipSync can enter an infinite loop when parsing malformed ZIP64 archives",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "immutable",
+      "url": "https://github.com/advisories/GHSA-wf6x-7x77-mvgw",
+      "versions": [
+        "5.1.4"
+      ],
+      "title": "Immutable is vulnerable to Prototype Pollution",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "immutable",
+      "url": "https://github.com/advisories/GHSA-xvcm-6775-5m9r",
+      "versions": [
+        "5.1.4"
+      ],
+      "title": "Immutable: Hash-collision algorithmic complexity denial of service in Immutable.Map/Set",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "immutable",
+      "url": "https://github.com/advisories/GHSA-v56q-mh7h-f735",
+      "versions": [
+        "5.1.4"
+      ],
+      "title": "Immutable.js `List` 32-bit trie overflow \u2192 unrecoverable DoS",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "js-yaml",
+      "url": "https://github.com/advisories/GHSA-mh29-5h37-fv8m",
+      "versions": [
+        "3.14.1",
+        "4.1.1"
+      ],
+      "title": "js-yaml has prototype pollution in merge (<<)",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "js-yaml",
+      "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
+      "versions": [
+        "3.14.1",
+        "4.1.1"
+      ],
+      "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "js-yaml",
+      "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
+      "versions": [
+        "3.14.1",
+        "4.1.1"
+      ],
+      "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "js-yaml",
+      "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
+      "versions": [
+        "3.14.1",
+        "4.1.1"
+      ],
+      "title": "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) \u2014 CVE-2026-59870 fix not backported",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "js-yaml",
+      "url": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+      "versions": [
+        "3.14.1",
+        "4.1.1"
+      ],
+      "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "katex",
+      "url": "https://github.com/advisories/GHSA-238p-pmpm-9mq7",
+      "versions": [
+        "0.16.21"
+      ],
+      "title": "KaTeX: Existing prototype pollution can bypass trust restrictions",
+      "severity": "low",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "minimatch",
+      "url": "https://github.com/advisories/GHSA-3ppc-4f35-3m26",
+      "versions": [
+        "10.1.1",
+        "3.1.2"
+      ],
+      "title": "minimatch has a ReDoS via repeated wildcards with non-matching literal in pattern",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "minimatch",
+      "url": "https://github.com/advisories/GHSA-7r86-cg39-jmmj",
+      "versions": [
+        "10.1.1",
+        "3.1.2"
+      ],
+      "title": "minimatch has ReDoS: matchOne() combinatorial backtracking via multiple non-adjacent GLOBSTAR segments",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "minimatch",
+      "url": "https://github.com/advisories/GHSA-23c5-xmqv-rm74",
+      "versions": [
+        "10.1.1",
+        "3.1.2"
+      ],
+      "title": "minimatch ReDoS: nested *() extglobs generate catastrophically backtracking regular expressions",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "picomatch",
+      "url": "https://github.com/advisories/GHSA-3v7f-55p6-f55p",
+      "versions": [
+        "2.3.1",
+        "4.0.3"
+      ],
+      "title": "Picomatch: Method Injection in POSIX Character Classes causes incorrect Glob Matching",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "picomatch",
+      "url": "https://github.com/advisories/GHSA-c2c7-rcm5-vvqj",
+      "versions": [
+        "2.3.1",
+        "4.0.3"
+      ],
+      "title": "Picomatch has a ReDoS vulnerability via extglob quantifiers",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "sharp",
+      "url": "https://github.com/advisories/GHSA-f88m-g3jw-g9cj",
+      "versions": [
+        "0.34.5"
+      ],
+      "title": "sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "sharp",
+      "url": "https://github.com/advisories/GHSA-rgj7-g3m4-5g8c",
+      "versions": [
+        "0.34.5"
+      ],
+      "title": "sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497 and GHSA-2jg2-4ch7-h545",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "sharp",
+      "url": "https://github.com/advisories/GHSA-wq5f-xc86-pv6w",
+      "versions": [
+        "0.34.5"
+      ],
+      "title": "sharp : Vulnerability in librsvg dependency CVE-2026-96889",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "source-map-js",
+      "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+      "versions": [
+        "1.2.1"
+      ],
+      "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "sprintf-js",
+      "url": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c",
+      "versions": [
+        "1.0.3"
+      ],
+      "title": "sprintf-js vulnerable to denial of service through unbounded precision specifiers",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "toml",
+      "url": "https://github.com/advisories/GHSA-82x6-q7mm-w9cf",
+      "versions": [
+        "3.0.0"
+      ],
+      "title": "toml-node: Uncontrolled Recursion",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "toml",
+      "url": "https://github.com/advisories/GHSA-v5mp-jgw5-2x6j",
+      "versions": [
+        "3.0.0"
+      ],
+      "title": "toml-node: Prototype Pollution Leads to `Object.prototype` Corruption via `__proto__` Key-Path Desynchronization",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "ws",
+      "url": "https://github.com/advisories/GHSA-58qx-3vcg-4xpx",
+      "versions": [
+        "8.19.0"
+      ],
+      "title": "ws: Uninitialized memory disclosure",
+      "severity": "moderate",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    },
+    {
+      "lockfile": "site/package-lock.json",
+      "package": "ws",
+      "url": "https://github.com/advisories/GHSA-96hv-2xvq-fx4p",
+      "versions": [
+        "8.19.0"
+      ],
+      "title": "ws: Memory exhaustion DoS from tiny fragments and data chunks",
+      "severity": "high",
+      "date": "2026-10-17",
+      "reason": "Existing locked dependency; upgrade deferred to Daniel (WP-47). This records risk, not a fix."
+    }
+  ]
+}
