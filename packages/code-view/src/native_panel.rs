@@ -197,15 +197,6 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             horizontal_displacement.set(0.0);
         }
     });
-    let set_indentation = Callback::new(move |(spaces, width): (Option<bool>, Option<u8>)| {
-        dioxus::core::spawn_forever(async move {
-            ws.update_user_settings(move |file| {
-                file.editor.insert_spaces = spaces;
-                file.editor.indent_width = width;
-            })
-            .await;
-        });
-    });
     let mut focus_request = use_signal(|| 0u64);
     let mut search_mode = use_signal(|| None::<bool>);
     let mut last_error: Signal<Option<String>> = use_signal(|| None);
@@ -484,6 +475,75 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             Some(Command::Editor(EditorAction::ToggleComment)) => toggle_comment.call(()),
             Some(Command::Editor(EditorAction::FoldAll)) => fold.call((None, true)),
             Some(Command::Editor(EditorAction::UnfoldAll)) => fold.call((None, false)),
+            Some(Command::Editor(EditorAction::NativeReload)) => reload.call(()),
+            Some(Command::Editor(EditorAction::NativeHover)) => {
+                let caret = model.peek().engine.get_cursor_state().position;
+                hover_target.set(Some((caret.line, caret.column)));
+            }
+            Some(Command::Editor(EditorAction::NativeComplete)) => {
+                hover_target.set(None);
+                complete.call(());
+                focus_request.with_mut(|value| *value += 1);
+            }
+            Some(Command::Editor(EditorAction::Definition)) => {
+                hover_target.set(None);
+                close_completion.call(());
+                tools.dismiss.call(());
+                rename.dismiss.call(());
+                definition.call(());
+            }
+            Some(Command::Editor(EditorAction::Rename)) => {
+                hover_target.set(None);
+                close_completion.call(());
+                cancel_definition.call(());
+                tools.dismiss.call(());
+                rename.invoke.call(());
+            }
+            Some(Command::Editor(EditorAction::CodeActions | EditorAction::References)) => {
+                hover_target.set(None);
+                close_completion.call(());
+                cancel_definition.call(());
+                rename.dismiss.call(());
+                if matches!(command, Some(Command::Editor(EditorAction::CodeActions))) {
+                    tools.actions.call(());
+                } else {
+                    tools.references.call(());
+                }
+            }
+            Some(Command::Editor(EditorAction::NativePreview))
+                if cfg!(feature = "markdown-preview")
+                    && model.peek().language == Some(dioxus_code::Language::Markdown) =>
+            {
+                let next = !ws.settings.resolved.peek().editor.markdown_preview;
+                spawn(async move {
+                    ws.update_user_settings(|file| file.editor.markdown_preview = Some(next))
+                        .await;
+                });
+            }
+            Some(Command::Editor(EditorAction::NativeDocPreview))
+                if cfg!(feature = "markdown-preview")
+                    && matches!(
+                        model.peek().language.map(|language| language.slug()),
+                        Some("rust" | "python" | "julia")
+                    ) =>
+            {
+                let next = !ws.settings.resolved.peek().editor.doc_comment_preview;
+                spawn(async move {
+                    ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next))
+                        .await;
+                });
+            }
+            Some(Command::Editor(EditorAction::NativeCodeMirror))
+                if ws
+                    .settings
+                    .resolved
+                    .peek()
+                    .extensions
+                    .is_enabled_id("dev.moonkale.editor-code", true) =>
+            {
+                let mut ws = ws;
+                ws.choose_editor(node, "codemirror");
+            }
             Some(Command::Save) => save.call(()),
             Some(Command::Undo) => history.call(true),
             Some(Command::Redo) => history.call(false),
@@ -566,14 +626,10 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         && editor_settings.markdown_preview
         && language == Some(dioxus_code::Language::Markdown);
     let wrap_on = editor_settings.wrap || preview_on;
-    let spaces_value = editor_settings
-        .insert_spaces
-        .map(|spaces| if spaces { "spaces" } else { "tabs" })
-        .unwrap_or("default");
-    let width_value = editor_settings
-        .indent_width
-        .map(|width| width.to_string())
-        .unwrap_or_default();
+    let actions_label = t!(ws, L, "editor-actions-shortcut").replace(
+        "Mod-.",
+        &format!("{}+.", moonkale_ext_api::keys::primary_name()),
+    );
     rsx! {
         div {
             class: "mk-editor mk-crust",
@@ -608,6 +664,9 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         "●"
                     }
                 }
+                span { class: "mk-editor-cursor-word", aria_hidden: cursor_word.is_none().to_string(),
+                    if let Some(word) = cursor_word.as_ref() { "‹{word}›" }
+                }
                 span { class: "mk-editor-spacer" }
                 span { class: "mk-editor-meta",
                     {
@@ -617,26 +676,26 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         )
                     }
                 }
-                button {
-                    class: "mk-btn",
+                moonkale_ext_api::icons::IconButton {
+                    icon: "save", label: t!(ws, L, "editor-save"),
+                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
                     disabled: !dirty && properties_draft.read().is_none(),
                     onclick: move |_| save.call(()),
-                    {t!(ws, L, "editor-save")}
                 }
-                button {
-                    class: "mk-btn",
+                moonkale_ext_api::icons::IconButton {
+                    icon: "reload", label: t!(ws, L, "editor-reload"),
+                    description: t!(ws, L, "editor-reload-title"),
                     onclick: move |_| reload.call(()),
-                    title: t!(ws, L, "editor-reload-title"),
-                    {t!(ws, L, "editor-reload")}
                 }
-                button {
-                    class: if wrap_on { "mk-btn mk-btn-on mk-native-wrap" } else { "mk-btn mk-native-wrap" },
-                    aria_pressed: wrap_on.to_string(),
-                    title: t!(ws, L, "editor-wrap-title"),
-                    disabled: preview_on,
+                moonkale_ext_api::icons::IconButton {
+                    icon: "wrap", label: t!(ws, L, "editor-wrap"),
+                    description: t!(ws, L, "editor-wrap-title"),
+                    pressed: Some(wrap_on), disabled: preview_on,
+                    class: "mk-native-wrap".to_string(),
                     onclick: move |_| crate::panel::toggle_wrap(ws),
-                    {t!(ws, L, "editor-wrap")}
                 }
+                NativeToolbarMenu { label: t!(ws, L, "editor-more"),
+                moonkale_ext_api::icons::PanelSettingsButton {}
                 if cfg!(feature = "markdown-preview") && language == Some(dioxus_code::Language::Markdown) {
                     button {
                         class: if preview_on { "mk-btn mk-btn-on mk-native-preview" } else { "mk-btn mk-native-preview" },
@@ -647,6 +706,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                             dioxus::core::spawn_forever(async move {
                                 ws.update_user_settings(|file| file.editor.markdown_preview = Some(next)).await;
                             });
+                            focus_request.with_mut(|value| *value += 1);
                         },
                         {t!(ws, L, "editor-preview")}
                     }
@@ -657,32 +717,8 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         onclick: move |_| {
                             let next = !ws.settings.resolved.peek().editor.doc_comment_preview;
                             spawn(async move { ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next)).await; });
+                            focus_request.with_mut(|value| *value += 1);
                         }, {t!(ws, L, "editor-doc-preview")}
-                    }
-                }
-                label { class: "mk-native-indent-control",
-                    {t!(ws, L, "editor-indent-style")}
-                    select { class: "mk-native-indent-style", aria_label: t!(ws, L, "editor-indent-style"), value: spaces_value,
-                        onchange: move |event| {
-                            let spaces = match event.value().as_str() { "spaces" => Some(true), "tabs" => Some(false), _ => None };
-                            let width = ws.settings.user.peek().editor.indent_width;
-                            set_indentation.call((spaces, width));
-                        },
-                        option { value: "default", selected: spaces_value == "default", {t!(ws, L, "editor-language-default")} }
-                        option { value: "spaces", selected: spaces_value == "spaces", {t!(ws, L, "editor-indent-spaces")} }
-                        option { value: "tabs", selected: spaces_value == "tabs", {t!(ws, L, "editor-indent-tabs")} }
-                    }
-                }
-                label { class: "mk-native-indent-control",
-                    {t!(ws, L, "editor-indent-width")}
-                    select { class: "mk-native-indent-width", aria_label: t!(ws, L, "editor-indent-width"), value: width_value,
-                        onchange: move |event| {
-                            let width = event.value().parse::<u8>().ok();
-                            let spaces = ws.settings.user.peek().editor.insert_spaces;
-                            set_indentation.call((spaces, width));
-                        },
-                        option { value: "", selected: editor_settings.indent_width.is_none(), {t!(ws, L, "editor-language-default")} }
-                        for width in 1..=8 { option { value: "{width}", selected: editor_settings.indent_width == Some(width), "{width}" } }
                     }
                 }
                 button {
@@ -691,20 +727,25 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     onclick: move |_| {
                         let caret = model.peek().engine.get_cursor_state().position;
                         hover_target.set(Some((caret.line, caret.column)));
+                        focus_request.with_mut(|value| *value += 1);
                     },
                     {t!(ws, L, "editor-hover")}
                 }
-                button { class: "mk-btn mk-native-complete", title: t!(ws, L, "editor-completion"), onclick: move |_| { hover_target.set(None); complete.call(()); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-completion")} }
+                button { class: "mk-btn mk-native-complete", title: format!("{} ({}+Space)", t!(ws, L, "editor-completion"), moonkale_ext_api::keys::primary_name()), onclick: move |_| { hover_target.set(None); complete.call(()); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-completion")} " (" {moonkale_ext_api::keys::primary_name()} "+Space)" }
                 button { class: "mk-btn mk-native-definition", title: t!(ws, L, "editor-definition"), onclick: move |_| { hover_target.set(None); close_completion.call(()); tools.dismiss.call(()); rename.dismiss.call(()); definition.call(()); }, {t!(ws, L, "editor-definition")} }
-                button { class: "mk-btn mk-native-rename", title: t!(ws, L, "editor-rename-shortcut"), onclick: move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); tools.dismiss.call(()); rename.invoke.call(()); }, {t!(ws, L, "editor-rename")} }
-                button { class:"mk-btn mk-native-code-actions", title:t!(ws,L,"editor-actions-shortcut"), onclick:move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.actions.call(()); }, {t!(ws,L,"editor-actions-shortcut")} }
+                button { class: "mk-btn mk-native-rename", title: t!(ws, L, "editor-rename-shortcut"), onclick: move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); tools.dismiss.call(()); rename.invoke.call(()); }, {t!(ws, L, "editor-rename-shortcut")} }
+                button { class:"mk-btn mk-native-code-actions", title:actions_label.clone(), onclick:move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.actions.call(()); }, "{actions_label}" }
                 button { class:"mk-btn mk-native-find-references", title:t!(ws,L,"editor-references-shortcut"), onclick:move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.references.call(()); }, {t!(ws,L,"editor-references-shortcut")} }
                 if comments(model.read().language).is_some() {
-                    button { class: "mk-btn mk-native-comment", onclick: move |_| toggle_comment.call(()), {t!(ws, L, "editor-toggle-comment")} }
+                    button { class: "mk-btn mk-native-comment",
+                        title: format!("{} ({}+/)", t!(ws, L, "editor-toggle-comment"), moonkale_ext_api::keys::primary_name()),
+                        onclick: move |_| { toggle_comment.call(()); focus_request.with_mut(|value| *value += 1); },
+                        {t!(ws, L, "editor-toggle-comment")} " (" {moonkale_ext_api::keys::primary_name()} "+/)"
+                    }
                 }
                 if !model.read().structure.folds.is_empty() {
-                    button { class: "mk-btn mk-native-fold-all", onclick: move |_| fold.call((None, true)), {t!(ws, L, "editor-fold-all")} }
-                    button { class: "mk-btn mk-native-unfold-all", onclick: move |_| fold.call((None, false)), {t!(ws, L, "editor-unfold-all")} }
+                    button { class: "mk-btn mk-native-fold-all", onclick: move |_| { fold.call((None, true)); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-fold-all")} }
+                    button { class: "mk-btn mk-native-unfold-all", onclick: move |_| { fold.call((None, false)); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-unfold-all")} }
                 }
                 if codemirror_on {
                     button {
@@ -716,6 +757,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         },
                         "CodeMirror"
                     }
+                }
                 }
             }
             if preview_on {
@@ -738,13 +780,6 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             crate::native_lsp_tools::ToolsMenu { ws, node, tools }
             if let Some(error) = last_error() {
                 div { class: "mk-editor-bar mk-editor-error", "{error}" }
-            }
-            // Reserve this row even when the caret has no word. Adding it on
-            // pointer-down would move the source cells during drag selection.
-            div {
-                class: "mk-editor-cursor-word",
-                aria_hidden: cursor_word.is_none().to_string(),
-                if let Some(word) = cursor_word.as_ref() { "‹{word}›" }
             }
             if let Some(replacing) = search_mode() {
                 crate::native_search::NativeSearch { ws, model, first_row, highlights, onchange: changed, replacing, onclose: move |_| { search_mode.set(None); focus_request.with_mut(|value| *value += 1); } }
@@ -851,5 +886,33 @@ mod tests {
         assert!(language_for_hint(Some("nix")).is_some());
         assert!(language_for_hint(Some("plain-unknown")).is_none());
         assert!(language_for_hint(None).is_none());
+    }
+}
+
+/// A disclosure with native Tab/Enter/touch activation and focus restoration.
+#[component]
+fn NativeToolbarMenu(label: String, children: Element) -> Element {
+    let mut open = use_signal(|| false);
+    let mut trigger = use_signal(|| None::<std::rc::Rc<MountedData>>);
+    rsx! {
+        details { class: "mk-native-more", open: open(),
+            onkeydown: move |event| {
+                if event.key() == Key::Escape {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    open.set(false);
+                    if let Some(target) = trigger.peek().clone() {
+                        spawn(async move { let _ = target.set_focus(true).await; });
+                    }
+                }
+            },
+            summary { class: "mk-btn mk-icon-btn", title: "{label}", aria_expanded: open().to_string(),
+                onmounted: move |event| trigger.set(Some(event.data())),
+                onclick: move |event| { event.prevent_default(); open.toggle(); },
+                moonkale_ext_api::icons::Icon { name: "more" }
+                span { class: "mk-sr-only", "{label}" }
+            }
+            div { class: "mk-native-more-items", onclick: move |_| open.set(false), {children} }
+        }
     }
 }

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();
@@ -84,7 +85,7 @@ try {
   assert.equal(await toggle.getAttribute('aria-pressed'),'false');
   await panel.locator('.mk-native-wrap').click();
   await page.waitForFunction(()=>document.querySelector('.language .mk-native-surface').dataset.wrap==='false');
-  await toggle.click();await preview();
+  await clickNativeCommand(toggle);await preview();
   assert.equal(await toggle.getAttribute('aria-pressed'),'true');
   assert.equal(await widgets.count(),4,'Settings enable preview without fixture flags');
   assert.equal(await panel.locator('.mk-native-wrap').isDisabled(),true);
@@ -95,7 +96,7 @@ try {
   await page.click('[data-language-fixture="nested.md"]');await preview();
   assert.equal(await toggle.getAttribute('aria-pressed'),'true','Preference survives remount');
   assert.equal(await widgets.count(),4);
-  await toggle.click();
+  await clickNativeCommand(toggle);
   await page.waitForFunction(()=>document.querySelector('.language .mk-native-preview').getAttribute('aria-pressed')==='false');
   assert.equal(await widgets.count(),0);
   assert.equal(await panel.locator('.mk-native-wrap').isDisabled(),false);

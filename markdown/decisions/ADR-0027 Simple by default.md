@@ -51,13 +51,13 @@ Moonkale already grows chrome quickly: a menu bar, an activity rail with about t
    - **Checked in tests:** a keyboard-only journey (`journey-keyboard.mjs`: open a folder, find a note, follow a link, open with context, run a query, switch tabs in the overview, all without the mouse) and a mouse-only journey (`journey-mouse.mjs`, the same with five buttons and menus).
 6. **Defaults over options:** a setting is added only when a reasonable default can't be found. Settings are searchable and grouped, so a new option doesn't make the Settings panel the new spaceship.
 
-## Built so far (2026-10-14)
+## Built so far (2026-10-17)
 
 - **Symbols, with their description on hover:**
   - `moonkale_ext_api::icons::IconButton` draws an icon; its tooltip is the description and shortcut ("Save (Ctrl+S)", "Wrap long lines (Alt+Z)"); its label is hidden text, so screen readers name it and tests find it by its words.
   - The icon set moved from the shell to `ext-api` (`icons::Icon`), so every extension can use it.
   - Converted: the CodeMirror code editor, the Markdown rich editor, the flow editor (whose Generate keeps its words, the panel's primary action) and the image viewer.
-  - The Rust code editor's toolbar is codex's area and follows on its branch.
+  - WP-69 (2026-10-17): the Rust editor shows Save, Reload, Wrap and ⋯. The gear is inside ⋯ to keep the complete toolbar within four controls; its popover contains shared user indentation/width and wrap settings. Less frequent commands remain in ⋯ and the palette. Escape closes ⋯ and returns focus to its trigger; Tab/Enter and touch work. The cursor word is inline and hidden below 700 px.
 - **An extension's settings next to its panel.** A gear (`icons::PanelSettingsButton`) in the toolbar opens the extension's own settings (the same view as under its row in the Extensions panel) in a popover beside the panel. The popover is titled with the extension's name, takes the focus, closes on Escape, and links to all its settings. The gear appears only for extensions that have settings: the code editor, Markdown, the agent panel and the terminal.
 - Test: `toolbar-icons.mjs`.
 

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1400,height:1600}});
@@ -7,7 +8,7 @@ const ready=()=>page.waitForFunction(()=>{const runs=[...document.querySelectorA
 const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();await panel.locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();};
 try {
  await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
- await page.click('#image-hold');await page.click('#markdown-images');await panel.locator('.mk-native-preview').click();await panel.evaluate(el=>el.style.height='1250px');await preview();
+ await page.click('#image-hold');await page.click('#markdown-images');await clickNativeCommand(panel.locator('.mk-native-preview'));await panel.evaluate(el=>el.style.height='1250px');await preview();
  const original=await canonical.textContent();assert.ok(original.includes('\r\n'));
  await panel.locator('.mk-image-placeholder').first().waitFor();
  assert.equal(await panel.locator('.mk-image-block').count(),5);

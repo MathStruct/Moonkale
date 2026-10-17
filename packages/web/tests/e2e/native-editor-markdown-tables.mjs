@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1400,height:1400}});
@@ -6,7 +7,7 @@ const panel=page.locator('.language'),input=panel.locator('.mk-editor-core-input
 const ready=()=>page.waitForFunction(()=>{const runs=[...document.querySelectorAll('.language .mk-proportional-run')];return runs.length&&runs.every(run=>run.dataset.ready==='true');});
 const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();await panel.locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();};
 try{
- await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await page.click('#markdown-tables');await panel.locator('.mk-native-preview').click();await panel.evaluate(el=>el.style.height='1100px');await preview();
+ await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await page.click('#markdown-tables');await clickNativeCommand(panel.locator('.mk-native-preview'));await panel.evaluate(el=>el.style.height='1100px');await preview();
  const original=await canonical.textContent(),normalized=original.replaceAll('\r\n','\n');assert.ok(original.includes('\r\n'));
  assert.equal(await panel.locator('[role=table]').count(),2);assert.equal(await panel.locator('[role=columnheader]').count(),5);
  assert.deepEqual(await panel.locator('[role=table]').first().locator('[role=columnheader]').evaluateAll(es=>es.map(e=>getComputedStyle(e).textAlign)),['left','center','right']);
@@ -37,5 +38,5 @@ try{
  const prefix=Array.from(normalized).slice(0,before).join(''),raw=prefix.length+(prefix.match(/\n/g)??[]).length;await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original.slice(0,raw)+'你好'+original.slice(raw));await page.keyboard.press('Control+z');await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original);
  await preview();await panel.evaluate(el=>el.style.height='250px');await page.waitForTimeout(250);const viewport=panel.locator('.mk-editor-core-viewport');await viewport.evaluate(el=>el.scrollTop=90);await page.waitForTimeout(200);await ready();
  const clipped=await panel.locator('[role=table]').first().boundingBox(),view=await viewport.boundingBox();assert.ok(clipped.y<view.y&&clipped.y+clipped.height>view.y);await page.mouse.click(clipped.x+clipped.width*.2,view.y+4);await ready();assert.equal(Number(await panel.locator('.mk-native-surface').getAttribute('data-cursor-offset')),start);assert.equal(await panel.locator('[role=table]').count(),1);
- await panel.evaluate(el=>el.style.height='1100px');await page.waitForTimeout(200);await preview();await page.click('#layout-delay');await panel.locator('.mk-native-preview').click();await page.waitForFunction(()=>document.querySelectorAll('.language [role=table]').length===0);assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);console.log('NATIVE MARKDOWN TABLES E2E: PASS');
+ await panel.evaluate(el=>el.style.height='1100px');await page.waitForTimeout(200);await preview();await page.click('#layout-delay');await clickNativeCommand(panel.locator('.mk-native-preview'));await page.waitForFunction(()=>document.querySelectorAll('.language [role=table]').length===0);assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);console.log('NATIVE MARKDOWN TABLES E2E: PASS');
 }finally{await browser.close();}

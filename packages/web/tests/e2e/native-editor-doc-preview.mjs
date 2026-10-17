@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();
@@ -13,7 +14,7 @@ try{
   await page.click(`#doc-${language}`);await page.waitForFunction(language=>document.querySelector('.language .mk-native-surface')?.dataset.language===language,language);await panel.evaluate(el=>el.style.height='1000px');
   const original=await canonical(),normalized=original.replaceAll('\r\n','\n');
   const wrap=panel.locator('.mk-native-wrap');if(await wrap.getAttribute('aria-pressed')==='true')await wrap.click();
-  const toggle=panel.locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='false')await toggle.click();
+  const toggle=panel.locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='false')await clickNativeCommand(toggle);
   await view();assert.equal(await wrap.getAttribute('aria-pressed'),'false');
   assert.equal(await panel.locator('.mk-documentation-preview').count(),2,language);
   assert.match(await panel.locator('.mk-doc-body').first().textContent(),new RegExp(`${language[0].toUpperCase()+language.slice(1)} docs 猫`));
@@ -50,8 +51,8 @@ try{
   await input.evaluate(el=>el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true})));
   await input.evaluate(el=>el.dispatchEvent(new CompositionEvent('compositionupdate',{bubbles:true,data:'临时'})));
   assert.equal(await canonical(),original);await input.evaluate(el=>el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:''})));
-  await toggle.click();assert.equal(await panel.locator('.mk-documentation-preview').count(),0);assert.equal(await canonical(),original);
-  await toggle.click();await view();await wrap.click();await view();assert.equal(await panel.locator('.mk-documentation-preview').count(),2);
+  await clickNativeCommand(toggle);assert.equal(await panel.locator('.mk-documentation-preview').count(),0);assert.equal(await canonical(),original);
+  await clickNativeCommand(toggle);await view();await wrap.click();await view();assert.equal(await panel.locator('.mk-documentation-preview').count(),2);
   assert.equal(await canonical(),original);await wrap.click();
  }
  assert.deepEqual(errors,[]);console.log('NATIVE DOC PREVIEW E2E: PASS');

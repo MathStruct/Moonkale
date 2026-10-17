@@ -44,11 +44,6 @@ editor-fold = 折叠
 editor-unfold = 展开
 editor-fold-all = 全部折叠
 editor-unfold-all = 全部展开
-editor-indent-style = 缩进
-editor-indent-width = 宽度
-editor-language-default = 语言默认值
-editor-indent-spaces = 空格
-editor-indent-tabs = 制表符
 
 editor-search-regex = 正则表达式
 editor-search-count = { $current } / { $total }
@@ -116,3 +111,17 @@ editor-a11y-tab-focus = Tab 移动焦点。
 editor-a11y-tab-indent = Tab 缩进。
 
 editor-group-history-blocked = 无法撤销或重做此重命名。请先撤销 { $file } 中较新的编辑，或协调历史记录已不可用。
+
+editor-more = 更多编辑器命令
+
+native-reload = Rust 编辑器：重新加载
+native-hover = Rust 编辑器：显示悬浮信息
+native-complete = Rust 编辑器：补全
+native-preview = Rust 编辑器：Markdown 预览
+native-doc-preview = Rust 编辑器：文档预览
+native-codemirror = Rust 编辑器：切换到 CodeMirror
+native-indent-style = 缩进
+native-indent-width = 宽度
+native-default = 语言默认
+native-spaces = 空格
+native-tabs = 制表符

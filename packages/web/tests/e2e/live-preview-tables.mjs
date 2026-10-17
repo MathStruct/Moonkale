@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // Native table preview edits and saves the original Markdown, including CRLF.
 import {firefox} from 'playwright';import fs from 'node:fs';import assert from 'node:assert/strict';
 const root=process.env.M1_ROOT;if(!root)throw Error('M1_ROOT must name a disposable fixture');
@@ -11,7 +12,7 @@ const preview=async()=>{await input().focus();await page.keyboard.press('Control
 const save=async()=>{await page.keyboard.press('Control+s');await page.waitForFunction(()=>![...document.querySelectorAll('.mk-crust')].filter(el=>el.getBoundingClientRect().height>0).some(el=>el.querySelector('.mk-editor-dirty')));};
 try{
  await page.goto(`http://127.0.0.1:${process.env.PORT??8094}/`,{waitUntil:'networkidle'});await page.waitForSelector('.wb-workspace');await page.click('.mk-explorer-open button[type=submit]');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
- await page.locator('.mk-tree-file').filter({hasText:'TablePreview.md'}).click();await input().waitFor();await panel().locator('.mk-native-preview').click();await preview();
+ await page.locator('.mk-tree-file').filter({hasText:'TablePreview.md'}).click();await input().waitFor();await clickNativeCommand(panel().locator('.mk-native-preview'));await preview();
  assert.equal(await panel().locator('[role=table]').count(),1);assert.deepEqual(await panel().locator('[role=columnheader]').evaluateAll(es=>es.map(e=>getComputedStyle(e).textAlign)),['left','center','right']);
  const web=panel().locator('.mk-preview-link').filter({hasText:'Web'});let box=await web.boundingBox();await page.keyboard.down('Control');await page.mouse.click(box.x+5,box.y+box.height/2);await page.keyboard.up('Control');await page.waitForFunction(()=>window.openedLinks.length===1);assert.equal(await page.evaluate(()=>window.openedLinks[0][0]),'https://example.org/table');
  box=await panel().locator('[role=table]').boundingBox();await page.mouse.click(box.x+10,box.y+box.height/2);await ready();

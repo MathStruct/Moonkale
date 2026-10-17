@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // Source-backed image blocks retain canonical CRLF text and open the asset viewer.
 import {firefox} from 'playwright';
 import fs from 'node:fs';
@@ -16,7 +17,7 @@ const open=async()=>{await page.locator('.mk-tree-file').filter({hasText:'ImageP
 const preview=async()=>{await input().focus();await page.keyboard.press('Control+End');await panel().locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await page.waitForFunction(()=>[...document.querySelectorAll('.mk-preview-image')].filter(i=>i.getBoundingClientRect().height>0&&i.naturalWidth===240).length===2);};
 try{
  await page.goto(`http://127.0.0.1:${process.env.PORT??8094}/`,{waitUntil:'networkidle'});await page.waitForSelector('.wb-workspace');await page.click('.mk-explorer-open button[type=submit]');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
- await open();await panel().locator('.mk-native-preview').click();await preview();
+ await open();await clickNativeCommand(panel().locator('.mk-native-preview'));await preview();
  assert.deepEqual(await panel().locator('.mk-preview-image').evaluateAll(images=>images.map(i=>i.alt)),['猫','Alias']);
  assert.ok(await panel().locator('.mk-preview-image').evaluateAll(images=>images.every(i=>i.src.startsWith('data:image/svg+xml;base64,'))));
  await panel().locator('.mk-image-placeholder').filter({hasText:/not found/i}).waitFor();

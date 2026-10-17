@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 
@@ -18,7 +19,7 @@ try {
   await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8099}/`, {waitUntil: 'networkidle'});
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.click('#markdown-properties');
-  await panel.locator('.mk-native-preview').click();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));
   await input.focus(); await page.keyboard.press('Control+End'); await ready();
   const original = await canonical();
   const sourceYaml = '# comment\ntitle: 猫\ntags: [a, b]\naliases:\n  - First\n  - Second\n';
@@ -83,9 +84,9 @@ try {
   assert.equal(copied, (await canonical()).replaceAll('\r\n', '\n'));
   await open();
   await yaml.evaluate(el => el.dispatchEvent(new CompositionEvent('compositionstart', {bubbles: true})));
-  await panel.locator('.mk-native-preview').click();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));
   assert.equal(await panel.locator('.mk-native-properties').count(), 0);
-  await panel.locator('.mk-native-preview').click(); await open();
+  await clickNativeCommand(panel.locator('.mk-native-preview')); await open();
   assert.equal(await panel.locator('.mk-properties-apply').isDisabled(), false);
   await panel.locator('.mk-properties-cancel').click();
   assert.deepEqual(errors, []);

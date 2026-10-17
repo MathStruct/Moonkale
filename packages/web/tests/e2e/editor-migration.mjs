@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // One backend setting migrates live/restored documents without writing their source.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -70,7 +71,7 @@ try {
   await open('main.rs');
   await save('src/main.rs', '/* λ😀 */' + originals['src/main.rs']);
   // An explicit per-document fallback choice outranks subsequent global changes.
-  await native().locator('.mk-editor-switch').click();
+  await clickNativeCommand(native().locator('.mk-editor-switch'));
   await page.locator('.cm-content:visible').waitFor();
   await setting('codemirror');
   await tab('second.txt').click();

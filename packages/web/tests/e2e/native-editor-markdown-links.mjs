@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();
@@ -23,7 +24,7 @@ const click=async(label,modified)=>{
 };
 try {
  await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
- await page.click('#markdown-links');await panel.locator('.mk-native-preview').click();
+ await page.click('#markdown-links');await clickNativeCommand(panel.locator('.mk-native-preview'));
  await panel.evaluate(el=>el.style.height='950px');await preview();
  const original=await canonical.textContent();const normalized=original.replaceAll('\r\n','\n');
  // Canonical caret navigation can follow ordinary links while their source is revealed.

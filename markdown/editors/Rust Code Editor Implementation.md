@@ -4,6 +4,26 @@ description: Workspace integration of editor-core and the opt-in virtualized Rus
 tags: [editors, code, rust, implementation]
 ---
 
+## WP-69 — compact toolbar (2026-10-17)
+
+The Rust toolbar shows four controls: Save, Reload, Wrap and ⋯, using SVG symbols,
+hidden accessible labels and descriptive tooltips with available shortcuts. The
+extension's gear sits in ⋯ so the overflow trigger also fits the four-control
+budget. Indentation style and width are shared user preferences, now edited in
+that gear's settings popover. Both adapters share these controls in `code-view`;
+the core Code extension contributes the Rust palette routes too, so the minimal
+distribution's Rust fallback keeps them. Preview, LSP tools, comments, folding and the
+CodeMirror switch are in ⋯; commands remain available in the palette. Tab reaches
+the disclosure and its commands, Enter or touch opens it, and Escape closes it
+and returns focus to the trigger. Choosing a command closes the disclosure.
+
+The cursor word is inline in the toolbar, hidden below 700 px, so it consumes no
+source row. The path truncates on narrow screens and language/version metadata
+is hidden there. `toolbar-icons.mjs` covers native icons, the four-control budget,
+overflow keyboard/touch behavior, indentation settings and phone height;
+`code-native.mjs` opens ⋯ before switching backends.
+
+
 ## Focus outline and virtualized subtree replacement (2026-10-15)
 
 NEXT-4's unconditional ancestor focus outline (`:focus-within`) regressed release-web documentation-preview

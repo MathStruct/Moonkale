@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {firefox} from 'playwright';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -28,7 +29,7 @@ try {
   await page.waitForSelector('.wb-workspace'); await page.click('.mk-explorer-open button[type=submit]');
   await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
   await page.locator('.mk-tree-file').filter({hasText: 'PropertiesPreview.md'}).click(); await input().waitFor();
-  await panel().locator('.mk-native-preview').click();
+  await clickNativeCommand(panel().locator('.mk-native-preview'));
   await input().focus(); await page.keyboard.press('Control+End'); await ready();
   assert.equal(await panel().locator('.mk-editor-core-row[data-line="0"]').count(), 0);
   assert.match(await panel().locator('.mk-properties-summary').textContent(), /title: Properties.*tags: \[demo\].*aliases/);
@@ -49,12 +50,12 @@ try {
   await panel().locator('.mk-properties-head').click(); await yaml().fill('title: Discarded');
   await page.keyboard.press('Escape'); await save();
   assert.equal(fs.readFileSync(`${root}/PropertiesPreview.md`, 'utf8'), changed);
-  await panel().locator('.mk-native-preview').click();
+  await clickNativeCommand(panel().locator('.mk-native-preview'));
   assert.equal(await panel().locator('.mk-native-properties').count(), 0);
   await input().focus(); await page.keyboard.press('Control+Home');
   await panel().locator('.mk-editor-core-row[data-line="0"]').waitFor();
   assert.equal(await panel().locator('.mk-editor-core-row[data-line="0"]').count(), 1);
-  await panel().locator('.mk-native-preview').click();
+  await clickNativeCommand(panel().locator('.mk-native-preview'));
 
   await page.locator('.mk-tree-file').filter({hasText: 'PropertiesOther.md'}).click(); await input().waitFor();
   assert.equal(await panel().locator('.mk-properties-summary').textContent(), 'none');

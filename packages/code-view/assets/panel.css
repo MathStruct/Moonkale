@@ -57,3 +57,6 @@
 .cm-wikilink-unresolved { color: var(--mk-muted); text-decoration-style: dashed; }
 .mk-editor-failed { padding: 16px; color: var(--wb-ink); }
 .mk-editor-failed pre { white-space: pre-wrap; font-size: 12px; color: var(--mk-danger); background: var(--mk-raised); padding: 8px; border-radius: 6px; }
+
+/* Shared preferences in either code editor’s settings popover. */
+.mk-native-indent-control { display: inline-flex; align-items: center; gap: 4px; }

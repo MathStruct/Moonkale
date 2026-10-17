@@ -1,10 +1,11 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';import assert from 'node:assert/strict';
 const browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1400,height:1700}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const panel=page.locator('.language'),input=panel.locator('.mk-editor-core-input-sink'),canonical=page.locator('.language-canonical');
 const ready=()=>page.waitForFunction(()=>{const runs=[...document.querySelectorAll('.language .mk-proportional-run')];return runs.length&&runs.every(r=>r.dataset.ready==='true'&&r.dataset.fontLoading==='false');});
 const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();await panel.locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();};
 try{
- await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await page.click('#markdown-math');await panel.locator('.mk-native-preview').click();await panel.evaluate(el=>el.style.height='1500px');await preview();
+ await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await page.click('#markdown-math');await clickNativeCommand(panel.locator('.mk-native-preview'));await panel.evaluate(el=>el.style.height='1500px');await preview();
  const original=await canonical.textContent(),normalized=original.replaceAll('\r\n','\n');assert.ok(original.includes('\r\n'));
  await page.waitForFunction(()=>document.querySelectorAll('.language .katex').length===8);await ready();
  assert.equal(await panel.locator('.mk-math-error').count(),1);assert.equal(await panel.locator('.mk-math-display').count(),2);assert.equal(await panel.locator('math').count(),8);
@@ -23,10 +24,10 @@ try{
   await input.evaluate(el=>{el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));el.dispatchEvent(new CompositionEvent('compositionupdate',{bubbles:true,data:'猫'}));});assert.equal(await canonical.textContent(),original);await input.evaluate(el=>{el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'猫'}));el.value='猫';el.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original.replace('$\\alpha$','猫$\\alpha$'));await page.keyboard.press('Control+z');await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original);await preview();
  }
  await input.focus();await page.keyboard.press('Control+a');await ready();assert.equal(await panel.locator('.mk-math-owner').count(),0);const copy=await input.evaluate(el=>{const event=new ClipboardEvent('copy',{bubbles:true,cancelable:true,clipboardData:new DataTransfer()});el.dispatchEvent(event);return event.clipboardData.getData('text/plain');});assert.equal(copy,normalized);
- await preview();await page.click('#layout-delay');await panel.locator('.mk-native-preview').click();await page.waitForTimeout(650);assert.equal(await panel.locator('.mk-math-owner').count(),0);assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);
+ await preview();await page.click('#layout-delay');await clickNativeCommand(panel.locator('.mk-native-preview'));await page.waitForTimeout(650);assert.equal(await panel.locator('.mk-math-owner').count(),0);assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);
  const delayed=await browser.newPage({viewport:{width:1400,height:1700}});let release;const gate=new Promise(resolve=>release=resolve);let requested=false;
  await delayed.route('**/katex-renderer*.js',async route=>{requested=true;await gate;await route.continue().catch(()=>{});});
- await delayed.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await delayed.click('#markdown-math');const delayedPanel=delayed.locator('.language'),delayedInput=delayedPanel.locator('.mk-editor-core-input-sink');await delayedPanel.locator('.mk-native-preview').click();await delayedPanel.locator('.mk-math-owner').first().waitFor();
+ await delayed.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await delayed.click('#markdown-math');const delayedPanel=delayed.locator('.language'),delayedInput=delayedPanel.locator('.mk-editor-core-input-sink');await clickNativeCommand(delayedPanel.locator('.mk-native-preview'));await delayedPanel.locator('.mk-math-owner').first().waitFor();
  for(let i=0;i<100&&!requested;i++)await delayed.waitForTimeout(20);assert.ok(requested);
  await delayedInput.focus();await delayed.keyboard.press('Control+a');await delayed.keyboard.insertText('Replacement\r\n');release();await delayed.waitForTimeout(500);assert.equal(await delayedPanel.locator('.mk-math-owner').count(),0);assert.equal(await delayed.locator('.language-canonical').textContent(),'Replacement\r\n');await delayed.close();
  console.log('NATIVE MARKDOWN MATH E2E: PASS');

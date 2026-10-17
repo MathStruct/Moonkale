@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // Full-app acceptance: preview throughout a 200 KB vault note and a Source baseline.
 import { firefox } from 'playwright';
 import fs from 'node:fs';
@@ -66,7 +67,7 @@ try {
   const source=await bench();
   console.log('3 MB Source typing:',JSON.stringify(source));
   await open('LongPreview.md');
-  await panel().locator('.mk-native-preview').click();await ready();
+  await clickNativeCommand(panel().locator('.mk-native-preview'));await ready();
   const viewport=panel().locator('.mk-editor-core-viewport');
   // Toolbar/properties height can put adjacent blocks outside the virtual window.
   // Walk at most one viewport to mount them; keep widget and latency bounds intact.

@@ -40,7 +40,7 @@ try {
     await root.locator(".mk-editor-core-input-sink").focus();
     await page.keyboard.press("Escape"); await popup.waitFor({state:"detached"});
     await page.keyboard.press("Control+Home");
-    await root.locator(".mk-native-show-hover").focus(); await page.keyboard.press("Enter");
+    await root.locator(".mk-native-more > summary").click(); await root.locator(".mk-native-show-hover").focus(); await page.keyboard.press("Enter");
     await popup.waitFor();
     if (!(await popup.textContent()).includes("0:0")) throw Error("Keyboard hover did not use the caret");
     await popup.focus(); await page.keyboard.press("Escape"); await popup.waitFor({state:"detached"});

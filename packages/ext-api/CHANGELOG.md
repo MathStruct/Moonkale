@@ -20,6 +20,7 @@ Rules:
 - Additive `graph::code` string constants define the shared L2 vocabulary; new kinds use existing `Custom` values. `NodeKind::definition()` constructs the new kind and `is_definition()` reads it and legacy `Symbol` values. No enum variants, fields, or legacy wire encodings change.
 
 **moonkale-ext-api**
+- `EditorAction` gains six `Native*` variants for Rust editor palette commands (reload, hover, completion, Markdown/doc preview, CodeMirror switch). Exhaustive callers must handle these; other backends may ignore them (WP-69).
 - Additive `workspace::grouped_edits` composes bounded immutable document proposals, coordinates all-buffer apply/undo/redo with persistent editor adapters, retires unsafe history and reports independent per-file saves. `RevisionedDocument::apply_group` / `history_group` expose opaque group boundaries; ordinary document APIs retain their behavior. No source write occurs during apply/history.
 - Save completion acknowledges the exact submitted text/version rather than a newer live buffer. Edits during an in-flight save remain dirty, and recorded history uses the submitted character count (P-206).
 - Additive `structural` protocol and optional `StructuralPlanner` platform service support bounded pure inspection/declaration-name/move requests, snapshot-bound function handles and byte-edit responses. `DocumentEditBase::validate` rejects stale asynchronous results without mutation; `DocumentEditProposal::changes` exposes validated review ranges. The experimental UI/server integration stays off by default.

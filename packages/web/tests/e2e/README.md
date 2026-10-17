@@ -540,3 +540,9 @@ ownership tests. They use fake time/HTTP and real isolated process trees, includ
 a stubborn descendant and an unrelated process that must survive cleanup.
 
 `group-history` probes the committed CodeMirror bundle without a server: history checks never mutate, keyboard/menu group routing survives remounts, held input and stale cancellation tokens cannot cross a barrier, and undo/redo retain their opaque markers. Run through `run-all.sh group-history`.
+
+
+`toolbar-icons` covers CodeMirror icons/settings and the Rust toolbar's complete
+four-control budget, keyboard/touch overflow, Escape focus restoration, indentation
+settings and compact phone height. Rust commands moved to ⋯ in WP-69; tests that
+activate them by mouse must open `.mk-native-more > summary` first.

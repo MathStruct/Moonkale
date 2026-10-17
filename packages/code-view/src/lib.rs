@@ -113,3 +113,6 @@ pub use panel::{toggle_wrap, CodeEditorPanel};
 mod native_image_parser;
 #[cfg(feature = "markdown-preview")]
 mod native_images;
+
+mod preferences;
+pub use preferences::{editor_settings, native_commands, run_native_command};

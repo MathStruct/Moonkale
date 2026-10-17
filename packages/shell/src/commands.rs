@@ -110,26 +110,27 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
             Command::RestartLanguageServer,
         ),
         (
-            c("editor.rename", t!(ws, L, "cmd-editor-rename")),
+            c("editor.rename", t!(ws, L, "cmd-editor-rename")).key("F2"),
             Command::Editor(EditorAction::Rename),
         ),
         (
-            c("editor.codeActions", t!(ws, L, "cmd-editor-codeActions")),
+            c("editor.codeActions", t!(ws, L, "cmd-editor-codeActions")).key("Ctrl+."),
             Command::Editor(EditorAction::CodeActions),
         ),
         (
-            c("editor.definition", t!(ws, L, "cmd-editor-definition")),
+            c("editor.definition", t!(ws, L, "cmd-editor-definition")).key("F12"),
             Command::Editor(EditorAction::Definition),
         ),
         (
-            c("editor.references", t!(ws, L, "cmd-editor-references")),
+            c("editor.references", t!(ws, L, "cmd-editor-references")).key("Shift+F12"),
             Command::Editor(EditorAction::References),
         ),
         (
             c(
                 "editor.toggleComment",
                 t!(ws, L, "cmd-editor-toggleComment"),
-            ),
+            )
+            .key("Ctrl+/"),
             Command::Editor(EditorAction::ToggleComment),
         ),
         (

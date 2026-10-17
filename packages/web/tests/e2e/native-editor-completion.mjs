@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import { chromium } from "playwright";
 const browser=await chromium.launch();
 const page=await browser.newPage({viewport:{width:1200,height:800}});
@@ -29,7 +30,7 @@ try {
   await page.keyboard.press("Control+z");await wait("// 😀\r\npri\r\n");
   await page.keyboard.press("Control+Shift+z");await wait("// 😀\r\nprintBeta\r\n");
   await page.keyboard.press("Control+z");await wait("// 😀\r\npri\r\n");
-  await root.locator(".mk-native-complete").click();await menu.waitFor();await input().evaluate(input=>{if(document.activeElement!==input)throw Error("Toolbar completion did not focus the editor");});await page.keyboard.press("Tab");await wait("// 😀\r\nprintAlpha\r\n");
+  await clickNativeCommand(root.locator(".mk-native-complete"));await menu.waitFor();await input().evaluate(input=>{if(document.activeElement!==input)throw Error("Toolbar completion did not focus the editor");});await page.keyboard.press("Tab");await wait("// 😀\r\nprintAlpha\r\n");
  });
  await step("mouse acceptance and automatic suggestions after typing",async()=>{
   await fixture();await mode("normal");await trigger();await menu.waitFor();await menu.locator(".mk-native-completion").nth(1).click();await wait("// 😀\r\nprintBeta\r\n");

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // Opt-in Rust engine through the real shell, folder source and editor switch.
 import { firefox } from "playwright";
 import fs from "fs";
@@ -64,7 +65,7 @@ try {
     await save(`λ中// native\n${original}`);
   });
   await step("editor switch preserves canonical text", async () => {
-    await panel.locator(".mk-editor-switch").click(); await page.locator(".cm-content").filter({ visible: true }).waitFor();
+    await clickNativeCommand(panel.locator(".mk-editor-switch")); await page.locator(".cm-content").filter({ visible: true }).waitFor();
     await page.locator(".mk-editor-switch").filter({ visible: true }).click(); await input().waitFor();
     await save(`λ中// native\n${original}`);
   });

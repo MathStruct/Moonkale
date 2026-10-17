@@ -65,7 +65,9 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.activeElement?.classList.contains('mk-editor-core-input-sink'));
   await page.keyboard.press('Control+m');
-  await tabTo(panel.getByRole('button', { name: 'Show hover information', exact: true }), true);
+  await tabTo(panel.locator('.mk-native-more > summary'), true);
+  await page.keyboard.press('Enter');
+  await tabTo(panel.getByRole('button', { name: 'Show hover information', exact: true }));
   await page.keyboard.press('Enter');
   await panel.getByRole('tooltip').waitFor();
   await tabTo(panel.getByRole('tooltip'));
