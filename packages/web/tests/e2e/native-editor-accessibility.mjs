@@ -70,6 +70,7 @@ try {
   await tabTo(panel.getByRole('button', { name: 'Show hover information', exact: true }));
   await page.keyboard.press('Enter');
   await panel.getByRole('tooltip').waitFor();
+  await page.waitForFunction(() => document.activeElement?.matches('.primary .mk-native-more > summary'));
   await tabTo(panel.getByRole('tooltip'));
   await expectSourceFocus(true);
   await page.keyboard.press('Escape');

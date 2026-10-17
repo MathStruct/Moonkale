@@ -2,6 +2,10 @@
 .mk-native-surface { flex: 1 1 auto; display: flex; min-height: 0; flex-direction: column; position: relative; font: 14px/22px var(--mk-code-font, monospace); border:2px solid transparent; }
 .mk-native-surface .mk-editor-core-viewport { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--mk-code-bg); color: var(--mk-code-ink); font: 14px/22px var(--mk-code-font, monospace); white-space: pre; user-select: none; outline: none; }
 .mk-native-surface .mk-editor-core-gutter { color: var(--mk-muted); }
+/* Upstream comment colours assume a different background; use the shell's
+   readable hint colour on both actual code backgrounds. */
+.mk-native-surface.dxc .mk-editor-core-cell.a-c { color: var(--mk-muted); }
+.mk-native-surface.dxc .mk-editor-core-cell.mk-editor-core-selected { color: var(--mk-code-ink); }
 .mk-native-surface .mk-editor-core-selected { background: var(--mk-code-selection); }
 .mk-native-surface .mk-editor-core-preedit { text-decoration: underline; }
 

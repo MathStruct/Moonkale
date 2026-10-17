@@ -633,7 +633,7 @@ impl EditorCore {
             (line, self.visual_start_for_logical_line(line)?)
         };
         let layout = self.layout_engine.get_line_layout(line)?;
-        let column = column.min(self.line_index.get_line(line)?.char_count);
+        // Wrap points already bound out-of-range columns to the last row.
         Some(
             start
                 + layout
@@ -791,6 +791,15 @@ impl EditorCore {
         let (logical_line, visual_in_logical) = self.visual_to_logical_line(clamped_row);
 
         let layout = self.layout_engine.get_line_layout(logical_line)?;
+        // Row-boundary queries (presentation heights and collapsed rows) need
+        // only the wrap index. Do not copy and scan the entire logical line.
+        if x_in_cells == 0 {
+            let column = visual_in_logical
+                .checked_sub(1)
+                .and_then(|row| layout.wrap_points.get(row))
+                .map_or(0, |point| point.char_index);
+            return Some(Position::new(logical_line, column));
+        }
         let line_text = self
             .line_index
             .get_line_text(logical_line)

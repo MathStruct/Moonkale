@@ -727,7 +727,6 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     onclick: move |_| {
                         let caret = model.peek().engine.get_cursor_state().position;
                         hover_target.set(Some((caret.line, caret.column)));
-                        focus_request.with_mut(|value| *value += 1);
                     },
                     {t!(ws, L, "editor-hover")}
                 }
@@ -912,7 +911,14 @@ fn NativeToolbarMenu(label: String, children: Element) -> Element {
                 moonkale_ext_api::icons::Icon { name: "more" }
                 span { class: "mk-sr-only", "{label}" }
             }
-            div { class: "mk-native-more-items", onclick: move |_| open.set(false), {children} }
+            div { class: "mk-native-more-items", onclick: move |_| {
+                open.set(false);
+                // The activated command is now hidden. Keep the next Tab
+                // anchored to the toolbar; mounted dialogs can take focus next.
+                if let Some(target) = trigger.peek().clone() {
+                    spawn(async move { let _ = target.set_focus(true).await; });
+                }
+            }, {children} }
         }
     }
 }

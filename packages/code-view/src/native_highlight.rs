@@ -1,5 +1,5 @@
 //! Rust syntax queries retain unaffected top-level spans after incremental parsing.
-//! Other grammars keep dioxus-code's existing implementation. Span precedence
+//! Markdown caches narrowly safe prose appends; other grammars use dioxus-code. Span precedence
 //! matches dioxus-code 0.1.2 (MIT): tagged captures win, then later patterns.
 use arborium_tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, StreamingIterator, Tree};
 use dioxus_code::{
@@ -11,11 +11,14 @@ use std::{collections::HashMap, ops::Range};
 pub(crate) enum Buffer {
     Shared(SharedBuffer),
     Rust(Box<RustBuffer>),
+    Markdown(Box<MarkdownBuffer>),
 }
 impl Buffer {
     pub fn new(language: Language, source: impl ToString) -> Result<Self, ()> {
         let source = source.to_string();
-        if language == Language::Rust {
+        if language == Language::Markdown {
+            MarkdownBuffer::new(source).map(|buffer| Self::Markdown(Box::new(buffer)))
+        } else if language == Language::Rust {
             RustBuffer::new(source).map(|buffer| Self::Rust(Box::new(buffer)))
         } else {
             SharedBuffer::new(language, source)
@@ -27,17 +30,23 @@ impl Buffer {
         match self {
             Self::Shared(buffer) => buffer.source(),
             Self::Rust(buffer) => &buffer.source,
+            Self::Markdown(buffer) => &buffer.source,
         }
     }
     pub fn spans(&self) -> &[HighlightSpan] {
         match self {
             Self::Shared(buffer) => buffer.spans(),
             Self::Rust(buffer) => &buffer.spans,
+            Self::Markdown(buffer) => buffer.inner.spans(),
         }
     }
     pub fn replace(&mut self, source: impl ToString) -> Result<(), ()> {
         match self {
             Self::Shared(buffer) => buffer.replace(source).map_err(|_| ()),
+            Self::Markdown(buffer) => {
+                **buffer = MarkdownBuffer::new(source.to_string())?;
+                Ok(())
+            }
             Self::Rust(buffer) => {
                 **buffer = RustBuffer::new(source.to_string())?;
                 Ok(())
@@ -48,7 +57,59 @@ impl Buffer {
         match self {
             Self::Shared(buffer) => buffer.edit(edit, source).map_err(|_| ()),
             Self::Rust(buffer) => buffer.edit(edit, source.to_string()),
+            Self::Markdown(buffer) => buffer.edit(edit, source.to_string()),
         }
+    }
+}
+
+/// Plain ASCII word appends cannot introduce Markdown syntax. Retain exact
+/// existing captures for an unhighlighted prose tail, parsing normally as soon
+/// as an edit leaves that narrow case. Structural folds still parse canonical
+/// source independently; this cache owns highlighting only.
+pub(crate) struct MarkdownBuffer {
+    inner: SharedBuffer,
+    source: String,
+}
+impl MarkdownBuffer {
+    fn new(source: String) -> Result<Self, ()> {
+        let inner = SharedBuffer::new(Language::Markdown, &source).map_err(|_| ())?;
+        Ok(Self { inner, source })
+    }
+    fn edit(&mut self, edit: SourceEdit, source: String) -> Result<(), ()> {
+        let append = edit.start_byte == self.source.len()
+            && edit.old_end_byte == self.source.len()
+            && edit.new_end_byte == source.len()
+            && source.starts_with(&self.source)
+            && source.len() > self.source.len()
+            && source[self.source.len()..]
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric());
+        let tail = self.source.trim_end_matches('\n');
+        let line_start = tail.rfind('\n').map_or(0, |index| index + 1);
+        let line = &tail[line_start..];
+        let plain_tail = !line.is_empty()
+            && line.len() <= 4096
+            && line.bytes().any(|byte| byte.is_ascii_alphanumeric())
+            && line
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b" .,!?".contains(&byte))
+            && self
+                .inner
+                .spans()
+                .iter()
+                .all(|span| (span.end() as usize) < line_start);
+        if append && plain_tail {
+            self.source = source;
+            return Ok(());
+        }
+        if self.inner.source() == self.source {
+            self.inner.edit(edit, &source).map_err(|_| ())?;
+        } else {
+            // Pending plain appends must be included when syntax changes.
+            self.inner.replace(&source).map_err(|_| ())?;
+        }
+        self.source = source;
+        Ok(())
     }
 }
 
@@ -247,6 +308,95 @@ fn coalesce(mut spans: Vec<HighlightSpan>) -> Vec<HighlightSpan> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn markdown_prose_appends_and_syntax_changes_match_fresh_captures() {
+        for prefix in [
+            "# Title\n\nEnd.\n",
+            "before\n\nword",
+            "```\nplain\n",
+            "<div>\nplain\n",
+            "[ref]:\n",
+            "[ref]:\nurl\n",
+            "> quote\nplain\n",
+            "# Heading\n",
+            "    code\n",
+            "---\nplain\n",
+        ] {
+            let mut text = prefix.to_owned();
+            let mut buffer = Buffer::new(Language::Markdown, &text).unwrap();
+            for append in [
+                "x",
+                "word",
+                "2",
+                "\n# Heading\n",
+                "[link](https://example.org)",
+                "\n```\ncode\n```\n",
+                "猫",
+            ] {
+                let start = text.len();
+                text.push_str(append);
+                buffer
+                    .edit(
+                        SourceEdit {
+                            start_byte: start,
+                            old_end_byte: start,
+                            new_end_byte: text.len(),
+                        },
+                        &text,
+                    )
+                    .unwrap();
+                let fresh = SharedBuffer::new(Language::Markdown, &text).unwrap();
+                assert_eq!(buffer.source(), text);
+                assert_eq!(buffer.spans(), fresh.spans(), "{text}");
+            }
+            // Deleting an earlier prefix must also flush any retained tail.
+            let end = text.find('\n').map_or(1, |index| index + 1);
+            text.replace_range(..end, "");
+            buffer
+                .edit(
+                    SourceEdit {
+                        start_byte: 0,
+                        old_end_byte: end,
+                        new_end_byte: 0,
+                    },
+                    &text,
+                )
+                .unwrap();
+            let fresh = SharedBuffer::new(Language::Markdown, &text).unwrap();
+            assert_eq!(buffer.spans(), fresh.spans());
+        }
+    }
+    #[test]
+    fn markdown_pending_prose_flushes_when_an_earlier_edit_changes_context() {
+        let mut text = "before\n\nEnd.\n".to_owned();
+        let mut buffer = Buffer::new(Language::Markdown, &text).unwrap();
+        let start = text.len();
+        text.push_str("word");
+        buffer
+            .edit(
+                SourceEdit {
+                    start_byte: start,
+                    old_end_byte: start,
+                    new_end_byte: text.len(),
+                },
+                &text,
+            )
+            .unwrap();
+        text.insert_str(0, "```\n");
+        buffer
+            .edit(
+                SourceEdit {
+                    start_byte: 0,
+                    old_end_byte: 0,
+                    new_end_byte: 4,
+                },
+                &text,
+            )
+            .unwrap();
+        let fresh = SharedBuffer::new(Language::Markdown, &text).unwrap();
+        assert_eq!(buffer.source(), text);
+        assert_eq!(buffer.spans(), fresh.spans());
+    }
     fn check(buffer: &Buffer, source: &str) {
         thread_local! {
             static FRESH: std::cell::RefCell<SharedBuffer> = std::cell::RefCell::new(SharedBuffer::new(Language::Rust, "").unwrap());

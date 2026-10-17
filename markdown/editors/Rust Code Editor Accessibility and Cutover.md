@@ -289,3 +289,7 @@ change. ADR-0029 is unused; the plan implements the accepted Rust-editor directi
 macOS/Windows remain explicitly unverified. Optional spoken-reader review can
 improve the bounded-context experience; the automated reports do not claim to
 capture spoken output.
+
+## WP-69 toolbar follow-up — 2026-10-17
+
+Activating a command in the ⋯ menu restores its trigger when the command does not move focus to editing or a dialog. Show hover leaves that trigger focused; Tab traversal across gutter buttons preserves the popup until it can receive focus, and Escape restores the input sink. The browser keyboard journey asserts trigger restoration explicitly. Native comments use the shell’s readable hint token, and selected source uses its code foreground token, covering the actual light/dark code and selection backgrounds at the existing 4.5:1 threshold. This adds no speech-engine or physical-device acceptance claim.

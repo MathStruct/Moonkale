@@ -303,7 +303,12 @@ pub(crate) fn RustEditorSurface(
                         let measured = by_row.get(&row).filter(|entry| {
                             let documentation_matches =
                                 entry.documentation_matches(&presentation_values, presentation);
-                            (entry.revision == state.revision || documentation_matches)
+                            // Retain Markdown's last measured height as a virtual-row
+                            // estimate until this revision is measured. Input geometry
+                            // is separately guarded by exact RunKey revision checks.
+                            (entry.revision == state.revision
+                                || documentation_matches
+                                || presentation.provider == 2 && entry.presentation == presentation)
                                 && entry.row == row
                                 && (entry.presentation == presentation || documentation_matches)
                                 && entry.viewport_width == viewport_width_pixels()
@@ -878,7 +883,8 @@ pub(crate) fn RustEditorSurface(
                     cache.with_mut(|values| {
                         values.retain(|_, old| {
                             (old.revision == revision
-                                || old.documentation_matches(&replacements, presentation))
+                                || old.documentation_matches(&replacements, presentation)
+                                || presentation.provider == 2 && old.presentation == presentation)
                                 && old.viewport_width == width
                                 && old.font_epoch == epoch
                         });
@@ -979,6 +985,9 @@ pub(crate) fn RustEditorSurface(
                 if composing() {
                     return;
                 }
+                // Focus traversal may cross gutter buttons before reaching the
+                // hover popup. Tab must not dismiss the popup on the way there.
+                if event.key() == Key::Tab && tab_moves_focus() { return; }
                 if event.key() == Key::Escape { oncompletion_close.call(()); oncancel_definition.call(()); oncancel_rename.call(()); oncancel_tools.call(()); }
                 if event.key() == Key::Escape && hovered_position().is_some() {
                     hovered_position.set(None);
@@ -999,7 +1008,6 @@ pub(crate) fn RustEditorSurface(
                     oncompletion_close.call(());
                     return;
                 }
-                if key == Key::Tab && tab_moves_focus() { return; }
                 if (primary && !shift && !modifiers.contains(Modifiers::ALT) && key == Key::Character(".".into())) || (key == Key::F12 && modifiers == Modifiers::SHIFT) {
                     event.prevent_default(); event.stop_propagation(); oncompletion_close.call(()); oncancel_definition.call(()); ondismiss_rename.call(());
                     if key == Key::F12 { onreferences.call(()); } else { onactions.call(()); }

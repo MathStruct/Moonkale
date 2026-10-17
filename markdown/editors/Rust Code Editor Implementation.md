@@ -441,3 +441,9 @@ core Code extension can honor it without the optional adapter in minimal builds.
 Stored settings, document bytes and per-document overrides are not rewritten.
 The full-app migration test covers live unsaved buffers and restored saved tabs.
 CodeMirror's pre-switch private undo stack is not imported into Rust history.
+
+## WP-69 follow-up: preview typing and browser validation — 2026-10-17
+
+The compact toolbar exposes more preview rows, making repeated geometry work more visible. Presentation collapse computation resolves endpoints against one scalar line-start table; row-only and zero-cell engine queries avoid reading full logical lines. Folding reuses a bounded three-entry parser/tree cache with UTF-8-safe incremental edits. Markdown highlighting retains captures for a narrowly checked, unhighlighted ASCII prose append at EOF, parsing normally for syntax-changing edits or edits elsewhere. Last measured Markdown row heights remain provisional estimates during revision changes, while exact revision guards continue to protect input geometry. See [[P-211 Preview row queries and folding repeated full text work]] for measurements and validation. The migration browser test waits for client hydration before submitting the Explorer form.
+
+Native fixture follow-up also checks the complete keyboard path from ⋯ to hover and back, source contrast on both theme/selection backgrounds, and preview geometry/navigation. Virtualized-link tests reacquire after scrolling; table tests let queued row-height measurements publish before a real hit-map click. The contrast and latency limits are unchanged.

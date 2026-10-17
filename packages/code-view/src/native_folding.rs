@@ -1,7 +1,7 @@
 //! Grammar folds for languages whose blocks are not described by braces.
-use arborium_tree_sitter::{Node, Parser};
+use arborium_tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 use dioxus_code::Language;
-use std::collections::BTreeSet;
+use std::{cell::RefCell, collections::BTreeSet};
 
 pub(super) fn extend(
     source: &str,
@@ -19,13 +19,7 @@ pub(super) fn extend(
         "julia" => arborium_julia::language(),
         _ => return,
     };
-    // Buffer does not expose its syntax tree. Reuse the already linked grammar
-    // for these providers; only document edits rebuild structural metadata.
-    let mut parser = Parser::new();
-    if parser.set_language(&grammar.into()).is_err() {
-        return;
-    }
-    let Some(tree) = parser.parse(source, None) else {
+    let Some(tree) = parsed_tree(source, language.slug(), grammar.into()) else {
         return;
     };
     let mut cursor = tree.walk();
@@ -52,6 +46,86 @@ pub(super) fn extend(
                 return;
             }
         }
+    }
+}
+
+struct Parsed {
+    language: &'static str,
+    source: String,
+    parser: Parser,
+    tree: Tree,
+}
+thread_local! {
+    // Bound retained parser state even when several editors/languages are open.
+    static PARSED: RefCell<Vec<Parsed>> = const { RefCell::new(Vec::new()) };
+}
+fn parsed_tree(
+    source: &str,
+    language: &'static str,
+    grammar: arborium_tree_sitter::Language,
+) -> Option<Tree> {
+    PARSED.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let previous = cache
+            .iter()
+            .position(|entry| entry.language == language)
+            .map(|index| cache.remove(index));
+        let parsed = if let Some(mut previous) = previous {
+            if previous.source != source {
+                previous.tree.edit(&difference(&previous.source, source));
+                previous.tree = previous.parser.parse(source, Some(&previous.tree))?;
+                previous.source = source.to_owned();
+            }
+            previous
+        } else {
+            let mut parser = Parser::new();
+            parser.set_language(&grammar).ok()?;
+            let tree = parser.parse(source, None)?;
+            Parsed {
+                language,
+                source: source.to_owned(),
+                parser,
+                tree,
+            }
+        };
+        let tree = parsed.tree.clone();
+        // Keep the latest document of each grammar, evicting least recently used.
+        if cache.len() == 3 {
+            cache.remove(0);
+        }
+        cache.push(parsed);
+        Some(tree)
+    })
+}
+fn difference(old: &str, new: &str) -> InputEdit {
+    let mut start = old
+        .bytes()
+        .zip(new.bytes())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !old.is_char_boundary(start) || !new.is_char_boundary(start) {
+        start -= 1;
+    }
+    let mut suffix = old[start..]
+        .bytes()
+        .rev()
+        .zip(new[start..].bytes().rev())
+        .take_while(|(a, b)| a == b)
+        .count();
+    while !old.is_char_boundary(old.len() - suffix) || !new.is_char_boundary(new.len() - suffix) {
+        suffix -= 1;
+    }
+    let point = |text: &str, byte: usize| Point {
+        row: text[..byte].bytes().filter(|byte| *byte == b'\n').count(),
+        column: byte - text[..byte].rfind('\n').map_or(0, |byte| byte + 1),
+    };
+    InputEdit {
+        start_byte: start,
+        old_end_byte: old.len() - suffix,
+        new_end_byte: new.len() - suffix,
+        start_position: point(old, start),
+        old_end_position: point(old, old.len() - suffix),
+        new_end_position: point(new, new.len() - suffix),
     }
 }
 
@@ -103,6 +177,28 @@ fn foldable(node: Node<'_>, language: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn incremental_folds_match_fresh_grammar_after_unicode_and_multiline_edits() {
+        let versions = [
+            "# 猫\n\n- one\n  - two\n\nend\n",
+            "# 界\n\n- one\n  - two\n\nend😀\n",
+            "# 界\n\n```rust\nfn f() {}\n```\n\nend😀\n",
+            "# 界\n\n```rust\nfn f() {}\n\nend😀\n",
+            "# Other document\n\n> quote\n> 猫\n",
+            "",
+        ];
+        let grammar: arborium_tree_sitter::Language = arborium_markdown::language().into();
+        let mut fresh = Parser::new();
+        fresh.set_language(&grammar).unwrap();
+        for source in versions {
+            let incremental = parsed_tree(source, "markdown", grammar.clone()).unwrap();
+            let expected = fresh.parse(source, None).unwrap();
+            assert_eq!(
+                incremental.root_node().to_sexp(),
+                expected.root_node().to_sexp()
+            );
+        }
+    }
     fn ranges(source: &str, slug: &str) -> BTreeSet<(usize, usize)> {
         let mut folds = BTreeSet::new();
         extend(source, Language::from_slug(slug), &mut folds);
