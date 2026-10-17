@@ -102,3 +102,11 @@ None of them keeps its results over time. This page turns them into one catalogu
 6. **Server load:** BM-50 to 54, before a shared server is offered to anyone.
 
 Work package: WP-55 in [[Work Packages]].
+
+## WP-69 development profiles — 2026-10-17
+
+Development builds optimize the Tree-sitter runtime and dioxus-code syntax-query dependency at level 2, and the code-view crate at level 1. The standalone native fixture mirrors these overrides because it has its own workspace. This is a developer-experience change: parsing and preview indexing remain responsive while exercising ordinary development builds. It trades some compilation time and precise debug stepping for faster input-path work. Release and graph-wasm profiles are unchanged.
+
+These overrides are a separate proposal from the code fix in [[P-211 Preview row queries and folding repeated full text work]]. Validate `live-preview-long` with the code changes and the original development profile first; record the same code with these overrides separately. A compiler-profile improvement must not stand in for fixing repeated document scans or parsing. The per-run medians, p95s, build variants and retained logs are in the WP-69 handoff and commit requests.
+
+On the final WP-69 code, the fresh-fixture Firefox run measured Preview median/p95 82.84/86.14 ms against Source 72.92/76.20 ms with the original profile. With the overrides, the same suite measured 73.38/77.76 ms against 68.70/70.66 ms. Both pass the unchanged bound; the overrides are retained solely as a separate development-experience improvement. These are local development-build results, not release or physical-device acceptance.
