@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+    <channel>
+      <title>Moonkale</title>
+      <link>https://mathstruct.org/Moonkale</link>
+      <description>Last 10 notes on Moonkale</description>
+      <generator>Quartz -- quartz.jzhao.xyz</generator>
+      <item>
+    <title>Status</title>
+    <link>https://mathstruct.org/Moonkale/Status</link>
+    <guid>https://mathstruct.org/Moonkale/Status</guid>
+    <description><![CDATA[ What Moonkale can do today, area by area — built, partly built, designed only — checked against the code on 2026-10-01 (after Milestone 17), with the open problems that matter most. The one place where status is kept. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>Security — the trust model and the security document</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Security</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Security</guid>
+    <description><![CDATA[ Who and what Moonkale trusts on each platform, and the skeleton of the project's security document. It covers secrets, connections, prompt injection, untrusted content and exploits, extensions, the supply chain and data at rest, plus the rules every change follows so security issues don't pile up. What is enforced where today, and the open findings. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>Markdown and Typst Editor</title>
+    <link>https://mathstruct.org/Moonkale/editors/Markdown-and-Typst-Editor</link>
+    <guid>https://mathstruct.org/Moonkale/editors/Markdown-and-Typst-Editor</guid>
+    <description><![CDATA[ Crate: editors/markdown. The knowledge half of the project. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>P-212 — Markdown offset iterator can panic</title>
+    <link>https://mathstruct.org/Moonkale/problems/P-212-Markdown-offset-iterator-can-panic</link>
+    <guid>https://mathstruct.org/Moonkale/problems/P-212-Markdown-offset-iterator-can-panic</guid>
+    <description><![CDATA[ Status: resolved 2026-10-17 (Claude, after codex’s containment). ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>Problem Log</title>
+    <link>https://mathstruct.org/Moonkale/problems/Problem-Log</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Problem-Log</guid>
+    <description><![CDATA[ Running log of problems hit during implementation, P-nnn, sorted by number. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>Work Packages</title>
+    <link>https://mathstruct.org/Moonkale/problems/Work-Packages</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Work-Packages</guid>
+    <description><![CDATA[ The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>How to Write Tests</title>
+    <link>https://mathstruct.org/Moonkale/testing/How-to-Write-Tests</link>
+    <guid>https://mathstruct.org/Moonkale/testing/How-to-Write-Tests</guid>
+    <description><![CDATA[  Checked 2026-10-01 The recipes for plain #[test], integration tests in tests/, VirtualDom component tests and the Playwright suites match what the repository does. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 17:34:20 GMT</pubDate>
+  </item><item>
+    <title>Platform Matrix</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Platform-Matrix</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Platform-Matrix</guid>
+    <description><![CDATA[ The brief: all targets are served; the apps need not be identical; single-platform features are separated. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 16:25:08 GMT</pubDate>
+  </item><item>
+    <title>Code Graph Schema — definitions, identity and edges for many languages on one graph</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Code-Graph-Schema</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Code-Graph-Schema</guid>
+    <description><![CDATA[ Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 15:53:09 GMT</pubDate>
+  </item><item>
+    <title>Extension catalogue — current, planned, core or separate</title>
+    <link>https://mathstruct.org/Moonkale/extensions/Extension-Catalogue</link>
+    <guid>https://mathstruct.org/Moonkale/extensions/Extension-Catalogue</guid>
+    <description><![CDATA[ Every extension Moonkale has and every one it plans, with tier, crate, platform fit (desktop / web / mobile), what each needs from outside (server, binary, network), what should stay core and what belongs in a separate repository — and a critique of how much of the core could become extensions. ]]></description>
+    <pubDate>Sat, 17 Oct 2026 15:53:09 GMT</pubDate>
+  </item>
+    </channel>
+  </rss>

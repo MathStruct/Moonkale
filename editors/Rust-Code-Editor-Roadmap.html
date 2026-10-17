@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Rust Code Editor Roadmap</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Rust Code Editor Roadmap"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Rust Code Editor Roadmap"/><meta name="twitter:description" content="Milestones, implementation sequence, and verification plan for replacing Moonkale's CodeMirror code view with a pure-Rust editor."/><meta property="og:description" content="Milestones, implementation sequence, and verification plan for replacing Moonkale's CodeMirror code view with a pure-Rust editor."/><meta property="og:image:alt" content="Milestones, implementation sequence, and verification plan for replacing Moonkale's CodeMirror code view with a pure-Rust editor."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/editors/Rust-Code-Editor-Roadmap"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/editors/Rust-Code-Editor-Roadmap"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Milestones, implementation sequence, and verification plan for replacing Moonkale's CodeMirror code view with a pure-Rust editor."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS9xdWFydHovY29tcG9uZW50cy9zdHlsZXMiLCJzb3VyY2VzIjpbIm1lcm1haWQuaW5saW5lLnNjc3MiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUE7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTtFQUNBOztBQUdGO0VBQ0U7OztBQUtGO0VBQ0U7RUFDQTs7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7O0FBR0Y7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTtFQUNBOztBQUlKO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFOztBQUlGO0VBQ0U7RUFDQTtFQUNBIiwic291cmNlc0NvbnRlbnQiOlsiLmV4cGFuZC1idXR0b24ge1xuICBwb3NpdGlvbjogYWJzb2x1dGU7XG4gIGRpc3BsYXk6IGZsZXg7XG4gIGZsb2F0OiByaWdodDtcbiAgcGFkZGluZzogMC40cmVtO1xuICBtYXJnaW46IDAuM3JlbTtcbiAgcmlnaHQ6IDA7IC8vIE5PVEU6IHJpZ2h0IHdpbGwgYmUgc2V0IGluIG1lcm1haWQuaW5saW5lLnRzXG4gIGNvbG9yOiB2YXIoLS1ncmF5KTtcbiAgYm9yZGVyLWNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICBib3JkZXI6IDFweCBzb2xpZDtcbiAgYm9yZGVyLXJhZGl1czogNXB4O1xuICBvcGFjaXR5OiAwO1xuICB0cmFuc2l0aW9uOiAwLjJzO1xuXG4gICYgPiBzdmcge1xuICAgIGZpbGw6IHZhcigtLWxpZ2h0KTtcbiAgICBmaWx0ZXI6IGNvbnRyYXN0KDAuMyk7XG4gIH1cblxuICAmOmhvdmVyIHtcbiAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgYm9yZGVyLWNvbG9yOiB2YXIoLS1zZWNvbmRhcnkpO1xuICB9XG5cbiAgJjpmb2N1cyB7XG4gICAgb3V0bGluZTogMDtcbiAgfVxufVxuXG5wcmUge1xuICAmOmhvdmVyID4gLmV4cGFuZC1idXR0b24ge1xuICAgIG9wYWNpdHk6IDE7XG4gICAgdHJhbnNpdGlvbjogMC4ycztcbiAgfVxufVxuXG4jbWVybWFpZC1jb250YWluZXIge1xuICBwb3NpdGlvbjogZml4ZWQ7XG4gIGNvbnRhaW46IGxheW91dDtcbiAgei1pbmRleDogOTk5O1xuICBsZWZ0OiAwO1xuICB0b3A6IDA7XG4gIHdpZHRoOiAxMDB2dztcbiAgaGVpZ2h0OiAxMDB2aDtcbiAgb3ZlcmZsb3c6IGhpZGRlbjtcbiAgZGlzcGxheTogbm9uZTtcbiAgYmFja2Ryb3AtZmlsdGVyOiBibHVyKDRweCk7XG4gIGJhY2tncm91bmQ6IHJnYmEoMCwgMCwgMCwgMC41KTtcblxuICAmLmFjdGl2ZSB7XG4gICAgZGlzcGxheTogaW5saW5lLWJsb2NrO1xuICB9XG5cbiAgJiA+ICNtZXJtYWlkLXNwYWNlIHtcbiAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgIGJhY2tncm91bmQtY29sb3I6IHZhcigtLWxpZ2h0KTtcbiAgICBib3JkZXItcmFkaXVzOiA1cHg7XG4gICAgcG9zaXRpb246IGZpeGVkO1xuICAgIHRvcDogNTAlO1xuICAgIGxlZnQ6IDUwJTtcbiAgICB0cmFuc2Zvcm06IHRyYW5zbGF0ZSgtNTAlLCAtNTAlKTtcbiAgICBoZWlnaHQ6IDgwdmg7XG4gICAgd2lkdGg6IDgwdnc7XG4gICAgb3ZlcmZsb3c6IGhpZGRlbjtcblxuICAgICYgPiAubWVybWFpZC1jb250ZW50IHtcbiAgICAgIHBvc2l0aW9uOiByZWxhdGl2ZTtcbiAgICAgIHRyYW5zZm9ybS1vcmlnaW46IDAgMDtcbiAgICAgIHRyYW5zaXRpb246IHRyYW5zZm9ybSAwLjFzIGVhc2U7XG4gICAgICBvdmVyZmxvdzogdmlzaWJsZTtcbiAgICAgIG1pbi1oZWlnaHQ6IDIwMHB4O1xuICAgICAgbWluLXdpZHRoOiAyMDBweDtcblxuICAgICAgcHJlIHtcbiAgICAgICAgbWFyZ2luOiAwO1xuICAgICAgICBib3JkZXI6IG5vbmU7XG4gICAgICB9XG5cbiAgICAgIHN2ZyB7XG4gICAgICAgIG1heC13aWR0aDogbm9uZTtcbiAgICAgICAgaGVpZ2h0OiBhdXRvO1xuICAgICAgfVxuICAgIH1cblxuICAgICYgPiAubWVybWFpZC1jb250cm9scyB7XG4gICAgICBwb3NpdGlvbjogYWJzb2x1dGU7XG4gICAgICBib3R0b206IDIwcHg7XG4gICAgICByaWdodDogMjBweDtcbiAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICBnYXA6IDhweDtcbiAgICAgIHBhZGRpbmc6IDhweDtcbiAgICAgIGJhY2tncm91bmQ6IHZhcigtLWxpZ2h0KTtcbiAgICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgICBib3JkZXItcmFkaXVzOiA2cHg7XG4gICAgICBib3gtc2hhZG93OiAwIDJweCA0cHggcmdiYSgwLCAwLCAwLCAwLjEpO1xuICAgICAgei1pbmRleDogMjtcblxuICAgICAgLm1lcm1haWQtY29udHJvbC1idXR0b24ge1xuICAgICAgICBkaXNwbGF5OiBmbGV4O1xuICAgICAgICBhbGlnbi1pdGVtczogY2VudGVyO1xuICAgICAgICBqdXN0aWZ5LWNvbnRlbnQ6IGNlbnRlcjtcbiAgICAgICAgd2lkdGg6IDMycHg7XG4gICAgICAgIGhlaWdodDogMzJweDtcbiAgICAgICAgcGFkZGluZzogMDtcbiAgICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgICBjb2xvcjogdmFyKC0tZGFyayk7XG4gICAgICAgIGJvcmRlci1yYWRpdXM6IDRweDtcbiAgICAgICAgY3Vyc29yOiBwb2ludGVyO1xuICAgICAgICBmb250LXNpemU6IDE2cHg7XG4gICAgICAgIGZvbnQtZmFtaWx5OiB2YXIoLS1ib2R5Rm9udCk7XG4gICAgICAgIHRyYW5zaXRpb246IGFsbCAwLjJzIGVhc2U7XG5cbiAgICAgICAgJjpob3ZlciB7XG4gICAgICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgICAgfVxuXG4gICAgICAgICY6YWN0aXZlIHtcbiAgICAgICAgICB0cmFuc2Zvcm06IHRyYW5zbGF0ZVkoMXB4KTtcbiAgICAgICAgfVxuXG4gICAgICAgIC8vIFN0eWxlIHRoZSByZXNldCBidXR0b24gZGlmZmVyZW50bHlcbiAgICAgICAgJjpudGgtY2hpbGQoMikge1xuICAgICAgICAgIHdpZHRoOiBhdXRvO1xuICAgICAgICAgIHBhZGRpbmc6IDAgMTJweDtcbiAgICAgICAgICBmb250LXNpemU6IDE0cHg7XG4gICAgICAgIH1cbiAgICAgIH1cbiAgICB9XG4gIH1cbn1cbiJdfQ== */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="editors/Rust-Code-Editor-Roadmap"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-178"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-178" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../editors/">editors</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Rust Code Editor Roadmap</a></div></nav><h1 class="article-title">Rust Code Editor Roadmap</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-17T09:32:59.000Z">Oct 17, 2026</time><span>33 min read</span></p><ul class="tags"><li><a href="../tags/editors" class="internal tag-link">editors</a></li><li><a href="../tags/code" class="internal tag-link">code</a></li><li><a href="../tags/roadmap" class="internal tag-link">roadmap</a></li><li><a href="../tags/testing" class="internal tag-link">testing</a></li></ul></div></div><article class="popover-hint"><h2 id="wp-69--compact-toolbar-2026-10-17">WP-69 — compact toolbar (2026-10-17)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-69--compact-toolbar-2026-10-17" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The Rust toolbar shows four controls: Save, Reload, Wrap and ⋯, using SVG symbols,
+hidden accessible labels and descriptive tooltips with available shortcuts. The
+extension’s gear sits in ⋯ so the overflow trigger also fits the four-control
+budget. Indentation style and width are shared user preferences, now edited in
+that gear’s settings popover. Both adapters share these controls in <code>code-view</code>;
+the core Code extension contributes the Rust palette routes too, so the minimal
+distribution’s Rust fallback keeps them. Preview, LSP tools, comments, folding and the
+CodeMirror switch are in ⋯; commands remain available in the palette. Tab reaches
+the disclosure and its commands, Enter or touch opens it, and Escape closes it
+and returns focus to the trigger. Choosing a command closes the disclosure.</p>
+<p>The cursor word is inline in the toolbar, hidden below 700 px, so it consumes no
+source row. The path truncates on narrow screens and language/version metadata
+is hidden there. <code>toolbar-icons.mjs</code> covers native icons, the four-control budget,
+overflow keyboard/touch behavior, indentation settings and phone height;
+<code>code-native.mjs</code> opens ⋯ before switching backends.</p>
+<h2 id="m2-progress--local-searchreplace">M2 progress — local search/replace<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m2-progress--local-searchreplace" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Literal find/replace now supports Mod-F/Mod-H, shell editor actions, next/previous navigation, case/whole-word options and one-step replace-all undo. Unicode and CRLF flows pass in the shared production panel fixture. Language defaults, auto-indented Enter, Tab/Shift-Tab, comment toggling and structural bracket pairs are now connected to the production Rust surface and Workspace history. Fold gutter/placeholder controls, shell fold-all/unfold-all, conservative delimiter/Python folds and adjacent matching-bracket highlights are now implemented. Fold state survives remounts; hidden search/reveal targets expand. Wrap now follows shared settings with bounded horizontal rendering when off; optional spaces/tabs and indentation-width overrides persist through user settings and apply to both backends. Regex search, all-match/current highlighting, counts, invalid-pattern feedback and numbered/named capture replacement are implemented. Zero-width matches support navigation and replacement; Unicode/CRLF history is covered by unit and production browser tests. Grammar-based HTML element/comment, Markdown section/block and Julia keyword/comment folds are implemented with nested remount and search-reveal coverage. Syntax-aware Enter handles comment/string context, Python/Rust triggers, Julia keyword headers and HTML tag pairs, sharing indentation overrides and Workspace history. Leading bracket closers, Julia <code>end</code> and HTML closing tags now align with their matched opener in one undoable edit; inline typing and paste remain unchanged. Lean namespace/section/mutual scopes, declarations and nested proof bodies now fold through a dedicated layout provider that excludes comments/strings and preserves sibling boundaries. Additional language/custom-syntax folding, whole-document formatting and richer language policies remain open.</p>
+<h2 id="latest-integration-update--2026-10-05">Latest integration update — 2026-10-05<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#latest-integration-update--2026-10-05" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The production opt-in Rust panel now uses editor-core and a virtualized Dioxus view. Native deltas feed the revisioned Workspace contract; root-scoped typed view slots retain engine/selection/viewport across remounts. Browser tests of the integrated panel pass for edits, save/reload, undo/redo, duplicate views, Unicode selection, synthetic IME, clipboard, CRLF and reveal. A 3 MB single line rendered 23 rows and accepted an edit in 410 ms on this run. See <a href="../editors/Rust-Code-Editor-Implementation" class="internal alias" data-slug="editors/Rust-Code-Editor-Implementation">Rust Code Editor Implementation</a> for the current architecture and remaining gates. Earlier textarea implementation records below are historical; they no longer describe the production opt-in surface. Full parity/default cutover and integrated native-platform acceptance remain open.</p>
+<p>This plan turns <a href="../editors/Code-Editor-Requirements" class="internal alias" data-slug="editors/Code-Editor-Requirements">Code Editor Requirements</a> into staged deliverables. It keeps CodeMirror as the safe default until the Rust view reaches feature and platform parity. Each milestone leaves a usable editor state; unfinished advanced integrations stay on the CodeMirror path until their Rust equivalents pass acceptance. The target is a single shared code view for the Code extension and Markdown Source mode, not two permanent editor stacks.</p>
+<p>The plan is deliberately engine-neutral. First prove a candidate has an editor-owned caret/selection model, efficient change reporting, virtualized rendering, a usable Dioxus integration, and a path to decorations. The existing <code>dioxus-code-editor</code> textarea/highlight component is a useful grammar baseline, but it does not meet those capabilities by itself. The current M1 prototype still uses it and therefore does not pass M0. See <a href="../editors/Rust-Code-Editor-M0-Spike" class="internal alias" data-slug="editors/Rust-Code-Editor-M0-Spike">Rust Code Editor M0 Spike</a> for the engine comparison and provisional lead candidate. Do not treat removal of <code>document::eval</code> alone as satisfying editor-owned selection.</p>
+<h2 id="desktop-measurement-and-highlighting-update--2026-10-15">Desktop measurement and highlighting update — 2026-10-15<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#desktop-measurement-and-highlighting-update--2026-10-15" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The locked 21-case rerun confirms that both <code>performance.now()</code> and rAF are quantized to 1 ms in this GTK WebKit. The recorder now captures an idle baseline and labels the authorized calibrated-vsync fallback separately from <code>strictPassed</code> (<a href="../decisions/ADR-0023-Native-editor-frame-measurements" class="internal alias" data-slug="decisions/ADR-0023-Native-editor-frame-measurements">ADR-0023 Native editor frame measurements</a>). A calibrated pass is not proof of sub-millisecond p95 ≤16.7 ms.</p>
+<p>A matched 90-key Rust-stage profile found whole-file highlight queries at approximately 7.5 ms p95. Rust now incrementally parses the same complete syntax tree but only re-queries affected root syntax regions and retains shifted spans elsewhere; whole-source replacement and other languages keep their established behavior. Differential tests compare edits/deletions at every scalar boundary, Unicode, strings/comments, EOF missing tokens and separated items against fresh dioxus-code queries. Highlight p95 fell to approximately 2.0 ms, with edit callback p95 approximately 2.1 ms (previously 7.7 ms). This is CPU-stage evidence, not a frame-gate pass.</p>
+<p>The initial optimized Rust subset recorded Source/preview typing at 17 ms p95, but the complete repeat remained variable: Source 33/52 ms p95/max, preview 36/55 ms, preview wheel 37/196 ms, preview scrollbar 34/55 ms, 3 MB scrollbar 40/67 ms. Fifteen of 21 cases pass the calibrated cadence check; none establishes the original strict interval requirement. A descendant-inclusive gprofng profile shows substantial software-raster/compositing CPU time in Gallium/Pixman, without enough symbol/frame correlation to blame any one frame. Paint containment did not resolve this and was reverted; a one-thread Mesa diagnostic also failed. Reports remain in <code>/tmp/moonkale-desktop-fps-{corrected,windowed,final}-20261015*</code> and <code>/tmp/moonkale-fps-stage-comparison-20261015.json</code>.</p>
+<p>A native Inspector wheel trace then identified redundant synchronous resize IPC: 1070 resize dispatches for 69 scroll events. Proportional runs now share geometry-only observers, suppress initial notifications already measured on mount and asynchronously forward actual dimension changes. Atomic preview geometry also omits redundant grapheme metadata while retaining canonical coordinates. A guarded post-resize complete matrix passed 20/21 calibrated cases: Source typing 17/20 ms p95/max, preview typing 19/39 ms, 3 MB typing 18/20 ms. Preview wheel retained a 211 ms frame despite 17 ms p95. This is not proof of causation or completion. The CPU preflight requires two consecutive <span>⇐</span>10% active samples before every gesture and retains all settling samples. Report: <code>/tmp/moonkale-desktop-fps-settled-resize-20261015*</code> (before final metadata compaction).</p>
+<p>After segment compaction, two further full-matrix attempts abort CPU-idle preflight after six and fourteen cases. The latter reproduces preview wheel 17/210 ms and also records Source typing 41/51 ms and preview scrollbar 31/54 ms; results remain variable and incomplete. Reports: <code>/tmp/moonkale-desktop-fps-compact{,-retry}-20261015*</code>. A partial full-sequence Inspector/Heap trace timed out stopping the profilers and did not correlate the 210 ms frame; captured GC peaks near 13 ms, so it does not establish GC causation.</p>
+<p>Software GL includes CPU painting/compositing costs as well as Rust/DOM/layout; it does not establish hardware GPU performance. The latest strict release web rerun passes all 21 cases, p95 approximately 16.67 ms and max 33.33 ms (<code>/tmp/moonkale-fps-web-compact-20261015/editor-fps.json</code>). WP-02 and Daniel’s real desktop acceptance remain open. WP-03 acceptance work is recorded below; default cutover remains gated.</p>
+<h2 id="performance-target--60-fps-ced-r22-2026-10-14">Performance target — 60 FPS (CED-R22, 2026-10-14)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#performance-target--60-fps-ced-r22-2026-10-14" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Daniel set the bar: the Rust code editor runs at <strong>60 FPS</strong>: typing, held arrows, scrolling, selection drag and caret movement, in an ordinary highlighted source file and in the 3 MB document. The gate is p95 frame interval ≤ 16.7 ms and no frame over 50 ms, on web and desktop, release build. The current implementation does not meet it. This gate applies from now on, not only at M5: each milestone’s acceptance records the frame numbers, and a feature that pushes them over the bar is not done. First step: a benchmark suite (Playwright, <code>requestAnimationFrame</code> intervals during scripted typing and scrolling, both files) that prints p50/p95/max and the long frames’ causes, run per release.</p>
+<h3 id="frame-benchmark-progress--2026-10-14">Frame benchmark progress — 2026-10-14<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#frame-benchmark-progress--2026-10-14" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><code>editor-fps.mjs</code> now records all seven interactions, long frames and build/browser metadata. The initial release web baseline exposed 233 ms p95 typing in the 3 MB file, preview scrolling up to 83 ms p95 and a 117 ms held-arrow stall. A full-sequence timeline found a 62 ms garbage collection pause after source-cell DOM churn. Bounded engine-owned status slices, fractional scroll offsets, batched height notifications, keyed rows and same-presentation ASCII text runs address those costs.</p>
+<p>The isolated release web rerun passed all 21 cases (Chromium 153). The maxima across each file/mode’s seven gestures were:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Case</th><th style="text-align:right;">Highest gesture p95</th><th style="text-align:right;">Longest frame</th><th>Result</th></tr></thead><tbody><tr><td>5000-line highlighted Rust, Doc preview off</td><td style="text-align:right;">16.67 ms</td><td style="text-align:right;">16.67 ms</td><td>web pass</td></tr><tr><td>Same Rust file, Doc preview on</td><td style="text-align:right;">16.67 ms</td><td style="text-align:right;">33.33 ms</td><td>web pass</td></tr><tr><td>3 MB text, Doc preview off</td><td style="text-align:right;">16.67 ms</td><td style="text-align:right;">16.67 ms</td><td>web pass</td></tr></tbody></table></div>
+<p>The raw release report is retained outside git. Desktop release frames are now measured on the private software-GL display, but still fail; see the 2026-10-15 update above. The native fixture also has a manual trusted-input recorder for the same corpus; it injects no input itself. This remains an open milestone gate until real desktop recordings meet both bounds. See <a href="../decisions/ADR-0023-Native-editor-frame-measurements" class="internal alias" data-slug="decisions/ADR-0023-Native-editor-frame-measurements">ADR-0023 Native editor frame measurements</a> and the E2E README for recording commands. The standalone benchmark remains outside run-all’s strict list.</p>
+<h2 id="delivery-shape">Delivery shape<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#delivery-shape" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Milestone</th><th>User-visible outcome</th><th>Main requirements</th><th>Gate to continue</th></tr></thead><tbody><tr><td><strong>M0 — Engine and seam spike</strong></td><td>A selected Rust engine can edit and render a representative document in a small Dioxus host on desktop and web; mobile feasibility is known.</td><td>CED-R01, R05, R06, R09, R10, R12</td><td>Written choice with measured input latency, edit deltas, cursor/selection API, viewport behavior, grammar/decorations strategy, target builds, size/build cost, and known gaps. Reject candidates that require JS eval for editor state.</td></tr><tr><td><strong>M1 — Editing foundation</strong></td><td>An opt-in Rust code surface edits a real Workspace document, shows line numbers and initial syntax highlighting, saves/reloads, and handles Rust-originated text updates. CodeMirror remains the default fallback.</td><td>CED-R01, R02, R04–R11 plus initial R12 coverage</td><td>Web acceptance flow passes; save/reload/external-update convergence works; Unicode edits round-trip; the 3 MB case stays within the existing E2E ceiling; no CodeMirror dependency is required to mount the Rust path.</td></tr><tr><td><strong>M2 — Everyday editing and language parity</strong></td><td>The Rust surface has the non-LSP editing tools people expect and the configured language set.</td><td>CED-R11–R14</td><td>Search, replace, wrap, comment, fold, indentation, bracket behavior and language fallback pass parity flows on the shared panel.</td></tr><tr><td><strong>M3 — LSP parity</strong></td><td>Diagnostics, hover, completion, navigation, rename, code actions and references work through Moonkale’s existing Rust LSP manager.</td><td>CED-R15–R18</td><td>LSP flows pass using the same fake/dummy server where possible and rust-analyzer E2E for wire/integration behavior. Missing server never blocks text editing.</td></tr><tr><td><strong>M4 — Moonkale context</strong></td><td>Markdown Source links, presence, shared cursor/word context and workspace navigation behave like the CodeMirror surface.</td><td>CED-R19–R21</td><td>Wiki, presence, search/trace reveal, multiple-window and external-edit flows pass; coordinate parity is verified for Unicode.</td></tr><tr><td><strong>M5 — Default cutover and retirement</strong></td><td>Rust becomes the only production code editor engine; stale CodeMirror-only switches, JS bundle and docs are removed or deliberately retained only for a separate view.</td><td>All MUST requirements; SHOULD decisions resolved</td><td>Desktop/web/Android acceptance, large-file and accessibility review, dependency/build-size review; then switch defaults and remove the old path.</td></tr></tbody></table></div>
+<p>These are feature milestones, not fixed calendar estimates. M0 and the chosen engine determine the size of M1–M2. M3/M4 can be prepared in parallel only after the event, selection and position contracts from M1 are stable. Do not default-switch on partial feature parity: that would make markdown source, LSP or search worse for users while the old implementation remains available.</p>
+<h2 id="milestone-detail">Milestone detail<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#milestone-detail" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<h3 id="m0--engine-and-seam-spike">M0 — Engine and seam spike<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m0--engine-and-seam-spike" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ol>
+<li>Assess the existing <code>dioxus-code-editor</code>, <code>editor-core</code> headless kernel, and at least one other Rust editor/view approach against the same must-haves: Rust-owned caret/selection; mouse and keyboard selection; IME/paste; local undo; minimal change batches; visible-range rendering for a large file; styling/decorations or an extension point; desktop/web target support and Android status. Record the comparison in <a href="../editors/Rust-Code-Editor-M0-Spike" class="internal alias" data-slug="editors/Rust-Code-Editor-M0-Spike">Rust Code Editor M0 Spike</a>.</li>
+<li>Prototype a Dioxus host backed by the selected Rust state engine, containing plain text, Rust and Markdown, including an emoji before the caret. Type, select with mouse, paste and undo; query selection from editor state (never the DOM selection API or <code>document::eval</code>); measure time from input to Workspace-equivalent document update.</li>
+<li>Measure initial asset/binary size and build time using the repository’s existing target/profile where possible. Check tree-sitter/Arborium features against <code>[[Core Languages]]</code>, native and wasm compilation, license, upstream maintenance and accessibility/input limitations.</li>
+<li>Write a short decision note or add the decision to this roadmap: selected engine, rejected alternatives, adapter boundary, known compromises, and follow-up questions. If no candidate passes, stop before M1 implementation and decide whether to extend/fork a Rust editor engine or build a smaller engine around an existing text-buffer/rendering library.</li>
+</ol>
+<p><strong>Exit criteria:</strong> The prototype demonstrates that keystrokes, cursor positions and local edits remain Rust-owned with no editor JavaScript bundle/eval. A “textarea with syntax-painted overlay” alone fails if it cannot provide the selection, decorations, and incremental changes required by the next milestones.</p>
+<p><strong>Current spike:</strong> <code>editor-core</code> 0.5.0 is selected as the M1 integration candidate, subject to completing the input-host gate. The standalone Dioxus surface renders 40-row snapshots and maps browser scrolling to the requested viewport; the latest Chromium fixture suite scrolls to row 100, reveals an offscreen cursor, and exercises Rust-owned editing, Shift+Arrow extension/contraction followed by resumed plain cursor movement, undo/redo, pointer drag, Unicode-aware hover/click mapping and synthetic composition events. The preceding Firefox run exhausted memory, so Chromium is the browser currently verified. Chromium also verifies copy, cut and paste from forward and backward Rust-owned selections; Dioxus Desktop serializes clipboard events without native data, so its spike routes Ctrl/Cmd+C/X/V through a persistent Rust <code>arboard</code> clipboard owner, pending manual KDE/Wayland runtime acceptance. The composition check proves event plumbing, not real OS IME behavior. A 3 MB kernel check verifies a one-character change delta and bounded viewport snapshot (0.17 s debug smoke run; not a latency benchmark), and model tests cover direction-independent multiline selection, grapheme movement over emoji and combining marks, and Unicode-width mouse hit testing. The WebAssembly runtime required a small vendored clock portability patch (<code>std::time::Instant</code> → <code>web_time::Instant</code>) for undo coalescing. Native and WebAssembly compilation pass. The candidate comparison now covers <code>freya_edit</code>/<code>freya-code-editor</code> and <code>kode-core</code>; Freya is retained as a behavior reference but its UI is a separate native framework. The prototype model is component-local; M1 must move state, undo and scroll ownership to a <code>NodeId</code>-keyed document/root store and test panel remounts. Before the Rust view is user-enabled, close the real IME path, native clipboard shortcuts, wrapped-row/touch hit testing, syntax decorations, external Workspace updates and Android feasibility; see <a href="../editors/Rust-Code-Editor-M0-Spike" class="internal alias" data-slug="editors/Rust-Code-Editor-M0-Spike">Rust Code Editor M0 Spike</a>.</p>
+<h3 id="m1--editing-foundation-concrete-implementation-plan">M1 — Editing foundation (concrete implementation plan)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m1--editing-foundation-concrete-implementation-plan" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><strong>Goal:</strong> Add a selectable Rust editor surface behind the current shared code-view panel. It edits the same <code>Workspace::Document</code> as CodeMirror, works for ordinary text and a small initial grammar set, and has reliable save/reload behavior. Keep CodeMirror as the default during this milestone so the new surface can be tested without taking away current LSP/wiki features.</p>
+<p><strong>Included:</strong> real editor-owned caret/selection and keyboard/pointer input; line numbers; theme integration; an initial explicit language-highlight set plus plain-text fallback; localized edit batches; undo/redo; document external-update path; Save, Reload, dirty state, focus, reveal; line wrap toggle if the selected engine supports it without blocking the vertical slice; responsive handling of a 3 MB text file.</p>
+<p><strong>Deferred from M1:</strong> LSP requests/decorations, find/replace, folding/comment commands, complete grammar coverage, wiki links, presence, and production-default switch. Those get proper independent milestones; M1 establishes the API they need.</p>
+<h4 id="implementation-sequence">Implementation sequence<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#implementation-sequence" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h4>
+<ol>
+<li>
+<p><strong>Lock the engine and event contract.</strong> Complete M0. Specify edit delta units/order, cursor coordinates, stable document identity, and request/lifecycle rules in Rust types. Prefer using the current <code>BackendEvent</code> concepts (<code>Ready</code>, <code>Failed</code>, edit delta, cursor) but do not preserve the imperative CodeMirror <code>eval</code> handle just for source compatibility. Keep LSP, <code>Workspace</code>, save and wiki logic outside the low-level editor.</p>
+<p><strong>Contract sketch:</strong> add a Rust-owned editor snapshot keyed by <code>NodeId</code> and an editor revision, plus events such as <code>Changed { base_revision, changes, selection }</code> and host commands for <code>ReplaceFromWorkspace</code>, <code>Focus</code>, <code>Undo</code>, <code>Redo</code>, <code>SetWrap</code> and <code>Reveal</code>. Each change uses explicitly named offsets/units. The host accepts a batch only for its expected revision; otherwise it resynchronizes from <code>Workspace::Document</code>. Keep this edit revision separate from the source/file version used by Save and conflict detection. Names may change with the engine, but stale edits must be detectable.</p>
+</li>
+<li>
+<p><strong>Add the Rust surface at the shared seam.</strong> Implement a Rust Dioxus component/internal editor module in <code>packages/code-view</code> or extract the existing native implementation into that crate. Have <code>CodeEditorPanel</code> select the Rust surface through a development/opt-in setting while CodeMirror remains the control/default. Avoid duplicating Save/Reload toolbar, dirty state, and document identity in a second extension.</p>
+</li>
+<li>
+<p><strong>Build the edit adapter.</strong> Convert editor-native transactions into localized changes and apply them to <code>Workspace::Document</code> safely. Reject invalid/out-of-order ranges without partially corrupting text; on divergence replace the view from the canonical document. Do not send the full text on every keystroke. External Rust text changes update the editor while retaining the selection/scroll where the edit allows.</p>
+</li>
+<li>
+<p><strong>Complete the base interaction loop.</strong> Render line numbers, current theme, selection/caret, text input and plain-text fallback. Wire focus, Ctrl/Cmd+S, undo/redo, Save, Reload, dirty indicator and workspace reveal. Keep the panel host’s lifecycle/readiness reliable on desktop WebView and browser.</p>
+</li>
+<li>
+<p><strong>Add an initial grammar slice.</strong> Support plain text and Rust first (the project’s main dogfooding language); add Markdown if needed for the shared Source mode in the same vertical slice. Confirm syntax highlighting is computed by Rust. Keep language id supplied by <code>Node::language_hint</code>; a missing or failing parser must not prevent editing.</p>
+</li>
+<li>
+<p><strong>Exercise real external changes.</strong> Verify reload/revert and a Rust-side replacement (test harness/fake event at the component boundary) update the mounted view. Confirm the user can continue editing after a missing LSP or parser, since neither service is a prerequisite in M1.</p>
+</li>
+<li>
+<p><strong>Measure and review.</strong> Compare 3 MB first-keystroke-to-dirty latency with the existing <code>highlight.mjs</code> fixture; retain its 1.5 s E2E upper bound and aim for the measured current ~87 ms Rust update on the same machine. Capture profile/target, size and measurement in the decision note. Keep the new implementation opt-in until M5.</p>
+</li>
+</ol>
+<p><strong>Likely code areas</strong> (final paths may follow the engine decision):</p>
+<ul>
+<li><code>packages/code-view/src/panel.rs</code>: shared toolbar, lifecycle, settings and backend selection.</li>
+<li><code>packages/code-view/src/backend/mod.rs</code>: stable Rust event/delta contract and conversions, or a replacement view-facing API if declarative Dioxus fits better.</li>
+<li>New <code>packages/code-view/src/backend/native.rs</code> or <code>packages/code-view/src/editor.rs</code>: engine adapter/component.</li>
+<li><code>packages/code-view/src/lsp.rs</code>: no feature expansion in M1; preserve current LSP manager unchanged.</li>
+<li><code>packages/editors/code-native/*</code>: migrate or remove duplicate panel code once shared; don’t silently strand the opt-in extension or language selection setting.</li>
+<li><code>packages/js/codemirror/*</code>: untouched during the pilot; remove only at M5 after no consumer remains.</li>
+</ul>
+<h4 id="m1-test-plan">M1 test plan<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m1-test-plan" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h4>
+<p>Follow the repository’s testing pyramid in <a href="../testing/Testing-Strategy" class="internal alias" data-slug="testing/Testing-Strategy">Testing Strategy</a> and <a href="../testing/How-to-Write-Tests" class="internal alias" data-slug="testing/How-to-Write-Tests">How to Write Tests</a>. Put deterministic text/position logic in unit tests; use component tests for render structure; reserve Playwright for actual pointer/keyboard, browser input, persistence and large-file integration. Avoid tests that assert engine-specific CSS/classes because the implementation is meant to be replaceable.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>ID / level</th><th>Scenario</th><th>Setup and action</th><th>Required assertion</th></tr></thead><tbody><tr><td>M1-U1 unit</td><td>Insert, replace, delete and adjacent edits</td><td>Apply a batch of deltas against a known old document</td><td>New text equals expected; order and pre-edit offset semantics are explicit.</td></tr><tr><td>M1-U2 unit</td><td>Invalid delta is atomic</td><td>Include out-of-range, reversed, overlapping (if unsupported), and stale-version changes</td><td>Reject/resync indication; original canonical text is unchanged.</td></tr><tr><td>M1-U3 unit</td><td>Unicode offset round-trip</td><td>Edit before/after <code>😀</code>, combining <code>é</code>, accented BMP text, tabs and newlines; probe end-of-line/end-of-file</td><td>No panic or split surrogate; resulting text and caret/LSP coordinates match the declared conversion contract.</td></tr><tr><td>M1-U4 unit</td><td>Line/column conversion</td><td>Empty text, first/last column, LF and CRLF, multiline plus non-BMP characters</td><td>Stable zero-based position round trip; clamp/reject out-of-range consistently.</td></tr><tr><td>M1-U5 unit</td><td>External change reconciliation</td><td>Apply insertion before caret and replacement intersecting selection</td><td>Selection/scroll mapping follows the documented policy; no duplicate delta/dirty event.</td></tr><tr><td>M1-C1 component</td><td>Base editor renders</td><td>Render with document title, text, language, theme and wrap props in a <code>VirtualDom</code>/SSR harness</td><td>Editor host and accessible label exist; toolbar shows path, language/version, Save/Reload and dirty state; plain-text config is valid. Do not assert CodeMirror-specific markup.</td></tr><tr><td>M1-C2 component</td><td>Missing grammar is nonfatal</td><td>Render unknown language id or parser fallback</td><td>Plain text remains editable; component does not render an error/loading trap.</td></tr><tr><td>M1-C3 component</td><td>Mount failure path</td><td>Feed a controlled failing adapter/event in the seam harness</td><td>User-visible error state; save/reload and closing the panel remain available.</td></tr><tr><td>M1-E1 Playwright</td><td>Type and save a real file</td><td>Use disposable folder and <code>main.rs</code>; open with Rust implementation, type text, Ctrl/Cmd+S</td><td>Dirty marker appears after input; disk contains the edit; dirty marker clears only after successful save.</td></tr><tr><td>M1-E2 Playwright</td><td>Reload/revert</td><td>Save known file, make in-view unsaved edit, choose Reload</td><td>View and Workspace text equal disk; document returns clean; no second edit is emitted.</td></tr><tr><td>M1-E3 Playwright</td><td>Rust-originated edit while mounted</td><td>Send a test-only Workspace document replacement (or drive an existing replace flow) while view is open</td><td>View converges to canonical text; caret is retained if before/after the changed span; view does not overwrite the external value.</td></tr><tr><td>M1-E4 Playwright</td><td>Pointer selection and clipboard/input</td><td>Click a middle position, select range, paste, undo/redo</td><td>Correct range changes; Rust document and view agree; undo/redo restore expected text. Include emoji before the selection.</td></tr><tr><td>M1-E5 Playwright</td><td>Large document</td><td>Reuse <code>highlight.mjs</code>’s 3 MB fixture; type one character at start</td><td>Dirty state reaches the shell within 1.5 s (existing suite ceiling); no whole-document event per key; record latency for comparison.</td></tr><tr><td>M1-MAN manual smoke</td><td>Native input</td><td>Desktop WebView: IME/composition, dead key, clipboard, focus switching and reopen; Android soft keyboard if engine claims mobile support</td><td>Text/caret behavior remains usable; no JS editor runtime/eval is needed; note target-specific failures.</td></tr></tbody></table></div>
+<p>M1 tests that can run in ordinary CI should avoid external language servers, display servers, and network access. The E2E large-file test should use the fixture and run on the normal web E2E path; a short manual native-input checklist is needed because Playwright does not prove OS IME behavior.</p>
+<h4 id="m1-implementation-record-2026-10-04">M1 implementation record (2026-10-04)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m1-implementation-record-2026-10-04" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h4>
+<p>The first opt-in vertical slice is implemented in <code>packages/code-view/src/native_panel.rs</code>; the CodeMirror surface remains the default. <code>packages/editors/code-native</code> is now a thin extension adapter to the shared component, and Markdown Source mode selects the Rust panel when <code>Workspace::editor_for(node)</code> is <code>native</code>. Rich Markdown mode is unchanged. See <a href="../editors/Rust-Code-Editor-Implementation" class="internal alias" data-slug="editors/Rust-Code-Editor-Implementation">Rust Code Editor Implementation</a> for code-level details and known gaps.</p>
+<p><strong>Implemented and verified:</strong> deterministic byte-range <code>TextEdit</code> generation/application and local undo/redo history; stale-range rejection; Unicode-safe UTF-8 slicing boundaries; Rust/Lean/Nix/Julia plus enabled grammar selection and unknown-language plain-text fallback; line numbers and theme selection; Workspace text update, dirty state, Save/Reload, shell Save/Undo/Redo/Close and editor switching; opt-in wiring for generic text and Markdown Source; active selection anchor/head reporting from both editor paths to Workspace; and UTF-16-aware <code>cursor_word()</code> after a non-BMP prefix. Unit tests cover edit/history, UTF-16 offset conversion and word lookup; the Playwright flow covers the Rust editor selection and CodeMirror selection reports as well as syntax, save/reload and switching.</p>
+<p><strong>M1 prototype is not an accepted engine:</strong> the selected <code>dioxus-code-editor</code> component is a controlled textarea with syntax-painted overlay, not a full editor core. Dioxus delivers the new full <code>String</code>; this adapter computes one minimal replacement in Rust, so input delivery and diffing remain O(document length). Both editor paths report selection anchor/head, but the Rust path uses Dioxus eval and browser owns the state. This fails M0’s editor-owned-state gate. External canonical text changes replace the displayed value and clear Workspace selection; caret/selection retention is not guaranteed. Virtualized rendering is not established. The 3 MB file met the 1.5 s E2E latency ceiling (870 ms on this run), but that does not establish virtualization or sustained typing performance. Clipboard, desktop WebView interaction and Android IME still need platform verification. Keep it opt-in while M0 is completed; do not expand M1 on this engine.</p>
+<p><strong>Test status:</strong> <code>cargo test -p moonkale-code-view -p moonkale-ext-api -p moonkale-editor-code-native -p moonkale-editor-markdown</code> passes (10 code-view tests, 20 ext-api unit tests plus integration/doc tests, and the Markdown test); <code>cargo check -p desktop --features desktop --bin moonkale</code>, CodeMirror <code>npm run build</code> and <code>npm run check</code> pass. The Playwright suite passed on 2026-10-04 against a Dioxus web server and disposable fixture: syntax tokens, edit/save, Unicode selected-range replacement and undo/redo, exact reload, backward-selection and keyboard selection reporting with an emoji prefix, selection ranges reported by both editor paths, selection clearing on reload and editor switch, non-transparent computed caret color, and 3 MB input-to-dirty in 870 ms. Unit coverage verifies UTF-16 offset conversion and word lookup after non-BMP text. Caret retention after external updates, native clipboard/IME, and component-level selection harness remain unverified.</p>
+<h4 id="m1-contract-and-workspace-ownership-2026-10-05">M1 contract and Workspace ownership (2026-10-05)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m1-contract-and-workspace-ownership-2026-10-05" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h4>
+<p><code>moonkale-ext-api::editor</code> now defines <code>EditorSnapshot</code>, a distinct editor revision, atomic localized UTF-8 byte-range <code>EditBatch</code> changes, UTF-16 selection/reveal coordinates, host commands, editor events, and stale/invalid rejection with a canonical snapshot. <code>Workspace::DocsState</code> owns each <code>RevisionedDocument</code> and its bounded forward/inverse undo transactions in a root-scoped map keyed by <code>NodeId</code>. <code>RustCodeEditorPanel</code> now submits its localized input diff as a batch, commits only against the matching Workspace base text, resyncs after rejection or divergence, and ignores late caret reports from older revisions. Reload and other external replacements invalidate the session history and selection. This contract step is connected through the existing textarea adapter; wiring <code>editor-core</code> native deltas and its caret/selection model remains future work. <code>cargo check -p moonkale-code-view --lib -p moonkale-ext-api</code> passes. No tests were added or run for this slice.</p>
+<h3 id="m2--everyday-editing-and-language-parity">M2 — Everyday editing and language parity<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m2--everyday-editing-and-language-parity" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ol>
+<li>Complete current CodeMirror language map, then add the missing <a href="../platform/Core-Languages" class="internal alias" data-slug="platform/Core-Languages">Core Languages</a> where the selected Rust grammar ecosystem supports them. Keep a single language-hint registry for highlighting and per-language optional metadata (comment syntax, indent, folds); do not conflate grammars with LSP server discovery.</li>
+<li>Implement bracket matching/closing, indent-on-input, toggle comments, fold gutter, fold/unfold all, selection match highlighting, soft wrap, and live theme update. Unknown languages remain plain text and no parser failure disables edits.</li>
+<li>Implement editor-local find/replace with Mod-F, Mod-H, next/previous, selection matching, and <code>EditorAction</code> entry points. All replacements use normal deltas to Workspace; do not implement workspace-wide search in this component.</li>
+<li>Verify keyboard and mouse paths, macOS Cmd vs other Ctrl primary modifiers, accessibility labels, paste/IME, long lines and large files.</li>
+</ol>
+<p><strong>Exit:</strong> code editor editing behavior is equivalent for configured Moonkale actions; tests cover each grammar capability as supported and explicit fallback for unsupported language operations.</p>
+<h3 id="m3--language-server-protocol">M3 — Language Server Protocol<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m3--language-server-protocol" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><strong>Diagnostics slice (2026-10-06):</strong> document synchronization and diagnostics now run through the shared manager in Rust views. Gutter markers, underlines and clickable messages are connected; versioned stale reports and empty publications are handled. Deterministic production-panel browser coverage passes for Unicode/CRLF positions and duplicate/remount lifecycle. Hover is now implemented with debounce, cancellation, UTF-16 coordinates, keyboard activation and stale-result handling. Completion now supports async suggestions, keyboard/mouse acceptance, stale-result cancellation and atomic text/additional edits. F12 definition now reveals same-file/folded targets and opens cross-file targets in the originating source, with stale-request and post-load guards. F2 rename now has a focused prompt, guarded multi-file staging, per-document undo, unsaved closed-file targets and LSP synchronization. Mod-. code actions now include diagnostic context, preferred/disabled entries, lazy resolve and guarded multi-file edits. Shift-F12 references list and reveal deduplicated same-file/folded/cross-file results. Live browser/native UI integration is now covered by the WP-03 acceptance record below; command-only server actions remain outside the shared client’s supported feature set. See <a href="../editors/Rust-Code-Editor-Implementation" class="internal alias" data-slug="editors/Rust-Code-Editor-Implementation">Rust Code Editor Implementation</a>.</p>
+<ol>
+<li>Preserve <code>LspManager</code> ownership/session lifecycle and the current per-language/per-folder sharing model. The editor requests work with stable IDs and zero-based line/UTF-16-column positions; the panel translates results only once.</li>
+<li>Add incoming diagnostic marks/gutter and readable message affordance; replace/clear marks when diagnostics update.</li>
+<li>Add hover request/result; asynchronous completion with item labels, kind, detail, insertion text, cancellation/stale-response behavior, keyboard accept/dismiss and mouse selection.</li>
+<li>Connect F12 definition (same-file caret vs cross-file open/reveal), F2 rename prompt, Mod-. code actions and Shift-F12 references to existing Rust <code>LspSession</code>/<code>apply_workspace_edit</code> flows.</li>
+<li>Keep editing fully available if no LSP is configured, fails to spawn, closes, or takes too long. Errors belong in status/panel feedback and must not freeze input.</li>
+</ol>
+<p><strong>Exit:</strong> reuse the current <code>lsp.mjs</code> and <code>lsp2.mjs</code> behavior scenarios with engine-neutral selectors; add a deterministic fake LSP session test for request positions, stale replies and returned edits.</p>
+<h3 id="m4--moonkale-context-and-shared-workspace">M4 — Moonkale context and shared workspace<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m4--moonkale-context-and-shared-workspace" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ol>
+<li>Feed <code>Workspace::cursor</code>/<code>cursor_word()</code> from the engine’s actual caret (not from guessed key events); use a throttle comparable to the current 250 ms report. Validate UTF-16 vs internal position conversion.</li>
+<li>Render presence marks by line and user initials; update on presence changes and document identity changes without remounting the editor. <strong>Implemented:</strong> native gutter subscribes to workspace presence, excludes this window and other files, and shows initials once per logical line with member names in the tooltip. Dedicated gutter space preserves line numbers, diagnostics and folding controls.</li>
+<li>Add Markdown Source wiki spans, resolved/unresolved styling, async <code>[[</code> candidate lookup, no duplicate close brackets, modifier-click following, and refresh when text/index epoch changes. <strong>Implemented:</strong> shared Rust lookup APIs drive native marks and completion; guarded follow/create preserves source identity and rejects stale navigation. Unicode/CRLF, index refresh, atomic completion undo and delayed-reply browser checks cover the native Markdown surface.</li>
+<li>Support shell reveal from search, trace, definition and other callers; selection and scroll are placed correctly. Exercise agent/reload/workspace replacement while open, multiple document tabs/windows, and panel moves/remounts. <strong>Browser integration covered:</strong> workspace API reveals use canonical text and UTF-16 coordinates; activation restores retained caret/word context; replacement, reload, dock moves and close/reopen ordering have deterministic coverage. Two browser windows exercise real session offers/acknowledgements. Only saved tabs are offered; unsaved edits remain in the origin even when added after an offer. Native OS gestures and platform acceptance remain gates; live-server UI evidence is recorded below.</li>
+</ol>
+<p><strong>Exit:</strong> current wiki, presence and reveal workflows pass on Rust editor, including non-BMP text preceding a wiki span or cursor.</p>
+<h3 id="m5--default-cutover-and-retirement">M5 — Default cutover and retirement<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#m5--default-cutover-and-retirement" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ol>
+<li>Run the full requirements matrix on Linux desktop, web and Android; explicitly record macOS/Windows limits where the repo does not test them. Validate IME, copy/paste, accessibility, theme changes and pointer selection on native targets. <strong>Partial acceptance (2026-10-07):</strong> live rust-analyzer protocol features and native XWayland typing/keyboard selection/forward-backward pointer dragging/Unicode clipboard/history/resized input pass. Cursor-word layout stays stable during selection. A default Dioxus native DOM/painting probe also passes without external renderer overrides; the current owned-window OS retry remains blocked by mapping. Combined native UI/live-server, default-configuration OS input, IME, accessibility and other platforms remain gates; see <a href="../editors/Rust-Code-Editor-Native-Acceptance" class="internal alias" data-slug="editors/Rust-Code-Editor-Native-Acceptance">Rust Code Editor Native Acceptance</a>.</li>
+<li>Benchmark representative small, 3 MB and large-source files; record typing latency, memory/rendering behavior, release binary size and clean/incremental build cost. Compare against the existing baseline under the same target/profile.</li>
+<li>Make the Rust implementation default only after M1–M4 exit criteria pass. Migrate the stored implementation setting (<code>codemirror</code>/<code>native</code>) and per-document choices safely; decide whether to keep one fallback release or remove the legacy choice.</li>
+<li>Remove CodeMirror-only backend code, <code>packages/js/codemirror</code>, generated bundle, dependencies, switch UI and obsolete language notes once there are no consumers. Keep Milkdown/xterm and other JS views untouched.</li>
+<li>Update <a href="../editors/Code-Editor" class="internal alias" data-slug="editors/Code-Editor">Code Editor</a>, <a href="../editors/Code-Editor-Implementations" class="internal alias" data-slug="editors/Code-Editor-Implementations">Code Editor Implementations</a>, <a href="../editors/Code-Editor-Requirements" class="internal alias" data-slug="editors/Code-Editor-Requirements">Code Editor Requirements</a>, <a href="../Status" class="internal" data-slug="Status">Status</a>, crate implementation notes and E2E docs to reflect what is actually built; delete obsolete claims only after verifying call sites.</li>
+</ol>
+<p><strong>Exit:</strong> no default or Markdown Source path loads CodeMirror; CI/build has no code-editor JS package; docs and settings agree with shipped behavior.</p>
+<h2 id="cross-milestone-risks-and-decisions">Cross-milestone risks and decisions<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#cross-milestone-risks-and-decisions" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>View-layer preparation for ADR-0017 is tracked in <a href="../editors/Rust-Code-Editor-Live-Preview-Plan" class="internal alias" data-slug="editors/Rust-Code-Editor-Live-Preview-Plan">Rust Code Editor Live Preview Plan</a>. It preserves the uniform code-layout fast path while planning variable row heights, proportional geometry and shared decorations. Markdown live preview itself is deferred.</p>
+<p>The uniform geometry boundary and variable-height index are implemented. A feature-gated host fixture verifies taller text rows, anchored blocks, scrolling, reveal, remount, resize and folding. Fixture widget measurements reject stale results, and retained source anchors support view-only rewrap and fractional remount restoration. Search, diagnostics and wiki marks now use a shared revision-bound decoration interface. A bounded proportional geometry fixture now passes browser and native WebKit DOM/layout checks through one Range adapter. A bounded, feature-gated proportional run now uses virtualized source rows, decorated spans and existing Workspace history. Measured Up/Down and Shift selection now retain a pixel column within the bounded line. Visual Home/End with wrap affinity and pixel-column transitions to ordinary rows are implemented in the opt-in fixture. Font generations, delayed/failed/preloaded font changes and resize/caret stability are verified in browser and native DOM fixtures. Whole-document pixel wrapping and real OS/IME acceptance remain; replacement/widget rendering and markdown providers remain deferred.</p>
+<ul>
+<li><strong>The engine choice is the critical path.</strong> A textarea offers input/IME but does not itself expose an editor-owned cursor/selection, virtualized lines, folding or decorations. A richer editor core may have less Dioxus integration or a larger binary. Measure instead of selecting from crate descriptions alone.</li>
+<li><strong>Coordinates are easy to get subtly wrong.</strong> CodeMirror offsets are UTF-16; Rust strings are UTF-8; Unicode scalar/grapheme cursor movement is a third concern. Keep separate types/names and test conversions before LSP and wiki integration.</li>
+<li><strong>External updates compete with local history.</strong> Define whether an incoming edit maps selection and becomes an undo boundary. Agent/LSP replacements must not be echoed as unrelated user edits or overwrite newer local edits.</li>
+<li><strong>Feature and language lists are not the same thing.</strong> Syntax grammar presence does not guarantee LSP, folding, indentation or comment support. Represent each capability independently and communicate plain-text fallback clearly.</li>
+<li><strong>Test selectors must be engine-neutral.</strong> Existing E2E scripts inspect <code>.cm-*</code> elements. M1 should introduce stable semantic hooks (for example <code>data-editor</code>, accessibility roles and document labels); migrate shared workflows before deleting the old DOM.</li>
+<li><strong>Web success is not native input parity.</strong> Validate WebView composition, clipboard and Android soft keyboard before making the Rust view the only default.</li>
+</ul>
+<h2 id="test-portfolio-by-milestone">Test portfolio by milestone<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#test-portfolio-by-milestone" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Milestone</th><th>Unit/component</th><th>Integration/E2E</th><th>Manual/platform</th></tr></thead><tbody><tr><td>M0</td><td>Offset/delta prototype checks; no permanent engine tests until selected</td><td>Render + edit prototype on web and desktop</td><td>Input, IME, selection and scroll on desktop; Android feasibility</td></tr><tr><td>M1</td><td>Delta application, coordinate conversions, failure/fallback and render structure</td><td>Save/reload, external update, input, 3 MB responsive typing</td><td>Desktop WebView IME/clipboard; Android input smoke</td></tr><tr><td>M2</td><td>Search query/replace range logic, language capability registry, fold/comment metadata</td><td>Search/replace, wrap setting, grammar matrix and fallback</td><td>Keyboard layout/modifier check on Apple if available</td></tr><tr><td>M3</td><td>Position translation, diagnostic replacement, request-id/stale-result behavior</td><td>Existing LSP + refactor flows with rust-analyzer; fake server for deterministic cases</td><td>LSP startup failure and slow server behavior</td></tr><tr><td>M4</td><td>Wiki span remapping, candidate response correlation, presence formatting</td><td>Wiki, presence, reveal, multi-window, agent/external edit</td><td>Cross-window drag/reveal if supported</td></tr><tr><td>M5</td><td>No-JS/dependency boundary and settings migration</td><td>Full web E2E suite, release builds and target checks</td><td>Desktop and Android acceptance; accessibility/input review</td></tr></tbody></table></div>
+<h2 id="related-decisions">Related decisions<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#related-decisions" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>This plan depends on the replacement requirements in <a href="../editors/Code-Editor-Requirements" class="internal alias" data-slug="editors/Code-Editor-Requirements">Code Editor Requirements</a>, current implementation notes in <code>packages/code-view</code> and <code>packages/editors/code-native</code>, the layer/testing guidance in <a href="../architecture/Project-Structure" class="internal alias" data-slug="architecture/Project-Structure">Project Structure</a> and <a href="../testing/Testing-Strategy" class="internal alias" data-slug="testing/Testing-Strategy">Testing Strategy</a>, and the documented language set in <a href="../platform/Core-Languages" class="internal alias" data-slug="platform/Core-Languages">Core Languages</a>. Do not update the general product milestone numbering: this is a <strong>code editor sub-roadmap</strong>.</p>
+<h3 id="bounded-private-cache-follow-up--2026-10-15">Bounded private-cache follow-up — 2026-10-15<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#bounded-private-cache-follow-up--2026-10-15" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>With master <code>0aef7472</code> (private persistent cache/data/config homes), the release fixture was rebuilt. One three-case wheel warm-up attempt and one full 21-case guarded attempt both aborted before launching a case: aggregate CPU never met two consecutive <span>⇐</span>10% samples in six attempts. No cache-warm comparison or new frame result is available; neither attempt proves or disproves removal of the prior210ms preview-wheel pause. Raw preflight samples and logs: <code>/tmp/moonkale-next3-{warmup,desktop}*</code>. No further headless gate iteration is planned in this run. The real GPU/desktop check remains Daniel’s final acceptance; its commands, files, seven gestures and strict versus calibrated criteria are in the coordinator handoff. WP-03 proceeds through its own milestone gates while this desktop acceptance remains explicitly open.</p>
+<h3 id="wp-03--m3-integration-acceptance-2026-10-15">WP-03 — M3 integration acceptance (2026-10-15)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-03--m3-integration-acceptance-2026-10-15" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>The existing M3 implementation now has a shared live-server UI gate rather than
+separate protocol-only evidence. <code>lsp.mjs</code> and <code>lsp2.mjs</code> select Rust with
+<code>LSP_EDITOR=native</code> and CodeMirror with <code>LSP_EDITOR=codemirror</code>, using the same
+scenarios and an engine adapter. Hover and F12 websocket requests are checked
+against canonical UTF-16 positions after an emoji/CJK comment in CRLF source.
+Diagnostics/save-to-clear, completion, unsaved rename, stale-prompt rejection,
+reference reveal and lazy edit-based code actions are exercised through the UI.</p>
+<p>The desktop fixture also has an explicit live-server mode and an owned-display
+runner, <code>native-editor-live-lsp.py</code>. Native GTK WebKit passes diagnostics, hover,
+F12, F2 rename, Shift-F12 references, extract-variable code action and completion
+against rust-analyzer 1.98.1. Its report retains original/final CRLF text and user
+agent; disk bytes stay unchanged. This closes the earlier <strong>native UI + live LSP</strong>
+integration gap. It uses DOM events, so physical input/IME acceptance remains a
+separate check. No production editor behavior or default changes in this step.</p>
+<p>Command-only server actions remain unsupported by both implementations. The shared
+client filters them; declared edits and lazy edit resolution retain existing
+behavior, without executing <code>workspace/executeCommand</code>. This is the current parity
+boundary, not a new permission to execute commands. Server-command support is a
+separate feature, not a reason to bypass the M5 gates.</p>
+<p>The latest release web frame evidence remains the unchanged 21/21 strict matrix
+above (p95 about 16.67 ms, max 33.33 ms); this test-only work does not change the
+production render/input path. Daniel’s physical-desktop frame check remains open,
+so functional LSP acceptance does not close CED-R22 or authorize default cutover.</p>
+<h3 id="wp-03--remaining-default-cutover-gates">WP-03 — remaining default-cutover gates<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-03--remaining-default-cutover-gates" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Gate</th><th>Evidence / required next action</th></tr></thead><tbody><tr><td>M3 functional parity</td><td>Shared fake-server regressions, real-server protocol and browser/native UI checks; exact commands in the E2E README.</td></tr><tr><td>M4 context</td><td>Existing Rust wiki, presence, Unicode caret/word, reveal/replacement/remount and real two-browser-window scenarios; retain their native OS gesture limitation.</td></tr><tr><td>CED-R22 desktop</td><td>Daniel’s physical GPU/session 21-case check, including the preview-wheel pause. Do not repeat WP-02 headless profiling.</td></tr><tr><td>Native input and accessibility</td><td>Earlier Linux OS/IME evidence is in <a href="../editors/Rust-Code-Editor-Native-Acceptance" class="internal alias" data-slug="editors/Rust-Code-Editor-Native-Acceptance">Rust Code Editor Native Acceptance</a>. Chromium keyboard/AX and native AT-SPI semantics now pass; bounded-context and spoken-reader/platform limits are in <a href="../editors/Rust-Code-Editor-Accessibility-and-Cutover" class="internal alias" data-slug="editors/Rust-Code-Editor-Accessibility-and-Cutover">Rust Code Editor Accessibility and Cutover</a>.</td></tr><tr><td>Android</td><td>Integrated editing, IME, clipboard, selection, source/wiki and LSP availability smoke remain unaccepted. No device run in this step.</td></tr><tr><td>M5 size/build/dependencies</td><td>Reproducible build/size evidence, tested one-setting migration and the conditional retirement plan are in <a href="../editors/Rust-Code-Editor-Accessibility-and-Cutover" class="internal alias" data-slug="editors/Rust-Code-Editor-Accessibility-and-Cutover">Rust Code Editor Accessibility and Cutover</a>. Default flip remains gated.</td></tr></tbody></table></div>
+<p>Rust remains opt-in. Keep CodeMirror and its settings/bundle until M5; do not treat
+partial platform evidence as permission to remove the fallback. macOS and Windows
+remain explicitly unverified here. P-198 records this acceptance work; ADR-0029 remains unused.</p>
+<p>WP-03 regression verification: all eleven selected Chromium production-panel
+suites pass: <code>native-editor-{diagnostics,hover,completion,definition,rename,tools, wiki,presence,integration,windows,workspace}.mjs</code>. The M4 subset covers Unicode
+caret/word context, presence identity/lifecycle, wiki stale replies, reveal,
+external replacement/reload, dock remount and actual two-browser-window offers
+without moving unsaved buffers. Logs: <code>target/wp03-e2e/{suite}.log</code> and
+<code>/tmp/moonkale-wp03-fake-checks.log</code>. These are browser context gates, not native
+window-manager gesture or cross-platform acceptance. All AGENTS.md repository
+gates pass (671 tests including doctests); desktop fixture Clippy/build also pass.</p>
+<p>The final shared live browser matrix passes all four runs: <code>lsp</code> and <code>lsp2</code> on
+Rust and on the CodeMirror control (Firefox, unchanged release web host). Both
+save flows verify exact CRLF bytes. Matrix log: <code>/tmp/moonkale-wp03-lsp.log</code>.</p>
+<h3 id="next-4--accessibility-and-prepared-cutover-2026-10-15">NEXT-4 — accessibility and prepared cutover (2026-10-15)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#next-4--accessibility-and-prepared-cutover-2026-10-15" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><a href="../editors/Rust-Code-Editor-Accessibility-and-Cutover" class="internal alias" data-slug="editors/Rust-Code-Editor-Accessibility-and-Cutover">Rust Code Editor Accessibility and Cutover</a> is the M5 acceptance record and
+conditional retirement plan. The Rust surface now has one file-named editable
+input, bounded canonical live caret/selection context, keyboard Tab-focus mode,
+keyboard link/image following and hover focus return, visible token-based focus and
+reduced-motion rules. Actual Chromium AX and native GTK WebKit AT-SPI tree checks
+pass; this is not a spoken-reader transcript or a full editable-text document API.
+The sampled built-in source contrast minima are 5.54:1 light and 4.58:1 dark.</p>
+<p>The existing <code>editor.implementation</code> setting now suffices to activate Rust unless
+explicitly disabled. Resolution preserves raw settings; explicit per-document
+fallback stays effective. Full-app migration verifies unsaved buffers, active
+canonical UTF-16 selection, exact CRLF/Unicode saves and restored saved tabs.
+<code>settings::DEFAULT_CODE_EDITOR</code> centralizes the future default, including minimal
+distributions and native adapter activation. It remains <strong>codemirror</strong>, with a
+deliberate guard test. No CodeMirror consumer, asset or fallback is removed.</p>
+<p>The latest NEXT-4 strict release-web matrix is 20/21: preview-on scrollbar
+dragging measured p95/max33.335ms. Keep this failure distinct from the earlier
+21/21 WP-02 run. No new physical-desktop acceptance is claimed.</p>
+<p>NEXT-5 reproduces that failure, isolates the ancestor focus outline with a
+Chromium profile and same-build CSS comparison, and replaces it with a reserved
+transparent border whose color changes on focus. The rebuilt strict release-web
+matrix passes <strong>21/21</strong>: every p95 <span>⇐</span>16.670 ms; largest frame 33.335 ms; preview
+scrollbar p95/max 16.670/33.335 ms. Raw
+<code>target/next5-fps-final/editor-fps.json</code>; Chromium153.0.8010.12, bench lock and both
+heavy slots held, bounded quiet-CPU preflight recorded. First-drag resets are
+preserved. Keyboard/native focus checks verify the border, and no accessibility
+context or selection restoration is removed. Desktop/Android gates stay open.</p>
+<p>Build/size measurements, complete test commands, remaining device/frame checks
+and the staged zero-consumer retirement audit live in the acceptance record.
+Daniel’s physical-desktop CED-R22 matrix and Android acceptance remain required
+before flipping the default. macOS/Windows remain explicitly unverified.</p></article><hr/><div class="page-footer"></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-82" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#wp-69--compact-toolbar-2026-10-17" data-for="wp-69--compact-toolbar-2026-10-17">WP-69 — compact toolbar (2026-10-17)</a></li><li class="depth-0"><a href="#m2-progress--local-searchreplace" data-for="m2-progress--local-searchreplace">M2 progress — local search/replace</a></li><li class="depth-0"><a href="#latest-integration-update--2026-10-05" data-for="latest-integration-update--2026-10-05">Latest integration update — 2026-10-05</a></li><li class="depth-0"><a href="#desktop-measurement-and-highlighting-update--2026-10-15" data-for="desktop-measurement-and-highlighting-update--2026-10-15">Desktop measurement and highlighting update — 2026-10-15</a></li><li class="depth-0"><a href="#performance-target--60-fps-ced-r22-2026-10-14" data-for="performance-target--60-fps-ced-r22-2026-10-14">Performance target — 60 FPS (CED-R22, 2026-10-14)</a></li><li class="depth-1"><a href="#frame-benchmark-progress--2026-10-14" data-for="frame-benchmark-progress--2026-10-14">Frame benchmark progress — 2026-10-14</a></li><li class="depth-0"><a href="#delivery-shape" data-for="delivery-shape">Delivery shape</a></li><li class="depth-0"><a href="#milestone-detail" data-for="milestone-detail">Milestone detail</a></li><li class="depth-1"><a href="#m0--engine-and-seam-spike" data-for="m0--engine-and-seam-spike">M0 — Engine and seam spike</a></li><li class="depth-1"><a href="#m1--editing-foundation-concrete-implementation-plan" data-for="m1--editing-foundation-concrete-implementation-plan">M1 — Editing foundation (concrete implementation plan)</a></li><li class="depth-1"><a href="#m2--everyday-editing-and-language-parity" data-for="m2--everyday-editing-and-language-parity">M2 — Everyday editing and language parity</a></li><li class="depth-1"><a href="#m3--language-server-protocol" data-for="m3--language-server-protocol">M3 — Language Server Protocol</a></li><li class="depth-1"><a href="#m4--moonkale-context-and-shared-workspace" data-for="m4--moonkale-context-and-shared-workspace">M4 — Moonkale context and shared workspace</a></li><li class="depth-1"><a href="#m5--default-cutover-and-retirement" data-for="m5--default-cutover-and-retirement">M5 — Default cutover and retirement</a></li><li class="depth-0"><a href="#cross-milestone-risks-and-decisions" data-for="cross-milestone-risks-and-decisions">Cross-milestone risks and decisions</a></li><li class="depth-0"><a href="#test-portfolio-by-milestone" data-for="test-portfolio-by-milestone">Test portfolio by milestone</a></li><li class="depth-0"><a href="#related-decisions" data-for="related-decisions">Related decisions</a></li><li class="depth-1"><a href="#bounded-private-cache-follow-up--2026-10-15" data-for="bounded-private-cache-follow-up--2026-10-15">Bounded private-cache follow-up — 2026-10-15</a></li><li class="depth-1"><a href="#wp-03--m3-integration-acceptance-2026-10-15" data-for="wp-03--m3-integration-acceptance-2026-10-15">WP-03 — M3 integration acceptance (2026-10-15)</a></li><li class="depth-1"><a href="#wp-03--remaining-default-cutover-gates" data-for="wp-03--remaining-default-cutover-gates">WP-03 — remaining default-cutover gates</a></li><li class="depth-1"><a href="#next-4--accessibility-and-prepared-cutover-2026-10-15" data-for="next-4--accessibility-and-prepared-cutover-2026-10-15">NEXT-4 — accessibility and prepared cutover (2026-10-15)</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../Status" class="internal">Status</a></li><li><a href="../decisions/ADR-0023-Native-editor-frame-measurements" class="internal">ADR-0023 Native editor frame measurements</a></li><li><a href="../editors/Code-Editor-Requirements" class="internal">Code Editor Replacement Requirements</a></li><li><a href="../editors/Code-Editor" class="internal">Code Editor</a></li><li><a href="../editors/Rust-Code-Editor-Accessibility-and-Cutover" class="internal">Rust Code Editor Accessibility and Cutover</a></li><li><a href="../editors/Rust-Code-Editor-Implementation" class="internal">Rust Code Editor Implementation</a></li><li><a href="../editors/Rust-Code-Editor-Live-Preview-Plan" class="internal">Rust Code Editor Live Preview Plan</a></li><li><a href="../problems/P-198-Rust-editor-accessibility-and-backend-activation" class="internal">P-198 — Rust editor accessibility and backend activation</a></li><li><a href="../problems/P-211-Preview-row-queries-and-folding-repeated-full-text-work" class="internal">P-211 — Preview row queries and folding repeated full text work</a></li><li><a href="../problems/Work-Packages" class="internal">Work Packages</a></li><li><a href="../specifications/README" class="internal">Specifications — small requests and bugs</a></li><li><a href="../testing/Benchmarks" class="internal">Benchmarks — what to measure, how, and against which budget</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>

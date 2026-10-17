@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Input layouts — the five-button mouse, keymap presets, and keyboards other than US</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Input layouts — the five-button mouse, keymap presets, and keyboards other than US"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Input layouts — the five-button mouse, keymap presets, and keyboards other than US"/><meta name="twitter:description" content="Developers using Moonkale are assumed to have at least a five-button mouse, for full functionality (Daniel, 2026-10-14; spec 025 becomes a requirement). The default mouse map, an extended map for gamer mice with more buttons (through F13–F24), keymap presets to choose from (Moonkale, VS Code, JetBrains, Vim, Emacs, Obsidian, and a left-hand layout for mouse-heavy graph work), and correct shortcuts on QWERTZ, AZERTY, Dvorak and other layouts."/><meta property="og:description" content="Developers using Moonkale are assumed to have at least a five-button mouse, for full functionality (Daniel, 2026-10-14; spec 025 becomes a requirement). The default mouse map, an extended map for gamer mice with more buttons (through F13–F24), keymap presets to choose from (Moonkale, VS Code, JetBrains, Vim, Emacs, Obsidian, and a left-hand layout for mouse-heavy graph work), and correct shortcuts on QWERTZ, AZERTY, Dvorak and other layouts."/><meta property="og:image:alt" content="Developers using Moonkale are assumed to have at least a five-button mouse, for full functionality (Daniel, 2026-10-14; spec 025 becomes a requirement). The default mouse map, an extended map for gamer mice with more buttons (through F13–F24), keymap presets to choose from (Moonkale, VS Code, JetBrains, Vim, Emacs, Obsidian, and a left-hand layout for mouse-heavy graph work), and correct shortcuts on QWERTZ, AZERTY, Dvorak and other layouts."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/platform/Input-Layouts"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/platform/Input-Layouts"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Developers using Moonkale are assumed to have at least a five-button mouse, for full functionality (Daniel, 2026-10-14; spec 025 becomes a requirement). The default mouse map, an extended map for gamer mice with more buttons (through F13–F24), keymap presets to choose from (Moonkale, VS Code, JetBrains, Vim, Emacs, Obsidian, and a left-hand layout for mouse-heavy graph work), and correct shortcuts on QWERTZ, AZERTY, Dvorak and other layouts."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS9xdWFydHovY29tcG9uZW50cy9zdHlsZXMiLCJzb3VyY2VzIjpbIm1lcm1haWQuaW5saW5lLnNjc3MiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUE7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTtFQUNBOztBQUdGO0VBQ0U7OztBQUtGO0VBQ0U7RUFDQTs7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7O0FBR0Y7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTtFQUNBOztBQUlKO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFOztBQUlGO0VBQ0U7RUFDQTtFQUNBIiwic291cmNlc0NvbnRlbnQiOlsiLmV4cGFuZC1idXR0b24ge1xuICBwb3NpdGlvbjogYWJzb2x1dGU7XG4gIGRpc3BsYXk6IGZsZXg7XG4gIGZsb2F0OiByaWdodDtcbiAgcGFkZGluZzogMC40cmVtO1xuICBtYXJnaW46IDAuM3JlbTtcbiAgcmlnaHQ6IDA7IC8vIE5PVEU6IHJpZ2h0IHdpbGwgYmUgc2V0IGluIG1lcm1haWQuaW5saW5lLnRzXG4gIGNvbG9yOiB2YXIoLS1ncmF5KTtcbiAgYm9yZGVyLWNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICBib3JkZXI6IDFweCBzb2xpZDtcbiAgYm9yZGVyLXJhZGl1czogNXB4O1xuICBvcGFjaXR5OiAwO1xuICB0cmFuc2l0aW9uOiAwLjJzO1xuXG4gICYgPiBzdmcge1xuICAgIGZpbGw6IHZhcigtLWxpZ2h0KTtcbiAgICBmaWx0ZXI6IGNvbnRyYXN0KDAuMyk7XG4gIH1cblxuICAmOmhvdmVyIHtcbiAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgYm9yZGVyLWNvbG9yOiB2YXIoLS1zZWNvbmRhcnkpO1xuICB9XG5cbiAgJjpmb2N1cyB7XG4gICAgb3V0bGluZTogMDtcbiAgfVxufVxuXG5wcmUge1xuICAmOmhvdmVyID4gLmV4cGFuZC1idXR0b24ge1xuICAgIG9wYWNpdHk6IDE7XG4gICAgdHJhbnNpdGlvbjogMC4ycztcbiAgfVxufVxuXG4jbWVybWFpZC1jb250YWluZXIge1xuICBwb3NpdGlvbjogZml4ZWQ7XG4gIGNvbnRhaW46IGxheW91dDtcbiAgei1pbmRleDogOTk5O1xuICBsZWZ0OiAwO1xuICB0b3A6IDA7XG4gIHdpZHRoOiAxMDB2dztcbiAgaGVpZ2h0OiAxMDB2aDtcbiAgb3ZlcmZsb3c6IGhpZGRlbjtcbiAgZGlzcGxheTogbm9uZTtcbiAgYmFja2Ryb3AtZmlsdGVyOiBibHVyKDRweCk7XG4gIGJhY2tncm91bmQ6IHJnYmEoMCwgMCwgMCwgMC41KTtcblxuICAmLmFjdGl2ZSB7XG4gICAgZGlzcGxheTogaW5saW5lLWJsb2NrO1xuICB9XG5cbiAgJiA+ICNtZXJtYWlkLXNwYWNlIHtcbiAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgIGJhY2tncm91bmQtY29sb3I6IHZhcigtLWxpZ2h0KTtcbiAgICBib3JkZXItcmFkaXVzOiA1cHg7XG4gICAgcG9zaXRpb246IGZpeGVkO1xuICAgIHRvcDogNTAlO1xuICAgIGxlZnQ6IDUwJTtcbiAgICB0cmFuc2Zvcm06IHRyYW5zbGF0ZSgtNTAlLCAtNTAlKTtcbiAgICBoZWlnaHQ6IDgwdmg7XG4gICAgd2lkdGg6IDgwdnc7XG4gICAgb3ZlcmZsb3c6IGhpZGRlbjtcblxuICAgICYgPiAubWVybWFpZC1jb250ZW50IHtcbiAgICAgIHBvc2l0aW9uOiByZWxhdGl2ZTtcbiAgICAgIHRyYW5zZm9ybS1vcmlnaW46IDAgMDtcbiAgICAgIHRyYW5zaXRpb246IHRyYW5zZm9ybSAwLjFzIGVhc2U7XG4gICAgICBvdmVyZmxvdzogdmlzaWJsZTtcbiAgICAgIG1pbi1oZWlnaHQ6IDIwMHB4O1xuICAgICAgbWluLXdpZHRoOiAyMDBweDtcblxuICAgICAgcHJlIHtcbiAgICAgICAgbWFyZ2luOiAwO1xuICAgICAgICBib3JkZXI6IG5vbmU7XG4gICAgICB9XG5cbiAgICAgIHN2ZyB7XG4gICAgICAgIG1heC13aWR0aDogbm9uZTtcbiAgICAgICAgaGVpZ2h0OiBhdXRvO1xuICAgICAgfVxuICAgIH1cblxuICAgICYgPiAubWVybWFpZC1jb250cm9scyB7XG4gICAgICBwb3NpdGlvbjogYWJzb2x1dGU7XG4gICAgICBib3R0b206IDIwcHg7XG4gICAgICByaWdodDogMjBweDtcbiAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICBnYXA6IDhweDtcbiAgICAgIHBhZGRpbmc6IDhweDtcbiAgICAgIGJhY2tncm91bmQ6IHZhcigtLWxpZ2h0KTtcbiAgICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgICBib3JkZXItcmFkaXVzOiA2cHg7XG4gICAgICBib3gtc2hhZG93OiAwIDJweCA0cHggcmdiYSgwLCAwLCAwLCAwLjEpO1xuICAgICAgei1pbmRleDogMjtcblxuICAgICAgLm1lcm1haWQtY29udHJvbC1idXR0b24ge1xuICAgICAgICBkaXNwbGF5OiBmbGV4O1xuICAgICAgICBhbGlnbi1pdGVtczogY2VudGVyO1xuICAgICAgICBqdXN0aWZ5LWNvbnRlbnQ6IGNlbnRlcjtcbiAgICAgICAgd2lkdGg6IDMycHg7XG4gICAgICAgIGhlaWdodDogMzJweDtcbiAgICAgICAgcGFkZGluZzogMDtcbiAgICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgICBjb2xvcjogdmFyKC0tZGFyayk7XG4gICAgICAgIGJvcmRlci1yYWRpdXM6IDRweDtcbiAgICAgICAgY3Vyc29yOiBwb2ludGVyO1xuICAgICAgICBmb250LXNpemU6IDE2cHg7XG4gICAgICAgIGZvbnQtZmFtaWx5OiB2YXIoLS1ib2R5Rm9udCk7XG4gICAgICAgIHRyYW5zaXRpb246IGFsbCAwLjJzIGVhc2U7XG5cbiAgICAgICAgJjpob3ZlciB7XG4gICAgICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgICAgfVxuXG4gICAgICAgICY6YWN0aXZlIHtcbiAgICAgICAgICB0cmFuc2Zvcm06IHRyYW5zbGF0ZVkoMXB4KTtcbiAgICAgICAgfVxuXG4gICAgICAgIC8vIFN0eWxlIHRoZSByZXNldCBidXR0b24gZGlmZmVyZW50bHlcbiAgICAgICAgJjpudGgtY2hpbGQoMikge1xuICAgICAgICAgIHdpZHRoOiBhdXRvO1xuICAgICAgICAgIHBhZGRpbmc6IDAgMTJweDtcbiAgICAgICAgICBmb250LXNpemU6IDE0cHg7XG4gICAgICAgIH1cbiAgICAgIH1cbiAgICB9XG4gIH1cbn1cbiJdfQ== */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="platform/Input-Layouts"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-298"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-298" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../platform/">platform</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Input layouts — the five button mouse, keymap presets, and keyboards other than US</a></div></nav><h1 class="article-title">Input layouts — the five-button mouse, keymap presets, and keyboards other than US</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-14T18:35:19.000Z">Oct 14, 2026</time><span>7 min read</span></p><ul class="tags"><li><a href="../tags/platform" class="internal tag-link">platform</a></li><li><a href="../tags/input" class="internal tag-link">input</a></li><li><a href="../tags/keybindings" class="internal tag-link">keybindings</a></li><li><a href="../tags/mouse" class="internal tag-link">mouse</a></li><li><a href="../tags/spec" class="internal tag-link">spec</a></li><li><a href="../tags/planned" class="internal tag-link">planned</a></li></ul></div></div><article class="popover-hint"><p><strong>From Daniel (2026-10-14):</strong> assume developers in Moonkale have at least a five-key gamer mouse for full functionality, and suggest multiple key layouts. Spec <a href="../specifications/025" class="internal" data-slug="specifications/025">025</a> (documented 2026-09-22) described the five-button mouse; this page makes it a requirement and adds the layouts.</p>
+<p><strong>Two-button users keep everything reachable:</strong> every mouse action has a keyboard shortcut and a menu entry. Five buttons make Moonkale <em>faster</em>, never <em>possible</em>.</p>
+<h2 id="1-the-mouse">1. The mouse<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#1-the-mouse" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<h3 id="five-buttons-the-default-map">Five buttons: the default map<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#five-buttons-the-default-map" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Button</th><th>Default</th><th>Where</th></tr></thead><tbody><tr><td>Left</td><td>select, drag, open</td><td>everywhere</td></tr><tr><td>Right</td><td>context menu (it lists the double-click actions of spec <a href="../specifications/024" class="internal" data-slug="specifications/024">024</a>, so nothing hides behind a double-click)</td><td>everywhere</td></tr><tr><td><strong>Middle</strong> (wheel click)</td><td><strong>open beside</strong> (a new tab without switching focus) on a file, symbol, link, graph node or table row; <strong>close</strong> on a tab; <strong>pan</strong> while held on a canvas (graph, flow)</td><td>everywhere</td></tr><tr><td><strong>Back</strong> (thumb, button 4)</td><td><strong>back</strong> through the session’s navigation history: documents visited, the graph camera, a link group’s subject (<a href="../editors/Linked-Panels" class="internal alias" data-slug="editors/Linked-Panels">Linked Panels</a>)</td><td>everywhere</td></tr><tr><td><strong>Forward</strong> (thumb, button 5)</td><td><strong>forward</strong> through the same history</td><td>everywhere</td></tr><tr><td>Wheel</td><td>scroll; with <strong>Ctrl</strong> zoom (graph, flow, editor font); with <strong>Shift</strong> scroll sideways</td><td>everywhere</td></tr><tr><td>Wheel tilt (left/right)</td><td>scroll sideways; on the tab bar, the previous or next tab</td><td>where the mouse has it</td></tr></tbody></table></div>
+<p><strong>The webview’s own handling</strong> of buttons 4 and 5 is history navigation of the <em>page</em>, which would navigate out of the app. It is prevented on desktop (WebKitGTK), web and Android (<a href="../specifications/025" class="internal" data-slug="specifications/025">025</a>’s warning, verified per platform in <code>mouse.mjs</code>).</p>
+<h3 id="more-buttons-the-extended-map">More buttons: the extended map<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#more-buttons-the-extended-map" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Browsers and webviews receive only the five standard buttons. Extra buttons on gamer mice (6 to 12, the DPI-shift button, side panels) reach Moonkale only as <strong>keys</strong>, mapped by the mouse’s own software. So Moonkale binds the <strong>F13–F24</strong> keys, which no keyboard has, by default:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Key</th><th>Default command</th></tr></thead><tbody><tr><td>F13</td><td>Overview (<a href="../Overview" class="internal" data-slug="Overview">Overview</a>)</td></tr><tr><td>F14</td><td>Command palette</td></tr><tr><td>F15</td><td>Open with context (<a href="../editors/Linked-Panels" class="internal alias" data-slug="editors/Linked-Panels">Linked Panels</a>)</td></tr><tr><td>F16</td><td>Graph: Local ↔ Whole</td></tr><tr><td>F17</td><td>Go to definition / centre the graph on the symbol (spec <a href="../specifications/024" class="internal" data-slug="specifications/024">024</a>)</td></tr><tr><td>F18</td><td>Find references</td></tr><tr><td>F19</td><td>Run / Generate (the active document’s main action: run a query, generate a flow’s code, start a run)</td></tr><tr><td>F20</td><td>Approve the selected agent proposal (<a href="../architecture/Shared-Work" class="internal alias" data-slug="architecture/Shared-Work">Shared Work</a>; it still shows the diff first)</td></tr><tr><td>F21</td><td>Toggle comments panel</td></tr><tr><td>F22</td><td>Split the editor</td></tr><tr><td>F23, F24</td><td>unbound, for the user</td></tr></tbody></table></div>
+<p><strong>The setup guide</strong> (Settings → Input → Mouse, and a page in Getting Started) says how to map extra buttons to F13–F24:</p>
+<ul>
+<li>on <strong>Linux</strong>: Piper/libratbag for supported mice, input-remapper for any;</li>
+<li>on <strong>Windows and macOS</strong>: the vendor’s software (Logitech Options+, Razer Synapse, Steelseries GG) or a general remapper.</li>
+</ul>
+<p>It also explains how to check a mapping (Settings → Input shows the last key or button it received).</p>
+<h2 id="2-keymap-presets">2. Keymap presets<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#2-keymap-presets" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>A <strong>preset</strong> is a whole keymap shipped as a data file. The user picks one in Settings → Keybindings, sees its table before choosing, and their own overrides stay on top of whichever preset is active. Conflicts are listed, never silent.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Preset</th><th>For whom</th><th>Notes</th></tr></thead><tbody><tr><td><strong>Moonkale</strong> (default)</td><td>everyone</td><td>today’s bindings, plus the mouse maps above</td></tr><tr><td><strong>VS Code</strong></td><td>most developers</td><td>its well-known bindings for the commands Moonkale shares (Ctrl+P, Ctrl+Shift+P, F12, Shift+F12, Ctrl+/, Ctrl+B, Ctrl+J, Ctrl+`, Alt+Z)</td></tr><tr><td><strong>JetBrains</strong></td><td>IntelliJ, CLion, RustRover users</td><td>Double-Shift for search everywhere, Ctrl+B for definition, Alt+Enter for actions</td></tr><tr><td><strong>Obsidian</strong></td><td>note-takers</td><td>Ctrl+O quick switcher, Ctrl+E reading/editing, Ctrl+Shift+F search</td></tr><tr><td><strong>Vim</strong></td><td>modal editing</td><td>a modal layer for the code editor (normal, insert, visual) as a keymap extension; the rest of the app keeps the base preset</td></tr><tr><td><strong>Emacs</strong></td><td>Emacs users</td><td>chords (C-x C-f) and text movement; on macOS the system text keys stay as they are (spec <a href="../specifications/027" class="internal" data-slug="specifications/027">027</a>)</td></tr><tr><td><strong>Left hand + mouse</strong></td><td>graph, flow and table work with the right hand on the mouse</td><td>commands on the keys under the left hand (below)</td></tr></tbody></table></div>
+<p><strong>macOS</strong> needs no separate preset: <code>Ctrl</code> in a binding means Cmd on a Mac (spec <a href="../specifications/027" class="internal" data-slug="specifications/027">027</a>), so every preset works there.</p>
+<h3 id="the-left-hand-layout">The left-hand layout<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-left-hand-layout" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>For long sessions on the graph, the flow editor or a table, the left hand stays on the keyboard and the right on the mouse, as in games and in CAD.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Key</th><th>On a canvas (graph, flow)</th><th>In a table</th></tr></thead><tbody><tr><td>W / A / S / D</td><td>pan up, left, down, right</td><td>move the cell cursor</td></tr><tr><td>Q / E</td><td>zoom out / in</td><td>previous / next page</td></tr><tr><td>R / M</td><td>rotate / mirror the selected block (ADR-0024)</td><td>—</td></tr><tr><td>F</td><td>fit the view</td><td>filter box</td></tr><tr><td>G</td><td>Local ↔ Whole</td><td>—</td></tr><tr><td>Space (held)</td><td>pan with the mouse</td><td>—</td></tr><tr><td>Tab</td><td>next node along edges (spec 031’s keyboard navigation)</td><td>next cell</td></tr><tr><td>1–8</td><td>jump to link group 1–8</td><td>—</td></tr><tr><td>Shift / Ctrl + click</td><td>add to selection / box select</td><td>extend selection</td></tr></tbody></table></div>
+<p>These keys act only while a canvas or table has the focus. A text field always gets its letters.</p>
+<h2 id="3-keyboards-other-than-us">3. Keyboards other than US<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#3-keyboards-other-than-us" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li><strong>Letters follow the letter.</strong> <code>Ctrl+Z</code> means the key that types <em>z</em>, wherever it is (on QWERTZ it’s where US has <em>y</em>). Moonkale matches the logical key today (<code>KeyboardEvent.key</code>), which is right for letters.</li>
+<li><strong>Punctuation follows the position.</strong> <code>Ctrl+/</code>, <code>Ctrl+[</code>, <code>Ctrl+\</code>, <code>Ctrl+`` </code> and similar bindings are defined by the US <em>position</em> of the key (<code>KeyboardEvent.code</code>). Otherwise they are unreachable or need AltGr on QWERTZ and AZERTY: on a German keyboard <code>/</code> is Shift+7, and <code>[</code> is AltGr+8.</li>
+<li><strong>Labels show what’s printed on the user’s key:</strong> a binding defined as the US <code>Slash</code> position shows as <code>Ctrl+-</code> on a German keyboard. Chromium’s <code>navigator.keyboard.getLayoutMap()</code> gives the labels on the web. On the desktop the layout comes from the OS; until that’s wired, the label falls back to the US name with a hint.</li>
+<li><strong>AltGr is never a modifier for bindings.</strong> It types characters (<code>@</code>, <code>{</code>, <code>|</code> on QWERTZ), and a binding on it would swallow them.</li>
+<li><strong>Tested layouts:</strong> US, German (QWERTZ, Daniel’s), French (AZERTY), Dvorak, and a Chinese IME session.</li>
+<li><strong>The IME’s own keys win:</strong> Ctrl+Space and Shift switch input methods in fcitx and IBus. A binding on them is flagged as a conflict when an IME is active (completion falls back to Ctrl+. there).</li>
+</ul>
+<h2 id="4-conflicts-the-presets-must-avoid">4. Conflicts the presets must avoid<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#4-conflicts-the-presets-must-avoid" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li><strong>Desktop environments:</strong>
+<ul>
+<li>GNOME uses <strong>Super</strong> for its overview, which is why Moonkale’s is Ctrl+Alt+Space;</li>
+<li>GNOME and KDE switch workspaces with <strong>Ctrl+Alt+arrows</strong>, so presets don’t bind those;</li>
+<li>KDE uses Ctrl+F1–F4.</li>
+</ul>
+</li>
+<li><strong>Browsers (the web build):</strong> Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab and Ctrl+Shift+T can’t be taken from the browser. Presets name an alternative for each in the web build, and the table shows which bindings the browser keeps.</li>
+<li><strong>Text fields:</strong> a binding never steals a character a text field needs (the rule that put AltGr out of bindings).</li>
+</ul>
+<h2 id="5-seeing-whats-bound">5. Seeing what’s bound<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#5-seeing-whats-bound" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><a href="../decisions/ADR-0027-Simple-by-default" class="internal alias" data-slug="decisions/ADR-0027-Simple-by-default">ADR-0027 Simple by default</a> §4 puts shortcuts in plain sight: in every tooltip and menu, on the empty workbench, as key tips while Ctrl is held, and as once-per-command nudges. Then:</p>
+<ul>
+<li><strong>A cheat sheet:</strong> hold Ctrl for a second, or press F1. It’s an overlay with the active preset’s bindings for the focused panel, mouse buttons and F13–F24 included, and it can be printed per preset.</li>
+<li><strong>Settings → Input:</strong> the preset, the overrides, the mouse maps, the last key or button received, and the conflicts.</li>
+</ul>
+<h2 id="steps">Steps<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#steps" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ol>
+<li>The five-button map (spec 025’s items, with the webview guard) and the cheat sheet.</li>
+<li>Presets as data files, Settings → Keybindings with preset choice and conflicts; the VS Code and Obsidian presets first.</li>
+<li>Positional punctuation bindings and layout labels; QWERTZ, AZERTY and Dvorak in tests.</li>
+<li>F13–F24 defaults and the setup guide.</li>
+<li>The left-hand layout on graph, flow and table.</li>
+<li>JetBrains and Emacs presets; Vim as a keymap extension.</li>
+</ol>
+<p>Acceptance (<code>mouse.mjs</code>, <code>keymaps.mjs</code>):</p>
+<ul>
+<li>the thumb buttons go back and forward through two documents and a graph camera move without leaving the app;</li>
+<li>middle-click on a tree file opens it beside;</li>
+<li>with a German layout, the comment toggle’s binding (US <code>Ctrl+/</code>) works on <code>Ctrl+-</code> and is labelled so;</li>
+<li>switching to the VS Code preset makes <code>Ctrl+Shift+P</code> the palette and keeps the user’s overrides.</li>
+</ul>
+<p>Work package: WP-61 in <a href="../problems/Work-Packages" class="internal alias" data-slug="problems/Work-Packages">Work Packages</a>.</p></article><hr/><div class="page-footer"></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-137" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#1-the-mouse" data-for="1-the-mouse">1. The mouse</a></li><li class="depth-1"><a href="#five-buttons-the-default-map" data-for="five-buttons-the-default-map">Five buttons: the default map</a></li><li class="depth-1"><a href="#more-buttons-the-extended-map" data-for="more-buttons-the-extended-map">More buttons: the extended map</a></li><li class="depth-0"><a href="#2-keymap-presets" data-for="2-keymap-presets">2. Keymap presets</a></li><li class="depth-1"><a href="#the-left-hand-layout" data-for="the-left-hand-layout">The left-hand layout</a></li><li class="depth-0"><a href="#3-keyboards-other-than-us" data-for="3-keyboards-other-than-us">3. Keyboards other than US</a></li><li class="depth-0"><a href="#4-conflicts-the-presets-must-avoid" data-for="4-conflicts-the-presets-must-avoid">4. Conflicts the presets must avoid</a></li><li class="depth-0"><a href="#5-seeing-whats-bound" data-for="5-seeing-whats-bound">5. Seeing what’s bound</a></li><li class="depth-0"><a href="#steps" data-for="steps">Steps</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../decisions/ADR-0027-Simple-by-default" class="internal">ADR-0027 — Simple by default (GNOME-like), detailed on request, shortcuts in plain sight</a></li><li><a href="../editors/3D-Graphs-on-Monitors-and-in-Headsets" class="internal">3D graphs — one flat monitor, or two eyes (stereo and VR headsets)</a></li><li><a href="../problems/Work-Packages" class="internal">Work Packages</a></li><li><a href="../specifications/025" class="internal">Spec 025 — A five-button mouse is the expected input device</a></li><li><a href="../specifications/README" class="internal">Specifications — small requests and bugs</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>
