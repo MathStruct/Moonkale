@@ -34,6 +34,8 @@ Milestone 14 added the Rust code editor next to CodeMirror ([[Code Editor Implem
 | `history` | History | `extensions/history` (its own crate since Milestone 18 phase 4.2; feature `history` of the distribution) | optional | entity-log panel: events, text at any event, compact, restore | ✅ | ✅ | ✅ | — (the host's state store, table `events`; was `.moonkale/history.jsonl`) |
 | `org.example.wordcount` | Word count | `extensions/wordcount` (164) | wasm example | two commands / agent tools | ✅ (wasmtime) | ✅ (browser runtime or server) | ❌ (no runtime yet) | the module file |
 
+WP-18 (2026-10-17): `sources/unison` is a **source driver**, not an extension manifest. The default-off `unison` distribution/platform/server feature registers local `*.unison` codebase roots; store-backed namespaces, names and definitions draw through the existing Graph panel. UCM 1.5 is a runtime dependency only; read-only snapshots, no watch/write/dialect. See `packages/sources/unison/sources-unison.md`.
+
 Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence (web + desktop hub; mobile `None`), the wasm runtime, secret store, settings store, folder picker. They are candidates for extension status only where a contribution point exists.
 
 ## Planned (documented in the vault, not built)

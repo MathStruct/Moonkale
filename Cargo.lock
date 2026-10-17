@@ -7067,6 +7067,7 @@ dependencies = [
 name = "moonkale-distribution"
 version = "0.1.0"
 dependencies = [
+ "moonkale-core",
  "moonkale-editor-agent",
  "moonkale-editor-code",
  "moonkale-editor-code-native",
@@ -7082,6 +7083,7 @@ dependencies = [
  "moonkale-ext-history",
  "moonkale-ext-lux",
  "moonkale-shell",
+ "moonkale-sources-unison",
 ]
 
 [[package]]
@@ -7157,9 +7159,12 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-graph-assets",
+ "moonkale-sources-unison",
  "moonkale-trace",
  "serde",
  "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -7474,6 +7479,7 @@ dependencies = [
  "moonkale-sources-graph",
  "moonkale-sources-kv",
  "moonkale-sources-sql",
+ "moonkale-sources-unison",
  "moonkale-state",
  "moonkale-state-stores",
  "moonkale-terminal",
@@ -7555,6 +7561,18 @@ dependencies = [
  "tokio",
  "tracing",
  "turso",
+]
+
+[[package]]
+name = "moonkale-sources-unison"
+version = "0.1.0"
+dependencies = [
+ "moonkale-core",
+ "reqwest 0.12.28",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -9728,6 +9746,7 @@ dependencies = [
  "bytes",
  "cookie",
  "cookie_store",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
