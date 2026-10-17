@@ -80,7 +80,7 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 
 | WP | What | Touches | Depends on | Size | Done when |
 |---|---|---|---|---|---|
-| 18 | **Unison codebase as a graph source**: definitions, types and the dependency DAG, content-addressed (`NodeId::from_content`). The proxy for Sophia | new `sources/unison` | — | M | a Unison codebase opens as a source and draws in the graph view |
+| 18 | **Unison codebase as a graph source**: definitions, types and the dependency DAG, content-addressed (`NodeId::from_content`). Built alongside Sophia (WP-68), not replaced by it (Daniel, 2026-10-17; Sophia SR-23) | new `sources/unison` | — | M | a Unison codebase opens as a source and draws in the graph view |
 | 19 | **Annotations layer** ([[Annotations]]): typed annotations with provenance, shown as engine layers, including **proof** annotations (equivalence, implication, memory safety, safe concurrency) with their checker, the versions checked and stale state ([[North Star]] §7) | `moonkale-core` ★, ext-api, graph view | — | M | annotations on index nodes, toggled as layers |
 | 20 | **A Datalog dialect** over graph sources: rules and queries, results lifted into nodes and edges, shown in the table and graph views | new crate, `Query::Text` dialect | 19 helps | M | rule queries over the index fixture |
 | 21 | **Persisted, incremental index**: the Recoco/Thread findings ([[External Code Intelligence Projects]], next steps) | `services/index`, state store | — | L (split per acceptance test listed there) | reopening reuses the index; a one-file change touches only its facts |
