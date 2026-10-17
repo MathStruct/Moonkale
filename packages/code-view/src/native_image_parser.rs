@@ -74,6 +74,11 @@ fn wiki_image(source: &str) -> Option<Image> {
 }
 #[cfg(feature = "markdown-preview")]
 pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, Image)> {
+    crate::markdown_guard::parse(source, || previews_parsed(source)).unwrap_or_default()
+}
+
+#[cfg(feature = "markdown-preview")]
+fn previews_parsed(source: &str) -> Vec<(Range<usize>, Image)> {
     let mut depth = 0usize;
     let mut paragraph = None::<Range<usize>>;
     let mut image = None::<Image>;

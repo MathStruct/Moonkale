@@ -30,3 +30,7 @@ path = "fuzz_targets/flow_format.rs"
 test = false
 doc = false
 bench = false
+
+# The same patched parser as the app (P-212; see the root Cargo.toml).
+[patch.crates-io]
+pulldown-cmark = { path = "../packages/code-view/vendor/pulldown-cmark" }

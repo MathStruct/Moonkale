@@ -145,6 +145,15 @@ thread_local! {
 }
 
 pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
+    crate::markdown_guard::parse(source, || batch_parsed(revision, source)).unwrap_or_else(|| {
+        Batch {
+            revision,
+            values: Vec::new(),
+        }
+    })
+}
+
+fn batch_parsed(revision: DocumentRevision, source: &str) -> Batch {
     PARSED.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.source == source {
@@ -235,6 +244,15 @@ pub(crate) fn batch(revision: DocumentRevision, source: &str) -> Batch {
 }
 
 fn parse(revision: DocumentRevision, source: &str) -> Batch {
+    crate::markdown_guard::parse(source, || parse_parsed(revision, source)).unwrap_or_else(|| {
+        Batch {
+            revision,
+            values: Vec::new(),
+        }
+    })
+}
+
+fn parse_parsed(revision: DocumentRevision, source: &str) -> Batch {
     let callout_values = crate::native_markdown_callouts::previews(source);
     let math_values = crate::native_math_parser::displays(source);
     let table_values = crate::native_markdown_tables::previews(source);
@@ -1077,5 +1095,19 @@ mod tests {
             &source.replace("example.org", "example.net"),
         );
         assert!(changed.values.iter().any(|v|matches!(&v.kind,Kind::Replace{style:Some(InlineStyle::Callout(c)),..} if c.fragments.iter().any(|f|f.link.as_ref().is_some_and(|l|l.target.description().contains("example.net"))))));
+    }
+}
+
+#[cfg(all(test, feature = "markdown-preview"))]
+mod p212_regression {
+    #[test]
+    fn crash_retains_unparsed_source() {
+        for source in crate::markdown_guard::CRASH_INPUTS {
+            assert!(
+                super::parse(moonkale_ext_api::editor::DocumentRevision(1), source)
+                    .values
+                    .is_empty()
+            );
+        }
     }
 }

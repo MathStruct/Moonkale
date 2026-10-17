@@ -23,6 +23,10 @@ pub(crate) fn value(source: &str, range: &Range<usize>, tex: &str, display: bool
     })
 }
 pub(crate) fn displays(source: &str) -> Vec<(Range<usize>, Math)> {
+    crate::markdown_guard::parse(source, || displays_parsed(source)).unwrap_or_default()
+}
+
+fn displays_parsed(source: &str) -> Vec<(Range<usize>, Math)> {
     let body_start = Parser::new_ext(source, Options::ENABLE_YAML_STYLE_METADATA_BLOCKS)
         .into_offset_iter()
         .next()
@@ -53,8 +57,16 @@ pub(crate) fn displays(source: &str) -> Vec<(Range<usize>, Math)> {
                 if let Some(mut whole) = paragraph.take() {
                     if let Some((range, Some(math))) = math.take() {
                         if source[whole.clone()].trim() == source[range].trim() {
-                            whole.start =
-                                source[..whole.start].rfind('\n').map_or(0, |byte| byte + 1);
+                            // Widen to the line start (indentation), never past
+                            // a bare CR line ending or the previous block.
+                            whole.start = source[..whole.start]
+                                .rfind(['\n', '\r'])
+                                .map_or(0, |byte| byte + 1)
+                                .max(
+                                    values
+                                        .last()
+                                        .map_or(0, |(prev, _): &(Range<usize>, Math)| prev.end),
+                                );
                             while whole.end > whole.start
                                 && matches!(source.as_bytes()[whole.end - 1], b'\r' | b'\n')
                             {
@@ -86,6 +98,32 @@ mod tests {
         assert_eq!(&source[values[0].0.clone()], "  $$\r\n\\frac{a}{b}\r\n$$");
         assert!(values[0].1.tex.contains("\\frac{a}{b}"));
     }
+    /// Fuzz find (P-212 follow-up): bare CR line endings made the widening
+    /// reach back past the previous block, giving overlapping ranges.
+    #[test]
+    fn bare_cr_lines_keep_ranges_ordered_and_disjoint() {
+        for source in [
+            "$$a$$\r\r  $$b$$",
+            "x\n$$a$$\r\r  $$b$$\r\r $$c$$",
+            "$$a$$\r\n\r\n  $$b$$",
+        ] {
+            let values = displays(source);
+            assert!(values.len() >= 2, "{source:?}: {values:?}");
+            let mut end = 0;
+            for (range, _) in &values {
+                assert!(range.start >= end, "{source:?}: {values:?}");
+                assert!(source[range.clone()].trim_start().starts_with("$$"));
+                end = range.end;
+            }
+        }
+        let crash = include_bytes!("../../../fuzz/corpus/math_delimiters/p-212-overlap.md");
+        let crash = String::from_utf8_lossy(crash);
+        let mut end = 0;
+        for (range, _) in displays(&crash) {
+            assert!(range.start >= end);
+            end = range.end;
+        }
+    }
     #[test]
     fn complex_display_code_metadata_and_oversized_tex_keep_source() {
         for source in [
@@ -102,5 +140,15 @@ mod tests {
         }
         assert!(displays(&format!("$${}$$", "x".repeat(MAX_TEX + 1))).is_empty());
         assert!(value("$5,$10", &(0..4), "5,", false).is_none());
+    }
+}
+
+#[cfg(test)]
+mod p212_regression {
+    #[test]
+    fn crash_retains_unparsed_source() {
+        for source in crate::markdown_guard::CRASH_INPUTS {
+            assert!(super::displays(source).is_empty());
+        }
     }
 }

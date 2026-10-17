@@ -20,6 +20,15 @@ pub(crate) struct Projected<'a> {
 
 impl<'a> Projected<'a> {
     pub(crate) fn new(source: &'a str) -> Self {
+        crate::markdown_guard::parse(source, || Self::new_parsed(source)).unwrap_or_else(|| Self {
+            text: Cow::Borrowed(source),
+            map: None,
+            wiki: Vec::new(),
+            prefix: "moonkale-preview-wiki:".into(),
+        })
+    }
+
+    fn new_parsed(source: &'a str) -> Self {
         if !source.contains("[[") {
             return Self {
                 text: Cow::Borrowed(source),
@@ -235,5 +244,22 @@ mod tests {
             assert!(projected.map.is_none(), "{source}");
         }
         assert!(Projected::new("[[#Local]]").map.is_some());
+    }
+}
+
+#[cfg(all(test, feature = "markdown-preview"))]
+mod p212_regression {
+    #[test]
+    fn crash_retains_unparsed_source() {
+        for source in crate::markdown_guard::CRASH_INPUTS {
+            let projected = super::Projected::new(source);
+            assert_eq!(projected.text, source);
+            assert!(projected.wiki.is_empty());
+            assert!(projected.map.is_none());
+            let with_wiki = format!("{source}\n[[Note]]");
+            let projected = super::Projected::new(&with_wiki);
+            assert_eq!(projected.text, with_wiki);
+            assert!(projected.map.is_none());
+        }
     }
 }

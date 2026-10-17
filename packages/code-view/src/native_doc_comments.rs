@@ -694,6 +694,26 @@ fn heading(level: HeadingLevel) -> u8 {
     }
 }
 fn render(source: &str) -> Document {
+    crate::markdown_guard::parse(source, || render_parsed(source)).unwrap_or_else(|| Document {
+        blocks: vec![Block::Text {
+            heading: 0,
+            quote: 0,
+            marker: None,
+            fragments: 0..1,
+        }],
+        fragments: vec![InlineFragment {
+            text: source.into(),
+            math: None,
+            emphasis: false,
+            strong: false,
+            code: false,
+            link: None,
+        }],
+        label: source.into(),
+    })
+}
+
+fn render_parsed(source: &str) -> Document {
     let mut blocks = Vec::new();
     let mut fragments = Vec::new();
     let (mut emphasis, mut strong, mut quote) = (0usize, 0usize, 0usize);
@@ -1262,5 +1282,44 @@ mod tests {
             .iter()
             .any(|block| matches!(block,Block::Code{language,..} if language=="rust")));
         assert_eq!(doc.fragments.iter().filter(|f| f.link.is_some()).count(), 1);
+    }
+}
+
+#[cfg(all(test, feature = "markdown-preview"))]
+mod p212_regression {
+    #[test]
+    fn crash_retains_unparsed_source() {
+        for source in crate::markdown_guard::CRASH_INPUTS {
+            let rust = source
+                .lines()
+                .map(|line| format!("/// {line}\n"))
+                .collect::<String>()
+                + "fn example() {}\n";
+            let python = format!("\"\"\"{source}\"\"\"\n");
+            let julia = format!("\"\"\"{source}\"\"\"\nf() = 1\n");
+            for (language, code) in [
+                (super::Language::Rust, rust),
+                (super::Language::Python, python),
+                (super::Language::Julia, julia),
+            ] {
+                let mut index = super::Index::default();
+                let result = index.batch(
+                    language,
+                    moonkale_ext_api::editor::DocumentRevision(1),
+                    &code,
+                );
+                assert_eq!(
+                    result.revision,
+                    moonkale_ext_api::editor::DocumentRevision(1)
+                );
+            }
+            let document = super::render(source);
+            assert_eq!(document.fragments.len(), 1);
+            assert_eq!(document.fragments[0].text, source);
+            assert_eq!(document.label, source);
+            assert!(
+                matches!(&document.blocks[..], [super::Block::Text { fragments, .. }] if fragments == &(0..1))
+            );
+        }
     }
 }

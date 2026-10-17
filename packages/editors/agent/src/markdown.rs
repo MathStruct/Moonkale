@@ -72,6 +72,25 @@ pub fn allowed(href: &str) -> bool {
 /// The message's tree (GitHub-flavoured: tables, strikethrough, task
 /// lists; math kept as source).
 pub fn parse(text: &str) -> Vec<Node> {
+    // Same boundary as native Markdown: unsafe controls bypass the parser in the
+    // browser's panic=abort profile; unwind builds also discard partial trees.
+    if text.contains(['\0', '\u{b}', '\u{c}']) {
+        static REPORTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !REPORTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            eprintln!("Agent Markdown skipped: unsupported control character (P-212)");
+        }
+        return vec![Node::Text(text.into())];
+    }
+    #[cfg(panic = "unwind")]
+    return std::panic::catch_unwind(|| parse_inner(text)).unwrap_or_else(|_| {
+        eprintln!("Agent Markdown skipped: parser panic (P-212)");
+        vec![Node::Text(text.into())]
+    });
+    #[cfg(not(panic = "unwind"))]
+    parse_inner(text)
+}
+
+fn parse_inner(text: &str) -> Vec<Node> {
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
@@ -368,5 +387,20 @@ mod tests {
             panic!("{n:?}")
         };
         assert!(p.contains(&Node::Math("\\mu".into(), false)));
+    }
+}
+
+#[cfg(test)]
+mod p212_regression {
+    #[test]
+    fn crash_is_literal_message_content() {
+        for source in [
+            include_str!("../../../../fuzz/corpus/math_delimiters/p-212-crash.md"),
+            include_str!("../../../../fuzz/corpus/math_delimiters/p-212-minimal.md"),
+            include_str!("../../../../fuzz/corpus/math_delimiters/p-212-vertical-tab.md"),
+            include_str!("../../../../fuzz/corpus/math_delimiters/p-212-form-feed.md"),
+        ] {
+            assert_eq!(super::parse(source), vec![super::Node::Text(source.into())]);
+        }
     }
 }

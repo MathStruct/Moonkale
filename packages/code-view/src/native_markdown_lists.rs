@@ -46,6 +46,10 @@ impl Item {
 }
 
 pub(crate) fn previews(source: &str) -> Vec<(Range<usize>, String, InlineStyle)> {
+    crate::markdown_guard::parse(source, || previews_parsed(source)).unwrap_or_default()
+}
+
+fn previews_parsed(source: &str) -> Vec<(Range<usize>, String, InlineStyle)> {
     let mut lists: Vec<Option<u64>> = Vec::new();
     let mut items: Vec<Item> = Vec::new();
     let mut values = Vec::new();

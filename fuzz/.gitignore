@@ -3,6 +3,12 @@
 /target/
 # Keep only intentionally reviewed seed inputs.
 /corpus/*/*
+!/corpus/math_delimiters/p-212-vertical-tab.md
+!/corpus/math_delimiters/p-212-form-feed.md
+!/corpus/math_delimiters/p-212-crash.md
+!/corpus/math_delimiters/p-212-minimal.md
+!/corpus/math_delimiters/p-212-tab.md
+!/corpus/math_delimiters/p-212-overlap.md
 !/corpus/math_delimiters/basic.md
 !/corpus/math_delimiters/exclusions.md
 !/corpus/flow_format/basic.json

@@ -3,6 +3,8 @@
 #[allow(dead_code)]
 #[path = "../../packages/ext-api/src/flow.rs"]
 pub mod flow;
+#[path = "../../packages/code-view/src/markdown_guard.rs"]
+mod markdown_guard;
 #[allow(dead_code)]
 #[path = "../../packages/code-view/src/native_math_parser.rs"]
 mod math;
