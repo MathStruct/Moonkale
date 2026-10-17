@@ -1,0 +1,9 @@
+/artifacts/
+/coverage/
+/target/
+# Keep only intentionally reviewed seed inputs.
+/corpus/*/*
+!/corpus/math_delimiters/basic.md
+!/corpus/math_delimiters/exclusions.md
+!/corpus/flow_format/basic.json
+!/corpus/flow_format/subflow.json

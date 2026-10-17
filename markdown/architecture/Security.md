@@ -93,12 +93,12 @@ Moonkale renders and parses what it opens: Markdown (HTML inside it, KaTeX, Typs
 - link-scheme allow-list (#10);
 - bounded buffers (#14);
 - folder settings without authority.
+- **Built — fuzzing (WP-47, 2026-10-17):** `fuzz/` compiles the production math range parser and `Flow::parse` directly. Separate nightly CI jobs run each for 60 seconds with 64 KiB inputs, a 10-second per-input timeout and 2 GiB RSS limit; failures are non-blocking and crash inputs are uploaded for regression tests. The planned WP-36 delimiter normaliser does not exist yet; it and the wasm ABI JSON still need targets;
 
 **To build:**
 - **a Content-Security-Policy** for the web client and the webviews;
 - **HTML sanitising** in the Markdown renderers, one allow-list;
 - **SVG sanitising** (no scripts, no external references);
-- **fuzzing** of the parsers Moonkale owns: the math delimiters, the flow format, the wasm ABI's JSON;
 - **resource limits** for every renderer (Typst compile time, image size, Mermaid in a worker);
 - **#15** (project-fs races: data loss).
 
@@ -109,7 +109,10 @@ Moonkale renders and parses what it opens: Markdown (HTML inside it, KaTeX, Typs
 - **Wasm modules** get only the permissions the user granted, and grants come from the user scope only. They run with **fuel** (50 M units for the manifest, 5 G per command run) and **256 MB of linear memory** per instance, each call in a fresh store, so a trap or an exhausted budget is an error for that call only. (This page said otherwise until 2026-10-14; `ext-host/src/runtime.rs` has had the limits since audit #4.) **To build:** a signed manifest for "Install from URL".
 
 **Dependencies:**
-- **To build:** `cargo deny` (licences and advisories) and `cargo audit` in CI; the JS bundles' lockfiles audited too; vendored assets (KaTeX, fonts) checked against their upstream hashes.
+- **Enforced in CI (WP-47, 2026-10-17):** `tools/check-security.py rust` runs pinned cargo-deny 0.20.2 (all workspace features/platforms, licences, RustSec, sources; duplicate versions warn) and cargo-audit 0.22.2 against `Cargo.lock`. New vulnerabilities, informational advisories and yanked crates fail the job. Both read **one dated exception list in `deny.toml`**: 25 existing vulnerabilities, 12 informational advisories and yanked `yoke-derive` 0.8.3 are deferred for Daniel's upgrade decision, not fixed. No dependency versions were changed. The HelixDB `helix-metrics` AGPL-3.0 exception records existing licence obligations; it does not approve adding AGPL code. Missing HelixDB crate licence metadata is clarified from its pinned root Apache-2.0 LICENSE; local Moonkale crate metadata inherits the existing MIT workspace licence.
+- **JS:** `tools/check-security.py js` discovers every tracked npm/pnpm/yarn lockfile (and unignored local additions), audits npm production dependencies without installs/scripts, and fails on new high/critical advisories or registry errors. An unsupported lockfile format fails pending a pinned auditor. Six npm lockfiles are covered: CodeMirror, KaTeX, Milkdown, wasm-host, xterm and Quartz. `tools/npm-audit-exceptions.json` records 53 existing package/advisory pairs in Milkdown and Quartz with URLs, exact locked versions, dates and reasons; lower severities are reported too. The e2e environment has no committed lockfile: its existing runtime-created npm lock is audited immediately after installation. That install remains unpinned and needs a separately reviewed lockfile; no versions were upgraded in this work.
+- **Vendored bytes:** `tools/check-vendored.py` is an offline blocking check of all 63 files under `packages/ext-api/assets/katex/` and any `vendor/` directory. `tools/vendored-assets.json` records SHA-256 per file, upstream versions/URLs and local patch provenance; additions, removals and changes fail until explicitly reviewed. KaTeX 0.18.7's 20 woff2 fonts match upstream, and its CSS matches after removing unused woff/truetype fallback URLs. The upstream tarball SHA-256 is recorded. The Rust forks intentionally include the patches documented beside them, so their reviewed local hashes are not represented as pristine upstream hashes. CI does not download vendored assets.
+- **Local checks:** `python3 tools/check-security.py rust` (install the pinned tools first), `python3 tools/check-security.py js`, `python3 tools/check-vendored.py`, `python3 tools/test-security.py`. A writable RustSec cache can be supplied with `--db-root <directory>`; registry/advisory fetch failures fail closed. Only the checksum check and gate regression tests are fully offline. Updating a dependency requires revisiting its exceptions; never regenerate a baseline to hide a new finding.
 
 **Releases:**
 - **To build:** signed artefacts and published checksums, and a checksum for the server binary the SSH path uploads (#18).
@@ -141,7 +144,7 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 | Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
 | Untrusted content | ◐ jail, link allow-list, bounds; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed; opt-in structural planning is pure, authenticated on web, capped at 4 MiB raw/512 KiB decoded input, two non-queued workers, and existing parser limits; source bytes are never logged or rendered as HTML; graph Rename reuses the existing LSP connection, rejects cross-source/resource operations and incomplete plans; two-pass target preparation, 64-file/4096-edit/4-MiB-payload/8-MiB-text caps, all-buffer staging and held/stamped editor input guard grouped history; explicit per-file saves report partial success; validates URI/range/version bounds and live identities before preview | #5, sanitising, CSP, fuzzing, #15 |
 | Wasm extensions | ◐ permissions, fuel, memory limits | signing |
-| Supply chain and releases | ○ | cargo deny/audit, signing, checksums |
+| Supply chain and releases | ◐ WP-47: blocking Rust/npm audits with dated baseline exceptions, offline vendored hashes; non-blocking parser fuzz smoke jobs | dependency upgrades, signing, release/SSH server checksums, wasm ABI fuzzing |
 | Data at rest | ○ | redaction, encryption decision |
 
 Legend: ◐ partly, ○ not started. Open GitHub issues today: #15, #18, #20.
@@ -152,9 +155,9 @@ They keep the debt from growing until the full document and a review exist. Each
 1. **The server decides** what becomes a process, a network request with a secret, or a permission (rule 1 above), and so do new contribution points (language servers, debug adapters, runners).
 2. **No secret values** in settings, sessions, documents, logs, transcripts, test fixtures or error messages; names only.
 3. **Content is data:** anything read from a file, a row, a page or tool output never becomes an instruction, a command line, a URL with a secret, or an approval.
-4. **Every parser of untrusted input has a bound** (size, time, depth), and every new one gets a fuzz target before it ships enabled by default.
+4. **Every parser of untrusted input has a bound** (size, time, depth), and every new one gets a fuzz target before it ships enabled by default. WP-47 adds the first two nightly CI smoke targets with resource limits; this does not establish production bounds for every existing parser. Retain each crash as a regression in its normal crate tests before fixing it ([[How to Write Tests]]).
 5. **Every new connection** has TLS off loopback, authenticates, and says in this page's table what it trusts.
-6. **Every new dependency** passes `cargo deny` (once in CI) and has a reason in its commit.
+6. **Every new dependency** passes the blocking Rust/JS security jobs above and has a reason in its commit. New CI tool installs have pinned versions; new actions have reviewed commit SHAs. Exceptions need an advisory ID (or exact yanked crate/version), date and reason; upgrades and licence decisions stay with Daniel.
 7. **A security-relevant change updates this page** (the table above), and a found weakness is a GitHub issue labelled `security`, never only a comment.
 
 ## Not built

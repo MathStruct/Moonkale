@@ -1,0 +1,32 @@
+[package]
+name = "moonkale-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Standalone: normal workspace builds neither resolve libFuzzer nor need nightly.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+pulldown-cmark = { version = "=0.13.4", default-features = false }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+
+[[bin]]
+name = "math_delimiters"
+path = "fuzz_targets/math_delimiters.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "flow_format"
+path = "fuzz_targets/flow_format.rs"
+test = false
+doc = false
+bench = false
