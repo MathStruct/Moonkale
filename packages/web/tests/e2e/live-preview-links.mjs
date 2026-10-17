@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // Full-app acceptance: native link navigation reads canonical, unsaved documents.
 import {firefox} from 'playwright';
 import fs from 'node:fs';
@@ -35,7 +36,7 @@ try{
  await open('Café.md');await input().focus();await page.keyboard.press('Control+Home');await page.keyboard.press('Control+a');
  const unsaved='---\r\ntitle: Target\r\n---\r\n\r\n# Unsaved 猫\r\n\r\n## Duplicate\r\n\r\n## Duplicate\r\n';
  await page.keyboard.insertText(unsaved);await panel().locator('.mk-editor-dirty').waitFor();
- await open('LinkPreview.md');await panel().locator('.mk-native-preview').click();await preview();
+ await open('LinkPreview.md');await clickNativeCommand(panel().locator('.mk-native-preview'));await preview();
  assert.equal(await panel().locator('.mk-preview-link').count(),7);
  await follow('Web');await page.waitForFunction(()=>window.openedLinks.length===1);
  assert.deepEqual(await page.evaluate(()=>window.openedLinks[0]),['https://example.org/path','_blank','noopener,noreferrer']);

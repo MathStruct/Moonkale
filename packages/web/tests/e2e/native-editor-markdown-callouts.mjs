@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();const page=await browser.newPage({viewport:{width:1400,height:1700}});
@@ -7,7 +8,7 @@ const ready=()=>page.waitForFunction(()=>{const runs=[...document.querySelectorA
 const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();await panel.locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await page.waitForTimeout(200);await ready();};
 const offset=()=>panel.locator('.mk-native-surface').getAttribute('data-cursor-offset').then(Number);
 try{
- await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await page.click('#markdown-callouts');await panel.locator('.mk-native-preview').click();await panel.evaluate(el=>el.style.height='1050px');await preview();
+ await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});await page.click('#markdown-callouts');await clickNativeCommand(panel.locator('.mk-native-preview'));await panel.evaluate(el=>el.style.height='1050px');await preview();
  const original=await canonical.textContent(),normalized=original.replaceAll('\r\n','\n');assert.ok(original.includes('\r\n'));
  assert.equal(await panel.locator('.mk-callout').count(),4);assert.equal(await panel.locator('.mk-callout[data-callout-type=note] .mk-callout-title').textContent(),'猫 and literal');assert.equal(await panel.locator('.mk-callout[data-callout-type=proof] .mk-callout-title').textContent(),'proof');assert.equal(await panel.locator('safe').count(),0);
  const warning=panel.locator('.mk-callout[data-callout-type=warning]'),toggle=warning.locator('button'),body=warning.locator('.mk-callout-body');
@@ -28,5 +29,5 @@ try{
  await input.focus();await page.keyboard.press('Control+Home');for(let i=0;i<start+8;i++)await page.keyboard.press('ArrowRight');await ready();assert.equal(await panel.locator('.mk-callout').count(),3);
  await input.evaluate(el=>{el.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}));el.dispatchEvent(new CompositionEvent('compositionupdate',{bubbles:true,data:'你好'}));});await page.waitForFunction(()=>document.querySelector('.language .mk-native-surface').dataset.composing==='true');assert.equal(await canonical.textContent(),original);await input.evaluate(el=>{el.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'你好'}));el.value='你好';el.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(()=>document.querySelector('.language-canonical').textContent.includes('你好'));await page.keyboard.press('Control+z');await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original);
  await input.focus();await page.keyboard.press('Control+a');await ready();assert.equal(await panel.locator('.mk-callout').count(),0);const copied=await input.evaluate(el=>{const event=new ClipboardEvent('copy',{bubbles:true,cancelable:true,clipboardData:new DataTransfer()});el.dispatchEvent(event);return event.clipboardData.getData('text/plain');});assert.equal(copied,normalized);
- await preview();await page.click('#layout-delay');await panel.locator('.mk-native-preview').click();await page.waitForFunction(()=>document.querySelectorAll('.language .mk-callout').length===0);assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);console.log('NATIVE MARKDOWN CALLOUTS E2E: PASS');
+ await preview();await page.click('#layout-delay');await clickNativeCommand(panel.locator('.mk-native-preview'));await page.waitForFunction(()=>document.querySelectorAll('.language .mk-callout').length===0);assert.equal(await canonical.textContent(),original);assert.deepEqual(errors,[]);console.log('NATIVE MARKDOWN CALLOUTS E2E: PASS');
 }finally{await browser.close();}

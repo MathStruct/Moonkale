@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // Opt-in Rust engine through the real shell, folder source and editor switch.
 import { firefox } from "playwright";
 import fs from "fs";
@@ -30,13 +31,17 @@ try {
     if (!await panel.locator(".mk-editor-core-cell[class*=a-]").count()) throw Error("missing syntax highlighting");
     // The classes must also colour: the theme's rules are scoped to `.dxc`
     // (the surface once lacked it, so every token drew in the plain ink).
-    const colours = await panel.locator(".mk-editor-core-cell").evaluateAll((cells) => {
+    // The theme's stylesheet can land a frame after the surface mounts (seen in
+    // Firefox: plain for ~50 ms), so give it two seconds before failing.
+    const colours = async () => panel.locator(".mk-editor-core-cell").evaluateAll((cells) => {
       const viewport = cells[0]?.closest(".mk-editor-core-viewport");
       const plain = viewport && getComputedStyle(viewport).color;
       const keyword = cells.find((c) => /\ba-k\b/.test(c.className));
       return { plain, keyword: keyword && getComputedStyle(keyword).color };
     });
-    if (!colours.keyword || colours.keyword === colours.plain) throw Error(`highlight classes draw no colour: ${JSON.stringify(colours)}`);
+    let drawn = await colours();
+    for (const until = Date.now() + 2000; (!drawn.keyword || drawn.keyword === drawn.plain) && Date.now() < until; drawn = await colours()) await page.waitForTimeout(50);
+    if (!drawn.keyword || drawn.keyword === drawn.plain) throw Error(`highlight classes draw no colour: ${JSON.stringify(drawn)}`);
     // Soft keyboards must not capitalise or correct code (the sink is empty after each key).
     const hints = await input().evaluate((t) => ["autocapitalize", "autocorrect", "autocomplete", "spellcheck"].map((a) => t.getAttribute(a)));
     if (hints.join() !== "off,off,off,false") throw Error(`input sink keyboard hints: ${hints}`);
@@ -64,7 +69,7 @@ try {
     await save(`λ中// native\n${original}`);
   });
   await step("editor switch preserves canonical text", async () => {
-    await panel.locator(".mk-editor-switch").click(); await page.locator(".cm-content").filter({ visible: true }).waitFor();
+    await clickNativeCommand(panel.locator(".mk-editor-switch")); await page.locator(".cm-content").filter({ visible: true }).waitFor();
     await page.locator(".mk-editor-switch").filter({ visible: true }).click(); await input().waitFor();
     await save(`λ中// native\n${original}`);
   });

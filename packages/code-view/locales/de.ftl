@@ -52,11 +52,6 @@ editor-fold = Einklappen
 editor-unfold = Ausklappen
 editor-fold-all = Alles einklappen
 editor-unfold-all = Alles ausklappen
-editor-indent-style = Einrückung
-editor-indent-width = Breite
-editor-language-default = Sprachstandard
-editor-indent-spaces = Leerzeichen
-editor-indent-tabs = Tabulatoren
 
 editor-search-regex = Regulärer Ausdruck
 editor-search-count = { $current } von { $total }
@@ -124,3 +119,17 @@ editor-a11y-tab-focus = Tab wechselt den Fokus.
 editor-a11y-tab-indent = Tab rückt ein.
 
 editor-group-history-blocked = Diese Umbenennung kann nicht rückgängig gemacht oder wiederholt werden. Zuerst neuere Änderungen in { $file } rückgängig machen; möglicherweise ist der gemeinsame Verlauf nicht mehr verfügbar.
+
+editor-more = Weitere Editorbefehle
+
+native-reload = Rust-Editor: Neu laden
+native-hover = Rust-Editor: Hover-Informationen anzeigen
+native-complete = Rust-Editor: Vervollständigen
+native-preview = Rust-Editor: Markdown-Vorschau
+native-doc-preview = Rust-Editor: Dokumentationsvorschau
+native-codemirror = Rust-Editor: Zu CodeMirror wechseln
+native-indent-style = Einrückung
+native-indent-width = Breite
+native-default = Sprachstandard
+native-spaces = Leerzeichen
+native-tabs = Tabulatoren

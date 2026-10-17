@@ -378,6 +378,25 @@ pub(crate) fn collapsed_rows(
     state: PresentationState,
 ) -> Vec<usize> {
     let index = editor.editor().line_index();
+    // Resolve the many presentation endpoints against one scalar line index.
+    // Repeated rope line lookups otherwise rescan leaf text for every token
+    // and every continuation row on each caret/measurement update.
+    let text = index.get_text();
+    let mut starts = vec![0];
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        offset += line.chars().count();
+        if line.ends_with('\n') {
+            starts.push(offset);
+        }
+    }
+    let position = |offset: usize| {
+        let line = starts
+            .partition_point(|start| *start <= offset)
+            .saturating_sub(1);
+        (line, offset.saturating_sub(starts[line]))
+    };
+    let line_end = |line: usize| starts.get(line + 1).map_or(offset, |next| next - 1);
     let folds = editor.get_folding_state();
     // Expanded fold regions do not affect presentation. Filter once rather
     // than scanning every heading/list region for every replacement.
@@ -393,21 +412,12 @@ pub(crate) fn collapsed_rows(
         .iter()
         .filter(|value| state.previews(value.start, value.end))
     {
-        let (start_line, start_col) = index.char_offset_to_position(value.start);
-        let (end_line, end_col) = index.char_offset_to_position(value.end);
+        let (start_line, start_col) = position(value.start);
+        let (end_line, end_col) = position(value.end);
         if unwrapped {
-            for row in (if value.widget.is_none() {
-                start_line
-            } else {
-                start_line + 1
-            })..=end_line
-            {
-                let start = index.position_to_char_offset(row, 0);
-                let end = if row + 1 < index.line_count() {
-                    index.position_to_char_offset(row + 1, 0).saturating_sub(1)
-                } else {
-                    index.char_count()
-                };
+            let first = start_line + usize::from(value.widget.is_some());
+            for (row, &start) in starts.iter().enumerate().take(end_line + 1).skip(first) {
+                let end = line_end(row);
                 if (value.start < start || value.widget.is_none() && value.start == start)
                     && start < value.end
                     && end <= value.end
@@ -438,19 +448,12 @@ pub(crate) fn collapsed_rows(
             let Some(position) = editor.visual_position_to_logical(row, 0) else {
                 continue;
             };
-            let start = index.position_to_char_offset(position.line, position.column);
+            let start = starts[position.line] + position.column;
             let end = editor
                 .visual_position_to_logical(row + 1, 0)
                 .filter(|next| next.line == position.line)
-                .map(|next| index.position_to_char_offset(next.line, next.column))
-                .unwrap_or_else(|| {
-                    index.position_to_char_offset(
-                        position.line,
-                        index
-                            .get_line(position.line)
-                            .map_or(0, |line| line.char_count),
-                    )
-                });
+                .map(|next| starts[next.line] + next.column)
+                .unwrap_or_else(|| line_end(position.line));
             if (value.start < start || (value.widget.is_none() && value.start == start))
                 && start < value.end
                 && end <= value.end
@@ -554,7 +557,7 @@ mod tests {
 
     #[test]
     fn row_only_mapping_matches_cell_mapping_for_wrapping_unicode_and_folds() {
-        let source = "wide界😀 words words\n\n    nested words words words\nend";
+        let source = "wide界😀 words words\n\n\t   nested words words words\nend";
         for width in [7, 20, 80] {
             let mut editor = editor_core::EditorStateManager::new(source, width);
             for folded in [false, true] {
@@ -567,6 +570,15 @@ mod tests {
                             },
                         ))
                         .unwrap();
+                }
+                // A zero-cell query must land exactly on the wrapped source
+                // boundary, including indented and folded Unicode lines.
+                for row in 0..editor.get_viewport_state().total_visual_lines {
+                    let position = editor.visual_position_to_logical(row, 0).unwrap();
+                    assert_eq!(
+                        editor.logical_position_to_visual_row(position.line, position.column),
+                        Some(row)
+                    );
                 }
                 let index = editor.editor().line_index();
                 for line in 0..index.line_count() {

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();
@@ -15,7 +16,7 @@ const preview=async()=>{await input.focus();await page.keyboard.press('Control+E
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
   await page.click('#markdown-setext');
-  await panel.locator('.mk-native-preview').click();await ready();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));await ready();
   const original=await canonical.textContent();
   assert.ok(original.includes('\r\n'),'Fixture retains CRLF');
   await panel.evaluate(el=>{el.style.height='1000px';});
@@ -99,7 +100,7 @@ try {
   await page.keyboard.press('Control+z');
   await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original);
   await page.click('#layout-delay');
-  await panel.locator('.mk-native-preview').click();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));
   await page.waitForFunction(()=>document.querySelector('.language .mk-native-preview').getAttribute('aria-pressed')==='false');
   await page.waitForTimeout(650);
   assert.equal(await widgets.count(),0,'Delayed heading geometry cannot restore disabled preview');

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // CED-R22 measurement, deliberately separate from run-all's acceptance list.
 // Use a disposable full-app fixture. FPS_BUILD records the actual build used;
 // a dev measurement is diagnostic evidence, never release acceptance.
@@ -91,7 +92,7 @@ try {
     for (const preview of name.endsWith('.rs') ? [false, true] : [false]) {
       if (name.endsWith('.rs')) {
         const toggle = panel().locator('.mk-native-doc-preview');
-        if ((await toggle.getAttribute('aria-pressed') === 'true') !== preview) await toggle.click();
+        if ((await toggle.getAttribute('aria-pressed') === 'true') !== preview) await clickNativeCommand(toggle);
       }
       const horizontal = name.endsWith(".txt");
       let box = await viewport().boundingBox();

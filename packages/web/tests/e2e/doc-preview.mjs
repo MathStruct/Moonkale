@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {firefox} from 'playwright';import fs from 'node:fs';import assert from 'node:assert/strict';
 const root=process.env.M1_ROOT;if(!root)throw Error('M1_ROOT must name a disposable fixture');
 const sources={
@@ -15,7 +16,7 @@ try{
  await page.goto(`http://127.0.0.1:${process.env.PORT??8094}/`,{waitUntil:'networkidle'});await page.waitForSelector('.wb-workspace');await page.click('.mk-explorer-open button[type=submit]');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
  for(const [name,original]of Object.entries(sources)){
   await page.locator('.mk-tree-file').filter({hasText:name}).click();await input().waitFor();
-  const toggle=panel().locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='false')await toggle.click();
+  const toggle=panel().locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='false')await clickNativeCommand(toggle);
   await input().focus();await page.keyboard.press('Control+End');await panel().locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();
   assert.equal(await panel().locator('.mk-native-wrap').getAttribute('aria-pressed'),'false');assert.equal(await panel().locator('.mk-documentation-preview').count(),2);
   assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),original);await save();assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),original);
@@ -23,7 +24,7 @@ try{
   const body=panel().locator('.mk-doc-body').first();await body.scrollIntoViewIfNeeded();await ready();const box=await body.boundingBox();await page.mouse.click(box.x+8,box.y+10);await ready();assert.equal(await panel().locator('.mk-documentation-preview').count(),1);
   await page.keyboard.press('End');await page.keyboard.insertText(' edited');await save();const end=original.indexOf('\r\n'),changed=original.slice(0,end)+' edited'+original.slice(end);assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),changed);
   await page.keyboard.press('Control+z');await save();assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),original);await page.keyboard.press('Control+Shift+z');await save();assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),changed);await page.keyboard.press('Control+z');await save();
-  await toggle.click();assert.equal(await panel().locator('.mk-documentation-preview').count(),0);await save();assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),original);await toggle.click();
+  await clickNativeCommand(toggle);assert.equal(await panel().locator('.mk-documentation-preview').count(),0);await save();assert.equal(fs.readFileSync(`${root}/${name}`,'utf8'),original);await clickNativeCommand(toggle);
  }
  assert.deepEqual(errors,[]);console.log('DOC PREVIEW E2E: PASS');
 }finally{await browser.close();}

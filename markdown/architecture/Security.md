@@ -161,3 +161,7 @@ They keep the debt from growing until the full document and a review exist. Each
 Accounts and roles for a shared server (design in [[Remote and Server Modes]]); a Content-Security-Policy; signed releases and a checksum for the uploaded remote server; an OS keychain.
 
 Browser CI startup diagnostics contain only the owned process group’s executable names, process state, disk availability and progress timestamps. No environment or process argument dump is taken. Servers launch in a dedicated session; cleanup checks the recorded PID birth identity and signals only that process group, including orphaned descendants (P-209). Build logs/screenshots are retained for seven days.
+
+WP-69 preview performance fixes retain at most three folding parser/tree/source entries per thread (one latest document per supported grammar). Incremental edits align byte endpoints to UTF-8 boundaries; switching documents is diffed against the exact retained source. The cache is derived editor state and adds no evaluation, file access, network authority, dependency or persistence.
+
+Markdown highlighting may reuse captures for ASCII alphanumeric appends at EOF only when the unchanged prefix matches exactly, the last nonempty line is bounded to 4096 bytes of plain ASCII prose, and no retained capture touches that tail. Other edits parse normally, including syntax changes after retained appends. Canonical source always updates; parser/structure providers still receive it. Fresh-parser comparisons cover syntax, Unicode and earlier edits after a retained tail.

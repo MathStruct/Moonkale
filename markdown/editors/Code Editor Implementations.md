@@ -57,7 +57,7 @@ The Rust editor is the JS-free path for *viewing and simple editing* everywhere,
 
 ## Switching, like the terminals
 - `editor.implementation` (`codemirror` — default — or `native`; shown under both extensions' rows in the Extensions panel) decides which editor a document opens in when both extensions are enabled. Only one enabled → that one, whatever the setting.
-- **Per document**: each editor's toolbar has a switch (*Rust* on the CodeMirror panel, *CodeMirror* on the Rust panel) that moves *this* document to the other editor — the tab is replaced, the document (text, dirty state, undo history of the new editor from scratch) stays open. `Workspace::editor_choice` remembers the choice per document for the window.
+- **Per document**: each editor's toolbar has a switch (*Rust* on the CodeMirror panel, *CodeMirror* in the Rust panel’s ⋯ menu since WP-69) that moves *this* document to the other editor — the tab is replaced, the document’s canonical text, dirty state, revisioned history and selection stay open. `Workspace::editor_choice` remembers the choice per document for the window.
 - No modal chooser: the terminal chooser is a one-off per *New Terminal*; a document open must stay instant, so the default is the setting and the switch is a click away.
 - Markdown source mode (Source | Rich) keeps CodeMirror for now (it embeds the CodeMirror panel directly and needs the `[[` completion); Flow files are their own editor.
 

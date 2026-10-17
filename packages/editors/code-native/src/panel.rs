@@ -4,6 +4,7 @@ use crate::L;
 use dioxus::prelude::*;
 use moonkale_code_view::RustCodeEditorPanel;
 use moonkale_ext_api::prelude::*;
+use moonkale_ext_api::t;
 
 pub const PANEL_PREFIX: &str = "editor-native:";
 
@@ -80,6 +81,14 @@ impl Extension for NativeCodeExtension {
         }
     }
 
+    fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
+        Some(moonkale_code_view::editor_settings(
+            ws,
+            target,
+            t!(ws, L, "native-wrap"),
+        ))
+    }
+
     // Which editor opens a file is Settings → Which extension (Milestone 15);
-    // this extension has no settings of its own yet.
+    // shared preferences above also apply to CodeMirror.
 }

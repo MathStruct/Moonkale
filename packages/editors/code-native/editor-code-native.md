@@ -36,3 +36,16 @@ preview scrollbar dragging. The source keeps a visible focus boundary, including
 focused hover/tools, and individual controls keep their outlines. Input/help/status
 semantics and reduced motion are retained. Focus cannot change layout; geometry
 uses the viewport's mounted rectangle inside the reserved border.
+
+
+WP-69 (2026-10-17): the toolbar is Save, Reload, Wrap and ⋯, using SVG icons,
+hidden labels and descriptive tooltips with available shortcuts. The gear is in
+⋯ to keep the four-control budget; its existing shell popover now exposes shared
+wrap, indentation style and width preferences. Both adapters share this settings
+view in `code-view`; the core Code extension contributes the Rust palette routes
+so minimal distributions retain them without the optional adapter. Preview, LSP, comments/folding and
+the CodeMirror switch are in ⋯ and the command palette. Tab/Enter and touch open
+the disclosure; Escape closes it and restores trigger focus. The cursor word is
+inline and hidden below 700 px, costing no source row. `toolbar-icons.mjs` and
+`code-native.mjs` cover the integrated toolbar; native fixture tests open the
+disclosure through `native-toolbar.mjs` before invoking its commands.

@@ -907,8 +907,28 @@ fn App() -> Element {
             });
         }
     });
+    let preferences = ws.settings.resolved.read().editor.clone();
     rsx! {
         style { ":root {{ --mk-code-bg: #fff; --mk-code-ink: #222; --mk-muted: #777; --mk-code-selection: #aaccee; }} .harness-editor {{height: 450px; width: 950px;}} .canonical,.saved {{display:none}}" }
+        // Preference inputs belong to the harness; production now exposes these in the gear popover.
+        select { id: "harness-indent-style",
+            value: preferences.insert_spaces.map(|spaces| if spaces { "spaces" } else { "tabs" }).unwrap_or("default"),
+            onchange: move |event| {
+                let value = match event.value().as_str() { "spaces" => Some(true), "tabs" => Some(false), _ => None };
+                spawn(async move { ws.update_user_settings(|file| file.editor.insert_spaces = value).await; });
+            },
+            option { value: "default", "Default" }
+            option { value: "spaces", "Spaces" }
+            option { value: "tabs", "Tabs" }
+        }
+        select { id: "harness-indent-width", value: preferences.indent_width.map(|width| width.to_string()).unwrap_or_default(),
+            onchange: move |event| {
+                let value = event.value().parse::<u8>().ok();
+                spawn(async move { ws.update_user_settings(|file| file.editor.indent_width = value).await; });
+            },
+            option { value: "", "Default" }
+            for width in 1..=8 { option { value: "{width}", "{width}" } }
+        }
         for (id, name) in languages {
             button { "data-language-fixture": "{name}", onclick: move |_| {
                 let mut ws = ws;

@@ -95,28 +95,34 @@ impl Extension for CodeEditorExtension {
     }
 
     fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
-        vec![
-            CommandContribution::new("editor.toggleWrap", t!(ws, L, "cmd-toggle-wrap"))
-                .key("Alt+Z"),
-        ]
+        let mut commands =
+            vec![
+                CommandContribution::new("editor.toggleWrap", t!(ws, L, "cmd-toggle-wrap"))
+                    .key("Alt+Z"),
+            ];
+        if ws.settings.resolved.read().extensions.is_enabled_id(
+            "dev.moonkale.editor-code-native",
+            moonkale_ext_api::settings::DEFAULT_CODE_EDITOR == "native",
+        ) {
+            commands.extend(moonkale_code_view::native_commands(ws));
+        }
+        commands
     }
 
     fn run_command(&self, id: &str, ws: Workspace) {
         if id == "editor.toggleWrap" {
             moonkale_code_view::toggle_wrap(ws);
+        } else {
+            moonkale_code_view::run_native_command(id, ws);
         }
     }
 
     // Milestone 13: the editor's settings live with the extension.
     fn settings(&self, ws: Workspace, target: SettingsTarget) -> Option<Element> {
-        let wrap = ws.settings.resolved.read().editor.wrap;
-        // Which editor opens a file is Settings → Which extension (Milestone 15).
-        Some(rsx! {
-            label { class: "mk-settings-check",
-                input { r#type: "checkbox", checked: wrap,
-                    onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.wrap = Some(v)); } }
-                {t!(ws, L, "code-wrap-setting")}
-            }
-        })
+        Some(moonkale_code_view::editor_settings(
+            ws,
+            target,
+            t!(ws, L, "code-wrap-setting"),
+        ))
     }
 }

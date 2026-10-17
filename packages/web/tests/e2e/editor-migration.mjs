@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 // One backend setting migrates live/restored documents without writing their source.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -13,6 +14,14 @@ await context.addInitScript(() => {
   if (!localStorage.getItem('moonkale.settings')) localStorage.setItem('moonkale.settings', JSON.stringify({ editor: { markdown_rich: false, implementation: 'codemirror' } }));
 });
 const page = await context.newPage();
+// The Explorer form is server-rendered before its submit handler is hydrated.
+// Wait for the client startup request on both first load and restoration.
+const load = async navigate => {
+  const hydrated = page.waitForResponse(response => response.url().endsWith('/api/llm/info') && response.status() === 200);
+  await navigate();
+  await hydrated;
+  await page.locator('.wb-workspace').waitFor();
+};
 const native = () => page.locator('.mk-crust[data-editor=rust]:visible');
 const tab = name => page.locator('.wb-tab').filter({ hasText: name }).first();
 const setting = async value => {
@@ -33,9 +42,9 @@ const save = async (name, expected) => {
   if (fs.readFileSync(`${root}/${name}`, 'utf8') !== expected) throw Error(`changed bytes in ${name}`);
 };
 try {
-  await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8094}/`);
+  await load(() => page.goto(`http://127.0.0.1:${process.env.PORT ?? 8094}/`));
   await page.locator('.mk-explorer-open button[type=submit]').click();
-  await page.waitForFunction(() => document.querySelector('.wb-status-bar').textContent.includes('index:'));
+  await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
   await page.locator('.mk-tree-dir').filter({ hasText:'src' }).click();
   await page.locator('.mk-tree-file').filter({ hasText:'main.rs' }).click();
   await page.locator('.cm-content:visible').waitFor();
@@ -70,7 +79,7 @@ try {
   await open('main.rs');
   await save('src/main.rs', '/* λ😀 */' + originals['src/main.rs']);
   // An explicit per-document fallback choice outranks subsequent global changes.
-  await native().locator('.mk-editor-switch').click();
+  await clickNativeCommand(native().locator('.mk-editor-switch'));
   await page.locator('.cm-content:visible').waitFor();
   await setting('codemirror');
   await tab('second.txt').click();
@@ -81,10 +90,9 @@ try {
   await open('second.txt');
   await page.waitForFunction(() => [...Array(localStorage.length)].some((_,i)=>localStorage.key(i).startsWith('moonkale.state/layout/')));
   console.log('restore saved tabs');
-  await page.reload();
-  await page.locator('.wb-workspace').waitFor();
+  await load(() => page.reload());
   await page.locator('.mk-explorer-open button[type=submit]').click();
-  await page.waitForFunction(() => document.querySelector('.wb-status-bar').textContent.includes('index:'));
+  await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
   // Restoration remaps saved panel IDs to the currently selected backend.
   await open('second.txt');
   await save('second.txt','追加'+originals['second.txt']);
@@ -93,6 +101,6 @@ try {
   console.log('EDITOR MIGRATION: PASS (single setting, unsaved live buffers/caret, per-document fallback, saved tab restoration, CRLF/Unicode)');
 } catch (error) {
   await page.screenshot({ path: `${process.env.M1_SHOTS ?? '.'}/editor-migration-fail.png` });
-  console.log('failure:', error.stack, await page.locator('.wb-status-bar').textContent());
+  console.log('failure:', error.stack, await page.locator('.wb-status-bar').textContent().catch(() => '<status bar unmounted>'));
   throw error;
 } finally { await browser.close(); }

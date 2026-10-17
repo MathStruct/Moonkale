@@ -22,3 +22,14 @@ futures-timer = { version = "3", features = ["wasm-bindgen"] }
 default = ["web"]
 web = ["dioxus/web"]
 desktop = ["dioxus/desktop", "moonkale-code-view/native-desktop", "dep:moonkale-lsp-local"]
+
+# Keep the parser runtime responsive in interactive development builds too.
+[profile.dev.package.arborium-tree-sitter]
+opt-level = 2
+
+# Preview indexing and syntax queries run on the input path.
+[profile.dev.package.moonkale-code-view]
+opt-level = 1
+
+[profile.dev.package.dioxus-code]
+opt-level = 2

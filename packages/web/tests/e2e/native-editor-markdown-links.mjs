@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();
@@ -14,7 +15,9 @@ const ready=()=>page.waitForFunction(()=>{
 const preview=async()=>{await input.focus();await page.keyboard.press('Control+End');await ready();await panel.locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();};
 const click=async(label,modified)=>{
  const link=links.filter({hasText:label});
- await link.scrollIntoViewIfNeeded();await ready();
+ // Scrolling virtualized runs may replace the link while Playwright waits
+ // for stability. Scroll immediately, then reacquire after measurement.
+ await link.evaluate(el=>el.scrollIntoView({block:'nearest'}));await ready();
  const box=await link.evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);const r=[...range.getClientRects()].find(r=>r.width>0&&r.height>0);return {x:r.x,y:r.y,width:r.width,height:r.height};});
  if(modified)await page.keyboard.down('Control');
  await page.mouse.click(box.x+Math.min(box.width/2,5),box.y+box.height/2);
@@ -23,7 +26,7 @@ const click=async(label,modified)=>{
 };
 try {
  await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
- await page.click('#markdown-links');await panel.locator('.mk-native-preview').click();
+ await page.click('#markdown-links');await clickNativeCommand(panel.locator('.mk-native-preview'));
  await panel.evaluate(el=>el.style.height='950px');await preview();
  const original=await canonical.textContent();const normalized=original.replaceAll('\r\n','\n');
  // Canonical caret navigation can follow ordinary links while their source is revealed.

@@ -151,3 +151,14 @@ strip = true
 # another crate's trait (Milestone 18 phase 6.4).
 [patch."https://github.com/MathStruct/Moonkale"]
 moonkale-ext-api = { path = "packages/ext-api" }
+
+# Keep the parser runtime responsive in interactive development builds too.
+[profile.dev.package.arborium-tree-sitter]
+opt-level = 2
+
+# Preview indexing and syntax queries run on the input path.
+[profile.dev.package.moonkale-code-view]
+opt-level = 1
+
+[profile.dev.package.dioxus-code]
+opt-level = 2

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {firefox} from 'playwright';import fs from 'node:fs';import assert from 'node:assert/strict';
 const root=process.env.M1_ROOT,shots=process.env.M1_SHOTS;if(!root||!shots)throw Error('M1_ROOT and M1_SHOTS must name disposable fixture directories');
 const source=Array.from({length:240},(_,n)=>`/// # Section ${n} 猫\r\n///\r\n/// Documentation **bold** and [web](https://example.org/${n}).\r\n///\r\n/// - first item\r\n/// - second item\r\n///\r\n/// \`\`\`rust\r\n/// fn example_${n}() {}\r\n/// \`\`\`\r\nfn section_${n}() {\r\n    // ${'ordinary code comment '.repeat(40)}\r\n}\r\n\r\n`).join('')+'fn main() {}\r\n';
@@ -16,8 +17,8 @@ const bench=async()=>{
 };
 try{
  await page.goto(`http://127.0.0.1:${process.env.PORT??8094}/`,{waitUntil:'networkidle'});await page.waitForSelector('.wb-workspace');await page.click('.mk-explorer-open button[type=submit]');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));await page.locator('.mk-tree-file').filter({hasText:'LongDocPreview.rs'}).click();await input().waitFor();
- const toggle=panel().locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='true')await toggle.click();
- const off=await bench();console.log('Same-file Source typing:',JSON.stringify(off));await toggle.click();
+ const toggle=panel().locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='true')await clickNativeCommand(toggle);
+ const off=await bench();console.log('Same-file Source typing:',JSON.stringify(off));await clickNativeCommand(toggle);
  const viewport=panel().locator('.mk-editor-core-viewport');
  for(const section of [0,60,120,180,239]){
   await input().focus();await page.keyboard.press('Control+f');await panel().locator('.mk-search-query').fill(`fn section_${section}()`);await panel().getByRole('button',{name:'Next',exact:true}).click();await panel().locator('.mk-search-query').press('Escape');await input().focus();await page.keyboard.press('ArrowRight');await viewport.evaluate(el=>el.scrollTop=Math.max(0,el.scrollTop-el.clientHeight/2));await ready();

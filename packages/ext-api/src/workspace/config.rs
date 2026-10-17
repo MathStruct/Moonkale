@@ -408,6 +408,18 @@ pub enum Command {
 /// forwards them to its view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EditorAction {
+    /// Reload the active Rust document from its source.
+    NativeReload,
+    /// Show language-server hover information in the Rust editor.
+    NativeHover,
+    /// Request completion in the Rust editor.
+    NativeComplete,
+    /// Toggle Rust Markdown formatting preview.
+    NativePreview,
+    /// Toggle Rust documentation preview.
+    NativeDocPreview,
+    /// Switch the active Rust document to CodeMirror.
+    NativeCodeMirror,
     /// Find in the document.
     Find,
     /// Find and replace.

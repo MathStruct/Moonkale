@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import { chromium } from "playwright";
 const browser=await chromium.launch();
 const page=await browser.newPage({viewport:{width:1400,height:900}});page.setDefaultTimeout(15000);
@@ -16,7 +17,7 @@ const waitCount=count=>page.waitForFunction(count=>JSON.parse(document.querySele
 const cancel=id=>page.waitForFunction(id=>JSON.parse(document.querySelector(".lsp-log").textContent).map(JSON.parse).some(entry=>entry.method==="$/cancelRequest"&&entry.params.id===id),id);
 const origin=async()=>{await control("definition-origin");await input().focus();await page.keyboard.press("Control+Home");for(let n=0;n<3;n++)await page.keyboard.press("ArrowRight");};
 const fixture=async()=>{await control("rename-fixture");await waitText("😀old old\r\n");await origin();};
-const open=async(toolbar=false)=>{if(toolbar)await root.locator(".mk-native-rename").click();else{await input().focus();await page.keyboard.press("F2");}await prompt().waitFor();};
+const open=async(toolbar=false)=>{if(toolbar)await clickNativeCommand(root.locator(".mk-native-rename"));else{await input().focus();await page.keyboard.press("F2");}await prompt().waitFor();};
 const submit=async(name,mouse=false)=>{await prompt().locator("input").fill(name);if(mouse)await prompt().locator(".mk-native-rename-confirm").click();else await prompt().locator("input").press("Enter");};
 const step=async(name,fn)=>{await fn();console.log(`ok: ${name}`);};
 try{

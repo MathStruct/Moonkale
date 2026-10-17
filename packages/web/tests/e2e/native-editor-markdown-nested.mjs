@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch();
@@ -15,7 +16,7 @@ const preview=async()=>{await input.focus();await page.keyboard.press('Control+E
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
   await page.click('#markdown-nested');
-  await panel.locator('.mk-native-preview').click();await ready();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));await ready();
   const original=await canonical.textContent();
   assert.ok(original.includes('\r\n'),'Fixture retains CRLF');
   await preview();
@@ -85,7 +86,7 @@ try {
   await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original.slice(0,rawOffset)+'你好'+original.slice(rawOffset));
   await page.keyboard.press('Control+z');
   await page.waitForFunction(text=>document.querySelector('.language-canonical').textContent===text,original);
-  await panel.locator('.mk-native-preview').click();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));
   await page.waitForFunction(()=>document.querySelector('.language .mk-native-preview').getAttribute('aria-pressed')==='false');
   assert.equal(await widgets.count(),0);
   assert.equal(await canonical.textContent(),original);

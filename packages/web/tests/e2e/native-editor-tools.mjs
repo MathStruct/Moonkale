@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import { chromium } from "playwright";
 const browser=await chromium.launch();
 const page=await browser.newPage({viewport:{width:1500,height:950}});page.setDefaultTimeout(15000);
@@ -18,7 +19,7 @@ const waitText=text=>page.waitForFunction(text=>document.querySelector(".canonic
 const selected=(where,head)=>page.waitForFunction(({where,head})=>document.querySelector(`${where} .mk-crust`)?.dataset.selectionHead===`${head}`,{where,head});
 const origin=async()=>{await control("definition-origin");await input().focus();await page.keyboard.press("Control+Home");for(let n=0;n<3;n++)await page.keyboard.press("ArrowRight");};
 const fixture=async()=>{await control("rename-fixture");await waitText("😀old old\r\n");await origin();};
-const trigger=async(kind,toolbar=false)=>{if(toolbar)await root.locator(kind==="actions"?".mk-native-code-actions":".mk-native-find-references").click();else{await input().focus();await page.keyboard.press(kind==="actions"?"Control+.":"Shift+F12");}};
+const trigger=async(kind,toolbar=false)=>{if(toolbar)await clickNativeCommand(root.locator(kind==="actions"?".mk-native-code-actions":".mk-native-find-references"));else{await input().focus();await page.keyboard.press(kind==="actions"?"Control+.":"Shift+F12");}};
 const loaded=count=>page.waitForFunction(count=>document.querySelector('.primary .mk-native-tools')?.getAttribute("aria-busy")==="false"&&document.querySelector('.primary .mk-native-tools')?.dataset.count===`${count}`,count);
 const dismiss=async()=>{if(await menu().count()){await page.keyboard.press("Escape");await menu().waitFor({state:"detached"});}};
 const method=kind=>kind==="actions"?"textDocument/codeAction":kind==="references"?"textDocument/references":"codeAction/resolve";
@@ -41,7 +42,7 @@ try{
   await page.keyboard.press("Enter");await waitText("😀fixed fixed\r\n");await input().focus();await page.keyboard.press("Control+z");await waitText("😀old old\r\n");await page.keyboard.press("Control+Shift+z");await waitText("😀fixed fixed\r\n");
  });
  await step("switching tools preserves prompt focus and keyboard Cancel does not apply an action",async()=>{
-  await fixture();await trigger("actions");await loaded(4);await root.locator(".mk-native-rename").click();await root.locator(".mk-native-rename-prompt").waitFor();
+  await fixture();await trigger("actions");await loaded(4);await clickNativeCommand(root.locator(".mk-native-rename"));await root.locator(".mk-native-rename-prompt").waitFor();
   await page.waitForFunction(()=>document.activeElement===document.querySelector('.primary .mk-native-rename-prompt input'));
   if(await menu().count())throw Error("Rename did not dismiss actions");await page.keyboard.press("Escape");await root.locator(".mk-native-rename-prompt").waitFor({state:"detached"});
   await trigger("actions");await loaded(4);await menu().locator(".mk-native-tools-header .mk-btn").focus();await page.keyboard.press("Enter");await menu().waitFor({state:"detached"});

@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import { chromium } from "playwright";
 const browser=await chromium.launch();
 const page=await browser.newPage({viewport:{width:1200,height:800}});page.setDefaultTimeout(15000);
@@ -37,7 +38,7 @@ try{
   await trigger();await selected(".primary",21);
   if((await requests()).at(-1).params.position.character!==10)throw Error("Request was not UTF-16 after the emoji");
   if(await page.locator(".canonical").textContent()!==original)throw Error("Definition navigation edited text");
-  await origin();await root.locator(".mk-native-definition").click();await selected(".primary",21);
+  await origin();await clickNativeCommand(root.locator(".mk-native-definition"));await selected(".primary",21);
   await input().evaluate(input=>{if(document.activeElement!==input)throw Error("Definition did not restore focus");});
   await mode("array");await origin();await trigger();await selected(".primary",21);
  });

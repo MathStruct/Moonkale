@@ -4,6 +4,26 @@ description: Milestones, implementation sequence, and verification plan for repl
 tags: [editors, code, roadmap, testing]
 ---
 
+## WP-69 — compact toolbar (2026-10-17)
+
+The Rust toolbar shows four controls: Save, Reload, Wrap and ⋯, using SVG symbols,
+hidden accessible labels and descriptive tooltips with available shortcuts. The
+extension's gear sits in ⋯ so the overflow trigger also fits the four-control
+budget. Indentation style and width are shared user preferences, now edited in
+that gear's settings popover. Both adapters share these controls in `code-view`;
+the core Code extension contributes the Rust palette routes too, so the minimal
+distribution's Rust fallback keeps them. Preview, LSP tools, comments, folding and the
+CodeMirror switch are in ⋯; commands remain available in the palette. Tab reaches
+the disclosure and its commands, Enter or touch opens it, and Escape closes it
+and returns focus to the trigger. Choosing a command closes the disclosure.
+
+The cursor word is inline in the toolbar, hidden below 700 px, so it consumes no
+source row. The path truncates on narrow screens and language/version metadata
+is hidden there. `toolbar-icons.mjs` covers native icons, the four-control budget,
+overflow keyboard/touch behavior, indentation settings and phone height;
+`code-native.mjs` opens ⋯ before switching backends.
+
+
 ## M2 progress — local search/replace
 
 Literal find/replace now supports Mod-F/Mod-H, shell editor actions, next/previous navigation, case/whole-word options and one-step replace-all undo. Unicode and CRLF flows pass in the shared production panel fixture. Language defaults, auto-indented Enter, Tab/Shift-Tab, comment toggling and structural bracket pairs are now connected to the production Rust surface and Workspace history. Fold gutter/placeholder controls, shell fold-all/unfold-all, conservative delimiter/Python folds and adjacent matching-bracket highlights are now implemented. Fold state survives remounts; hidden search/reveal targets expand. Wrap now follows shared settings with bounded horizontal rendering when off; optional spaces/tabs and indentation-width overrides persist through user settings and apply to both backends. Regex search, all-match/current highlighting, counts, invalid-pattern feedback and numbered/named capture replacement are implemented. Zero-width matches support navigation and replacement; Unicode/CRLF history is covered by unit and production browser tests. Grammar-based HTML element/comment, Markdown section/block and Julia keyword/comment folds are implemented with nested remount and search-reveal coverage. Syntax-aware Enter handles comment/string context, Python/Rust triggers, Julia keyword headers and HTML tag pairs, sharing indentation overrides and Workspace history. Leading bracket closers, Julia `end` and HTML closing tags now align with their matched opener in one undoable edit; inline typing and paste remain unchanged. Lean namespace/section/mutual scopes, declarations and nested proof bodies now fold through a dedicated layout provider that excludes comments/strings and preserves sibling boundaries. Additional language/custom-syntax folding, whole-document formatting and richer language policies remain open.

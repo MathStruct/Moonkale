@@ -2,6 +2,10 @@
 .mk-native-surface { flex: 1 1 auto; display: flex; min-height: 0; flex-direction: column; position: relative; font: 14px/22px var(--mk-code-font, monospace); border:2px solid transparent; }
 .mk-native-surface .mk-editor-core-viewport { flex: 1 1 auto; min-height: 0; overflow: auto; background: var(--mk-code-bg); color: var(--mk-code-ink); font: 14px/22px var(--mk-code-font, monospace); white-space: pre; user-select: none; outline: none; }
 .mk-native-surface .mk-editor-core-gutter { color: var(--mk-muted); }
+/* Upstream comment colours assume a different background; use the shell's
+   readable hint colour on both actual code backgrounds. */
+.mk-native-surface.dxc .mk-editor-core-cell.a-c { color: var(--mk-muted); }
+.mk-native-surface.dxc .mk-editor-core-cell.mk-editor-core-selected { color: var(--mk-code-ink); }
 .mk-native-surface .mk-editor-core-selected { background: var(--mk-code-selection); }
 .mk-native-surface .mk-editor-core-preedit { text-decoration: underline; }
 
@@ -12,8 +16,9 @@
 .mk-native-fold-toggle, .mk-native-fold-slot { display: inline-block; width: 1ch; padding: 0; border: 0; background: transparent; color: var(--mk-muted); font: inherit; line-height: inherit; cursor: pointer; }
 .mk-native-fold-placeholder { color: var(--mk-muted); cursor: pointer; }
 .mk-native-bracket-match { background: var(--mk-code-selection); outline: 1px solid currentColor; outline-offset: -1px; }
-.mk-native-indent-control { display: inline-flex; align-items: center; gap: 4px; }
-.mk-crust .mk-editor-toolbar { flex-wrap: wrap; }
+.mk-crust .mk-editor-toolbar { flex-wrap: nowrap; position: relative; }
+.mk-crust .mk-editor-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-crust .mk-editor-toolbar > .mk-icon-btn, .mk-native-more { flex-shrink: 0; }
 
 .mk-native-search-match { background: var(--mk-code-selection); text-decoration: underline; }
 .mk-native-search-current { outline: 2px solid currentColor; outline-offset: -2px; }
@@ -46,7 +51,7 @@
 .mk-native-tool-item:disabled { color: var(--mk-muted); cursor: default; }
 
 /* Caret context must not move the viewport while selecting with the pointer. */
-.mk-crust > .mk-editor-cursor-word { height: 22px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-crust .mk-editor-cursor-word { max-width: 16ch; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .mk-preview-widget { padding: 8px; background: var(--mk-code-bg); color: var(--mk-code-ink); user-select: text; }
 .mk-preview-widget-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -130,7 +135,21 @@
 .mk-native-a11y-only { position:absolute; width:1px; height:1px; padding:0; margin:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 /* Reserve the ring's space: an ancestor outline makes virtual subtree replacement expensive. */
 .mk-native-surface:focus-within { border-color:var(--mk-code-ink); }
-.mk-crust :is(button, input, select, textarea, [tabindex]):not(.mk-native-surface):focus-visible { outline:2px solid var(--mk-ink, currentColor); outline-offset:-2px; }
+.mk-crust :is(button, summary, input, select, textarea, [tabindex]):not(.mk-native-surface):focus-visible { outline:2px solid var(--mk-ink, currentColor); outline-offset:-2px; }
 @media (prefers-reduced-motion: reduce) {
   .mk-crust *, .mk-crust *::before, .mk-crust *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
 }
+
+.mk-native-more:not([open]) > .mk-native-more-items { display: none; }
+.mk-native-more > summary { list-style: none; }
+.mk-native-more > summary::-webkit-details-marker { display: none; }
+.mk-native-more-items { position: absolute; right: 0; top: 100%; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 8px; max-width: 100%; max-height: 60vh; overflow: auto; background: var(--wb-surface); border: 1px solid var(--wb-line); }
+.mk-native-more-items .mk-btn { text-align: start; min-height: 32px; }
+@media (max-width: 700px) {
+  .mk-crust .mk-editor-cursor-word, .mk-crust .mk-editor-meta { display: none; }
+}
+
+/* The Rust view is also hosted without the shell by desktop/browser fixtures. */
+.mk-crust .mk-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 3px 5px; min-width: 26px; }
+.mk-crust .mk-icon-btn .mk-icon { width: 16px; height: 16px; }
+.mk-crust .mk-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

@@ -52,11 +52,6 @@ editor-fold = Fold
 editor-unfold = Unfold
 editor-fold-all = Fold all
 editor-unfold-all = Unfold all
-editor-indent-style = Indentation
-editor-indent-width = Width
-editor-language-default = Language default
-editor-indent-spaces = Spaces
-editor-indent-tabs = Tabs
 
 editor-search-regex = Regular expression
 editor-search-count = { $current } of { $total }
@@ -124,3 +119,17 @@ editor-a11y-tab-focus = Tab moves focus.
 editor-a11y-tab-indent = Tab indents.
 
 editor-group-history-blocked = Cannot undo or redo this rename. Undo newer edits in { $file } first, or the coordinated history is no longer available.
+
+editor-more = More editor commands
+
+native-reload = Rust editor: Reload
+native-hover = Rust editor: Show hover information
+native-complete = Rust editor: Complete
+native-preview = Rust editor: Preview Markdown
+native-doc-preview = Rust editor: Doc preview
+native-codemirror = Rust editor: Switch to CodeMirror
+native-indent-style = Indentation
+native-indent-width = Width
+native-default = Language default
+native-spaces = Spaces
+native-tabs = Tabs

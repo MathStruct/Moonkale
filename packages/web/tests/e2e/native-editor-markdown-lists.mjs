@@ -1,3 +1,4 @@
+import { clickNativeCommand } from "./native-toolbar.mjs";
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 const browser = await chromium.launch();
@@ -18,7 +19,7 @@ const preview=async()=>{
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT??8099}/`,{waitUntil:'networkidle'});
   await page.click('#markdown-lists');
-  await panel.locator('.mk-native-preview').click();await ready();
+  await clickNativeCommand(panel.locator('.mk-native-preview'));await ready();
   const original=await canonical.textContent();
   const normalized=original.replaceAll('\r\n','\n');
   await panel.evaluate(el=>el.style.height='900px');await preview();

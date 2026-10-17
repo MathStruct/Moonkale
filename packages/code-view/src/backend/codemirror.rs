@@ -396,6 +396,12 @@ impl CodeEditorBackend for CodeMirrorBackend {
     fn run(&self, action: moonkale_ext_api::EditorAction) {
         use moonkale_ext_api::EditorAction as A;
         let action = match action {
+            A::NativeReload
+            | A::NativeHover
+            | A::NativeComplete
+            | A::NativePreview
+            | A::NativeDocPreview
+            | A::NativeCodeMirror => return,
             A::Find => "find",
             A::Replace => "replace",
             A::Rename => "rename",
