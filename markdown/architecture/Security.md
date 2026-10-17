@@ -175,3 +175,10 @@ WP-23 (2026-10-17, review corrected) separates cheap folder query metadata hints
 WP-18 Unison (2026-10-17), default-off: only the operator's `MOONKALE_UCM`/PATH selects an executable. A direct argument-vector spawn owns a loopback-only UCM 1.5 HTTP server with a fresh random token; proxying and redirects are disabled, no remote endpoints/Share commands or shell are exposed, and no token/process output is logged. Hash-only definition display avoids UCM's named attached-documentation evaluation path. The source submits only fixed read API routes. UCM itself may acquire its codebase lock and perform migrations/maintenance; Moonkale's read-only capabilities do not make UCM a read-only SQLite engine. Snapshot limits are 4,096 nodes / 65,536 edges / 64 namespace levels / 16 MiB aggregate successful API bytes / 16,384 requests / 60 seconds overall / five seconds per request / ten seconds startup, with serde_json recursion limits. An RAII guard kills/reaps UCM on completion/error; cancellation's blocking task remains bounded. Branch hash changes reject publication. No source text becomes HTML, a command or a URL authority. Existing reqwest (blocking, no default/TLS features), serde_json, Tokio and UUID crates provide loopback reads, bounded parsing, worker isolation and random tokens. Tests create bundled-only transcript fixtures and stop their own UCMs. See `packages/sources/unison/sources-unison.md` for limits and the per-branch snapshot/port-reservation limitations.
 
 Pre-existing symlinks in `.unison`, `v2` and UCM's SQLite/lock files are refused. This is a pre-spawn check, not OS process confinement: concurrent pathname replacement remains the existing #5 boundary.
+
+WP-26 portable CI (2026-10-17) uses SHA-pinned actions, read-only repository
+permissions, OS/architecture-specific Rust caches and a 45-minute job timeout.
+Windows/macOS tests start advisory; the existing blocking security gates remain
+in force. No secrets, publishing or deployment permissions are supplied. Native
+symlink fixture coverage remains Unix-only; Windows path jail checks run without
+requiring elevated symlink privileges. See [[How to Write Tests]] for coverage.

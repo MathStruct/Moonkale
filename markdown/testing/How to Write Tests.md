@@ -309,3 +309,32 @@ exceptions and their limitations are in [[Security]]. To update vendored bytes,
 verify upstream/version and documented local patches first, then change the
 reviewed SHA-256 entries in `tools/vendored-assets.json` explicitly; CI never
 fetches or silently regenerates them.
+
+## Platform CI (WP-26, 2026-10-17)
+
+`.github/workflows/ci.yml` keeps the full workspace, clippy, wasm check and
+browser suites on Ubuntu. The `portable` matrix adds `windows-latest` and
+`macos-14` (Apple silicon), initially **advisory**, with a 45-minute timeout
+per OS and separate Rust caches. It runs core, project-fs, index, ext-api,
+LLM and Unison tests, plus remote library tests, then checks the default
+extension distribution. These defaults match the desktop release's extension
+selection (no Julia); LadybugDB is enabled only by desktop's Linux target table
+(P-144). This checks the distribution, not the desktop binary, installers or UI.
+
+Portable filesystem tests retain forward-slash native keys (the source API's
+format), canonicalize paths used by content-open instrumentation, use temporary
+folders and write fixture bytes explicitly, so checkout
+CRLF conversion cannot alter them. General rename tests use distinct basenames
+for case-insensitive volumes. Plain relative-path jail validation runs everywhere;
+Unix symlink fixtures require no Windows privilege setup and remain Unix-only.
+The FIFO fixture uses the Linux/Android-only rustix dependency. Watcher tests
+exercise native recursive watching on Windows/macOS. Remote library tests cover
+its platform branches without the Unix shell/server integration shim; the
+PTY handshake fixture uses Unix `sleep` and stays Unix-only. Unison's
+existing Unix symlink fixture remains gated; its other unit tests run on both. The UCM integration fixture skips when UCM is
+absent; these jobs do not install it.
+
+The first GitHub runs still need review: Linux validation cannot establish native
+Windows/macOS success. Once both OS jobs are green, remove `continue-on-error:
+true` from **portable** and remove `(advisory)` from its name; branch protection
+must also require both matrix checks if desired. Intel macOS remains release-only.

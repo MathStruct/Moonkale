@@ -1003,6 +1003,8 @@ mod race_tests {
             .set_len(64 << 20)
             .unwrap();
         let src = FolderSource::open(dir.path()).unwrap();
+        // Match FolderSource's canonical root (Windows verbatim paths, macOS /private).
+        let path = std::fs::canonicalize(path).unwrap();
         CONTENT_OPENS.lock().unwrap().insert(path.clone(), 0);
         let id = src.node_id("large.bin");
         let hint = FolderSource::version_of(&std::fs::metadata(&path).unwrap());

@@ -23,6 +23,13 @@ See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
 older whole-product inventory date above is unchanged; this paragraph checks only
 WP-47, not every area below.
 
+## Portable CI (WP-26, checked 2026-10-17)
+
+Windows and Apple-silicon macOS now have an advisory `portable` matrix for core,
+folder, index, extension API, LLM, Unison and remote library tests, followed by the
+default extension distribution check. Native runs are pending GitHub validation;
+UI, installers and Intel macOS are outside this CI job. See [[How to Write Tests]].
+
 ## By area
 
 | area | state | notes |
