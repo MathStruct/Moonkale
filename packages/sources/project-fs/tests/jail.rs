@@ -1,11 +1,17 @@
 //! #5: the folder source never reads or writes outside its folder.
-#![cfg(unix)]
 
+#[cfg(unix)]
 use moonkale_core::{OpResult, Query, Source, SourceError, Transaction};
-use moonkale_project_fs::{tree, FolderSource};
+use moonkale_project_fs::tree;
+#[cfg(unix)]
+use moonkale_project_fs::FolderSource;
+#[cfg(unix)]
 use std::fs;
+// Unix symlinks need no Windows Developer Mode or elevated privileges.
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
 
+#[cfg(unix)]
 async fn by_path(src: &FolderSource, path: &str) -> Result<moonkale_core::NodeId, SourceError> {
     src.query(Query::Text {
         dialect: "path".into(),
@@ -38,6 +44,8 @@ fn only_plain_relative_paths() {
     }
 }
 
+// Unix symlink fixtures require privileges or Developer Mode on Windows.
+#[cfg(unix)]
 #[tokio::test]
 async fn links_leading_outside_are_not_followed() {
     let outside = tempfile::tempdir().unwrap();

@@ -676,6 +676,8 @@ mod tests {
 
     /// #18: another program on the forwarded port answers the challenge
     /// wrongly — the session is refused and the token is never sent to it.
+    // The PTY fixture runs Unix sleep, which is not a Windows system command.
+    #[cfg(unix)]
     #[tokio::test]
     async fn an_impostor_on_the_port_never_sees_the_token() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -10,7 +10,7 @@ The brief: *all targets are served; the apps need not be identical; single-platf
 ## Capability matrix
 
 > [!note] Checked 2026-10-01
-> The matrix below is the design; deviations today: folders on the **phone** are the app's private storage (no picker, spec [[028]]) and get the same `notify` watcher as on desktop (not verified on the phone); there are **no drivers** in the Android build; the **wasm runtime is absent** on the phone; **tree-sitter** is native (`arborium`), so the index runs on desktop and the server only; **LadybugDB** is Linux-only (P-144); **secrets** are a `secrets.json` + environment everywhere (no OS keychain yet); there is **no CI check** that the web crate stays free of native-only crates.
+> The matrix below is the design; deviations today: folders on the **phone** are the app's private storage (no picker, spec [[028]]) and get the same `notify` watcher as on desktop (not verified on the phone); there are **no drivers** in the Android build; the **wasm runtime is absent** on the phone; **tree-sitter** is native (`arborium`), so the index runs on desktop and the server only; **LadybugDB** is Linux-only (P-144); **secrets** are a `secrets.json` + environment everywhere (no OS keychain yet); CI checks the web crate for wasm32 and enforces native-driver layering.
 
 
 | Capability | Desktop (webview) | Web (browser) | Mobile (webview) | Server (`api`) |
@@ -62,3 +62,13 @@ flowchart TB
 
 ## Security notes for the remote paths
 Remote terminal and remote LSP turn `api` into a **code-execution service**. Requirements before shipping either: authenticated sessions, per-user working-directory jail, resource limits, an allow-list of spawnable binaries, and audit logging (shared with [[LLM and RAG]]'s audit). Tracked as a high-risk item in [[Problem Ranking]].
+
+## Native CI coverage (WP-26, 2026-10-17)
+
+Ubuntu runs the blocking workspace/browser/wasm checks. The new `portable` job
+runs filesystem and platform-branch tests on `windows-latest` and Apple-silicon
+`macos-14`, plus the default desktop extension distribution check. Both start
+**advisory** pending their first green GitHub runs; this is not evidence of a
+working desktop UI or installer. Desktop driver assembly and Intel macOS remain
+covered only by release builds. See [[How to Write Tests]] for exact crates,
+platform fixture gates and the switch to blocking checks.

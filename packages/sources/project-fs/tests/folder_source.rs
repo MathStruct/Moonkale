@@ -223,19 +223,20 @@ async fn create_dir_rename_and_delete_to_trash() {
         .await
         .unwrap());
 
+    // Use a distinct basename: default Windows/macOS volumes are case-insensitive.
     // Rename (new id, old id gone), then move into another directory.
     let renamed = ok(&src
-        .apply(Transaction::rename(note, "docs/Note.md"))
+        .apply(Transaction::rename(note, "docs/renamed.md"))
         .await
         .unwrap());
     assert_ne!(renamed, note);
-    assert!(dir.path().join("docs/Note.md").is_file());
+    assert!(dir.path().join("docs/renamed.md").is_file());
     assert!(matches!(
         src.fetch_text(note).await,
         Err(SourceError::NotFound)
     ));
     let moved = ok(&src
-        .apply(Transaction::rename(renamed, "src/Note.md"))
+        .apply(Transaction::rename(renamed, "src/renamed.md"))
         .await
         .unwrap());
     assert_eq!(src.fetch_text(moved).await.unwrap().0, "hi\n");
@@ -271,7 +272,7 @@ async fn create_dir_rename_and_delete_to_trash() {
         deleted.results[0],
         moonkale_core::OpResult::Ok { .. }
     ));
-    assert!(!dir.path().join("src/Note.md").exists());
+    assert!(!dir.path().join("src/renamed.md").exists());
     let trash = dir.path().join(".moonkale/trash");
     let stamped = fs::read_dir(&trash)
         .unwrap()
@@ -280,7 +281,7 @@ async fn create_dir_rename_and_delete_to_trash() {
         .unwrap()
         .path();
     assert_eq!(
-        fs::read_to_string(stamped.join("src/Note.md")).unwrap(),
+        fs::read_to_string(stamped.join("src/renamed.md")).unwrap(),
         "hi\n"
     );
     let root = src.apply(Transaction::delete(src.root_id())).await.unwrap();

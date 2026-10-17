@@ -317,6 +317,7 @@ async fn neighbourhood_caps_deep_and_wide_trees() {
     assert!(r.truncated);
 }
 
+// rustix is a dependency only on Linux/Android; Windows has no POSIX FIFOs.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 #[tokio::test]
 async fn listing_a_fifo_does_not_open_it_for_hashing() {
