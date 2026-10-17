@@ -1,12 +1,10 @@
 //! The `Source` impl over a local folder.
 //!
 //! - Ids: `NodeId::derive(source_id, relative_path)`, the root is `""`.
-//! - Versions: a hash of `(mtime, len)`. Cheap, changes on any external
-//!   write, and good enough for optimistic concurrency in Milestone 1. Known
-//!   gap: two writes inside one mtime tick with equal length collide; a
-//!   content hash will replace it once the index keeps hashes anyway.
-//! - Writes: apply the patch to the current text, write to a sibling temp
-//!   file, `rename` over the original. Readers never see a half-written file.
+//! - Query nodes carry cheap metadata change hints, never save preconditions.
+//!   Fetches return exact-byte content versions used by optimistic saves.
+//! - Saves lock an open handle, validate its bytes, stage a unique sibling,
+//!   and revalidate the handle and path immediately before replacement.
 //! - A `native_key ↔ NodeId` map is filled as nodes are listed, so `fetch`
 //!   and `apply` on an id we handed out never need a directory walk. Ids for
 //!   paths we have not listed yet are still resolvable through the map after
@@ -160,6 +158,7 @@ impl FolderSource {
         node
     }
 
+    /// A cheap listing hint only. Fetch a content version before saving.
     fn version_of(meta: &std::fs::Metadata) -> Version {
         let mtime = meta
             .modified()
@@ -170,13 +169,21 @@ impl FolderSource {
         let mut h = std::collections::hash_map::DefaultHasher::new();
         mtime.hash(&mut h);
         meta.len().hash(&mut h);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            meta.dev().hash(&mut h);
+            meta.ino().hash(&mut h);
+            meta.ctime().hash(&mut h);
+            meta.ctime_nsec().hash(&mut h);
+        }
         Version(h.finish())
     }
 
     async fn stat(&self, rel: &str) -> Result<(std::fs::Metadata, Version), SourceError> {
         let meta = tokio::fs::metadata(self.path(rel).await?).await?;
-        let v = Self::version_of(&meta);
-        Ok((meta, v))
+        let hint = Self::version_of(&meta);
+        Ok((meta, hint))
     }
 }
 
@@ -240,9 +247,8 @@ impl Source for FolderSource {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
-            Query::Neighbours { node, .. } => {
-                // A folder's neighbourhood is containment: its children.
-                self.query(Query::Children(node)).await
+            Query::Neighbours { node, depth, direction } => {
+                self.neighbours(node, depth, direction).await
             }
             // `path`: resolve a relative path directly (hidden files too, e.g.
             // `.moonkale/settings.json`), without walking the tree.
@@ -287,8 +293,8 @@ impl Source for FolderSource {
                 }
                 listed.sort_by(|a, b| a.0.cmp(&b.0));
                 for (child_rel, meta) in listed {
-                    let node =
-                        self.node_for(&child_rel, meta.is_dir(), meta.len(), Self::version_of(&meta));
+                    let version = self.stat(&child_rel).await.map(|(_, v)| v).unwrap_or_default();
+                    let node = self.node_for(&child_rel, meta.is_dir(), meta.len(), version);
                     result.edges.push(Edge::contains(&self.id, parent, node.id));
                     result.nodes.push(node);
                 }
@@ -317,11 +323,7 @@ impl Source for FolderSource {
                     .map_err(|e| SourceError::Io(e.to_string()))??;
                 let mut result = QueryResult::default();
                 for e in entries {
-                    let version = if e.is_dir {
-                        Version::default()
-                    } else {
-                        self.stat(&e.rel).await.map(|(_, v)| v).unwrap_or_default()
-                    };
+                    let version = self.stat(&e.rel).await.map(|(_, v)| v).unwrap_or_default();
                     let node = self.node_for(&e.rel, e.is_dir, e.len, version);
                     result.edges.push(Edge::contains(&self.id, id, node.id));
                     result.nodes.push(node);
@@ -334,25 +336,15 @@ impl Source for FolderSource {
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
         let rel = self.rel_of(node)?;
         let path = self.path(&rel).await?;
-        let (meta, version) = self.stat(&rel).await?;
-        too_big(&meta)?;
-        let text = tokio::fs::read_to_string(&path).await.map_err(|e| {
-            if e.kind() == std::io::ErrorKind::InvalidData {
-                SourceError::Unsupported("not valid UTF-8".into())
-            } else {
-                e.into()
-            }
-        })?;
+        let (bytes, version) = read_snapshot(path).await?;
+        let text = String::from_utf8(bytes)
+            .map_err(|_| SourceError::Unsupported("not valid UTF-8".into()))?;
         Ok((text, version))
     }
 
     async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
         let rel = self.rel_of(node)?;
-        let path = self.path(&rel).await?;
-        let (meta, version) = self.stat(&rel).await?;
-        too_big(&meta)?;
-        let bytes = tokio::fs::read(&path).await?;
-        Ok((bytes, version))
+        read_snapshot(self.path(&rel).await?).await
     }
 
     async fn apply(&self, tx: moonkale_core::Transaction) -> Result<Applied, SourceError> {
@@ -440,6 +432,92 @@ impl Source for FolderSource {
 }
 
 impl FolderSource {
+    async fn neighbours(
+        &self,
+        start: NodeId,
+        depth: u32,
+        direction: moonkale_core::Direction,
+    ) -> Result<QueryResult, SourceError> {
+        use moonkale_core::Direction;
+        use std::collections::{HashSet, VecDeque};
+        const MAX_NODES: usize = 4096;
+        const MAX_DEPTH: u32 = 64;
+        let first = self.query(Query::Node(start)).await?.nodes.remove(0);
+        let mut result = QueryResult::single(first);
+        let mut seen = HashSet::from([start]);
+        let mut queue = VecDeque::from([(start, 0)]);
+        while let Some((id, hops)) = queue.pop_front() {
+            if hops >= depth {
+                continue;
+            }
+            if hops >= MAX_DEPTH {
+                result.truncated = true;
+                continue;
+            }
+            let rel = self.rel_of(id)?;
+            let mut adjacent = Vec::new();
+            if direction != Direction::In
+                && result
+                    .nodes
+                    .iter()
+                    .any(|n| n.id == id && n.kind == NodeKind::Directory)
+            {
+                let root = self.root.clone();
+                let dir = self.path(&rel).await?;
+                let (entries, truncated) = tokio::task::spawn_blocking(move || {
+                    tree::list_children_bounded(&root, &dir, MAX_NODES)
+                })
+                .await
+                .map_err(|e| SourceError::Io(e.to_string()))??;
+                result.truncated |= truncated;
+                for entry in entries {
+                    let version = self
+                        .stat(&entry.rel)
+                        .await
+                        .map(|(_, v)| v)
+                        .unwrap_or_default();
+                    let n = self.node_for(&entry.rel, entry.is_dir, entry.len, version);
+                    adjacent.push((Edge::contains(&self.id, id, n.id), n));
+                }
+            }
+            if direction != Direction::Out && !rel.is_empty() {
+                let parent = rel.rsplit_once('/').map_or("", |(p, _)| p);
+                let parent_id = self.node_id(parent);
+                let parent_node = self.query(Query::Node(parent_id)).await?.nodes.remove(0);
+                adjacent.push((Edge::contains(&self.id, parent_id, id), parent_node));
+            }
+            for (edge, node) in adjacent {
+                if !seen.contains(&node.id) {
+                    if seen.len() == MAX_NODES {
+                        result.truncated = true;
+                        continue;
+                    }
+                    seen.insert(node.id);
+                    queue.push_back((node.id, hops + 1));
+                    result.nodes.push(node);
+                }
+                if !result.edges.contains(&edge) {
+                    result.edges.push(edge);
+                }
+            }
+        }
+        // Include containment edges among all reached nodes, even at the boundary.
+        for node in &result.nodes {
+            if node.native_key.is_empty() {
+                continue;
+            }
+            let parent = node.native_key.rsplit_once('/').map_or("", |(p, _)| p);
+            let parent = NodeId::derive(&self.id, parent);
+            if seen.contains(&parent) {
+                let edge = Edge::contains(&self.id, parent, node.id);
+                if !result.edges.contains(&edge) {
+                    result.edges.push(edge);
+                }
+            }
+        }
+        Ok(result)
+    }
+
     /// Create `name` under the directory `parent`; refuses to overwrite.
     async fn create_text(
         &self,
@@ -473,8 +551,7 @@ impl FolderSource {
             .await
             .map_err(|e| exists_as_invalid(e, &rel))?;
         write_all(file, text.as_bytes()).await?;
-        let (_, version) = self.stat(&rel).await?;
-        Ok((self.node_id(&rel), version))
+        Ok((self.node_id(&rel), bytes_version(text.as_bytes())))
     }
 
     /// `parent/name` as a checked relative path (no `..`, not empty).
@@ -609,36 +686,10 @@ impl FolderSource {
     ) -> Result<Version, SourceError> {
         let rel = self.rel_of(node)?;
         let path = self.path(&rel).await?;
-        let (meta, actual) = self.stat(&rel).await?;
-        if meta.is_dir() {
-            return Err(SourceError::Unsupported(
-                "cannot write text to a directory".into(),
-            ));
-        }
-        if actual != expected {
-            return Err(SourceError::Conflict { expected, actual });
-        }
-        let current = tokio::fs::read_to_string(&path).await?;
-        let next = patch.apply(&current)?;
-        // Atomic replace: write a sibling temp file of our own (a unique
-        // name, created new — #15), then rename over; removed on failure.
-        let tmp = unique_tmp(&path);
-        let written = async {
-            let file = tokio::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&tmp)
-                .await?;
-            write_all(file, next.as_bytes()).await?;
-            tokio::fs::rename(&tmp, &path).await
-        }
-        .await;
-        if let Err(e) = written {
-            let _ = tokio::fs::remove_file(&tmp).await;
-            return Err(e.into());
-        }
-        let (_, version) = self.stat(&rel).await?;
-        Ok(version)
+        let patch = patch.clone();
+        tokio::task::spawn_blocking(move || save_text(&path, expected, &patch))
+            .await
+            .map_err(|e| SourceError::Io(e.to_string()))?
     }
 }
 
@@ -678,27 +729,81 @@ fn unique_tmp(path: &Path) -> PathBuf {
     ))
 }
 
-/// Rename unless `dst` exists. Atomic on Linux and Android
-/// (`RENAME_NOREPLACE`); elsewhere, and on file systems without it, a check
-/// right before the rename (a small window remains).
+/// Atomic exclusion on Linux/Android, macOS and Windows. Only platforms
+/// without a native primitive use the check-then-rename fallback.
 fn rename_no_replace(src: &Path, dst: &Path) -> std::io::Result<()> {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         use rustix::fs::{renameat_with, RenameFlags, CWD};
-        use rustix::io::Errno;
-        match renameat_with(CWD, src, CWD, dst, RenameFlags::NOREPLACE) {
-            Ok(()) => return Ok(()),
-            Err(e) if e == Errno::INVAL || e == Errno::NOSYS => {}
-            Err(e) => return Err(e.into()),
+        // Unsupported filesystems must refuse: falling back would reintroduce
+        // the destination replacement race.
+        renameat_with(CWD, src, CWD, dst, RenameFlags::NOREPLACE)?;
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        unsafe extern "C" {
+            fn renamex_np(
+                from: *const std::ffi::c_char,
+                to: *const std::ffi::c_char,
+                flags: u32,
+            ) -> std::ffi::c_int;
+        }
+        let src = CString::new(src.as_os_str().as_bytes())?;
+        let dst = CString::new(dst.as_os_str().as_bytes())?;
+        // Darwin sys/stdio.h: RENAME_EXCL = 0x00000004.
+        // SAFETY: both pointers are valid NUL-terminated paths for this call.
+        if unsafe { renamex_np(src.as_ptr(), dst.as_ptr(), 4) } == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
         }
     }
-    if std::fs::symlink_metadata(dst).is_ok() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            "destination exists",
-        ));
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn MoveFileExW(from: *const u16, to: *const u16, flags: u32) -> i32;
+        }
+        fn wide(path: &Path) -> std::io::Result<Vec<u16>> {
+            let mut path: Vec<_> = path.as_os_str().encode_wide().collect();
+            if path.contains(&0) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "NUL in path",
+                ));
+            }
+            path.push(0);
+            Ok(path)
+        }
+        let src = wide(src)?;
+        let dst = wide(dst)?;
+        // No MOVEFILE_REPLACE_EXISTING, nor cross-volume copy fallback.
+        // SAFETY: both UTF-16 paths are NUL-terminated and live through the call.
+        if unsafe { MoveFileExW(src.as_ptr(), dst.as_ptr(), 0) } != 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
     }
-    std::fs::rename(src, dst)
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "macos",
+        target_os = "windows"
+    )))]
+    {
+        if std::fs::symlink_metadata(dst).is_ok() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                "destination exists",
+            ));
+        }
+        std::fs::rename(src, dst)
+    }
 }
 
 /// Create `path`'s missing parents; returns how many levels were made.
@@ -762,4 +867,234 @@ fn too_big(meta: &std::fs::Metadata) -> Result<(), SourceError> {
         )));
     }
     Ok(())
+}
+
+// All read-only content opens pass this seam so listing regressions can count
+// opens for one fixture without interfering with concurrently running tests.
+fn open_content(path: impl AsRef<Path>) -> std::io::Result<std::fs::File> {
+    #[cfg(test)]
+    if let Some(count) = CONTENT_OPENS.lock().unwrap().get_mut(path.as_ref()) {
+        *count += 1;
+    }
+    std::fs::File::open(path)
+}
+
+#[cfg(test)]
+static CONTENT_OPENS: std::sync::LazyLock<std::sync::Mutex<HashMap<PathBuf, usize>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+
+fn digest_version(hash: blake3::Hash) -> Version {
+    Version(u64::from_le_bytes(
+        hash.as_bytes()[..8].try_into().expect("eight digest bytes"),
+    ))
+}
+
+fn bytes_version(bytes: &[u8]) -> Version {
+    digest_version(blake3::hash(bytes))
+}
+
+fn regular_file(meta: &std::fs::Metadata) -> Result<(), SourceError> {
+    if !meta.is_file() {
+        return Err(SourceError::Unsupported(
+            "content requires a regular file".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn snapshot(file: &mut std::fs::File) -> Result<(Vec<u8>, Version), SourceError> {
+    use std::io::{Read, Seek};
+    let meta = file.metadata()?;
+    regular_file(&meta)?;
+    too_big(&meta)?;
+    file.rewind()?;
+    let mut bytes = Vec::new();
+    file.take(MAX_FETCH + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_FETCH {
+        return Err(SourceError::Unsupported(
+            "file grew past the fetch limit".into(),
+        ));
+    }
+    let version = bytes_version(&bytes);
+    Ok((bytes, version))
+}
+
+async fn read_snapshot(path: PathBuf) -> Result<(Vec<u8>, Version), SourceError> {
+    tokio::task::spawn_blocking(move || {
+        regular_file(&std::fs::metadata(&path)?)?;
+        snapshot(&mut open_content(path)?)
+    })
+    .await
+    .map_err(|e| SourceError::Io(e.to_string()))?
+}
+
+fn save_text(
+    path: &Path,
+    expected: Version,
+    patch: &moonkale_core::TextPatch,
+) -> Result<Version, SourceError> {
+    save_text_checked(path, expected, patch, || {})
+}
+
+fn save_text_checked(
+    path: &Path,
+    expected: Version,
+    patch: &moonkale_core::TextPatch,
+    staged_hook: impl FnOnce(),
+) -> Result<Version, SourceError> {
+    use std::io::Write;
+    regular_file(&std::fs::metadata(path)?)?;
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)?;
+    // A competing source/process must refuse rather than stage a stale save.
+    file.try_lock()
+        .map_err(|_| SourceError::Unsupported("file is locked by another writer".into()))?;
+    let identity = same_file::Handle::from_file(file.try_clone()?)?;
+    let (bytes, actual) = snapshot(&mut file)?;
+    if actual != expected {
+        return Err(SourceError::Conflict { expected, actual });
+    }
+    let current =
+        String::from_utf8(bytes).map_err(|_| SourceError::Unsupported("not valid UTF-8".into()))?;
+    let next = patch.apply(&current)?;
+    let tmp = unique_tmp(path);
+    let mut created = false;
+    let result = (|| {
+        let mut staged = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
+        created = true;
+        staged.write_all(next.as_bytes())?;
+        staged.flush()?;
+        staged_hook();
+        let (_, actual) = snapshot(&mut file)?;
+        if actual != expected {
+            return Err(SourceError::Conflict { expected, actual });
+        }
+        // Compare file identity without a second read handle: Windows locks
+        // are mandatory, so reading our own locked file through it would fail.
+        if identity != same_file::Handle::from_path(path)? {
+            return Err(SourceError::Unsupported(
+                "file was replaced while saving".into(),
+            ));
+        }
+        std::fs::rename(&tmp, path)?;
+        Ok(bytes_version(next.as_bytes()))
+    })();
+    if result.is_err() && created {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
+}
+
+#[cfg(test)]
+mod race_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn listing_large_files_only_reads_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("large.bin");
+        std::fs::File::create(&path)
+            .unwrap()
+            .set_len(64 << 20)
+            .unwrap();
+        let src = FolderSource::open(dir.path()).unwrap();
+        CONTENT_OPENS.lock().unwrap().insert(path.clone(), 0);
+        let id = src.node_id("large.bin");
+        let hint = FolderSource::version_of(&std::fs::metadata(&path).unwrap());
+        for query in [
+            Query::Children(src.root_id()),
+            Query::Text {
+                dialect: "ls".into(),
+                text: "".into(),
+            },
+            Query::Text {
+                dialect: "path".into(),
+                text: "large.bin".into(),
+            },
+            Query::Node(id),
+            Query::Neighbours {
+                node: src.root_id(),
+                depth: 1,
+                direction: moonkale_core::Direction::Out,
+            },
+        ] {
+            let result = src.query(query).await.unwrap();
+            assert_eq!(
+                *CONTENT_OPENS.lock().unwrap().get(&path).unwrap(),
+                0,
+                "listing opened file content"
+            );
+            assert_eq!(
+                result.nodes.iter().find(|n| n.id == id).unwrap().version,
+                hint
+            );
+        }
+        let (bytes, version) = src.fetch_bytes(id).await.unwrap();
+        assert_eq!(
+            *CONTENT_OPENS.lock().unwrap().get(&path).unwrap(),
+            1,
+            "counter covers real content reads"
+        );
+        assert_eq!(version, bytes_version(&bytes));
+        assert_ne!(version, hint);
+        CONTENT_OPENS.lock().unwrap().remove(&path);
+    }
+
+    #[test]
+    fn changes_during_staging_are_refused_and_temps_removed() {
+        for replace_path in [false, true] {
+            // Windows mandatory locks prevent the in-place external write.
+            if cfg!(windows) && !replace_path {
+                continue;
+            }
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("a.md");
+            std::fs::write(&path, "old").unwrap();
+            let expected = bytes_version(b"old");
+            let result = save_text_checked(
+                &path,
+                expected,
+                &moonkale_core::TextPatch::whole("bad", 3),
+                || {
+                    if replace_path {
+                        let other = dir.path().join("replacement");
+                        std::fs::write(&other, "new").unwrap();
+                        std::fs::rename(other, &path).unwrap();
+                    } else {
+                        std::fs::write(&path, "new").unwrap();
+                    }
+                },
+            );
+            assert!(matches!(
+                result,
+                Err(SourceError::Conflict { .. } | SourceError::Unsupported(_))
+            ));
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+            assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+        }
+    }
+
+    #[test]
+    fn native_rename_exclusion_preserves_an_existing_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("a");
+        let dst = dir.path().join("b");
+        std::fs::write(&src, "a").unwrap();
+        std::fs::write(&dst, "b").unwrap();
+        assert_eq!(
+            rename_no_replace(&src, &dst).unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(std::fs::read(&src).unwrap(), b"a");
+        assert_eq!(std::fs::read(&dst).unwrap(), b"b");
+        std::fs::remove_file(&dst).unwrap();
+        rename_no_replace(&src, &dst).unwrap();
+        assert!(!src.exists());
+        assert_eq!(std::fs::read(&dst).unwrap(), b"a");
+    }
 }

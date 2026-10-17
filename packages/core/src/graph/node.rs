@@ -4,9 +4,10 @@ use crate::id::{NodeId, SourceId};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Monotonic-per-node change marker used for optimistic concurrency and undo.
-/// Sources decide how to compute it (a content hash, an mtime, a row version);
-/// consumers only compare for equality.
+/// Opaque change token; consumers only compare for equality, never ordering.
+/// Sources may use content hashes, metadata hints or row versions. A query
+/// node's hint may differ from the exact content version returned by a fetch.
+/// Text saves must use the version returned alongside the fetched text.
 ///
 /// Serialized as a hex **string**, not a number: versions are 64-bit hashes
 /// and JavaScript numbers lose precision above 2⁵³, which would corrupt them
@@ -95,6 +96,7 @@ pub struct Node {
     /// never re-derive ids from it.
     pub native_key: String,
     pub content: Option<ContentRef>,
+    /// Query change hint. Fetch content to obtain a text-save precondition.
     pub version: Version,
     /// Typed properties (Milestone 18 phase 6.2): what the source knows
     /// about the node beyond its label — a row's columns, a factor's

@@ -179,6 +179,32 @@ fn encoded(node: &Node, bytes: &[u8]) -> Result<Rc<str>, String> {
         base64::engine::general_purpose::STANDARD.encode(bytes)
     )))
 }
+// Fetch tokens describe content; node versions can be cheap listing hints.
+// Re-query the hint after reading instead of comparing these distinct tokens.
+async fn fetch_image_bytes(
+    source: &dyn moonkale_core::Source,
+    node: &Node,
+) -> Result<Vec<u8>, String> {
+    let (bytes, _) = source
+        .fetch_bytes(node.id)
+        .await
+        .map_err(|error| error.to_string())?;
+    if node.version != Version(0) {
+        let current = source
+            .query(Query::Node(node.id))
+            .await
+            .map_err(|error| error.to_string())?;
+        if !current
+            .nodes
+            .iter()
+            .any(|n| n.id == node.id && n.version == node.version)
+        {
+            return Err("changed".into());
+        }
+    }
+    Ok(bytes)
+}
+
 async fn load(ws: Workspace, node: Node, epoch: u64, images: Images) -> Result<Rc<Ready>, String> {
     if matches!(node.content,Some(ContentRef::Blob{len,..} | ContentRef::Text{len,..}) if len>MAX_BYTES)
     {
@@ -230,13 +256,7 @@ async fn load(ws: Workspace, node: Node, epoch: u64, images: Images) -> Result<R
                     let source = ws
                         .source(&node.source)
                         .ok_or_else(|| "missing".to_string())?;
-                    let (bytes, version) = source
-                        .fetch_bytes(node.id)
-                        .await
-                        .map_err(|error| error.to_string())?;
-                    if node.version != Version(0) && version != node.version {
-                        return Err("changed".into());
-                    }
+                    let bytes = fetch_image_bytes(source.as_ref(), &node).await?;
                     Ok(Rc::new(Ready {
                         url: encoded(&node, &bytes)?,
                         node,
@@ -413,6 +433,79 @@ mod tests {
             version: Version(1),
         }
     }
+    struct ImageSource {
+        hint: Version,
+        content: Version,
+    }
+    #[moonkale_core::async_trait]
+    impl moonkale_core::Source for ImageSource {
+        fn id(&self) -> SourceId {
+            node().source
+        }
+        fn descriptor(&self) -> moonkale_core::SourceDescriptor {
+            moonkale_core::SourceDescriptor {
+                id: node().source,
+                root: node().id,
+                truth: Default::default(),
+                display_name: "image".into(),
+                family: moonkale_core::SourceFamily::Folder,
+                capabilities: Default::default(),
+            }
+        }
+        async fn query(
+            &self,
+            _: Query,
+        ) -> Result<moonkale_core::QueryResult, moonkale_core::SourceError> {
+            let mut node = node();
+            node.version = self.hint;
+            Ok(moonkale_core::QueryResult::single(node))
+        }
+        async fn fetch_text(
+            &self,
+            _: NodeId,
+        ) -> Result<(String, Version), moonkale_core::SourceError> {
+            Err(moonkale_core::SourceError::NotFound)
+        }
+        async fn fetch_bytes(
+            &self,
+            _: NodeId,
+        ) -> Result<(Vec<u8>, Version), moonkale_core::SourceError> {
+            Ok((b"image".to_vec(), self.content))
+        }
+        async fn apply(
+            &self,
+            _: moonkale_core::Transaction,
+        ) -> Result<moonkale_core::Applied, moonkale_core::SourceError> {
+            Err(moonkale_core::SourceError::NotFound)
+        }
+    }
+    #[test]
+    fn image_freshness_compares_listing_hints_instead_of_content_tokens() {
+        use futures_util::FutureExt;
+        let current = ImageSource {
+            hint: Version(1),
+            content: Version(99),
+        };
+        assert_eq!(
+            fetch_image_bytes(&current, &node())
+                .now_or_never()
+                .unwrap()
+                .unwrap(),
+            b"image"
+        );
+        let changed = ImageSource {
+            hint: Version(2),
+            content: Version(1),
+        };
+        assert_eq!(
+            fetch_image_bytes(&changed, &node())
+                .now_or_never()
+                .unwrap()
+                .unwrap_err(),
+            "changed"
+        );
+    }
+
     #[test]
     fn image_encoding_guards_headers_and_preserves_svg_as_data() {
         let mut bytes = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();

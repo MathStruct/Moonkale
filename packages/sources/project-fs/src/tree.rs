@@ -19,7 +19,17 @@ pub struct Entry {
 /// `.gitignore`/`.ignore` files and skipping hidden entries except the ones
 /// git itself would show. Sorted directories-first, then by name.
 pub fn list_children(root: &Path, dir: &Path) -> std::io::Result<Vec<Entry>> {
+    Ok(list_children_bounded(root, dir, usize::MAX)?.0)
+}
+
+/// A bounded listing for neighbourhood expansion. `truncated` reports omitted entries.
+pub fn list_children_bounded(
+    root: &Path,
+    dir: &Path,
+    limit: usize,
+) -> std::io::Result<(Vec<Entry>, bool)> {
     let mut out = Vec::new();
+    let mut truncated = false;
     // `ignore` needs the walk to start at `root` to pick up parent .gitignore
     // files, but we only want one level below `dir`: max_depth is relative to
     // the walk root, so compute the depth of `dir` and add one.
@@ -52,6 +62,10 @@ pub fn list_children(root: &Path, dir: &Path) -> std::io::Result<Vec<Entry>> {
         if path.parent() != Some(dir) {
             continue;
         }
+        if out.len() == limit {
+            truncated = true;
+            break;
+        }
         let meta = entry
             .metadata()
             .map_err(|e| std::io::Error::other(e.to_string()))?;
@@ -67,7 +81,7 @@ pub fn list_children(root: &Path, dir: &Path) -> std::io::Result<Vec<Entry>> {
         });
     }
     out.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
-    Ok(out)
+    Ok((out, truncated))
 }
 
 /// `/`-separated path of `path` relative to `root`; `""` for the root itself.

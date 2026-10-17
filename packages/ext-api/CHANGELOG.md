@@ -16,6 +16,8 @@ Rules:
 
 **Breaking for Rust struct literals:** `SourceDescriptor` gains `truth: SourceTruth` (ADR-0028). Add `truth: Default::default()` to existing constructors. Old serialized descriptors still deserialize as `Files`; new values serialize as `"files"`/`"store"`. This is content ownership, not a write permission. No tag is cut by this change.
 
+**Folder source version semantics (WP-23):** Query node versions are cheap metadata change hints, while `fetch_text`/`fetch_bytes` return exact-byte content hashes. Always pass the fetched text version to `WriteText.expected`; a listing version is not a save precondition. Workspace state/history/settings writers now fetch first and refuse failed reads. The wire type remains `Version(u64)`; no tag is cut here.
+
 **moonkale-core**
 - Additive `graph::code` string constants define the shared L2 vocabulary; new kinds use existing `Custom` values. `NodeKind::definition()` constructs the new kind and `is_definition()` reads it and legacy `Symbol` values. No enum variants, fields, or legacy wire encodings change.
 

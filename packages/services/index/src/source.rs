@@ -325,9 +325,7 @@ impl IndexSource {
             if node.kind == NodeKind::File {
                 files += 1;
                 if walk::wants_text(&node, &self.limits) {
-                    if let Ok((text, _)) = self.folder.fetch_text(node.id).await {
-                        self.extract_into(&node, &text);
-                    }
+                    self.extract_file(&node).await;
                 }
             }
         }
@@ -350,9 +348,7 @@ impl IndexSource {
             if node.kind != NodeKind::File || !walk::wants_text(&node, &self.limits) {
                 continue;
             }
-            if let Ok((text, _)) = self.folder.fetch_text(*id).await {
-                self.extract_into(&node, &text);
-            }
+            self.extract_file(&node).await;
         }
     }
 
@@ -362,6 +358,27 @@ impl IndexSource {
         s.files = g.count_kind(&NodeKind::File);
         s.links = g.count_edge_kind(&moonkale_core::EdgeKind::Links);
         s.symbols = g.count_kind(&NodeKind::definition());
+    }
+
+    /// Keep a content-free diagnostic on the mirrored node. Never index lossy text.
+    async fn extract_file(&self, file: &Node) {
+        match self.folder.fetch_text(file.id).await {
+            Ok((text, _)) => {
+                if let Some(node) = self.graph.w().nodes.get_mut(&file.id) {
+                    node.props.remove("index_error");
+                }
+                self.extract_into(file, &text);
+            }
+            Err(_) => {
+                self.search.w().remove_file(file.id);
+                let mut graph = self.graph.w();
+                graph.set_derived(file.id, Vec::new(), Vec::new());
+                if let Some(node) = graph.nodes.get_mut(&file.id) {
+                    node.props
+                        .insert("index_error".into(), Value::Text("text read failed".into()));
+                }
+            }
+        }
     }
 
     fn extract_into(&self, file: &Node, text: &str) {
@@ -617,9 +634,7 @@ impl Source for IndexSource {
         }
         for (_, n) in &entries {
             if n.kind == NodeKind::File && walk::wants_text(n, &self.limits) {
-                if let Ok((text, _)) = self.folder.fetch_text(n.id).await {
-                    self.extract_into(n, &text);
-                }
+                self.extract_file(n).await;
             }
         }
         // Links that were unresolved and now have a target.
