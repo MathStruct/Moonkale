@@ -161,6 +161,12 @@ A node is **stale** when its input hash no longer matches. Views show stale resu
   - an unresolved reference shows up as `Unresolved`.
 - **The Unison source (WP-18):** a Unison codebase already *is* this model (definitions by hash, names as metadata, a dependency DAG). Loading it into §3 to §6 without new shared kinds is the test that the schema is general. If it needs new shared kinds, the schema changes before the frontends multiply.
 
+### WP-18 result (2026-10-17)
+
+The default-off Unison source implements the store-backed form of §3–§6 with existing `Definition`, `Name`, `Directory`, `Contains`, `Names`, `References` and `TypeOf`: **no new shared kinds**. A hermetic UCM 1.5 transcript checks definition-id stability through rename, two aliases to one definition, dependency hash propagation after releasing an old alias, and shared component/different member ids for mutual recursion. Types, abilities, constructors and tests map through `def_kind`. Hash references include constructor selectors; intrinsic builtins retain UCM's `##name` identity instead of pretending to have content digests. Namespaces are Directory nodes; the source has no file occurrences or `Defines` edges. `TypeOf` only targets an exact known type reference, not every constituent in a function signature.
+
+This is a finite, read-only snapshot, not a live codebase bridge: it imports projects/branches through an owned loopback UCM HTTP server and stops that process before returning. Hash-only display requests avoid UCM's named documentation-evaluation path. The source opener and graph panel accept store-backed code; a native test checks the fixture's actual renderer payload. Limits, canonical reference-byte encoding for `from_content`, API references and exclusions are in `packages/sources/unison/sources-unison.md`. Full type-expression nodes, store edits, history/watch and a dialect remain later work. §7 provenance is not implemented beyond frontend metadata and content/component references in this slice.
+
 ## 10. Order
 
 1. The shared kinds and the `Definition` node in `moonkale-core` as constants: kinds are open strings, so this is a naming change, not a model change. Today's `Symbol` nodes are migrated to `Definition` with `def_kind`.

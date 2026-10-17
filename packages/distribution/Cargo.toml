@@ -6,6 +6,8 @@ license.workspace = true
 description = "Which extensions a Moonkale app ships (Milestone 18 phase 4.1): the catalogue, one Cargo feature per optional extension. Without default features: Explorer, Search, Settings, Extensions, Graph, Links, Code, Markdown."
 
 [features]
+# Local Unison snapshots require UCM only at runtime.
+unison = ["dep:moonkale-sources-unison"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["moonkale-editor-graph/structural-edits"]
 default = ["code-native", "table", "image", "terminal", "terminal-native", "agent", "flow", "git", "history"]
@@ -24,6 +26,8 @@ history = ["dep:moonkale-ext-history"]
 server = ["moonkale-ext-git?/server", "moonkale-editor-markdown/server"]
 
 [dependencies]
+moonkale-sources-unison = { workspace = true, optional = true }
+moonkale-core = { workspace = true }
 moonkale-shell = { workspace = true }
 moonkale-ext-api = { workspace = true }
 # Always in: the minimum workbench.

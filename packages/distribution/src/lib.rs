@@ -55,3 +55,15 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     v.push(Box::new(moonkale_ext_history::HistoryExtension::new()));
     v
 }
+
+/// Optional store source openers assembled by the distribution.
+pub fn source_openers() -> Vec<moonkale_core::SourceOpener> {
+    #[cfg(feature = "unison")]
+    {
+        moonkale_sources_unison::openers()
+    }
+    #[cfg(not(feature = "unison"))]
+    {
+        Vec::new()
+    }
+}

@@ -686,6 +686,7 @@ fn openers() -> &'static moonkale_core::Openers {
                 moonkale_sources_sql::openers(),
                 moonkale_sources_kv::openers(),
                 moonkale_sources_graph::openers(),
+                moonkale_distribution::source_openers(),
             ]
             .concat(),
         )

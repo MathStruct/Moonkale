@@ -79,6 +79,14 @@ fn is_pickable(f: &SourceFamily) -> bool {
     matches!(f, SourceFamily::Graph | SourceFamily::Sql) || is_trace(f)
 }
 
+// Store-backed code has namespaces, names and definitions rather than Vertex nodes.
+fn data_kinds(truth: moonkale_core::SourceTruth) -> Option<Vec<NodeKind>> {
+    match truth {
+        moonkale_core::SourceTruth::Store => None,
+        moonkale_core::SourceTruth::Files => Some(vec![NodeKind::Vertex]),
+    }
+}
+
 /// In-memory graph sources that arrive from elsewhere: traces (Milestone 4)
 /// and git history (Milestone 7). Pickable, auto-picked, file nodes open
 /// by path.
@@ -94,6 +102,58 @@ fn vertex_group(node: &Node) -> Option<&str> {
 struct OutGraph<'a> {
     nodes: Vec<OutNode<'a>>,
     edges: Vec<OutEdge>,
+}
+
+fn database_graph(res: &moonkale_core::QueryResult) -> (OutGraph<'_>, Vec<(String, &'static str)>) {
+    let idx: HashMap<_, _> = res
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.id, i))
+        .collect();
+    // Vertices are coloured by their label (node table), relations
+    // by their name; the schema keeps the kind colours.
+    let mut groups: Vec<(String, &'static str)> = Vec::new();
+    let out = OutGraph {
+        nodes: res
+            .nodes
+            .iter()
+            .map(|n| {
+                let color = vertex_group(n).map(|g| {
+                    let c = label_color(g);
+                    if !groups.iter().any(|(l, _)| l == g) {
+                        groups.push((g.to_string(), c));
+                    }
+                    c
+                });
+                OutNode {
+                    id: n.id.to_string(),
+                    label: &n.label,
+                    kind: kind_name(&n.kind),
+                    key: &n.native_key,
+                    color,
+                }
+            })
+            .collect(),
+        edges: res
+            .edges
+            .iter()
+            .filter_map(|e| {
+                let color = match &e.kind {
+                    moonkale_core::EdgeKind::Custom(name) => Some(label_color(name)),
+                    _ => None,
+                };
+                Some(OutEdge {
+                    a: *idx.get(&e.from)?,
+                    b: *idx.get(&e.to)?,
+                    kind: edge_name(&e.kind),
+                    color,
+                })
+            })
+            .collect(),
+    };
+    groups.sort();
+    (out, groups)
 }
 
 #[derive(Serialize)]
@@ -457,7 +517,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     },
                     (_, DbMode::Data) => Query::All {
                         limit: GRAPH_LIMIT,
-                        kinds: Some(vec![NodeKind::Vertex]),
+                        kinds: data_kinds(handle.descriptor.truth),
                     },
                     _ => Query::All {
                         limit: GRAPH_LIMIT,
@@ -474,54 +534,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 if *load_gen.peek() != gen {
                     return;
                 }
-                let idx: HashMap<_, _> = res
-                    .nodes
-                    .iter()
-                    .enumerate()
-                    .map(|(i, n)| (n.id, i))
-                    .collect();
-                // Vertices are coloured by their label (node table), relations
-                // by their name; the schema keeps the kind colours.
-                let mut groups: Vec<(String, &'static str)> = Vec::new();
-                let out = OutGraph {
-                    nodes: res
-                        .nodes
-                        .iter()
-                        .map(|n| {
-                            let color = vertex_group(n).map(|g| {
-                                let c = label_color(g);
-                                if !groups.iter().any(|(l, _)| l == g) {
-                                    groups.push((g.to_string(), c));
-                                }
-                                c
-                            });
-                            OutNode {
-                                id: n.id.to_string(),
-                                label: &n.label,
-                                kind: kind_name(&n.kind),
-                                key: &n.native_key,
-                                color,
-                            }
-                        })
-                        .collect(),
-                    edges: res
-                        .edges
-                        .iter()
-                        .filter_map(|e| {
-                            let color = match &e.kind {
-                                moonkale_core::EdgeKind::Custom(name) => Some(label_color(name)),
-                                _ => None,
-                            };
-                            Some(OutEdge {
-                                a: *idx.get(&e.from)?,
-                                b: *idx.get(&e.to)?,
-                                kind: edge_name(&e.kind),
-                                color,
-                            })
-                        })
-                        .collect(),
-                };
-                groups.sort();
+                let (out, groups) = database_graph(&res);
                 legend.set(groups);
                 counts.set((out.nodes.len(), out.edges.len(), res.truncated));
                 let _ = ev.send(ToJs::SetGraph {
@@ -917,6 +930,17 @@ async fn open_node(mut ws: Workspace, node: Node) {
         }
         return;
     }
+    let store_text = node.content.is_some()
+        && ws.sources.open.peek().iter().any(|s| {
+            s.descriptor.id == node.source
+                && s.descriptor.truth == moonkale_core::SourceTruth::Store
+        });
+    if store_text {
+        if let Err(e) = ws.open_node(node).await {
+            ws.set_status(e.to_string());
+        }
+        return;
+    }
     match node.kind {
         NodeKind::File => {
             if let Err(e) = ws.open_node(node).await {
@@ -965,5 +989,55 @@ fn split_location(key: &str) -> (String, u32, u32) {
         (Ok(col), Some(line), Some(path)) => (path.to_string(), line, col),
         (Ok(line), _, _) if b.is_some() => (key[..key.len() - a.len() - 1].to_string(), line, 0),
         _ => (key.to_string(), 0, 0),
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../sources/unison/tests/support/mod.rs"]
+mod unison_fixture;
+
+#[cfg(test)]
+mod store_tests {
+    use super::*;
+    use moonkale_core::{Source, SourceTruth};
+    #[tokio::test(flavor = "multi_thread")]
+    async fn unison_namespaces_and_definitions_reach_renderer() {
+        let Some(bin) = super::unison_fixture::ucm() else {
+            return;
+        };
+        let tmp = tempfile::tempdir().unwrap();
+        std::env::set_var("XDG_DATA_HOME", tmp.path().join("data"));
+        let root = tmp.path().join("draw.unison");
+        super::unison_fixture::transcript(&bin, tmp.path(), &root, super::unison_fixture::INITIAL);
+        let source = moonkale_sources_unison::UnisonSource::open(root)
+            .await
+            .unwrap();
+        assert_eq!(source.descriptor().truth, SourceTruth::Store);
+        let r = source
+            .query(Query::All {
+                limit: GRAPH_LIMIT,
+                kinds: data_kinds(source.descriptor().truth),
+            })
+            .await
+            .unwrap();
+        let (out, _) = database_graph(&r);
+        let json = serde_json::to_value(&out).unwrap();
+        assert!(json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["kind"] == "directory"));
+        assert!(json["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n["kind"] == "symbol"));
+        assert!(out.nodes.iter().any(|n| n.label == "ns.a"));
+        assert!(out.edges.iter().any(|e| e.kind == "contains"));
+        assert!(out.edges.iter().any(|e| e.kind == "references"));
+        assert!(out
+            .edges
+            .iter()
+            .all(|e| e.a < out.nodes.len() && e.b < out.nodes.len()));
     }
 }

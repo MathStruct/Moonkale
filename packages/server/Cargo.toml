@@ -26,6 +26,7 @@ uuid = { version = "1", features = ["v4", "js"] }
 sha2 = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+moonkale-sources-unison = { workspace = true, optional = true }
 moonkale-sources = { workspace = true, optional = true }
 moonkale-project-fs = { workspace = true, optional = true }
 moonkale-index = { workspace = true, optional = true }
@@ -51,6 +52,7 @@ webpki-roots = "1"
 moonkale-sources-graph = { workspace = true, optional = true, features = ["helix", "ladybug"] }
 
 [features]
+unison = ["dep:moonkale-sources-unison"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["dep:moonkale-index", "moonkale-index/lossless-syntax"]
 server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-lsp-local", "dep:moonkale-state-stores", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime"]

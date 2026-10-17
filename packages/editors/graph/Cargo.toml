@@ -19,3 +19,8 @@ moonkale-code-view = { workspace = true, optional = true }
 [features]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["dep:moonkale-code-view"]
+
+[dev-dependencies]
+moonkale-sources-unison = { workspace = true }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

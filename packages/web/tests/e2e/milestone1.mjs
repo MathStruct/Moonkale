@@ -30,6 +30,7 @@ try {
   });
   await step("open README.md in an editor tab", async () => {
     await page.click(".mk-tree-file >> text=README.md");
+    await page.locator(".mk-md-modes button:has-text('Source')").click();
     await page.waitForSelector(".cm-content", { timeout: 20000 });
     const text = await page.$eval(".cm-content", (e) => e.textContent);
     if (!text.includes("Edit me.")) throw new Error(`editor shows ${JSON.stringify(text)}`);
