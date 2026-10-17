@@ -167,3 +167,211 @@ async fn huge_files_are_not_read_whole() {
         Err(SourceError::Unsupported(_))
     ));
 }
+
+#[tokio::test]
+async fn equal_length_equal_mtime_changes_conflict() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.md");
+    fs::write(&path, "old").unwrap();
+    let file = fs::OpenOptions::new().write(true).open(&path).unwrap();
+    let modified = file.metadata().unwrap().modified().unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let id = by_path(&src, "a.md").await;
+    let (_, version) = src.fetch_text(id).await.unwrap();
+    fs::write(&path, "new").unwrap();
+    file.set_times(fs::FileTimes::new().set_modified(modified))
+        .unwrap();
+    let result = src
+        .apply(Transaction::write_text(
+            id,
+            version,
+            TextPatch::whole("bad", 3),
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(
+        result.results[0],
+        OpResult::Refused {
+            error: SourceError::Conflict { .. },
+            ..
+        }
+    ));
+    assert_eq!(fs::read_to_string(path).unwrap(), "new");
+}
+
+#[tokio::test]
+async fn directory_versions_agree_across_queries() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("docs")).unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let children = src.query(Query::Children(src.root_id())).await.unwrap();
+    let ls = src
+        .query(Query::Text {
+            dialect: "ls".into(),
+            text: "".into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(children.nodes[0].version, ls.nodes[0].version);
+    let direct = src.query(Query::Node(children.nodes[0].id)).await.unwrap();
+    assert_eq!(direct.nodes[0].version, children.nodes[0].version);
+}
+
+#[tokio::test]
+async fn neighbourhood_obeys_depth_direction_and_contains_edges() {
+    use moonkale_core::Direction;
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("docs")).unwrap();
+    fs::write(dir.path().join("docs/a.md"), "a").unwrap();
+    fs::write(dir.path().join("sibling.md"), "b").unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let leaf = by_path(&src, "docs/a.md").await;
+    for (node, depth, direction, count, edges) in [
+        (src.root_id(), 0, Direction::Both, 1, 0),
+        (src.root_id(), 1, Direction::Out, 3, 2),
+        (src.root_id(), 2, Direction::Out, 4, 3),
+        (leaf, 2, Direction::In, 3, 2),
+        (leaf, 1, Direction::Out, 1, 0),
+        (leaf, 2, Direction::Both, 3, 2),
+    ] {
+        let r = src
+            .query(Query::Neighbours {
+                node,
+                depth,
+                direction,
+            })
+            .await
+            .unwrap();
+        assert_eq!(r.nodes.len(), count, "{depth} {direction:?}");
+        assert_eq!(r.edges.len(), edges);
+        assert!(!r.truncated);
+    }
+}
+
+#[tokio::test]
+async fn simultaneous_saves_from_separate_sources_have_one_winner() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.md"), "old").unwrap();
+    let a = FolderSource::open(dir.path()).unwrap();
+    let b = FolderSource::open(dir.path()).unwrap();
+    let id = by_path(&a, "a.md").await;
+    by_path(&b, "a.md").await;
+    let (_, version) = a.fetch_text(id).await.unwrap();
+    let ta = Transaction::write_text(id, version, TextPatch::whole("one", 3));
+    let tb = Transaction::write_text(id, version, TextPatch::whole("two", 3));
+    let (ra, rb) = tokio::join!(a.apply(ta), b.apply(tb));
+    let wins = [ra.unwrap(), rb.unwrap()]
+        .iter()
+        .filter(|r| matches!(r.results[0], OpResult::Ok { .. }))
+        .count();
+    assert_eq!(wins, 1);
+}
+
+#[tokio::test]
+async fn rename_refuses_existing_destination_and_preserves_both() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.md"), "a").unwrap();
+    fs::write(dir.path().join("b.md"), "b").unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let id = by_path(&src, "a.md").await;
+    let r = src.apply(Transaction::rename(id, "b.md")).await.unwrap();
+    assert!(matches!(r.results[0], OpResult::Refused { .. }));
+    assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "a");
+    assert_eq!(fs::read_to_string(dir.path().join("b.md")).unwrap(), "b");
+}
+
+#[tokio::test]
+async fn neighbourhood_caps_deep_and_wide_trees() {
+    use moonkale_core::Direction;
+    let dir = tempfile::tempdir().unwrap();
+    let mut path = dir.path().to_path_buf();
+    for _ in 0..66 {
+        path.push("d");
+        fs::create_dir(&path).unwrap();
+    }
+    let src = FolderSource::open(dir.path()).unwrap();
+    let r = src
+        .query(Query::Neighbours {
+            node: src.root_id(),
+            depth: u32::MAX,
+            direction: Direction::Out,
+        })
+        .await
+        .unwrap();
+    assert_eq!(r.nodes.len(), 65);
+    assert!(r.truncated);
+    // Avoid a second large tree: populate the deepest directory with siblings.
+    for i in 0..4100 {
+        fs::write(path.join(format!("{i}.md")), "").unwrap();
+    }
+    let id = by_path(&src, &vec!["d"; 66].join("/")).await;
+    let r = src
+        .query(Query::Neighbours {
+            node: id,
+            depth: 1,
+            direction: Direction::Out,
+        })
+        .await
+        .unwrap();
+    assert_eq!(r.nodes.len(), 4096);
+    assert!(r.truncated);
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+#[tokio::test]
+async fn listing_a_fifo_does_not_open_it_for_hashing() {
+    use rustix::fs::{mkfifoat, Mode, CWD};
+    let dir = tempfile::tempdir().unwrap();
+    mkfifoat(CWD, dir.path().join("pipe"), Mode::RUSR | Mode::WUSR).unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let r = src.query(Query::Children(src.root_id())).await.unwrap();
+    assert_eq!(r.nodes.len(), 1);
+    assert!(matches!(
+        src.fetch_text(r.nodes[0].id).await,
+        Err(SourceError::Unsupported(_))
+    ));
+    assert!(matches!(
+        src.fetch_bytes(r.nodes[0].id).await,
+        Err(SourceError::Unsupported(_))
+    ));
+}
+
+#[tokio::test]
+async fn save_preconditions_come_from_content_not_listing_hints() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = FolderSource::open(dir.path()).unwrap();
+    let created = src
+        .apply(Transaction::create_text(src.root_id(), "a.md", "old"))
+        .await
+        .unwrap();
+    let id = ok(&created);
+    let (text, version) = src.fetch_text(id).await.unwrap();
+    assert_eq!(created.version_of(id), Some(version));
+    let hint = src.query(Query::Node(id)).await.unwrap().nodes[0].version;
+    assert_ne!(hint, version);
+    let refused = src
+        .apply(Transaction::write_text(
+            id,
+            hint,
+            TextPatch::whole("bad", text.chars().count()),
+        ))
+        .await
+        .unwrap();
+    assert!(matches!(
+        refused.results[0],
+        OpResult::Refused {
+            error: SourceError::Conflict { .. },
+            ..
+        }
+    ));
+    let saved = src
+        .apply(Transaction::write_text(
+            id,
+            version,
+            TextPatch::whole("new", text.chars().count()),
+        ))
+        .await
+        .unwrap();
+    ok(&saved);
+    assert_eq!(fs::read_to_string(dir.path().join("a.md")).unwrap(), "new");
+}
