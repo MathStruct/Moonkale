@@ -1,5 +1,5 @@
 [workspace]
-exclude = ["packages/code-view/vendor/dioxus-code-editor"]
+exclude = ["packages/code-view/vendor/dioxus-code-editor", "packages/code-view/vendor/pulldown-cmark"]
 resolver = "2"
 members = [
     # Platform entrypoints
@@ -153,6 +153,12 @@ strip = true
 # another crate's trait (Milestone 18 phase 6.4).
 [patch."https://github.com/MathStruct/Moonkale"]
 moonkale-ext-api = { path = "packages/ext-api" }
+
+# pulldown-cmark 0.13.4 plus one upstream hunk (P-212, upstream #1129): its
+# offset iterator panics on a list item holding only a link reference
+# definition followed by a whitespace-only line. Remove once 0.13.5 ships.
+[patch.crates-io]
+pulldown-cmark = { path = "packages/code-view/vendor/pulldown-cmark" }
 
 # Keep the parser runtime responsive in interactive development builds too.
 [profile.dev.package.arborium-tree-sitter]
