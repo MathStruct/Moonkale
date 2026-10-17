@@ -19,7 +19,7 @@ pub mod query;
 pub mod risk;
 pub mod transaction;
 
-pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, TextDialect};
+pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, SourceTruth, TextDialect};
 pub use event::Changes;
 pub use opener::{Openers, Shape, SourceOpener};
 pub use query::{Direction, Query, QueryResult, Table};

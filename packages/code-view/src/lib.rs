@@ -21,7 +21,8 @@
 //! button, dirty marker and conflict reload. The opt-in [`RustCodeEditorPanel`]
 //! uses editor-core-owned caret/selection, localized deltas and a virtualized
 //! Dioxus view over shared Workspace state. Both surfaces integrate with the
-//! shared LSP manager and Workspace navigation. Native Markdown Source supports
+//! shared LSP manager and Workspace navigation. [`graph_rename`] exposes guarded,
+//! complete single-file reference rename proposals for opt-in graph controls. Native Markdown Source supports
 //! wiki marks/completion/following, and the native gutter displays presence.
 //! `editor.markdown_preview` enables bounded inline preview in the Rust Markdown
 //! source view (off by default); the `markdown-preview` Cargo feature supplies
@@ -33,6 +34,8 @@ pub mod backend;
 mod edit;
 #[doc(hidden)]
 pub mod editor_core_spike;
+pub mod graph_rename;
+mod group_history;
 pub mod lsp;
 mod native_accessibility;
 mod native_completion;

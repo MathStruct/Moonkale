@@ -703,6 +703,7 @@ mod tests {
         let db_root = NodeId::derive(&database, "");
         let directory = NodeId::derive(&folder, "notes");
         let descriptor = |id, family, root| SourceDescriptor {
+            truth: Default::default(),
             id,
             family,
             root,

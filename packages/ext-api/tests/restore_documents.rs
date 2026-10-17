@@ -45,6 +45,7 @@ impl Source for Files {
     }
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id(),
             root: Self::node("root").id,
             display_name: "restore".into(),

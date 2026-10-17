@@ -93,3 +93,15 @@ Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick
 - **Stage 10 — the accessibility minimums**: the overlay is keyboard-focusable (the engine sets the tabindex and focuses the canvas on click — its own pointerdown prevents the default); the arrows walk spatially (nearest node in a 45° cone), Enter selects the focused node, Escape clears, Tab stays the browser's. The focus is id-keyed, wears a ring on the overlay and emits `focus { id }`; the panel narrates the selection and focus through an `aria-live` line. `graph-a11y.mjs` covers it.
 
 `dioxus-flow` is retired (ADR-0018): typed ports, auto-layout, undo, parameter editing, the Lux blocks unchanged, the broken-file guard — all on the one engine.
+
+## Experimental Rust structural edits
+
+Desktop and web builds with the default-off `structural-edits` feature offer
+**Edit Rust function (experimental)** for a selected Rust function definition.
+Explicit declaration-name, reference-aware same-folder rename and same-file move controls lead to an escaped,
+range-highlighted preview. Apply changes the open unsaved buffer through its
+normal undo history; it does not save. Conflicts retain the old preview beside
+current source and require recomputation and fresh function confirmation.
+Dragging continues to arrange the graph. Rename uses rust-analyzer with two-pass target preparation, complete per-file previews, coordinated keyboard/menu/review undo and separate per-file saving. Cross-source plans are refused in full. Nested
+operations, Store writes and cross-file moves are not provided. See
+[[Rust Lossless Syntax and Patches]] for limits, platform wiring and tests.

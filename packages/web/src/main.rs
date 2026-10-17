@@ -498,7 +498,13 @@ static THEMES: moonkale_shell::theme::ThemeFiles =
     moonkale_shell::theme::ThemeFiles(moonkale_server::themes::remote_themes);
 static EXTERNAL_LINKS: moonkale_code_view::ExternalLinkOpener =
     moonkale_code_view::ExternalLinkOpener(open_external_link);
+#[cfg(not(feature = "structural-edits"))]
 static SERVICES: [&(dyn std::any::Any + Sync); 3] = [&GIT, &THEMES, &EXTERNAL_LINKS];
+#[cfg(feature = "structural-edits")]
+static STRUCTURAL: moonkale_server::structural::StructuralPlanner =
+    moonkale_server::structural::StructuralPlanner(moonkale_server::structural::remote);
+#[cfg(feature = "structural-edits")]
+static SERVICES: [&(dyn std::any::Any + Sync); 4] = [&GIT, &THEMES, &EXTERNAL_LINKS, &STRUCTURAL];
 
 fn workspace_config() -> WorkspaceConfig {
     WorkspaceConfig {

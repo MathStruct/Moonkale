@@ -30,3 +30,11 @@ pub mod walk;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use source::{IndexSource, IndexStats};
+
+/// Lazy, versioned syntactic identities (WP-66); disabled by default.
+#[cfg(all(feature = "content-ids", not(target_arch = "wasm32")))]
+pub mod content;
+
+/// Exact Rust syntax snapshots and guarded, pure structural patch planning.
+#[cfg(all(feature = "lossless-syntax", not(target_arch = "wasm32")))]
+pub mod lossless;

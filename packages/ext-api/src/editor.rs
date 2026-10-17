@@ -7,7 +7,7 @@
 //! browser input APIs.
 
 use moonkale_core::NodeId;
-use std::{collections::VecDeque, ops::Range};
+use std::{collections::VecDeque, ops::Range, sync::Arc};
 
 /// Monotonically increasing revision of one open editor document.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -110,8 +110,8 @@ pub enum EditorEvent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RevisionedDocument {
     snapshot: EditorSnapshot,
-    undo: VecDeque<HistoryEntry>,
-    redo: VecDeque<HistoryEntry>,
+    undo: VecDeque<Arc<HistoryEntry>>,
+    redo: VecDeque<Arc<HistoryEntry>>,
     utf16_len: u32,
 }
 
@@ -122,6 +122,7 @@ const HISTORY_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct HistoryEntry {
+    group: Option<u64>,
     forward: Vec<TextChange>,
     inverse: Vec<TextChange>,
     before: Option<Utf16Selection>,
@@ -276,12 +277,13 @@ impl RevisionedDocument {
                 }
             })
             .collect();
-        self.undo.push_back(HistoryEntry {
+        self.undo.push_back(Arc::new(HistoryEntry {
+            group: None,
             forward: ordered.iter().map(|change| (*change).clone()).collect(),
             inverse,
             before: self.snapshot.selection,
             after: batch.selection,
-        });
+        }));
         self.redo.clear();
         self.trim_history();
         for change in ordered.iter().rev() {
@@ -293,6 +295,29 @@ impl RevisionedDocument {
         self.snapshot.revision = DocumentRevision(next_revision);
         self.snapshot.selection = batch.selection;
         Ok(self.snapshot.revision)
+    }
+
+    /// Apply a coordinated transaction with an opaque Workspace history marker.
+    pub fn apply_group(
+        &mut self,
+        batch: &EditBatch,
+        group: u64,
+    ) -> Result<EditorSnapshot, BatchRejected> {
+        let before = self.snapshot.revision;
+        self.apply_in_place(batch)?;
+        if self.snapshot.revision != before {
+            if let Some(entry) = self.undo.back_mut() {
+                Arc::make_mut(entry).group = Some(group);
+            }
+        }
+        Ok(self.snapshot.clone())
+    }
+
+    /// Coordinated marker at the next history boundary, if any.
+    pub fn history_group(&self, redo: bool) -> Option<u64> {
+        (if redo { &self.redo } else { &self.undo })
+            .back()
+            .and_then(|entry| entry.group)
     }
 
     /// Record a selection-only update if it belongs to the current revision.
@@ -315,7 +340,7 @@ impl RevisionedDocument {
                 .undo
                 .iter()
                 .chain(&self.redo)
-                .map(HistoryEntry::bytes)
+                .map(|entry| entry.bytes())
                 .sum::<usize>()
                 > HISTORY_BYTES
         {
@@ -338,9 +363,9 @@ impl RevisionedDocument {
         // Capture that live selection when leaving a history state, just as
         // snapshot history did, so redo restores the range used by commands.
         if redo {
-            entry.before = self.snapshot.selection;
+            Arc::make_mut(&mut entry).before = self.snapshot.selection;
         } else {
-            entry.after = self.snapshot.selection;
+            Arc::make_mut(&mut entry).after = self.snapshot.selection;
         }
         let changes = if redo { &entry.forward } else { &entry.inverse };
         for change in changes.iter().rev() {
@@ -558,7 +583,10 @@ mod tests {
             doc.apply(&edits).unwrap();
         }
         assert_eq!(doc.undo.len(), HISTORY_LIMIT);
-        assert_eq!(doc.undo.iter().map(HistoryEntry::bytes).sum::<usize>(), 800);
+        assert_eq!(
+            doc.undo.iter().map(|entry| entry.bytes()).sum::<usize>(),
+            800
+        );
         for _ in 0..HISTORY_LIMIT {
             doc.undo().unwrap().unwrap();
         }

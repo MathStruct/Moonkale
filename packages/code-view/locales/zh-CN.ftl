@@ -114,3 +114,5 @@ editor-a11y-position = 第 { $line } 行，第 { $column } 列。
 editor-a11y-selection = 从第 { $line } 行第 { $column } 列选择到第 { $end_line } 行第 { $end_column } 列。
 editor-a11y-tab-focus = Tab 移动焦点。
 editor-a11y-tab-indent = Tab 缩进。
+
+editor-group-history-blocked = 无法撤销或重做此重命名。请先撤销 { $file } 中较新的编辑，或协调历史记录已不可用。

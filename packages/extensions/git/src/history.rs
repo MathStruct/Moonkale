@@ -103,6 +103,7 @@ impl Source for GitHistorySource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id.clone(),
             display_name: format!(
                 "git history ({} commits)",

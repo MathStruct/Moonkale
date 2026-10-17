@@ -39,6 +39,7 @@ impl Source for File {
     }
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id(),
             root: Self::node().id,
             display_name: "guarded".into(),
@@ -69,6 +70,7 @@ impl Source for Index {
     }
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
+            truth: Default::default(),
             id: self.id(),
             root: NodeId::derive(&self.id(), "root"),
             display_name: "index".into(),

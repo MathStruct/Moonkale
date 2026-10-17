@@ -22,9 +22,13 @@ enum ToJs<'a> {
         text: &'a str,
         language: Option<&'a str>,
         wrap: bool,
+        key: &'a str,
+        epoch: u64,
+        sequence: u64,
     },
     SetText {
         text: &'a str,
+        epoch: u64,
     },
     Focus,
     Undo,
@@ -87,6 +91,11 @@ enum FromJs {
     Splice {
         changes: Vec<super::Splice>,
         length: u32,
+        stamp: crate::group_history::Stamp,
+    },
+    GroupHistory {
+        group: String,
+        redo: bool,
     },
     Hover {
         id: u32,
@@ -145,7 +154,7 @@ while (!(window.moonkale && window.moonkale.codemirror)) {
 const cm = window.moonkale.codemirror;
 const init = await dioxus.recv();
 try {
-cm.mount(el, init.text, (changes, length) => dioxus.send({ kind: "splice", changes, length }), {
+cm.mount(el, init.text, (changes, length, stamp) => dioxus.send({ kind: "splice", changes, length, stamp }), {
     onHover: (id, line, col) => dioxus.send({ kind: "hover", id, line, col }),
     onDefinition: (line, col) => dioxus.send({ kind: "definition", line, col }),
     onCompletion: (id, line, col) => dioxus.send({ kind: "completion", id, line, col }),
@@ -155,6 +164,10 @@ cm.mount(el, init.text, (changes, length) => dioxus.send({ kind: "splice", chang
     onCursor: (line, col, anchor, head) => dioxus.send({ kind: "cursor", line, col, anchor, head }),
     onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }),
     onWikiLink: (target) => dioxus.send({ kind: "wikiLink", target }),
+    sessionKey: init.key,
+    epoch: init.epoch,
+    sequence: init.sequence,
+    onGroupHistory: (group, redo) => dioxus.send({kind:"groupHistory",group,redo}),
     language: init.language || null,
     wrap: !!init.wrap,
 });
@@ -166,7 +179,7 @@ cm.mount(el, init.text, (changes, length) => dioxus.send({ kind: "splice", chang
 dioxus.send({ kind: "ready" });
 for (;;) {
     const msg = await dioxus.recv();
-    if (msg.kind === "setText") cm.setText(el, msg.text);
+    if (msg.kind === "setText") cm.setText(el, msg.text, msg.epoch);
     else if (msg.kind === "focus") cm.focus(el);
     else if (msg.kind === "undo") cm.undo(el);
     else if (msg.kind === "redo") cm.redo(el);
@@ -185,6 +198,7 @@ for (;;) {
 
 pub struct CodeMirrorBackend {
     eval: Eval,
+    binding: crate::group_history::Binding,
 }
 
 impl CodeMirrorBackend {
@@ -195,6 +209,23 @@ impl CodeMirrorBackend {
         wrap: bool,
         on_event: Callback<BackendEvent>,
     ) -> Self {
+        Self::mount_bound(
+            element_id,
+            initial,
+            language,
+            wrap,
+            on_event,
+            crate::group_history::Binding::standalone(),
+        )
+    }
+    pub(crate) fn mount_bound(
+        element_id: String,
+        initial: String,
+        language: Option<String>,
+        wrap: bool,
+        on_event: Callback<BackendEvent>,
+        binding: crate::group_history::Binding,
+    ) -> Self {
         let script = SCRIPT.replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap());
         let eval = document::eval(&script);
         // The JS side blocks on the first recv for the initial text.
@@ -202,6 +233,9 @@ impl CodeMirrorBackend {
             text: &initial,
             language: language.as_deref(),
             wrap,
+            key: &binding.key,
+            epoch: binding.stamp.get().epoch,
+            sequence: binding.stamp.get().sequence,
         });
 
         let mut rx = eval;
@@ -209,8 +243,19 @@ impl CodeMirrorBackend {
             loop {
                 match rx.recv::<FromJs>().await {
                     Ok(FromJs::Ready) => on_event.call(BackendEvent::Ready),
-                    Ok(FromJs::Splice { changes, length }) => {
-                        on_event.call(BackendEvent::Spliced { changes, length })
+                    Ok(FromJs::Splice {
+                        changes,
+                        length,
+                        stamp,
+                    }) => on_event.call(BackendEvent::Spliced {
+                        changes,
+                        length,
+                        stamp,
+                    }),
+                    Ok(FromJs::GroupHistory { group, redo }) => {
+                        if let Ok(group) = group.parse() {
+                            on_event.call(BackendEvent::GroupHistory { group, redo });
+                        }
                     }
                     Ok(FromJs::Hover { id, line, col }) => {
                         on_event.call(BackendEvent::Hover { id, line, col })
@@ -266,13 +311,24 @@ impl CodeMirrorBackend {
                 }
             }
         });
-        Self { eval }
+        Self { eval, binding }
     }
 }
 
 impl CodeEditorBackend for CodeMirrorBackend {
     fn set_text(&self, text: &str) {
-        let _ = self.eval.send(ToJs::SetText { text });
+        // Group cancellation flushes canonical changes after the held commit.
+        if self.binding.held.borrow().is_some() {
+            return;
+        }
+        let mut stamp = self.binding.stamp.get();
+        stamp.epoch = stamp.epoch.saturating_add(1);
+        stamp.sequence = 0;
+        self.binding.stamp.set(stamp);
+        let _ = self.eval.send(ToJs::SetText {
+            text,
+            epoch: stamp.epoch,
+        });
     }
 
     fn focus(&self) {

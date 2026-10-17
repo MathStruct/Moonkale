@@ -48,6 +48,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mut references: Signal<Option<Vec<moonkale_lsp::Location>>> = use_signal(|| None);
     // What the view currently shows (its own edits, or text we pushed), so
     // text changed elsewhere (agent `editor.replace`, reload) is pushed in.
+    let binding = use_hook(move || crate::group_history::install(ws, node));
     let mut view_text: Signal<String> = use_signal(|| doc.peek().text.clone());
     // Splice mismatches in a row. A resync costs one more (the view answers
     // it with a splice against its old text), so a few are normal; one that
@@ -67,6 +68,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let mount = {
         let element_id = element_id.clone();
         let lsp_ident = lsp_ident.clone();
+        let binding = binding.clone();
         move |_: MountedEvent| {
             if backend.peek().is_some() {
                 return;
@@ -74,13 +76,29 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             let initial = doc.peek().text.clone();
             let ident = lsp_ident.clone();
             let element_id_for_events = element_id.clone();
+            let event_binding = binding.clone();
             let on_event = Callback::new(move |ev: BackendEvent| match ev {
                 BackendEvent::Ready => ready.set(true),
                 BackendEvent::Failed(message) => mount_error.set(Some(message)),
                 // Spec 018 / P-037: the view sends splices; `view_text` is
                 // Rust's mirror of the view and receives them first, then
                 // the document takes the mirror (a memcpy, not a JSON hop).
-                BackendEvent::Spliced { changes, length } => {
+                BackendEvent::GroupHistory { group, redo } => {
+                    crate::group_history::restore(ws, group, redo)
+                }
+                BackendEvent::Spliced {
+                    changes,
+                    length,
+                    stamp,
+                } => {
+                    let expected = event_binding.stamp.get();
+                    if stamp.epoch != expected.epoch {
+                        return;
+                    }
+                    if !stamp.workspace && stamp.sequence != expected.sequence.saturating_add(1) {
+                        return;
+                    }
+                    event_binding.stamp.set(stamp);
                     let ok = view_text.with_mut(|t| backend::apply_splices(t, &changes));
                     let mirrored_len = view_text.peek().encode_utf16().count() as u32;
                     if !ok || mirrored_len != length {
@@ -107,8 +125,21 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         mismatches.set(0);
                     }
                     let text = view_text.peek().clone();
-                    if doc.peek().text != text {
+                    if !stamp.workspace && doc.peek().text != text {
                         doc.with_mut(|d| d.text = text.clone());
+                    }
+                    if stamp.workspace && doc.peek().text != text {
+                        if let Some(b) = backend.peek().as_ref() {
+                            b.set_text(&doc.peek().text);
+                        }
+                        return;
+                    }
+                    // A structural review may have created a Rust revision mirror.
+                    // CodeMirror owns its own undo; external mirror adoption invalidates
+                    // old proposals, while an echoed Workspace edit preserves history.
+                    let mirror = ws.docs.editor_sessions.peek().get(&node).copied();
+                    if let Some(mut mirror) = mirror {
+                        let _ = mirror.with_mut(|state| state.replace_from_workspace(text.clone()));
                     }
                     if let Some((_, _, uri)) = ident.as_ref() {
                         lsp.update_document(uri, &text, &doc.peek().saved);
@@ -305,12 +336,13 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             });
             let language = doc.peek().node.language_hint().map(str::to_string);
             let wrap = ws.settings.resolved.peek().editor.wrap;
-            backend.set(Some(backend::mount(
+            backend.set(Some(backend::mount_bound(
                 element_id.clone(),
                 initial,
                 language,
                 wrap,
                 on_event,
+                binding.clone(),
             )));
         }
     };

@@ -849,6 +849,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     }
                 }
             }
+            {
+                #[cfg(feature = "structural-edits")]
+                { rsx! { crate::structural::StructuralControls { ws, selected: {
+                    let selection = selected.read();
+                    if selection.0.len() == 1 { shown.read().get(&selection.0[0]).cloned() } else { None }
+                } } } }
+                #[cfg(not(feature = "structural-edits"))]
+                { rsx! {} }
+            }
             div { class: "mk-graph-host", onmounted: mount,
                 canvas { id: "{id}-gl", class: "mk-graph-canvas" }
                 canvas { id: "{id}-ov", class: "mk-graph-canvas mk-graph-overlay" }

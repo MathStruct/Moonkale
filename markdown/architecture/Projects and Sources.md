@@ -10,7 +10,7 @@ Requested in [[Prompt9]] (2026-09-19): opening several folders at once turned ou
 
 ## Two words
 
-- A **source** is anything Moonkale can browse, query and (maybe) edit through the `Source` trait *(exists)*: a folder, a folder on another machine, a repository on a git host, a database, an API. A source has a `SourceDescriptor { id, display_name, family, capabilities, root }` *(exists)*; `capabilities.write` says whether it can be written at all *(exists)*.
+- A **source** is anything Moonkale can browse, query and (maybe) edit through the `Source` trait *(exists)*: a folder, a folder on another machine, a repository on a git host, a database, an API. A source has a `SourceDescriptor { id, display_name, family, capabilities, root, truth }` *(exists)*; `capabilities.write` says whether it can be written at all *(exists)*. `truth` declares external/file or graph-store ownership, not permission (WP-67 foundation; [[Rust Lossless Syntax and Patches]]).
 - A **project** is a saved, named, persistent piece of Moonkale state: which sources belong together, how each is configured, which documents were open and how the panels were laid out. **A project is not a folder** and not bound to one. It lives in Moonkale's own storage, not inside any source. Folders are members of projects, never the other way round.
 
 Today's implicit behaviour — `recent_folders`, "reopen the last folder", `.moonkale/settings.json` per folder *(exists)* — becomes a project called **Default** that behaves exactly as now, so nothing changes for someone who never creates a project.

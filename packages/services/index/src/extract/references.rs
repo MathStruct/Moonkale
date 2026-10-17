@@ -20,6 +20,19 @@ pub(super) fn extract(
         .filter(|n| n.kind == NodeKind::definition())
         .cloned()
         .collect();
+    // Candidate lookup is by spelling, not a full definition scan for every
+    // identifier. Large bounded content-id requests reuse this resolver.
+    let mut definitions_by_name: HashMap<&str, Vec<&Node>> = HashMap::new();
+    let mut definitions_by_id = HashMap::new();
+    for definition in &definitions {
+        definitions_by_id.insert(definition.id, definition);
+        if let Some(Value::Text(name)) = definition.props.get("name") {
+            definitions_by_name
+                .entry(name.as_str())
+                .or_default()
+                .push(definition);
+        }
+    }
     let occurrences: Vec<_> = derived
         .edges
         .iter()
@@ -186,13 +199,15 @@ pub(super) fn extract(
         {
             continue;
         }
-        let caller_key = definitions
-            .iter()
-            .find(|d| d.id == caller)
+        let caller_key = definitions_by_id
+            .get(&caller)
             .map(|d| d.native_key.as_str())
             .unwrap_or(&file.native_key);
-        let candidates: Vec<_> = definitions
-            .iter()
+        let candidates: Vec<_> = definitions_by_name
+            .get(name)
+            .into_iter()
+            .flatten()
+            .copied()
             .filter(|d| {
                 !shadows
                     .get(&caller)
@@ -200,7 +215,6 @@ pub(super) fn extract(
                     && !shadows
                         .get(&file.id)
                         .is_some_and(|names| names.contains(name))
-                    && d.props.get("name") == Some(&Value::Text(name.into()))
                     && {
                         let suffix = d
                             .native_key

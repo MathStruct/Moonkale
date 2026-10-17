@@ -364,6 +364,16 @@ pub async fn middleware(req: Request, next: Next) -> Response {
     if relay {
         tracing::info!(target: "moonkale::audit", "{ip} {method} {path} auth={auth}");
     }
+    #[cfg(feature = "structural-edits")]
+    let req = if path == "/api/structural/plan" {
+        let (parts, body) = req.into_parts();
+        match axum::body::to_bytes(body, 4 * 1024 * 1024).await {
+            Ok(bytes) => Request::from_parts(parts, axum::body::Body::from(bytes)),
+            Err(_) => return StatusCode::PAYLOAD_TOO_LARGE.into_response(),
+        }
+    } else {
+        req
+    };
     next.run(req).await
 }
 

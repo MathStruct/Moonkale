@@ -13,6 +13,17 @@ use moonkale_ext_api::{
 use moonkale_lsp::{TextEdit, WorkspaceEdit};
 
 pub(crate) fn edit_batch(base: &EditorSnapshot, edits: &[TextEdit]) -> Result<EditBatch, String> {
+    edit_batch_bounded(base, edits, usize::MAX)
+}
+
+// Enforce aggregate removed + inserted bytes before allocating each edit's
+// removed-text copy. Repeated overlapping large ranges must not amplify memory.
+pub(crate) fn edit_batch_bounded(
+    base: &EditorSnapshot,
+    edits: &[TextEdit],
+    max_payload: usize,
+) -> Result<EditBatch, String> {
+    let mut payload = 0usize;
     let mut changes = Vec::new();
     let has_crlf = base.text.contains("\r\n");
     let starts = std::iter::once(0)
@@ -52,6 +63,12 @@ pub(crate) fn edit_batch(base: &EditorSnapshot, edits: &[TextEdit]) -> Result<Ed
         } else {
             edit.new_text.clone()
         };
+        payload = payload
+            .saturating_add(end - start)
+            .saturating_add(inserted_text.len());
+        if payload > max_payload {
+            return Err("edit payload limit exceeded".into());
+        }
         changes.push(TextChange {
             range: start..end,
             removed_text: base.text[start..end].into(),

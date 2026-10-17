@@ -80,7 +80,7 @@ fn short_function(node: TsNode, src: &[u8]) -> Option<String> {
     }
 }
 
-fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
+pub(crate) fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let (short, name) = match ITEM_KINDS.iter().find(|(k, _)| *k == child.kind()) {

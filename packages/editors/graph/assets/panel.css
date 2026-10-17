@@ -39,3 +39,12 @@
 .mk-graph-paste { padding: 6px 8px; border-bottom: 1px solid var(--mk-line); display: flex; flex-direction: column; gap: 6px; }
 .mk-graph-paste-text { font: 12px ui-monospace, 'Noto Sans Mono CJK SC', monospace; background: var(--mk-input-bg); color: inherit; border: 1px solid var(--mk-line-strong); border-radius: 4px; padding: 6px; resize: vertical; }
 .mk-graph-paste-actions { display: flex; gap: 6px; }
+
+.mk-structural { flex: 0 0 auto; }
+.mk-structural-review { padding: 0.75rem; max-height: 55vh; overflow: auto; border: 1px solid var(--wb-line); }
+.mk-structural-review label { display: inline-flex; flex-direction: column; margin: 0.3rem; }
+.mk-structural-columns { display: flex; gap: 0.75rem; overflow: auto; }
+.mk-structural-columns > div { flex: 1; min-width: 14rem; }
+.mk-structural-columns pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.mk-structural-columns mark { background: var(--wb-selected); color: var(--wb-ink); }

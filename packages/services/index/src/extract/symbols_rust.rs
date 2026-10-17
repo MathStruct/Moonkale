@@ -41,7 +41,7 @@ pub fn extract(index: &SourceId, file: &Node, text: &str) -> Derived {
     symbols.finish(tree.root_node(), text)
 }
 
-fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
+pub(crate) fn walk(src: &[u8], node: TsNode, parent: Option<&Parent>, symbols: &mut Symbols) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         let Some((_, short)) = ITEM_KINDS.iter().find(|(k, _)| *k == child.kind()) else {

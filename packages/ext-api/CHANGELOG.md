@@ -14,12 +14,16 @@ Rules:
 
 ## Unreleased
 
-Nothing breaking.
+**Breaking for Rust struct literals:** `SourceDescriptor` gains `truth: SourceTruth` (ADR-0028). Add `truth: Default::default()` to existing constructors. Old serialized descriptors still deserialize as `Files`; new values serialize as `"files"`/`"store"`. This is content ownership, not a write permission. No tag is cut by this change.
 
 **moonkale-core**
 - Additive `graph::code` string constants define the shared L2 vocabulary; new kinds use existing `Custom` values. `NodeKind::definition()` constructs the new kind and `is_definition()` reads it and legacy `Symbol` values. No enum variants, fields, or legacy wire encodings change.
 
 **moonkale-ext-api**
+- Additive `workspace::grouped_edits` composes bounded immutable document proposals, coordinates all-buffer apply/undo/redo with persistent editor adapters, retires unsafe history and reports independent per-file saves. `RevisionedDocument::apply_group` / `history_group` expose opaque group boundaries; ordinary document APIs retain their behavior. No source write occurs during apply/history.
+- Save completion acknowledges the exact submitted text/version rather than a newer live buffer. Edits during an in-flight save remain dirty, and recorded history uses the submitted character count (P-206).
+- Additive `structural` protocol and optional `StructuralPlanner` platform service support bounded pure inspection/declaration-name/move requests, snapshot-bound function handles and byte-edit responses. `DocumentEditBase::validate` rejects stale asynchronous results without mutation; `DocumentEditProposal::changes` exposes validated review ranges. The experimental UI/server integration stays off by default.
+- Additive `Workspace::document_edit_base` and `workspace::proposals` capture bounded, single-document edits, preview them and apply through existing editor revisions/history. Typed conflicts retain proposals; application never saves. Files/write authority and live session/source identity are rechecked.
 - Writes of the folder's `.moonkale/settings.json` never overlap (P-201): a save during a write asks for one more run, each run writes the current state against the version it just read, and an unchanged file isn't rewritten. `SettingsState` gains a private field for it; it was only ever built by the workspace.
 - `settings::DEFAULT_CODE_EDITOR` centralizes the future backend cutover (still `codemirror`). Resolving `editor.implementation = "native"` activates the shipped Rust extension without changing stored files; explicit extension disabling and per-document choices retain priority. Unknown implementation strings resolve to the release default.
 - `icons` (new module): `Icon` (moved from the shell, with toolbar icons added: save, reload, wrap, swap, layout, fit, zoom-in, zoom-out, actual-size, code, close), `IconButton` (a symbol, its description and shortcut as the tooltip, its label as hidden text), and `PanelSettings` with `PanelSettingsButton` (the gear that opens an extension's settings beside its panel; the shell provides the context).

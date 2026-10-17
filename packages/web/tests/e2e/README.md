@@ -502,3 +502,41 @@ the actual desktop app against this worktree's existing dependency target. It do
 cold compiler/filesystem caches, application RSS or size savings from changing a
 default while both backends still ship. See the vault's Rust Code Editor
 Accessibility and Cutover page for the retirement sequence and remaining gates.
+
+### Experimental Rust graph edits
+
+Build both halves with `SERVE_FEATURES=julia,structural-edits` and run
+`run-all.sh structural-edits`. This suite requires Chromium's software GL (as
+`graph-a11y` does). It covers real graph selection, remote planning, safe source
+preview/discard, unsaved Apply, native undo/redo/save, move/conflict/recompute,
+and endpoint bounds. Repeat with `STRUCTURAL_EDITOR=codemirror` to cover the
+CodeMirror mirror/undo/save path. CI runs both backends. The default all-suites list excludes this opt-in feature.
+
+`graph-rename` requires `structural-edits` on server/client and rust-analyzer. It drives reference-aware graph Rename with unsaved calls, recursion, shadowed locals, exact comments/CRLF, grouped undo/redo, complete two-file preview/apply, separate saves, newer-edit blocking, history from either document and retained conflicts. Repeat with `STRUCTURAL_EDITOR=codemirror`; default is native.
+
+### Startup recovery and evidence
+
+`serve.sh` launches dx and its descendants in an isolated process group. Python 3
+records its PID birth identity; `stop` verifies that identity before signalling
+the group, so orphaned compiler/server children are included without matching
+other sessions by name. A legacy PID file without an ownership record, or a
+mismatched birth identity, is refused and preserved for manual inspection. Do not remove the `dx-PORT.owner` file while it is running.
+
+`SERVE_WAIT` is one total startup budget (local default 1200 seconds; CI 3600).
+`SERVE_STALL` remains 1200 seconds without log or target progress.
+`SERVE_ATTEMPTS` defaults to 1; CI sets 2. Only inactivity can retry; a build error,
+process exit or exhausted total deadline fails immediately. A retry keeps compiled
+artifacts and downloaded tools. CI passes `--interactive false --open false
+--verbose --locked` to dx.
+
+Each attempt has `dx-PORT.attempt-N.log`; `dx-PORT.log` points to the current log.
+Failures also write `dx-PORT.attempt-N.diagnostics.log` with owned executable names,
+process state, disk availability and progress timestamps, never an environment or
+argument dump. CI uploads logs and screenshots with seven-day retention, including
+successful runs that recovered on the second attempt.
+
+Run `python3 packages/web/tests/e2e/test-serve.py` for deterministic recovery and
+ownership tests. They use fake time/HTTP and real isolated process trees, including
+a stubborn descendant and an unrelated process that must survive cleanup.
+
+`group-history` probes the committed CodeMirror bundle without a server: history checks never mutate, keyboard/menu group routing survives remounts, held input and stale cancellation tokens cannot cross a barrier, and undo/redo retain their opaque markers. Run through `run-all.sh group-history`.

@@ -44,6 +44,7 @@ fn open_folder(path: String, _: OpenOptions) -> OpenFolderFuture {
         OPENED.lock().unwrap().push(path.clone());
         let id = SourceId::new(format!("folder:{path}"));
         let d = SourceDescriptor {
+            truth: Default::default(),
             root: NodeId::derive(&id, ""),
             id,
             display_name: path,

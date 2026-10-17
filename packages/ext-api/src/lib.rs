@@ -69,6 +69,7 @@ pub mod flow;
 pub mod presence;
 pub mod remote;
 pub mod settings;
+pub mod structural;
 pub mod wiki;
 pub use extension::SettingsTarget;
 pub use manifest::Manifest;
