@@ -29,19 +29,36 @@ async function definitions() {
 }
 async function selectNode(name) {
   await page.locator(".wb-tab[id^='wb-tab-graph']").click();
-  const nodes = await definitions();
-  const node = nodes.find(node => node.native_key === `graph-edit.rs#fn:${name}`);
-  if (!node) throw Error(`missing definition ${name}`);
-  // Pin real index IDs to make pointer targeting deterministic, as graph-a11y does.
-  await page.evaluate(nodes => Object.values(window.moonkale.graphViews)[0].set_graph(JSON.stringify({
-    nodes: nodes.map((node, i) => ({ id: node.id, label: node.label, kind: 'symbol', pos: [i * 100, 0], pinned: true })), edges: [],
-  })), nodes);
-  await page.waitForTimeout(350);
-  const point = await page.evaluate(id => Array.from(Object.values(window.moonkale.graphViews)[0].node_screen_position(id)), node.id);
-  const box = await page.locator('.mk-graph-overlay').boundingBox();
-  await page.mouse.click(box.x + point[0], box.y + point[1]);
-  await page.waitForFunction(id => document.querySelector('[data-testid="structural-controls"]')?.dataset.selectedNode === id, node.id);
-  return node;
+  // Saves publish index/graph refreshes asynchronously. A refresh can replace
+  // our pinned fixture between set_graph and the click (CI run 39050073252,
+  // attempt 1, CodeMirror). Retry the real pointer selection with fresh index
+  // IDs/coordinates; retain the exact selected-node assertion and total bound.
+  const deadline = Date.now() + 30_000;
+  while (true) {
+    const nodes = await definitions();
+    const node = nodes.find(node => node.native_key === `graph-edit.rs#fn:${name}`);
+    if (!node) throw Error(`missing definition ${name}`);
+    await page.evaluate(async nodes => {
+      Object.values(window.moonkale.graphViews)[0].set_graph(JSON.stringify({
+        nodes: nodes.map((node, i) => ({ id: node.id, label: node.label, kind: 'symbol', pos: [i * 100, 0], pinned: true })), edges: [],
+      }));
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, nodes);
+    const point = await page.evaluate(id => Array.from(Object.values(window.moonkale.graphViews)[0].node_screen_position(id) ?? []), node.id);
+    const box = await page.locator('.mk-graph-overlay').boundingBox();
+    if (box && point.length === 2) {
+      await page.mouse.click(box.x + point[0], box.y + point[1]);
+      try {
+        await page.waitForFunction(id => document.querySelector('[data-testid="structural-controls"]')?.dataset.selectedNode === id, node.id,
+          { timeout: Math.max(1, Math.min(1000, deadline - Date.now())) });
+        return node;
+      } catch (error) {
+        if (error.name !== 'TimeoutError' || Date.now() >= deadline) throw error;
+      }
+    } else if (Date.now() >= deadline) {
+      throw Error(`graph node ${name} has no screen position`);
+    }
+  }
 }
 async function begin(name) {
   await selectNode(name);
