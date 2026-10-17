@@ -207,7 +207,13 @@ mod tests {
         assert!(kb.matches(true, true, false, "P"));
         assert!(kb.matches(true, true, false, "p"));
         assert!(!kb.matches(true, false, false, "p"));
-        assert_eq!(kb.display(), "Ctrl+Shift+P");
+        // macOS shows the primary modifier as Cmd (spec 027).
+        let primary = if cfg!(target_os = "macos") {
+            "Cmd"
+        } else {
+            "Ctrl"
+        };
+        assert_eq!(kb.display(), format!("{primary}+Shift+P"));
         let kb = Keybinding::parse("cmd+`").unwrap();
         assert!(kb.ctrl && kb.key == "`");
         assert!(Keybinding::parse("F12")

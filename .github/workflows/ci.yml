@@ -105,7 +105,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: nightly-2026-09-29
-          components: rust-src
+          components: rust-src, rustfmt
       - name: Install pinned fuzz runner
         run: cargo install cargo-fuzz --version 0.13.2 --locked
       - name: Parser regression tests (same production source, no UI)
