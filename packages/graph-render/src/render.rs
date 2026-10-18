@@ -136,6 +136,15 @@ pub struct Renderer {
     pub clear: [f64; 3],
 }
 
+/// A surface size the device can allocate (P-216): a canvas measured before
+/// its tab was laid out reported 1750×27197 on Windows, and configuring that
+/// panicked past the 16384 limit and poisoned the renderer. Larger sizes are
+/// clamped (the canvas scales the picture); zero becomes one.
+fn fit_texture(width: u32, height: u32, device: &wgpu::Device) -> (u32, u32) {
+    let max = device.limits().max_texture_dimension_2d;
+    (width.clamp(1, max), height.clamp(1, max))
+}
+
 fn depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
     device
         .create_texture(&wgpu::TextureDescriptor {
@@ -192,8 +201,9 @@ impl Renderer {
             .await
             .map_err(|e| format!("device: {e}"))?;
 
+        let (width, height) = fit_texture(width, height, &device);
         let mut config = surface
-            .get_default_config(&adapter, width.max(1), height.max(1))
+            .get_default_config(&adapter, width, height)
             .ok_or("surface is not supported by the adapter")?;
         // Our colours are the sRGB values the CSS uses; an sRGB surface would
         // re-encode them and wash the scene out (grey background on Chromium's
@@ -587,6 +597,7 @@ impl Renderer {
         if width == 0 || height == 0 {
             return;
         }
+        let (width, height) = fit_texture(width, height, &self.device);
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
