@@ -658,6 +658,8 @@ fn window_controls() -> WindowControls {
 fn App() -> Element {
     #[cfg(feature = "desktop")]
     let (controls, open_window) = (Some(window_controls()), Some(new_window as fn()));
+    #[cfg(all(feature = "desktop", windows))]
+    use_hook(|| fit_to_work_area(&dioxus::desktop::window().window));
     #[cfg(not(feature = "desktop"))]
     let (controls, open_window): (Option<WindowControls>, Option<fn()>) = (None, None);
 
@@ -673,6 +675,96 @@ fn App() -> Element {
             controls,
             Shell {}
         }
+    }
+}
+
+/// A window rectangle in physical pixels: left, top, right, bottom.
+type Rect = (i32, i32, i32, i32);
+
+/// `window` moved and shrunk to lie inside `work` (P-214). With no native
+/// decorations the title bar is ours, so a window whose top sits under a
+/// top-docked taskbar cannot be dragged at all.
+#[cfg_attr(not(all(feature = "desktop", windows)), allow(dead_code))]
+fn fit_rect(window: Rect, work: Rect) -> Rect {
+    let width = (window.2 - window.0).min(work.2 - work.0);
+    let height = (window.3 - window.1).min(work.3 - work.1);
+    let left = window.0.clamp(work.0, work.2 - width);
+    let top = window.1.clamp(work.1, work.3 - height);
+    (left, top, left + width, top + height)
+}
+
+/// P-214: Windows places a new undecorated window at the top of the screen,
+/// ignoring the taskbar, and at 125 % on a 1080p screen 900 logical pixels
+/// are taller than the work area. Fit the window into its monitor's work area.
+#[cfg(all(feature = "desktop", windows))]
+fn fit_to_work_area(window: &dioxus::desktop::tao::window::Window) {
+    use dioxus::desktop::tao::dpi::{PhysicalPosition, PhysicalSize};
+    use dioxus::desktop::tao::platform::windows::WindowExtWindows;
+    #[repr(C)]
+    struct RectC {
+        left: i32,
+        top: i32,
+        right: i32,
+        bottom: i32,
+    }
+    #[repr(C)]
+    struct MonitorInfo {
+        size: u32,
+        monitor: RectC,
+        work: RectC,
+        flags: u32,
+    }
+    const MONITOR_DEFAULTTONEAREST: u32 = 2;
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn MonitorFromWindow(hwnd: isize, flags: u32) -> isize;
+        fn GetMonitorInfoW(monitor: isize, info: *mut MonitorInfo) -> i32;
+    }
+    let zero = || RectC {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    let mut info = MonitorInfo {
+        size: std::mem::size_of::<MonitorInfo>() as u32,
+        monitor: zero(),
+        work: zero(),
+        flags: 0,
+    };
+    // SAFETY: `hwnd` is this live window's handle; `info` is a correctly
+    // sized MONITORINFO that outlives the call.
+    let found = unsafe {
+        let monitor = MonitorFromWindow(window.hwnd(), MONITOR_DEFAULTTONEAREST);
+        monitor != 0 && GetMonitorInfoW(monitor, &mut info) != 0
+    };
+    let Ok(pos) = window.outer_position() else {
+        return;
+    };
+    if !found {
+        return;
+    }
+    let size = window.outer_size();
+    let current = (
+        pos.x,
+        pos.y,
+        pos.x + size.width as i32,
+        pos.y + size.height as i32,
+    );
+    let work = (
+        info.work.left,
+        info.work.top,
+        info.work.right,
+        info.work.bottom,
+    );
+    let fitted = fit_rect(current, work);
+    if fitted != current {
+        tracing::info!("window: fitted {current:?} into the work area {work:?}");
+        window.set_inner_size(PhysicalSize::new(
+            (fitted.2 - fitted.0) as u32,
+            (fitted.3 - fitted.1) as u32,
+        ));
+        window.set_outer_position(PhysicalPosition::new(fitted.0, fitted.1));
     }
 }
 
@@ -782,6 +874,31 @@ fn workspace_config() -> WorkspaceConfig {
 
 fn open_external_link(url: String) -> Result<(), String> {
     webbrowser::open(&url).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::fit_rect;
+
+    #[test]
+    fn a_window_under_a_top_taskbar_moves_down_and_shrinks() {
+        // P-214 as measured: 1920×1080 at 125 %, taskbar at the top.
+        let work = (0, 38, 1920, 1080);
+        assert_eq!(fit_rect((64, 0, 1831, 1102), work), (64, 38, 1831, 1080));
+    }
+
+    #[test]
+    fn a_window_that_fits_stays_put() {
+        let work = (0, 0, 2560, 1400);
+        assert_eq!(fit_rect((100, 50, 1500, 950), work), (100, 50, 1500, 950));
+    }
+
+    #[test]
+    fn a_window_off_the_right_and_left_edges_comes_back() {
+        let work = (0, 0, 1366, 728);
+        assert_eq!(fit_rect((800, 10, 2200, 910), work), (0, 0, 1366, 728));
+        assert_eq!(fit_rect((-300, 10, 500, 610), work), (0, 10, 800, 610));
+    }
 }
 
 #[cfg(test)]

@@ -281,8 +281,10 @@ pub fn builtin_css() -> String {
         .collect();
     // `:root .wb-…` outranks the workbench crate's own palette (declared on
     // `.wb-shell` / `.wb-workspace`, with a dark block of its own).
+    // `.mk-frame` too: the palettes and dialogs are its children, outside
+    // `.wb-shell`, and drew without a background (P-215).
     out.push_str(&format!(
-        ":root .wb-shell, :root .wb-workspace {{ {wb} }}\n"
+        ":root .mk-frame, :root .wb-shell, :root .wb-workspace {{ {wb} }}\n"
     ));
     out.push_str("html, body { background: var(--mk-canvas); color: var(--mk-ink); }\n");
     out
@@ -341,6 +343,13 @@ mod tests {
         for w in WB {
             assert!(TOKENS.iter().any(|t| t.0 == *w), "--wb-{w} has no token");
         }
+    }
+
+    #[test]
+    fn overlays_outside_the_workbench_get_its_variables() {
+        let css = builtin_css();
+        let rule = css.lines().find(|l| l.contains("--wb-surface:")).unwrap();
+        assert!(rule.starts_with(":root .mk-frame,"), "{rule}");
     }
 
     #[test]
