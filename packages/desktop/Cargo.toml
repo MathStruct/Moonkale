@@ -53,6 +53,7 @@ rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "w
 
 [features]
 unison = ["moonkale-distribution/unison", "moonkale-server/unison"]
+sophia = ["moonkale-distribution/sophia", "moonkale-server/sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["moonkale-distribution/structural-edits", "moonkale-server/structural-edits"]
 default = []

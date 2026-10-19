@@ -8,6 +8,8 @@ description = "Which extensions a Moonkale app ships (Milestone 18 phase 4.1): t
 [features]
 # Local Unison snapshots require UCM only at runtime.
 unison = ["dep:moonkale-sources-unison"]
+# Sophia code stores (`*.sophia`, WP-68); off by default.
+sophia = ["dep:moonkale-sources-sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["moonkale-editor-graph/structural-edits"]
 default = ["code-native", "table", "image", "terminal", "terminal-native", "agent", "flow", "git", "history"]
@@ -27,6 +29,7 @@ server = ["moonkale-ext-git?/server", "moonkale-editor-markdown/server"]
 
 [dependencies]
 moonkale-sources-unison = { workspace = true, optional = true }
+moonkale-sources-sophia = { workspace = true, optional = true }
 moonkale-core = { workspace = true }
 moonkale-shell = { workspace = true }
 moonkale-ext-api = { workspace = true }

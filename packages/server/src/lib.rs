@@ -78,6 +78,8 @@ pub(crate) mod state {
                     moonkale_sources_graph::openers(),
                     #[cfg(feature = "unison")]
                     moonkale_sources_unison::openers(),
+                    #[cfg(feature = "sophia")]
+                    moonkale_sources_sophia::openers(),
                 ]
                 .concat(),
             )

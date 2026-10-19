@@ -1040,4 +1040,30 @@ mod store_tests {
             .iter()
             .all(|e| e.a < out.nodes.len() && e.b < out.nodes.len()));
     }
+
+    // WP-68, Sophia SPEC-004 §9.1: the sample store draws.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn sophia_names_and_definitions_reach_renderer() {
+        let source = moonkale_sources_sophia::SophiaSource::sample().unwrap();
+        let r = source
+            .query(Query::All {
+                limit: GRAPH_LIMIT,
+                kinds: data_kinds(source.descriptor().truth),
+            })
+            .await
+            .unwrap();
+        let (out, _) = database_graph(&r);
+        let json = serde_json::to_value(&out).unwrap();
+        let nodes = json["nodes"].as_array().unwrap();
+        assert!(nodes.iter().any(|n| n["kind"] == "symbol"), "{nodes:?}");
+        assert!(out.nodes.iter().any(|n| n.label == "add"));
+        assert!(nodes.iter().any(|n| n["kind"] == "directory"));
+        assert!(out.nodes.iter().any(|n| n.label == "sample"));
+        assert!(out.edges.iter().any(|e| e.kind == "contains"));
+        assert!(out.edges.iter().any(|e| e.kind == "references"));
+        assert!(out
+            .edges
+            .iter()
+            .all(|e| e.a < out.nodes.len() && e.b < out.nodes.len()));
+    }
 }

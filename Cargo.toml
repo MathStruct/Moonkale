@@ -23,6 +23,7 @@ members = [
     "packages/sources/sql",
     "packages/sources/graph",
     "packages/sources/unison",
+    "packages/sources/sophia",
     "packages/sources/kv",
     "packages/sources/project-fs",
     "packages/services/index",
@@ -81,6 +82,7 @@ moonkale-sources = { path = "packages/sources/registry" }
 moonkale-sources-sql = { path = "packages/sources/sql" }
 moonkale-sources-graph = { path = "packages/sources/graph" }
 moonkale-sources-unison = { path = "packages/sources/unison" }
+moonkale-sources-sophia = { path = "packages/sources/sophia" }
 moonkale-sources-kv = { path = "packages/sources/kv" }
 moonkale-project-fs = { path = "packages/sources/project-fs" }
 moonkale-index = { path = "packages/services/index" }
