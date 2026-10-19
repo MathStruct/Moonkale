@@ -32,8 +32,8 @@ moonkale-sources = { workspace = true, optional = true }
 moonkale-project-fs = { workspace = true, optional = true }
 moonkale-index = { workspace = true, optional = true }
 moonkale-sources-sql = { workspace = true, optional = true, features = ["sqlite", "duckdb", "turso"] }
-moonkale-sources-graph = { workspace = true, optional = true, features = ["helix"] }
-moonkale-sources-kv = { workspace = true, optional = true, features = ["redb", "rocksdb"] }
+moonkale-sources-graph = { workspace = true, optional = true }
+moonkale-sources-kv = { workspace = true, optional = true, features = ["redb"] }
 moonkale-terminal-pty = { workspace = true, optional = true }
 moonkale-lsp-local = { workspace = true, optional = true }
 # The host's state store (phase 5.10): the server's `state.sqlite`.
@@ -50,12 +50,15 @@ webpki-roots = "1"
 # binary with Turso/HelixDB/RocksDB only with its bundled symbols localized,
 # an ELF-only step (.cargo/config.toml).
 [target.'cfg(target_os = "linux")'.dependencies]
-moonkale-sources-graph = { workspace = true, optional = true, features = ["helix", "ladybug"] }
+moonkale-sources-graph = { workspace = true, optional = true, features = ["ladybug"] }
 
 [features]
 unison = ["dep:moonkale-sources-unison"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["dep:moonkale-index", "moonkale-index/lossless-syntax"]
+# Embedded RocksDB and HelixDB stores; off by default, not in the release builds.
+rocksdb = ["moonkale-sources-kv?/rocksdb"]
+helix = ["moonkale-sources-graph?/helix"]
 server = ["dioxus/server", "dep:moonkale-sources", "dep:moonkale-project-fs", "dep:moonkale-index", "dep:moonkale-sources-sql", "dep:moonkale-sources-graph", "dep:moonkale-sources-kv", "dep:moonkale-terminal-pty", "dep:moonkale-lsp-local", "dep:moonkale-state-stores", "moonkale-llm/http", "moonkale-llm/claude-code", "dep:axum", "moonkale-ext-host/wasmtime"]
 
 [dev-dependencies]

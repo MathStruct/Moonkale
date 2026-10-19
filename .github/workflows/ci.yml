@@ -240,7 +240,7 @@ jobs:
         include:
           - name: default
             check_name: browser smoke suites
-            features: julia
+            features: julia,rocksdb,helix
             browser: firefox
             suites: files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
           - name: structural

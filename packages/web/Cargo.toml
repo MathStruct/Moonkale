@@ -44,3 +44,6 @@ web = ["dioxus/web"]
 server = ["dioxus/server", "moonkale-server/server", "dep:axum", "dep:axum-server", "dep:rustls", "dep:tokio", "moonkale-distribution/server"]
 # Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
 julia = ["moonkale-distribution/julia"]
+# Embedded RocksDB and HelixDB stores (the server side); off by default.
+rocksdb = ["moonkale-server/rocksdb"]
+helix = ["moonkale-server/helix"]

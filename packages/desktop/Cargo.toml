@@ -28,11 +28,12 @@ moonkale-project-fs = { workspace = true }
 moonkale-sources = { workspace = true }
 moonkale-index = { workspace = true }
 moonkale-sources-sql = { workspace = true, features = ["sqlite", "duckdb", "turso"] }
-# Milestone 17: embedded HelixDB, redb, RocksDB. LadybugDB on Linux only (the
+# Milestone 17: embedded redb; HelixDB and RocksDB are opt-in features below
+# (heavy C++/git trees; RocksDB needs libclang). LadybugDB on Linux only (the
 # target table below): its static library can be linked next to them only
 # with its bundled symbols localized, an ELF-only step (.cargo/config.toml).
-moonkale-sources-graph = { workspace = true, features = ["helix"] }
-moonkale-sources-kv = { workspace = true, features = ["redb", "rocksdb"] }
+moonkale-sources-graph = { workspace = true }
+moonkale-sources-kv = { workspace = true, features = ["redb"] }
 moonkale-terminal = { workspace = true }
 moonkale-terminal-pty = { workspace = true }
 moonkale-typst = { workspace = true }
@@ -59,10 +60,13 @@ desktop = ["dioxus/desktop", "moonkale-code-view/native-desktop"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
 # Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.
 julia = ["moonkale-distribution/julia"]
+# Embedded RocksDB and HelixDB stores; off by default, not in the release builds.
+rocksdb = ["moonkale-sources-kv/rocksdb", "moonkale-server/rocksdb"]
+helix = ["moonkale-sources-graph/helix", "moonkale-server/helix"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-moonkale-sources-graph = { workspace = true, features = ["helix", "ladybug"] }
+moonkale-sources-graph = { workspace = true, features = ["ladybug"] }
 libc = "0.2"
 
 [dev-dependencies]
