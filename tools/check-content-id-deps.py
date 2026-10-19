@@ -31,6 +31,10 @@ for name in ("blake3", "cc", "libc"):
     manifest += f'{name} = "={pinned(name)}"\n'
 (probe / "Cargo.toml").write_text(manifest)
 (probe / "src/lib.rs").write_text('// Dependency audit only; no production code.\n')
+# Start from the production lockfile: cargo keeps its versions and drops the
+# rest, so a newly published transitive crate (find-msvc-tools 0.1.15 under
+# cc, 2026-10-19) cannot enter the audit graph.
+(probe / "Cargo.lock").write_bytes((root / "Cargo.lock").read_bytes())
 config = probe / "deny.toml"
 config.write_text('[advisories]\n[licenses]\nallow = ["MIT", "Apache-2.0", "CC0-1.0"]\n[bans]\nmultiple-versions = "deny"\n[sources]\nunknown-registry = "deny"\nunknown-git = "deny"\n')
 subprocess.run([args.cargo_deny, "--manifest-path", str(probe / "Cargo.toml"), "--config", str(config), "check"], cwd=root, check=True)
