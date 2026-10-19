@@ -146,7 +146,9 @@ opt-level = "s"
 lto = "fat"
 codegen-units = 1
 panic = "abort"
-strip = true
+# Not `true` (P-221): with Rust 1.99 dx's full strip also drops the
+# `__wasm_bindgen_unstable` section and wasm-bindgen refuses the module.
+strip = "debuginfo"
 
 # moonkale-julia depends on moonkale-ext-api by git tag; inside this workspace
 # that must be *this* moonkale-ext-api, or the extension's `Extension` would be
