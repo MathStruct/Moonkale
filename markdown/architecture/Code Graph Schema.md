@@ -99,6 +99,14 @@ This is today's derived id, extended past files. It stays stable while the defin
 - **file-backed code** (ADR-0028 A or B): a derived identity that finds a definition again after moves and renames;
 - **store-backed code** (Sophia, Unison): *the* identity.
 
+### Sophia's ids (2026-10-20)
+
+Sophia's specs (in its own repository, `vault/Specifications/`, drafts of 2026-10-20) fill in the store-backed case. Its store is language-agnostic (SPEC-001 Sophia Store v0 there), and the Moonkale side is SPEC-004 Moonkale Interface.
+- **A definition's id is `from_content(digest)`**, with Sophia's digest. Each definition row carries `lang` and its normaliser (`frontend`, `frontend_version`), which is rule 1 above. So a Rust or Julia definition normalised by WP-66 can live in the same store.
+- **Every definition is a component member.** A non-recursive definition is a component of size 1, so rule 6 has no special case.
+- **Nominal entities** are the one exception to content addressing: generic functions (with their method tables) and nominal types get a *fresh* id when they are created, and Moonkale shows them as `from_content(nominal id)`. What changes over time are their versioned relations (methods added or removed), not the id. That's how a Julia generic function keeps one identity while its methods change.
+- **Lineage** (`sophia:Lineage`, `derive(source, "lineage:" + first digest)`) links a definition to the definitions it replaced. Moonkale's own review comments on Sophia code anchor to the lineage id, so they survive edits and renames.
+
 ## 5. Names
 
 A **name** is a `Name` node: a namespace path, for example `crate::graph::layout` plus `relax` (Rust), `Lenticulum.Nodes.factor` (Julia), or `pkg.mod.fn` (Python). It has a `Names(Name → Definition)` edge to the *location* id. Store-backed sources point names at the content id.
@@ -106,6 +114,8 @@ A **name** is a `Name` node: a namespace path, for example `crate::graph::layout
 - A rename moves or recreates the `Name`. For file-backed code the location id also changes because the symbol path includes the name; only the future content id is rename-invariant.
 - Re-exports (`pub use`, Julia `export`, Python `__all__` or `from x import y`) are further `Names` edges into the same definition, with a `visibility` property.
 - Two names for one definition is normal.
+- **For store-backed sources the name is primary** (SPEC-004 §2–§3). It's what you open, edit and navigate: `WriteText` on a name parses the text, stores a new definition and moves the name, while a definition itself is immutable and opens read-only. The graph panel hides `Name` nodes for file-backed code, where they're metadata, and has to show them for a Sophia source.
+- **Path spelling:** Moonkale paths use `/`, Sophia names use `.`; the adapter maps `a/b/c` ↔ `a.b.c` and rejects segments with `/`, `.`, whitespace or control characters.
 
 ## 6. Edge kinds
 
@@ -181,7 +191,12 @@ This is a finite, read-only snapshot, not a live codebase bridge: it imports pro
 - The exact normalisation per language (what's observable): written per frontend at step 5, versioned with the normaliser.
 - Rust macros that generate items (`macro_rules!` making functions): are generated items definitions with a `GeneratedBy` edge, or only L3? Leaning towards L3, with the call site as a reference.
 - Python's dynamic definitions (`setattr`, metaclasses): out of scope for L2. An elaborator can add them at L3.
-- How a `Definition` of a store-backed language (Sophia) differs: it doesn't, apart from having no `Defines` edge. To be confirmed with WP-18.
+- ~~How a `Definition` of a store-backed language (Sophia) differs~~ **Answered** by WP-18 (2026-10-17) and Sophia's SPEC-004 (2026-10-20): it doesn't, apart from having no `Defines` edge. The shared kinds are enough: `Directory`, `Name`, `Definition`, `Annotation`, plus `Contains`, `Names`, `References`, `Calls`, `Tests`, `TypeOf`, `MethodOf` and `Annotates`. Sophia-only concepts are namespaced: `sophia:Term`, `sophia:Type` (an inferred compound type that is not a stored definition), `sophia:Lineage` and `sophia:Settings` nodes, and `sophia:Subterm`, `sophia:Supersedes` and `sophia:InLineage` edges. `sophia:Subterm` isn't `Contains`, because shared subterms make a DAG, while views treat `Contains` as a tree.
+- Still open for Sophia, decided in WP-68 or later:
+  - **annotation edits:** a new `Annotate`/`Unannotate` op, or a pseudo-text node per annotation;
+  - **`datalog`:** a new `TextDialect` (v0 has read-only `sql` only);
+  - **a `Code` family:** a `moonkale-core` change, out of v0, where a Sophia source is family `Graph`.
+- **Rendering profiles** (Sophia's SPEC-005): how code is printed (`fn`/`def`/`function`, 0- or 1-based indexing, …) is stored per reader in the Sophia database, not in Moonkale settings. Julia-like is the default. Moonkale sees the profile as one `sophia:Settings` node edited as text. A profile switch reprints every definition and changes no id. Whether Moonkale's own settings for file-backed code move there too is a later question (SR-74, Sophia as Moonkale's parsing and storage engine).
 
 ## Implementation contract (WP-65/WP-22, 2026-10-15)
 
