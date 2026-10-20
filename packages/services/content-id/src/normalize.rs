@@ -22,6 +22,9 @@ struct Normalizer<'a, 'b, K> {
     /// Julia soft scope: an assignment to a name local to an enclosing
     /// frame updates that variable instead of declaring a new one.
     soft: bool,
+    /// Spans the caller asks about, and those encoded as non-local uses.
+    probes: &'a HashSet<(usize, usize)>,
+    hits: Vec<(usize, usize)>,
 }
 
 /// The canonical encoding of one definition. `syntax` is the definition's
@@ -30,28 +33,33 @@ struct Normalizer<'a, 'b, K> {
 /// key. Spans not in the map are locals or unresolved names.
 pub fn definition<K: Copy + Eq + Hash>(
     lang: &str,
-    mut syntax: Syntax,
+    syntax: Syntax,
     text: &str,
     references: &HashMap<(usize, usize), K>,
     budget: &mut Budget,
 ) -> Result<Vec<Part<K>>> {
+    Ok(definition_and_uses(lang, syntax, text, references, &HashSet::new(), budget)?.0)
+}
+
+/// A definition's parts, and the probed spans it read as module names.
+pub type Encoded<K> = (Vec<Part<K>>, Vec<(usize, usize)>);
+
+/// [`definition`], also returning which of the `probes` spans the encoding
+/// read as non-local names (in encoding order): a local wins over a module
+/// name, so this is how a caller learns which uses are really module uses.
+pub fn definition_and_uses<K: Copy + Eq + Hash>(
+    lang: &str,
+    mut syntax: Syntax,
+    text: &str,
+    references: &HashMap<(usize, usize), K>,
+    probes: &HashSet<(usize, usize)>,
+    budget: &mut Budget,
+) -> Result<Encoded<K>> {
     if syntax.has_error() {
         return Err(ContentIdError::MalformedSyntax);
     }
     let own = if lang == "julia" {
-        let mut head = syntax.named_child(0);
-        let mut found = None;
-        while let Some(node) = head {
-            if matches!(
-                node.kind(),
-                "identifier" | "operator" | "macro_identifier" | "field_expression"
-            ) {
-                found = Some((node.start_byte(), node.end_byte()));
-                break;
-            }
-            head = node.named_child(0);
-        }
-        found
+        crate::julia_name(syntax).map(|(n, _)| (n.start_byte(), n.end_byte()))
     } else {
         syntax
             .child_by_field_name("name")
@@ -76,6 +84,8 @@ pub fn definition<K: Copy + Eq + Hash>(
         own,
         member_names: HashSet::new(),
         soft: false,
+        probes,
+        hits: Vec::new(),
     };
     n.bytes(b"language", lang.as_bytes());
     n.bytes(b"normalizer", &NORMALIZER_VERSION.to_le_bytes());
@@ -96,7 +106,7 @@ pub fn definition<K: Copy + Eq + Hash>(
         }
     }
     n.walk(syntax, 0)?;
-    Ok(n.parts)
+    Ok((n.parts, n.hits))
 }
 
 impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
@@ -223,6 +233,24 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
             }
         }
         Ok(())
+    }
+    /// Julia type parameters: `T`, `{T, S}`, `T <: X` or `T >: X`.
+    fn type_parameters(&mut self, node: Syntax) -> Result<()> {
+        match node.kind() {
+            "identifier" => self.bind(node, false),
+            "curly_expression" => {
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    self.type_parameters(child)?;
+                }
+                Ok(())
+            }
+            "binary_expression" => match node.named_child(0) {
+                Some(name) if name.kind() == "identifier" => self.bind(name, false),
+                _ => Err(ContentIdError::UnsupportedSyntax),
+            },
+            _ => Err(ContentIdError::UnsupportedSyntax),
+        }
     }
     /// Julia parameters: an argument list, a tuple or one parameter.
     /// Keyword names (after `;`) are observable.
@@ -520,6 +548,13 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
             if self.lang == "julia" {
                 let mut head = node.named_child(0);
                 while let Some(n) = head {
+                    // `where {T, S <: X}`: type parameters are locals.
+                    if n.kind() == "where_expression" {
+                        let mut c = n.walk();
+                        for parameters in n.named_children(&mut c).skip(1) {
+                            self.type_parameters(parameters)?;
+                        }
+                    }
                     if n.kind() == "call_expression" {
                         let mut c = n.walk();
                         for arg in n.named_children(&mut c).skip(1) {
@@ -546,6 +581,25 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                         self.collect_locals(child)?;
                     }
                 }
+            }
+        } else if self.lang == "julia"
+            && matches!(
+                kind,
+                "struct_definition" | "abstract_definition" | "primitive_definition"
+            )
+        {
+            // `struct S{T} … end`: the type parameters are locals.
+            self.frames.push(Frame::default());
+            scoped = true;
+            let mut head = node.named_child(0);
+            while let Some(h) = head {
+                if h.kind() == "parametrized_type_expression" {
+                    if let Some(curly) = h.named_child(1) {
+                        self.type_parameters(curly)?;
+                    }
+                    break;
+                }
+                head = h.named_child(0);
             }
         } else if self.lang == "rust" && kind == "block" {
             self.frames.push(Frame {
@@ -672,6 +726,9 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 self.bytes(b"local", &bytes);
                 return Ok(());
             }
+        }
+        if !observable && self.probes.contains(&(node.start_byte(), node.end_byte())) {
+            self.hits.push((node.start_byte(), node.end_byte()));
         }
         if let Some(target) = self
             .references

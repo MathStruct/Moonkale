@@ -153,9 +153,51 @@ fn a_dynamic_include_keeps_functions_open() {
 }
 
 #[test]
+fn type_parameters_locals_and_callable_heads() {
+    let r = read("Callable.jl");
+    let m = resolve(&r);
+    let e = edges(&r, &m);
+    let names: Vec<_> = m.definitions.iter().map(|d| d.name.clone()).collect();
+    assert!(!names.contains(&Some("Type".into())), "{names:?}");
+    assert_eq!(
+        names.iter().filter(|n| n.as_deref() == Some("S")).count(),
+        1,
+        "{names:?}"
+    );
+    assert!(
+        !has(&e, "first_of", "S"),
+        "the type parameter, not the struct"
+    );
+    assert!(has(&e, "uses_struct", "S"));
+    let generic: Vec<_> = m
+        .calls_generic
+        .iter()
+        .map(|(_, span, n)| (n.clone(), *span))
+        .collect();
+    assert!(generic.iter().any(|(n, _)| n == "apply"), "{generic:?}");
+    let twice = m
+        .definitions
+        .iter()
+        .find(|d| d.name.as_deref() == Some("twice"))
+        .unwrap();
+    assert!(
+        !generic
+            .iter()
+            .any(|(_, (a, _))| *a >= twice.key.1 && *a < twice.key.2),
+        "a parameter named like the generic function is a local"
+    );
+}
+
+#[test]
 fn golden_module_ids() {
     let mut lines = vec!["# root\tfile\tdefinition\tstart:end\tdigest|error\tdepends_on\treferences (span>file:start:end)".to_string()];
-    for root in ["Geo.jl", "Dyn.jl", "../geometry.jl", "../scopes.jl"] {
+    for root in [
+        "Geo.jl",
+        "Dyn.jl",
+        "Callable.jl",
+        "../geometry.jl",
+        "../scopes.jl",
+    ] {
         let r = read(root);
         let m = resolve(&r);
         for d in &m.definitions {
