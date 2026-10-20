@@ -75,3 +75,72 @@ fn reason(e: ContentIdError, node: moonkale_content_id::Syntax, _: &str) -> Stri
     let hit = kinds.iter().skip(1).find(|k| suspects.contains(k));
     format!("{e:?} ({} {})", node.kind(), hit.unwrap_or(&"?"))
 }
+
+/// Module mode on a package root: `MOONKALE_JULIA_PACKAGE=<src/Pkg.jl>`.
+#[test]
+fn julia_package_coverage() {
+    use moonkale_content_id::julia::{includes, module, ModuleFile};
+    let Some(root) = std::env::var_os("MOONKALE_JULIA_PACKAGE") else {
+        return;
+    };
+    let (mut texts, mut modules, mut dynamic, mut seen) = (vec![], vec![], vec![], vec![]);
+    let mut pending = vec![(std::path::PathBuf::from(root), Vec::<String>::new())];
+    while let Some((path, base)) = pending.pop() {
+        if seen.contains(&path) {
+            continue;
+        }
+        seen.push(path.clone());
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            dynamic.push(base);
+            continue;
+        };
+        let tree = parse("julia", &text, &mut Budget::new()).unwrap();
+        let mut next = vec![];
+        for i in includes(&text, &tree) {
+            let mut m = base.clone();
+            m.extend(i.module);
+            match i.path {
+                Some(p) => next.push((path.parent().unwrap().join(p), m)),
+                None => dynamic.push(m),
+            }
+        }
+        pending.extend(next.into_iter().rev());
+        texts.push(text);
+        modules.push(base);
+    }
+    let trees: Vec<_> = texts
+        .iter()
+        .map(|t| parse("julia", t, &mut Budget::new()).unwrap())
+        .collect();
+    let files: Vec<_> = (0..texts.len())
+        .map(|i| ModuleFile {
+            text: &texts[i],
+            tree: &trees[i],
+            module: modules[i].clone(),
+        })
+        .collect();
+    let started = std::time::Instant::now();
+    let m = module(&files, &dynamic).unwrap();
+    let ok = m.definitions.iter().filter(|d| d.identity.is_ok()).count();
+    let mut why = BTreeMap::<String, usize>::new();
+    for d in m
+        .definitions
+        .iter()
+        .filter_map(|d| d.identity.as_ref().err())
+    {
+        *why.entry(format!("{d:?}")).or_default() += 1;
+    }
+    let refs: usize = m.definitions.iter().map(|d| d.references.len()).sum();
+    let cross: usize = m
+        .definitions
+        .iter()
+        .map(|d| d.references.iter().filter(|(_, t)| t.0 != d.key.0).count())
+        .sum();
+    println!(
+        "{} files, {ok} of {} definitions get ids, {refs} references ({cross} across files), {} generic uses, {:?}; refused {why:?}",
+        files.len(),
+        m.definitions.len(),
+        m.calls_generic.len(),
+        started.elapsed()
+    );
+}

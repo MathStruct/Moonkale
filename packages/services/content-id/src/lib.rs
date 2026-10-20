@@ -11,6 +11,7 @@
 //! Keys are opaque to the crate: any `Copy + Eq + Hash` value per definition.
 
 mod component;
+pub mod julia;
 mod normalize;
 
 pub use arborium_tree_sitter::{Node as Syntax, Tree};
@@ -23,8 +24,9 @@ pub use normalize::definition;
 /// wrapper with the name's span is the name (Julia `struct`); a Rust struct
 /// expression's type is a use (2026-10-20). 4: Julia local scopes (loops,
 /// closures, `do`, `let`, `try`, comprehensions), varargs, keywords,
-/// destructuring and anonymous `::T` parameters (2026-10-20).
-pub const NORMALIZER_VERSION: u32 = 4;
+/// destructuring and anonymous `::T` parameters (2026-10-20). 5: Julia
+/// references resolve per module, not per file (SPEC-008, 2026-10-20).
+pub const NORMALIZER_VERSION: u32 = 5;
 /// Maximum bytes of a single source file.
 pub const MAX_FILE_BYTES: usize = 512 * 1024;
 /// Maximum reachable definitions in one request.
@@ -56,6 +58,8 @@ pub enum ContentIdError {
     StaleInput,
     SourceUnavailable,
     WorkerFailed,
+    /// A definition it refers to has no id, so it has none either.
+    DependencyRefused,
 }
 
 impl std::fmt::Display for ContentIdError {
@@ -76,16 +80,32 @@ pub enum Part<K> {
 }
 
 /// The work bound of one request; share it across all its calls.
-#[derive(Default)]
-pub struct Budget(usize, usize);
+pub struct Budget {
+    steps: usize,
+    bytes: usize,
+    limit: usize,
+}
+impl Default for Budget {
+    fn default() -> Self {
+        Self::with_steps(MAX_STEPS)
+    }
+}
 impl Budget {
     pub fn new() -> Self {
         Self::default()
     }
+    /// A budget of `limit` steps (a module's: see [`julia::module`]).
+    pub fn with_steps(limit: usize) -> Self {
+        Self {
+            steps: 0,
+            bytes: 0,
+            limit,
+        }
+    }
     /// Counts one unit of work; fails once the request is over its bounds.
     pub fn step(&mut self) -> Result<()> {
-        self.0 += 1;
-        if self.0 > MAX_STEPS || self.1 > MAX_INPUT_BYTES {
+        self.steps += 1;
+        if self.steps > self.limit || self.bytes > MAX_INPUT_BYTES {
             Err(ContentIdError::LimitExceeded)
         } else {
             Ok(())

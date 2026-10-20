@@ -130,6 +130,12 @@ impl IndexSource {
                 self.content_generation.load(Ordering::SeqCst),
             )
         };
+        if matches!(
+            &file.content,
+            Some(moonkale_core::ContentRef::Text { lang: Some(l), .. }) if l == "julia"
+        ) {
+            return self.julia_content_id(definition, file, generation).await;
+        }
         let (text, _) = self
             .folder
             .fetch_text(file.id)
@@ -179,6 +185,20 @@ impl IndexSource {
         if !unchanged {
             return Err(Error::StaleInput);
         }
+        self.publish_content_ids(definition, identities, generation)
+    }
+
+    /// Publishes a request's identities on their definition nodes, unless
+    /// the index was refreshed meanwhile; returns the requested one.
+    #[cfg(feature = "content-ids")]
+    fn publish_content_ids(
+        &self,
+        definition: NodeId,
+        identities: std::collections::HashMap<NodeId, crate::content::ContentIdentity>,
+        generation: u64,
+    ) -> Result<crate::content::ContentIdentity, crate::content::ContentIdError> {
+        use crate::content::ContentIdError as Error;
+        use std::sync::atomic::Ordering;
         let mut graph = self.graph.w();
         if self.content_generation.load(Ordering::SeqCst) != generation
             || graph.node(definition).is_none()
@@ -225,6 +245,194 @@ impl IndexSource {
             .get(&definition)
             .cloned()
             .ok_or(Error::NotDefinition)
+    }
+
+    /// Julia (normalizer v5): the definition's module is its package (the
+    /// nearest `Project.toml` naming `src/<name>.jl`) when the package's
+    /// include graph reaches the file, otherwise the file itself. Every file
+    /// of the module is read, checked against the index and read again
+    /// before publication.
+    #[cfg(feature = "content-ids")]
+    async fn julia_content_id(
+        &self,
+        definition: NodeId,
+        file: Node,
+        generation: u64,
+    ) -> Result<crate::content::ContentIdentity, crate::content::ContentIdError> {
+        use crate::content::{ContentIdError as Error, JuliaFile};
+        let mut module = match self.julia_package_root(&file).await {
+            Some(root) => self.julia_module_files(root).await?,
+            None => (Vec::new(), Vec::new()),
+        };
+        if !module.0.iter().any(|f| f.node.id == file.id) {
+            module = self.julia_module_files(file.clone()).await?;
+        }
+        let (files, dynamic) = module;
+        // The index's definitions must come from these bytes.
+        for f in &files {
+            let indexed = {
+                let graph = self.graph.r();
+                let input = graph
+                    .edges()
+                    .find(|e| e.kind == moonkale_core::EdgeKind::Defines && e.from == f.node.id)
+                    .and_then(|e| graph.node(e.to))
+                    .and_then(|n| n.props.get("input").cloned());
+                input
+            };
+            if indexed.is_some_and(|i| crate::extract::provenance(&f.text).get("input") != Some(&i))
+            {
+                return Err(Error::StaleInput);
+            }
+        }
+        let cache = self.content_cache.clone();
+        let index = self.id.clone();
+        let (identities, files) = tokio::task::spawn_blocking(move || {
+            // The whole module is the input: every file's path, module
+            // path and bytes, in include order, and the dynamic includes.
+            let mut input = blake3::Hasher::new();
+            for f in &files {
+                for part in [
+                    f.node.native_key.as_bytes(),
+                    f.module.join(".").as_bytes(),
+                    f.text.as_bytes(),
+                ] {
+                    input.update(&(part.len() as u64).to_le_bytes());
+                    input.update(part);
+                }
+            }
+            for d in &dynamic {
+                input.update(b"dynamic:");
+                input.update(d.join(".").as_bytes());
+            }
+            let input = *input.finalize().as_bytes();
+            let key = crate::content::Cache::key(&input, &format!("{}:julia-module", index));
+            let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+            let identities =
+                if let Some(cached) = cache.get(&key).filter(|c| c.contains_key(&definition)) {
+                    cached
+                } else {
+                    let calculated =
+                        crate::content::calculate_julia(&index, &files, &dynamic, definition)?;
+                    cache.put(key, calculated.clone());
+                    calculated
+                };
+            Ok::<_, Error>((identities, files))
+        })
+        .await
+        .map_err(|_| Error::WorkerFailed)??;
+        // Read every file again: an external edit may precede the watcher.
+        for JuliaFile { node, text, .. } in &files {
+            let (fresh, _) = self
+                .folder
+                .fetch_text(node.id)
+                .await
+                .map_err(|_| Error::StaleInput)?;
+            if &fresh != text {
+                return Err(Error::StaleInput);
+            }
+        }
+        self.publish_content_ids(definition, identities, generation)
+    }
+
+    /// The root file of the Julia package a file is in: the nearest
+    /// `Project.toml` with `name = "X"` whose `src/X.jl` exists.
+    #[cfg(feature = "content-ids")]
+    async fn julia_package_root(&self, file: &Node) -> Option<Node> {
+        let mut dir = file.native_key.as_str();
+        loop {
+            dir = dir.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+            let join = |rel: &str| {
+                if dir.is_empty() {
+                    rel.to_string()
+                } else {
+                    format!("{dir}/{rel}")
+                }
+            };
+            let project = self.graph.r().file_by_path(&join("Project.toml"));
+            if let Some(project) = project {
+                let (text, _) = self.folder.fetch_text(project).await.ok()?;
+                let name = text.lines().take(64).find_map(|l| {
+                    let (k, v) = l.split_once('=')?;
+                    (k.trim() == "name").then(|| v.trim().trim_matches('"').to_string())
+                })?;
+                let graph = self.graph.r();
+                return graph
+                    .file_by_path(&join(&format!("src/{name}.jl")))
+                    .and_then(|id| graph.node(id).cloned());
+            }
+            if dir.is_empty() {
+                return None;
+            }
+        }
+    }
+
+    /// A module's files from its root, following literal includes depth
+    /// first; an include that is not a literal, leaves the folder or names a
+    /// missing file is dynamic.
+    #[cfg(feature = "content-ids")]
+    async fn julia_module_files(
+        &self,
+        root: Node,
+    ) -> Result<(Vec<crate::content::JuliaFile>, Vec<Vec<String>>), crate::content::ContentIdError>
+    {
+        use crate::content::{ContentIdError as Error, JuliaFile};
+        use moonkale_content_id::julia::{MAX_MODULE_BYTES, MAX_MODULE_FILES};
+        let mut files: Vec<JuliaFile> = Vec::new();
+        let mut dynamic = Vec::new();
+        let mut bytes = 0;
+        let mut pending = vec![(root, Vec::new())];
+        while let Some((node, module)) = pending.pop() {
+            if files.iter().any(|f| f.node.id == node.id) {
+                continue;
+            }
+            if files.len() >= MAX_MODULE_FILES {
+                return Err(Error::LimitExceeded);
+            }
+            let (text, _) = self
+                .folder
+                .fetch_text(node.id)
+                .await
+                .map_err(|_| Error::SourceUnavailable)?;
+            bytes += text.len();
+            if bytes > MAX_MODULE_BYTES {
+                return Err(Error::LimitExceeded);
+            }
+            let (text, found) = tokio::task::spawn_blocking(move || {
+                let tree = moonkale_content_id::parse(
+                    "julia",
+                    &text,
+                    &mut moonkale_content_id::Budget::new(),
+                )?;
+                let found = moonkale_content_id::julia::includes(&text, &tree);
+                Ok::<_, Error>((text, found))
+            })
+            .await
+            .map_err(|_| Error::WorkerFailed)??;
+            let dir = node
+                .native_key
+                .rsplit_once('/')
+                .map(|(d, _)| d)
+                .unwrap_or("");
+            let mut next = Vec::new();
+            for include in found {
+                let mut at = module.clone();
+                at.extend(include.module);
+                let target = include.path.and_then(|p| relative(dir, &p)).and_then(|p| {
+                    let graph = self.graph.r();
+                    graph
+                        .file_by_path(&p)
+                        .and_then(|id| graph.node(id).cloned())
+                });
+                match target {
+                    Some(target) => next.push((target, at)),
+                    None => dynamic.push(at),
+                }
+            }
+            // Depth first, in source order.
+            pending.extend(next.into_iter().rev());
+            files.push(JuliaFile { node, text, module });
+        }
+        Ok((files, dynamic))
     }
 
     /// Embed every chunk that has no vector yet, in batches. Safe to call
@@ -651,6 +859,26 @@ impl Source for IndexSource {
         self.update_counts();
         Ok(())
     }
+}
+
+/// `rel` joined to the folder-relative directory `dir`, normalised; `None`
+/// when it is absolute or leaves the folder.
+#[cfg(feature = "content-ids")]
+fn relative(dir: &str, rel: &str) -> Option<String> {
+    if rel.starts_with('/') || rel.contains('\\') {
+        return None;
+    }
+    let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
+    for part in rel.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop()?;
+            }
+            p => parts.push(p),
+        }
+    }
+    Some(parts.join("/"))
 }
 
 #[cfg(test)]

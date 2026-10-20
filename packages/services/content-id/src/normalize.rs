@@ -103,7 +103,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
     fn bytes(&mut self, tag: &[u8], value: &[u8]) {
         let mut bytes = Vec::new();
         field(&mut bytes, tag, value);
-        self.budget.1 += bytes.len();
+        self.budget.bytes += bytes.len();
         self.parts.push(Part::Bytes(bytes));
     }
     fn raw<'n>(&self, node: Syntax<'n>) -> Result<&str> {

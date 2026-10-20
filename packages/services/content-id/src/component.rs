@@ -214,7 +214,13 @@ mod tests {
     fn canonicalization_budget_has_no_partial_success() {
         let graph = Units::from([(id(1), vec![Part::Reference(id(1))])]);
         assert_eq!(
-            identities(&graph, &mut Budget(crate::MAX_STEPS, 0)),
+            identities(
+                &graph,
+                &mut Budget {
+                    steps: crate::MAX_STEPS,
+                    ..Budget::new()
+                }
+            ),
             Err(ContentIdError::LimitExceeded)
         );
     }
