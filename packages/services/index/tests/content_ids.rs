@@ -559,8 +559,11 @@ async fn lifetime_names_do_not_enter_the_value_binding_namespace() {
 #[tokio::test]
 async fn unimplemented_binding_forms_fail_closed() {
     for (path, text) in [
-        ("a.jl", "f(x) = map(y -> y + x, x)"),
-        ("a.jl", "f(x) = [y for y in x]"),
+        ("a.jl", "function f(x)\n    global y = x\nend"),
+        (
+            "a.jl",
+            "function f(x)\n    function g(y)\n        y\n    end\n    g(x)\nend",
+        ),
         ("a.py", "def f(x):\n import external as x\n return x\n"),
         (
             "a.rs",
@@ -622,7 +625,7 @@ async fn golden_fixtures_keep_their_ids() {
     let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../content-id/golden");
     let mut lines = vec!["# file\tdefinition\tdigest\tcomponent_index\tcomponent_size".to_string()];
     let mut spans = vec!["# file\tfrom\tstart:end (bytes)\tto".to_string()];
-    for file in ["geometry.jl", "geometry.py", "geometry.rs"] {
+    for file in ["geometry.jl", "geometry.py", "geometry.rs", "scopes.jl"] {
         let dir = tempfile::tempdir().unwrap();
         std::fs::copy(golden.join(file), dir.path().join(file)).unwrap();
         let folder = Arc::new(FolderSource::open(dir.path()).unwrap());

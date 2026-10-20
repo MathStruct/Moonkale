@@ -21,3 +21,9 @@ geometry.rs	dist	205:210	norm2
 geometry.rs	is_even	284:290	is_odd
 geometry.rs	is_odd	362:369	is_even
 geometry.rs	norm2	67:72	Point
+scopes.jl	guarded	470:474	Band
+scopes.jl	guarded	500:506	offset
+scopes.jl	offset	56:60	Band
+scopes.jl	shifted	400:406	offset
+scopes.jl	shifted	426:432	offset
+scopes.jl	widths	240:244	Band
