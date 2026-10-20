@@ -135,6 +135,96 @@ pub(crate) fn calculate(
         .collect())
 }
 
+/// One file of a Julia module, as the index read it.
+pub(crate) struct JuliaFile {
+    pub node: moonkale_core::Node,
+    pub text: String,
+    /// The module path it was included at.
+    pub module: Vec<String>,
+}
+
+/// Julia (normalizer v5): every definition of a whole module, resolved per
+/// module by `moonkale-content-id` (SPEC-008). Definitions are matched to
+/// the index's nodes by the span of their syntax node.
+pub(crate) fn calculate_julia(
+    index: &moonkale_core::SourceId,
+    files: &[JuliaFile],
+    dynamic: &[Vec<String>],
+    requested: NodeId,
+) -> Result<HashMap<NodeId, ContentIdentity>> {
+    use moonkale_content_id::julia;
+    let mut trees = Vec::new();
+    for file in files {
+        trees.push(moonkale_content_id::parse(
+            "julia",
+            &file.text,
+            &mut Budget::new(),
+        )?);
+    }
+    let module_files: Vec<_> = files
+        .iter()
+        .zip(&trees)
+        .map(|(f, tree)| julia::ModuleFile {
+            text: &f.text,
+            tree,
+            module: f.module.clone(),
+        })
+        .collect();
+    let resolved = julia::module(&module_files, dynamic)?;
+    // The index's definition nodes, by (file, span).
+    let mut nodes = HashMap::new();
+    for (i, (file, tree)) in files.iter().zip(&trees).enumerate() {
+        let root = tree.root_node();
+        let mut symbols = crate::extract::Symbols::new(index, &file.node, &file.text);
+        crate::extract::symbols_julia::walk(file.text.as_bytes(), root, None, &mut symbols);
+        let derived = symbols.finish(root, &file.text);
+        for edge in derived.edges.iter().filter(|e| e.kind == EdgeKind::Defines) {
+            let Some(Value::Text(path)) = edge.props.get("syntax_path") else {
+                continue;
+            };
+            let mut syntax = Some(root);
+            for part in path.split('/').filter(|p| !p.is_empty()) {
+                syntax = part
+                    .parse::<u32>()
+                    .ok()
+                    .and_then(|c| syntax.and_then(|s| s.child(c)));
+            }
+            if let Some(syntax) = syntax {
+                nodes.insert((i as u32, syntax.start_byte(), syntax.end_byte()), edge.to);
+            }
+        }
+    }
+    let mut out = HashMap::new();
+    let mut requested_error = None;
+    for definition in resolved.definitions {
+        let Some(&id) = nodes.get(&definition.key) else {
+            continue;
+        };
+        match definition.identity {
+            Ok(c) => {
+                out.insert(
+                    id,
+                    ContentIdentity {
+                        id: NodeId::from_content(&c.digest),
+                        digest: c.digest,
+                        normalizer_version: c.normalizer_version,
+                        component_digest: c.component_digest,
+                        component_index: c.component_index,
+                        component_size: c.component_size,
+                    },
+                );
+            }
+            Err(e) if id == requested => requested_error = Some(e),
+            Err(_) => {}
+        }
+    }
+    match requested_error {
+        Some(e) => Err(e),
+        None if out.contains_key(&requested) => Ok(out),
+        None => Err(ContentIdError::NotDefinition),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

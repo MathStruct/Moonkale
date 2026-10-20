@@ -11,16 +11,34 @@ WP-66 syntactic content ids for Rust, Julia and Python definitions: the per-lang
 
 One `Budget` covers a whole request; any error means no identity at all.
 
+## Julia modules (v5)
+
+For Julia, the crate also resolves references, per **module** (SPEC-008 in Sophia's vault). A package is one module over its `include`d files, so `dist` in `ops.jl` depends on `Point` in `types.jl`.
+
+- `julia::includes(text, tree) -> Vec<Include>`: a file's `include` calls, with the literal path, or `None` for a dynamic include, and the `module` blocks around each call. The caller reads the files, depth first in source order. Package discovery is the caller's job too: the nearest `Project.toml` with `name = "X"` and `src/X.jl`.
+- `julia::module(&[ModuleFile], dynamic) -> JuliaModule`: for every unit, its identity or error, the references its encoding uses, and the files its id depends on, keyed by `(file, start_byte, end_byte)`. It also returns `calls_generic`, the uses of names with several methods, which are drawn as edges and never part of an id.
+
+Rules:
+- **Units** are definitions whose only ancestors are `module` blocks; a module itself is a namespace.
+- **Bindings:** a unit binds its name in its module path unless the name is qualified (`Base.show(…) = …`) or it is a macro. Submodules are separate scopes.
+- **What resolves:** an identifier resolves only to the **unique** binding of its spelling in its module, and only if no `using`/`import` there mentions that name. In a module with a dynamic include, functions stay unresolved (an unseen file could add methods); types and constants still resolve.
+- **Not references:** fields (`x.name`), struct field names, keyword and named-tuple labels, and identifiers inside strings, symbols, quotes and `using`/`import`/`export`. Locals are left to the normal form: v4 scoping wins over a proposed reference.
+- **Refusal propagates:** a unit whose encoding refers to a refused unit is refused too (`DependencyRefused`).
+- **Limits** (normative, since over them there are no ids): 1024 files, 32 MiB, and 1,000,000 + 64 steps per source byte for the whole module.
+
+On LinearAlgebra (Julia 1.13), 3435 of 3571 units get ids. That is 27 unsupported, 6 malformed and 103 refused through a dependency. There are 2199 references (867 across files) and 4027 generic uses, computed in 1.2 s (release build). Measure a package with `MOONKALE_JULIA_PACKAGE=<src/Pkg.jl> cargo test --release -p moonkale-content-id --test corpus -- --nocapture`.
+
 ## What the crate doesn't do
 
-**Reference resolution.** The crate doesn't decide which identifier refers to which definition. Moonkale's index decides that with its symbol extractors (`packages/services/index/src/extract/references.rs`): same-file, conservative, by spelling and scope, with possible shadows left unresolved. Two implementations get the same ids only if they resolve references the same way.
+**Reference resolution for Rust and Python.** The crate doesn't decide which identifier refers to which definition there. Moonkale's index decides that with its symbol extractors (`packages/services/index/src/extract/references.rs`): same-file, conservative, by spelling and scope, with possible shadows left unresolved. Two implementations get the same ids only if they resolve references the same way.
 
 ## Golden fixtures
 
 `golden/` has fixtures in all three languages, with recursion, a struct used as a parameter type and a constructor, and a renamed copy of a method. `scopes.jl` covers the v4 Julia forms:
 
 - `ids.tsv`: Moonkale's digest, component index and component size for every definition;
-- `references.tsv`: the reference spans Moonkale resolved.
+- `references.tsv`: the reference spans Moonkale resolved, for Rust and Python;
+- `module.tsv`: Julia in module mode, for `module/Geo.jl`, `module/Dyn.jl` (a dynamic include) and the single-file modules `geometry.jl` and `scopes.jl`. It lists ids, depends_on, references by span and generic uses. `module/` is Sophia's fixture from SPEC-008, at Sophia eb549c6.
 
 So another implementation can check its normal form, by feeding Moonkale's spans, separately from its resolver. The test that keeps them current is `golden_fixtures_keep_their_ids` in `packages/services/index/tests/content_ids.rs`. `MOONKALE_BLESS=1` rewrites both files, and a change to either needs a `NORMALIZER_VERSION` bump.
 
@@ -29,4 +47,5 @@ So another implementation can check its normal form, by feeding Moonkale's spans
 - 1 (2026-10-16): first version.
 - 2 (2026-10-20): Julia and Python parameter types and defaults are uses, not local names. In v1, `f(p::Point)` made `Point` look like a local, so the method didn't depend on the struct.
 - 3 (2026-10-20): a node with the declaration name's span is the name. Julia's `type_head` had put a self-reference into every `struct`'s id. A Rust struct expression's type (`Point { x }`) is a use. Both were found by Sophia's cross-check.
+- 5 (2026-10-20): Julia references resolve per module (above). Moonkale's index finds the package and reads every file of the module, and its cache key covers them all.
 - 4 (2026-10-20): Julia local scopes: `for`, `while`, closures (`x -> …`), `do`, `let`, `try`/`catch`/`finally`, comprehensions and generators; varargs (`A...`), keyword parameters (their names are observable), destructuring (`m, n = …`, and `(; a, b) = …` by name) and anonymous `::T` parameters. Each scope has its own frame. What a scope reads from outside (a `while` condition, a `for` iterable, a `let` right-hand side) is encoded before the scope's names are bound. An assignment to a name that is local in an enclosing frame updates that variable, as Julia's soft scope does; `local` declares a new one. On LinearAlgebra (Julia 1.13) 3538 of 3571 definitions get ids (Sophia measured about 69% under v3); the rest are macro definitions, nested named functions and some macro calls. `tests/corpus.rs` measures a tree: `MOONKALE_JULIA_CORPUS=<dir>`.

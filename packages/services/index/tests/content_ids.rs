@@ -660,6 +660,10 @@ async fn golden_fixtures_keep_their_ids() {
             else {
                 continue;
             };
+            // Julia ids resolve per module in the crate: golden/module.tsv.
+            if file.ends_with(".jl") {
+                continue;
+            }
             for range in ranges.split(',') {
                 refs.push(format!("{file}\t{from}\t{range}\t{to}"));
             }
@@ -733,4 +737,64 @@ async fn struct_expressions_are_uses_and_struct_names_are_not() {
     let (_, a) = identity("a.jl", "struct Point\n    x::Int\nend\n", "Point").await;
     let (_, b) = identity("a.jl", "struct Other\n    x::Int\nend\n", "Other").await;
     assert_eq!(a.id, b.id, "the own name is not part of the id");
+}
+
+/// A Julia package is one module over its included files (normalizer v5):
+/// `dist` in ops.jl depends on `Point` in types.jl, and the index publishes
+/// the crate's golden ids.
+#[tokio::test]
+async fn julia_packages_resolve_across_included_files() {
+    let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../content-id/golden");
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(
+        dir.path().join("Project.toml"),
+        "name = \"Geo\"\nuuid = \"0\"\n",
+    )
+    .unwrap();
+    for f in ["Geo.jl", "types.jl", "ops.jl"] {
+        std::fs::copy(
+            golden.join("module").join(f),
+            dir.path().join("src").join(f),
+        )
+        .unwrap();
+    }
+    let dist = async |dir: &std::path::Path| {
+        let index = IndexSource::build(Arc::new(FolderSource::open(dir).unwrap()))
+            .await
+            .unwrap();
+        let nodes = index
+            .query(Query::All {
+                limit: 1000,
+                kinds: None,
+            })
+            .await
+            .unwrap()
+            .nodes;
+        let node = nodes
+            .iter()
+            .find(|n| {
+                n.kind.is_definition()
+                    && n.props.get("name") == Some(&moonkale_core::Value::Text("dist".into()))
+            })
+            .unwrap();
+        index.content_id(node.id).await.unwrap()
+    };
+    let before = dist(dir.path()).await;
+    let hex: String = before.digest.iter().map(|b| format!("{b:02x}")).collect();
+    let module = std::fs::read_to_string(golden.join("module.tsv")).unwrap();
+    assert!(
+        module.contains(&format!("Geo.jl\tops.jl\tdist\t40:107\t{hex}\t")),
+        "{hex}"
+    );
+    let types = dir.path().join("src/types.jl");
+    let changed = std::fs::read_to_string(&types)
+        .unwrap()
+        .replace("y::Float64", "y::Int");
+    std::fs::write(&types, changed).unwrap();
+    assert_ne!(
+        before.id,
+        dist(dir.path()).await.id,
+        "a change in another file of the module"
+    );
 }
