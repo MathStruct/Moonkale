@@ -1,0 +1,13 @@
+[package]
+name = "moonkale-content-id"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WP-66 syntactic content ids for Rust, Julia and Python definitions: the normal form and the recursive-group hashing, shared with Sophia (SR-116). No Moonkale types."
+
+[dependencies]
+arborium-tree-sitter = "2.18"
+arborium-rust = "2.18"
+arborium-julia = "2.18"
+arborium-python = "2.18"
+blake3 = "1"

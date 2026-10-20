@@ -8,7 +8,7 @@ description = "Parsing and indexing: wiki-links and tree-sitter symbols derived 
 [features]
 default = []
 lossless-syntax = ["dep:blake3"]
-content-ids = ["dep:blake3", "dep:moonkale-state", "dep:serde", "dep:serde_json"]
+content-ids = ["dep:blake3", "dep:moonkale-content-id", "dep:moonkale-state", "dep:serde", "dep:serde_json"]
 
 [dependencies]
 moonkale-core = { workspace = true }
@@ -28,6 +28,8 @@ arborium-tree-sitter = "2.18"
 arborium-rust = "2.18"
 arborium-julia = "2.18"
 arborium-python = "2.18"
+# WP-66 normal form and hashing, shared with Sophia (SR-116).
+moonkale-content-id = { workspace = true, optional = true }
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tracing = "0.1"
 
