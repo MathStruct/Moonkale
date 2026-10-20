@@ -27,8 +27,9 @@ pub use normalize::{definition, definition_and_uses, Encoded};
 /// destructuring and anonymous `::T` parameters (2026-10-20). 5: Julia
 /// references resolve per module, not per file (SPEC-008, 2026-10-20). 6:
 /// Julia type parameters (`where {T}`, `struct S{T}`) are locals, and a
-/// callable-type or interpolated head names nothing (2026-10-20).
-pub const NORMALIZER_VERSION: u32 = 6;
+/// callable-type or interpolated head names nothing (2026-10-20). 7: nothing
+/// inside a Julia call is a module-level unit (2026-10-20).
+pub const NORMALIZER_VERSION: u32 = 7;
 /// Maximum bytes of a single source file.
 pub const MAX_FILE_BYTES: usize = 512 * 1024;
 /// Maximum reachable definitions in one request.
