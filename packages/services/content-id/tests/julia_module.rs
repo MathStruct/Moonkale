@@ -189,12 +189,45 @@ fn type_parameters_locals_and_callable_heads() {
 }
 
 #[test]
+fn nothing_inside_a_call_is_a_unit() {
+    let r = read("Macros.jl");
+    let m = resolve(&r);
+    let names: BTreeSet<_> = m
+        .definitions
+        .iter()
+        .filter_map(|d| d.name.clone())
+        .collect();
+    for unit in [
+        "NoPivot",
+        "fact!",
+        "twice",
+        "thrice",
+        "halve",
+        "picked",
+        "configure",
+    ] {
+        assert!(names.contains(unit), "{unit} missing from {names:?}");
+    }
+    assert!(!names.contains("check"), "{names:?}");
+    assert!(!names.contains("level"), "{names:?}");
+    assert_eq!(
+        m.definitions
+            .iter()
+            .filter(|d| d.name.as_deref() == Some("configure"))
+            .count(),
+        1
+    );
+    assert!(has(&edges(&r, &m), "picked", "twice"));
+}
+
+#[test]
 fn golden_module_ids() {
     let mut lines = vec!["# root\tfile\tdefinition\tstart:end\tdigest|error\tdepends_on\treferences (span>file:start:end)".to_string()];
     for root in [
         "Geo.jl",
         "Dyn.jl",
         "Callable.jl",
+        "Macros.jl",
         "../geometry.jl",
         "../scopes.jl",
     ] {
