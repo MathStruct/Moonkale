@@ -1,0 +1,2 @@
+# Golden fixtures are compared byte for byte (spans, digests): never CRLF.
+packages/services/content-id/golden/** text eol=lf
