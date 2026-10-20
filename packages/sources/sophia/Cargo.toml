@@ -1,0 +1,21 @@
+[package]
+name = "moonkale-sources-sophia"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Sophia code stores as store-backed graph sources (WP-68, Sophia SPEC-004)"
+
+[dependencies]
+moonkale-core = { workspace = true }
+
+# One revision for both crates: Sophia announces it when the interface is
+# dependable (SPEC-004 §3a). SQLite only: it is the backend with `sql`, and
+# redb would move Moonkale's own redb.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+sophia-interface = { git = "https://github.com/MathStruct/Sophia.git", rev = "404b332b3de1cecbf9ce91c3880f214fa1362ba0", default-features = false, features = ["sqlite"] }
+sophia-store = { git = "https://github.com/MathStruct/Sophia.git", rev = "404b332b3de1cecbf9ce91c3880f214fa1362ba0", default-features = false, features = ["sqlite"] }
+tokio = { version = "1", features = ["rt", "time"] }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

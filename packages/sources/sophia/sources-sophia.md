@@ -1,0 +1,41 @@
+# Sophia source (WP-68)
+
+`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialect `sql`. Enable the default-off `sophia` feature in `desktop`, `web` (client and server builds) or `moonkale-distribution`; the server has its own matching feature. This is a source driver, not an extension manifest.
+
+## Dependency
+
+`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below.
+
+## Opening
+
+The opener claims files named `*.sophia` (a Sophia SQLite store). Make one with Sophia's CLI: `cargo run -p sophia-cli -- --store work.sophia sample` builds SPEC-004 §9's sample. `SophiaSource::sample()` builds the same sample in memory, for tests. A missing file is `NotFound`; the source never creates a store.
+
+The reader id is given once at open (SPEC-004 §4): `SophiaSource::open_as(path, reader)`. The opener uses `moonkale` for everyone until Moonkale has user ids. The rendering profile is stored for that reader in the Sophia database, never in Moonkale's settings.
+
+## Mapping
+
+- **Ids:** `Key::Content(d)` → `NodeId::from_content(d)`, `Key::Derived(s)` → `NodeId::derive(source, s)`. `native_key` is the derived key as is (`ns:a.b`, `name:a.b.f`, `settings`) or `#<hex>` for content.
+- **Ids back to keys:** Moonkale hands back `NodeId`s, which can't be inverted, so the source remembers the key of every node and edge end it has answered with (cleared at a million). An id this process never answered with is `NotFound`; browse to it first. A restored tab from an earlier run therefore needs its node re-found by path.
+- **Kinds:** `Directory` → `NodeKind::Directory`; the rest (`Name`, `Definition`, `sophia:Settings`, `sophia:Lineage`) are `NodeKind::Custom`. `Contains`, `References` and `Calls` map to the built-in edge kinds, everything else (`Names`, `MethodOf`, `Tests`, `Annotates`, `sophia:*`) to `EdgeKind::Custom`. Properties pass through.
+- **Text:** names, definitions and the settings node carry `ContentRef::Text`, so the code editor opens them and the graph panel's store-text path applies. `fetch_text` of a name prints its whole recursive group in the reader's profile; a definition prints read-only (version 0).
+
+## Edits
+
+**Versions are edit tokens** (from revision 404b332b): the `Version` of a name's text is an opaque hash over every name that text covers (the name and all names of its recursive group, with their seqs and targets). Tokens aren't ordered; equal means unchanged. So saving `even`, whose text also holds `odd`, conflicts if `odd` changed meanwhile, instead of reverting it. A profile switch alone keeps the token. `WriteText` checks the token, applies the patch to that text and hands the whole text to Sophia, which parses it, stores the new definition and moves the name. The name's id doesn't change. Parse errors come back as one `SourceError::Invalid` with a `line:col: message` per diagnostic, and the name is unchanged. A stale version is `Conflict`; writing a definition rather than a name is `Unsupported`. **Aliases:** a definition opens read-only; it is edited through the name it was reached by (SPEC-004 §3). The source never picks a name for a bare definition, because with aliases in several namespaces that could move the wrong one. `CreateText`, `CreateDir`, `Rename` (Moonkale's `/` paths) and `Delete` map one to one. Sophia stores and reprints in the reader's profile, so the stored text can differ from what was typed (indentation, keywords). After a save to any `truth: Store` source the workspace fetches the text back and, when it differs, makes it the document's saved text, and its buffer unless it was edited meanwhile (`ext-api` `Workspace::save`, test `store_save.rs`). Without that, the next save's patch was against text the store no longer had (found in the desktop check, 2026-10-20). An edit is several store transactions on Sophia's side (Sophia SP-008): a failure half-way leaves a consistent, partial state.
+
+## Change feed
+
+`changes_since` polls Sophia's log every 500 ms for up to 25 s. The first call only returns the position. `paths` are the changed native keys, which the workspace resolves through `Query::Text { dialect: "path" }`; a gone name falls back to `derive(source, path)`, which is its old id. A rendering-profile change (or a log batch that didn't fit) is `reset`: everything is re-read, since every definition's text may have changed.
+
+## Queries
+
+`Query::Text { dialect: "sql" }` runs on Sophia's documented views through its read-only guard (a read-only connection, an authorizer, 10 000 rows, a step budget) and answers a table plus the definitions its id columns name. Writes are refused by Sophia. `classify` keeps Moonkale's shared rules, so a write statement still counts as a write for the agent's policy. Other dialects are `Unsupported`.
+
+## Tests
+
+`tests/acceptance.rs` runs SPEC-004 §9 through the `Source` trait only: the sample browses from the root; an edit moves the name to new content, and a parse error and a stale version leave it; a rename arrives through the change feed and resolves like the workspace resolves it; a profile switch reprints with no id change and resets; two clients on one file in two profiles see one id in two spellings, and a stale save through a recursive group conflicts instead of overwriting the other client's edit (Sophia's review demonstration 2); `sql` returns a table and nodes and refuses a write; text creates names and directories; a store file opens. `moonkale-editor-graph`'s `sophia_names_and_definitions_reach_renderer` checks the graph panel's payload.
+
+## Limits
+
+- No annotation edits (SPEC-004 §3: a later op), no `datalog`, no typings yet (Sophia M4).
+- Polling only.

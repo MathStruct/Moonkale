@@ -22,5 +22,6 @@ structural-edits = ["dep:moonkale-code-view"]
 
 [dev-dependencies]
 moonkale-sources-unison = { workspace = true }
+moonkale-sources-sophia = { workspace = true }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

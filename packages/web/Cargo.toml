@@ -37,6 +37,7 @@ web-sys = { version = "0.3", features = ["Window", "Storage"] }
 
 [features]
 unison = ["moonkale-distribution/unison", "moonkale-server/unison"]
+sophia = ["moonkale-distribution/sophia", "moonkale-server/sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["moonkale-distribution/structural-edits", "moonkale-server/structural-edits"]
 default = []

@@ -78,6 +78,7 @@ allow-git = [
     "https://github.com/HelixDB/helix-db", # embedded backend, locked revision
     "https://github.com/HelixDB/slatedb.git", # HelixDB transitive, locked revision
     "https://github.com/MathStruct/moonkale-julia", # optional Julia libraries, locked tag
+    "https://github.com/MathStruct/Sophia.git", # optional Sophia stores (WP-68), locked revision
 ]
 
 # HelixDB's pinned tree has no per-crate license fields; its root LICENSE

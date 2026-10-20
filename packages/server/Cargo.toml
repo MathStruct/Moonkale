@@ -28,6 +28,7 @@ sha2 = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 moonkale-sources-unison = { workspace = true, optional = true }
+moonkale-sources-sophia = { workspace = true, optional = true }
 moonkale-sources = { workspace = true, optional = true }
 moonkale-project-fs = { workspace = true, optional = true }
 moonkale-index = { workspace = true, optional = true }
@@ -54,6 +55,7 @@ moonkale-sources-graph = { workspace = true, optional = true, features = ["ladyb
 
 [features]
 unison = ["dep:moonkale-sources-unison"]
+sophia = ["dep:moonkale-sources-sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["dep:moonkale-index", "moonkale-index/lossless-syntax"]
 # Embedded RocksDB and HelixDB stores; off by default, not in the release builds.

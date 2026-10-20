@@ -18,7 +18,7 @@ ALLOW = os.path.join(ROOT, "tools", "deps-allow.txt")
 # Crates that are allowed to assemble everything: the platform entrypoints
 # (and, after phase 4, `moonkale-distribution`).
 APPS = {"web", "desktop", "mobile", "moonkale-distribution"}
-DRIVERS = {"moonkale-sources-sql", "moonkale-sources-graph", "moonkale-sources-kv", "moonkale-sources-unison"}
+DRIVERS = {"moonkale-sources-sql", "moonkale-sources-graph", "moonkale-sources-kv", "moonkale-sources-unison", "moonkale-sources-sophia"}
 # Heavy or native-only third-party crates the shell must not pull in.
 HEAVY = {"duckdb", "lbug", "rocksdb", "turso", "helix-db", "wasmtime", "reqwest", "rusqlite", "redb"}
 EXT_API_MAY = {"moonkale-core", "moonkale-lsp", "moonkale-terminal", "moonkale-ext-abi", "moonkale-llm-types", "moonkale-state"}

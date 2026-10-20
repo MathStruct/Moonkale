@@ -169,7 +169,7 @@ jobs:
         with:
           shared-key: ci-portable-${{ runner.os }}-${{ runner.arch }}
       - name: Platform branches and filesystem tests
-        run: cargo test -p moonkale-core -p moonkale-project-fs -p moonkale-index -p moonkale-ext-api -p moonkale-llm -p moonkale-sources-unison --locked
+        run: cargo test -p moonkale-core -p moonkale-project-fs -p moonkale-index -p moonkale-ext-api -p moonkale-llm -p moonkale-sources-unison -p moonkale-sources-sophia --locked
       - name: Remote platform branches (library tests; SSH shim requires Unix)
         if: ${{ !cancelled() }}
         run: cargo test -p moonkale-remote --lib --locked

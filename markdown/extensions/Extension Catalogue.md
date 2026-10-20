@@ -36,6 +36,8 @@ Milestone 14 added the Rust code editor next to CodeMirror ([[Code Editor Implem
 
 WP-18 (2026-10-17): `sources/unison` is a **source driver**, not an extension manifest. The default-off `unison` distribution/platform/server feature registers local `*.unison` codebase roots; store-backed namespaces, names and definitions draw through the existing Graph panel. UCM 1.5 is a runtime dependency only; read-only snapshots, no watch/write/dialect. See `packages/sources/unison/sources-unison.md`.
 
+WP-68 (2026-10-20): `sources/sophia` is a **source driver** too. The default-off `sophia` distribution/platform/server feature registers `*.sophia` Sophia stores (SQLite), editable as text through Sophia's `sophia-interface`. See `packages/sources/sophia/sources-sophia.md`.
+
 Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence (web + desktop hub; mobile `None`), the wasm runtime, secret store, settings store, folder picker. They are candidates for extension status only where a contribution point exists.
 
 ## Planned (documented in the vault, not built)
@@ -97,3 +99,4 @@ What is good: the boundaries that exist are real — JS behind traits with a pro
 - 2026-09-20 — `editor-image` added (spec 008); planned rows for the Julia depot source, MTK editor and the Lenticulum editor ([[Julia and Lenticulum]]); markdown fence renderers (tabs, Typst math, Mermaid, TikZ), Annotations, and the Notebook editor.
 - 2026-10-01 — vault refactor: line counts and Milestone 16/17 state updated; Turso/redb/RocksDB/HelixDB (embedded) built as sources inside the driver crates, not as extensions; the proposed steps are scheduled in [[Milestone 18 - Library Refactor]].
 - 2026-10-19 — HelixDB and RocksDB out of the default desktop/server build: opt-in features `helix` and `rocksdb` (desktop, server, web); the release packages no longer open them (Daniel).
+- 2026-10-20 — `sources/sophia` (WP-68): Sophia code stores as a default-off source driver, feature `sophia`.

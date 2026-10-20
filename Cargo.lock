@@ -7083,6 +7083,7 @@ dependencies = [
  "moonkale-ext-history",
  "moonkale-ext-lux",
  "moonkale-shell",
+ "moonkale-sources-sophia",
  "moonkale-sources-unison",
 ]
 
@@ -7159,6 +7160,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-graph-assets",
+ "moonkale-sources-sophia",
  "moonkale-sources-unison",
  "moonkale-trace",
  "serde",
@@ -7478,6 +7480,7 @@ dependencies = [
  "moonkale-sources",
  "moonkale-sources-graph",
  "moonkale-sources-kv",
+ "moonkale-sources-sophia",
  "moonkale-sources-sql",
  "moonkale-sources-unison",
  "moonkale-state",
@@ -7548,6 +7551,17 @@ dependencies = [
  "tempfile",
  "tokio",
  "turso",
+]
+
+[[package]]
+name = "moonkale-sources-sophia"
+version = "0.1.0"
+dependencies = [
+ "moonkale-core",
+ "sophia-interface",
+ "sophia-store",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -10820,6 +10834,58 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f99e664ecd2d85a68c87e3c7a3cfe691f647ea9e835de984aba4d54a41f817d4"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "sophia-hash"
+version = "0.1.0"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=404b332b3de1cecbf9ce91c3880f214fa1362ba0#404b332b3de1cecbf9ce91c3880f214fa1362ba0"
+dependencies = [
+ "blake3",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "sophia-interface"
+version = "0.1.0"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=404b332b3de1cecbf9ce91c3880f214fa1362ba0#404b332b3de1cecbf9ce91c3880f214fa1362ba0"
+dependencies = [
+ "blake3",
+ "sophia-hash",
+ "sophia-store",
+ "sophialang-core",
+ "sophialang-syntax",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "sophia-store"
+version = "0.1.0"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=404b332b3de1cecbf9ce91c3880f214fa1362ba0#404b332b3de1cecbf9ce91c3880f214fa1362ba0"
+dependencies = [
+ "blake3",
+ "rusqlite",
+ "sophia-hash",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "sophialang-core"
+version = "0.1.0"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=404b332b3de1cecbf9ce91c3880f214fa1362ba0#404b332b3de1cecbf9ce91c3880f214fa1362ba0"
+dependencies = [
+ "sophia-hash",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "sophialang-syntax"
+version = "0.1.0"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=404b332b3de1cecbf9ce91c3880f214fa1362ba0#404b332b3de1cecbf9ce91c3880f214fa1362ba0"
+dependencies = [
+ "sophia-hash",
+ "sophialang-core",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
