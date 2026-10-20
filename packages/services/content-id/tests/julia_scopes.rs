@@ -114,3 +114,21 @@ fn assignments_in_a_scope_update_outer_locals() {
         "function f(xs)\n    s = 0\n    for x in xs\n        local s = x\n    end\n    s\nend",
     );
 }
+
+#[test]
+fn type_parameters_are_locals() {
+    same("f(x::T) where T = x", "f(y::U) where U = y");
+    same(
+        "f(x::T, y::S) where {T, S<:Real} = x",
+        "f(a::A, b::B) where {A, B<:Real} = a",
+    );
+    same(
+        "struct Box{T}\n    value::T\nend",
+        "struct Box{U}\n    value::U\nend",
+    );
+    // The bound is a use: a different bound is a different method.
+    differ(
+        "f(x::T) where {T<:Real} = x",
+        "f(x::T) where {T<:Integer} = x",
+    );
+}

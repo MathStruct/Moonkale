@@ -16,7 +16,7 @@ mod normalize;
 
 pub use arborium_tree_sitter::{Node as Syntax, Tree};
 pub use component::identities;
-pub use normalize::definition;
+pub use normalize::{definition, definition_and_uses, Encoded};
 
 /// Changes whenever canonical encoding, language normalization or the
 /// reference resolution that feeds it changes. 2: Julia/Python parameter
@@ -25,8 +25,10 @@ pub use normalize::definition;
 /// expression's type is a use (2026-10-20). 4: Julia local scopes (loops,
 /// closures, `do`, `let`, `try`, comprehensions), varargs, keywords,
 /// destructuring and anonymous `::T` parameters (2026-10-20). 5: Julia
-/// references resolve per module, not per file (SPEC-008, 2026-10-20).
-pub const NORMALIZER_VERSION: u32 = 5;
+/// references resolve per module, not per file (SPEC-008, 2026-10-20). 6:
+/// Julia type parameters (`where {T}`, `struct S{T}`) are locals, and a
+/// callable-type or interpolated head names nothing (2026-10-20).
+pub const NORMALIZER_VERSION: u32 = 6;
 /// Maximum bytes of a single source file.
 pub const MAX_FILE_BYTES: usize = 512 * 1024;
 /// Maximum reachable definitions in one request.
@@ -211,4 +213,35 @@ fn short_function(node: Syntax) -> bool {
                 "call_expression" | "where_expression" | "typed_expression"
             )
         })
+}
+
+/// The node naming a Julia definition, and whether it is qualified
+/// (`Base.show(…) = …` extends another module's function). A head whose
+/// callee is not a name, like a callable-type method `(::Type{T})(x) = …`
+/// or an interpolated `$S(x) = …`, names nothing.
+pub fn julia_name(node: Syntax) -> Option<(Syntax, bool)> {
+    let mut head = node.named_child(0);
+    while let Some(h) = head {
+        match h.kind() {
+            "identifier" | "operator" | "macro_identifier" => return Some((h, false)),
+            "field_expression" => return Some((h, true)),
+            "call_expression" => {
+                let callee = h.named_child(0)?;
+                return match callee.kind() {
+                    "identifier" | "operator" => Some((callee, false)),
+                    "field_expression" => Some((callee, true)),
+                    _ => None,
+                };
+            }
+            "signature"
+            | "where_expression"
+            | "typed_expression"
+            | "type_head"
+            | "parametrized_type_expression"
+            | "binary_expression"
+            | "assignment" => head = h.named_child(0),
+            _ => return None,
+        }
+    }
+    None
 }

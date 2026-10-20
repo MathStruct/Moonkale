@@ -10,8 +10,8 @@
 //! identifier spelling a unique module binding and the encoding decides.
 
 use crate::{
-    definition, identities, is_definition, Budget, ContentIdError, Identity, Part, Result, Syntax,
-    Tree,
+    definition_and_uses, identities, is_definition, Budget, ContentIdError, Identity, Part, Result,
+    Syntax, Tree,
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -66,7 +66,8 @@ pub struct JuliaDefinition {
 #[derive(Clone, Debug, Default)]
 pub struct JuliaModule {
     pub definitions: Vec<JuliaDefinition>,
-    /// Uses of a function with several methods here: (file, span, name).
+    /// Uses of a function with several methods here, as the encoding reads
+    /// them (a local of that name wins): (file, span, name).
     /// Drawn as edges; never part of an id.
     pub calls_generic: Vec<(u32, (usize, usize), String)>,
 }
@@ -123,20 +124,6 @@ pub fn includes(text_: &str, tree: &Tree) -> Vec<Include> {
         stack.extend(children.into_iter().rev());
     }
     out
-}
-
-/// The node naming a definition: the head down the first-child chain.
-/// `Base.show(…)` is qualified: it names another module's function.
-fn name_node(node: Syntax) -> Option<(Syntax, bool)> {
-    let mut head = node.named_child(0);
-    while let Some(h) = head {
-        match h.kind() {
-            "identifier" | "operator" => return Some((h, false)),
-            "field_expression" => return Some((h, true)),
-            _ => head = h.named_child(0),
-        }
-    }
-    None
 }
 
 /// Units: definitions whose ancestors are only modules. A module itself is
@@ -269,7 +256,7 @@ pub fn module(files: &[ModuleFile], dynamic: &[Vec<String>]) -> Result<JuliaModu
             budget.step()?;
             let mut module = file.module.clone();
             module.extend(module_path(node, file.text));
-            let named = name_node(node);
+            let named = crate::julia_name(node);
             let name = named.filter(|(_, qualified)| !qualified).map(|(n, _)| {
                 (
                     text(n, file.text).to_string(),
@@ -297,7 +284,9 @@ pub fn module(files: &[ModuleFile], dynamic: &[Vec<String>]) -> Result<JuliaModu
     let dynamic: HashSet<&Vec<String>> = dynamic.iter().collect();
     let mut out = JuliaModule::default();
     let mut proposed: Vec<HashMap<(usize, usize), usize>> = Vec::new();
+    let mut generic: Vec<HashMap<(usize, usize), String>> = Vec::new();
     for unit in &all {
+        let mut uses = HashMap::new();
         let src = files[unit.key.0 as usize].text;
         let own = unit.name.as_ref().map(|(_, span)| *span);
         let mut references = HashMap::new();
@@ -317,7 +306,7 @@ pub fn module(files: &[ModuleFile], dynamic: &[Vec<String>]) -> Result<JuliaModu
                         Some(targets)
                             if targets.len() > 1 && targets.iter().all(|&t| all[t].function) =>
                         {
-                            out.calls_generic.push((unit.key.0, span, key.1));
+                            uses.insert(span, key.1);
                         }
                         _ => {}
                     }
@@ -327,18 +316,23 @@ pub fn module(files: &[ModuleFile], dynamic: &[Vec<String>]) -> Result<JuliaModu
             stack.extend(node.children(&mut cursor));
         }
         proposed.push(references);
+        generic.push(uses);
     }
     // Encode every unit; a refusal propagates to the units that refer to it.
     let mut parts: Vec<std::result::Result<Vec<Part<usize>>, ContentIdError>> = Vec::new();
     for (i, unit) in all.iter().enumerate() {
         let src = files[unit.key.0 as usize].text;
-        parts.push(definition(
-            "julia",
-            unit.node,
-            src,
-            &proposed[i],
-            &mut budget,
-        ));
+        // Generic uses count only where the encoding reads a module name.
+        let probes = generic[i].keys().copied().collect();
+        let encoded =
+            definition_and_uses("julia", unit.node, src, &proposed[i], &probes, &mut budget);
+        parts.push(encoded.map(|(parts, hits)| {
+            for span in hits {
+                out.calls_generic
+                    .push((unit.key.0, span, generic[i][&span].clone()));
+            }
+            parts
+        }));
         if matches!(parts[i], Err(ContentIdError::LimitExceeded)) {
             return Err(ContentIdError::LimitExceeded);
         }
