@@ -17,7 +17,7 @@ One `Budget` covers a whole request; any error means no identity at all.
 
 ## Golden fixtures
 
-`golden/` has fixtures in all three languages, with recursion, a struct used as a parameter type and a constructor, and a renamed copy of a method:
+`golden/` has fixtures in all three languages, with recursion, a struct used as a parameter type and a constructor, and a renamed copy of a method. `scopes.jl` covers the v4 Julia forms:
 
 - `ids.tsv`: Moonkale's digest, component index and component size for every definition;
 - `references.tsv`: the reference spans Moonkale resolved.
@@ -28,3 +28,5 @@ So another implementation can check its normal form, by feeding Moonkale's spans
 
 - 1 (2026-10-16): first version.
 - 2 (2026-10-20): Julia and Python parameter types and defaults are uses, not local names. In v1, `f(p::Point)` made `Point` look like a local, so the method didn't depend on the struct.
+- 3 (2026-10-20): a node with the declaration name's span is the name. Julia's `type_head` had put a self-reference into every `struct`'s id. A Rust struct expression's type (`Point { x }`) is a use. Both were found by Sophia's cross-check.
+- 4 (2026-10-20): Julia local scopes: `for`, `while`, closures (`x -> …`), `do`, `let`, `try`/`catch`/`finally`, comprehensions and generators; varargs (`A...`), keyword parameters (their names are observable), destructuring (`m, n = …`, and `(; a, b) = …` by name) and anonymous `::T` parameters. Each scope has its own frame. What a scope reads from outside (a `while` condition, a `for` iterable, a `let` right-hand side) is encoded before the scope's names are bound. An assignment to a name that is local in an enclosing frame updates that variable, as Julia's soft scope does; `local` declares a new one. On LinearAlgebra (Julia 1.13) 3538 of 3571 definitions get ids (Sophia measured about 69% under v3); the rest are macro definitions, nested named functions and some macro calls. `tests/corpus.rs` measures a tree: `MOONKALE_JULIA_CORPUS=<dir>`.

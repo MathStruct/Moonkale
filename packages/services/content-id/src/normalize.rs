@@ -2,6 +2,7 @@ use super::{field, Budget, ContentIdError, Part, Result, Syntax, NORMALIZER_VERS
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
+#[derive(Default)]
 struct Frame {
     names: HashMap<String, u32>,
     next: u32,
@@ -14,8 +15,13 @@ struct Normalizer<'a, 'b, K> {
     frames: Vec<Frame>,
     declarations: HashMap<usize, (u32, bool)>,
     references: &'a HashMap<(usize, usize), K>,
-    own: Option<usize>,
+    /// The declaration's own name, by span: a wrapper with the same span
+    /// (Julia's `type_head`) is the name too.
+    own: Option<(usize, usize)>,
     member_names: HashSet<usize>,
+    /// Julia soft scope: an assignment to a name local to an enclosing
+    /// frame updates that variable instead of declaring a new one.
+    soft: bool,
 }
 
 /// The canonical encoding of one definition. `syntax` is the definition's
@@ -40,14 +46,16 @@ pub fn definition<K: Copy + Eq + Hash>(
                 node.kind(),
                 "identifier" | "operator" | "macro_identifier" | "field_expression"
             ) {
-                found = Some(node.id());
+                found = Some((node.start_byte(), node.end_byte()));
                 break;
             }
             head = node.named_child(0);
         }
         found
     } else {
-        syntax.child_by_field_name("name").map(|n| n.id())
+        syntax
+            .child_by_field_name("name")
+            .map(|n| (n.start_byte(), n.end_byte()))
     };
     // Decorators are part of Python meaning, outside the extractor's occurrence.
     if lang == "python"
@@ -67,6 +75,7 @@ pub fn definition<K: Copy + Eq + Hash>(
         references,
         own,
         member_names: HashSet::new(),
+        soft: false,
     };
     n.bytes(b"language", lang.as_bytes());
     n.bytes(b"normalizer", &NORMALIZER_VERSION.to_le_bytes());
@@ -106,6 +115,14 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         match node.kind() {
             "identifier" | "self" => {
                 let name = self.raw(node)?.to_string();
+                let outer = self.frames.len().saturating_sub(1);
+                if self.soft
+                    && self.frames[..outer]
+                        .iter()
+                        .any(|f| f.names.contains_key(&name))
+                {
+                    return Ok(());
+                }
                 let frame = self
                     .frames
                     .last_mut()
@@ -133,14 +150,25 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
             | "typed_default_parameter"
             | "list_splat_pattern"
             | "dictionary_splat_pattern"
-            | "slurp_expression" => {
+            | "slurp_expression"
+            | "splat_expression"
+            | "open_tuple"
+            | "tuple_expression" => {
                 if matches!(
                     node.kind(),
-                    "tuple_pattern" | "tuple" | "pattern_list" | "list_pattern"
+                    "tuple_pattern"
+                        | "tuple"
+                        | "pattern_list"
+                        | "list_pattern"
+                        | "open_tuple"
+                        | "tuple_expression"
                 ) {
+                    // Julia `(; a, b) = x` reads properties by name.
+                    let by_name = node.kind() == "tuple_expression"
+                        && node.child(1).is_some_and(|c| c.kind() == ";");
                     let mut cursor = node.walk();
                     for child in node.named_children(&mut cursor) {
-                        self.bind(child, preserve)?;
+                        self.bind(child, preserve || by_name)?;
                     }
                 } else {
                     let pattern = node
@@ -152,12 +180,15 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                         preserve
                             && !matches!(
                                 node.kind(),
-                                "list_splat_pattern" | "dictionary_splat_pattern"
+                                "list_splat_pattern"
+                                    | "dictionary_splat_pattern"
+                                    | "splat_expression"
                             ),
                     )?;
                 }
             }
-            "_" => {}
+            // Julia's anonymous `::T` parameter binds nothing.
+            "_" | "unary_typed_expression" => {}
             _ => return Err(ContentIdError::UnsupportedSyntax),
         }
         Ok(())
@@ -193,7 +224,128 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         }
         Ok(())
     }
+    /// Julia parameters: an argument list, a tuple or one parameter.
+    /// Keyword names (after `;`) are observable.
+    fn julia_parameters(&mut self, node: Syntax) -> Result<()> {
+        if !matches!(node.kind(), "argument_list" | "tuple_expression") {
+            return self.julia_parameter(node, false);
+        }
+        let mut keywords = false;
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == ";" {
+                keywords = true;
+            } else if child.is_named() {
+                self.julia_parameter(child, keywords)?;
+            }
+        }
+        Ok(())
+    }
+    fn julia_parameter(&mut self, node: Syntax, keyword: bool) -> Result<()> {
+        match node.kind() {
+            "named_argument" => Err(ContentIdError::UnsupportedSyntax),
+            // A default: `k = 1`, `x::Int = 1`.
+            "assignment" => self.bind(
+                node.named_child(0)
+                    .ok_or(ContentIdError::UnsupportedSyntax)?,
+                keyword,
+            ),
+            _ => self.bind(node, keyword),
+        }
+    }
+    /// A Julia local scope inside a definition. What the scope evaluates
+    /// outside itself (a `while` condition, a `for` iterable, a `let`
+    /// right-hand side) is walked before its own names are bound, so a name
+    /// read there never encodes as the scope's local.
+    fn julia_scope(&mut self, node: Syntax, depth: usize) -> Result<()> {
+        let kind = node.kind();
+        self.bytes(b"open", kind.as_bytes());
+        let mut cursor = node.walk();
+        let mut children: Vec<_> = node.named_children(&mut cursor).collect();
+        if kind == "while_statement" && !children.is_empty() {
+            let condition = children.remove(0);
+            self.walk(condition, depth + 1)?;
+        }
+        self.frames.push(Frame::default());
+        let result = self.julia_scope_body(kind, children, depth);
+        self.frames.pop();
+        result?;
+        self.bytes(b"close", kind.as_bytes());
+        Ok(())
+    }
+    fn julia_scope_body(&mut self, kind: &str, children: Vec<Syntax>, depth: usize) -> Result<()> {
+        // Comprehension and generator clauses bind before the body is read.
+        let (clauses, mut rest): (Vec<_>, Vec<_>) = children
+            .into_iter()
+            .partition(|c| matches!(c.kind(), "for_clause" | "for_binding"));
+        for clause in clauses {
+            let bindings = if clause.kind() == "for_clause" {
+                let mut cursor = clause.walk();
+                clause.named_children(&mut cursor).collect()
+            } else {
+                vec![clause]
+            };
+            self.bytes(b"open", clause.kind().as_bytes());
+            for binding in bindings {
+                if binding.kind() != "for_binding" {
+                    return Err(ContentIdError::UnsupportedSyntax);
+                }
+                self.let_binding(binding, depth + 1)?;
+            }
+            self.bytes(b"close", clause.kind().as_bytes());
+        }
+        let parameters = match kind {
+            "arrow_function_expression" if rest.len() > 1 => 1,
+            "do_clause" | "catch_clause" | "let_statement" => {
+                rest.iter().filter(|c| c.kind() != "block").count()
+            }
+            _ => 0,
+        };
+        let body = rest.split_off(parameters);
+        for parameter in rest {
+            match kind {
+                "let_statement" if parameter.kind() == "assignment" => {
+                    self.let_binding(parameter, depth + 1)?
+                }
+                _ => {
+                    self.julia_parameters(parameter)?;
+                    self.walk(parameter, depth + 1)?;
+                }
+            }
+        }
+        for part in &body {
+            if !julia_scope(*part) {
+                self.collect_locals(*part)?;
+            }
+        }
+        for part in body {
+            self.walk(part, depth + 1)?;
+        }
+        Ok(())
+    }
+    /// `left in iterable` or `left = value`: the right side first, then the
+    /// new binding.
+    fn let_binding(&mut self, node: Syntax, depth: usize) -> Result<()> {
+        let mut cursor = node.walk();
+        let parts: Vec<_> = node.named_children(&mut cursor).collect();
+        let [left, operator, right] = parts[..] else {
+            return Err(ContentIdError::UnsupportedSyntax);
+        };
+        self.bytes(b"open", node.kind().as_bytes());
+        self.walk(right, depth + 1)?;
+        self.walk(operator, depth + 1)?;
+        self.bind(left, false)?;
+        self.walk(left, depth + 1)?;
+        self.bytes(b"close", node.kind().as_bytes());
+        Ok(())
+    }
     fn collect_locals(&mut self, root: Syntax) -> Result<()> {
+        self.soft = self.lang == "julia";
+        let result = self.collect_locals_in(root);
+        self.soft = false;
+        result
+    }
+    fn collect_locals_in(&mut self, root: Syntax) -> Result<()> {
         let mut stack = vec![root];
         while let Some(node) = stack.pop() {
             self.budget.step()?;
@@ -204,6 +356,26 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 )
             {
                 return Err(ContentIdError::UnsupportedSyntax);
+            }
+            // A nested Julia scope collects its own names when walked.
+            if self.lang == "julia" && node.id() != root.id() && julia_scope(node) {
+                continue;
+            }
+            // `local x` declares in this scope even if an outer `x` exists.
+            if node.kind() == "local_statement" {
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    let name = if child.kind() == "assignment" {
+                        child.named_child(0)
+                    } else {
+                        Some(child)
+                    };
+                    if let Some(name) = name {
+                        self.soft = false;
+                        self.bind(name, false)?;
+                        self.soft = true;
+                    }
+                }
             }
             if node.kind() == "assignment" {
                 if let Some(left) = node
@@ -266,6 +438,9 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 return Ok(());
             }
         }
+        if self.lang == "julia" && julia_scope(node) {
+            return self.julia_scope(node, depth);
+        }
         if matches!(
             kind,
             "match_expression"
@@ -292,7 +467,6 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 | "comprehension_expression"
                 | "for_clause"
                 | "for_binding"
-                | "local_statement"
                 | "match_statement"
                 | "delete_statement"
                 | "augmented_assignment"
@@ -311,7 +485,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         {
             return Err(ContentIdError::UnsupportedSyntax);
         }
-        if self.own == Some(node.id()) {
+        if self.own == Some((node.start_byte(), node.end_byte())) {
             self.bytes(b"declaration-name", &[]);
             return Ok(());
         }
@@ -349,17 +523,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                     if n.kind() == "call_expression" {
                         let mut c = n.walk();
                         for arg in n.named_children(&mut c).skip(1) {
-                            if arg.kind() == "argument_list" {
-                                let mut a = arg.walk();
-                                for p in arg.named_children(&mut a) {
-                                    if p.kind() == "named_argument" {
-                                        return Err(ContentIdError::UnsupportedSyntax);
-                                    }
-                                    self.bind(p, false)?;
-                                }
-                            } else {
-                                self.bind(arg, false)?;
-                            }
+                            self.julia_parameters(arg)?;
                         }
                         break;
                     }
@@ -370,7 +534,8 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
             }
             if self.lang != "rust" {
                 if self.lang == "julia" && kind == "assignment" {
-                    if let Some(body) = node.named_child(1) {
+                    // `f(x) = body`: the body is after the `=` operator.
+                    if let Some(body) = node.named_child(2) {
                         self.collect_locals(body)?;
                     }
                 } else if let Some(body) = node.child_by_field_name("body") {
@@ -570,6 +735,23 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         self.bytes(b"close", kind.as_bytes());
         Ok(())
     }
+}
+
+/// Julia's local scopes below a definition: loops, closures, `do`, `let`,
+/// `try`/`catch`/`finally` and comprehensions.
+fn julia_scope(node: Syntax) -> bool {
+    matches!(
+        node.kind(),
+        "for_statement"
+            | "while_statement"
+            | "arrow_function_expression"
+            | "do_clause"
+            | "let_statement"
+            | "catch_clause"
+            | "finally_clause"
+            | "comprehension_expression"
+            | "generator"
+    ) || (node.kind() == "block" && node.parent().is_some_and(|p| p.kind() == "try_statement"))
 }
 
 fn first_noncomment(node: Syntax) -> bool {
