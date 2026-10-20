@@ -591,9 +591,26 @@ impl Workspace {
                 // An edit during the await remains dirty: only the submitted
                 // snapshot reached the source, not the current buffer (P-206).
                 doc.with_mut(|d| {
-                    d.saved = submitted;
+                    d.saved = submitted.clone();
                     d.version = v;
                 });
+                // A store may print what it stored in its own spelling (Sophia
+                // reprints in the reader's profile). The next patch must be
+                // against that text, so take it back; the buffer too, unless
+                // it was edited during the await.
+                if source.descriptor().truth == moonkale_core::SourceTruth::Store {
+                    if let Ok((stored, sv)) = source.fetch_text(node).await {
+                        if sv == v && stored != submitted {
+                            doc.with_mut(|d| {
+                                if d.text == submitted {
+                                    *d = Document::new(d.node.clone(), stored, v);
+                                } else {
+                                    d.saved = stored;
+                                }
+                            });
+                        }
+                    }
+                }
                 self.set_status(t!(self, L, "saved", name = key.clone()));
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).
