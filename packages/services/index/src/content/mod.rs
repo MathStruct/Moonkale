@@ -1,25 +1,18 @@
 //! Versioned, conservative syntactic content identities. No compiler or code execution.
 //! A failed request never publishes a partial identity. See Code Graph Schema §4.
+//! The normal form and hashing are `moonkale-content-id`, shared with Sophia;
+//! this module resolves references with the index's symbol extractors.
 
 mod cache;
-mod component;
-mod normalize;
 
 pub(crate) use cache::Cache;
-use moonkale_core::{NodeId, Value};
+use moonkale_content_id::{Budget, Part};
+pub use moonkale_content_id::{
+    ContentIdError, MAX_DEFINITIONS, MAX_FILE_BYTES, MAX_INPUT_BYTES, MAX_STEPS, NORMALIZER_VERSION,
+};
+use moonkale_core::{EdgeKind, NodeId, Value};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-
-/// Changes whenever canonical encoding or language normalization changes.
-pub const NORMALIZER_VERSION: u32 = 1;
-/// Maximum bytes fetched for a single source file.
-pub const MAX_FILE_BYTES: usize = 512 * 1024;
-/// Maximum reachable definitions in one request.
-pub const MAX_DEFINITIONS: usize = 4096;
-/// Maximum canonicalization work per request (syntax nodes and graph visits).
-pub const MAX_STEPS: usize = 1_000_000;
-/// Maximum aggregate canonical syntax bytes retained by a request.
-pub const MAX_INPUT_BYTES: usize = 32 * 1024 * 1024;
 
 /// A content identity, distinct from a definition's source-owned location id.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,53 +26,7 @@ pub struct ContentIdentity {
     pub component_size: u32,
 }
 
-/// A conservative failure: no approximate identity is substituted.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ContentIdError {
-    NotDefinition,
-    UnsupportedSyntax,
-    MalformedSyntax,
-    LimitExceeded,
-    StaleInput,
-    SourceUnavailable,
-    WorkerFailed,
-}
-
-impl std::fmt::Display for ContentIdError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "content identity: {self:?}")
-    }
-}
-impl std::error::Error for ContentIdError {}
-
 type Result<T> = std::result::Result<T, ContentIdError>;
-
-#[derive(Clone)]
-pub(crate) enum Part {
-    Bytes(Vec<u8>),
-    Reference(NodeId),
-}
-
-#[derive(Default)]
-struct Budget(usize, usize);
-impl Budget {
-    fn step(&mut self) -> Result<()> {
-        self.0 += 1;
-        if self.0 > MAX_STEPS || self.1 > MAX_INPUT_BYTES {
-            Err(ContentIdError::LimitExceeded)
-        } else {
-            Ok(())
-        }
-    }
-}
-
-/// Unambiguous length-delimited field. All integers in the encoding are LE.
-fn field(out: &mut Vec<u8>, tag: &[u8], bytes: &[u8]) {
-    out.extend_from_slice(&(tag.len() as u32).to_le_bytes());
-    out.extend_from_slice(tag);
-    out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-    out.extend_from_slice(bytes);
-}
 
 pub(crate) fn calculate(
     index: &moonkale_core::SourceId,
@@ -95,79 +42,9 @@ pub(crate) fn calculate(
         Some(moonkale_core::ContentRef::Text { lang: Some(l), .. }) => l.as_str(),
         _ => return Err(ContentIdError::UnsupportedSyntax),
     };
-    let language = match lang {
-        "rust" => arborium_rust::language(),
-        "python" => arborium_python::language(),
-        "julia" => arborium_julia::language(),
-        _ => return Err(ContentIdError::UnsupportedSyntax),
-    };
-    let mut parser = arborium_tree_sitter::Parser::new();
-    parser
-        .set_language(&language.into())
-        .map_err(|_| ContentIdError::UnsupportedSyntax)?;
-    // Bound parser work as well as the subsequent canonical walk.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-    let mut checks = 0usize;
-    let mut progress = |_state: &arborium_tree_sitter::ParseState| {
-        checks += 1;
-        if checks > MAX_STEPS || std::time::Instant::now() >= deadline {
-            std::ops::ControlFlow::Break(())
-        } else {
-            std::ops::ControlFlow::Continue(())
-        }
-    };
-    let options = arborium_tree_sitter::ParseOptions::new().progress_callback(&mut progress);
-    let mut input = |offset: usize, _| &text.as_bytes()[offset.min(text.len())..];
-    let tree = parser
-        .parse_with_options(&mut input, None, Some(options))
-        .ok_or(ContentIdError::LimitExceeded)?;
+    let mut budget = Budget::new();
+    let tree = moonkale_content_id::parse(lang, text, &mut budget)?;
     let root = tree.root_node();
-    let mut budget = Budget::default();
-    // Protect the existing recursive item walkers and bound resolver input.
-    let mut stack = vec![(root, 0)];
-    let mut definition_count = 0;
-    while let Some((node, depth)) = stack.pop() {
-        budget.step()?;
-        if depth > 128 {
-            return Err(ContentIdError::LimitExceeded);
-        }
-        if matches!(
-            node.kind(),
-            "function_item"
-                | "function_signature_item"
-                | "function_definition"
-                | "struct_item"
-                | "enum_item"
-                | "trait_item"
-                | "mod_item"
-                | "const_item"
-                | "static_item"
-                | "type_item"
-                | "union_item"
-                | "macro_definition"
-                | "class_definition"
-                | "struct_definition"
-                | "module_definition"
-                | "abstract_definition"
-                | "primitive_definition"
-                | "const_statement"
-        ) || (lang == "julia"
-            && node.kind() == "assignment"
-            && node.named_child(0).is_some_and(|n| {
-                matches!(
-                    n.kind(),
-                    "call_expression" | "where_expression" | "typed_expression"
-                )
-            }))
-        {
-            definition_count += 1;
-            if definition_count > MAX_DEFINITIONS {
-                return Err(ContentIdError::LimitExceeded);
-            }
-        }
-        let mut cursor = node.walk();
-        stack.extend(node.children(&mut cursor).map(|child| (child, depth + 1)));
-    }
     let mut symbols = crate::extract::Symbols::new(index, file, text);
     match lang {
         "rust" => symbols_rust::walk(text.as_bytes(), root, None, &mut symbols),
@@ -176,18 +53,18 @@ pub(crate) fn calculate(
         _ => unreachable!(),
     }
     let derived = symbols.finish(root, text);
-    let definitions: HashMap<_, _> = derived
+    let definitions: HashSet<_> = derived
         .nodes
         .iter()
         .filter(|n| n.kind.is_definition())
-        .map(|n| (n.id, n))
+        .map(|n| n.id)
         .collect();
-    if !definitions.contains_key(&requested) {
+    if !definitions.contains(&requested) {
         return Err(ContentIdError::NotDefinition);
     }
     let mut pending = vec![requested];
     let mut seen = HashSet::new();
-    let mut units = HashMap::new();
+    let mut units: HashMap<NodeId, Vec<Part<NodeId>>> = HashMap::new();
     while let Some(id) = pending.pop() {
         if !seen.insert(id) {
             continue;
@@ -198,7 +75,7 @@ pub(crate) fn calculate(
         let occurrence = derived
             .edges
             .iter()
-            .find(|e| e.kind == moonkale_core::EdgeKind::Defines && e.to == id)
+            .find(|e| e.kind == EdgeKind::Defines && e.to == id)
             .ok_or(ContentIdError::NotDefinition)?;
         let path = match occurrence.props.get("syntax_path") {
             Some(Value::Text(path)) => path,
@@ -211,8 +88,27 @@ pub(crate) fn calculate(
                 .map_err(|_| ContentIdError::MalformedSyntax)?;
             syntax = syntax.child(child).ok_or(ContentIdError::MalformedSyntax)?;
         }
-        let parts =
-            normalize::definition(lang, syntax, text, id, &derived, &definitions, &mut budget)?;
+        // The extractor's reference spans from this definition to others.
+        let mut references = HashMap::new();
+        for edge in &derived.edges {
+            if edge.from != id
+                || edge.kind != EdgeKind::References
+                || !definitions.contains(&edge.to)
+            {
+                continue;
+            }
+            if let Some(Value::Text(ranges)) = edge.props.get("ranges") {
+                for range in ranges.split(',') {
+                    if let Some((a, b)) = range
+                        .split_once(':')
+                        .and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)))
+                    {
+                        references.insert((a, b), edge.to);
+                    }
+                }
+            }
+        }
+        let parts = moonkale_content_id::definition(lang, syntax, text, &references, &mut budget)?;
         for part in &parts {
             if let Part::Reference(target) = part {
                 pending.push(*target);
@@ -221,7 +117,22 @@ pub(crate) fn calculate(
         units.insert(id, parts);
     }
     budget.step()?;
-    component::identities(&units, &mut budget)
+    Ok(moonkale_content_id::identities(&units, &mut budget)?
+        .into_iter()
+        .map(|(id, c)| {
+            (
+                id,
+                ContentIdentity {
+                    id: NodeId::from_content(&c.digest),
+                    digest: c.digest,
+                    normalizer_version: c.normalizer_version,
+                    component_digest: c.component_digest,
+                    component_index: c.component_index,
+                    component_size: c.component_size,
+                },
+            )
+        })
+        .collect())
 }
 
 #[cfg(test)]

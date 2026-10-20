@@ -84,6 +84,22 @@ pub(super) fn extract(
                         shadows.entry(owner).or_default().insert(name.into());
                     }
                 }
+                // `x::T` and `x: T = v` bind `x` only: the type and the
+                // default are uses, not shadows.
+                if matches!(
+                    binding.kind(),
+                    "typed_expression"
+                        | "typed_parameter"
+                        | "typed_default_parameter"
+                        | "default_parameter"
+                ) {
+                    bindings.extend(
+                        binding
+                            .child_by_field_name("name")
+                            .or_else(|| binding.named_child(0)),
+                    );
+                    continue;
+                }
                 let mut cursor = binding.walk();
                 bindings.extend(binding.named_children(&mut cursor));
             }

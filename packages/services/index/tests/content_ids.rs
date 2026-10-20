@@ -613,3 +613,105 @@ async fn python_variadic_binding_names_are_not_keyword_labels() {
         .id
     );
 }
+
+/// The shared fixtures in `packages/services/content-id/golden` (SR-116):
+/// every definition's full digest, so another implementation can check it
+/// resolves and normalises the same way. `MOONKALE_BLESS=1` rewrites the file.
+#[tokio::test]
+async fn golden_fixtures_keep_their_ids() {
+    let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../content-id/golden");
+    let mut lines = vec!["# file\tdefinition\tdigest\tcomponent_index\tcomponent_size".to_string()];
+    let mut spans = vec!["# file\tfrom\tstart:end (bytes)\tto".to_string()];
+    for file in ["geometry.jl", "geometry.py", "geometry.rs"] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::copy(golden.join(file), dir.path().join(file)).unwrap();
+        let folder = Arc::new(FolderSource::open(dir.path()).unwrap());
+        let index = IndexSource::build(folder).await.unwrap();
+        let all = index
+            .query(Query::All {
+                limit: 1000,
+                kinds: None,
+            })
+            .await
+            .unwrap();
+        let nodes = all.nodes;
+        let name = |id| {
+            nodes
+                .iter()
+                .find(|n| n.id == id)
+                .and_then(|n| match n.props.get("name") {
+                    Some(moonkale_core::Value::Text(t)) if n.kind.is_definition() => {
+                        Some(t.clone())
+                    }
+                    _ => None,
+                })
+        };
+        let mut refs = Vec::new();
+        for edge in all
+            .edges
+            .iter()
+            .filter(|e| e.kind == moonkale_core::EdgeKind::References)
+        {
+            let (Some(from), Some(to), Some(moonkale_core::Value::Text(ranges))) =
+                (name(edge.from), name(edge.to), edge.props.get("ranges"))
+            else {
+                continue;
+            };
+            for range in ranges.split(',') {
+                refs.push(format!("{file}\t{from}\t{range}\t{to}"));
+            }
+        }
+        refs.sort();
+        spans.extend(refs);
+        let mut rows = Vec::new();
+        for node in nodes.iter().filter(|n| n.kind.is_definition()) {
+            let Some(moonkale_core::Value::Text(name)) = node.props.get("name") else {
+                continue;
+            };
+            let row = match index.content_id(node.id).await {
+                Ok(id) => format!(
+                    "{file}\t{name}\t{}\t{}\t{}",
+                    id.digest
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>(),
+                    id.component_index,
+                    id.component_size
+                ),
+                Err(e) => format!("{file}\t{name}\terror:{e:?}\t-\t-"),
+            };
+            rows.push(row);
+        }
+        rows.sort();
+        lines.extend(rows);
+    }
+    let text = lines.join("\n") + "\n";
+    let path = golden.join("ids.tsv");
+    if std::env::var_os("MOONKALE_BLESS").is_some() {
+        std::fs::write(&path, &text).unwrap();
+    }
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+    let text = spans.join("\n") + "\n";
+    let path = golden.join("references.tsv");
+    if std::env::var_os("MOONKALE_BLESS").is_some() {
+        std::fs::write(&path, &text).unwrap();
+    }
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+}
+
+/// A Julia method's id depends on the struct its parameters are typed with
+/// and constructs: `p::Point` must not make `Point` a local name.
+#[tokio::test]
+async fn julia_parameter_types_are_dependencies() {
+    let method =
+        "norm2(p::Point) = p.x * p.x\nfunction twice(p::Point)\n    Point(p.x + p.x)\nend\n";
+    let one = format!("struct Point\n    x::Float64\nend\n{method}");
+    let other = format!("struct Point\n    x::Int\nend\n{method}");
+    for name in ["norm2", "twice"] {
+        assert_ne!(
+            identity("a.jl", &one, name).await.1.id,
+            identity("a.jl", &other, name).await.1.id,
+            "{name}"
+        );
+    }
+}

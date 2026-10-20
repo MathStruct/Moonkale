@@ -27,6 +27,7 @@ members = [
     "packages/sources/kv",
     "packages/sources/project-fs",
     "packages/services/index",
+    "packages/services/content-id",
     # Services
     "packages/services/llm",
     "packages/services/llm-types",
@@ -86,6 +87,7 @@ moonkale-sources-sophia = { path = "packages/sources/sophia" }
 moonkale-sources-kv = { path = "packages/sources/kv" }
 moonkale-project-fs = { path = "packages/sources/project-fs" }
 moonkale-index = { path = "packages/services/index" }
+moonkale-content-id = { path = "packages/services/content-id" }
 moonkale-llm = { path = "packages/services/llm" }
 moonkale-llm-types = { path = "packages/services/llm-types" }
 moonkale-lsp = { path = "packages/services/lsp" }

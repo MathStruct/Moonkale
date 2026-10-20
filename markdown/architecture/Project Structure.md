@@ -96,6 +96,7 @@ Implementation detail lives **next to the code**, one `<crate>.md` beside each `
 | `packages/mobile` | [README.md](https://github.com/MathStruct/Moonkale/blob/master/packages/mobile/README.md) |
 | `packages/server-host` | [server-host.md](https://github.com/MathStruct/Moonkale/blob/master/packages/server-host/server-host.md) |
 | `packages/server` | [server.md](https://github.com/MathStruct/Moonkale/blob/master/packages/server/server.md) |
+| `packages/services/content-id` | [content-id.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/content-id/content-id.md) |
 | `packages/services/index` | [index.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/index/index.md) |
 | `packages/services/llm` | [llm.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/llm/llm.md) |
 | `packages/services/lsp-local` | [lsp-local.md](https://github.com/MathStruct/Moonkale/blob/master/packages/services/lsp-local/lsp-local.md) |

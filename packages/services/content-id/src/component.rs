@@ -1,26 +1,27 @@
 //! Ordered-port graph canonicalization. Every candidate root is compared;
 //! automorphic members use the smallest index among equal encodings.
-use super::{field, Budget, ContentIdError, ContentIdentity, Part, Result, NORMALIZER_VERSION};
-use moonkale_core::NodeId;
+use super::{field, Budget, ContentIdError, Identity, Part, Result, NORMALIZER_VERSION};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
-type Units = HashMap<NodeId, Vec<Part>>;
-
-fn targets(parts: &[Part]) -> impl DoubleEndedIterator<Item = NodeId> + '_ {
+fn targets<K: Copy>(parts: &[Part<K>]) -> impl DoubleEndedIterator<Item = K> + '_ {
     parts.iter().filter_map(|p| match p {
         Part::Reference(id) => Some(*id),
         _ => None,
     })
 }
 
-pub(super) fn identities(
-    units: &Units,
+/// Identities of every definition in `units` (each definition's encoding
+/// from [`definition`](crate::definition)). Every referenced key must be a
+/// unit too; the result does not depend on the map's iteration order.
+pub fn identities<K: Copy + Eq + Hash>(
+    units: &HashMap<K, Vec<Part<K>>>,
     budget: &mut Budget,
-) -> Result<HashMap<NodeId, ContentIdentity>> {
+) -> Result<HashMap<K, Identity>> {
     // Iterative Kosaraju: no native stack use proportional to component size.
     let mut visited = HashSet::new();
     let mut finish = Vec::new();
-    let mut reverse: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
+    let mut reverse: HashMap<K, Vec<K>> = HashMap::new();
     for (&id, parts) in units {
         for target in targets(parts) {
             reverse.entry(target).or_default().push(id);
@@ -62,7 +63,7 @@ pub(super) fn identities(
         groups.push(group);
     }
     // SCCs are source-first; dependencies are needed first.
-    let mut done: HashMap<NodeId, ContentIdentity> = HashMap::new();
+    let mut done: HashMap<K, Identity> = HashMap::new();
     for group in groups.into_iter().rev() {
         let members: HashSet<_> = group.iter().copied().collect();
         let mut best: Option<Vec<u8>> = None;
@@ -134,8 +135,7 @@ pub(super) fn identities(
             let member_digest = *blake3::hash(&bytes).as_bytes();
             done.insert(
                 *id,
-                ContentIdentity {
-                    id: NodeId::from_content(&member_digest),
+                Identity {
                     digest: member_digest,
                     normalizer_version: NORMALIZER_VERSION,
                     component_digest: digest,
@@ -151,10 +151,11 @@ pub(super) fn identities(
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn id(n: u8) -> NodeId {
-        NodeId::from_content(&[n])
+    type Units = HashMap<u8, Vec<Part<u8>>>;
+    fn id(n: u8) -> u8 {
+        n
     }
-    fn bytes(n: u8) -> Part {
+    fn bytes(n: u8) -> Part<u8> {
         Part::Bytes(vec![n])
     }
     #[test]
@@ -183,7 +184,7 @@ mod tests {
         graph.insert(id(4), vec![bytes(8)]);
         let changed = identities(&graph, &mut Budget::default()).unwrap();
         for n in 1..5 {
-            assert_ne!(first[&id(n)].id, changed[&id(n)].id);
+            assert_ne!(first[&id(n)].digest, changed[&id(n)].digest);
         }
         assert_eq!(first[&id(5)], changed[&id(5)]);
     }
@@ -197,7 +198,7 @@ mod tests {
             (id(2), vec![bytes(2), Part::Reference(id(1))]),
         ]);
         let first = identities(&graph, &mut Budget::default()).unwrap();
-        assert_ne!(first[&id(1)].id, first[&id(2)].id);
+        assert_ne!(first[&id(1)].digest, first[&id(2)].digest);
         assert_eq!(
             first[&id(1)].component_digest,
             first[&id(2)].component_digest
@@ -213,7 +214,7 @@ mod tests {
     fn canonicalization_budget_has_no_partial_success() {
         let graph = Units::from([(id(1), vec![Part::Reference(id(1))])]);
         assert_eq!(
-            identities(&graph, &mut Budget(super::super::MAX_STEPS, 0)),
+            identities(&graph, &mut Budget(crate::MAX_STEPS, 0)),
             Err(ContentIdError::LimitExceeded)
         );
     }

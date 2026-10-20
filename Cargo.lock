@@ -7053,6 +7053,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "moonkale-content-id"
+version = "0.1.0"
+dependencies = [
+ "arborium-julia",
+ "arborium-python",
+ "arborium-rust",
+ "arborium-tree-sitter",
+ "blake3",
+]
+
+[[package]]
 name = "moonkale-core"
 version = "0.1.0"
 dependencies = [
@@ -7361,6 +7372,7 @@ dependencies = [
  "arborium-rust",
  "arborium-tree-sitter",
  "blake3",
+ "moonkale-content-id",
  "moonkale-core",
  "moonkale-llm",
  "moonkale-project-fs",

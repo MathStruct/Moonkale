@@ -1,34 +1,34 @@
-use super::{field, Budget, ContentIdError, Part, Result, NORMALIZER_VERSION};
-use crate::extract::Derived;
-use arborium_tree_sitter::Node as Syntax;
-use moonkale_core::{EdgeKind, Node, NodeId, Value};
+use super::{field, Budget, ContentIdError, Part, Result, Syntax, NORMALIZER_VERSION};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 struct Frame {
     names: HashMap<String, u32>,
     next: u32,
 }
-struct Normalizer<'a, 'b> {
+struct Normalizer<'a, 'b, K> {
     lang: &'a str,
     text: &'a str,
     budget: &'b mut Budget,
-    parts: Vec<Part>,
+    parts: Vec<Part<K>>,
     frames: Vec<Frame>,
     declarations: HashMap<usize, (u32, bool)>,
-    references: HashMap<(usize, usize), NodeId>,
+    references: &'a HashMap<(usize, usize), K>,
     own: Option<usize>,
     member_names: HashSet<usize>,
 }
 
-pub(super) fn definition(
+/// The canonical encoding of one definition. `syntax` is the definition's
+/// node in `text`'s tree; `references` maps the byte span `(start, end)` of
+/// each identifier that refers to another definition to that definition's
+/// key. Spans not in the map are locals or unresolved names.
+pub fn definition<K: Copy + Eq + Hash>(
     lang: &str,
     mut syntax: Syntax,
     text: &str,
-    id: NodeId,
-    derived: &Derived,
-    definitions: &HashMap<NodeId, &Node>,
+    references: &HashMap<(usize, usize), K>,
     budget: &mut Budget,
-) -> Result<Vec<Part>> {
+) -> Result<Vec<Part<K>>> {
     if syntax.has_error() {
         return Err(ContentIdError::MalformedSyntax);
     }
@@ -56,25 +56,6 @@ pub(super) fn definition(
             .is_some_and(|p| p.kind() == "decorated_definition")
     {
         syntax = syntax.parent().ok_or(ContentIdError::MalformedSyntax)?;
-    }
-    let mut references = HashMap::new();
-    for edge in &derived.edges {
-        if edge.from != id
-            || edge.kind != EdgeKind::References
-            || !definitions.contains_key(&edge.to)
-        {
-            continue;
-        }
-        if let Some(Value::Text(ranges)) = edge.props.get("ranges") {
-            for range in ranges.split(',') {
-                if let Some((a, b)) = range
-                    .split_once(':')
-                    .and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)))
-                {
-                    references.insert((a, b), edge.to);
-                }
-            }
-        }
     }
     let mut n = Normalizer {
         lang,
@@ -109,7 +90,7 @@ pub(super) fn definition(
     Ok(n.parts)
 }
 
-impl Normalizer<'_, '_> {
+impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
     fn bytes(&mut self, tag: &[u8], value: &[u8]) {
         let mut bytes = Vec::new();
         field(&mut bytes, tag, value);
