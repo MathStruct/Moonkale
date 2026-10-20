@@ -14,7 +14,9 @@ struct Normalizer<'a, 'b, K> {
     frames: Vec<Frame>,
     declarations: HashMap<usize, (u32, bool)>,
     references: &'a HashMap<(usize, usize), K>,
-    own: Option<usize>,
+    /// The declaration's own name, by span: a wrapper with the same span
+    /// (Julia's `type_head`) is the name too.
+    own: Option<(usize, usize)>,
     member_names: HashSet<usize>,
 }
 
@@ -40,14 +42,16 @@ pub fn definition<K: Copy + Eq + Hash>(
                 node.kind(),
                 "identifier" | "operator" | "macro_identifier" | "field_expression"
             ) {
-                found = Some(node.id());
+                found = Some((node.start_byte(), node.end_byte()));
                 break;
             }
             head = node.named_child(0);
         }
         found
     } else {
-        syntax.child_by_field_name("name").map(|n| n.id())
+        syntax
+            .child_by_field_name("name")
+            .map(|n| (n.start_byte(), n.end_byte()))
     };
     // Decorators are part of Python meaning, outside the extractor's occurrence.
     if lang == "python"
@@ -311,7 +315,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         {
             return Err(ContentIdError::UnsupportedSyntax);
         }
-        if self.own == Some(node.id()) {
+        if self.own == Some((node.start_byte(), node.end_byte())) {
             self.bytes(b"declaration-name", &[]);
             return Ok(());
         }

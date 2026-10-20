@@ -175,8 +175,14 @@ pub(super) fn extract(
         if !call
             && !import
             && node.parent().is_some_and(|p| {
-                p.child_by_field_name("name")
-                    .is_some_and(|n| n.id() == node.id())
+                // A declaration's name, but not the type a Rust struct
+                // expression (`Point { x }`) constructs.
+                (p.kind() != "struct_expression"
+                    && p.child_by_field_name("name")
+                        .is_some_and(|n| n.id() == node.id()))
+                    // Julia's `struct Point`: the name is the type head.
+                    || (p.kind() == "type_head"
+                        && p.named_child(0).is_some_and(|n| n.id() == node.id()))
                     || matches!(
                         p.kind(),
                         "parameters"

@@ -715,3 +715,19 @@ async fn julia_parameter_types_are_dependencies() {
         );
     }
 }
+
+/// A Rust function depends on the struct it constructs, and a Julia struct
+/// does not reference itself through its own name.
+#[tokio::test]
+async fn struct_expressions_are_uses_and_struct_names_are_not() {
+    let body = "fn make() -> u8 { let p = Point { x: 1 }; p.x }\n";
+    let one = format!("struct Point {{ x: u8 }}\n{body}");
+    let other = format!("struct Point {{ x: u8, y: u8 }}\n{body}");
+    assert_ne!(
+        identity("a.rs", &one, "make").await.1.id,
+        identity("a.rs", &other, "make").await.1.id
+    );
+    let (_, a) = identity("a.jl", "struct Point\n    x::Int\nend\n", "Point").await;
+    let (_, b) = identity("a.jl", "struct Other\n    x::Int\nend\n", "Other").await;
+    assert_eq!(a.id, b.id, "the own name is not part of the id");
+}

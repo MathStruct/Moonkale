@@ -19,8 +19,10 @@ pub use normalize::definition;
 
 /// Changes whenever canonical encoding, language normalization or the
 /// reference resolution that feeds it changes. 2: Julia/Python parameter
-/// types and defaults are uses, not local names (2026-10-20).
-pub const NORMALIZER_VERSION: u32 = 2;
+/// types and defaults are uses, not local names (2026-10-20). 3: a name
+/// wrapper with the name's span is the name (Julia `struct`); a Rust struct
+/// expression's type is a use (2026-10-20).
+pub const NORMALIZER_VERSION: u32 = 3;
 /// Maximum bytes of a single source file.
 pub const MAX_FILE_BYTES: usize = 512 * 1024;
 /// Maximum reachable definitions in one request.
