@@ -41,6 +41,8 @@ The reader id is given once at open (SPEC-004 §4): `SophiaSource::open_as(path,
 
 `examples/edit_loop.rs` is the loop Sophia's B-15 times from outside, through the `Source` trait only: resolve a name by path, fetch its text, save an edit with `apply`, read the name's new definition (`Names` edge) and the definitions still referencing the old one (`References` into it). `cargo run --release -p moonkale-sources-sophia --example edit_loop -- [--store <file.sophia> --name <a.b.f> --text <file>] [--runs <n>]`. It alternates the original and the edited text, prints µs per step for each run and the medians. On the in-memory sample (`sample.add`, 200 runs, 2026-10-20): fetch 55 µs, apply 188 µs, new id 18 µs, dependants 18 µs. It leaves out the workspace's fetch-back after a save and the UI.
 
+**B-15 results** (Sophia's measurement, Moonkale 26752448, Sophia 4350543c, its vault `Plans/Benchmark Results.md`): the whole loop's p99 is 1.0 ms on the sample, 7.0 ms on a 1e3 store (an 8.8 KB definition), 3.5 ms on 1e4 and 2.4–3.5 ms on 1e5. The target was under 50 ms. Store size doesn't matter. Text length and the number of dependants do, at about 10 µs per dependant. The adapter adds microseconds over Sophia's `Interface`. A cold first save takes 8–19 ms with the store file in the page cache and up to 0.65 s without. The change feed's 500 ms poll is the one large number. It only delays edits made by another client, because a save from this workspace refreshes the graph itself, so it stays for now. A push feed (ADR-0015 allows one) would replace it if two-client editing needs it.
+
 ## Limits
 
 - No annotation edits (SPEC-004 §3: a later op), no `datalog`, no typings yet (Sophia M4).
