@@ -1,6 +1,6 @@
 # Sophia source (WP-68)
 
-`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialect `sql`. Enable the default-off `sophia` feature in `desktop`, `web` (client and server builds) or `moonkale-distribution`; the server has its own matching feature. This is a source driver, not an extension manifest.
+`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialect `sql` (the source also answers `query`, Sophia's own language). Enable the default-off `sophia` feature in `desktop`, `web` (client and server builds) or `moonkale-distribution`; the server has its own matching feature. This is a source driver, not an extension manifest.
 
 ## Dependency
 
@@ -29,11 +29,17 @@ The reader id is given once at open (SPEC-004 §4): `SophiaSource::open_as(path,
 
 ## Queries
 
-`Query::Text { dialect: "sql" }` runs on Sophia's documented views through its read-only guard (a read-only connection, an authorizer, 10 000 rows, a step budget) and answers a table plus the definitions its id columns name. Writes are refused by Sophia. `classify` keeps Moonkale's shared rules, so a write statement still counts as a write for the agent's policy. Other dialects are `Unsupported`.
+`Query::Text { dialect: "sql" }` runs on Sophia's documented views through its read-only guard (a read-only connection, an authorizer, 10 000 rows, a step budget) and answers a table plus the definitions its id columns name. Writes are refused by Sophia. `classify` keeps Moonkale's shared rules, so a write statement still counts as a write for the agent's policy.
+
+`Query::Text { dialect: "query" }` (from revision 202e137a) runs Sophia's own query language (Sophia SPEC-007 §8) on any backend: a table, with ids as hex text, plus the definitions its id cells name. It is read-only by construction, so `classify("query")` is `Read`. A query with parameters can't run as text. The descriptor still names `sql`, since it has one dialect field. Other dialects are `Unsupported`.
 
 ## Tests
 
-`tests/acceptance.rs` runs SPEC-004 §9 through the `Source` trait only: the sample browses from the root; an edit moves the name to new content, and a parse error and a stale version leave it; a rename arrives through the change feed and resolves like the workspace resolves it; a profile switch reprints with no id change and resets; two clients on one file in two profiles see one id in two spellings, and a stale save through a recursive group conflicts instead of overwriting the other client's edit (Sophia's review demonstration 2); `sql` returns a table and nodes and refuses a write; text creates names and directories; a store file opens. `moonkale-editor-graph`'s `sophia_names_and_definitions_reach_renderer` checks the graph panel's payload.
+`tests/acceptance.rs` runs SPEC-004 §9 through the `Source` trait only: the sample browses from the root; an edit moves the name to new content, and a parse error and a stale version leave it; a rename arrives through the change feed and resolves like the workspace resolves it; a profile switch reprints with no id change and resets; two clients on one file in two profiles see one id in two spellings, and a stale save through a recursive group conflicts instead of overwriting the other client's edit (Sophia's review demonstration 2); `sql` returns a table and nodes and refuses a write; `query` answers Sophia's transitive-users example and refuses a parse error; text creates names and directories; a store file opens. `moonkale-editor-graph`'s `sophia_names_and_definitions_reach_renderer` checks the graph panel's payload.
+
+## Timing the edit loop
+
+`examples/edit_loop.rs` is the loop Sophia's B-15 times from outside, through the `Source` trait only: resolve a name by path, fetch its text, save an edit with `apply`, read the name's new definition (`Names` edge) and the definitions still referencing the old one (`References` into it). `cargo run --release -p moonkale-sources-sophia --example edit_loop -- [--store <file.sophia> --name <a.b.f> --text <file>] [--runs <n>]`. It alternates the original and the edited text, prints µs per step for each run and the medians. On the in-memory sample (`sample.add`, 200 runs, 2026-10-20): fetch 55 µs, apply 188 µs, new id 18 µs, dependants 18 µs. It leaves out the workspace's fetch-back after a save and the UI.
 
 ## Limits
 
