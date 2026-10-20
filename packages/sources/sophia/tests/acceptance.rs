@@ -1,8 +1,8 @@
 //! Sophia SPEC-004 §9 from Moonkale's side: the sample store through the
 //! `Source` trait only, as the workspace and the graph panel use it.
 use moonkale_core::{
-    Direction, EdgeKind, Node, NodeId, NodeKind, Op, OpResult, Query, Source, SourceError,
-    SourceTruth, TextPatch, Transaction, Version,
+    Direction, EdgeKind, Node, NodeId, NodeKind, Op, OpResult, Query, Risk, Source, SourceError,
+    SourceTruth, TextPatch, Transaction, Value, Version,
 };
 use moonkale_sources_sophia::SophiaSource;
 
@@ -260,6 +260,42 @@ async fn sql_answers_a_table_and_a_subgraph_and_refuses_writes() {
         .await,
         Err(SourceError::Unsupported(_))
     ));
+}
+
+#[tokio::test]
+async fn the_query_dialect_answers_a_table_and_a_subgraph() {
+    let s = SophiaSource::sample().unwrap();
+    // Sophia's example (SPEC-007 §8): who uses `sample.add`, transitively.
+    let text = r#"query users
+        uses_(a, b) = refs(a, b)
+        uses_(a, c) = refs(a, b) && uses_(b, c)
+        select a, p where name("sample.add", t) && uses_(a, t) && name(p, a)
+    end"#;
+    assert_eq!(s.classify("query", text), Risk::Read);
+    let r = s
+        .query(Query::Text {
+            dialect: "query".into(),
+            text: text.into(),
+        })
+        .await
+        .unwrap();
+    let t = r.table.unwrap();
+    assert_eq!(t.columns, vec!["a", "p"]);
+    assert!(
+        t.rows
+            .iter()
+            .any(|row| row[1] == Value::Text("sample.add_test".into())),
+        "{:?}",
+        t.rows
+    );
+    assert!(!r.nodes.is_empty(), "id cells become nodes");
+    assert!(s
+        .query(Query::Text {
+            dialect: "query".into(),
+            text: "query broken select".into(),
+        })
+        .await
+        .is_err());
 }
 
 #[tokio::test]

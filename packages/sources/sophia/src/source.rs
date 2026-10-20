@@ -2,7 +2,7 @@
 //! types. Sophia's calls are synchronous, so each runs on the blocking pool.
 use moonkale_core::{
     Applied, Capabilities, Changes, ContentRef, Direction, Edge, EdgeKind, Node, NodeId, NodeKind,
-    Op, OpResult, Query, QueryResult, Source, SourceDescriptor, SourceError, SourceFamily,
+    Op, OpResult, Query, QueryResult, Risk, Source, SourceDescriptor, SourceError, SourceFamily,
     SourceId, SourceTruth, Table, TextDialect, Transaction, Value, Version,
 };
 use sophia_interface::{
@@ -452,9 +452,27 @@ impl Source for SophiaSource {
                 r.table = Some(table(&t));
                 Ok(r)
             }
+            // Sophia's own language (SPEC-007 §8), read-only on every backend.
+            Query::Text { dialect, text } if dialect == "query" => {
+                let (t, g) = self
+                    .call(move |i| i.query(&text, Default::default()).map_err(store_error))
+                    .await?;
+                let mut r = self.result(&g, None);
+                r.truncated |= t.truncated;
+                r.table = Some(table(&t));
+                Ok(r)
+            }
             Query::Text { dialect, .. } => Err(SourceError::Unsupported(format!(
-                "Sophia speaks sql, not {dialect}"
+                "Sophia speaks sql and query, not {dialect}"
             ))),
+        }
+    }
+
+    /// `query` is Sophia's read-only language: Sophia refuses anything else.
+    fn classify(&self, dialect: &str, text: &str) -> Risk {
+        match dialect {
+            "query" => Risk::Read,
+            _ => moonkale_core::source::risk::classify(dialect, text),
         }
     }
 
