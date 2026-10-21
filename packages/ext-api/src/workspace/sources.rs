@@ -433,6 +433,7 @@ impl Workspace {
                     if changes.reset {
                         let root = source.descriptor().root;
                         self.after_fs_change(&id, &[root]).await;
+                        self.reload_clean(&id, &source, None).await;
                     } else if !changes.paths.is_empty() {
                         self.apply_external(&id, &source, &changes.paths).await;
                     }
@@ -489,6 +490,43 @@ impl Workspace {
         }
         tracing::info!("follow {id}: {} changed on disk", paths.len());
         self.after_fs_change(id, &nodes).await;
+        self.reload_clean(id, source, Some(&nodes)).await;
+    }
+
+    /// Open documents of `id` without unsaved edits take the source's text
+    /// when it changed (all of them on a reset, `None`). One with edits keeps
+    /// its buffer; its next save conflicts if the source moved on. A store's
+    /// reprint (a rendering-profile switch) keeps the version and changes
+    /// the text, so the text is compared too.
+    pub(super) async fn reload_clean(
+        &mut self,
+        id: &SourceId,
+        source: &Arc<dyn Source>,
+        only: Option<&[NodeId]>,
+    ) {
+        let docs: Vec<(NodeId, Signal<Document>)> = self
+            .docs
+            .open
+            .peek()
+            .iter()
+            .filter(|(n, d)| {
+                let d = d.peek();
+                &d.node.source == id && !d.dirty() && only.is_none_or(|o| o.contains(n))
+            })
+            .cloned()
+            .collect();
+        for (node, mut doc) in docs {
+            let Ok((text, version)) = source.fetch_text(node).await else {
+                continue;
+            };
+            doc.with_mut(|d| {
+                // Edited while the fetch was out: leave it.
+                if d.dirty() || (d.saved == text && d.version == version) {
+                    return;
+                }
+                *d = Document::new(d.node.clone(), text, version);
+            });
+        }
     }
 
     /// Re-read a source by hand (the ↻ button of a source that is not
