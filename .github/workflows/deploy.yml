@@ -1,14 +1,22 @@
 name: Deploy vault to GitHub Pages
 
-# Publishes the Obsidian vault in markdown/ with Quartz (vendored in site/) to
-# the gh-pages branch, which GitHub Pages serves (Settings → Pages → Deploy
-# from a branch: gh-pages, /). The address is https://mathstruct.org/Moonkale/:
+# Publishes the Obsidian vault in markdown/, built by site/build.sh with MathStruct's shared
+# Quartz (https://github.com/MathStruct/quartz), to the gh-pages branch, which GitHub Pages
+# serves (Settings → Pages → Deploy from a branch: gh-pages, /). The address is https://mathstruct.org/Moonkale/:
 # the organisation's site carries the mathstruct.org domain and project sites
 # inherit it, so gh-pages must not contain a CNAME file of its own.
+#
+# A pull request that touches the vault or the site is built too, without publishing: the
+# rendered site is attached to the run as the "site" artifact.
 
 on:
   push:
     branches: [master]
+    paths:
+      - "markdown/**"
+      - "site/**"
+      - ".github/workflows/deploy.yml"
+  pull_request:
     paths:
       - "markdown/**"
       - "site/**"
@@ -19,8 +27,8 @@ permissions:
   contents: write # push to gh-pages
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -32,17 +40,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: site/package-lock.json
-      - name: Install dependencies
-        working-directory: site
-        run: npm ci
       - name: Build site with Quartz
-        working-directory: site
-        run: npx quartz build -d ../markdown
+        run: site/build.sh
+      - name: Attach the rendered site to a pull request's run
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site/public
+          retention-days: 14
       # One commit, force-pushed: the branch holds the current site only, so it
       # doesn't grow with every deploy. .nojekyll: serve the files as they are.
       - name: Publish to gh-pages
+        if: github.event_name != 'pull_request'
         working-directory: site/public
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

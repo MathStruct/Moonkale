@@ -1,108 +1,15 @@
-import { QuartzConfig } from "./quartz/cfg"
-import * as Plugin from "./quartz/plugins"
+import { siteConfig } from "./mathstruct/config"
 
-/**
- * Quartz 4 Configuration
- *
- * See https://quartz.jzhao.xyz/configuration for more information.
- */
-const config: QuartzConfig = {
-  configuration: {
-    pageTitle: "Moonkale",
-    pageTitleSuffix: "",
-    enableSPA: true,
-    enablePopovers: true,
-    analytics: null,
-    locale: "en-US",
-    // project page under the organisation site: https://mathstruct.org/Moonkale/
-    baseUrl: "mathstruct.org/Moonkale",
-    // `Prompt*` are the working prompts that drove the design sessions; kept in the
-    // vault for provenance, not published.
-    ignorePatterns: ["private", ".obsidian", ".tikz-cache", "Prompt*", "prompts"],
-    // design notes show when they were last touched
-    defaultDateType: "modified",
-    theme: {
-      fontOrigin: "googleFonts",
-      cdnCaching: true,
-      typography: {
-        header: "Schibsted Grotesk",
-        body: "Source Sans Pro",
-        code: "IBM Plex Mono",
-      },
-      colors: {
-        lightMode: {
-          light: "#faf8f8",
-          lightgray: "#e5e5e5",
-          gray: "#b8b8b8",
-          darkgray: "#4e4e4e",
-          dark: "#2b2b2b",
-          secondary: "#284b63",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#fff23688",
-        },
-        darkMode: {
-          light: "#161618",
-          lightgray: "#393639",
-          gray: "#646464",
-          darkgray: "#d4d4d4",
-          dark: "#ebebec",
-          secondary: "#7b97aa",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#b3aa0288",
-        },
-      },
-    },
-  },
-  plugins: {
-    transformers: [
-      Plugin.FrontMatter(),
-      Plugin.CreatedModifiedDate({
-        priority: ["frontmatter", "git", "filesystem"],
-      }),
-      Plugin.SyntaxHighlighting({
-        theme: {
-          light: "github-light",
-          dark: "github-dark",
-        },
-        keepBackground: false,
-      }),
-      Plugin.TikZ({ cacheDir: ".tikz-cache" }),
-      Plugin.ObsidianTabs(),
-      Plugin.ObsidianFlavoredMarkdown({ enableInHtmlEmbed: false }),
-      Plugin.GitHubFlavoredMarkdown(),
-      Plugin.TableOfContents(),
-      Plugin.CrawlLinks({ markdownLinkResolution: "shortest" }),
-      Plugin.Description(),
-      // Notes may mix Typst and LaTeX formulas freely: each one is tried with
-      // Typst first, and anything Typst rejects falls through to KaTeX. Pin a
-      // page to a single engine with `math: typst` or `math: latex`.
-      Plugin.Latex({
-        renderEngine: ["typst", "katex"],
-        katexOptions: { throwOnError: false, strict: false },
-      }),
-    ],
-    filters: [Plugin.RemoveDrafts()],
-    emitters: [
-      Plugin.AliasRedirects(),
-      Plugin.ComponentResources(),
-      Plugin.ContentPage(),
-      Plugin.FolderPage(),
-      Plugin.TagPage(),
-      Plugin.ContentIndex({
-        enableSiteMap: true,
-        enableRSS: true,
-      }),
-      Plugin.Assets(),
-      Plugin.Static(),
-      // no Plugin.CNAME(): this is a project page; it inherits mathstruct.org
-      // from the organisation's site, and a CNAME here would take that over
-      Plugin.Favicon(),
-      Plugin.NotFoundPage(),
-      // Plugin.CustomOgImages(),  // disabled: slows the build considerably
-    ],
-  },
-}
-
-export default config
+// The plugins, theme and fixes shared by all MathStruct sites are in the preset
+// (https://github.com/MathStruct/quartz, mathstruct/config.ts); this file only says what is
+// particular to Moonkale.
+export default siteConfig({
+  pageTitle: "Moonkale",
+  baseUrl: "mathstruct.org/Moonkale",
+  // `Prompt*` are the working prompts that drove the design sessions; kept in the vault for
+  // provenance, not published
+  ignorePatterns: ["Prompt*", "prompts"],
+  // notes may mix Typst and LaTeX: each formula is tried with Typst first, anything Typst
+  // rejects falls through to KaTeX. Pin a page with `math: typst` or `math: latex`.
+  math: ["typst", "katex"],
+})

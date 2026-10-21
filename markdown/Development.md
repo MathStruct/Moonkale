@@ -31,7 +31,7 @@ Moonkale/
 │  └─ js/{codemirror,milkdown,xterm,wasm-host}/   isolated TypeScript packages
 ├─ markdown/             # this vault (design record; published as the website)
 ├─ packaging/            # PKGBUILDs, Debian, release scripts
-├─ site/                 # vendored Quartz + TikZ/Typst/Tabs plugins
+├─ site/                 # the website's Quartz config (the engine: MathStruct/quartz)
 ├─ tools/                # check-deps.py: the layering rules, deps-allow.txt: today's known violations
 └─ .github/workflows/    # ci (fmt, layering, tests, clippy, wasm, e2e smoke), release, Pages deploy, labels
 ```
@@ -126,27 +126,25 @@ Source images live in `/assets` (`Moonkale.png` 1254², `Moonkale512.png`, `Moon
 | desktop window/taskbar icon (no decoder at runtime) | `packages/desktop/assets/icon64.rgba` | `magick assets/Moonkale64.png -depth 8 rgba:…` |
 | web favicon (16/32/64 in one `.ico`) + touch icon | `packages/web/assets/{favicon.ico,icon.png}` | `magick Moonkale16.png Moonkale32.png Moonkale64.png favicon.ico` |
 | title-bar logo (drawn at 16 px) | `packages/shell/assets/icon32.png` | `Moonkale32.png` |
-| website favicon + page-title logo, social preview | `site/quartz/static/{icon.png,og-image.png}` | `-resize 256x256`; `-resize 1200x675^ -gravity center -extent 1200x675` |
+| website favicon + page-title logo, social preview | `site/static/{icon.png,og-image.png}` | `-resize 256x256`; `-resize 1200x675^ -gravity center -extent 1200x675` |
 | banner on the site index and the README | `markdown/assets/MoonkaleBanner.png` (1400 px, PNG8) | `-resize 1400x -dither None -colors 256` |
 
 ## The vault and the website
 
 The repository root is the Obsidian vault (`.obsidian/` at the root); the notes live in `markdown/`. Installed Obsidian plugins — Inline TikZ, Wypst (Typst), Markdown Tabs, Excalidraw, Document Comments — have matching build-time support in the site where it exists (TikZ, Typst, Tabs; Mermaid is built in).
 
-The website <https://mathstruct.org/Moonkale/> is built with [Quartz 4](https://quartz.jzhao.xyz), vendored in `site/` from the [MathStruct site](https://github.com/MathStruct/mathstruct.github.io) so both share the same plugins and look. Pushing to `master` runs `.github/workflows/deploy.yml`, which builds `markdown/` and force-pushes the result as a single commit to the **`gh-pages`** branch. GitHub Pages serves that branch (Settings → Pages → Deploy from a branch: `gh-pages`, `/`, since 2026-10-15). The address comes from the organisation's site, which carries the `mathstruct.org` domain, so `gh-pages` has no `CNAME` file. Branch history is not kept: each deploy replaces it.
+The website <https://mathstruct.org/Moonkale/> is built with [MathStruct's Quartz](https://github.com/MathStruct/quartz), shared by all MathStruct sites: Quartz 4 plus the plugins (TikZ, Typst, Tabs, ...), theme and layout they have in common. `site/` holds only what is Moonkale's own: `quartz.config.ts` and `quartz.layout.ts` (calls to the shared preset), `static/` (the icon and social preview, which replace Quartz's), `build.sh` (fetches the shared Quartz into `site/.quartz/` and builds) and `.tikz-cache/`. Pushing to `master` runs `.github/workflows/deploy.yml`, which builds `markdown/` and force-pushes the result as a single commit to the **`gh-pages`** branch. GitHub Pages serves that branch (Settings → Pages → Deploy from a branch: `gh-pages`, `/`, since 2026-10-15). The address comes from the organisation's site, which carries the `mathstruct.org` domain, so `gh-pages` has no `CNAME` file. Branch history is not kept: each deploy replaces it. A pull request that touches `markdown/` or `site/` is built too, and the rendered site is attached to the run as the `site` artifact.
 
 Preview locally:
 
 ```sh
-cd site
-npm ci                                  # first time only
-npx quartz build --serve -d ../markdown # http://localhost:8080, rebuilds on save
+site/build.sh --serve    # http://localhost:8080, rebuilds on save; needs git and Node 22+
 ```
 
 Conventions:
 - `index.md` is the landing page; `Home.md` is the full map of contents.
 - Frontmatter: `title` (optional — the filename is used otherwise), `description`, `tags`. ADRs carry `status` and `date`; problems carry `status` and `phase`.
-- `templates/` and `Prompt*.md` are not published (`ignorePatterns` in `site/quartz.config.ts`).
+- `Prompt*.md` are not published (`ignorePatterns` in `site/quartz.config.ts`); `templates/` is, since notes link to the [[Problem Template]].
 - Diagrams: Mermaid fences render everywhere. ```` ```tikz ```` and ```` ```typst ```` fences and `$…$` math also render on the site (Typst first, KaTeX fallback — see the MathStruct [authoring guide](https://mathstruct.org/guides/authoring) for the rules).
 - Every problem hit during implementation gets a note via [[Problem Template]] and a row in [[Problem Log]].
 - Versioning of the vault itself is plain git; versioning *inside* Moonkale is described in [[Version Management]].
