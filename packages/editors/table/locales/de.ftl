@@ -3,6 +3,7 @@ extension-description = SQL-/Cypher-Abfragefeld und Ergebnistabelle für Datenba
 table-running = Läuft …
 table-run = Ausführen (Strg+Enter)
 table-graph-title = Die Knoten und Kanten dieser Abfrage im Graph-Panel zeichnen
+table-dialect-title = Abfragesprache: { $dialect }
 table-graph = Im Graph zeigen
 table-loading = Wird geladen …
 table-counts = { $rows } Zeilen · { $columns } Spalten

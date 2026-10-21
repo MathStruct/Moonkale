@@ -674,6 +674,7 @@ impl Source for IndexSource {
                 write: false,
                 watch: false,
                 text_query: None,
+                extra_text_query: None,
             },
             root: self.root,
         }

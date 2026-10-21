@@ -240,6 +240,7 @@ impl Source for FolderSource {
                 write: true,
                 watch: true,
                 text_query: None,
+                extra_text_query: None,
             },
             root: self.root_id(),
         }

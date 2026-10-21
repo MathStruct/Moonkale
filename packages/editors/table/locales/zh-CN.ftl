@@ -3,6 +3,7 @@ extension-description = 数据库来源的 SQL / Cypher 查询框和结果表格
 table-running = 运行中…
 table-run = 运行（Ctrl+Enter）
 table-graph-title = 在图面板中绘制此查询返回的节点和边
+table-dialect-title = 查询语言：{ $dialect }
 table-graph = 在图中显示
 table-loading = 加载中…
 table-counts = { $rows } 行 · { $columns } 列

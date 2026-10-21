@@ -416,6 +416,7 @@ impl Source for LadybugSource {
                 write: false,
                 watch: false,
                 text_query: Some(TextDialect::Cypher),
+                extra_text_query: None,
             },
             root: self.root_id(),
         }

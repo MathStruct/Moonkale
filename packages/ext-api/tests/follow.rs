@@ -30,6 +30,8 @@ fn descriptor(id: &str, family: SourceFamily) -> SourceDescriptor {
 struct Disk {
     d: SourceDescriptor,
     files: Mutex<Vec<String>>,
+    /// What `fetch_text` reads, by path, with its version.
+    texts: Mutex<std::collections::HashMap<String, (String, u64)>>,
     feed: tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<Changes>>,
 }
 
@@ -61,8 +63,13 @@ impl Source for Disk {
             _ => Ok(QueryResult::default()),
         }
     }
-    async fn fetch_text(&self, _: NodeId) -> Result<(String, Version), SourceError> {
-        Err(SourceError::NotFound)
+    async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
+        let texts = self.texts.lock().unwrap();
+        texts
+            .iter()
+            .find(|(p, _)| NodeId::derive(&self.d.id, p) == node)
+            .map(|(_, (t, v))| (t.clone(), Version(*v)))
+            .ok_or(SourceError::NotFound)
     }
     async fn apply(&self, _: Transaction) -> Result<Applied, SourceError> {
         Err(SourceError::Unsupported("disk".into()))
@@ -179,6 +186,13 @@ fn App() -> Element {
         let disk = Arc::new(Disk {
             d: descriptor("folder:/notes", SourceFamily::Folder),
             files: Mutex::new(vec!["a.md".into(), "gone.md".into()]),
+            texts: Mutex::new(
+                [
+                    ("a.md".to_string(), ("one".to_string(), 1)),
+                    ("b.md".to_string(), ("bee".to_string(), 1)),
+                ]
+                .into(),
+            ),
             feed: tokio::sync::Mutex::new(rx),
         });
         let refreshed = Arc::new(Mutex::new(Vec::new()));
@@ -287,4 +301,73 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
     .unwrap();
     settle(&mut dom).await;
     assert!(!ws.sources.watched.peek().contains(&folder));
+}
+
+/// A node of the scripted folder, as the Explorer would hand it over.
+fn file(folder: &SourceId, path: &str) -> Node {
+    Node {
+        props: Default::default(),
+        id: NodeId::derive(folder, path),
+        source: folder.clone(),
+        kind: NodeKind::File,
+        label: path.into(),
+        native_key: path.into(),
+        content: Some(moonkale_core::ContentRef::Text { len: 0, lang: None }),
+        version: Version(1),
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn open_documents_without_edits_follow_the_source() {
+    let mut dom = VirtualDom::new(App);
+    dom.rebuild_in_place();
+    settle(&mut dom).await;
+    let (ws, disk, _, tx) = SETUP.with(|s| s.borrow_mut().take()).unwrap();
+    let folder = SourceId::new("folder:/notes");
+    let (a, b) = (file(&folder, "a.md"), file(&folder, "b.md"));
+    dom.in_scope(ScopeId::ROOT, || {
+        let (a, b) = (a.clone(), b.clone());
+        spawn(async move {
+            ws.open_node(a).await.unwrap();
+            ws.open_node(b).await.unwrap();
+        });
+    });
+    settle(&mut dom).await;
+    let text = |id: NodeId| ws.document(id).unwrap().peek().text.clone();
+    assert_eq!(text(a.id), "one");
+
+    // `a` changes and is reloaded; `b` has unsaved edits and keeps them.
+    ws.document(b.id)
+        .unwrap()
+        .with_mut(|d| d.text = "mine".into());
+    {
+        let mut t = disk.texts.lock().unwrap();
+        t.insert("a.md".into(), ("two".into(), 2));
+        t.insert("b.md".into(), ("theirs".into(), 2));
+    }
+    tx.send(Changes {
+        seq: 2,
+        paths: vec!["a.md".into(), "b.md".into()],
+        reset: false,
+    })
+    .unwrap();
+    settle(&mut dom).await;
+    assert_eq!(text(a.id), "two");
+    assert!(!ws.document(a.id).unwrap().peek().dirty());
+    assert_eq!(text(b.id), "mine", "unsaved edits are never replaced");
+
+    // A reset (a store's reprint) reloads by text even at the same version.
+    disk.texts
+        .lock()
+        .unwrap()
+        .insert("a.md".into(), ("TWO".into(), 2));
+    tx.send(Changes {
+        seq: 3,
+        paths: vec![],
+        reset: true,
+    })
+    .unwrap();
+    settle(&mut dom).await;
+    assert_eq!(text(a.id), "TWO");
+    assert_eq!(text(b.id), "mine");
 }

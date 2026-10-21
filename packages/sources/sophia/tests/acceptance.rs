@@ -299,6 +299,57 @@ async fn the_query_dialect_answers_a_table_and_a_subgraph() {
 }
 
 #[tokio::test]
+async fn the_views_open_as_tables_in_both_dialects() {
+    let s = SophiaSource::sample().unwrap();
+    let dialects: Vec<_> = s
+        .descriptor()
+        .capabilities
+        .text_dialects()
+        .map(|d| d.name())
+        .collect();
+    assert_eq!(dialects, ["sql", "query"]);
+    let root = children(&s, s.descriptor().root).await;
+    let views = find(&root, "Directory", "views").id;
+    let tables = children(&s, views).await;
+    assert_eq!(tables.len(), 9, "{tables:?}");
+    let defs = tables.iter().find(|n| n.label == "definitions").unwrap();
+    assert_eq!(defs.kind, NodeKind::Table);
+    assert_eq!(defs.native_key, "table:definitions");
+    // What the table panel runs first in each dialect.
+    let r = s
+        .query(Query::Text {
+            dialect: "sql".into(),
+            text: "SELECT * FROM \"definitions\" LIMIT 1000".into(),
+        })
+        .await
+        .unwrap();
+    assert!(!r.table.unwrap().rows.is_empty());
+    let r = s
+        .query(Query::Text {
+            dialect: "query".into(),
+            text: "select p, d where name(p, d)".into(),
+        })
+        .await
+        .unwrap();
+    assert!(r.table.unwrap().rows.len() >= 16);
+    // Views resolve like other nodes, and refuse edits.
+    let again = s.query(Query::Node(defs.id)).await.unwrap().nodes;
+    assert_eq!(again[0].label, "definitions");
+    assert!(s.fetch_text(defs.id).await.is_err());
+    let tx = Transaction {
+        ops: vec![Op::CreateText {
+            parent: views,
+            name: "x".into(),
+            text: "f() = 1".into(),
+        }],
+    };
+    assert!(matches!(
+        s.apply(tx).await.unwrap().results[0],
+        OpResult::Refused { .. }
+    ));
+}
+
+#[tokio::test]
 async fn text_creates_names_and_directories() {
     let s = SophiaSource::sample().unwrap();
     let root = children(&s, s.descriptor().root).await;

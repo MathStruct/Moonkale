@@ -25,7 +25,13 @@ pub struct TreeState {
     edit: Signal<Option<Edit>>,
     confirm: Signal<Option<Node>>,
     dragging: Signal<Option<Node>>,
+    /// How many children a folder shows, when more than one page.
+    shown: Signal<HashMap<NodeId, usize>>,
 }
+
+/// Children a folder shows at first and per "show more": a namespace of a
+/// code store can hold 100 000 names, and every row is DOM.
+const PAGE: usize = 1000;
 
 /// A right-click menu for one node (or a source root).
 #[derive(Clone, PartialEq)]
@@ -56,7 +62,9 @@ impl Edit {
 
 impl PartialEq for TreeState {
     fn eq(&self, other: &Self) -> bool {
-        self.expanded == other.expanded && self.children == other.children
+        self.expanded == other.expanded
+            && self.children == other.children
+            && self.shown == other.shown
     }
 }
 
@@ -81,6 +89,7 @@ impl ExplorerExtension {
                 edit: Signal::new_in_scope(None, ScopeId::ROOT),
                 confirm: Signal::new_in_scope(None, ScopeId::ROOT),
                 dragging: Signal::new_in_scope(None, ScopeId::ROOT),
+                shown: Signal::new_in_scope(HashMap::new(), ScopeId::ROOT),
             },
         }
     }
@@ -393,6 +402,8 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
         .cloned()
         .unwrap_or_default();
     let expanded = state.expanded.read().clone();
+    let total = children.len();
+    let limit = state.shown.read().get(&parent).copied().unwrap_or(PAGE);
     // File marks (git's status today, Milestone 7 → generic in 18): the
     // mark's class on the row, a subtle mark on directories with marks below.
     let marks = ws.contrib.file_marks.read().clone();
@@ -400,8 +411,8 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
     let others = ws.others();
     // Return keyed row VNodes directly. A nested expression inside an RSX
     // loop wraps each row in an unkeyed node and loses identity on reorder.
-    let mut rows = Vec::with_capacity(children.len());
-    for node in children {
+    let mut rows = Vec::with_capacity(total.min(limit) + 1);
+    for node in children.into_iter().take(limit) {
         let vcs_class = match marks.get(&node.native_key) {
             Some(m) => m.class,
             None if node.kind == NodeKind::Directory => {
@@ -538,6 +549,23 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                 }
                 if is_dir && open {
                     TreeLevel { ws, state, parent: node.id, depth: depth + 1 }
+                }
+            }
+        });
+    }
+    if total > limit {
+        let more = (total - limit).min(PAGE);
+        let mut shown = state.shown;
+        rows.push(rsx! {
+            li { key: "more-{parent}",
+                div { class: "mk-tree-row mk-tree-more",
+                    onclick: move |_| {
+                        shown.with_mut(|s| {
+                            s.insert(parent, limit + PAGE);
+                        });
+                    },
+                    span { class: "mk-tree-caret" }
+                    span { class: "mk-tree-label", {t!(ws, L, "explorer-more", more = more, total = total)} }
                 }
             }
         });

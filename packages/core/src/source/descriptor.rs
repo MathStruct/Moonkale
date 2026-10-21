@@ -26,6 +26,17 @@ pub struct Capabilities {
     pub watch: bool,
     /// Dialect accepted by `Query::Text`, if any (`"sql"`).
     pub text_query: Option<TextDialect>,
+    /// A second dialect the source also answers, offered beside the first
+    /// (a Sophia store: `sql` and its own `query`).
+    #[serde(default)]
+    pub extra_text_query: Option<TextDialect>,
+}
+
+impl Capabilities {
+    /// Every dialect `Query::Text` accepts, the main one first.
+    pub fn text_dialects(&self) -> impl Iterator<Item = TextDialect> {
+        self.text_query.into_iter().chain(self.extra_text_query)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +50,9 @@ pub enum TextDialect {
     /// HelixDB (Milestone 17): `nodes [<label>] [limit <n>]`,
     /// `edges [<label>] [limit <n>]`.
     Helix,
+    /// Sophia's own query language (Sophia SPEC-007): `select p, d where
+    /// name(p, d)`, read-only.
+    SophiaQuery,
 }
 
 impl TextDialect {
@@ -50,6 +64,7 @@ impl TextDialect {
             TextDialect::TypeQl => "typeql",
             TextDialect::Kv => "kv",
             TextDialect::Helix => "helix",
+            TextDialect::SophiaQuery => "query",
         }
     }
 }

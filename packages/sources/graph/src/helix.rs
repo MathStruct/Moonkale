@@ -370,6 +370,7 @@ impl Source for HelixSource {
                 write: false,
                 watch: false,
                 text_query: Some(TextDialect::Helix),
+                extra_text_query: None,
             },
             root: self.root_id(),
         }
