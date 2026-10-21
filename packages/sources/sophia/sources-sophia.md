@@ -4,7 +4,7 @@
 
 ## Dependency
 
-`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below.
+`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below. Currently 4c2aaab3 (2026-10-21).
 
 ## Opening
 
@@ -51,8 +51,8 @@ Release desktop build with `--features desktop,sophia` on a private headless dis
 
 - **Works:** opening a store from the path box; the `views` folder and its tables in both dialects; opening a name, saving an edit (new token), a parse error (`5:13: expected `end``, buffer kept), fixing and saving again; a rendering-profile switch reprinting the open name without a reload (after the fix in `reload_clean`); two app processes on one store, where a save in one shows in the other within a second and an edit made meanwhile conflicts instead of overwriting.
 - **Fixed on the way:** open documents didn't follow the change feed (Milestone 16's planned gap), and the Explorer rendered every child, so a 100 000-name namespace lost its first 65 536 rows (now pages of 1000).
-- **Timings** (`examples/browse.rs`, release): the root of `gen100000` lists in 0.9 s and its 100 000-name namespace in 0.9 s (Sophia lists names by scanning); the graph panel's `Query::All` takes 3.3 s for 100 000 nodes (50 MB as JSON) and loads by itself when the store opens; neighbours and a text take 4–8 ms.
-- **Sophia's side:** the 146 Julia records of the LinearAlgebra ingest (consts, structs, abstract types) and its ingest manifest don't print: `stored value could not be decoded: expected tag "def", found "language"`. A parse error names the token as `Sym(")")`. The rust profile reprints a head as `fn … {` but leaves nested `let … end` blocks in Julia's spelling.
+- **Timings** (`examples/browse.rs`, release, warm page cache): on Sophia 4c2aaab3 the root of `gen100000` lists in 0.3–1 ms and its 100 000-name namespace in 240 ms; the graph panel's `Query::All` takes 0.5 s for 100 000 nodes (50 MB as JSON) and loads by itself when the store opens; neighbours and a text take under a millisecond. The adapter adds about 110 ms per 100 000 nodes over Sophia's `Interface` (converting and remembering ids). The first check's 0.9 s and 3.3 s were a cold page cache on the 680 MB store file.
+- **Sophia's side, fixed in 4c2aaab3:** Julia records of an ingest print their source text (a store ingested before then needs re-ingesting; all 945 LinearAlgebra names print), listing skips sub-namespaces, a parse error names the token as written, and the Rust profile prints `let` and `match` with braces. Still open there: about 7% of `sophia gen` definitions nest deeper than the parser's limit and can't be saved back unchanged (SP-015). A Julia definition saves through the sophialang parser; there is no Julia write path.
 - **Not checkable headless:** the graph canvas draws nothing under software GL here, for folders too, so drawing a store's graph (and 100 000 nodes of it) needs Daniel's desktop.
 
 ## Limits
