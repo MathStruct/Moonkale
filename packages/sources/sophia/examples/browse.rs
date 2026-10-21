@@ -35,6 +35,8 @@ async fn main() {
         .collect();
     let (mut largest, mut slowest) = ((0, None), std::time::Duration::ZERO);
     let mut listed = 0;
+    // Names whose text doesn't print, out of those tried (at most 5000).
+    let (mut tried, mut failed, mut first_error) = (0, 0, None);
     while let Some(ns) = queue.pop() {
         if listed >= 200 {
             break;
@@ -58,10 +60,24 @@ async fn main() {
                 .filter(|n| n.kind == NodeKind::Directory)
                 .map(|n| n.id),
         );
+        for n in r.nodes.iter().filter(|n| n.kind != NodeKind::Directory) {
+            if tried >= 5000 {
+                break;
+            }
+            tried += 1;
+            if let Err(e) = s.fetch_text(n.id).await {
+                failed += 1;
+                first_error.get_or_insert_with(|| format!("{}: {e}", n.native_key));
+            }
+        }
     }
     println!(
         "namespaces listed\t{listed}\tlargest {} children\tslowest {slowest:?}",
         largest.0
+    );
+    println!(
+        "texts\t{failed} of {tried} failed\t{}",
+        first_error.unwrap_or_default()
     );
 
     let t = Instant::now();
@@ -98,7 +114,9 @@ async fn main() {
             n.nodes.len()
         );
         let t = Instant::now();
-        let (text, _) = s.fetch_text(name).await.unwrap();
-        println!("fetch_text\t{:?}\t{} bytes", t.elapsed(), text.len());
+        match s.fetch_text(name).await {
+            Ok((text, _)) => println!("fetch_text\t{:?}\t{} bytes", t.elapsed(), text.len()),
+            Err(e) => println!("fetch_text\t{:?}\t{e}", t.elapsed()),
+        }
     }
 }

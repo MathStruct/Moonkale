@@ -45,7 +45,18 @@ The reader id is given once at open (SPEC-004 §4): `SophiaSource::open_as(path,
 
 **B-15 results** (Sophia's measurement, Moonkale 26752448, Sophia 4350543c, its vault `Plans/Benchmark Results.md`): the whole loop's p99 is 1.0 ms on the sample, 7.0 ms on a 1e3 store (an 8.8 KB definition), 3.5 ms on 1e4 and 2.4–3.5 ms on 1e5. The target was under 50 ms. Store size doesn't matter. Text length and the number of dependants do, at about 10 µs per dependant. The adapter adds microseconds over Sophia's `Interface`. A cold first save takes 8–19 ms with the store file in the page cache and up to 0.65 s without. The change feed's 500 ms poll is the one large number. It only delays edits made by another client, because a save from this workspace refreshes the graph itself, so it stays for now. A push feed (ADR-0015 allows one) would replace it if two-client editing needs it.
 
+## Desktop check (2026-10-21)
+
+Release desktop build with `--features desktop,sophia` on a private headless display (`tools/headless.sh`), against copies of Sophia's B-15 stores (`gen1000`, `gen100000`) and its LinearAlgebra ingest (`la`, Sophia 202e137a).
+
+- **Works:** opening a store from the path box; the `views` folder and its tables in both dialects; opening a name, saving an edit (new token), a parse error (`5:13: expected `end``, buffer kept), fixing and saving again; a rendering-profile switch reprinting the open name without a reload (after the fix in `reload_clean`); two app processes on one store, where a save in one shows in the other within a second and an edit made meanwhile conflicts instead of overwriting.
+- **Fixed on the way:** open documents didn't follow the change feed (Milestone 16's planned gap), and the Explorer rendered every child, so a 100 000-name namespace lost its first 65 536 rows (now pages of 1000).
+- **Timings** (`examples/browse.rs`, release): the root of `gen100000` lists in 0.9 s and its 100 000-name namespace in 0.9 s (Sophia lists names by scanning); the graph panel's `Query::All` takes 3.3 s for 100 000 nodes (50 MB as JSON) and loads by itself when the store opens; neighbours and a text take 4–8 ms.
+- **Sophia's side:** the 146 Julia records of the LinearAlgebra ingest (consts, structs, abstract types) and its ingest manifest don't print: `stored value could not be decoded: expected tag "def", found "language"`. A parse error names the token as `Sym(")")`. The rust profile reprints a head as `fn … {` but leaves nested `let … end` blocks in Julia's spelling.
+- **Not checkable headless:** the graph canvas draws nothing under software GL here, for folders too, so drawing a store's graph (and 100 000 nodes of it) needs Daniel's desktop.
+
 ## Limits
 
+- Conflicts are reported with the file wording ("The file changed outside the editor").
 - No annotation edits (SPEC-004 §3: a later op), no `datalog`, no typings yet (Sophia M4).
 - Polling only.

@@ -94,6 +94,7 @@ cancel = 取消
 explorer-path-placeholder = 文件夹路径（留空 = 默认根目录）
 explorer-opening = 正在打开…
 explorer-open = 打开
+explorer-more = 再显示 { $more } 个（共 { $total } 个）
 explorer-empty = 打开一个文件夹以浏览其中的文件。
 explorer-read-only = 只读
 explorer-not-watched = 未监视更改——刷新

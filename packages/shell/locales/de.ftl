@@ -94,6 +94,7 @@ cancel = Abbrechen
 explorer-path-placeholder = Ordnerpfad (leer = Standardordner)
 explorer-opening = Wird geöffnet …
 explorer-open = Öffnen
+explorer-more = { $more } weitere zeigen (von { $total })
 explorer-empty = Öffne einen Ordner, um seine Dateien zu durchsuchen.
 explorer-read-only = schreibgeschützt
 explorer-not-watched = Änderungen werden nicht verfolgt – aktualisieren

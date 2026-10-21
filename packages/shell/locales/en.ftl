@@ -94,6 +94,7 @@ cancel = Cancel
 explorer-path-placeholder = folder path (blank = default root)
 explorer-opening = Opening…
 explorer-open = Open
+explorer-more = Show { $more } more (of { $total })
 explorer-empty = Open a folder to browse its files.
 explorer-read-only = read-only
 explorer-not-watched = Not watched for changes — refresh

@@ -64,3 +64,4 @@
 /* Milestone 16: a source that is not watched for changes gets a refresh button. */
 .mk-source-refresh { margin-left: auto; border: 0; background: none; color: var(--wb-ink-soft); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 4px; border-radius: 3px; }
 .mk-source-refresh:hover { color: var(--wb-ink); background: var(--wb-hover); }
+.mk-tree-more .mk-tree-label { font-style: italic; opacity: 0.75; }
