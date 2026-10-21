@@ -3,6 +3,7 @@ extension-description = SQL / Cypher query box and result grid for database sour
 table-running = Running…
 table-run = Run (Ctrl+Enter)
 table-graph-title = Draw the nodes and edges this query returns in the Graph panel
+table-dialect-title = Query language: { $dialect }
 table-graph = Show in Graph
 table-loading = Loading…
 table-counts = { $rows } rows · { $columns } columns

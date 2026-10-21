@@ -118,6 +118,7 @@ impl Source for GitHistorySource {
                 write: false,
                 watch: false,
                 text_query: None,
+                extra_text_query: None,
             },
             root: self.root,
         }

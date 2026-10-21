@@ -44,12 +44,12 @@ impl WorkspaceHost {
                 let mut out = String::from("id\tname\tfamily\tdialect\troot\n");
                 for s in ws.sources.open.peek().iter() {
                     let d = &s.descriptor;
-                    let dialect = match d.capabilities.text_query {
-                        Some(d) => d.name(),
-                        None => match d.family {
-                            SourceFamily::Index => "search",
-                            _ => "-",
-                        },
+                    // Every dialect, the main one first (`sql,query` for Sophia).
+                    let names: Vec<_> = d.capabilities.text_dialects().map(|d| d.name()).collect();
+                    let dialect = match (names.is_empty(), &d.family) {
+                        (false, _) => names.join(","),
+                        (true, SourceFamily::Index) => "search".into(),
+                        (true, _) => "-".into(),
                     };
                     let _ = writeln!(
                         out,

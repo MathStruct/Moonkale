@@ -19,9 +19,11 @@ Rules:
 **Folder source version semantics (WP-23):** Query node versions are cheap metadata change hints, while `fetch_text`/`fetch_bytes` return exact-byte content hashes. Always pass the fetched text version to `WriteText.expected`; a listing version is not a save precondition. Workspace state/history/settings writers now fetch first and refuse failed reads. The wire type remains `Version(u64)`; no tag is cut here.
 
 **moonkale-core**
+- **Breaking for struct literals:** `Capabilities` gains `extra_text_query: Option<TextDialect>`, a second dialect the source also answers; add `extra_text_query: None` (or finish with `..Default::default()`). Missing in serialized descriptors, it reads as `None`. `Capabilities::text_dialects()` lists both, main first. `TextDialect` gains `SophiaQuery` (wire name `query`, Sophia SPEC-007); exhaustive matches must handle it (2026-10-21).
 - Additive `graph::code` string constants define the shared L2 vocabulary; new kinds use existing `Custom` values. `NodeKind::definition()` constructs the new kind and `is_definition()` reads it and legacy `Symbol` values. No enum variants, fields, or legacy wire encodings change.
 
 **moonkale-ext-api**
+- Followed sources now reload open documents without unsaved edits when the change feed names them or resets, comparing text as well as version (2026-10-21). No API change.
 - `EditorAction` gains six `Native*` variants for Rust editor palette commands (reload, hover, completion, Markdown/doc preview, CodeMirror switch). Exhaustive callers must handle these; other backends may ignore them (WP-69).
 - Additive `workspace::grouped_edits` composes bounded immutable document proposals, coordinates all-buffer apply/undo/redo with persistent editor adapters, retires unsafe history and reports independent per-file saves. `RevisionedDocument::apply_group` / `history_group` expose opaque group boundaries; ordinary document APIs retain their behavior. No source write occurs during apply/history.
 - Save completion acknowledges the exact submitted text/version rather than a newer live buffer. Edits during an in-flight save remain dirty, and recorded history uses the submitted character count (P-206).

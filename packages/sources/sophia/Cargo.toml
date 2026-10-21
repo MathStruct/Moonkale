@@ -17,5 +17,6 @@ sophia-store = { git = "https://github.com/MathStruct/Sophia.git", rev = "202e13
 tokio = { version = "1", features = ["rt", "time"] }
 
 [dev-dependencies]
+serde_json = "1"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

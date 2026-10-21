@@ -8,7 +8,7 @@ use moonkale_core::{
 use sophia_interface::{
     Direction as SDirection, EdgeView, EditError, Interface, Key, NodeView, Prop, Subgraph,
 };
-use sophia_store::query::{QueryLimits, Value as SValue};
+use sophia_store::query::{QueryLimits, Value as SValue, VIEWS};
 use sophia_store::sqlite::Sqlite;
 use sophia_store::StoreError;
 use std::collections::{BTreeSet, HashMap};
@@ -29,6 +29,11 @@ const MAX_KEYS: usize = 1_000_000;
 const LONG_POLL: Duration = Duration::from_secs(25);
 const POLL_EVERY: Duration = Duration::from_millis(500);
 const FEED_BATCH: usize = 256;
+/// The folder of Sophia's SQL views under the root, so the table panel can
+/// open them like a database's tables. Moonkale's, not Sophia's: no store
+/// key starts with `moonkale:` or `table:`.
+const VIEWS_DIR: &str = "moonkale:views";
+const VIEW_PREFIX: &str = "table:";
 
 pub struct SophiaSource {
     id: SourceId,
@@ -96,6 +101,7 @@ impl SophiaSource {
         };
         source.remember(&root_key);
         source.remember(&Key::settings());
+        source.remember_views();
         Ok(source)
     }
 
@@ -106,9 +112,65 @@ impl SophiaSource {
             keys.clear();
             keys.insert(self.root, self.iface.root());
             keys.insert(key_id(&self.id, &Key::settings()), Key::settings());
+            for k in view_keys() {
+                keys.insert(key_id(&self.id, &k), k);
+            }
         }
         keys.insert(id, key.clone());
         id
+    }
+
+    fn remember_views(&self) {
+        for k in view_keys() {
+            self.remember(&k);
+        }
+    }
+
+    /// The views folder or one view, which Sophia doesn't know.
+    fn view_node(&self, key: &Key) -> Option<Node> {
+        let Key::Derived(s) = key else { return None };
+        let (kind, label) = if s == VIEWS_DIR {
+            (NodeKind::Directory, "views")
+        } else {
+            let v = s.strip_prefix(VIEW_PREFIX)?;
+            (NodeKind::Table, *VIEWS.iter().find(|n| **n == v)?)
+        };
+        Some(Node {
+            id: key_id(&self.id, key),
+            source: self.id.clone(),
+            kind,
+            label: label.into(),
+            native_key: s.clone(),
+            content: None,
+            version: Version(0),
+            props: Default::default(),
+        })
+    }
+
+    fn contains(&self, from: NodeId, to: NodeId) -> Edge {
+        Edge {
+            source: self.id.clone(),
+            from,
+            to,
+            kind: EdgeKind::Contains,
+            props: Default::default(),
+        }
+    }
+
+    /// The views folder's subgraph: the folder, its views, and the root's
+    /// edge to it.
+    fn views_graph(&self) -> QueryResult {
+        let keys = view_keys();
+        let nodes: Vec<Node> = keys.iter().filter_map(|k| self.view_node(k)).collect();
+        let dir = nodes[0].id;
+        let mut edges = vec![self.contains(self.root, dir)];
+        edges.extend(nodes[1..].iter().map(|n| self.contains(dir, n.id)));
+        QueryResult {
+            nodes,
+            edges,
+            table: None,
+            truncated: false,
+        }
     }
 
     fn key(&self, id: NodeId) -> Result<Key, SourceError> {
@@ -187,6 +249,15 @@ impl SophiaSource {
     }
 
     async fn op(&self, op: Op) -> Result<(NodeId, Version), SourceError> {
+        let target = match &op {
+            Op::WriteText { node, .. } | Op::Rename { node, .. } | Op::Delete { node } => *node,
+            Op::CreateText { parent, .. } | Op::CreateDir { parent, .. } => *parent,
+        };
+        if self.key(target).is_ok_and(|k| self.view_node(&k).is_some()) {
+            return Err(SourceError::Unsupported(
+                "Sophia's views are read-only".into(),
+            ));
+        }
         match op {
             Op::WriteText {
                 node,
@@ -263,6 +334,17 @@ impl SophiaSource {
         }
         Ok((next.max(since), paths, reset))
     }
+}
+
+/// The views folder first, then one key per view.
+fn view_keys() -> Vec<Key> {
+    std::iter::once(Key::Derived(VIEWS_DIR.into()))
+        .chain(
+            VIEWS
+                .iter()
+                .map(|v| Key::Derived(format!("{VIEW_PREFIX}{v}"))),
+        )
+        .collect()
 }
 
 /// `Key::Content(d)` → `from_content(d)`; `Key::Derived(s)` → `derive(source, s)`.
@@ -381,6 +463,7 @@ impl Source for SophiaSource {
                 write: true,
                 watch: true,
                 text_query: Some(TextDialect::Sql),
+                extra_text_query: Some(TextDialect::SophiaQuery),
             },
             root: self.root,
         }
@@ -390,6 +473,9 @@ impl Source for SophiaSource {
         match query {
             Query::Node(id) => {
                 let key = self.key(id)?;
+                if let Some(n) = self.view_node(&key) {
+                    return Ok(QueryResult::single(n));
+                }
                 let v = self
                     .call(move |i| i.node(&key).map_err(store_error))
                     .await?;
@@ -398,10 +484,26 @@ impl Source for SophiaSource {
             }
             Query::Children(id) => {
                 let key = self.key(id)?;
+                match self.view_node(&key) {
+                    Some(n) if n.kind == NodeKind::Directory => {
+                        let mut r = self.views_graph();
+                        r.nodes.remove(0);
+                        r.edges.remove(0);
+                        return Ok(r);
+                    }
+                    Some(_) => return Ok(QueryResult::default()),
+                    None => {}
+                }
                 let g = self
                     .call(move |i| i.children(&key).map_err(store_error))
                     .await?;
-                Ok(self.result(&g, None))
+                let mut r = self.result(&g, None);
+                if id == self.root {
+                    let v = self.views_graph();
+                    r.nodes.push(v.nodes[0].clone());
+                    r.edges.push(v.edges[0].clone());
+                }
+                Ok(r)
             }
             Query::Neighbours {
                 node,
@@ -409,6 +511,9 @@ impl Source for SophiaSource {
                 direction,
             } => {
                 let key = self.key(node)?;
+                if self.view_node(&key).is_some() {
+                    return Ok(self.views_graph());
+                }
                 let dir = match direction {
                     Direction::Out => SDirection::Out,
                     Direction::In => SDirection::In,
@@ -433,6 +538,9 @@ impl Source for SophiaSource {
             // What the workspace asks for each path the change feed named.
             Query::Text { dialect, text } if dialect == "path" => {
                 let key = parse_native_key(&text)?;
+                if let Some(n) = self.view_node(&key) {
+                    return Ok(QueryResult::single(n));
+                }
                 let v = self
                     .call(move |i| i.node(&key).map_err(store_error))
                     .await?;
@@ -478,6 +586,9 @@ impl Source for SophiaSource {
 
     async fn fetch_text(&self, node: NodeId) -> Result<(String, Version), SourceError> {
         let key = self.key(node)?;
+        if self.view_node(&key).is_some() {
+            return Err(SourceError::Unsupported("a view has no text".into()));
+        }
         let (text, v) = self
             .call(move |i| i.fetch_text(&key).map_err(store_error))
             .await?;

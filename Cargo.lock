@@ -7570,6 +7570,7 @@ name = "moonkale-sources-sophia"
 version = "0.1.0"
 dependencies = [
  "moonkale-core",
+ "serde_json",
  "sophia-interface",
  "sophia-store",
  "tempfile",

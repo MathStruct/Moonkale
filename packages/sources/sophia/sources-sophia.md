@@ -1,6 +1,6 @@
 # Sophia source (WP-68)
 
-`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialect `sql` (the source also answers `query`, Sophia's own language). Enable the default-off `sophia` feature in `desktop`, `web` (client and server builds) or `moonkale-distribution`; the server has its own matching feature. This is a source driver, not an extension manifest.
+`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialects `sql` and `query` (`extra_text_query`), Sophia's own language. Enable the default-off `sophia` feature in `desktop`, `web` (client and server builds) or `moonkale-distribution`; the server has its own matching feature. This is a source driver, not an extension manifest.
 
 ## Dependency
 
@@ -25,17 +25,19 @@ The reader id is given once at open (SPEC-004 §4): `SophiaSource::open_as(path,
 
 ## Change feed
 
-`changes_since` polls Sophia's log every 500 ms for up to 25 s. The first call only returns the position. `paths` are the changed native keys, which the workspace resolves through `Query::Text { dialect: "path" }`; a gone name falls back to `derive(source, path)`, which is its old id. A rendering-profile change (or a log batch that didn't fit) is `reset`: everything is re-read, since every definition's text may have changed.
+`changes_since` polls Sophia's log every 500 ms for up to 25 s. The first call only returns the position. `paths` are the changed native keys, which the workspace resolves through `Query::Text { dialect: "path" }`; a gone name falls back to `derive(source, path)`, which is its old id. A rendering-profile change (or a log batch that didn't fit) is `reset`: everything is re-read, since every definition's text may have changed. Open names without unsaved edits are reprinted then too; the version stays, so the workspace compares the text.
 
 ## Queries
 
 `Query::Text { dialect: "sql" }` runs on Sophia's documented views through its read-only guard (a read-only connection, an authorizer, 10 000 rows, a step budget) and answers a table plus the definitions its id columns name. Writes are refused by Sophia. `classify` keeps Moonkale's shared rules, so a write statement still counts as a write for the agent's policy.
 
-`Query::Text { dialect: "query" }` (from revision 202e137a) runs Sophia's own query language (Sophia SPEC-007 §8) on any backend: a table, with ids as hex text, plus the definitions its id cells name. It is read-only by construction, so `classify("query")` is `Read`. A query with parameters can't run as text. The descriptor still names `sql`, since it has one dialect field. Other dialects are `Unsupported`.
+`Query::Text { dialect: "query" }` (from revision 202e137a) runs Sophia's own query language (Sophia SPEC-007 §8) on any backend: a table, with ids as hex text, plus the definitions its id cells name. It is read-only by construction, so `classify("query")` is `Read`. A query with parameters can't run as text. The descriptor names both, so the table panel shows a button for each and the agent's `workspace.list_sources` prints `sql,query`. Other dialects are `Unsupported`.
+
+**Views as tables** (2026-10-21): the root has a `views` folder (`moonkale:views`) with one `Table` node per Sophia SQL view (`sophia_store::query::VIEWS`, native key `table:<view>`), so the table panel opens them as it does a database's tables (`SELECT * FROM "definitions" LIMIT 1000`). They are the adapter's, not Sophia's: no text, read-only, not in the change feed or `Query::All`.
 
 ## Tests
 
-`tests/acceptance.rs` runs SPEC-004 §9 through the `Source` trait only: the sample browses from the root; an edit moves the name to new content, and a parse error and a stale version leave it; a rename arrives through the change feed and resolves like the workspace resolves it; a profile switch reprints with no id change and resets; two clients on one file in two profiles see one id in two spellings, and a stale save through a recursive group conflicts instead of overwriting the other client's edit (Sophia's review demonstration 2); `sql` returns a table and nodes and refuses a write; `query` answers Sophia's transitive-users example and refuses a parse error; text creates names and directories; a store file opens. `moonkale-editor-graph`'s `sophia_names_and_definitions_reach_renderer` checks the graph panel's payload.
+`tests/acceptance.rs` runs SPEC-004 §9 through the `Source` trait only: the sample browses from the root; an edit moves the name to new content, and a parse error and a stale version leave it; a rename arrives through the change feed and resolves like the workspace resolves it; a profile switch reprints with no id change and resets; two clients on one file in two profiles see one id in two spellings, and a stale save through a recursive group conflicts instead of overwriting the other client's edit (Sophia's review demonstration 2); `sql` returns a table and nodes and refuses a write; `query` answers Sophia's transitive-users example and refuses a parse error; the views folder lists the nine views as tables, both default queries answer, and the views refuse edits; text creates names and directories; a store file opens. `moonkale-editor-graph`'s `sophia_names_and_definitions_reach_renderer` checks the graph panel's payload.
 
 ## Timing the edit loop
 

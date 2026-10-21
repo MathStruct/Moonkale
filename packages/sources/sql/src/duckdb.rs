@@ -357,6 +357,7 @@ impl Source for DuckDbSource {
                 write: false,
                 watch: false,
                 text_query: Some(TextDialect::Sql),
+                extra_text_query: None,
             },
             root: self.root_id(),
         }

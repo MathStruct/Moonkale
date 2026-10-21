@@ -20,6 +20,8 @@ fn default_query(node: &Node, dialect: &str) -> String {
             // native key is the bare name either way.
             format!("MATCH (n:{table}) RETURN n LIMIT 200")
         }
+        // Sophia's own language: every name and what it points at.
+        "query" => "select p, d where name(p, d)".to_string(),
         // Milestone 17: key/value tables and Helix labels.
         "kv" => format!("scan {} limit 1000", quote_word(table)),
         "helix" => {
@@ -53,15 +55,26 @@ fn dialect_name(d: Option<TextDialect>) -> &'static str {
 #[component]
 pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let source_id = node.source.clone();
-    let dialect = ws
+    // Every dialect the source answers, its main one first (a Sophia store
+    // offers `sql` and `query`); one button each when there are several.
+    let dialects: Vec<&'static str> = ws
         .sources
         .open
         .peek()
         .iter()
         .find(|s| s.descriptor.id == source_id)
-        .map(|s| dialect_name(s.descriptor.capabilities.text_query))
-        .unwrap_or("sql");
-    let mut text = use_signal(|| default_query(&node, dialect));
+        .map(|s| {
+            let caps = s.descriptor.capabilities;
+            let all: Vec<_> = caps.text_dialects().map(TextDialect::name).collect();
+            if all.is_empty() {
+                vec![dialect_name(None)]
+            } else {
+                all
+            }
+        })
+        .unwrap_or_else(|| vec!["sql"]);
+    let mut dialect = use_signal(|| dialects[0]);
+    let mut text = use_signal(|| default_query(&node, dialects[0]));
     // Shared, not cloned per render: a result can hold 50 000 rows.
     let mut result: Signal<Option<Result<Rc<QueryResult>, SourceError>>> = use_signal(|| None);
     let mut running = use_signal(|| false);
@@ -73,22 +86,17 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         move || {
             let source_id = source_id.clone();
             let text = text.peek().clone();
+            let dialect = dialect.peek().to_string();
             spawn(async move {
                 running.set(true);
                 let out = match ws.source(&source_id) {
-                    Some(s) => s
-                        .query(Query::Text {
-                            dialect: dialect.into(),
-                            text,
-                        })
-                        .await
-                        .and_then(|r| {
-                            if r.table.is_none() {
-                                Err(SourceError::Invalid("query returned no rows".into()))
-                            } else {
-                                Ok(r)
-                            }
-                        }),
+                    Some(s) => s.query(Query::Text { dialect, text }).await.and_then(|r| {
+                        if r.table.is_none() {
+                            Err(SourceError::Invalid("query returned no rows".into()))
+                        } else {
+                            Ok(r)
+                        }
+                    }),
                     None => Err(SourceError::NotFound),
                 };
                 result.set(Some(out.map(Rc::new)));
@@ -110,7 +118,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
             let mut ws = ws;
             ws.docs.graph_request.set(Some(GraphRequest {
                 source: source_id.clone(),
-                dialect: dialect.into(),
+                dialect: dialect.peek().to_string(),
                 text: text.peek().clone(),
             }));
             // The Graph tab usually shares this tile; bring it forward.
@@ -118,10 +126,43 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         }
     };
 
+    let pick = {
+        let run = run.clone();
+        let node = node.clone();
+        move |d: &'static str| {
+            let old = *dialect.peek();
+            if old == d {
+                return;
+            }
+            // Untouched default text follows the language; edited text stays.
+            if *text.peek() == default_query(&node, old) {
+                text.set(default_query(&node, d));
+            }
+            dialect.set(d);
+            run();
+        }
+    };
+
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-table",
             div { class: "mk-table-query",
+                if dialects.len() > 1 {
+                    div { class: "mk-table-dialects", role: "group",
+                        for d in dialects.iter().copied() {
+                            button {
+                                key: "{d}",
+                                class: if dialect() == d { "mk-btn mk-btn-on" } else { "mk-btn" },
+                                title: t!(ws, L, "table-dialect-title", dialect = d),
+                                onclick: {
+                                    let mut pick = pick.clone();
+                                    move |_| pick(d)
+                                },
+                                "{d}"
+                            }
+                        }
+                    }
+                }
                 textarea {
                     class: "mk-table-sql",
                     rows: 2,
