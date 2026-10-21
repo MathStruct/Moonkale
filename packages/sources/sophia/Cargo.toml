@@ -12,8 +12,8 @@ moonkale-core = { workspace = true }
 # dependable (SPEC-004 §3a). SQLite only: it is the backend with `sql`, and
 # redb would move Moonkale's own redb.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-sophia-interface = { git = "https://github.com/MathStruct/Sophia.git", rev = "202e137ae8197cff2bea6d0d790201ef464884ea", default-features = false, features = ["sqlite"] }
-sophia-store = { git = "https://github.com/MathStruct/Sophia.git", rev = "202e137ae8197cff2bea6d0d790201ef464884ea", default-features = false, features = ["sqlite"] }
+sophia-interface = { git = "https://github.com/MathStruct/Sophia.git", rev = "4c2aaab3c1e2b12bbcf4109f45375e2c2630e4fe", default-features = false, features = ["sqlite"] }
+sophia-store = { git = "https://github.com/MathStruct/Sophia.git", rev = "4c2aaab3c1e2b12bbcf4109f45375e2c2630e4fe", default-features = false, features = ["sqlite"] }
 tokio = { version = "1", features = ["rt", "time"] }
 
 [dev-dependencies]
