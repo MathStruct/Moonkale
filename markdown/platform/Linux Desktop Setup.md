@@ -57,7 +57,9 @@ Debian/Ubuntu equivalents: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appind
 
 | Variable | When | Effect |
 |---|---|---|
-| `WEBKIT_DISABLE_DMABUF_RENDERER=1` | blank/black window, NVIDIA, Wayland | Dioxus sets the equivalent by default on Wayland; set explicitly under X11 if the window is black |
+| `WEBKIT_DISABLE_DMABUF_RENDERER=1` | black window under X11 | turns off WebKit's DMA-BUF renderer. Since WebKitGTK 2.54 the graph panel's WebGL canvas then stays blank (P-222), so Moonkale no longer sets it |
+| `__NV_DISABLE_EXPLICIT_SYNC=1` | NVIDIA, Wayland, "Error 71 (Protocol error)" | Moonkale sets it itself on Wayland when the NVIDIA driver is loaded (P-222) |
+| `MOONKALE_WEBKIT_X11=1` | the old setup | dioxus-desktop's workaround again: DMA-BUF renderer off and WebKit's processes on XWayland (no graph on WebKitGTK 2.54) |
 | `WEBKIT_DISABLE_COMPOSITING_MODE=1` | still broken | disables accelerated compositing entirely: everything renders, WebGL is gone |
 | `GDK_BACKEND=x11` | Wayland-specific glitches | forces XWayland for the app |
 | `__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia` | want the dGPU | PRIME offload for GL; for Vulkan use `VK_ICD_FILENAMES` / `MESA_VK_DEVICE_SELECT` |

@@ -22,6 +22,8 @@ use std::sync::{Arc, OnceLock};
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    #[cfg(all(feature = "desktop", target_os = "linux"))]
+    webkit_graphics_env();
     // Milestone 11: server functions always go to a loopback relay of our
     // own (dioxus's server URL can be set only once, before launch — P-098);
     // the relay pipes to the remote that is active, if any.
@@ -44,6 +46,26 @@ fn main() {
         .launch(App);
     #[cfg(not(feature = "desktop"))]
     dioxus::launch(App);
+}
+
+/// P-222: since WebKitGTK 2.54, a WebGL canvas stays blank when the DMA-BUF
+/// renderer is off, which is what dioxus-desktop does on every Wayland
+/// session (together with `GDK_BACKEND=x11` for WebKit's children), so the
+/// graph panel drew nothing. We keep WebKit on native Wayland with the DMA-BUF
+/// renderer instead. With the NVIDIA driver that alone ends in "Error 71
+/// (Protocol error)" from GTK; turning off the driver's explicit sync avoids
+/// it. Runs first in `main`, before any thread can read the environment.
+/// `MOONKALE_WEBKIT_X11=1` brings back dioxus' workaround.
+#[cfg(all(feature = "desktop", target_os = "linux"))]
+fn webkit_graphics_env() {
+    if std::env::var_os("MOONKALE_WEBKIT_X11").is_some()
+        || std::env::var("XDG_SESSION_TYPE").as_deref() != Ok("wayland")
+        || !std::path::Path::new("/proc/driver/nvidia/version").exists()
+        || std::env::var_os("__NV_DISABLE_EXPLICIT_SYNC").is_some()
+    {
+        return;
+    }
+    std::env::set_var("__NV_DISABLE_EXPLICIT_SYNC", "1");
 }
 
 /// P-061: with the proprietary NVIDIA driver, WebKitGTK's web process
@@ -608,6 +630,10 @@ fn window_config() -> dioxus::desktop::Config {
         // including the "Toggle Developer Tools" entry.
         .with_menu(None)
         .with_disable_context_menu(true)
+        // P-222: dioxus-desktop's Wayland workaround (DMA-BUF renderer off,
+        // WebKit's children on X11) leaves WebGL canvases blank on WebKitGTK
+        // 2.54; `webkit_graphics_env` sets what NVIDIA needs instead.
+        .with_disable_dma_buf_on_wayland(std::env::var_os("MOONKALE_WEBKIT_X11").is_some())
         // The web server's policy (moonkale_server::auth::CSP, #10) as far as a
         // meta tag can carry it (`frame-ancestors` only works as a header).
         .with_custom_head(

@@ -60,7 +60,7 @@ Signing needs a certificate (Windows, ~€200/yr) or an Apple Developer account 
 
 ## After installing
 - Start it, *File → Open Folder…*, and open a `.md` or `.rs` file. If the editor shows "Loading editor…" forever, the assets were not found next to the binary: tell us the install method.
-- NVIDIA + Wayland on Linux and the window stays blank: start with `WEBKIT_DISABLE_DMABUF_RENDERER=1 moonkale` (see [[Linux Desktop Setup]]).
+- NVIDIA + Wayland on Linux and the window stays blank or GTK reports "Error 71": start with `MOONKALE_WEBKIT_X11=1 moonkale` and tell us (see [[Linux Desktop Setup]]). That setting leaves the graph panel blank on WebKitGTK 2.54 and later.
 - Language servers (rust-analyzer, pyright, …) are found on `PATH`; Claude Code needs the `claude` CLI logged in; nothing else is required.
 
 ## Server in a container
