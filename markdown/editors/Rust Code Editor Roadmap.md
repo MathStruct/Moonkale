@@ -330,3 +330,28 @@ Build/size measurements, complete test commands, remaining device/frame checks
 and the staged zero-consumer retirement audit live in the acceptance record.
 Daniel's physical-desktop CED-R22 matrix and Android acceptance remain required
 before flipping the default. macOS/Windows remain explicitly unverified.
+
+
+### NEXT-8 — real-desktop recorder follow-up (2026-10-22)
+
+Daniel's KDE/NVIDIA/60 Hz raw reports have 17–18 ms p95 and at most 48 ms,
+but cannot be treated as a complete acceptance matrix: several gestures did
+not qualify, and idle callback medians underestimated cadence. P-225 corrects
+idle/input accounting without changing either timing gate; the clock regression
+also rejects missed frames, slow calibration and no-op input. The raw reports
+are retained unchanged; the corrected recorder needs a fresh hardware run.
+
+P-226 tracks the reported native Ctrl+Z failure. Real compositor Ctrl+Z removes
+the final typed character in the fresh private-display FPS host, including while
+recording. The divergence guard remains necessary for external edits; removing
+it without reproduction could corrupt history. Opt-in text/input observations
+and a dedicated OS-input suite provide evidence for the follow-up. This is not
+a claim that the real-session failure is fixed or that desktop FPS acceptance
+is complete.
+
+Validation: 19 recorder clock/input regressions; browser transport, arrow and
+small-scroll checks; three native compositor-input cases with exact typing,
+undo/redo and selected replacement undo; six recorded native interactions (112
+arrows or 63 small viewport movements each). Workspace tests: 776 passed,
+five ignored. These native runs use a development build and explicit diagnostic
+observers; their timings do not establish FPS acceptance.

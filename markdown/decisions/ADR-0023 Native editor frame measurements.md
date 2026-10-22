@@ -48,3 +48,39 @@ Raw pre-optimization rerun: `/tmp/moonkale-desktop-fps-corrected-20261015{.json,
 ### Bounded private-cache follow-up — 2026-10-15
 
 With master `0aef7472` (private persistent cache/data/config homes), the release fixture was rebuilt. One three-case wheel warm-up attempt and one full 21-case guarded attempt both aborted before launching a case: aggregate CPU never met two consecutive <=10% samples in six attempts. No cache-warm comparison or new frame result is available; neither attempt proves or disproves removal of the prior210ms preview-wheel pause. Raw preflight samples and logs: `/tmp/moonkale-next3-{warmup,desktop}*`. No further headless gate iteration is planned in this run. The real GPU/desktop check remains Daniel's final acceptance; its commands, files, seven gestures and strict versus calibrated criteria are in the coordinator handoff. WP-03 proceeds through its own milestone gates while this desktop acceptance remains explicitly open.
+
+
+## Idle-callback calibration correction — 2026-10-22 (P-225)
+
+Daniel's 2026-10-21 KDE/NVIDIA/60 Hz reports contain 1–16 ms idle callback
+spacings (one sample's median is 8 ms), followed by steady 16–18 ms gesture
+frames. A median of those idle callbacks is not a refresh estimate. The FPS
+host contains one recorder rAF loop; clicking Record and waiting four seconds
+on private sway/Mesa did not reproduce the short callbacks. The chronological intervals alternate in pairs (13+3, 14+2, 15+1 ms),
+consistent with two out-of-phase scheduling sources splitting one cadence.
+WebKitGTK 2.54.1's [render scheduler](https://github.com/WebKit/WebKit/blob/webkitgtk-2.54.1/Source/WebCore/page/RenderingUpdateScheduler.cpp)
+has both a display monitor and a timer fallback; the pairing is evidence for a
+scheduling hypothesis, not proof that either path is at fault. WebKit's
+[GTK/WPE timing issue](https://bugs.webkit.org/show_bug.cgi?id=238999) also
+explains why rAF timestamps cannot be equated with physical refresh.
+The precise hardware/backend scheduling cause remains unproven; there is no evidence of a
+second recorder loop. Reports now also retain idle rAF deltas to distinguish
+callback scheduling from the rAF clock on the next hardware run.
+
+Use the idle **95th percentile** as the upper-envelope cadence estimate, replacing
+the idle median above. Short inter-refresh callbacks no longer dominate it;
+long idle stalls remain conservative calibration failures. Retain at least 30
+samples, reject baselines above 17 ms, and leave both gates unchanged: fractional
+p95 ≤16.7 ms/max ≤50 ms; quantized p95 ≤1.5×baseline/max ≤50 ms. The raw polluted
+sample regression estimates 15 ms and accepts ordinary 60 Hz frames while
+rejecting 32 ms frames. This is a scheduling estimate, not physical presentation
+timing or proof of the original strict desktop requirement.
+
+Interaction evidence counts actual arrow traversals and requires a changed
+caret or viewport, because Daniel's WebKitGTK reports delivered 91–112 arrow
+keydowns with no repeat flags. Small-scroll recording counts ≤10 pixel document
+viewport movements, including smooth scrolling from larger wheel deltas, and
+requires trusted wheel input. Both axes use that same viewport; textarea-sink
+scroll events and wheel input with no document movement are rejected. Raw wheel
+axes/units and accumulated viewport travel are retained. The old 3 MB vertical
+wheel attempts with zero scroll events remain invalid interactions.
