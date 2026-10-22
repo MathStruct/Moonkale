@@ -31,6 +31,9 @@ pub const HIER_ROW: f32 = 70.0;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InNode {
+    /// Reserve a plain rectangle for a host component; suppress overlay ink.
+    #[serde(default)]
+    pub embed: bool,
     pub id: String,
     pub label: String,
     /// `"file" | "directory" | "page" | "symbol" | other` — picks the colour.
@@ -443,6 +446,9 @@ pub struct InDelta {
 /// aggregate sits where the group was).
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InDeltaNode {
+    /// Absent preserves the previous embed mode.
+    #[serde(default)]
+    pub embed: Option<bool>,
     pub id: String,
     pub label: String,
     pub kind: String,
@@ -574,6 +580,8 @@ pub enum InDirection {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
+    /// Host component rectangle, without engine label/icon/symbol.
+    pub embed: bool,
     pub id: String,
     pub label: String,
     pub kind: String,
@@ -791,6 +799,7 @@ impl Graph {
                 let deg = degree[i];
                 let n_kind = n.kind.clone();
                 let shape = match n.shape.as_deref() {
+                    _ if n.embed => Shape::Rect,
                     Some("rect") => Shape::Rect,
                     Some("diamond") => Shape::Diamond,
                     _ => Shape::Circle,
@@ -800,6 +809,7 @@ impl Graph {
                     None => (r * t.cos(), r * t.sin()),
                 };
                 Node {
+                    embed: n.embed,
                     radius: match (shape, n.width) {
                         (Shape::Rect | Shape::Diamond, w) => w.unwrap_or(RECT_WIDTH),
                         (Shape::Circle, Some(w)) => w,
@@ -1114,12 +1124,14 @@ impl Graph {
                     None => (old.x, old.y, old.z, old.pinned),
                 };
                 let shape = match n.shape.as_deref() {
+                    _ if n.embed.unwrap_or(old.embed) => Shape::Rect,
                     Some("rect") => Shape::Rect,
                     Some("circle") => Shape::Circle,
                     Some("diamond") => Shape::Diamond,
                     _ => old.shape, // absent keeps the silhouette
                 };
                 let new = Node {
+                    embed: n.embed.unwrap_or(old.embed),
                     id: n.id,
                     label: n.label,
                     kind: n.kind,
@@ -1170,11 +1182,13 @@ impl Graph {
                 let z = layer_z(&n.kind, self.nodes.len());
                 ids.insert(n.id.clone(), self.nodes.len());
                 let shape = match n.shape.as_deref() {
+                    _ if n.embed.unwrap_or(false) => Shape::Rect,
                     Some("rect") => Shape::Rect,
                     Some("diamond") => Shape::Diamond,
                     _ => Shape::Circle,
                 };
                 self.nodes.push(Node {
+                    embed: n.embed.unwrap_or(false),
                     id: n.id,
                     label: n.label,
                     kind: n.kind,
@@ -1642,6 +1656,42 @@ mod delta_tests {
             ],
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn embed_forces_rectangle_and_survives_incremental_changes() {
+        let mut input = input();
+        input.nodes[0].embed = true;
+        input.nodes[0].symbol = Some("M0 0L10 10".into());
+        let mut g = Graph::from_input(input);
+        assert!(g.nodes[0].embed);
+        assert_eq!(g.nodes[0].shape, Shape::Rect);
+        let edges = g.edges.clone();
+        let id = g.nodes[0].id.clone();
+        g.apply_delta(InDelta {
+            add_nodes: vec![InDeltaNode {
+                id: id.clone(),
+                label: "changed".into(),
+                kind: "file".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert!(g.nodes[0].embed);
+        assert_eq!(g.edges, edges);
+        g.apply_delta(InDelta {
+            add_nodes: vec![InDeltaNode {
+                id,
+                label: "changed".into(),
+                kind: "file".into(),
+                embed: Some(false),
+                shape: Some("circle".into()),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert!(!g.nodes[0].embed);
+        assert_eq!(g.nodes[0].shape, Shape::Circle);
     }
 
     fn delta_node(id: &str, pos: [f32; 2]) -> InDeltaNode {

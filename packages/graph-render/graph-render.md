@@ -174,3 +174,27 @@ Raw logs/screenshots and reproduction scripts stay under `target/next9/`
 (`native-baseline.log`, `native-final-six.log`, `native-first-at-2.7s.png`,
 `browser-{baseline,final}-warm.log`). They contain no store payload contents;
 the disposable store and exported JSON remain untracked in that directory.
+
+## Canvas components (WP-04, 2026-10-22)
+
+The frame loop reports `{kind:"camera", scale, offset:[x,y], width, height,
+threeD}` after drawing whenever its 2D mapping, viewport or mode changes. The
+mapping is `screen = world * scale + offset`, in CSS pixels, independent of DPR.
+Pan, wheel/pinch zoom, fit, resize, layout auto-fit and restored views share this
+path; multiple changes before a frame produce one report. There is an initial
+report, and unchanged frames produce none. Hosts must not synchronously call
+back into the view from its event callback (the state is borrowed).
+
+`InNode.embed` defaults to false. True forces a rectangular engine body and
+suppresses the node's label, caption, glyph and schematic symbol. The opaque
+rectangle remains below DOM content and at low detail; topology, ports, layout,
+selection and dragging still belong to the engine. Delta nodes accept an
+optional `embed` (absent preserves it). Existing symbols are retained as data,
+so clearing embed can restore them. Graph/camera unit tests and `graph-camera.mjs`
+cover the additive protocol and committed wasm.
+
+`set_fit_scale_limit(limit)` optionally caps subsequent automatic fits (default
+12×, unchanged for graph views). Flow sets a viewport-aware ceiling up to 1×
+to leave room for parameter cards around a lone block. It rejects non-finite
+limits and clamps to the engine's zoom range; explicit wheel/pinch zoom remains
+unrestricted. Native tests cover this distinction.

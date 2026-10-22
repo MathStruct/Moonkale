@@ -17,6 +17,7 @@ packages/
 │
 ├─ core/ (2 055)               moonkale-core          ids, Node/Edge (+ properties), Source, Query, Transaction, EntityLog   [library]
 ├─ ext-api/ (7 709)            moonkale-ext-api       the contract: Extension, contributions, Workspace, settings, i18n; CHANGELOG.md   [library]
+├─ canvas-layer/              moonkale-canvas-layer  shared Dioxus world-space cards, camera transform, LOD and header input [component]
 ├─ graph-render/ (2 643)       moonkale-graph-render  layout + camera + wgpu renderer; `scene` (graph in, events out); no Moonkale deps   [library]
 ├─ ext-abi/ (108)              moonkale-ext-abi       the wasm ABI's JSON types                                       [layer]
 ├─ ext-host/ (514)             moonkale-ext-host      wasm runtime (wasmtime)                                        [platform]
@@ -169,3 +170,5 @@ Workspace crates are `moonkale-*` to avoid collisions (`core` is a reserved crat
 
 ## Reading order for a new contributor
 `core/src/lib.rs` → `core/src/graph/node.rs` → `core/src/source/mod.rs` (the `Source` trait) → `ext-api/src/extension.rs` (the `Extension` trait) → `ext-api/src/workspace.rs` (the host handle; long) → `shell/src/lib.rs` (`default_extensions`) → one editor's `extension.rs` and `panel.rs` → `editors/code/src/backend/mod.rs` (the JS swap point). Each crate's `<crate>.md` next to its `Cargo.toml` has the implementation notes.
+
+`packages/canvas-layer` is a shared component boundary (WP-05): it depends only on Dioxus and serde, never editor extensions or the shell. Flow is its first consumer; graph/canvas hosts can supply the same camera and world bounds. See `packages/canvas-layer/canvas-layer.md`.

@@ -711,7 +711,7 @@ impl Renderer {
             let mut color = if h { [1.0, 1.0, 1.0, 1.0] } else { n.color };
             // A symbol is the block (ADR-0024): its body is a faint tint
             // the overlay's strokes sit on — and still the hit area.
-            if n.symbol.is_some() {
+            if n.symbol.is_some() && !n.embed {
                 color[3] = if h || sel { 0.16 } else { 0.08 };
             }
             if hidden {
@@ -719,7 +719,7 @@ impl Renderer {
             }
             NodeAttr {
                 color,
-                radius: if h && n.symbol.is_some() {
+                radius: if n.embed || (h && n.symbol.is_some()) {
                     n.radius
                 } else if h {
                     n.radius * 1.4

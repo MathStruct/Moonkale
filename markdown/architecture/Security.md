@@ -199,3 +199,13 @@ and bounded workspace cache. Display-only data URLs never replace document
 paths. Node views request at most 128 images per mount, with 4096-byte paths;
 remote destinations and source escapes receive no URL. Stale backend responses
 are discarded. No new dependency, network fetch or parser is introduced.
+
+WP-04/05 canvas components (2026-10-22) add numeric camera reports and a host-only
+Dioxus component layer. Node content remains escaped Dioxus text/attributes;
+`embed` does not introduce HTML, scripts or extension authority. Pointer capture
+uses a fixed eval script with a serialized element id and pointer number. Bounds
+reject non-finite camera/geometry data, and invisible/small cards unmount. The
+shared crate reuses existing Dioxus/serde dependencies; no external connection,
+parser, persistence or extension contribution point is introduced.
+
+P-227 flow code generation now uses the fetched content version and text length together for replacements, and refuses failed reads. Query metadata versions never authorize generated-file overwrites; optimistic conflict checks remain enforced by the source.

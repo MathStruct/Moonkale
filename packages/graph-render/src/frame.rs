@@ -957,6 +957,7 @@ mod tests {
 
     fn node(id: &str, x: f32, y: f32) -> Node {
         Node {
+            embed: false,
             id: id.into(),
             label: id.into(),
             kind: "file".into(),

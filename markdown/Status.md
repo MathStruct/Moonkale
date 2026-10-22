@@ -43,6 +43,16 @@ private-display checks of Graph retention, Rich images and the German find bar.
 Windows recheck remains
 Daniel's. See [[Problem Log]], [[Markdown and Typst Editor]] and [[Code Editor]].
 
+## Canvas components (WP-04/05, checked 2026-10-23)
+
+The engine reports one changed camera mapping per frame and accepts embedded
+rectangles without label/symbol ink. A shared Dioxus `canvas-layer` crate mounts
+world-space cards over the two canvas surfaces, culls small/off-screen/3D cards,
+and isolates component clicks. Flow's parameter editor uses it, follows the
+camera and offers header dragging with one undo step. Automatic flow fits leave
+room for the card; explicit zoom remains free. Extension-provided node-kind views
+remain planned. See the Components on the canvas entry in [[specifications/README|Specifications]].
+
 ## By area
 
 | area | state | notes |

@@ -1,0 +1,10 @@
+[package]
+name = "moonkale-canvas-layer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared Dioxus component layer for 2D graph canvases"
+
+[dependencies]
+dioxus.workspace = true
+serde = { version = "1", features = ["derive"] }

@@ -16,6 +16,7 @@
 use crate::L;
 use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
+use moonkale_canvas_layer::{CanvasCamera, CanvasHeader, CanvasItem, CanvasLayer, CardDrag};
 use moonkale_core::NodeId as CoreNodeId;
 use moonkale_ext_api::flow::{
     bipartite_refusal, channel_refusal, find_kind, inner_ports, validate, Block, BlockPorts, Flow,
@@ -659,9 +660,6 @@ enum FromJs {
     Select {
         nodes: Vec<String>,
         edges: Vec<String>,
-        /// The first selected node's canvas position (stage 7c): the
-        /// parameter editor follows its block.
-        screen: Option<Vec<f32>>,
     },
     Connect {
         from: End,
@@ -678,9 +676,10 @@ enum FromJs {
         /// The nodes that moved — a drag-end names the dragged block,
         /// the Layout names every node.
         positions: BTreeMap<String, [f32; 2]>,
-        /// The dragged node's screen position, so the parameter editor
-        /// follows its block (stage 7c).
-        screen: Option<Vec<f32>>,
+    },
+    Camera {
+        #[serde(flatten)]
+        camera: CanvasCamera,
     },
     Settled,
 }
@@ -728,6 +727,8 @@ view.set_interaction("edit"); // the flow surface is always an edit surface
 const host = canvas.parentElement;
 const ro = new ResizeObserver(() => {
     const r = host.getBoundingClientRect();
+    // A lone block must leave room for its world-space parameter card.
+    view.set_fit_scale_limit(Math.min(1, r.width / 612));
     if (r.width > 0 && r.height > 0) view.resize(r.width, r.height, window.devicePixelRatio || 1);
 });
 ro.observe(host);
@@ -787,8 +788,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // coordinates are the document's).
     let mut undo_stack: Signal<Vec<String>> = use_signal(Vec::new);
     let mut redo_stack: Signal<Vec<String>> = use_signal(Vec::new);
-    // Where the selected block sits on the canvas (the editor follows).
-    let mut editor_pos: Signal<Option<(f32, f32)>> = use_signal(|| None);
+    // Shared world-to-screen mapping; header gestures keep one undo snapshot.
+    let mut camera = use_signal(CanvasCamera::default);
+    let mut card_drag: Signal<Option<(String, [f64; 2])>> = use_signal(|| None);
     // The open scope's stack of subflow ids (ADR-0021 §4): the root at
     // `[]`, a subflow once entered. The scene, the mutators and the
     // palette all serve whichever scope is on top; the engine never
@@ -798,6 +800,43 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // the canvas ids and `flowViews` key derive from it — a fixed id
     // made the second view draw into the first's canvas (the review's #6).
     let id = use_hook(|| format!("mk-flow-{node}"));
+
+    let mut fitted: Signal<Option<[f64; 4]>> = use_signal(|| None);
+    let mut fitted_scope: Signal<Vec<String>> = use_signal(Vec::new);
+    // LOD can remove a captured header before pointerup. Commit the last
+    // visible position as one gesture, so a later header starts fresh.
+    use_effect(move || {
+        let mapping = camera();
+        let current = flow.read();
+        let open = scope.read();
+        let selection = selected.read();
+        let drag = card_drag.read().clone();
+        let Some((before, _)) = drag else {
+            return;
+        };
+        let libs = ws.contrib.flow_libraries.read();
+        let visible = selection
+            .0
+            .first()
+            .and_then(|id| {
+                let b = current.scope(&open)?.blocks.iter().find(|b| &b.id == id)?;
+                let (_, k) = find_kind(&libs, &b.kind)?;
+                Some(mapping.visible(parameter_card_bounds(b, k.params.len()), [100.0, 32.0]))
+            })
+            .unwrap_or(false);
+        let after = current.to_json();
+        let moved_bounds = flow_scope_bounds(&current, &open);
+        drop((current, open, selection, libs));
+        if !visible {
+            // This effect can run before the scene effect. Record the
+            // gesture's envelope first so culling cannot trigger a refit.
+            fitted.set(moved_bounds);
+            card_drag.set(None);
+            if before != after {
+                push_undo(undo_stack, redo_stack, before);
+            }
+        }
+    });
 
     // Mount the renderer from the host element's `onmounted` event.
     let mount = {
@@ -824,11 +863,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         Ok(FromJs::Loaded) => loaded.set(true),
                         Ok(FromJs::Ready) => {}
                         Ok(FromJs::Error { message }) => error.set(Some(message)),
-                        Ok(FromJs::Select {
-                            nodes,
-                            edges,
-                            screen,
-                        }) => {
+                        Ok(FromJs::Select { nodes, edges }) => {
                             // An empty-canvas click pops a scope open
                             // (ADR-0021 §4) — the way out beside Escape.
                             if nodes.is_empty() && !scope.read().is_empty() {
@@ -836,10 +871,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     sc.pop();
                                 });
                                 selected.set((Vec::new(), Vec::new()));
-                                editor_pos.set(None);
                             } else {
-                                editor_pos
-                                    .set(screen.filter(|s| s.len() == 2).map(|s| (s[0], s[1])));
                                 selected.set((nodes, edges))
                             }
                         }
@@ -859,7 +891,6 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 if flow.read().subflow(&sub).is_some() {
                                     scope.with_mut(|sc| sc.push(sub));
                                     selected.set((Vec::new(), Vec::new()));
-                                    editor_pos.set(None);
                                     notice.set(None);
                                 }
                             }
@@ -892,7 +923,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 notice.set(Some(why));
                             }
                         }
-                        Ok(FromJs::Moved { positions, screen }) => {
+                        Ok(FromJs::Moved { positions }) => {
                             // The Layout reply (and a drag) never lands in
                             // a broken document (#11, the review's #3).
                             if broken.peek().is_some() {
@@ -911,15 +942,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 });
                             });
                             push_undo(undo_stack, redo_stack, before);
-                            // The editor follows a dragged selected block.
-                            let sel = selected.read().0.first().cloned();
-                            if let (Some(sel), Some(p)) = (sel, screen) {
-                                if positions.contains_key(&sel) && p.len() == 2 {
-                                    editor_pos.set(Some((p[0], p[1])));
-                                }
-                            }
                             sync(&flow, &mut last_text, &mut doc, &broken);
                         }
+                        Ok(FromJs::Camera { camera: next }) => camera.set(next),
                         Ok(FromJs::Settled) => {}
                         Err(dioxus::document::EvalError::Serialization(_)) => continue,
                         Err(_) => break,
@@ -949,8 +974,6 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // under the user.
     let eval_for_scene = eval;
     let loaded_for_scene = loaded;
-    let mut fitted: Signal<Option<[f64; 4]>> = use_signal(|| None);
-    let mut fitted_scope: Signal<Vec<String>> = use_signal(Vec::new);
     use_effect(move || {
         let open = scope();
         if loaded_for_scene() {
@@ -958,18 +981,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             push_graph(&eval_for_scene, &flow, &open, &libs);
             // The open scope's blocks bound the frame — entering a
             // scope refits by construction (its frame differs).
-            let bounds = flow
-                .read()
-                .scope(&open)
-                .map(|sc| sc.blocks.iter())
-                .into_iter()
-                .flatten()
-                .fold(None::<[f64; 4]>, |a, b| match a {
-                    None => Some([b.x, b.y, b.x, b.y]),
-                    Some([x0, y0, x1, y1]) => {
-                        Some([x0.min(b.x), y0.min(b.y), x1.max(b.x), y1.max(b.y)])
-                    }
-                });
+            let bounds = flow_scope_bounds(&flow.read(), &open);
             let scope_changed = *fitted_scope.peek() != open;
             if scope_changed {
                 fitted.set(None);
@@ -981,9 +993,13 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 _ => false,
             };
             if refit {
+                // Remember an expanded drag envelope without moving the
+                // camera. Closing a culled gesture must not refit it back.
                 fitted.set(bounds);
-                if let Some(ev) = eval_for_scene.peek().as_ref() {
-                    let _ = ev.send(ToJs::Fit);
+                if card_drag.peek().is_none() {
+                    if let Some(ev) = eval_for_scene.peek().as_ref() {
+                        let _ = ev.send(ToJs::Fit);
+                    }
                 }
             }
         }
@@ -1000,7 +1016,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             last_text.set(text.clone());
             undo_stack.write().clear();
             redo_stack.write().clear();
-            editor_pos.set(None);
+            card_drag.set(None);
             // The selection names blocks of the *old* document; keeping it
             // let Delete act on a stale view (#11, the review's #3).
             selected.set((Vec::new(), Vec::new()));
@@ -1086,19 +1102,23 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             let Some(src) = ws.source(&source) else {
                                 return;
                             };
-                            let chars = src
-                                .fetch_text(existing.id)
-                                .await
-                                .map(|(t, _)| t.chars().count())
-                                .unwrap_or(0);
-                            src.apply(moonkale_core::Transaction::write_text(
-                                existing.id,
-                                existing.version,
-                                moonkale_core::TextPatch::whole(&out.text, chars),
-                            ))
-                            .await
-                            .map(|_| existing)
-                            .map_err(|e| e.to_string())
+                            // P-227: query/listing versions are metadata hints;
+                            // only fetched content versions authorize a write.
+                            match src.fetch_text(existing.id).await {
+                                Ok((text, version)) => src
+                                    .apply(moonkale_core::Transaction::write_text(
+                                        existing.id,
+                                        version,
+                                        moonkale_core::TextPatch::whole(
+                                            &out.text,
+                                            text.chars().count(),
+                                        ),
+                                    ))
+                                    .await
+                                    .map(|_| existing)
+                                    .map_err(|e| e.to_string()),
+                                Err(e) => Err(e.to_string()),
+                            }
                         }
                         None => {
                             let root = ws.source(&source).map(|s| s.descriptor().root);
@@ -1294,7 +1314,6 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
         push_undo(undo_stack, redo_stack, before);
         selected.set((Vec::new(), Vec::new()));
-        editor_pos.set(None);
         notice.set(None);
         sync(&flow, &mut last_text, &mut doc, &broken);
     };
@@ -1329,9 +1348,19 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 open.pop();
             }
         }
+        // Keep the host selection consistent with the engine's id-preserving
+        // scene swap, dropping only instances absent from the restored scope.
+        let keep = flow.peek().scope(&open).map(|sc| {
+            (
+                sc.blocks.iter().map(|b| b.id.clone()).collect::<Vec<_>>(),
+                sc.wires.iter().map(|w| w.id.clone()).collect::<Vec<_>>(),
+            )
+        });
+        selected.with_mut(|(nodes, edges)| {
+            nodes.retain(|id| keep.as_ref().is_some_and(|(ids, _)| ids.contains(id)));
+            edges.retain(|id| keep.as_ref().is_some_and(|(_, ids)| ids.contains(id)));
+        });
         scope.set(open);
-        selected.set((Vec::new(), Vec::new()));
-        editor_pos.set(None);
         notice.set(None);
         sync(&flow, &mut last_text, &mut doc, &broken);
     };
@@ -1358,9 +1387,19 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 open.pop();
             }
         }
+        // Keep the host selection consistent with the engine's id-preserving
+        // scene swap, dropping only instances absent from the restored scope.
+        let keep = flow.peek().scope(&open).map(|sc| {
+            (
+                sc.blocks.iter().map(|b| b.id.clone()).collect::<Vec<_>>(),
+                sc.wires.iter().map(|w| w.id.clone()).collect::<Vec<_>>(),
+            )
+        });
+        selected.with_mut(|(nodes, edges)| {
+            nodes.retain(|id| keep.as_ref().is_some_and(|(ids, _)| ids.contains(id)));
+            edges.retain(|id| keep.as_ref().is_some_and(|(_, ids)| ids.contains(id)));
+        });
         scope.set(open);
-        selected.set((Vec::new(), Vec::new()));
-        editor_pos.set(None);
         notice.set(None);
         sync(&flow, &mut last_text, &mut doc, &broken);
     };
@@ -1416,7 +1455,6 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             sc.pop();
                         });
                         selected.set((Vec::new(), Vec::new()));
-                        editor_pos.set(None);
                     }
                 } else if matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("r") || c.eq_ignore_ascii_case("m"))
                     && !e.modifiers().alt()
@@ -1581,20 +1619,11 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         // The overlay is where clicks land (it sits on
                         // top) and takes the focus for the panel's keys.
                         canvas { id: "{id}-ov", class: "mk-flow-ov", tabindex: "0" }
-                        // One HTML editor for the selected node (spec 031
-                        // §7), floating beside its block on the canvas —
-                        // positioned from the engine's screen report, so it
-                        // follows the block (select, drag; a pan or zoom
-                        // while it is open waits for the next event).
+                        CanvasLayer { camera: camera(),
                         if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
+                            CanvasItem { camera: camera(), bounds: parameter_card_bounds(b, k.params.len()),
                             div {
                                 class: "mk-flow-props",
-                                style: match editor_pos() {
-                                    Some((x, y)) => {
-                                        format!("left: {:.0}px; top: {:.0}px;", (x + 60.0).max(6.0), (y - 18.0).max(6.0))
-                                    }
-                                    None => "display: none;".to_string(),
-                                },
                                 // Keys typed into a parameter field must not
                                 // reach the panel (Delete/Backspace remove the
                                 // selection); nor do the field's own Z/Y — a
@@ -1609,18 +1638,52 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                         e.stop_propagation();
                                     }
                                 },
+                                CanvasHeader { id: format!("{id}-card-header"), scale: camera().scale,
+                                    ondrag: {
+                                        let bid = b.id.clone();
+                                        move |event: CardDrag| {
+                                            if broken.peek().is_some() { return; }
+                                            let open = scope.peek().clone();
+                                            if card_drag.peek().is_none() {
+                                                let original = flow.peek().scope(&open).and_then(|sc| sc.blocks.iter().find(|b| b.id == bid).map(|b| [b.x,b.y]));
+                                                if let Some(original) = original {
+                                                    let before = flow.peek().to_json();
+                                                    card_drag.set(Some((before, original)));
+                                                }
+                                            }
+                                            let start = card_drag.peek().clone();
+                                            if let Some((before, original)) = start {
+                                                if event.cancelled {
+                                                    if let Ok(old) = Flow::parse(&before) { flow.set(old); }
+                                                } else {
+                                                    flow.with_mut(|f| { let _ = f.with_scope(&open, |blocks, _| {
+                                                        if let Some(b) = blocks.iter_mut().find(|b| b.id == bid) {
+                                                            b.x = original[0] + event.delta[0] as f64;
+                                                            b.y = original[1] + event.delta[1] as f64;
+                                                        }
+                                                    }); });
+                                                }
+                                                if event.finished {
+                                                    card_drag.set(None);
+                                                    if !event.cancelled && before != flow.peek().to_json() { push_undo(undo_stack, redo_stack, before); }
+                                                }
+                                                sync(&flow, &mut last_text, &mut doc, &broken);
+                                            }
+                                        }
+                                    },
                                 div { class: "mk-flow-props-title",
                                     span { "{b.id}" }
                                     {
                                         let (r, m) = (b.id.clone(), b.id.clone());
                                         let (mut turn, mut flip) = (reorient, reorient);
                                         rsx! {
-                                            button { class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
+                                            button { onpointerdown: move |e| e.stop_propagation(), class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
                                                 onclick: move |_| turn((vec![r.clone()], false)), {t!(ws, L, "flow-rotate")} }
-                                            button { class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
+                                            button { onpointerdown: move |e| e.stop_propagation(), class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
                                                 onclick: move |_| flip((vec![m.clone()], true)), {t!(ws, L, "flow-mirror")} }
                                         }
                                     }
+                                }
                                 }
                                 for p in k.params.iter() {
                                     {
@@ -1651,12 +1714,32 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     }
                                 }
                             }
+                            }
+                        }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/// Bounds of the document-owned block centres in the open scope.
+fn flow_scope_bounds(flow: &Flow, scope: &[String]) -> Option<[f64; 4]> {
+    flow.scope(scope)?.blocks.iter().fold(None, |a, b| match a {
+        None => Some([b.x, b.y, b.x, b.y]),
+        Some([x0, y0, x1, y1]) => Some([x0.min(b.x), y0.min(b.y), x1.max(b.x), y1.max(b.y)]),
+    })
+}
+
+/// The sidecar's declared world-space extent, shared by render and drag cleanup.
+fn parameter_card_bounds(block: &Block, params: usize) -> [f32; 4] {
+    [
+        (block.x + 60.0) as f32,
+        (block.y - 18.0) as f32,
+        234.0,
+        (42 + 26 * params) as f32,
+    ]
 }
 
 /// Remember the pre-mutation copy on the undo stack (capped; a new action

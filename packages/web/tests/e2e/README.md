@@ -586,3 +586,11 @@ Graph foregrounded over the most recently opened document. `rich-images`
 checks source-backed Rich images from a subfolder, escaped/remote path refusal
 and canonical relative destinations after saving. `codemirror-search` checks
 the German search panel, token-based controls and actual search selection.
+
+`graph-camera` uses the isolated committed-engine harness to check frame-coalesced
+camera mapping across resize/pan/zoom and embedded-node overlay suppression.
+`canvas-layer` uses the production flow panel (`julia` feature): world-space card
+following, click isolation, header drag with grouped undo/redo, zoom/off-screen
+unmount and fit remount. Run it alongside flow, subflow, graph-flow, mtk and rxinfer.
+
+`graph-pulse` uses pinned equal-length strokes and shared captures for both pulses. It rejects phase wraps and boundary peaks before comparing median forward velocities to the declared speeds; absolute displacement maxima are not a speed measurement (P-228). The existing low-detail animation suppression check remains.

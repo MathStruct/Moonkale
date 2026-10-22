@@ -152,10 +152,10 @@ try {
     await page.mouse.click(box.x + p[0], box.y + p[1]);
     await page.waitForSelector(".mk-flow-props", { timeout: 10000 });
     const rect = await page.$eval(".mk-flow-props", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top }; });
-    // The editor sits at the node's screen position + the panel's offset
-    // (60 right, 18 up) — canvas-relative engine coords against the page.
-    console.log(`\n  editor at ${rect.x.toFixed(0)},${rect.y.toFixed(0)} — node at ${(box.x + p[0] + 60).toFixed(0)},${(box.y + p[1] - 18).toFixed(0)}`);
-    if (Math.abs(rect.x - (box.x + p[0] + 60)) > 4 || Math.abs(rect.y - (box.y + p[1] - 18)) > 4) {
+    // The card offset is in world units; the shared camera transform scales it.
+    const scale = await page.evaluate(() => Object.values(window.moonkale.flowViews)[0].camera_state()[0]);
+    console.log(`\n  editor at ${rect.x.toFixed(0)},${rect.y.toFixed(0)} — node at ${(box.x + p[0] + 60 * scale).toFixed(0)},${(box.y + p[1] - 18 * scale).toFixed(0)}`);
+    if (Math.abs(rect.x - (box.x + p[0] + 60 * scale)) > 4 || Math.abs(rect.y - (box.y + p[1] - 18 * scale)) > 4) {
       throw new Error("the editor does not sit beside its block");
     }
     await page.keyboard.press("Escape"); // nothing bound; deselect below
@@ -361,6 +361,7 @@ try {
   console.log("\nFLOW E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);
+  console.log("canvas diagnostic", JSON.stringify(await page.evaluate(() => ({ layers: [...document.querySelectorAll(".mk-canvas-layer")].map(e=>e.getAttribute("style")), views: Object.values(window.moonkale?.flowViews||{}).map(v=>({camera:Array.from(v.camera_state()),selection:v.selection_state(),positions:v.node_positions()})) }))));
   await page.screenshot({ path: `${S}/s7b-fail.png` }).catch(() => {});
   console.log(logs.filter((l) => !/WARN|Copy Value/.test(l)).slice(-15).join("\n"));
   process.exitCode = 1;
