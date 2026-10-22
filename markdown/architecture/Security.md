@@ -184,3 +184,11 @@ Windows/macOS tests start advisory; the existing blocking security gates remain
 in force. No secrets, publishing or deployment permissions are supplied. Native
 symlink fixture coverage remains Unix-only; Windows path jail checks run without
 requiring elevated symlink privileges. See [[How to Write Tests]] for coverage.
+
+P-224 graph transport keeps the existing serde JSON parser/wire format: the
+panel sends its graph as a serde-escaped string through `Eval::send`, and the
+view passes the string directly to the renderer. No graph text becomes script,
+HTML or a URL. Numeric load profiling records timings only, never node contents.
+The two renderer regression suites serve only the two committed engine files
+from an ephemeral loopback test server with exact route matching and cleanup;
+no production connection, dependency or parser is added.

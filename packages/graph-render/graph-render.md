@@ -89,3 +89,88 @@ The session's real find (P-171): **dx serve was serving the engine one build beh
 ## Milestone 18 phase 6.1 — standalone
 - `scene.rs` — the Rust API: `Scene { graph, layout, camera }` with `new(InGraph)`, `from_json`, `resize`, `step` (→ `Event::Settled`), `settle(max_steps)`, `fit`, `node_at`, `screen_position`, `pointer_move` (→ `Event::Hover` when the node under the pointer changes), `click(x, y, double)`. `Event` serializes to exactly the JSON the wasm module emits (test `events_are_the_wasm_protocol`).
 - `examples/headless.rs` (a factor graph, no browser), `README.md` for users outside Moonkale (by git tag `lib-vN`).
+
+## P-223 / P-224 — overview gestures and first picture (2026-10-22)
+
+An overview dot remains a click target, but starts a pan when its projected
+radius is below 3 CSS pixels. Rectangles/diamonds use their larger half-extent;
+3D uses the same depth attenuation as the shader. Normal-size nodes still drag
+and pin. `graph-overview.mjs` drives a dense 10,000-node graph with real pointer
+input: overview drag changes the camera without changing any position, dots
+still click, and a normal-size node moves without changing the camera. The
+original committed engine fails that first assertion.
+
+`GraphView::load_stats()` reports milliseconds for JSON parsing, graph building,
+installation/fit, first layout (which may follow the first draw), first draw submission (including labels), and
+load-to-first-draw. Values reset on each successful full load; the last value
+stays zero until that graph is drawn. These are CPU submission timings, not GPU
+completion or compositor presentation. `graph-startup.mjs` loads the shipped
+assets directly, feeds 100,000 synthetic nodes (or `MOONKALE_GRAPH_PAYLOAD`), waits
+for a presentation opportunity and checks screenshot pixels. Set
+`GRAPH_STARTUP_GATE=1` to enforce its 3-second engine/presentation-opportunity
+budget. This isolated test excludes source queries, eval transport and app
+startup; it cannot establish desktop acceptance.
+
+The full-load path now submits the fitted spiral/retained positions before the
+first force-layout step; subsequent frames still refit while settling until the
+user navigates. The host sends renderer JSON as a string through Dioxus's existing
+serde bridge, avoiding a per-node JSON Value tree, a JavaScript object literal
+and the receiving-side `JSON.stringify`. Database query nodes move into the
+panel's interaction lookup instead of cloning their properties. Development
+profiles optimize the Sophia adapter/interface/store and SQLite query crates too; release
+profiles already optimize them. The engine wire format and source queries are
+unchanged.
+
+### Before/after measurements
+
+2026-10-22, copied `gen100000.sophia`, 100,000 nodes / 99,999 edges,
+14,188,850-byte panel JSON. Actual desktop binary (`desktop,sophia`, development
+profile), private 1920×1080 Wayland display, WebKitGTK 2.54.1, Mesa software GL; one
+initial load then five schema/data reloads in the same app. Both heavy slots and
+`bench.lock` were held, with no builds or other suites during measurement.
+Numbers are milliseconds; warm values are medians of the last five loads.
+
+| Stage | Initial before | Initial after | Warm before | Warm after |
+|---|---:|---:|---:|---:|
+| Source `Query::All` | 3894 | 1385 | 2914 | 1483 |
+| Panel payload projection | 96 | 93 | 99 | 97 |
+| Eval serialization/delivery + receiving literal | 2261 | 718 | 2269 | 727 |
+| JS `JSON.stringify` | 14 | 0 | 15 | 0 |
+| Engine JSON parse | 64 | 51 | 43 | 40 |
+| Engine graph build | 45 | 43 | 34 | 31 |
+| Engine install/fit | 3 | 3 | 32 | 31 |
+| First draw submission CPU | 230 | 242 | 170 | 186 |
+| Engine load → first draw | 518 | 341 | 289 | 349 |
+| Query start → first draw (critical path) | **6783** | **2537** | **5700** | **2627** |
+
+Warm worst case: **5926 → 2694 ms**. The initial layout took 176 ms before
+the first draw; after the change its 179 ms follows that draw. The engine
+load-to-draw row already includes its parse/build/fit/draw rows; the critical
+path adds source + payload + eval handoff + stringify + engine load-to-draw,
+without counting native serialization twice. Native payload/send timing was
+4757 → 2175 ms from query start; building the interaction lookup completed at
+4892 → 2252 ms. A compositor screenshot **2.7 s after Open** already shows the
+new graph, so the initial result is backed by visible pixels as well as CPU
+submission timing. Original desktop's reported 15 s was not reproduced here.
+
+A diagnostic intermediate build exposed two overlapping initial graph reads
+(one discarded), repeated edge-endpoint hashing in the adapter, and a watcher
+that decoded the entire old change log just to discover its starting position.
+The watcher now snapshots `last_seq()` (23 ms including dispatch in the final
+run). The adapter reuses returned node ids for edges. Identical in-flight reads
+coalesce, with source/query/epoch/generation guards. Source development profiles
+optimize the Sophia/SQLite query path. These complement the string transport and
+first-draw scheduling changes; the improvement is not attributed to layout alone.
+
+Isolated Chromium/SwiftShader, same real panel JSON, one warm-up + five samples
+in one engine: median engine load-to-first-draw **309 → 114 ms**, median next
+presentation opportunity **540 → 346 ms** (max 2675 → 2327 ms); all six final
+samples meet the explicit 3 s gate and screenshots contain graph pixels. The
+first-frame layout counter changes from 1 to 0. No desktop/GPU completion claim
+is inferred from those browser timings. Daniel's physical NVIDIA/KDE desktop
+still needs a recheck; these numbers establish the private-display target only.
+
+Raw logs/screenshots and reproduction scripts stay under `target/next9/`
+(`native-baseline.log`, `native-final-six.log`, `native-first-at-2.7s.png`,
+`browser-{baseline,final}-warm.log`). They contain no store payload contents;
+the disposable store and exported JSON remain untracked in that directory.

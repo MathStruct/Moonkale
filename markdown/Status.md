@@ -47,7 +47,7 @@ UI, installers and Intel macOS are outside this CI job. See [[How to Write Tests
 | **Markdown** — rich (Milkdown), source, wiki-links, KaTeX, front matter, typography | ✅ | specs 012, 013, 019, 021, 026 |
 | **Typst preview** | ✅ | no packages |
 | **Diagram fences** (tabs, Typst math, Mermaid, TikZ) | 📝 | [[Markdown Diagrams and Math]] |
-| **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; coarse tier 📝 ([[Case Selector]]) |
+| **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; 2026-10-22: overview drags pan below a 3 CSS px radius (P-223); private WebKit desktop initial picture 6.78 → 2.54 s, warm median 5.70 → 2.63 s (P-224; physical NVIDIA recheck due), see `packages/graph-render/graph-render.md`; coarse tier 📝 ([[Case Selector]]) |
 | **Flow editor** + Lux.jl library | ◐ | editing and codegen; running the model is not built |
 | **Table editor** | ✅ | read-only |
 | **Image viewer** | ✅ | spec [[008]] |

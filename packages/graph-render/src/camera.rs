@@ -314,6 +314,27 @@ impl Camera {
         best.map(|(i, _)| i)
     }
 
+    /// Overview dots remain clickable, but dragging them pans the view (P-223).
+    /// Use the projected size before the shader's minimum dot radius, in CSS px.
+    pub fn node_draggable(&self, graph: &Graph, index: usize) -> bool {
+        let Some(n) = graph.nodes.get(index) else {
+            return false;
+        };
+        let factor = if self.three_d {
+            let Some((_, _, w)) = self.project(n.x, n.y, n.z) else {
+                return false;
+            };
+            self.size_factor(w)
+        } else {
+            self.scale
+        };
+        let extent = match n.shape {
+            Shape::Circle => n.radius,
+            Shape::Rect | Shape::Diamond => n.radius.max(n.height),
+        };
+        extent * factor >= 3.0
+    }
+
     /// Uniform block for the shaders: 2D fields, mode, viewport, then the
     /// 3D view-projection matrix and the distance (for size attenuation).
     pub fn uniform(&self) -> [f32; 28] {
@@ -359,6 +380,36 @@ mod tests {
             c.dist,
             want
         );
+    }
+
+    #[test]
+    fn overview_dots_are_clickable_but_only_visible_nodes_drag() {
+        let mut graph = Graph::from_input(
+            serde_json::from_str(
+                r#"{"nodes":[{"id":"dot","label":"dot","kind":"file","pos":[0,0]}],"edges":[]}"#,
+            )
+            .unwrap(),
+        );
+        let mut camera = Camera {
+            scale: 0.01,
+            ..Default::default()
+        };
+        assert_eq!(camera.hit(&graph, 400.0, 300.0), Some(0));
+        assert!(!camera.node_draggable(&graph, 0));
+        camera.scale = 1.0;
+        assert!(camera.node_draggable(&graph, 0));
+        graph.nodes[0].shape = Shape::Rect;
+        graph.nodes[0].height = 100.0;
+        camera.scale = 0.04;
+        assert!(
+            camera.node_draggable(&graph, 0),
+            "a tall visible block can drag"
+        );
+        camera.three_d = true;
+        graph.nodes[0].shape = Shape::Circle;
+        assert!(camera.node_draggable(&graph, 0));
+        graph.nodes[0].radius = 1.0;
+        assert!(!camera.node_draggable(&graph, 0));
     }
 
     #[test]

@@ -98,6 +98,10 @@ struct State {
     press: (f32, f32),
     /// The last `connect` event, as JSON, for tests.
     last_connect: Option<String>,
+    // Last load: parse, build, install, first layout, first draw, load-to-draw (ms).
+    load_stats: [f64; 6],
+    load_started: f64,
+    awaiting_first_draw: bool,
 }
 
 impl State {
@@ -372,6 +376,9 @@ pub async fn create(
         wire_to: None,
         press: (0.0, 0.0),
         last_connect: None,
+        load_stats: [0.0; 6],
+        load_started: 0.0,
+        awaiting_first_draw: false,
     }));
     let backend = state.borrow().renderer.backend.clone();
     emit(
@@ -566,10 +573,23 @@ impl GraphView {
         true
     }
 
+    /// Timings of the last full load in milliseconds: JSON parse, graph build,
+    /// installation/fit, first layout, first draw submission, load-to-first-draw.
+    /// The final entry remains zero until that graph has been submitted.
+    pub fn load_stats(&self) -> Vec<f64> {
+        self.state.borrow().load_stats.to_vec()
+    }
+
     fn load(&self, json: &str, fresh: bool) -> Result<(), JsValue> {
+        let started = clock_ms();
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
+        let parsed = clock_ms();
+        s.load_started = started;
+        s.awaiting_first_draw = true;
+        s.load_stats = [0.0; 6];
+        s.load_stats[0] = parsed - started;
         let dragged = s.dragged_id();
         // A **pinned** node with an explicit position is the host's to move —
         // the document owns a pinned block's coordinates (stage 7c: undo
@@ -582,6 +602,8 @@ impl GraphView {
             .map(|n| n.id.clone())
             .collect();
         let mut next = Graph::from_input(input);
+        let built = clock_ms();
+        s.load_stats[1] = built - parsed;
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
             .graph
             .nodes
@@ -681,6 +703,7 @@ impl GraphView {
             s.has_icons = has_ink(&s.graph);
             s.has_edge_labels = s.graph.edges.iter().any(|e| !e.label.is_empty());
             s.dirty = true;
+            s.load_stats[2] = clock_ms() - built;
             return Ok(());
         }
         s.graph = next;
@@ -698,6 +721,7 @@ impl GraphView {
         s.camera.fit(&g, 40.0);
         s.graph = g;
         s.dirty = true;
+        s.load_stats[2] = clock_ms() - built;
         Ok(())
     }
 
@@ -1034,6 +1058,13 @@ fn animates(g: &Graph) -> bool {
     g.edges.iter().any(|e| e.pulse_speed > 0.0)
 }
 
+fn clock_ms() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.performance())
+        .map(|p| p.now())
+        .unwrap_or(0.0)
+}
+
 fn start_loop(state: Rc<RefCell<State>>) {
     let f: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -1043,8 +1074,11 @@ fn start_loop(state: Rc<RefCell<State>>) {
         if !s.alive {
             return;
         }
-        // Layout: more iterations per frame for small graphs.
-        if s.layout.running {
+        // Submit the fitted initial positions before spending a layout step
+        // on them. At 100k nodes that step alone can block a first paint.
+        // Subsequent frames retain the existing fit-while-settling policy.
+        if s.layout.running && !s.awaiting_first_draw {
+            let layout_started = clock_ms();
             let n = s.graph.nodes.len();
             let iters = if n < 300 {
                 4
@@ -1058,6 +1092,9 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 s.layout.step(&mut g);
             }
             s.graph = g;
+            if s.load_stats[3] == 0.0 {
+                s.load_stats[3] = clock_ms() - layout_started;
+            }
             s.pos_rev += 1;
             s.dirty = true;
             // An untouched view follows the layout while it spreads (O(n)
@@ -1127,6 +1164,11 @@ fn start_loop(state: Rc<RefCell<State>>) {
             }
             DRAW_FRAMES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             draw_labels(&s);
+            if s.awaiting_first_draw {
+                s.load_stats[4] = clock_ms() - t0.unwrap_or_else(clock_ms);
+                s.load_stats[5] = clock_ms() - s.load_started;
+                s.awaiting_first_draw = false;
+            }
         }
         drop(s);
         request_frame(f.borrow().as_ref().unwrap());
@@ -1493,11 +1535,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         return;
                     }
                     // A node under the pointer drags in its own depth plane (Milestone 9).
-                    if let Some(i) = s
-                        .camera
-                        .hit(&s.graph, x, y)
-                        .filter(|i| node_visible(&s.graph, *i))
-                    {
+                    if let Some(i) = s.camera.hit(&s.graph, x, y).filter(|i| {
+                        node_visible(&s.graph, *i) && s.camera.node_draggable(&s.graph, *i)
+                    }) {
                         s.graph.nodes[i].pinned = true;
                         s.dragging = Drag::Node { index: i };
                     } else {
@@ -1505,10 +1545,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     }
                     return;
                 }
-                let hit = s
-                    .camera
-                    .hit(&s.graph, x, y)
-                    .filter(|i| node_visible(&s.graph, *i));
+                let hit = s.camera.hit(&s.graph, x, y).filter(|i| {
+                    node_visible(&s.graph, *i) && s.camera.node_draggable(&s.graph, *i)
+                });
                 s.dragging = match hit {
                     Some(i) => {
                         s.graph.nodes[i].pinned = true;
