@@ -347,6 +347,37 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         }
     };
 
+    use_effect(move || {
+        let _language = ws.lang();
+        if !ready() {
+            return;
+        }
+        if let Some(view) = backend.peek().as_ref() {
+            view.set_phrases(std::collections::HashMap::from([
+                ("Find".into(), t!(ws, L, "cm-search-find")),
+                ("Replace".into(), t!(ws, L, "cm-search-replace")),
+                ("next".into(), t!(ws, L, "cm-search-next")),
+                ("previous".into(), t!(ws, L, "cm-search-previous")),
+                ("all".into(), t!(ws, L, "cm-search-all")),
+                ("match case".into(), t!(ws, L, "cm-search-case")),
+                ("regexp".into(), t!(ws, L, "cm-search-regexp")),
+                ("by word".into(), t!(ws, L, "cm-search-word")),
+                ("replace".into(), t!(ws, L, "cm-search-replace-one")),
+                ("replace all".into(), t!(ws, L, "cm-search-replace-all")),
+                ("close".into(), t!(ws, L, "cm-search-close")),
+                ("Go to line".into(), t!(ws, L, "cm-search-goto")),
+                ("go".into(), t!(ws, L, "cm-search-go")),
+                ("current match".into(), t!(ws, L, "cm-search-current")),
+                ("replaced $ matches".into(), t!(ws, L, "cm-search-replaced")),
+                (
+                    "replaced match on line $".into(),
+                    t!(ws, L, "cm-search-replaced-line"),
+                ),
+                ("on line".into(), t!(ws, L, "cm-search-on-line")),
+            ]));
+        }
+    });
+
     // Text changed outside the view (an agent edit, a reload): push it. The
     // mirror is *not* updated here — the view answers with the splice it
     // applied, and that brings the mirror up to date (spec 018).

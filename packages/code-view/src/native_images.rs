@@ -75,6 +75,26 @@ impl Cache {
         }
     }
 }
+/// Resolve a Rich-view image through the same source jail, limits and cache
+/// as native Markdown previews. Never fetch an external URL.
+pub async fn source_image_url(ws: Workspace, from: &Node, destination: &str) -> Option<String> {
+    if destination.len() > 4096 {
+        return None;
+    }
+    let crate::native_links::Target::File { path, .. } =
+        crate::native_links::Target::markdown(destination)?
+    else {
+        return None;
+    };
+    let cache = ws.shared_state(Images::default);
+    let epoch = *ws.sources.graph_epoch.peek();
+    let node = resolve(ws, from, &Destination::File(path), &cache, epoch).await?;
+    load(ws, node, epoch, cache)
+        .await
+        .ok()
+        .map(|image| image.url.to_string())
+}
+
 async fn resolve(
     ws: Workspace,
     from: &Node,

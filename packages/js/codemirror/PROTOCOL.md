@@ -106,3 +106,8 @@ history transactions set `filter:false`, so a transaction filter cannot enforce
 this boundary. A group marker emits `onGroupHistory` without dispatching a local
 undo. Preparation probes also inspect without dispatching. Unknown/retired groups
 must block at the host; they never fall back to one-file undo.
+
+P-219: `setPhrases(el, phrases)` / `setPhrases { phrases }` reconfigures
+`EditorState.phrases` with the shell locale's search strings. This is view
+configuration and does not edit text or history. Search controls use shell
+colour tokens in `theme.ts`.

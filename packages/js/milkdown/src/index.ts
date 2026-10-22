@@ -5,7 +5,8 @@
 // as whole documents (like @moonkale/codemirror in its first milestone).
 
 import { Crepe } from "@milkdown/crepe"
-import { $prose, replaceAll } from "@milkdown/kit/utils"
+import { imageSchema } from "@milkdown/kit/preset/commonmark"
+import { $view, $prose, replaceAll } from "@milkdown/kit/utils"
 import { dropEmptyLineBreaks } from "./clean"
 import { WikiState, wikiPlugin, setStatus as wikiSetStatus, complete as wikiComplete, type WikiCandidate } from "./wiki"
 import "@milkdown/crepe/theme/common/style.css"
@@ -14,8 +15,8 @@ import "@milkdown/crepe/theme/frame-dark.css"
 type OnChange = (markdown: string) => void
 type OnWikiLink = (target: string) => void
 type OnWikiQuery = (id: number, query: string) => void
-type MountOptions = { katexMacros?: Record<string, string>; onWikiQuery?: OnWikiQuery }
-type Entry = { crepe: Crepe; suppress: boolean; last: string; wiki: WikiState }
+type MountOptions = { onImage?: (id: number, path: string) => void; katexMacros?: Record<string, string>; onWikiQuery?: OnWikiQuery }
+type Entry = { crepe: Crepe; suppress: boolean; last: string; wiki: WikiState; images: Map<number, (url: string | null) => void> }
 
 const views = new WeakMap<HTMLElement, Entry>()
 
@@ -31,7 +32,7 @@ function clean(md: string): string {
 
 async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWikiLink?: OnWikiLink, opts: MountOptions = {}): Promise<void> {
   destroy(el)
-  const entry: Entry = { crepe: undefined as unknown as Crepe, suppress: false, last: markdown, wiki: new WikiState() }
+  const entry: Entry = { crepe: undefined as unknown as Crepe, suppress: false, last: markdown, wiki: new WikiState(), images: new Map() }
   const crepe = new Crepe({
     root: el,
     defaultValue: markdown,
@@ -47,11 +48,26 @@ async function mount(el: HTMLElement, markdown: string, onChange: OnChange, onWi
     },
   })
   entry.crepe = crepe
+  views.set(el, entry)
   // [[wiki-links]]: decorations, click-to-follow, `[[` completion (spec 012).
   crepe.editor.use($prose(() => wikiPlugin(entry.wiki, el, {
     onFollow: (target) => onWikiLink?.(target),
     onQuery: (id, query) => opts.onWikiQuery?.(id, query),
   })))
+  // A node view changes only display URLs. Markdown attrs and serialization
+  // retain the original destination, including after typing and reload.
+  let nextImage = 0
+  crepe.editor.use($view(imageSchema.node, () => (node) => {
+    const dom = document.createElement("img")
+    dom.alt = node.attrs.alt || ""
+    dom.title = node.attrs.title || ""
+    const id = ++nextImage
+    if (nextImage <= 128 && String(node.attrs.src).length <= 4096) {
+      entry.images.set(id, url => { if (url) dom.src = url })
+      opts.onImage?.(id, String(node.attrs.src))
+    }
+    return { dom, destroy: () => { entry.images.delete(id) } }
+  }))
   crepe.on((listener) => {
     listener.markdownUpdated((_ctx, raw, prev) => {
       if (entry.suppress || raw === prev) return
@@ -88,6 +104,12 @@ function setText(el: HTMLElement, markdown: string): void {
   try { e.crepe.editor.action(replaceAll(markdown)); e.last = clean(e.crepe.getMarkdown()) } finally { e.suppress = false }
 }
 
+function imageResult(el: HTMLElement, id: number, url: string | null): void {
+  const e = views.get(el)
+  const done = e?.images.get(id)
+  if (done) { e!.images.delete(id); done(url) }
+}
+
 function getText(el: HTMLElement): string | undefined {
   const e = views.get(el)
   return e ? clean(e.crepe.getMarkdown()) : undefined
@@ -117,4 +139,4 @@ function wikiCandidates(el: HTMLElement, id: number, items: WikiCandidate[]): vo
   if (e) wikiComplete(e.wiki, el, id, items)
 }
 
-window.moonkale.milkdown = { mount, setText, getText, focus, destroy, setWikiStatus, wikiCandidates }
+window.moonkale.milkdown = { mount, imageResult, setText, getText, focus, destroy, setWikiStatus, wikiCandidates }

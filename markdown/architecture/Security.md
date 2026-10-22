@@ -144,7 +144,7 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 | Secrets | ◐ names only, env and file | keychain, redaction |
 | SSH remote | ◐ | #18 |
 | Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
-| Untrusted content | ◐ jail, link allow-list, bounds; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed; opt-in structural planning is pure, authenticated on web, capped at 4 MiB raw/512 KiB decoded input, two non-queued workers, and existing parser limits; source bytes are never logged or rendered as HTML; graph Rename reuses the existing LSP connection, rejects cross-source/resource operations and incomplete plans; two-pass target preparation, 64-file/4096-edit/4-MiB-payload/8-MiB-text caps, all-buffer staging and held/stamped editor input guard grouped history; explicit per-file saves report partial success; validates URI/range/version bounds and live identities before preview | #5, sanitising, CSP, fuzzing, #15 |
+| Untrusted content | ◐ jail, link allow-list, bounds; P-218 Rich images share native-preview source scoping, image limits and bounded cache, with display-only URLs and blocked remote/escaping destinations; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed; opt-in structural planning is pure, authenticated on web, capped at 4 MiB raw/512 KiB decoded input, two non-queued workers, and existing parser limits; source bytes are never logged or rendered as HTML; graph Rename reuses the existing LSP connection, rejects cross-source/resource operations and incomplete plans; two-pass target preparation, 64-file/4096-edit/4-MiB-payload/8-MiB-text caps, all-buffer staging and held/stamped editor input guard grouped history; explicit per-file saves report partial success; validates URI/range/version bounds and live identities before preview | #5, sanitising, CSP, fuzzing, #15 |
 | Wasm extensions | ◐ permissions, fuel, memory limits | signing |
 | Supply chain and releases | ◐ WP-47: blocking Rust/npm audits with dated baseline exceptions, offline vendored hashes; non-blocking parser fuzz smoke jobs | dependency upgrades, signing, release/SSH server checksums, wasm ABI fuzzing |
 | Data at rest | ○ | redaction, encryption decision |
@@ -192,3 +192,10 @@ HTML or a URL. Numeric load profiling records timings only, never node contents.
 The two renderer regression suites serve only the two committed engine files
 from an ephemeral loopback test server with exact route matching and cleanup;
 no production connection, dependency or parser is added.
+
+P-218 Rich images reuse native-preview source resolution, path normalization,
+image classification, byte/pixel limits, freshness checks, a two-reader queue
+and bounded workspace cache. Display-only data URLs never replace document
+paths. Node views request at most 128 images per mount, with 4096-byte paths;
+remote destinations and source escapes receive no URL. Stale backend responses
+are discarded. No new dependency, network fetch or parser is introduced.

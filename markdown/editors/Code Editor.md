@@ -43,3 +43,7 @@ Removed from `editors/code/src` as comment-only files in Milestone 18 phase 1:
 - **Decorations** (`decorations.rs`) in a neutral form — `Highlight { range, token }`, `Fold`, `Diagnostic`, `InlayHint`, `Gutter` — produced by the index/LSP and consumed by any backend. Today diagnostics and wiki-link marks go to CodeMirror in their own messages, and highlighting is the bundle's (P-093).
 - **Document** (`document.rs`): rope + version + undo stack + node id, turning backend edits into `core` patches and applying incoming changes (external change → reconcile or prompt). Today `ext-api::Document` holds a `String`; the Rust editor shares revisioned undo history through Workspace.
 - **A Rust-native backend** (`backend/native.rs`): a virtualised Dioxus text view or a wgpu text renderer over the same rope and decorations. The opt-in Rust extension now uses editor-core and a virtualized Dioxus view in `code-view`; neutral decorations and feature parity remain unfinished.
+
+CodeMirror's find/replace controls use the shell theme tokens and the current
+English, German or Chinese locale (P-219, 2026-10-22). `codemirror-search` opens
+the real search panel in German, checks its styles, and selects a match.

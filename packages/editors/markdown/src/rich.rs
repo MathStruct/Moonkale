@@ -29,6 +29,10 @@ pub trait RichTextBackend {
 
 pub enum RichEvent {
     Ready,
+    Image {
+        id: u32,
+        path: String,
+    },
     /// The view could not start (no host element, the bundle never
     /// loaded, Milkdown did not come up): the panel shows why and offers
     /// Retry instead of "Loading…" forever (Prompt26).
@@ -57,6 +61,10 @@ enum ToJs<'a> {
     SetText {
         text: &'a str,
     },
+    Image {
+        id: u32,
+        url: Option<String>,
+    },
     Focus,
     Destroy,
     WikiStatus {
@@ -79,6 +87,7 @@ struct WikiStatusEntry {
 enum FromJs {
     Ready,
     Change { text: String },
+    Image { id: u32, path: String },
     WikiLink { target: String },
     WikiQuery { id: u32, query: String },
     Error { message: String },
@@ -112,7 +121,7 @@ if (!ready()) {
 const md = window.moonkale.milkdown;
 const init = await dioxus.recv();
 try {
-    const started = md.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), (target) => dioxus.send({ kind: "wikiLink", target }), { katexMacros: init.katexMacros || {}, onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }) });
+    const started = md.mount(el, init.text, (text) => dioxus.send({ kind: "change", text }), (target) => dioxus.send({ kind: "wikiLink", target }), { onImage: (id, path) => dioxus.send({kind: "image", id, path}), katexMacros: init.katexMacros || {}, onWikiQuery: (id, query) => dioxus.send({ kind: "wikiQuery", id, query }) });
     const timeout = sleep(20000).then(() => { throw new Error("Milkdown did not start within 20 s"); });
     await Promise.race([started, timeout]);
 } catch (e) {
@@ -124,6 +133,7 @@ for (;;) {
     if (msg.kind === "setText") md.setText(el, msg.text);
     else if (msg.kind === "wikiStatus") md.setWikiStatus(el, msg.entries);
     else if (msg.kind === "wikiCandidates") md.wikiCandidates(el, msg.id, msg.items);
+    else if (msg.kind === "image") md.imageResult(el, msg.id, msg.url);
     else if (msg.kind === "focus") md.focus(el);
     else if (msg.kind === "destroy") { md.destroy(el); break; }
 }
@@ -155,6 +165,7 @@ impl MilkdownBackend {
         spawn(async move {
             loop {
                 match rx.recv::<FromJs>().await {
+                    Ok(FromJs::Image { id, path }) => on_event.call(RichEvent::Image { id, path }),
                     Ok(FromJs::Ready) => on_event.call(RichEvent::Ready),
                     Ok(FromJs::Change { text }) => on_event.call(RichEvent::Changed(text)),
                     Ok(FromJs::WikiLink { target }) => on_event.call(RichEvent::WikiLink(target)),
@@ -258,6 +269,18 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 split_frontmatter(&full).1.to_string()
             };
             let on_event = Callback::new(move |ev: RichEvent| match ev {
+                RichEvent::Image { id, path } => {
+                    let from = doc.peek().node.clone();
+                    let mounted = backend.peek().clone();
+                    spawn(async move {
+                        let url = moonkale_code_view::source_image_url(ws, &from, &path).await;
+                        if let (Some(mounted), Some(current)) = (mounted, backend.peek().as_ref()) {
+                            if std::rc::Rc::ptr_eq(&mounted, current) {
+                                let _ = current.eval.send(ToJs::Image { id, url });
+                            }
+                        }
+                    });
+                }
                 RichEvent::Ready => {
                     ready.set(true);
                     wiki_epoch += 1;
