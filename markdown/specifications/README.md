@@ -48,13 +48,34 @@ Requests that are agreed but have no spec number yet. Daniel numbers them when h
   - clicks pass through the layer except on components, and a card's header drags its node;
   - 2D only.
 
-  What's missing:
-  1. a camera-change event from the engine, which today reports only hover, click, double-click and settled;
-  2. the embed flag;
-  3. one shared layer component for the graph view, the flow editor and a canvas view;
-  4. a contribution point for an extension to supply a node kind's view.
+  Items 1–3 implemented in WP-04/05 (2026-10-23): the engine reports a
+  frame-coalesced CSS-pixel camera mapping, and `InNode.embed` reserves a plain
+  rectangle without label, caption, icon or schematic ink. The new shared
+  `packages/canvas-layer` crate provides `CanvasLayer`, `CanvasItem` and
+  `CanvasHeader`: one camera transform, world-space placement, size/viewport
+  unmounting, component-only pointer handling and header drag callbacks. It
+  rejects 3D views. Graph and future canvas editors can use it without depending
+  on the flow extension.
 
-  The flow editor's parameter editor already floats over the canvas from the engine's screen reports, and is the first user.
+  Flow is the first user: its selected block's parameter card follows pan,
+  zoom, fit and resize, and its header moves the document's block with one undo
+  step. Undo/redo retain selections that still exist in the restored scope.
+  Flow limits automatic fit magnification so a single block leaves room for the
+  card; explicit zoom remains free. The card remains beside its schematic;
+  hosts replacing node content can use `embed:true` instead.
+
+  Acceptance is covered by native camera/embed/visibility tests,
+  `graph-camera.mjs` and the production-panel `canvas-layer.mjs`, alongside
+  graph/flow/subflow suites. The layer unmounts below 100 × 32 projected CSS
+  pixels or outside the viewport, leaving the engine node in place.
+
+  Item 4 remains open: an extension node-kind contribution would resolve a
+  host-side view factory returning a Dioxus `Element` plus world bounds and LOD
+  limits. The host wraps it in `CanvasItem`, supplies its camera and node-drag
+  callback, and marks the corresponding engine node embedded. The shared layer
+  does not depend on a registry or extension API; the contribution contract and
+  permissions can be added later without changing camera/placement plumbing.
+
 - **Code editor at 60 FPS** (2026-10-14): requirement CED-R22 in [[Code Editor Requirements]], the gate in [[Rust Code Editor Roadmap]]. p95 frame interval ≤ 16.7 ms while typing, scrolling and selecting, in an ordinary file and the 3 MB one, web and desktop. The current Rust editor does not meet it yet.
 - **A stripped-down static reader** (2026-10-14, **way later**): a repository or a knowledge graph published as wiki-like pages, Quartz-like but with code navigation, Moonkale's graph and in-browser SQL. It sits beside the full web version, not in place of it. Quartz stays for the vault until then. Notes in [[Publishing Sources]] ("Revisited 2026-10-14").
 - **Math in any delimiter, LaTeX or Typst** (2026-10-14): `$`, `$$`, `\(`, `\[` and their doubled-backslash forms all work. Each formula renders as LaTeX (KaTeX) or Typst math, whichever it is, and errors only when both fail. A command normalises a file or folder to one convention. Spec in [[Math Delimiters and Renderers]], WP-36.

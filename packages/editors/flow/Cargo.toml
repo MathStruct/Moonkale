@@ -6,6 +6,7 @@ license.workspace = true
 description = "No-code / low-code flow editor: drag-and-drop blocks wired by typed ports, on the graph engine (spec 031 stage 7 / ADR-0018). Block libraries come from extensions (e.g. the optional Lux.jl one). Milestone 6."
 
 [dependencies]
+moonkale-canvas-layer.workspace = true
 dioxus = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-graph-assets = { workspace = true }

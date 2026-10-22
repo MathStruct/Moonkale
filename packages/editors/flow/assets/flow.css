@@ -12,7 +12,7 @@
 .mk-flow-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* One editor for the selected block (spec 031 §7), floating beside it on
    the canvas — the panel positions it from the engine's screen report. */
-.mk-flow-props { position: absolute; z-index: 5; width: 220px; max-height: calc(100% - 12px); overflow: auto; background: var(--mk-surface); border: 1px solid var(--mk-line-strong); border-radius: 6px; box-shadow: var(--mk-shadow); padding: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.mk-flow-props { position: relative; width: 220px; max-height: 420px; overflow: auto; background: var(--mk-surface); border: 1px solid var(--mk-line-strong); border-radius: 6px; box-shadow: var(--mk-shadow); padding: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .mk-flow-props-title { font-weight: 600; color: var(--mk-ink-2); word-break: break-all; display: flex; align-items: center; gap: 4px; }
 .mk-flow-props-title > span { flex: 1; }
 .mk-flow-props-title > .mk-btn { padding: 0 6px; font-weight: normal; }

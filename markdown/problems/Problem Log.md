@@ -216,6 +216,10 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 | [[P-225 Native FPS recorder misclassifies idle cadence and input]] | Upper-envelope idle calibration, backend-independent arrow traversal evidence and actual small document scroll movements; timing thresholds unchanged, no-op wheel attempts still fail. Precise paired-callback scheduling cause and hardware rerun remain open. | resolved (accounting) | WP-02 |
 | [[P-226 Real desktop FPS host undo report]] | Real compositor Ctrl+Z works in a fresh private-display FPS host, including while recording; add canonical-text/input observations and OS regression. Cause (2026-10-22): Daniel's KDE session had the US layout (`~/.config/kxkbrc` `LayoutList=us`, system layout `de`) on a German keyboard, so the key labelled Z sent Y and Ctrl+"Z" was redo. With the session on `de`, Ctrl+Z undoes (checked in Kate). Not an editor bug. | resolved | WP-02 |
 
+| [[P-227 Flow code generation could not replace an existing file]] | Second Generate retained the old RC-only `circuit.jl`: the flow panel used a listing metadata version instead of its fetched content version. It now uses fetched text/version together and refuses failed fetches. The MTK second-generation golden is the browser regression (2026-10-23). | resolved | WP-05 |
+
+| [[P-228 Pulse browser measurement counted wraps as forward motion]] | The pulse suite compared maxima of absolute peak movement in separate screenshots, counting phase wraps as speed. It now samples both edges in shared frames, rejects wrap/boundary pairs and checks median forward velocities against declared speeds. Renderer pulse behavior is unchanged (2026-10-23). | resolved | WP-04 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.
