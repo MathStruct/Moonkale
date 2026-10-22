@@ -210,11 +210,11 @@ impl SophiaSource {
         }
     }
 
-    fn edge(&self, e: &EdgeView) -> Edge {
+    fn edge(&self, e: &EdgeView, from: NodeId, to: NodeId) -> Edge {
         Edge {
             source: self.id.clone(),
-            from: self.remember(&e.from),
-            to: self.remember(&e.to),
+            from,
+            to,
             kind: match e.kind.as_str() {
                 "Contains" => EdgeKind::Contains,
                 "References" => EdgeKind::References,
@@ -227,18 +227,27 @@ impl SophiaSource {
 
     /// The subgraph, keeping only edges whose ends are in it.
     fn result(&self, g: &Subgraph, kinds: Option<&[NodeKind]>) -> QueryResult {
+        // Translate/remember each node once. Edges reuse those ids instead of
+        // hashing and locking the same endpoint keys twice per edge (P-224).
+        // The map contains only retained nodes, so kind-filtered/dangling edges
+        // are rejected before copying their properties.
+        let mut ids = HashMap::with_capacity(g.nodes.len());
         let nodes: Vec<Node> = g
             .nodes
             .iter()
-            .map(|n| self.node(n))
-            .filter(|n| kinds.is_none_or(|k| k.contains(&n.kind)))
+            .filter_map(|v| {
+                let node = self.node(v);
+                if kinds.is_some_and(|k| !k.contains(&node.kind)) {
+                    return None;
+                }
+                ids.insert(&v.key, node.id);
+                Some(node)
+            })
             .collect();
-        let ids: BTreeSet<NodeId> = nodes.iter().map(|n| n.id).collect();
         let edges = g
             .edges
             .iter()
-            .map(|e| self.edge(e))
-            .filter(|e| ids.contains(&e.from) && ids.contains(&e.to))
+            .filter_map(|e| Some(self.edge(e, *ids.get(&e.from)?, *ids.get(&e.to)?)))
             .collect();
         QueryResult {
             nodes,
@@ -530,10 +539,20 @@ impl Source for SophiaSource {
                 Ok(r)
             }
             Query::All { limit, kinds } => {
+                let start = std::time::Instant::now();
                 let g = self
                     .call(move |i| i.all(limit).map_err(store_error))
                     .await?;
-                Ok(self.result(&g, kinds.as_deref()))
+                let interface_ms = start.elapsed().as_secs_f64() * 1000.0;
+                let start = std::time::Instant::now();
+                let result = self.result(&g, kinds.as_deref());
+                if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                    eprintln!(
+                        "graph source profile: interface_ms={interface_ms} adapter_ms={}",
+                        start.elapsed().as_secs_f64() * 1000.0
+                    );
+                }
+                Ok(result)
             }
             // What the workspace asks for each path the change feed named.
             Query::Text { dialect, text } if dialect == "path" => {
@@ -615,18 +634,19 @@ impl Source for SophiaSource {
         // what it lists. An empty log waits like any other poll.
         let mut since = since;
         if since == 0 {
+            // Only the tail position is needed, not every historical change.
+            // Replaying a generated store's log held SQLite's read lock ahead
+            // of the initial graph query for seconds (P-224).
+            let start = Instant::now();
             let end = self
-                .call(|i| {
-                    let mut at = 0;
-                    loop {
-                        let (next, _, reset) = Self::feed(i, at)?;
-                        if next == at || !reset {
-                            return Ok(next);
-                        }
-                        at = next;
-                    }
-                })
+                .call(|i| i.store().last_seq().map_err(store_error))
                 .await?;
+            if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                eprintln!(
+                    "graph source profile: watch_baseline_ms={}",
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
+            }
             if end > 0 {
                 return Ok(Some(Changes {
                     seq: end,
@@ -644,5 +664,21 @@ impl Source for SophiaSource {
             }
             tokio::time::sleep(POLL_EVERY).await;
         }
+    }
+}
+
+#[cfg(test)]
+mod profile_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn initial_watch_starts_at_the_tail_without_replaying_history() {
+        let source = SophiaSource::sample().unwrap();
+        let tail = source.iface.store().last_seq().unwrap();
+        assert!(tail > 0);
+        let initial = source.changes_since(0).await.unwrap().unwrap();
+        assert_eq!(initial.seq, tail);
+        assert!(initial.paths.is_empty());
+        assert!(!initial.reset);
     }
 }

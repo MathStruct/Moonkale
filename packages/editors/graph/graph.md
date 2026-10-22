@@ -28,3 +28,34 @@ Notes for `moonkale-editor-graph` (Milestone 2), the Dioxus host of the renderer
 
 ## Spec 020 (2026-09-21)
 Every open folder's index is drawn in one graph: `panel.rs` queries each `SourceFamily::Index` source (the same `Query::All` / `Query::Neighbours`), merges the results (ids are derived per index, so they never collide) and colours nodes per folder with `label_color(folder name)` + a legend when more than one is open. The source picker lists `folder: <name>` per index next to "all folders" (`picked_index` narrows the load to one); databases and traces are unchanged. Cross-folder edges do not exist yet (each index resolves links inside its own folder — [[Projects and Sources]]).
+
+## P-224 — load profiling (2026-10-22)
+
+Set `MOONKALE_GRAPH_PROFILE=1` when launching the desktop app to log numeric
+query, payload-build, eval handoff and engine-stage timings. No graph contents
+are logged. `load_stats()` in the renderer separates parsing/building/fit from
+first layout and draw submission. Desktop handoff uses wall-clock timestamps
+(the clocks share a machine); engine stages use `performance.now()`.
+
+The ignored `profile_store_payload` test opens only an explicitly supplied store
+copy (`MOONKALE_GRAPH_STORE`), times cold/warm `Query::All`, the actual panel
+projection and Dioxus's JSON serialization stages, and writes the renderer
+payload to `MOONKALE_GRAPH_PAYLOAD`. Run with `cargo test -p moonkale-editor-graph
+profile_store_payload -- --ignored --nocapture`. The copied 100,000-node Sophia
+store produces **14,188,850 bytes** of renderer JSON; the earlier 50 MB figure
+was the complete source result, whose properties are not sent to the engine.
+
+`ToJs::SetGraph.graph` is now a serialized JSON **string**. It is still ordinary
+serde-escaped data in `Eval::send`, never interpolated into executable code. The
+view passes it directly to the existing renderer JSON parser. This avoids
+Dioxus's per-node `Value` object tree and a second JS stringify. Database nodes
+move into `shown` after serialization instead of cloning all properties. No
+source content or identity is discarded. A Unicode/quotes/script-like-content
+round-trip test checks the changed boundary.
+
+Identical in-flight database reads are coalesced using the source Arc identity,
+query, graph epoch and current load generation. Changed queries/epochs and
+replacement source handles still supersede old reads; navigating away invalidates
+a pending generation, so returning cannot accidentally reuse a discarded load.
+Completion or a current error releases the pending key. Stale errors do not
+replace the current graph's error state. The key policy has a regression test.

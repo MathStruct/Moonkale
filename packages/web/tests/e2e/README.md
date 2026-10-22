@@ -566,3 +566,17 @@ event units are pixels. Reports retain wheel axes/units and viewport travel;
 wheel events without document movement cannot pass. The idle baseline now uses
 the 95th percentile to resist short inter-refresh callbacks (P-225), with the
 same ≤17 ms cap and unchanged strict/calibrated timing thresholds.
+
+`graph-overview` and `graph-startup` serve the committed engine assets on a private
+loopback ephemeral port (`MOONKALE_REPO` required); they need no app server.
+The overview suite checks dense-graph panning, dot clicks and normal node drags.
+Startup checks visible pixels at 100,000 nodes and reports JSON/stringify and
+engine timings. `GRAPH_STARTUP_GATE=1` opts into a 3-second isolated engine gate;
+use the bench lock and both heavy slots for timing. `MOONKALE_GRAPH_PAYLOAD`
+optionally supplies the production panel JSON emitted by its ignored
+`profile_store_payload` test. That file stays in the worktree's target directory.
+These checks do not measure the desktop source/eval/compositor path.
+`GRAPH_STARTUP_RUNS=6` reuses one engine/context for a warm-up and five samples;
+report the last five. For a saved pre-fix engine, `MOONKALE_GRAPH_ASSETS` selects
+its asset directory and `GRAPH_EXPECT_INITIAL_LAYOUT_ITERATIONS=1` explicitly
+checks its original layout-before-draw behavior.

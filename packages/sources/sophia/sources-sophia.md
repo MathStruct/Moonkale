@@ -60,3 +60,22 @@ Release desktop build with `--features desktop,sophia` on a private headless dis
 - Conflicts are reported with the file wording ("The file changed outside the editor").
 - No annotation edits (SPEC-004 §3: a later op), no `datalog`, no typings yet (Sophia M4).
 - Polling only.
+
+## P-224: large graph queries (2026-10-22)
+
+The adapter translates and remembers each returned node once, then resolves
+edge endpoints through that per-result key-to-id map. It no longer computes and
+remembers both endpoint identities again for every edge. Kind-filtered and
+missing endpoints are dropped before copying edge properties; ids, order within
+one result, source key resolution and properties are preserved. The acceptance
+suite compares the filtered graph against the corresponding full graph.
+`MOONKALE_GRAPH_PROFILE=1` logs only numeric interface/adapter durations for
+`Query::All`; renderer/transport timings live in `editors/graph/graph.md`.
+Development builds optimize this query path's Sophia and SQLite crates;
+release builds already do so. See graph-render.md for end-to-end evidence.
+
+The watcher's initial `changes_since(0)` now reads `store().last_seq()` once,
+instead of decoding every historical change in 256-entry pages. The contract
+is unchanged: the first answer carries only the tail position, with no paths
+or reset; later polling still consumes bounded pages. This removes work
+proportional to historical log size and SQLite contention at store opening.

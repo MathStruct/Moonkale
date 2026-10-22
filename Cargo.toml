@@ -176,3 +176,17 @@ opt-level = 1
 
 [profile.dev.package.dioxus-code]
 opt-level = 2
+
+# P-224: Query::All walks 100k store nodes before the first graph picture.
+# Keep that production query path responsive in development builds as well.
+[profile.dev.package.moonkale-sources-sophia]
+opt-level = 2
+
+[profile.dev.package.sophia-interface]
+opt-level = 2
+
+[profile.dev.package.sophia-store]
+opt-level = 2
+
+[profile.dev.package.rusqlite]
+opt-level = 2

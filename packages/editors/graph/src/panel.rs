@@ -156,14 +156,85 @@ fn database_graph(res: &moonkale_core::QueryResult) -> (OutGraph<'_>, Vec<(Strin
     (out, groups)
 }
 
+// Eval::send first builds a serde_json::Value. Keep the graph as one string
+// through that bridge: no per-node Value trees or giant JavaScript object literal,
+// and the wasm parser consumes it directly without JSON.stringify in the view.
+fn serialize_graph_json<S: serde::Serializer>(
+    graph: &OutGraph<'_>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    let json = serde_json::to_string(graph).map_err(serde::ser::Error::custom)?;
+    serializer.serialize_str(&json)
+}
+
+struct PendingDatabaseLoad {
+    source: std::sync::Arc<dyn moonkale_core::Source>,
+    epoch: u64,
+    generation: u64,
+    query: Query,
+}
+
+impl PendingDatabaseLoad {
+    fn matches(
+        &self,
+        source: &std::sync::Arc<dyn moonkale_core::Source>,
+        epoch: u64,
+        generation: u64,
+        query: &Query,
+    ) -> bool {
+        std::sync::Arc::ptr_eq(&self.source, source)
+            && self.epoch == epoch
+            && self.generation == generation
+            && match (&self.query, query) {
+                (
+                    Query::All {
+                        limit: a,
+                        kinds: ak,
+                    },
+                    Query::All {
+                        limit: b,
+                        kinds: bk,
+                    },
+                ) => a == b && ak == bk,
+                (
+                    Query::Text {
+                        dialect: a,
+                        text: at,
+                    },
+                    Query::Text {
+                        dialect: b,
+                        text: bt,
+                    },
+                ) => a == b && at == bt,
+                _ => false,
+            }
+    }
+}
+
+fn sent_ms() -> f64 {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|t| t.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        0.0
+    }
+}
+
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum ToJs<'a> {
     SetGraph {
+        #[serde(serialize_with = "serialize_graph_json")]
         graph: OutGraph<'a>,
         /// Lay out from scratch instead of keeping known nodes' positions
         /// (a Local neighbourhood, Prompt26).
         fresh: bool,
+        sent_ms: f64,
     },
     /// Put the current view aside / bring it back (the Whole view while
     /// Local is shown).
@@ -186,6 +257,11 @@ enum ToJs<'a> {
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum FromJs {
     Loaded,
+    LoadProfile {
+        stringify_ms: f64,
+        handoff_ms: f64,
+        engine: Vec<f64>,
+    },
     Ready {
         backend: String,
     },
@@ -319,9 +395,19 @@ const unload = () => {
     try { const gl = canvas.getContext("webgl2") || canvas.getContext("webgl"); gl && gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
 };
 window.addEventListener("pagehide", unload, { once: true });
+let loadSerial = 0;
 for (;;) {
     const msg = await dioxus.recv();
-    if (msg.kind === "setGraph") { const g = JSON.stringify(msg.graph); if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g); }
+    if (msg.kind === "setGraph") {
+        const serial = ++loadSerial;
+        const received = Date.now();
+        const start = performance.now();
+        const g = msg.graph;
+        const stringify_ms = performance.now() - start;
+        const handoff_ms = msg.sent_ms ? received - msg.sent_ms : 0;
+        if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g);
+        requestAnimationFrame(() => requestAnimationFrame(() => { if (serial === loadSerial) dioxus.send({kind:"loadProfile", stringify_ms, handoff_ms, engine: Array.from(view.load_stats())}); }));
+    }
     else if (msg.kind === "stash") view.stash(msg.name);
     else if (msg.kind === "unstash") view.unstash(msg.name);
     else if (msg.kind === "fit") view.fit();
@@ -393,6 +479,17 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
+                        Ok(FromJs::LoadProfile {
+                            stringify_ms,
+                            handoff_ms,
+                            engine,
+                        }) => {
+                            #[cfg(not(target_arch = "wasm32"))]
+                            if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                                eprintln!("graph profile: handoff_ms={handoff_ms} stringify_ms={stringify_ms} engine_ms={engine:?}");
+                            }
+                            let _ = (stringify_ms, handoff_ms, engine);
+                        }
                         Ok(FromJs::Loaded) => loaded.set(true),
                         Ok(FromJs::Ready { backend: b }) => backend.set(Some(b)),
                         Ok(FromJs::Error { message }) => error.set(Some(message)),
@@ -428,6 +525,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // switch the picker to it (the picker still offers the index).
     let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
     let mut load_gen: Signal<u64> = use_signal(|| 0);
+    let mut pending_db: Signal<Option<PendingDatabaseLoad>> = use_signal(|| None);
     use_effect(move || {
         let graph_ids: Vec<SourceId> = ws
             .sources
@@ -477,7 +575,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         let m = mode();
         let f = filters();
         let active = *ws.docs.active.read();
-        let _epoch = *ws.sources.graph_epoch.read();
+        let epoch = *ws.sources.graph_epoch.read();
         let picked_id = picked();
         let dbm = db_mode();
         let request = if dbm == DbMode::Query {
@@ -491,7 +589,6 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         // Loads are async and may finish out of order (a remote index reply
         // after a local trace); only the newest load may publish.
         let gen = *load_gen.peek() + 1;
-        load_gen.set(gen);
         let picked_index = picked_id
             .as_ref()
             .and_then(|pid| indices.iter().find(|s| &s.descriptor.id == pid).cloned());
@@ -505,51 +602,96 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 .find(|s| s.descriptor.id == pid)
                 .cloned()
             else {
+                load_gen.set(gen);
                 counts.set((0, 0, false));
                 return;
             };
+            let query = match (&request, dbm) {
+                (Some(r), DbMode::Query) if r.source == pid => Query::Text {
+                    dialect: r.dialect.clone(),
+                    text: r.text.clone(),
+                },
+                (_, DbMode::Data) => Query::All {
+                    limit: GRAPH_LIMIT,
+                    kinds: data_kinds(handle.descriptor.truth),
+                },
+                _ => Query::All {
+                    limit: GRAPH_LIMIT,
+                    kinds: None,
+                },
+            };
+            // Opening a source can notify the panel more than once. Reuse an
+            // identical current read while it is pending; a real epoch/query/
+            // source change still supersedes it, as does navigating away.
+            if pending_db
+                .peek()
+                .as_ref()
+                .is_some_and(|p| p.matches(&handle.source, epoch, *load_gen.peek(), &query))
+            {
+                #[cfg(not(target_arch = "wasm32"))]
+                if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                    eprintln!("graph profile: coalesced pending read");
+                }
+                return;
+            }
+            load_gen.set(gen);
+            pending_db.set(Some(PendingDatabaseLoad {
+                source: handle.source.clone(),
+                epoch,
+                generation: gen,
+                query: query.clone(),
+            }));
             spawn(async move {
-                let _ = (m, active);
-                let query = match (&request, dbm) {
-                    (Some(r), DbMode::Query) if r.source == pid => Query::Text {
-                        dialect: r.dialect.clone(),
-                        text: r.text.clone(),
-                    },
-                    (_, DbMode::Data) => Query::All {
-                        limit: GRAPH_LIMIT,
-                        kinds: data_kinds(handle.descriptor.truth),
-                    },
-                    _ => Query::All {
-                        limit: GRAPH_LIMIT,
-                        kinds: None,
-                    },
-                };
+                let profile_start = sent_ms();
                 let res = match handle.source.query(query).await {
                     Ok(r) => r,
                     Err(e) => {
-                        error.set(Some(e.to_string()));
+                        if *load_gen.peek() == gen {
+                            pending_db.set(None);
+                            error.set(Some(e.to_string()));
+                        }
                         return;
                     }
                 };
                 if *load_gen.peek() != gen {
                     return;
                 }
+                pending_db.set(None);
+                let query_ms = sent_ms() - profile_start;
                 let (out, groups) = database_graph(&res);
+                let payload_ms = sent_ms() - profile_start - query_ms;
                 legend.set(groups);
                 counts.set((out.nodes.len(), out.edges.len(), res.truncated));
                 let _ = ev.send(ToJs::SetGraph {
                     graph: out,
                     fresh: false,
+                    sent_ms: sent_ms(),
                 });
+                #[cfg(not(target_arch = "wasm32"))]
+                if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                    eprintln!(
+                        "graph profile: query_ms={query_ms} payload_ms={payload_ms} query_payload_send_ms={}",
+                        (sent_ms() - profile_start)
+                    );
+                }
+                let _ = (query_ms, payload_ms);
                 shown.set(
                     res.nodes
-                        .iter()
-                        .map(|n| (n.id.to_string(), n.clone()))
+                        .into_iter()
+                        .map(|n| (n.id.to_string(), n))
                         .collect(),
                 );
+                #[cfg(not(target_arch = "wasm32"))]
+                if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                    eprintln!(
+                        "graph profile: query_to_shown_ms={}",
+                        sent_ms() - profile_start
+                    );
+                }
             });
             return;
         }
+        load_gen.set(gen);
         let indices: Vec<_> = match picked_index {
             Some(one) => vec![one],
             None => indices,
@@ -670,7 +812,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             };
             counts.set((out.nodes.len(), out.edges.len(), res.truncated));
             legend.set(groups);
-            let _ = ev.send(ToJs::SetGraph { graph: out, fresh });
+            let _ = ev.send(ToJs::SetGraph {
+                graph: out,
+                fresh,
+                sent_ms: sent_ms(),
+            });
             shown.set(
                 nodes
                     .into_iter()
@@ -1000,6 +1146,130 @@ mod unison_fixture;
 mod store_tests {
     use super::*;
     use moonkale_core::{Source, SourceTruth};
+    #[test]
+    fn pending_reads_only_coalesce_with_the_current_source_query_and_epoch() {
+        let source: std::sync::Arc<dyn moonkale_core::Source> =
+            std::sync::Arc::new(moonkale_sources_sophia::SophiaSource::sample().unwrap());
+        let query = Query::All {
+            limit: GRAPH_LIMIT,
+            kinds: None,
+        };
+        let pending = PendingDatabaseLoad {
+            source: source.clone(),
+            epoch: 4,
+            generation: 7,
+            query: query.clone(),
+        };
+        assert!(pending.matches(&source, 4, 7, &query));
+        assert!(!pending.matches(&source, 5, 7, &query));
+        assert!(
+            !pending.matches(&source, 4, 8, &query),
+            "navigating away invalidates a pending read"
+        );
+        assert!(!pending.matches(
+            &source,
+            4,
+            7,
+            &Query::All {
+                limit: GRAPH_LIMIT,
+                kinds: Some(vec![NodeKind::Vertex])
+            }
+        ));
+        assert!(!pending.matches(
+            &source,
+            4,
+            7,
+            &Query::Text {
+                dialect: "query".into(),
+                text: "different".into()
+            }
+        ));
+        let reopened: std::sync::Arc<dyn moonkale_core::Source> =
+            std::sync::Arc::new(moonkale_sources_sophia::SophiaSource::sample().unwrap());
+        assert!(!pending.matches(&reopened, 4, 7, &query));
+    }
+
+    #[test]
+    fn eval_graph_string_round_trips_unicode_and_script_like_content() {
+        let label = "λ 中文 \"quote\" \n </script><script>throw 1</script>";
+        let graph = OutGraph {
+            nodes: vec![OutNode {
+                id: "id".into(),
+                label,
+                kind: "symbol",
+                key: "a\\b",
+                color: None,
+            }],
+            edges: vec![],
+        };
+        let wire = serde_json::to_value(ToJs::SetGraph {
+            graph,
+            fresh: true,
+            sent_ms: 0.0,
+        })
+        .unwrap();
+        let script = wire.to_string();
+        let message: serde_json::Value = serde_json::from_str(&script).unwrap();
+        let graph: serde_json::Value =
+            serde_json::from_str(message["graph"].as_str().unwrap()).unwrap();
+        assert_eq!(graph["nodes"][0]["label"], label);
+        assert_eq!(graph["nodes"][0]["key"], "a\\b");
+        assert_eq!(message["fresh"], true);
+    }
+
+    /// Manual P-224 benchmark; only a disposable copy of a store is opened.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn profile_store_payload() {
+        let path = std::env::var("MOONKALE_GRAPH_STORE").expect("store copy");
+        let start = std::time::Instant::now();
+        let source = moonkale_sources_sophia::SophiaSource::open(path)
+            .await
+            .unwrap();
+        eprintln!("open_ms={}", start.elapsed().as_millis());
+        for run in 0..2 {
+            let start = std::time::Instant::now();
+            let r = source
+                .query(Query::All {
+                    limit: GRAPH_LIMIT,
+                    kinds: None,
+                })
+                .await
+                .unwrap();
+            let query_ms = start.elapsed().as_millis();
+            let start = std::time::Instant::now();
+            let (out, _) = database_graph(&r);
+            let payload_ms = start.elapsed().as_millis();
+            let start = std::time::Instant::now();
+            let json = serde_json::to_vec(&out).unwrap();
+            let serialize_ms = start.elapsed().as_millis();
+            let bridge_graph = database_graph(&r).0;
+            let start = std::time::Instant::now();
+            let value = serde_json::to_value(ToJs::SetGraph {
+                graph: bridge_graph,
+                fresh: false,
+                sent_ms: sent_ms(),
+            })
+            .unwrap();
+            let value_ms = start.elapsed().as_millis();
+            let start = std::time::Instant::now();
+            let script = value.to_string();
+            eprintln!(
+                "eval_to_value_ms={value_ms} eval_to_string_ms={} eval_bytes={}",
+                start.elapsed().as_millis(),
+                script.len()
+            );
+            eprintln!("run={run} nodes={} edges={} query_ms={query_ms} payload_ms={payload_ms} serialize_ms={serialize_ms} bytes={}", out.nodes.len(), out.edges.len(), json.len());
+            if run == 1 {
+                std::fs::write(
+                    std::env::var("MOONKALE_GRAPH_PAYLOAD").expect("output"),
+                    json,
+                )
+                .unwrap();
+            }
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn unison_namespaces_and_definitions_reach_renderer() {
         let Some(bin) = super::unison_fixture::ucm() else {

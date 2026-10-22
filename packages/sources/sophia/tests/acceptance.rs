@@ -114,6 +114,58 @@ async fn sample_store_draws_as_a_store_backed_graph() {
 }
 
 #[tokio::test]
+async fn filtered_graph_edges_keep_the_same_endpoint_identities() {
+    let s = SophiaSource::sample().unwrap();
+    let all = s
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    let kinds = vec![NodeKind::Directory, NodeKind::Custom("Name".into())];
+    let filtered = s
+        .query(Query::All {
+            limit: 1000,
+            kinds: Some(kinds.clone()),
+        })
+        .await
+        .unwrap();
+    let expected: std::collections::BTreeSet<_> = all
+        .nodes
+        .iter()
+        .filter(|n| kinds.contains(&n.kind))
+        .map(|n| n.id)
+        .collect();
+    assert_eq!(
+        filtered
+            .nodes
+            .iter()
+            .map(|n| n.id)
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected
+    );
+    let edges: Vec<_> = all
+        .edges
+        .iter()
+        .filter(|e| expected.contains(&e.from) && expected.contains(&e.to))
+        .collect();
+    assert_eq!(filtered.edges.len(), edges.len());
+    assert!(filtered.edges.iter().all(|a| edges
+        .iter()
+        .any(|b| a.from == b.from && a.to == b.to && a.kind == b.kind && a.props == b.props)));
+    let name = filtered
+        .nodes
+        .iter()
+        .find(|n| n.native_key == "name:sample.add")
+        .unwrap();
+    assert!(
+        s.fetch_text(name.id).await.is_ok(),
+        "reused ids still resolve to source keys"
+    );
+}
+
+#[tokio::test]
 async fn editing_moves_the_name_and_parse_errors_leave_it() {
     let s = SophiaSource::sample().unwrap();
     let names = sample_names(&s).await;
