@@ -25,6 +25,7 @@ struct State {
     graph: Graph,
     layout: Layout,
     camera: Camera,
+    reported_camera: Option<[f32; 6]>,
     renderer: Renderer,
     overlay: web_sys::CanvasRenderingContext2d,
     dpr: f32,
@@ -339,6 +340,7 @@ pub async fn create(
             height: h,
             ..Default::default()
         },
+        reported_camera: None,
         graph,
         layout,
         renderer,
@@ -740,6 +742,15 @@ impl GraphView {
             s.label_hover = label_hover.trim().to_string();
         }
         s.dirty = true;
+    }
+
+    /// Limit automatic fit magnification to leave space for host components.
+    /// Explicit wheel/pinch zoom remains unchanged. Non-finite limits are ignored.
+    pub fn set_fit_scale_limit(&self, limit: f32) {
+        if limit.is_finite() {
+            self.state.borrow_mut().camera.max_fit_scale =
+                limit.clamp(crate::camera::MIN_SCALE, 12.0);
+        }
     }
 
     pub fn fit(&self) {
@@ -1170,6 +1181,16 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 s.awaiting_first_draw = false;
             }
         }
+        let camera = s.camera.component_transform();
+        if s.reported_camera != Some(camera) {
+            s.reported_camera = Some(camera);
+            emit(
+                &s,
+                serde_json::json!({"kind":"camera", "scale":camera[0],
+                "offset":[camera[1],camera[2]], "width":camera[3], "height":camera[4],
+                "threeD":camera[5] != 0.0}),
+            );
+        }
         drop(s);
         request_frame(f.borrow().as_ref().unwrap());
     }));
@@ -1218,6 +1239,9 @@ fn draw_labels(s: &State) {
         ctx.set_line_join("round");
         ctx.set_line_cap("round");
         for (i, n) in s.graph.nodes.iter().enumerate() {
+            if n.embed {
+                continue;
+            }
             let Some(d) = n.symbol.as_deref() else {
                 continue;
             };
@@ -1268,6 +1292,9 @@ fn draw_labels(s: &State) {
     }
     if s.has_icons {
         for (i, n) in s.graph.nodes.iter().enumerate() {
+            if n.embed {
+                continue;
+            }
             let Some(icon) = n.icon.as_deref() else {
                 continue;
             };
@@ -1357,6 +1384,9 @@ fn draw_labels(s: &State) {
     // dense cluster (spec 017 follow-up): the important ones win the space.
     let mut candidates: Vec<(usize, f32, f32, f32)> = Vec::new();
     for (i, n) in s.graph.nodes.iter().enumerate() {
+        if n.embed {
+            continue;
+        }
         let hovered = Some(i) == s.hovered;
         if !show_all && !hovered && (huge || n.degree < 3) {
             continue;

@@ -32,7 +32,7 @@ try {
   const clip = { x: box.x, y: box.y, width: box.w, height: box.h };
   await step("a graph with a slow and a fast pulse settles", async () => {
     const graph = {
-      nodes: ["a", "b", "c"].map((id) => ({ id, label: id, kind: "file" })),
+      nodes: ["a", "b", "c"].map((id, i) => ({ id, label: id, kind: "file", pos: [160 * i, 0], pinned: true })),
       edges: [
         { id: "slow", a: 0, b: 1, pulse_speed: SLOW },
         { id: "fast", a: 1, b: 2, pulse_speed: FAST },
@@ -42,56 +42,53 @@ try {
     await page.waitForFunction(() => Object.values(window.moonkale.graphViews)[0].layout_state()[0] === 0, null, { timeout: 20000 });
     await sleep(700); // settle + auto-fit
   });
-  // The brightness profile along an edge's screen line (15–85 %, nodes
-  // excluded): the pulse's Gaussian glow is the peak; its index gives the
-  // pulse's position along the stroke.
-  const profile = async (pa, pb) => {
-    const png = await page.screenshot({ clip });
+  // Sample both edges from the same frame. Absolute displacements across a
+  // phase wrap over-read the slow pulse, and separate captures compare unequal
+  // intervals. Ignore off-stroke peaks and backwards (wrapped) pairs instead.
+  const profile = (png, pa, pb) => {
     const { width, bpp, data } = decode(png);
     const pts = [];
-    for (let k = 0; k <= 40; k++) {
-      const t = 0.15 + (0.7 * k) / 40;
+    for (let k = 0; k <= 256; k++) {
+      const t = 0.08 + (0.84 * k) / 256;
       const x = pa[0] + (pb[0] - pa[0]) * t;
       const y = pa[1] + (pb[1] - pa[1]) * t;
-      let s = 0;
-      for (let dx = -2; dx <= 2; dx++) {
-        for (let dy = -2; dy <= 2; dy++) {
-          const i = ((y + dy) | 0) * width * bpp + ((x + dx) | 0) * bpp;
-          s += (data[i] + data[i + 1] + data[i + 2]) / 3;
-        }
+      let sum = 0;
+      for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+        const i = ((y + dy) | 0) * width * bpp + ((x + dx) | 0) * bpp;
+        sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
       }
-      pts.push(s / 25);
+      pts.push(sum / 25);
     }
-    return pts;
+    const peak = pts.indexOf(Math.max(...pts));
+    if (peak < 3 || peak > 253 || Math.max(...pts)-Math.min(...pts) < 2) return null;
+    return (0.08 + 0.84*peak/256) * Math.hypot(pb[0]-pa[0], pb[1]-pa[1]);
   };
-  const peak = (pts) => pts.indexOf(Math.max(...pts));
-  // The glow's displacement over one interval, in screen pixels. A pulse
-  // can wrap during the interval (fract); several pairs, the max is the
-  // unwrapped displacement.
-  const displacement = async (idA, idB, pairs) => {
-    const pa = await pos(idA), pb = await pos(idB);
-    const len = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]);
-    let best = 0;
-    for (let i = 0; i < pairs; i++) {
-      const p1 = peak(await profile(pa, pb));
-      await sleep(180);
-      const p2 = peak(await profile(pa, pb));
-      const d = (Math.abs(p2 - p1) / 40) * 0.7 * len;
-      best = Math.max(best, d);
+  const median = values => [...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
+  await step("both pulses travel at their declared speeds in shared frames", async () => {
+    const [a,b,c] = await Promise.all([pos("a"),pos("b"),pos("c")]);
+    const samples = [];
+    for (let i=0;i<13;i++) {
+      const png = await page.screenshot({clip});
+      samples.push({time:Date.now(), slow:profile(png,a,b), fast:profile(png,b,c)});
+      if (i<12) await sleep(200);
     }
-    return best;
-  };
-  await step("both pulses travel, and the faster one travels farther", async () => {
-    // Six pairs, the max of them: a pair that straddles a wrap or a
-    // dropped frame under-reads; the fixes review saw 11.1 px against a
-    // bar of 12 under light load. The bar sits at ~70 % of the expected
-    // displacement so a loaded machine still passes.
-    const slowPx = await displacement("a", "b", 6);
-    const fastPx = await displacement("b", "c", 6);
-    console.log(`\n  slow pulse: ${slowPx.toFixed(0)} px in ~180 ms, fast: ${fastPx.toFixed(0)} px`);
-    if (slowPx < 9) throw new Error(`the slow pulse did not move (${slowPx.toFixed(1)} px)`);
-    if (fastPx < 9) throw new Error(`the fast pulse did not move (${fastPx.toFixed(1)} px)`);
-    if (fastPx < slowPx * 1.5) throw new Error(`the fast pulse (${fastPx.toFixed(0)} px) does not outpace the slow one (${slowPx.toFixed(0)} px)`);
+    const speeds = key => {
+      const rates = [];
+      for (let i=1;i<samples.length;i++) {
+        const before=samples[i-1], after=samples[i];
+        if (before[key] === null || after[key] === null) continue;
+        const delta=after[key]-before[key];
+        if (delta > 1) rates.push(delta*1000/(after.time-before.time));
+      }
+      if (rates.length<2) throw new Error(`${key} pulse has fewer than two measurable forward intervals`);
+      return median(rates);
+    };
+    const slow=speeds('slow'), fast=speeds('fast'), scale=(await cam())[0];
+    console.log(`\n  median screen speeds: slow ${slow.toFixed(1)} px/s, fast ${fast.toFixed(1)} px/s; ratio ${(fast/slow).toFixed(2)}`);
+    for (const [name, actual, expected] of [['slow',slow,SLOW*scale],['fast',fast,FAST*scale]]) {
+      if (actual<expected*0.55 || actual>expected*1.6) throw new Error(`${name} speed ${actual} px/s differs from ${expected}`);
+    }
+    if (fast/slow<2 || fast/slow>4.5) throw new Error(`pulse speed ratio ${fast/slow} differs from 3`);
     await page.screenshot({ path: `${S}/s6-pulses.png` });
   });
   await step("zoomed out under the pixel threshold, the animation stops (LOD)", async () => {

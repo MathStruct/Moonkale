@@ -20,6 +20,8 @@ pub struct Camera {
     pub cz: f32,
     /// Pixels per world unit (2D).
     pub scale: f32,
+    /// Host ceiling for automatic fitting; explicit pointer zoom is unrestricted.
+    pub max_fit_scale: f32,
     /// Viewport size in CSS pixels.
     pub width: f32,
     pub height: f32,
@@ -41,6 +43,7 @@ impl Default for Camera {
             cy: 0.0,
             cz: 0.0,
             scale: 1.0,
+            max_fit_scale: 12.0,
             width: 800.0,
             height: 600.0,
             three_d: false,
@@ -114,6 +117,20 @@ fn look_at(eye: [f32; 3], target: [f32; 3], up: [f32; 3]) -> Mat4 {
 }
 
 impl Camera {
+    /// CSS affine mapping: screen = world * scale + offset, plus viewport/mode.
+    /// Compared once per animation frame; time and 3D orbit do not affect it.
+    pub fn component_transform(&self) -> [f32; 6] {
+        let (x, y) = self.world_to_screen(0.0, 0.0);
+        [
+            self.scale,
+            x,
+            y,
+            self.width,
+            self.height,
+            f32::from(self.three_d),
+        ]
+    }
+
     /// Where the eye is in 3D mode.
     pub fn eye(&self) -> [f32; 3] {
         let (sy, cy) = self.yaw.sin_cos();
@@ -275,7 +292,7 @@ impl Camera {
         self.cz = if z0 <= z1 { (z0 + z1) / 2.0 } else { 0.0 };
         self.scale = ((self.width - 2.0 * padding) / w)
             .min((self.height - 2.0 * padding) / h)
-            .clamp(MIN_SCALE, 12.0);
+            .clamp(MIN_SCALE, self.max_fit_scale.clamp(MIN_SCALE, 12.0));
         // 3D: far enough that the bounding sphere fits the 50° field of view.
         let radius = (w * w + h * h + (z1 - z0).max(0.0).powi(2)).sqrt() / 2.0;
         self.dist = (radius / (25f32.to_radians()).sin() * 1.1).clamp(200.0, 60_000.0);
@@ -410,6 +427,40 @@ mod tests {
         assert!(camera.node_draggable(&graph, 0));
         graph.nodes[0].radius = 1.0;
         assert!(!camera.node_draggable(&graph, 0));
+    }
+
+    #[test]
+    fn fit_ceiling_leaves_room_for_host_cards_without_limiting_user_zoom() {
+        let mut c = Camera {
+            max_fit_scale: 0.8,
+            ..Default::default()
+        };
+        c.fit_rect((0.0, 0.0, 90.0, 40.0), (0.0, 0.0), 40.0);
+        assert_eq!(c.scale, 0.8);
+        c.zoom_at(2.0, 400.0, 300.0);
+        assert_eq!(c.scale, 1.6);
+    }
+
+    #[test]
+    fn component_transform_tracks_pan_zoom_resize_and_mode() {
+        let mut c = Camera::default();
+        for operation in 0..4 {
+            match operation {
+                0 => c.pan(31.0, -17.0),
+                1 => c.zoom_at(1.5, 70.0, 90.0),
+                2 => {
+                    c.width = 950.0;
+                    c.height = 720.0;
+                }
+                _ => c.three_d = true,
+            }
+            let t = c.component_transform();
+            let (x, y) = c.world_to_screen(13.0, -29.0);
+            assert!((x - (13.0 * t[0] + t[1])).abs() < 0.001);
+            assert!((y - (-29.0 * t[0] + t[2])).abs() < 0.001);
+            assert_eq!([t[3], t[4]], [c.width, c.height]);
+            assert_eq!(t[5] != 0.0, c.three_d);
+        }
     }
 
     #[test]
