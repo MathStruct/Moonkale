@@ -86,6 +86,7 @@ type Entry = {
   pendingCompletion: Map<number, (items: CompletionItem[] | null) => void>
 }
 
+const phraseCompartments = new WeakMap<HTMLElement, Compartment>()
 const views = new WeakMap<HTMLElement, Entry>()
 const sessions = new Map<string, Entry>()
 const marker = StateEffect.define<{ group: string; undo: boolean }>()
@@ -374,9 +375,12 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
       features.onCursor!(line, col, toText(u.view.state.doc, anchor, u.view.state.lineBreak.length - 1), toText(u.view.state.doc, head, u.view.state.lineBreak.length - 1))
     }, 250)
   })
+  const phrases = new Compartment()
+  phraseCompartments.set(el, phrases)
   const config = {
       doc: text,
       extensions: [
+        phrases.of(EditorState.phrases.of({})),
         EditorState.lineSeparator.of(separatorOf(text)),
         presenceGutter,
         cursorWatch,
@@ -468,6 +472,11 @@ function run(el: HTMLElement, action: string): void {
 }
 
 /** Soft wrap on/off (spec 014). */
+function setPhrases(el: HTMLElement, values: Record<string, string>): void {
+  const e = views.get(el), compartment = phraseCompartments.get(el)
+  if (e && compartment) e.view.dispatch({ effects: compartment.reconfigure(EditorState.phrases.of(values)) })
+}
+
 function setWrap(el: HTMLElement, wrap: boolean): void {
   const e = views.get(el)
   if (e) e.view.dispatch({ effects: e.wrap.reconfigure(wrap ? EditorView.lineWrapping : []) })
@@ -585,4 +594,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }
+window.moonkale.codemirror = { mount, setPhrases, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }

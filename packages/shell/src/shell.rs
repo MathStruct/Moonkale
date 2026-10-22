@@ -313,6 +313,9 @@ pub fn Shell() -> Element {
     let mut owner: HashMap<String, usize> = HashMap::new();
     let mut active_panel: Option<PanelId> = None;
     let active_node = *ws.docs.active.read();
+    // Activation is a navigation edge. Workbench remounts on layout changes;
+    // replaying the last document here would override its retained active tabs.
+    let activate_document = use_document_activation(active_node);
     let is_narrow = *narrow.read();
     // Disabled extensions (Settings → Extensions) contribute nothing.
     let ext_settings = ws.settings.resolved.read().extensions.clone();
@@ -361,7 +364,9 @@ pub fn Shell() -> Element {
             is_static.insert(c.id.clone(), c.node.is_none());
             present.push(c.id.clone());
             if c.node.is_some() && c.node == active_node {
-                active_panel = Some(PanelId::from(c.id.as_str()));
+                if activate_document {
+                    active_panel = Some(PanelId::from(c.id.as_str()));
+                }
                 editor_panel = Some(c.id.clone());
             }
             let home = home_tile(is_narrow, c.home);
@@ -800,12 +805,24 @@ fn home_tile(narrow: bool, home: moonkale_ext_api::PanelHome) -> &'static str {
     }
 }
 
+/// Remember navigation outside the workbench subtree that remounts on resize.
+fn use_document_activation(active: Option<moonkale_core::NodeId>) -> bool {
+    let last = use_hook(|| Rc::new(std::cell::Cell::new(None)));
+    last.replace(active) != active
+}
+
 /// Reports `matchMedia("(max-width: <px>px)")` now and on every change.
 const NARROW_WATCH: &str = r#"
 function watch(px) {
     const mq = window.matchMedia(`(max-width: ${px}px)`);
-    dioxus.send(mq.matches);
-    mq.addEventListener("change", (e) => dioxus.send(e.matches));
+    const report = () => {
+        // Minimized desktop windows can report an unusably small viewport.
+        if (window.innerWidth >= 100 && window.innerHeight >= 100)
+            dioxus.send(mq.matches);
+    };
+    report();
+    window.addEventListener("resize", report);
+    mq.addEventListener("change", report);
 }
 for (;;) { await dioxus.recv(); }
 "#;
@@ -1049,4 +1066,102 @@ fn remember_panics() {
             previous(info);
         }));
     });
+}
+
+#[cfg(test)]
+mod responsive_tests {
+    use super::*;
+    thread_local! {
+        static WIDTH: std::cell::Cell<Option<Signal<bool>>> = const { std::cell::Cell::new(None) };
+        static WIDE: std::cell::Cell<Option<Signal<PanelLayout>>> = const { std::cell::Cell::new(None) };
+        static REQUESTS: std::cell::RefCell<Vec<bool>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    fn app() -> Element {
+        let narrow = use_signal(|| false);
+        WIDTH.with(|width| width.set(Some(narrow)));
+        let node = use_hook(|| {
+            moonkale_core::NodeId::derive(&moonkale_core::SourceId("fixture".into()), "Cargo.lock")
+        });
+        let request = use_document_activation(Some(node));
+        REQUESTS.with(|requests| requests.borrow_mut().push(request));
+        let wide = use_signal(|| {
+            PanelLayout::new(LayoutNode::split(
+                "root",
+                SplitAxis::Horizontal,
+                0.25,
+                LayoutNode::tile("side", ["explorer", "search"]),
+                LayoutNode::tile("main", ["graph", "document"]),
+            ))
+        });
+        let phone = use_signal(|| {
+            PanelLayout::new(LayoutNode::tile(
+                "main",
+                ["graph", "document", "explorer", "search"],
+            ))
+        });
+        WIDE.with(|value| value.set(Some(wide)));
+        let active = request.then(|| PanelId::from("document"));
+        let panels = ["graph", "document", "explorer", "search"]
+            .into_iter()
+            .map(|id| {
+                Panel::new(
+                    id,
+                    id,
+                    if narrow() || matches!(id, "graph" | "document") {
+                        "main"
+                    } else {
+                        "side"
+                    },
+                    rsx! {div { "{id}" }},
+                )
+            })
+            .collect::<Vec<_>>();
+        rsx! {
+            if narrow() { PanelWorkspace { panels, layout: phone, active_panel: active } }
+            else { PanelWorkspace { panels, layout: wide, active_panel: active } }
+        }
+    }
+    #[test]
+    fn layout_switch_does_not_replay_document_navigation() {
+        REQUESTS.with(|requests| requests.borrow_mut().clear());
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dom.render_immediate_to_vec();
+        // The user foregrounds Graph while the most recent document remains
+        // Cargo.lock, and selects Search in the other tab group.
+        dom.in_scope(ScopeId::ROOT, || {
+            WIDE.with(|value| {
+                let mut layout = value.get().unwrap();
+                layout.with_mut(|layout| {
+                    layout.activate(&PanelId::from("graph"));
+                    layout.activate(&PanelId::from("search"));
+                });
+            })
+        });
+        dom.render_immediate_to_vec();
+        for narrow in [true, false, true, false] {
+            dom.in_scope(ScopeId::ROOT, || {
+                WIDTH.with(|width| width.get().unwrap().set(narrow))
+            });
+            dom.render_immediate_to_vec();
+        }
+        dom.in_scope(ScopeId::ROOT, || {
+            WIDE.with(|value| {
+                let layout = value.get().unwrap();
+                assert_eq!(
+                    layout.peek().tile(&TileId::from("main")).unwrap().active,
+                    Some(PanelId::from("graph"))
+                );
+                assert_eq!(
+                    layout.peek().tile(&TileId::from("side")).unwrap().active,
+                    Some(PanelId::from("search"))
+                );
+            })
+        });
+        REQUESTS.with(|requests| {
+            let requests = requests.borrow();
+            assert!(requests[0]);
+            assert!(requests[1..].iter().all(|request| !request));
+        });
+    }
 }

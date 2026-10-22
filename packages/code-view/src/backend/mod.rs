@@ -131,6 +131,8 @@ pub trait CodeEditorBackend {
     fn set_cursor(&self, line: u32, col: u32);
     /// `[[link]]` spans and whether they resolve (spec 012).
     fn set_wiki_links(&self, marks: &[WikiMark]);
+    /// Localized backend UI phrases; does not change the document.
+    fn set_phrases(&self, _phrases: std::collections::HashMap<String, String>) {}
     /// Soft-wrap long lines (spec 014).
     fn set_wrap(&self, wrap: bool);
     /// Apply optional user indentation overrides; None restores backend defaults.

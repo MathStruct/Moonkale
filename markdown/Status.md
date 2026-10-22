@@ -32,6 +32,17 @@ folder, index, extension API, LLM, Unison and remote library tests, followed by 
 default extension distribution check. Native runs are pending GitHub validation;
 UI, installers and Intel macOS are outside this CI job. See [[How to Write Tests]].
 
+## First Windows UI findings (P-217–P-219, checked 2026-10-22)
+
+Responsive layout changes retain each desktop tab group's selection and ignore
+viewports smaller than 100 pixels on either axis. Rich Markdown images resolve
+through the document's source and retain relative paths when saved. CodeMirror
+find/replace uses theme tokens and English/German/Chinese locale phrases.
+VirtualDom and browser regressions cover these changes, with packaged Linux/WebKit
+private-display checks of Graph retention, Rich images and the German find bar.
+Windows recheck remains
+Daniel's. See [[Problem Log]], [[Markdown and Typst Editor]] and [[Code Editor]].
+
 ## By area
 
 | area | state | notes |

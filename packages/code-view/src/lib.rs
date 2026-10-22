@@ -144,3 +144,6 @@ mod markdown_crash_regression {
             .is_empty());
     }
 }
+
+#[cfg(feature = "markdown-preview")]
+pub use native_images::source_image_url;

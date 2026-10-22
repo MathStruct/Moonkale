@@ -580,3 +580,9 @@ These checks do not measure the desktop source/eval/compositor path.
 report the last five. For a saved pre-fix engine, `MOONKALE_GRAPH_ASSETS` selects
 its asset directory and `GRAPH_EXPECT_INITIAL_LAYOUT_ITERATIONS=1` explicitly
 checks its original layout-before-draw behavior.
+
+`responsive-tabs` checks selected tabs across two phone/wide round trips with
+Graph foregrounded over the most recently opened document. `rich-images`
+checks source-backed Rich images from a subfolder, escaped/remote path refusal
+and canonical relative destinations after saving. `codemirror-search` checks
+the German search panel, token-based controls and actual search selection.

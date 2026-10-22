@@ -125,3 +125,22 @@ native-indent-width = 宽度
 native-default = 语言默认
 native-spaces = 空格
 native-tabs = 制表符
+
+# CodeMirror search panel
+cm-search-find = 查找
+cm-search-replace = 替换
+cm-search-next = 下一个
+cm-search-previous = 上一个
+cm-search-all = 全部
+cm-search-case = 区分大小写
+cm-search-regexp = 正则表达式
+cm-search-word = 全字匹配
+cm-search-replace-one = 替换
+cm-search-replace-all = 全部替换
+cm-search-close = 关闭
+cm-search-goto = 跳转到行
+cm-search-go = 跳转
+cm-search-current = 当前匹配
+cm-search-replaced = 已替换 $ 处
+cm-search-replaced-line = 已替换第 $ 行匹配
+cm-search-on-line = 在行

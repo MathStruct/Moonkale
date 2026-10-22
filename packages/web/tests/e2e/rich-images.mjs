@@ -1,0 +1,30 @@
+import { firefox } from 'playwright';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const root=process.env.M1_ROOT;
+fs.mkdirSync(`${root}/notes/pictures`,{recursive:true});
+fs.writeFileSync(`${root}/notes/pictures/Café.svg`,'<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80"><rect width="240" height="80"/></svg>');
+const text='# Rich images\n\n![猫](pictures/Caf%C3%A9.svg "Title")\n\n![Escape](../../outside.png)\n\n![Remote](https://example.invalid/private.png)\n\nEnd\n';
+fs.writeFileSync(`${root}/notes/RichImages.md`,text);
+const browser=await firefox.launch();const page=await browser.newPage({viewport:{width:1500,height:1000}});
+await page.addInitScript(()=>localStorage.setItem('moonkale.settings',JSON.stringify({editor:{markdown_rich:true}})));
+const requests=[];page.on('request',request=>{if(request.resourceType()==='image')requests.push(request.url());});
+page.setDefaultTimeout(15000);
+try {
+ await page.goto(`http://127.0.0.1:${process.env.PORT}/`,{waitUntil:'networkidle'});
+ await page.click('.mk-explorer-open button[type=submit]');
+ await page.locator('.mk-tree-dir').filter({has:page.locator('.mk-tree-label', {hasText:/^notes$/})}).click();
+ await page.locator('.mk-tree-file').filter({hasText:'RichImages.md'}).click();
+ await page.locator('.mk-md:visible .mk-md-modes button').filter({hasText:/^Rich$/}).click();
+ const image=page.locator('.mk-rich-host:visible img[alt="猫"]');
+ await page.waitForFunction(()=>document.querySelector('.mk-rich-host img[alt="猫"]')?.naturalWidth===240);
+ assert.ok((await image.getAttribute('src')).startsWith('data:image/svg+xml;base64,'));
+ assert.equal(await page.locator('.mk-rich-host img[alt="Escape"]').getAttribute('src'),null);
+ assert.equal(await page.locator('.mk-rich-host img[alt="Remote"]').getAttribute('src'),null);
+ const editor=page.locator('.mk-rich-host:visible .ProseMirror');await editor.click();await page.keyboard.press('Control+End');await page.keyboard.insertText('!');
+ await page.keyboard.press('Control+s');await page.waitForTimeout(400);
+ const saved=fs.readFileSync(`${root}/notes/RichImages.md`,'utf8');
+ assert.ok(saved.includes('pictures/Caf%C3%A9.svg'));assert.ok(!saved.includes('data:'));
+ assert.ok(requests.every(url=>!url.includes('outside.png')&&!url.includes('example.invalid')&&!url.includes('/pictures/')));
+ console.log('RICH IMAGES E2E: PASS');
+} finally {await browser.close();}

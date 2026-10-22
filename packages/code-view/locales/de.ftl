@@ -133,3 +133,22 @@ native-indent-width = Breite
 native-default = Sprachstandard
 native-spaces = Leerzeichen
 native-tabs = Tabulatoren
+
+# CodeMirror search panel
+cm-search-find = Suchen
+cm-search-replace = Ersetzen
+cm-search-next = weiter
+cm-search-previous = zurück
+cm-search-all = alle
+cm-search-case = Groß-/Kleinschreibung
+cm-search-regexp = Regulärer Ausdruck
+cm-search-word = Ganzes Wort
+cm-search-replace-one = ersetzen
+cm-search-replace-all = alle ersetzen
+cm-search-close = schließen
+cm-search-goto = Gehe zu Zeile
+cm-search-go = Los
+cm-search-current = Aktueller Treffer
+cm-search-replaced = $ Treffer ersetzt
+cm-search-replaced-line = Treffer in Zeile $ ersetzt
+cm-search-on-line = in Zeile

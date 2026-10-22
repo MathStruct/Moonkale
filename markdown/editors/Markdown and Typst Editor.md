@@ -35,3 +35,14 @@ Mermaid blocks render in preview via a small JS package if/when needed (same int
 2. Milkdown WYSIWYG.
 3. Typst preview.
 4. Embeds of *any node* (`![[users]]` renders a table).
+
+## Relative images in Rich mode (P-218, 2026-10-22)
+
+Rich image node views resolve Markdown destinations relative to the document's
+folder in its source, through the same source lookup, image limits, freshness
+checks and bounded data-URL cache as native Markdown previews. The view keeps
+the original destination in Markdown, including after editing and saving.
+Missing, escaping and external destinations receive no display URL. Each mount
+requests at most 128 images with destinations no longer than 4096 bytes.
+`rich-images` covers a percent-encoded subfolder image, refusal of outside and
+remote paths, and saving without embedding display URLs.
