@@ -346,8 +346,9 @@ the final typed character in the fresh private-display FPS host, including while
 recording. The divergence guard remains necessary for external edits; removing
 it without reproduction could corrupt history. Opt-in text/input observations
 and a dedicated OS-input suite provide evidence for the follow-up. This is not
-a claim that the real-session failure is fixed or that desktop FPS acceptance
-is complete.
+a claim that desktop FPS acceptance is complete. **Resolved 2026-10-22:** the
+real-session failure was the keyboard layout (US layout on a German keyboard, so
+Ctrl+"Z" sent Ctrl+Y), not the editor.
 
 Validation: 19 recorder clock/input regressions; browser transport, arrow and
 small-scroll checks; three native compositor-input cases with exact typing,
