@@ -213,6 +213,9 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 | P-223 Zoomed far out, dragging the graph moves a node instead of panning | Daniel, 100 000-node Sophia store (2026-10-21): far out, nearly every point of the canvas is within a node's pick radius, so a drag picks a node and moves it. Panning is only possible between nodes. Candidates: a pick radius that shrinks with the drawn node size, or a press that pans when the node is smaller than a few pixels | open | 16 |
 | P-224 The 100 000-node graph takes about 15 s to appear | Daniel's desktop (2026-10-21), `gen100000.sophia`: about 15 s from opening the store to the first picture; zooming, panning and clicking are smooth afterwards. The source's `Query::All` takes 0.5 s and is 50 MB of JSON (`examples/browse.rs`), so most of it is the hand-off to the renderer and the first layout. Not measured per step yet | open | 16 |
 
+| [[P-225 Native FPS recorder misclassifies idle cadence and input]] | Upper-envelope idle calibration, backend-independent arrow traversal evidence and actual small document scroll movements; timing thresholds unchanged, no-op wheel attempts still fail. Precise paired-callback scheduling cause and hardware rerun remain open. | resolved (accounting) | WP-02 |
+| [[P-226 Real desktop FPS host undo report]] | Real compositor Ctrl+Z works in a fresh private-display FPS host, including while recording; add canonical-text/input observations and OS regression. Daniel's session-specific failure is not reproduced or declared fixed. | investigating | WP-02 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

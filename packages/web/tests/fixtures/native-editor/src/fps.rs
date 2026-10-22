@@ -39,6 +39,14 @@ pub fn EditorHost() -> Element {
         ws.settings
             .resolved
             .with_mut(|settings| settings.editor.wrap = false);
+        if std::env::var_os("MOONKALE_FPS_DOC_PREVIEW").is_some() {
+            ws.settings
+                .user
+                .with_mut(|file| file.editor.doc_comment_preview = Some(true));
+            ws.settings
+                .resolved
+                .with_mut(|settings| settings.editor.doc_comment_preview = true);
+        }
         let source = SourceId::new("folder:/tmp/native-fps-fixture");
         let node = Node {
             id: NodeId::derive(&source, &name),
@@ -68,6 +76,21 @@ pub fn EditorHost() -> Element {
         ws.docs.open.with_mut(|docs| docs.push((node.id, doc)));
         ws.docs.active.set(Some(node.id));
         (ws, node.id, doc)
+    });
+    // Optional correctness observation for compositor-input tests. Keep full-text
+    // reporting out of performance recordings unless explicitly requested.
+    use_effect(move || {
+        if let Some(path) = std::env::var_os("MOONKALE_FPS_TEXT_REPORT") {
+            std::fs::write(path, &doc.read().text).expect("write FPS correctness text");
+        }
+    });
+    use_future(move || async move {
+        if let Some(path) = std::env::var_os("MOONKALE_FPS_INPUT_REPORT") {
+            let mut eval = document::eval(include_str!("fps-input-probe.js"));
+            while let Ok(sample) = eval.recv::<serde_json::Value>().await {
+                std::fs::write(&path, sample.to_string()).expect("write FPS input observations");
+            }
+        }
     });
     let lsp = use_hook(moonkale_code_view::lsp::LspManager::new);
     rsx! {

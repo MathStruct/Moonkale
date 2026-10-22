@@ -41,5 +41,35 @@ try {
   assert.equal(sample.passed, false, 'a development recording cannot pass release acceptance');
   assert.equal(await page.locator('.canonical').textContent(), 'x'.repeat(10) + original);
   assert.deepEqual(errors, []);
+  await page.locator('#layout-document').click();
+  await page.waitForTimeout(200);
+  await input.focus();
+  const recordGesture = gesture => page.evaluate(async ({script, gesture}) => {
+    let sample;
+    await new Function('dioxus', `return (async () => {${script}})();`)({
+      recv: async () => ({gesture, durationMs: 1000, build: 'dev-desktop'}),
+      send: value => { sample = value; },
+    });
+    return sample;
+  }, {script, gesture});
+  const arrows = recordGesture('held-arrows');
+  await page.waitForTimeout(100);
+  for (let n = 0; n < 15; n++) await page.keyboard.press('ArrowDown');
+  const arrowSample = await arrows;
+  assert.equal(arrowSample.events.arrowKeys, 15);
+  assert.equal(arrowSample.interacted, true);
+  const scrolling = recordGesture('small-scroll-deltas');
+  await page.waitForTimeout(100);
+  const viewport = page.locator('.primary .mk-editor-core-viewport');
+  await viewport.hover();
+  for (let n = 0; n < 15; n++) {
+    await page.mouse.wheel(0, 3);
+    await page.waitForTimeout(30);
+  }
+  const scrollSample = await scrolling;
+  assert.equal(scrollSample.interacted, true);
+  assert.ok(scrollSample.events.smallScroll >= 5);
+  assert.ok(scrollSample.scrollDistance > 0);
+  assert.deepEqual(errors, []);
   console.log('EDITOR FPS RECORDER: PASS (transport only; desktop frames not measured)');
 } finally { await browser.close(); }

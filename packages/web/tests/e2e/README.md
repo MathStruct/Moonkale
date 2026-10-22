@@ -433,7 +433,7 @@ cannot resolve the 16.7 ms gate. The clock/gate regression runs without a browse
 not establish actual WebView clock precision or desktop performance.
 
 When GTK WebKit quantizes both clocks, the desktop report uses a calibrated
-vsync fallback: at least 30 idle frames, median baseline no slower than 17 ms,
+vsync fallback: at least 30 idle frames, idle p95 baseline no slower than 17 ms,
 p95 ≤1.5×baseline and max ≤50 ms. It retains `strictPassed: false`, raw timings,
 idle samples, missed-frame count and `gate: "calibrated-vsync"`; this does not
 establish the original sub-millisecond 16.7 ms desktop gate. The driver waits
@@ -546,3 +546,23 @@ a stubborn descendant and an unrelated process that must survive cleanup.
 four-control budget, keyboard/touch overflow, Escape focus restoration, indentation
 settings and compact phone height. Rust commands moved to ⋯ in WP-69; tests that
 activate them by mouse must open `.mk-native-more > summary` first.
+
+
+`native-editor-fps-input.py <desktop-fixture> --report <new-json-path>` runs
+real compositor typing, Ctrl+Z/Ctrl+Shift+Z, selected replacement undo, held arrows
+and small horizontal/vertical wheel input (including recorder interaction checks) in the FPS host. Source, documentation
+preview and a 3 MB line are checked against exact canonical text. It owns and
+stops a private Wayland display. This correctness test uses optional
+`MOONKALE_FPS_TEXT_REPORT` and `MOONKALE_FPS_INPUT_REPORT` observers; leave both
+unset for performance measurements. `MOONKALE_FPS_DOC_PREVIEW=1` selects the
+preview mode at host creation. The passive input report retains bounded trusted
+key/wheel/scroll observations and initial clock/geometry samples for diagnosing
+hardware-specific input failures; it never edits the document.
+
+Desktop recorder interaction checks use arrow keydown counts plus actual
+caret/viewport movement, since WebKitGTK may omit `repeat`. Smooth small-scroll
+checks observe actual ≤10 pixel document movements rather than assuming wheel
+event units are pixels. Reports retain wheel axes/units and viewport travel;
+wheel events without document movement cannot pass. The idle baseline now uses
+the 95th percentile to resist short inter-refresh callbacks (P-225), with the
+same ≤17 ms cap and unchanged strict/calibrated timing thresholds.
