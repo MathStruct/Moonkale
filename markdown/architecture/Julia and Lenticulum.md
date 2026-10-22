@@ -44,18 +44,6 @@ What that needs from Moonkale, concretely — each a piece of existing machinery
 ## Not decided
 The wire format between Julia and Moonkale (JSON lines first); whether the factor-graph document is a flow-editor document with a stricter schema or its own; how a schedule is authored (overlay vs. a second, small DAG); what "large" is for a factor graph in practice (measure with Lenticulum's own examples once they exist).
 
-## Open questions to explain later (Daniel, 2026-10-22)
-
-- **Where does the graph of a problem come from?** Before a factor graph can be edited, someone has to find its structure. Three routes, from most to least prior knowledge:
-  1. *From the model*: equations (ModelingToolkit) or a probabilistic program (RxInfer `@model`) already are the graph.
-  2. *Structure learning from data*: which variables depend on each other. Conditional-independence tests (PC algorithm), score-based search (GES, NOTEARS), the graphical lasso for Gaussian models, causal discovery in general.
-  3. *Topological data analysis*: Mapper draws a graph of the data's shape and persistent homology finds clusters and loops. Its nodes are regions of the data, not variables, so a Mapper graph is not a factor graph. TDA is the exploration step before route 2, and it also applies to a factor graph itself: the loops of a factor graph decide where loopy belief propagation is only approximate.
-  Moonkale's part would be showing each route's result as a graph to accept or edit, not doing the learning.
-- **Is there a link to schemes in algebraic geometry?** Two real links, both one step away from schemes themselves:
-  1. *Algebraic statistics*: a graphical model with discrete or Gaussian variables is an algebraic variety, the distributions that satisfy the polynomial equations its conditional independences give (Drton, Sturmfels and Sullivant, *Lectures on Algebraic Statistics*; Sullivant, *Algebraic Statistics*). Schemes generalise varieties and matter where the variety is singular, which is where identifiability and model selection get hard.
-  2. *Sheaves*: a factor graph is a cellular sheaf when every variable and factor carries a space of local states and every edge a map saying how they must agree. Global sections are the consistent assignments, and the sheaf Laplacian measures inconsistency (Hansen and Ghrist; Robinson, *Topological Signal Processing*). Schemes are themselves built from sheaves, so sheaves are the shared ingredient.
-  For Moonkale, the sheaf view could shape the data model (typed ports plus compatibility maps on wires). Nothing depends on it yet.
-
 A Julia REPL with rich output comes cheapest through IJulia in the [[Notebook Editor]].
 
 **The full requirement set (2026-10-14)** is [[Lenticulum Frontend Requirements]]: LT-01 to LT-23, from three use cases (LLM internals, omics, markets).
