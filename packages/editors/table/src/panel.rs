@@ -417,7 +417,10 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                                     for c in cols.clone() {
                                         {
                                             let v = row.get(c).unwrap_or(&Value::Null);
-                                            let text = grid::cell_text(v);
+                                            let text = match v { Value::DateTime(d) => d.display(&ws.lang()), _ => grid::cell_text(v) };
+                                            let target = match v { Value::Ref { node, .. } => Some(*node), _ => None };
+                                            let known = target.and_then(|id| result.0.nodes.iter().find(|n| n.id == id).cloned().or_else(|| ws.open_node_by_id(id)));
+                                            let points = match v { Value::Vector(v) => Some(grid::sparkline(v)), _ => None };
                                             let at = cur == Some((pos, c));
                                             rsx! {
                                                 div {
@@ -427,7 +430,18 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                                                     style: "width: {widths.read()[c]}px;",
                                                     title: if matches!(v, Value::Text(_)) { "{text}" } else { "" },
                                                     onclick: move |_| cursor.set(Some((pos, c))),
-                                                    "{text}"
+                                                    if let Some(target) = target {
+                                                        button { class: "mk-cell-ref", role: "link", onclick: move |e| {
+                                                            e.stop_propagation();
+                                                            let known = known.clone();
+                                                            spawn(async move { open_reference(ws, target, known).await; });
+                                                        }, "{text}" }
+                                                    } else if let Some(points) = points {
+                                                        svg { class: "mk-cell-vector", view_box: "0 0 100 20", width: "100", height: "20",
+                                                            role: "img", "aria-label": "{text}",
+                                                            polyline { points, fill: "none", stroke: "currentColor", stroke_width: "1.5" }
+                                                        }
+                                                    } else { "{text}" }
                                                 }
                                             }
                                         }
@@ -436,6 +450,32 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Resolve a source-known identity through existing readers; never turn labels
+/// into paths or URLs. A result can omit its nodes after transport.
+async fn open_reference(ws: Workspace, target: moonkale_core::NodeId, known: Option<Node>) {
+    if let Some(node) = known {
+        let _ = ws.open_node(node).await;
+        return;
+    }
+    let sources: Vec<_> = ws
+        .sources
+        .open
+        .peek()
+        .iter()
+        .map(|s| s.descriptor.id.clone())
+        .collect();
+    for id in sources {
+        if let Some(source) = ws.source(&id) {
+            if let Ok(result) = source.query(Query::Node(target)).await {
+                if let Some(node) = result.nodes.into_iter().find(|n| n.id == target) {
+                    let _ = ws.open_node(node).await;
+                    return;
                 }
             }
         }

@@ -185,6 +185,7 @@ try {
     await page.mouse.up();
     await sleep(300);
     const after = await worldPos(dense);
+    if (after.some(v => Math.abs(v / 16 - Math.round(v / 16)) > 0.001)) throw new Error("drag did not snap to grid: " + after);
     console.log(`\n  dense ${before[0].toFixed(1)},${before[1].toFixed(1)} → ${after[0].toFixed(1)},${after[1].toFixed(1)}`);
     if (Math.abs(after[0] - before[0]) < 20 || Math.abs(after[1] - before[1]) < 10) throw new Error("the drag did not move the block");
     await page.keyboard.press("Control+z");
@@ -199,6 +200,19 @@ try {
     if (Math.abs(redone[0] - after[0]) > 1 || Math.abs(redone[1] - after[1]) > 1) {
       throw new Error(`redo did not restore the drag: ${redone} vs ${after}`);
     }
+    // Alt temporarily bypasses snapping; undo returns to the snapped position.
+    const free = await screen(dense);
+    await page.keyboard.down("Alt");
+    await page.mouse.move(box.x + free[0], box.y + free[1]);
+    await page.mouse.down();
+    await page.mouse.move(box.x + free[0] + 37, box.y + free[1] + 23, {steps:5});
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await sleep(250);
+    const unsnapped = await worldPos(dense);
+    if (unsnapped.every(v => Math.abs(v / 16 - Math.round(v / 16)) < 0.001)) throw new Error("Alt did not bypass grid");
+    await page.keyboard.press("Control+z");
+    await sleep(250);
     // A parameter: Ctrl+Z in the field is the field's own text undo, not
     // the flow's (spec 001); the flow's undo restores the last edit.
     const pd = await screen(dense);
@@ -248,6 +262,7 @@ try {
     await page.click(".mk-flow button:has-text('Save')");
     await page.waitForFunction(() => !document.querySelector(".mk-flow .mk-editor-dirty"), null, { timeout: 15000 });
     const flow = JSON.parse(fs.readFileSync(`${ROOT}/untitled.flow.json`, "utf8"));
+    if (flow.blocks.some(b => [b.x,b.y].some(v => Math.abs(v / 16 - Math.round(v / 16)) > 0.001))) throw new Error("saved positions left the grid");
     if (flow.blocks.length !== 7 || flow.wires.length !== 6) throw new Error("flow json wrong");
     const xs = flow.blocks.map((b) => b.x);
     if (!xs.every((x) => Number.isFinite(x))) throw new Error("positions did not reach the document");

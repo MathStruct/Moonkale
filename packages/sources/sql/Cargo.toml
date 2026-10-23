@@ -15,7 +15,7 @@ turso = ["dep:turso", "dep:tokio"]
 moonkale-core = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rusqlite = { version = "0.40", features = ["bundled"], optional = true }
+rusqlite = { version = "0.40", features = ["bundled", "column_decltype"], optional = true }
 duckdb = { version = "1", features = ["bundled"], optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
 tracing = { version = "0.1", optional = true }
@@ -27,3 +27,7 @@ tempfile = "3"
 rusqlite = { version = "0.40", features = ["bundled"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 turso = "0.7"
+
+[[example]]
+name = "seed_typed"
+required-features = ["duckdb"]

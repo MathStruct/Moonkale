@@ -683,6 +683,7 @@ impl GraphView {
             .map(|n| n.id.clone())
             .collect();
         let mut next = Graph::from_input(input);
+        next.grid = s.graph.grid;
         let built = clock_ms();
         s.load_stats[1] = built - parsed;
         let old: std::collections::HashMap<String, (f32, f32, f32, bool)> = s
@@ -949,6 +950,18 @@ impl GraphView {
 
     pub fn backend(&self) -> String {
         self.state.borrow().renderer.backend.clone()
+    }
+
+    /// Set world grid spacing (zero disables it), bounded to useful canvas sizes.
+    pub fn set_grid(&self, spacing: f32) {
+        let mut s = self.state.borrow_mut();
+        s.graph.grid = if spacing.is_finite() && (4.0..=128.0).contains(&spacing) {
+            spacing
+        } else {
+            0.0
+        };
+        s.pos_rev += 1;
+        s.dirty = true;
     }
 
     /// `"explore"` or `"edit"` (spec 031 §5): the same renderer, two
@@ -1312,6 +1325,32 @@ fn draw_labels(s: &State) {
     let _ = ctx.reset_transform();
     let _ = ctx.scale(s.dpr as f64, s.dpr as f64);
     let scale = s.camera.scale;
+    if s.graph.grid > 0.0 && !s.camera.three_d {
+        let spacing = s.graph.grid * scale;
+        // Keep work bounded at distant zoom and extreme viewports.
+        if spacing >= 8.0 {
+            let (ox, oy) = s.camera.world_to_screen(0.0, 0.0);
+            ctx.save();
+            ctx.set_global_alpha(0.12);
+            ctx.set_fill_style_str(&s.label_hover);
+            let mut x = ox.rem_euclid(spacing);
+            for _ in 0..2048 {
+                if x > s.camera.width {
+                    break;
+                }
+                let mut y = oy.rem_euclid(spacing);
+                for _ in 0..2048 {
+                    if y > s.camera.height {
+                        break;
+                    }
+                    ctx.fill_rect(x as f64, y as f64, 1.0, 1.0);
+                    y += spacing;
+                }
+                x += spacing;
+            }
+            ctx.restore();
+        }
+    }
     // Labels only when there's room: zoomed in, or few nodes. Past 20k nodes
     // the overlay scan itself costs frames: hovered label only.
     let huge = s.graph.nodes.len() > 20_000;
@@ -1337,6 +1376,9 @@ fn draw_labels(s: &State) {
             let Some(d) = n.symbol.as_deref() else {
                 continue;
             };
+            if d.len() > 65536 {
+                continue;
+            }
             if !node_visible(&s.graph, i) {
                 continue;
             }
@@ -1378,6 +1420,12 @@ fn draw_labels(s: &State) {
             let _ = ctx.translate(-bw as f64 / 2.0, -bh as f64 / 2.0);
             ctx.set_stroke_style_str(&ink);
             ctx.set_line_width((if lit { 2.2 } else { 1.6 }) / scale as f64);
+            ctx.set_fill_style_str(&ink);
+            for fill in crate::graph::filled_regions(d).take(256) {
+                if let Ok(region) = web_sys::Path2d::new_with_path_string(fill) {
+                    ctx.fill_with_path_2d(&region);
+                }
+            }
             ctx.stroke_with_path(&path);
             ctx.restore();
         }
@@ -1773,8 +1821,9 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                             return;
                         }
                         let (wx, wy) = s.camera.screen_to_world(x, y);
-                        s.graph.nodes[index].x = wx;
-                        s.graph.nodes[index].y = wy;
+                        let grid = if e.alt_key() { 0.0 } else { s.graph.grid };
+                        s.graph.nodes[index].x = crate::graph::snap(wx, grid);
+                        s.graph.nodes[index].y = crate::graph::snap(wy, grid);
                         if !s.layout.running {
                             s.layout.temperature = 2.0;
                             s.layout.running = true;
@@ -1935,6 +1984,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                                 serde_json::json!({
                                     "kind": "moved",
                                     "positions": positions,
+                                    "unsnapped": e.alt_key(),
                                     "screen": screen,
                                 }),
                             );

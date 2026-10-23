@@ -12,6 +12,22 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — WP-11 / WP-15 (2026-10-23)
+
+- Breaking: core `Value` gains explicit serde variants `DateTime(DateTimeCell)`,
+  `Ref { node, label }` and `Vector(NumericVector)`. Update exhaustive matches.
+  Existing variants retain their wire encodings. Numeric vectors widen f32 to
+  f64, cap at 4096 finite samples and enforce that cap while deserializing.
+  Dates hold a UTC instant and optional validated original offset.
+- Core adds chrono without clock/default features for validated date arithmetic
+  and parsing; no I/O or timezone database enters core.
+- `Symbol.path` explicitly closed absolute `M…Z` subpaths fill with the block's
+  colour token; open subpaths remain strokes. No Symbol fields change.
+- `EditorFile` / `EditorSettings` gain `flow_grid` (default 16, zero off);
+  literal constructors need the field or a default tail. Renderer adds
+  `GraphView::set_grid`; internal `Graph` gains grid spacing.
+- Canvas-layer `CardDrag` gains `unsnapped` for Alt bypass.
+
 ## Unreleased
 
 **Breaking for Rust struct literals:** `SourceDescriptor` gains `truth: SourceTruth` (ADR-0028). Add `truth: Default::default()` to existing constructors. Old serialized descriptors still deserialize as `Files`; new values serialize as `"files"`/`"store"`. This is content ownership, not a write permission. No tag is cut by this change.

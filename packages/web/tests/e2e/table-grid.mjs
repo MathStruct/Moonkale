@@ -39,6 +39,12 @@ try {
     await page.click(".mk-tree-db >> text=users");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
   });
+  await step("SQLite declared dates render as dates and ordinary text stays text", async () => {
+    await run("SELECT * FROM dates");
+    await page.waitForFunction(() => document.querySelector(".mk-table-hname")?.textContent === "instant");
+    const cells = await firstRowCells();
+    if (!cells[0].includes("2026-10-23 10:30:00 +02:00") || cells[2] !== "2026-10-23") throw new Error("typed date: " + cells);
+  });
   await step(`${N} rows: only the window is in the DOM`, async () => {
     await run(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ${N}) SELECT i, i * 7 % 1000 AS v, 'row ' || i AS label, CASE WHEN i % 10 = 0 THEN NULL ELSE i * 0.5 END AS half FROM n`);
     await page.waitForFunction((n) => +document.querySelector(".mk-table-grid")?.dataset.total === n, N, { timeout: 30000 });
@@ -136,6 +142,16 @@ try {
     await page.$eval(".mk-table:visible .mk-table-grid", (el) => { el.scrollLeft = el.scrollWidth; });
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-table-hname")].some((h) => h.textContent === "column_59"), null, { timeout: 5000 });
     await page.screenshot({ path: `${S}/table-grid-wide.png` });
+  });
+  await step("DuckDB lists and arrays draw sparklines beside a timestamp", async () => {
+    await page.click(".mk-tree-db >> text=typed.duckdb");
+    await page.waitForSelector(".mk-tree-db >> text=dates", {timeout:15000});
+    await page.locator(".mk-explorer-source").filter({has:page.locator(".mk-explorer-source-name", {hasText:"typed.duckdb"})}).getByText("dates", {exact:true}).click();
+    await page.waitForSelector(".mk-table:visible .mk-cell-vector", {timeout:15000});
+    const lines = await page.locator(".mk-table:visible .mk-cell-vector polyline").evaluateAll(es => es.map(e => e.getAttribute("points")));
+    if (lines.length !== 2 || lines.some(p => !p || p.includes("NaN"))) throw new Error("missing vector sparklines: " + lines);
+    const cells = await firstRowCells();
+    if (!cells[0].includes("2026-10-23 08:30:00 UTC")) throw new Error("missing DuckDB date: " + cells);
   });
   console.log("\nTABLE GRID E2E: PASS");
 } catch (e) {

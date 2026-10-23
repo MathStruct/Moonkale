@@ -657,6 +657,8 @@ pub struct Edge {
 
 #[derive(Clone, Default)]
 pub struct Graph {
+    /// World grid spacing; zero disables snapping.
+    pub grid: f32,
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub ports: Vec<Port>,
@@ -963,6 +965,7 @@ impl Graph {
             .map(|s| resolve_simplex(s, &ids))
             .collect();
         let mut g = Self {
+            grid: 0.0,
             nodes,
             edges,
             ports,
@@ -1606,6 +1609,29 @@ pub fn layer_z(kind: &str, i: usize) -> f32 {
     };
     let jitter = ((i as f32 * 0.618_034).fract() - 0.5) * 20.0;
     layer * 140.0 + jitter
+}
+
+/// Nearest grid coordinate; disabled grids preserve the input.
+pub fn snap(value: f32, spacing: f32) -> f32 {
+    if spacing.is_finite() && spacing > 0.0 {
+        (value / spacing).round() * spacing
+    } else {
+        value
+    }
+}
+
+/// Explicitly closed absolute subpaths are filled regions. Relative moveto
+/// subpaths remain strokes because their origin depends on preceding paths.
+/// Work is linear in the path length; SVG parsing remains Path2D's job.
+pub fn filled_regions(path: &str) -> impl Iterator<Item = &str> {
+    path.split_inclusive(['Z', 'z']).filter_map(|part| {
+        if !part.ends_with(['Z', 'z']) {
+            return None;
+        }
+        let start = part.rfind('M')?;
+        let region = &part[start..];
+        (!region.contains('m')).then_some(region)
+    })
 }
 
 #[cfg(test)]
@@ -2294,5 +2320,25 @@ mod delta_tests {
             ..Default::default()
         }));
         assert_eq!((g.nodes[0].x, g.nodes[0].y), (99.0, -7.0));
+    }
+}
+
+#[cfg(test)]
+mod symbol_grid_tests {
+    use super::*;
+    #[test]
+    fn closed_regions_leave_open_leads_as_strokes() {
+        assert_eq!(
+            filled_regions("M0 10 H5 M5 5 H15 V15 H5 Z M15 10 H20").collect::<Vec<_>>(),
+            vec!["M5 5 H15 V15 H5 Z"]
+        );
+        assert_eq!(filled_regions("M0 0h5v5z M10 10h5v5z").count(), 2);
+        assert_eq!(filled_regions("m0 0h5v5z").count(), 0);
+    }
+    #[test]
+    fn snap_handles_negative_coordinates_and_disabled_grid() {
+        assert_eq!(snap(23., 16.), 16.);
+        assert_eq!(snap(-25., 16.), -32.);
+        assert_eq!(snap(23., 0.), 23.);
     }
 }

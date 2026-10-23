@@ -636,6 +636,9 @@ enum ToJs<'a> {
         scene: OutScene<'a>,
     },
     Fit,
+    Grid {
+        spacing: u16,
+    },
     /// The layered arrangement (the Layout button); the script answers
     /// with the harvested positions, like a drag's `moved`.
     HierLayout,
@@ -676,6 +679,8 @@ enum FromJs {
         /// The nodes that moved — a drag-end names the dragged block,
         /// the Layout names every node.
         positions: BTreeMap<String, [f32; 2]>,
+        #[serde(default)]
+        unsnapped: bool,
     },
     Camera {
         #[serde(flatten)]
@@ -747,6 +752,7 @@ for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "setGraph") view.set_graph(JSON.stringify(msg.scene));
     else if (msg.kind === "fit") view.fit();
+    else if (msg.kind === "grid") view.set_grid(msg.spacing);
     else if (msg.kind === "hierLayout") {
         view.hier_layout();
         // `node_positions()` answers a JSON string; the host expects a map.
@@ -923,7 +929,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 notice.set(Some(why));
                             }
                         }
-                        Ok(FromJs::Moved { positions }) => {
+                        Ok(FromJs::Moved {
+                            positions,
+                            unsnapped,
+                        }) => {
                             // The Layout reply (and a drag) never lands in
                             // a broken document (#11, the review's #3).
                             if broken.peek().is_some() {
@@ -935,8 +944,13 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 let _ = f.with_scope(&open, |blocks, _| {
                                     for b in blocks.iter_mut() {
                                         if let Some(p) = positions.get(&b.id) {
-                                            b.x = p[0] as f64;
-                                            b.y = p[1] as f64;
+                                            let grid = if unsnapped {
+                                                0
+                                            } else {
+                                                ws.settings.resolved.peek().editor.flow_grid
+                                            };
+                                            b.x = snap_position(p[0] as f64, grid);
+                                            b.y = snap_position(p[1] as f64, grid);
                                         }
                                     }
                                 });
@@ -979,6 +993,11 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         if loaded_for_scene() {
             let libs = ws.contrib.flow_libraries.read().clone();
             push_graph(&eval_for_scene, &flow, &open, &libs);
+            if let Some(ev) = eval_for_scene.peek().as_ref() {
+                let _ = ev.send(ToJs::Grid {
+                    spacing: ws.settings.resolved.read().editor.flow_grid,
+                });
+            }
             // The open scope's blocks bound the frame — entering a
             // scope refits by construction (its frame differs).
             let bounds = flow_scope_bounds(&flow.read(), &open);
@@ -1186,8 +1205,14 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         &uuid::Uuid::new_v4().simple().to_string()[..6]
                     ),
                     kind: format!("{}/{}", lib.id, k.id),
-                    x: 30.0 + col * 165.0,
-                    y: 30.0 + row * 170.0,
+                    x: snap_position(
+                        30.0 + col * 165.0,
+                        ws.settings.resolved.peek().editor.flow_grid,
+                    ),
+                    y: snap_position(
+                        30.0 + row * 170.0,
+                        ws.settings.resolved.peek().editor.flow_grid,
+                    ),
                     params: params.clone(),
                     subflow: None, // a palette block is a library block
                     mirror: false,
@@ -1230,8 +1255,14 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 blocks.push(Block {
                     id: format!("subsystem-{suffix}"),
                     kind: "subflow".into(),
-                    x: 30.0 + col * 165.0,
-                    y: 30.0 + row * 170.0,
+                    x: snap_position(
+                        30.0 + col * 165.0,
+                        ws.settings.resolved.peek().editor.flow_grid,
+                    ),
+                    y: snap_position(
+                        30.0 + row * 170.0,
+                        ws.settings.resolved.peek().editor.flow_grid,
+                    ),
                     params: Default::default(),
                     subflow: Some(format!("subflow-{suffix}")),
                     mirror: false,
@@ -1484,6 +1515,16 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 }
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "flow-unsaved"), "●" } }
                 span { class: "mk-editor-spacer" }
+                label { title: t!(ws, L, "flow-grid-title"),
+                    {t!(ws, L, "flow-grid")}
+                    input { r#type: "number", min: "0", max: "128", step: "4",
+                        style: "width:4em",
+                        value: "{ws.settings.resolved.read().editor.flow_grid}",
+                        onchange: move |e| { if let Ok(n) = e.value().parse::<u16>() {
+                            ws.update_settings_in(moonkale_ext_api::SettingsTarget::User, move |f| f.editor.flow_grid = Some(n));
+                        } }
+                    }
+                }
                 if let Some(n) = notice() { span { class: "mk-flow-notice", "{n}" } }
                 span { class: "mk-flow-status", "data-blocks": "{flow.read().scope(&scope.read()).map(|sc| sc.blocks.len()).unwrap_or(0)}", "data-wires": "{flow.read().scope(&scope.read()).map(|sc| sc.wires.len()).unwrap_or(0)}", "data-issues": "{issues_now.len()}",
                     {t!(ws, L, "flow-counts", blocks = flow.read().blocks.len(), wires = flow.read().wires.len())}
@@ -1658,8 +1699,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                                 } else {
                                                     flow.with_mut(|f| { let _ = f.with_scope(&open, |blocks, _| {
                                                         if let Some(b) = blocks.iter_mut().find(|b| b.id == bid) {
-                                                            b.x = original[0] + event.delta[0] as f64;
-                                                            b.y = original[1] + event.delta[1] as f64;
+                                                            let grid = if event.unsnapped { 0 } else { ws.settings.resolved.peek().editor.flow_grid };
+                                                            let snap = |v: f64| if grid > 0 { (v / grid as f64).round() * grid as f64 } else { v };
+                                                            b.x = snap(original[0] + event.delta[0] as f64);
+                                                            b.y = snap(original[1] + event.delta[1] as f64);
                                                         }
                                                     }); });
                                                 }
@@ -1955,6 +1998,14 @@ fn wire(
             (taken, String::new())
         }
         Err(why) => (false, why),
+    }
+}
+
+fn snap_position(value: f64, grid: u16) -> f64 {
+    if grid == 0 {
+        value
+    } else {
+        (value / grid as f64).round() * grid as f64
     }
 }
 

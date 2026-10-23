@@ -77,7 +77,7 @@ commands, including optional Julia simulation limits, are in `HANDOFF-from-codex
 | 08 | **ADR-0022 stage C**: a subsystem as one factor (a role on `Subflow`), RxInfer codegen through it | `ext-api/flow.rs` ★, `editors/flow`, moonkale-julia | — | M | rxinfer e2e with a nested factor, real Julia run |
 | 09 | **Lenticulum library**: edge directions, its codegen, a live graph source from a Julia process | moonkale-julia, `ext-api/flow.rs` ★ | 08 | L | a Lenticulum model built, run and drawn |
 | 10 | **Run a model from the editor**: Julia process, progress, results back as nodes | moonkale-julia, `editors/flow`, terminal service | 08 | M | mtk/rxinfer "Run" buttons with results in the panel |
-| 11 | **Symbols, the rest**: filled regions, grid snapping (ADR-0024 open items) | `editors/flow`, `graph-render` ★ | 04 merged | S | flow suites |
+| 11 | ✅ **Done 2026-10-23 — Symbols, the rest** (codex): closed absolute path fills and persistent grid snapping (ADR-0024 amendment) | `editors/flow`, `graph-render` ★ | 04 merged | S | flow, subflow, graph-flow, graph-shapes, mtk and rxinfer pass; fill pixels, dragged/saved grid coordinates and Alt bypass checked |
 
 ### Lane D: data and tables
 
@@ -86,7 +86,7 @@ commands, including optional Julia simulation limits, are in `HANDOFF-from-codex
 | 12 | **Supabase table editor study**: requirements only, no code ([[Scrutiny]] rules). Taken and adapted items go into [[Table Editor]], rejected ones into [[Scrutiny]] | docs only | — | S | both pages updated; Daniel reviews the rejections |
 | 13 | **Pushdown**: sort, filter and keyset pagination sent to the source when it can, client-side otherwise (with the "partial" note) | `editors/table`, `sources/sql`, `moonkale-core` ★ (`Query` capabilities) | 12 | M | table-grid suite on a million-row DuckDB file |
 | 14 | **Writes to database sources** (R-41) and **inline cell edits** | `moonkale-core` ★, `sources/*`, `editors/table`, policy classifier | 12 | L (split: core write model / SQL / grid editing) | edits round-trip with expected versions; refused ops shown per cell |
-| 15 | **Typed cells**: dates, links to graph nodes, vectors as sparklines | `moonkale-core` ★ (`Value`), `editors/table` | — | M | unit and grid tests per type |
+| 15 | ✅ **Done 2026-10-23 — Typed cells** (codex): validated dates, source-known node links, bounded vectors and sparklines | `moonkale-core` ★ (`Value`), `editors/table` | — | M | type/source/grid unit tests and SQLite/DuckDB table-grid pass; standalone locale/ref-activation browser check passes |
 | 16 | **Schema view**: tables as nodes with one port per column, foreign keys as wires, using the canvas layer | `editors/table` or a new extension | 05, 12 | M | schema suite on the fixture's SQLite and DuckDB |
 | 17 | **Postgres/Supabase source** (stub today) | `sources/sql` | — | M | read-only Postgres in CI (service container) |
 

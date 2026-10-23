@@ -142,3 +142,22 @@ pub fn openers() -> Vec<SourceOpener> {
         },
     ]
 }
+/// Convert text only when SQL schema declares a date or timestamp. Expression
+/// results without declared metadata and time-only values stay text.
+#[cfg(any(feature = "sqlite", feature = "turso"))]
+pub(crate) fn typed_text(text: String, declared: Option<&str>) -> moonkale_core::Value {
+    let date = declared.is_some_and(|t| {
+        matches!(
+            t.to_ascii_uppercase().as_str(),
+            "DATE" | "DATETIME" | "TIMESTAMP" | "TIMESTAMPTZ"
+        )
+    });
+    if let Some(d) = date
+        .then(|| moonkale_core::DateTimeCell::parse(&text))
+        .flatten()
+    {
+        moonkale_core::Value::DateTime(d)
+    } else {
+        moonkale_core::Value::Text(text)
+    }
+}

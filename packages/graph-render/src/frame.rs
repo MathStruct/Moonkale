@@ -796,6 +796,21 @@ fn ortho_into(
         }
     }
     pts.push(p1);
+    if graph.grid > 0.0 && pts.len() > 2 {
+        // A shared coordinate keeps each segment orthogonal. Endpoint lines
+        // remain exact even when a symbol's anchor sits between grid lines.
+        let original = pts.clone();
+        let last = original.len() - 1;
+        for axis in 0..2 {
+            for i in 1..last {
+                if original[i][axis] != original[0][axis]
+                    && original[i][axis] != original[last][axis]
+                {
+                    pts[i][axis] = crate::graph::snap(original[i][axis], graph.grid);
+                }
+            }
+        }
+    }
     pts.dedup_by(|a, b| (a[0] - b[0]).abs() < 1e-4 && (a[1] - b[1]).abs() < 1e-4);
     out.extend(pts.into_iter().map(|q| [q[0], q[1], z]));
     // The last point carries the target's depth.
@@ -1003,6 +1018,7 @@ mod tests {
 
     fn graph(nodes: Vec<Node>, edges: Vec<Edge>) -> Graph {
         Graph {
+            grid: 0.0,
             nodes,
             edges,
             ports: Vec::new(),
@@ -1182,6 +1198,7 @@ mod tests {
     fn ports_sit_outside_the_rim_on_their_side() {
         let n = node("a", 0.0, 0.0); // radius 5
         let g = Graph {
+            grid: 0.0,
             nodes: vec![n],
             edges: Vec::new(),
             layers: Vec::new(),
@@ -1217,6 +1234,7 @@ mod tests {
         e.a_port = Some("out".into());
         e.b_port = Some("in".into());
         let g = Graph {
+            grid: 0.0,
             nodes: vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
             edges: vec![e],
             ports: vec![
@@ -1244,6 +1262,7 @@ mod tests {
     #[test]
     fn port_at_picks_the_marker() {
         let g = Graph {
+            grid: 0.0,
             nodes: vec![node("a", 0.0, 0.0)],
             edges: Vec::new(),
             ports: vec![port(0, "out", InSide::Right, 0.5)],
@@ -1449,6 +1468,7 @@ mod tests {
         e.arrow = Arrow::Target;
         e.b_port = Some("in".into());
         let g = Graph {
+            grid: 0.0,
             nodes: vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
             edges: vec![e],
             ports: vec![port(1, "in", InSide::Left, 0.5)],
@@ -1472,6 +1492,7 @@ mod tests {
         // that is not cleared first accumulates silently (the review found
         // it as 63 ports for 3).
         let g = Graph {
+            grid: 0.0,
             nodes: vec![node("a", 0.0, 0.0), node("b", 40.0, 0.0)],
             edges: vec![edge(0, 1)],
             ports: vec![port(0, "out", InSide::Right, 0.5)],
@@ -1808,6 +1829,29 @@ mod tests {
             "angle {}",
             f.arrows[0].angle
         );
+    }
+
+    #[test]
+    fn grid_bends_snap_without_moving_terminals_or_diagonal_segments() {
+        let mut e = edge(0, 1);
+        e.route = Route::Ortho { stub: None };
+        e.a_port = Some("out".into());
+        e.b_port = Some("in".into());
+        let mut g = graph(vec![node("a", 0., 3.), node("b", 60., 41.)], vec![e]);
+        g.ports = vec![
+            port(0, "out", InSide::Right, 0.5),
+            port(1, "in", InSide::Left, 0.5),
+        ];
+        let exact = build_frame(&g, false);
+        g.grid = 16.;
+        let snapped = build_frame(&g, false);
+        assert_eq!(snapped.segs[0].a, exact.segs[0].a);
+        assert_eq!(snapped.segs.last().unwrap().b, exact.segs.last().unwrap().b);
+        assert_eq!(snapped.segs[1].a[0] % 16., 0.);
+        assert!(snapped
+            .segs
+            .iter()
+            .all(|s| s.a[0] == s.b[0] || s.a[1] == s.b[1]));
     }
 
     #[test]

@@ -6,6 +6,7 @@ license.workspace = true
 description = "Platform-agnostic domain model: the graph-native document, sources, commands and events. No I/O."
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4", "v5", "serde", "js"] }
 async-trait = "0.1"

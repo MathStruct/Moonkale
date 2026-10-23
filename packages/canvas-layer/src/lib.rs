@@ -82,6 +82,8 @@ pub fn CanvasItem(
 /// World-space motion of a card header. The host owns persistence and undo.
 #[derive(Clone, Copy, Debug)]
 pub struct CardDrag {
+    /// Alt bypasses the host grid for this pointer event.
+    pub unsnapped: bool,
     pub delta: [f32; 2],
     pub finished: bool,
     pub cancelled: bool,
@@ -108,7 +110,7 @@ pub fn CanvasHeader(
                 let eval = document::eval("const m = await dioxus.recv(); document.getElementById(m.id)?.setPointerCapture(m.pointer);");
                 let _ = eval.send(serde_capture(&capture_id, e.pointer_id()));
                 spawn(async move { let _ = eval.await; });
-                ondrag.call(CardDrag { delta: [0.0; 2], finished: false, cancelled: false });
+                ondrag.call(CardDrag { unsnapped: e.modifiers().alt(), delta: [0.0; 2], finished: false, cancelled: false });
             },
             onpointermove: move |e| {
                 let start = *press.peek();
@@ -116,7 +118,7 @@ pub fn CanvasHeader(
                     let _ = pointer;
                     e.stop_propagation();
                     let p = e.client_coordinates();
-                    ondrag.call(CardDrag { delta: [((p.x-x)/s as f64) as f32, ((p.y-y)/s as f64) as f32], finished: false, cancelled: false });
+                    ondrag.call(CardDrag { unsnapped: e.modifiers().alt(), delta: [((p.x-x)/s as f64) as f32, ((p.y-y)/s as f64) as f32], finished: false, cancelled: false });
                 }
             },
             onpointerup: move |e| {
@@ -124,11 +126,11 @@ pub fn CanvasHeader(
                 if let Some((_,x,y,s)) = start.filter(|p| p.0 == e.pointer_id()) {
                     press.set(None); e.stop_propagation();
                     let p = e.client_coordinates();
-                    ondrag.call(CardDrag { delta: [((p.x-x)/s as f64) as f32, ((p.y-y)/s as f64) as f32], finished: true, cancelled: false });
+                    ondrag.call(CardDrag { unsnapped: e.modifiers().alt(), delta: [((p.x-x)/s as f64) as f32, ((p.y-y)/s as f64) as f32], finished: true, cancelled: false });
                 }
             },
-            onpointercancel: move |_| {
-                if press.peek().is_some() { press.set(None); ondrag.call(CardDrag { delta:[0.0;2], finished:true, cancelled:true }); }
+            onpointercancel: move |e| {
+                if press.peek().is_some() { press.set(None); ondrag.call(CardDrag { unsnapped: e.modifiers().alt(), delta:[0.0;2], finished:true, cancelled:true }); }
             },
             {children}
         }

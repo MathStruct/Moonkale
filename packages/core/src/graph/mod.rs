@@ -32,7 +32,7 @@ pub mod property;
 pub use edge::{Edge, EdgeKind};
 pub use history::{Actor, EntityLog, Event, EventId, EventKind, State as HistoryState};
 pub use node::{ContentRef, Node, NodeKind, Version};
-pub use property::{Properties, Value};
+pub use property::{DateTimeCell, NumericVector, Properties, Value};
 
 /// Shared L2 vocabulary. Use with `NodeKind::Custom` / `EdgeKind::Custom`;
 /// legacy built-in kinds retain their wire representation.

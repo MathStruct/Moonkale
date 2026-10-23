@@ -244,3 +244,15 @@ exhausted a worker stack on the large local copy. Metadata limits remain two
 million nodes/eight million edges, and log-position checks reject changes during
 listing. No term decoder is added. This avoids that traversal in coarse queries;
 existing All/neighbour/body traversal is not declared fixed or bounded by it.
+
+WP-11/15 (2026-10-23): symbol paths are data parsed by Path2D, capped at 64 KiB
+and 256 closed-region fills per draw. Grid drawing caps rows/columns and skips
+distant zoom. Core date parsing caps text at 128 bytes and validates offset and
+timestamp ranges. Numeric vectors cap at 4096 finite samples during construction
+and streaming deserialization; DuckDB inspects borrowed list lengths before
+allocating. Sparkline coordinates are normalized against extreme magnitudes.
+Ref targets come from source-known NodeIds, never guessed UUID text or URLs;
+opening reuses workspace source/editor behavior. New direct chrono dependency
+reuses the locked version with std/serde only, no clock or connection.
+The typed_cells and symbol_paths fuzz targets exercise production serde/date
+and closed-region parsing with 64 KiB inputs; no new network, process or permission authority is added.

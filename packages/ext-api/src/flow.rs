@@ -161,7 +161,8 @@ pub struct Symbol {
     pub height: f32,
     /// SVG path data in the box `0 0 width height`, stroked in the
     /// block's colour (`M 0 11 H 14 M 14 3 V 19 …`). Only the path
-    /// syntax — no fills, no other SVG elements.
+    /// syntax only. Explicit absolute M…Z subpaths fill with the block colour;
+    /// open subpaths remain strokes. No other SVG elements.
     pub path: String,
     /// Where each port sits on the symbol's box. A port not named here
     /// falls back to the default rule.

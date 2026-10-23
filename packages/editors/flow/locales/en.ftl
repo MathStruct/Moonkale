@@ -25,3 +25,6 @@ flow-mirror = ⇋
 flow-mirror-title = Mirror the block left to right (M)
 flow-layout-title = Arrange the blocks left to right, by their wires
 flow-fit-title = Fit the whole flow into the view
+
+flow-grid = Grid
+flow-grid-title = Grid spacing (0 disables); hold Alt to drag freely

@@ -75,6 +75,18 @@ lazy million-node browser fixture checks the production panel. Sophia
 copy queries take 3.68 s cold / 1.81–1.83 s warm for 199,257 nodes → 2; cached source cuts/layouts, upstream full traversal, nested navigation and persistent
 workspace overrides remain open. See [[Case Selector]] and [[Graph View]].
 
+## Flow symbols and typed cells (WP-11/15, checked 2026-10-23)
+
+Closed absolute symbol subpaths fill in block colour. Flow grid settings govern
+insertion, Layout and dragging, including card headers; Alt bypasses snapping.
+Core now models UTC date/time cells, labelled node references and bounded finite
+vectors. SQL date metadata and DuckDB numeric lists feed localized date display
+and theme-coloured sparklines; index search paths carry node references.
+Unit/source/grid tests and the flow/SQL browser suites pass, including real
+MTK/RxInfer simulations, fill pixels, saved grid positions, locales and reference
+activation. Both parsers have bounded fuzz targets. See [[Flow Editor]] and
+[[Table Editor]] for conversion limits.
+
 ## By area
 
 | area | state | notes |

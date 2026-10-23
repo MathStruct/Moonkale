@@ -102,7 +102,13 @@ impl TursoSource {
     /// Run a statement, at most `cap` rows.
     async fn rows(&self, sql: &str, cap: usize) -> Result<Table, SourceError> {
         let conn = self.db.connect().map_err(err)?;
-        let mut rows = conn.query(sql, ()).await.map_err(err)?;
+        let mut statement = conn.prepare(sql).await.map_err(err)?;
+        let declared: Vec<_> = statement
+            .columns()
+            .iter()
+            .map(|c| c.decl_type().map(str::to_owned))
+            .collect();
+        let mut rows = statement.query(()).await.map_err(err)?;
         let columns = rows.column_names();
         let n = columns.len();
         let mut out = Vec::new();
@@ -113,12 +119,12 @@ impl TursoSource {
                 break;
             }
             let mut r = Vec::with_capacity(n);
-            for i in 0..n {
+            for (i, declared_type) in declared.iter().enumerate().take(n) {
                 r.push(match row.get_value(i).map_err(err)? {
                     turso::Value::Null => Value::Null,
                     turso::Value::Integer(i) => Value::Int(i),
                     turso::Value::Real(f) => Value::Float(f),
-                    turso::Value::Text(t) => Value::Text(t),
+                    turso::Value::Text(t) => crate::typed_text(t, declared_type.as_deref()),
                     turso::Value::Blob(b) => Value::Bytes {
                         len: b.len() as u64,
                     },
@@ -307,5 +313,22 @@ impl Source for TursoSource {
         Err(SourceError::Unsupported(
             "Turso sources are read-only in this milestone".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod typed_tests {
+    use super::*;
+    #[tokio::test]
+    async fn declared_dates_are_typed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dates.sqlite");
+        let c = rusqlite::Connection::open(&path).unwrap();
+        c.execute_batch("CREATE TABLE dates(d DATETIME); INSERT INTO dates VALUES('2026-10-23');")
+            .unwrap();
+        drop(c);
+        let source = TursoSource::open(&path).await.unwrap();
+        let table = source.rows("SELECT * FROM dates", 10).await.unwrap();
+        assert!(matches!(&table.rows[0][0], Value::DateTime(_)));
     }
 }
