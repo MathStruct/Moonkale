@@ -48,3 +48,8 @@
 .mk-structural-columns pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .mk-structural-columns mark { background: var(--wb-selected); color: var(--wb-ink); }
+
+/* Snapshot controls wrap at the panel width instead of squeezing labels or
+   pushing Fit/3D out of reach in a docked graph. */
+.mk-graph-toolbar-egraph { flex-wrap: wrap; }
+.mk-graph-toolbar-egraph > * { flex-shrink: 0; white-space: nowrap; }

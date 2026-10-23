@@ -86,3 +86,13 @@ structural-save-read-only = Read-only; skipped
 structural-file-changed = The file changed. Recompute this preview.
 structural-file-closed = The file or its source was closed or replaced.
 structural-file-read-only = The source is no longer writable file content.
+
+graph-eclass = E-class
+graph-collapse-class = Collapse class
+graph-expand-class = Expand class
+graph-collapse-all = Collapse all
+graph-expand-all = Expand all
+graph-provenance = Rewrite provenance
+graph-exit-egraph = Back to sources
+graph-egraph-load = Draw e-graph JSON
+graph-egraph-invalid = Invalid e-graph JSON (4 MiB, 4096 nodes, 32768 edges maximum).

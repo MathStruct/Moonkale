@@ -209,3 +209,13 @@ shared crate reuses existing Dioxus/serde dependencies; no external connection,
 parser, persistence or extension contribution point is introduced.
 
 P-227 flow code generation now uses the fetched content version and text length together for replacements, and refuses failed reads. Query metadata versions never authorize generated-file overwrites; optimistic conflict checks remain enforced by the source.
+
+WP-07 e-graph paste (2026-10-23) reuses serde JSON with its default recursion
+limit and caps input at 4 MiB, 4096 nodes, 32768 edges and 4096 groups before
+projection. Unique node/edge/group identities, member ownership, representatives
+and child endpoints are validated. Rewrite walks use visited ids and adjacency
+lists, including cycles. JSON text goes through `Eval::send` as data; labels
+remain canvas/Dioxus text. There is no evaluation, connection, new dependency or
+persistence. The `fuzz` workspace's `egraph` target exercises parsing, ancestry,
+collapse and expansion, seeded by the synthetic snapshot. It is available for
+local fuzzing; the existing two-target nightly jobs are unchanged.

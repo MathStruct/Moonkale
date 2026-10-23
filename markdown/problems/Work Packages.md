@@ -54,7 +54,7 @@ Size: **S** is about one agent session, **M** two to four, **L** many (split bef
 | 04 | ✅ **Done 2026-10-23 — Camera event + embed flag** in the engine: `{kind:"camera", scale, offset}` on pan and zoom, and `InNode.embed` (rect only, no label or symbol) | `graph-render` ★ | — | S | unit tests, and `graph-*` suites pass |
 | 05 | ✅ **Done 2026-10-23 — Canvas component layer**: one Dioxus layer over the canvas, one CSS transform per camera change, level-of-detail unmount, click pass-through. The flow editor's parameter editor moves into it and follows pans | new crate `canvas-layer`, `editors/flow` | 04 | M | the planned spec's checklist (specifications README); `flow.mjs` + a new `canvas-layer.mjs` |
 | 06 | **Coarse tier**: 1M nodes ([[Case Selector]]) | `graph-render` ★ | — (after 04 merges) | L | a 1M-node fixture stays interactive |
-| 07 | **E-graph drawing**: e-classes as groups that collapse to one representative and expand, with rewrite provenance as edges | `graph-render` ★, graph view | 04 | M | a synthetic e-graph fixture suite |
+| 07 | ✅ **Done 2026-10-23 — E-graph drawing**: e-classes as groups that collapse to one representative and expand, with rewrite provenance as edges | `graph-render` ★, graph view | 04 | M | a synthetic e-graph fixture suite |
 
 WP-04/05 contribution completed by codex (2026-10-23), commits to be made by
 Claude because this worktree's git metadata is read-only. Commit list (exact

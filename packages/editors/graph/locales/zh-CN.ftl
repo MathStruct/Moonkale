@@ -86,3 +86,13 @@ structural-save-read-only = 只读，已跳过
 structural-file-changed = 文件已更改，请重新计算预览。
 structural-file-closed = 文件或其数据源已关闭或替换。
 structural-file-read-only = 数据源已不再是可写的文件内容。
+
+graph-eclass = 等价类
+graph-collapse-class = 折叠类
+graph-expand-class = 展开类
+graph-collapse-all = 全部折叠
+graph-expand-all = 全部展开
+graph-provenance = 重写来源
+graph-exit-egraph = 返回数据源
+graph-egraph-load = 绘制等价图 JSON
+graph-egraph-invalid = 等价图 JSON 无效（最多 4 MiB、4096 个节点、32768 条边）。

@@ -594,3 +594,9 @@ following, click isolation, header drag with grouped undo/redo, zoom/off-screen
 unmount and fit remount. Run it alongside flow, subflow, graph-flow, mtk and rxinfer.
 
 `graph-pulse` uses pinned equal-length strokes and shared captures for both pulses. It rejects phase wraps and boundary peaks before comparing median forward velocities to the declared speeds; absolute displacement maxima are not a speed measurement (P-228). The existing low-detail animation suppression check remains.
+
+`graph-egraph` runs on the isolated committed-engine harness, checking e-class
+hulls, aggregate collapse/expand, rewrite layer visibility and automatic incoming
+ancestry highlights. `graph-egraph-ui` uses the production Graph panel's paste
+and translated controls against the normal app server. Both consume
+`packages/graph-render/fixtures/egraph.json` through `MOONKALE_REPO`.

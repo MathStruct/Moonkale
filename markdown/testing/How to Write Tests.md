@@ -345,3 +345,10 @@ The first GitHub runs still need review: Linux validation cannot establish nativ
 Windows/macOS success. Once both OS jobs are green, remove `continue-on-error:
 true` from **portable** and remove `(advisory)` from its name; branch protection
 must also require both matrix checks if desired. Intel macOS remains release-only.
+
+WP-07 adds the standalone `egraph` fuzz target and its reviewed saturation seed.
+Run `cargo +nightly fuzz run egraph -- -max_total_time=60 -max_len=65536
+-rss_limit_mb=2048 -timeout=10` through the heavy-slot wrapper from the repository
+root, with a worktree-local `CARGO_TARGET_DIR`. It exercises the production
+bounded parser, incoming rewrite walk and aggregate collapse/expand delta path.
+It is not yet part of the two-target nightly matrix.

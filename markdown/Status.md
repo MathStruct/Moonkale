@@ -53,6 +53,17 @@ camera and offers header dragging with one undo step. Automatic flow fits leave
 room for the card; explicit zoom remains free. Extension-provided node-kind views
 remain planned. See the Components on the canvas entry in [[specifications/README|Specifications]].
 
+## E-graph drawing (WP-07, checked 2026-10-23)
+
+The Graph panel's paste dialog accepts plain engine e-graph JSON: e-classes as
+anchor-backed groups, operators with child edges to classes, and labelled
+rewrite provenance. Per-class/all-class collapse and expand use existing
+aggregate/proxy deltas. Provenance can be hidden; selecting an operator
+highlights incoming rewrite ancestry. The synthetic `(a*2)/2 → a` fixture and
+engine/panel browser suites cover this path. Input is an in-memory bounded
+snapshot; JSON file opening, editing and live Sophia production remain open.
+See [[Graph View]] and [[North Star]] for the producer contract.
+
 ## By area
 
 | area | state | notes |

@@ -257,6 +257,16 @@ enum ToJs<'a> {
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum FromJs {
     Loaded,
+    GraphCounts {
+        nodes: usize,
+        edges: usize,
+    },
+    EgraphError {
+        message: String,
+    },
+    EgraphLoaded {
+        classes: Vec<(String, String)>,
+    },
     LoadProfile {
         stringify_ms: f64,
         handoff_ms: f64,
@@ -408,6 +418,20 @@ for (;;) {
         if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g);
         requestAnimationFrame(() => requestAnimationFrame(() => { if (serial === loadSerial) dioxus.send({kind:"loadProfile", stringify_ms, handoff_ms, engine: Array.from(view.load_stats())}); }));
     }
+    else if (msg.kind === "setEgraph") {
+        try {
+            view.set_egraph(msg.graph);
+            dioxus.send({kind:"egraphLoaded", classes:JSON.parse(view.eclass_state())});
+            dioxus.send({kind:"graphCounts", nodes:view.node_count(), edges:view.edge_count()});
+        } catch (_) { dioxus.send({kind:"egraphError", message:msg.error}); }
+    }
+    else if (msg.kind === "collapseEclass") {
+        try {
+            view.collapse_eclass(msg.id, msg.collapsed);
+            dioxus.send({kind:"graphCounts", nodes:view.node_count(), edges:view.edge_count()});
+        } catch (_) {} // A stale control during a graph replacement is harmless.
+    }
+    else if (msg.kind === "provenance") view.set_layer_visibility("provenance", msg.visible);
     else if (msg.kind === "stash") view.stash(msg.name);
     else if (msg.kind === "unstash") view.unstash(msg.name);
     else if (msg.kind === "fit") view.fit();
@@ -424,6 +448,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // One graph panel per window/tab, so a constant is enough.
     let id = use_hook(|| "mk-graph-panel".to_string());
     let mut eval: Signal<Option<Eval>> = use_signal(|| None);
+    let mut egraph_mode = use_signal(|| false);
+    let mut eclasses: Signal<Vec<(String, String)>> = use_signal(Vec::new);
+    let mut eclass = use_signal(String::new);
+    let mut provenance = use_signal(|| true);
     let mut backend = use_signal(|| None::<String>);
     let mut loaded = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
@@ -489,6 +517,20 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                 eprintln!("graph profile: handoff_ms={handoff_ms} stringify_ms={stringify_ms} engine_ms={engine:?}");
                             }
                             let _ = (stringify_ms, handoff_ms, engine);
+                        }
+                        Ok(FromJs::GraphCounts { nodes, edges }) => {
+                            counts.set((nodes, edges, false))
+                        }
+                        Ok(FromJs::EgraphError { message }) => {
+                            let mut ws = ws;
+                            ws.set_status(message);
+                            eclasses.write().clear();
+                            egraph_mode.set(false);
+                        }
+                        Ok(FromJs::EgraphLoaded { classes }) => {
+                            eclass.set(classes.first().map(|c| c.0.clone()).unwrap_or_default());
+                            eclasses.set(classes);
+                            error.set(None);
                         }
                         Ok(FromJs::Loaded) => loaded.set(true),
                         Ok(FromJs::Ready { backend: b }) => backend.set(Some(b)),
@@ -562,6 +604,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
 
     // (Re)load the graph whenever its inputs change.
     use_effect(move || {
+        if egraph_mode() {
+            return;
+        }
         // Every open folder's index goes into one graph (spec 020: two
         // repositories, two vaults to merge); the picker narrows to one.
         let indices: Vec<_> = ws
@@ -903,8 +948,24 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     rsx! {
         moonkale_ext_api::Stylesheet { href: PANEL_CSS }
         div { class: "mk-graph",
-            div { class: "mk-graph-toolbar",
-                if !databases.is_empty() {
+            div { class: if egraph_mode() { "mk-graph-toolbar mk-graph-toolbar-egraph" } else { "mk-graph-toolbar" },
+                if egraph_mode() {
+                    select { class: "mk-graph-source mk-eclass", value: "{eclass}", aria_label: t!(ws, L, "graph-eclass"),
+                        onchange: move |e| eclass.set(e.value()),
+                        for (id, label) in eclasses() { option { key: "{id}", value: "{id}", "{label}" } }
+                    }
+                    for (label, all, collapsed) in [(t!(ws, L, "graph-collapse-class"), false, true), (t!(ws, L, "graph-expand-class"), false, false), (t!(ws, L, "graph-collapse-all"), true, true), (t!(ws, L, "graph-expand-all"), true, false)] {
+                        button { key: "{label}", class: "mk-btn", onclick: move |_| {
+                            if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(serde_json::json!({"kind":"collapseEclass", "id":if all { String::new() } else { eclass() }, "collapsed":collapsed})); }
+                        }, {label} }
+                    }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: provenance(), onchange: move |e| {
+                        provenance.set(e.checked());
+                        if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(serde_json::json!({"kind":"provenance", "visible":e.checked()})); }
+                    } } {t!(ws, L, "graph-provenance")} }
+                    button { class: "mk-btn", onclick: move |_| { error.set(None); egraph_mode.set(false); }, {t!(ws, L, "graph-exit-egraph")} }
+                }
+                if !egraph_mode() && !databases.is_empty() {
                     select { class: "mk-graph-source", title: t!(ws, L, "graph-source-title"),
                         value: "{picked_str}",
                         onchange: move |e| {
@@ -918,6 +979,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         }
                     }
                 }
+                if !egraph_mode() {
                 if picked_is_trace {
                     span { class: "mk-graph-modes", span { class: "mk-muted", {t!(ws, L, "graph-trace-modes")} } }
                 } else if is_index {
@@ -941,14 +1003,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         }
                     }
                 }
-                if is_index && !legend().is_empty() {
+                }
+                if !egraph_mode() && is_index && !legend().is_empty() {
                     span { class: "mk-graph-legend",
                         for (name, color) in legend() {
                             span { key: "{name}", class: "mk-graph-legend-item", span { class: "mk-graph-swatch", style: "background: {color}" } "{name}" }
                         }
                     }
                 }
-                if is_index {
+                if !egraph_mode() && is_index {
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } {t!(ws, L, "graph-files")} }
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } {t!(ws, L, "graph-symbols")} }
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } {t!(ws, L, "graph-folders")} }
@@ -991,6 +1054,19 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     textarea { class: "mk-graph-paste-text", rows: 6, placeholder: t!(ws, L, "graph-paste-placeholder"),
                         value: "{paste_text}", oninput: move |e| paste_text.set(e.value()) }
                     div { class: "mk-graph-paste-actions",
+                        button { class: "mk-btn mk-egraph-load", onclick: move |_| {
+                            if let Some(ev) = eval.peek().as_ref() {
+                                let gen = *load_gen.peek() + 1;
+                                load_gen.set(gen);
+                                egraph_mode.set(true);
+                                shown.write().clear();
+                                selected.set((Vec::new(), Vec::new()));
+                                provenance.set(true);
+                                let _ = ev.send(serde_json::json!({"kind":"setEgraph", "graph":paste_text.peek().as_str(), "error":t!(ws, L, "graph-egraph-invalid")}));
+                                paste_open.set(false);
+                            }
+                        }, {t!(ws, L, "graph-egraph-load")} }
+
                         button { class: "mk-btn mk-btn-on", onclick: move |_| {
                             let mut ws = ws;
                             let traces = moonkale_trace::parse(&paste_text.peek());
@@ -1020,10 +1096,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             div { class: "mk-graph-host", onmounted: mount,
                 canvas { id: "{id}-gl", class: "mk-graph-canvas" }
                 canvas { id: "{id}-ov", class: "mk-graph-canvas mk-graph-overlay" }
-                if !has_any {
+                if !has_any && !egraph_mode() {
                     div { class: "mk-graph-empty", {t!(ws, L, "graph-empty")} }
                 }
-                if let (true, Some(err)) = (has_any, error()) {
+                if let (true, Some(err)) = (has_any || egraph_mode(), error()) {
                     div { class: "mk-graph-empty mk-graph-error", {t!(ws, L, "graph-failed", error = err.to_string())} }
                 }
                 if let Some(FromJs::Hover { id: Some(_), label, node_kind, key, x, y }) = hover() {

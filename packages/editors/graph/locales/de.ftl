@@ -86,3 +86,13 @@ structural-save-read-only = Schreibgeschützt; übersprungen
 structural-file-changed = Die Datei wurde geändert. Vorschau neu berechnen.
 structural-file-closed = Die Datei oder ihre Quelle wurde geschlossen oder ersetzt.
 structural-file-read-only = Die Quelle ist kein beschreibbarer Dateiinhalt mehr.
+
+graph-eclass = E-Klasse
+graph-collapse-class = Klasse einklappen
+graph-expand-class = Klasse ausklappen
+graph-collapse-all = Alle einklappen
+graph-expand-all = Alle ausklappen
+graph-provenance = Umformungsherkunft
+graph-exit-egraph = Zurück zu Quellen
+graph-egraph-load = E-Graph-JSON zeichnen
+graph-egraph-invalid = Ungültiges E-Graph-JSON (höchstens 4 MiB, 4096 Knoten, 32768 Kanten).

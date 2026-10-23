@@ -105,3 +105,22 @@ current source and require recomputation and fresh function confirmation.
 Dragging continues to arrange the graph. Rename uses rust-analyzer with two-pass target preparation, complete per-file previews, coordinated keyboard/menu/review undo and separate per-file saving. Cross-source plans are refused in full. Nested
 operations, Store writes and cross-file moves are not provided. See
 [[Rust Lossless Syntax and Patches]] for limits, platform wiring and tests.
+
+## E-graphs (WP-07, 2026-10-23)
+
+Open the Graph panel's **Paste trace** dialog, paste a plain engine e-graph JSON
+snapshot, and choose **Draw e-graph JSON**. For an example use
+`packages/graph-render/fixtures/egraph.json`; the exact mapping is documented in
+`packages/graph-render/graph-render.md` and [[North Star]]. This is an in-memory
+view, not a file opener or an editable code store. **Back to sources** reloads
+the normal source view; the pasted snapshot is not persisted.
+
+The class picker offers per-class collapse/expand, alongside all-class controls.
+An expanded class is a group containing its anchor and equivalent operators;
+collapse keeps the class endpoint with its representative operator label.
+Child edges always address classes. The **Rewrite provenance** checkbox hides
+or shows rewrite edges; selecting an operator highlights the incoming rewrite
+chain, and hovering a rewrite edge shows the rule name. Selection remains
+separate from that highlight. Single-class and all-class operations keep the
+camera and restore hidden members' positions. Snapshots are capped at 4 MiB,
+4096 nodes, 32768 edges and 4096 groups. Live producer integration remains open.

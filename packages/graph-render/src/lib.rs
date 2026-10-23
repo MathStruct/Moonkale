@@ -16,6 +16,7 @@
 //! Build: `packages/graph-render/build.sh` → `packages/graph-assets/assets/`.
 
 pub mod camera;
+pub mod egraph;
 pub mod frame;
 pub mod graph;
 pub mod layout;

@@ -23,6 +23,8 @@ use wasm_bindgen::JsCast;
 
 struct State {
     graph: Graph,
+    egraph: Option<crate::egraph::EGraph>,
+    rewrites: frame::Selection,
     layout: Layout,
     camera: Camera,
     reported_camera: Option<[f32; 6]>,
@@ -177,7 +179,14 @@ pub struct GraphView {
 
 /// The selection changed (spec 031 §5): the ids, sorted for a stable
 /// payload.
-fn emit_select(s: &State) {
+fn emit_select(s: &mut State) {
+    s.rewrites = frame::Selection::default();
+    if let (Some(egraph), Some(id)) = (&s.egraph, s.selected.nodes.iter().next()) {
+        let (nodes, edges) = egraph.ancestry(id);
+        s.rewrites = frame::Selection { nodes, edges };
+        s.sel_rev += 1;
+        s.dirty = true;
+    }
     let mut nodes: Vec<&String> = s.selected.nodes.iter().collect();
     nodes.sort();
     let mut edges: Vec<&String> = s.selected.edges.iter().collect();
@@ -335,6 +344,8 @@ pub async fn create(
     let layout = Layout::new(&graph);
     let animates_at_create = animates(&graph);
     let state = Rc::new(RefCell::new(State {
+        egraph: None,
+        rewrites: frame::Selection::default(),
         camera: Camera {
             width: w,
             height: h,
@@ -464,7 +475,7 @@ fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<Stat
                         edges: Default::default(),
                     };
                     s.sel_rev += 1;
-                    emit_select(&s);
+                    emit_select(&mut s);
                     emit(&s, serde_json::json!({ "kind": "click", "id": id }));
                 }
             }
@@ -473,7 +484,7 @@ fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<Stat
                     e.prevent_default();
                     s.selected = frame::Selection::default();
                     s.sel_rev += 1;
-                    emit_select(&s);
+                    emit_select(&mut s);
                 }
             }
             _ => {}
@@ -502,6 +513,72 @@ impl GraphView {
     /// scattered its few nodes across the map (Prompt26).
     pub fn set_graph_fresh(&self, json: &str) -> Result<(), JsValue> {
         self.load(json, true)
+    }
+
+    /// Load bounded plain engine JSON carrying e-class groups.
+    pub fn set_egraph(&self, json: &str) -> Result<(), JsValue> {
+        let egraph = crate::egraph::EGraph::parse(json).map_err(|e| JsValue::from_str(&e))?;
+        self.set_graph_fresh(&serde_json::to_string(egraph.graph()).unwrap())?;
+        self.state.borrow_mut().egraph = Some(egraph);
+        Ok(())
+    }
+
+    /// Collapse/expand a class; empty id addresses all classes. Uses the
+    /// ordinary aggregate/proxy apply_delta path, preserving the camera.
+    pub fn collapse_eclass(&self, id: &str, collapsed: bool) -> Result<(), JsValue> {
+        let delta = {
+            let mut s = self.state.borrow_mut();
+            let positions = s
+                .graph
+                .nodes
+                .iter()
+                .map(|n| (n.id.clone(), [n.x, n.y]))
+                .collect();
+            let egraph = s
+                .egraph
+                .as_mut()
+                .ok_or_else(|| JsValue::from_str("no e-graph loaded"))?;
+            egraph
+                .collapse(id, collapsed, &positions)
+                .map_err(|e| JsValue::from_str(&e))?
+        };
+        self.apply_delta(&serde_json::to_string(&delta).unwrap())?;
+        let mut s = self.state.borrow_mut();
+        s.auto_fit = false;
+        if let Some(egraph) = &s.egraph {
+            s.selected.nodes = s
+                .selected
+                .nodes
+                .iter()
+                .map(|id| egraph.visible_id(id))
+                .collect();
+        }
+        emit_select(&mut s);
+        Ok(())
+    }
+
+    /// E-class ids and labels for host controls.
+    pub fn eclass_state(&self) -> String {
+        serde_json::to_string(
+            &self
+                .state
+                .borrow()
+                .egraph
+                .as_ref()
+                .map(|e| e.classes())
+                .unwrap_or_default(),
+        )
+        .unwrap()
+    }
+
+    /// The highlighted ancestry, separately from the user's selection.
+    pub fn rewrite_state(&self) -> String {
+        let s = self.state.borrow();
+        let mut nodes: Vec<_> = s.rewrites.nodes.iter().collect();
+        nodes.sort();
+        let mut edges: Vec<_> = s.rewrites.edges.iter().collect();
+        edges.sort();
+        serde_json::json!({"nodes":nodes,"edges":edges}).to_string()
     }
 
     /// Apply an incremental change (spec 031 §4, stage 4a): add and remove
@@ -587,6 +664,8 @@ impl GraphView {
         let input: InGraph =
             serde_json::from_str(json).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let mut s = self.state.borrow_mut();
+        s.egraph = None;
+        s.rewrites = frame::Selection::default();
         let parsed = clock_ms();
         s.load_started = started;
         s.awaiting_first_draw = true;
@@ -1139,6 +1218,13 @@ fn start_loop(state: Rc<RefCell<State>>) {
                 _ => None,
             };
             let edit = s.interaction == Interaction::Edit;
+            // Ordinary graphs keep borrowing selection, including large selections.
+            let highlighted = (!s.rewrites.is_empty()).then(|| {
+                let mut highlighted = s.selected.clone();
+                highlighted.nodes.extend(s.rewrites.nodes.iter().cloned());
+                highlighted.edges.extend(s.rewrites.edges.iter().cloned());
+                highlighted
+            });
             let State {
                 graph,
                 camera,
@@ -1154,7 +1240,7 @@ fn start_loop(state: Rc<RefCell<State>>) {
             let input = frame::DrawInput {
                 camera,
                 hovered: *hovered,
-                selected,
+                selected: highlighted.as_ref().unwrap_or(selected),
                 edit,
                 pending,
                 pos_rev: *pos_rev,
@@ -1875,7 +1961,7 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                     }
                     if before != s.selected {
                         s.sel_rev += 1;
-                        emit_select(&s);
+                        emit_select(&mut s);
                     }
                     emit(
                         &s,
@@ -1902,14 +1988,14 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         }
                         if before != s.selected {
                             s.sel_rev += 1;
-                            emit_select(&s);
+                            emit_select(&mut s);
                         }
                     }
                     None => {
                         if !s.selected.is_empty() {
                             s.selected = frame::Selection::default();
                             s.sel_rev += 1;
-                            emit_select(&s);
+                            emit_select(&mut s);
                         }
                     }
                 }
