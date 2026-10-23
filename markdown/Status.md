@@ -87,6 +87,15 @@ MTK/RxInfer simulations, fill pixels, saved grid positions, locales and referenc
 activation. Both parsers have bounded fuzz targets. See [[Flow Editor]] and
 [[Table Editor]] for conversion limits.
 
+## Shared code naming (WP-21 prerequisite, checked 2026-10-23)
+
+`moonkale-content-id` now exposes shared binding/entity-path metadata and method
+grouping for Julia, Rust and Python. Julia ownership is ported from Sophia
+`773d9898`; Rust impl/trait paths and Python class paths use caller-supplied root
+context. Unknown roots are flagged, invalid names reported, and naming golden
+data complements the unchanged v7 identity fixtures. The per-folder Sophia
+writer remains planned. See [[Code Graph Schema]] and [[Work Packages]].
+
 ## By area
 
 | area | state | notes |

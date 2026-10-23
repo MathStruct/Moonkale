@@ -130,7 +130,7 @@ pub fn includes(text_: &str, tree: &Tree) -> Vec<Include> {
 /// a namespace, not a unit. Nothing inside a call is a unit: there a
 /// definition-like form is a keyword argument (`@deprecate f(; check::Bool
 /// = true) g`), or a closure in a `do` block (v7).
-fn units<'t>(root: Syntax<'t>) -> Vec<Syntax<'t>> {
+pub(crate) fn units<'t>(root: Syntax<'t>) -> Vec<Syntax<'t>> {
     let mut out = Vec::new();
     let mut stack = vec![root];
     while let Some(node) = stack.pop() {

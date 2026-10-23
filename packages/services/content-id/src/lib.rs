@@ -12,7 +12,12 @@
 
 mod component;
 pub mod julia;
+mod naming;
 mod normalize;
+pub use naming::{
+    binding, binding_groups, definitions, entity_path, julia_extends, julia_scopes, Binding,
+    BindingGroup, Definition, JuliaScopes, NamingContext,
+};
 
 pub use arborium_tree_sitter::{Node as Syntax, Tree};
 pub use component::identities;

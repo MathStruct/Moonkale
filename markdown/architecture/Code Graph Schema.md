@@ -116,6 +116,8 @@ A **name** is a `Name` node: a namespace path, for example `crate::graph::layout
 - Two names for one definition is normal.
 - **For store-backed sources the name is primary** (SPEC-004 §2–§3). It's what you open, edit and navigate: `WriteText` on a name parses the text, stores a new definition and moves the name, while a definition itself is immutable and opens read-only. The graph panel hides `Name` nodes for file-backed code, where they're metadata, and has to show them for a Sophia source.
 - **Path spelling:** Moonkale paths use `/`, Sophia names use `.`; the adapter maps `a/b/c` ↔ `a.b.c` and rejects segments with `/`, `.`, whitespace or control characters.
+- **Shared source naming (SPEC-009 §8, implemented 2026-10-23):** `moonkale-content-id` owns `Definition`, `binding`, `entity_path` and method grouping, independently of content identity. Rust uses `rs.<crate>.<module>.<item>`, with type and optional backquoted trait segments for impl members; Python uses `py.<package>.<module>.<Class>.<member>`; Julia uses its owning generic function's absolute module path. Caller-supplied roots/module trees require no file I/O in the crate. Unknown roots are path-derived and flagged; unspellable names are reported, never sanitized. Repeated methods form one group, named collisions are explicit, and constructor methods coexist at `<Type>.new`. This dotted entity-name contract allows quoted operator/trait segments; it does not widen the source adapter's slash-path mapping above. See `packages/services/content-id/content-id.md` and `golden/bindings.tsv`. The additive naming API changes neither existing ids nor normalizer v7.
+
 
 ## 6. Edge kinds
 
