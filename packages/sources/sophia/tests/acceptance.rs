@@ -527,3 +527,63 @@ async fn two_clients_in_two_profiles_cannot_overwrite_each_other() {
     ));
     assert!(b.fetch_text(odd).await.unwrap().0.contains("1 == 0"));
 }
+
+#[tokio::test]
+async fn coarse_query_exposes_namespace_members() {
+    let source = SophiaSource::sample().unwrap();
+    let graph = source
+        .query(Query::Coarse {
+            level: 1,
+            region: None,
+        })
+        .await
+        .unwrap();
+    let namespace = find(&graph.nodes, "Directory", "sample");
+    assert!(matches!(namespace.props.get("coarse.members"), Some(Value::Int(n)) if *n >= 18));
+    let region = source
+        .query(Query::Coarse {
+            level: 1,
+            region: Some(namespace.id),
+        })
+        .await
+        .unwrap();
+    assert_eq!(region.nodes.len(), 18);
+    assert!(region
+        .nodes
+        .iter()
+        .all(|n| matches!(&n.kind, NodeKind::Custom(k) if k == "Name")));
+}
+
+#[tokio::test]
+async fn coarse_roots_count_shared_definitions_once() {
+    let source = SophiaSource::sample().unwrap();
+    let all = source
+        .query(Query::All {
+            limit: 100000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    let roots = source
+        .query(Query::Coarse {
+            level: 0,
+            region: None,
+        })
+        .await
+        .unwrap();
+    let represented: i64 = roots
+        .nodes
+        .iter()
+        .map(|n| match n.props["coarse.members"] {
+            Value::Int(n) => n + 1,
+            _ => panic!("member count"),
+        })
+        .sum();
+    // Children includes the source's rendering-settings navigation node,
+    // while Interface::all omits that derived node.
+    let root_children = children(&source, source.descriptor().root).await;
+    let settings = find(&root_children, "sophia:Settings", "rendering profile");
+    let mut identities: std::collections::HashSet<_> = all.nodes.iter().map(|n| n.id).collect();
+    identities.insert(settings.id);
+    assert_eq!(represented as usize, identities.len());
+}

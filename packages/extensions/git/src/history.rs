@@ -127,6 +127,9 @@ impl Source for GitHistorySource {
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         let node = |id: NodeId| self.nodes.iter().find(|n| n.id == id).cloned();
         match query {
+            Query::Coarse { .. } => Err(moonkale_core::SourceError::Unsupported(
+                "hierarchy coarsening".into(),
+            )),
             Query::Node(id) => node(id)
                 .map(QueryResult::single)
                 .ok_or(SourceError::NotFound),

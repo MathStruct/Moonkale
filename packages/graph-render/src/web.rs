@@ -873,6 +873,12 @@ impl GraphView {
         s.dirty = true;
     }
 
+    /// Keep the current camera fixed during subsequent layout/delta work.
+    /// Explicit fit/relayout commands can enable automatic fitting again.
+    pub fn hold_camera(&self) {
+        self.state.borrow_mut().auto_fit = false;
+    }
+
     /// The layered arrangement (spec 031 SS5, stage 7): every wire left
     /// to right, columns and rows — the flow editor's Layout button. The
     /// nodes land pinned (a flow's positions are the host's document);

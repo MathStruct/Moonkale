@@ -329,3 +329,27 @@ async fn ls_dialect_lists_hidden_directories() {
         .is_empty());
     assert!(src.query(ls("../etc")).await.is_err());
 }
+
+#[tokio::test]
+async fn coarse_folder_query_lists_region_members() {
+    let dir = fixture();
+    let source = FolderSource::open(dir.path()).unwrap();
+    let coarse = source
+        .query(Query::Coarse {
+            level: 1,
+            region: None,
+        })
+        .await
+        .unwrap();
+    let folder = coarse.nodes.iter().find(|n| n.label == "src").unwrap();
+    assert_eq!(folder.props["coarse.members"], moonkale_core::Value::Int(1));
+    let region = source
+        .query(Query::Coarse {
+            level: 1,
+            region: Some(folder.id),
+        })
+        .await
+        .unwrap();
+    assert_eq!(region.nodes.len(), 1);
+    assert_eq!(region.nodes[0].native_key, "src/main.rs");
+}

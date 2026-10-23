@@ -576,6 +576,9 @@ impl Source for UnisonSource {
         let mut selected = BTreeSet::new();
         let mut truncated = false;
         match query {
+            Query::Coarse { level, region } => {
+                return moonkale_core::source::coarse::query(self, level, region).await;
+            }
             Query::Node(id) => {
                 if !self.nodes.contains_key(&id) {
                     return Err(SourceError::NotFound);

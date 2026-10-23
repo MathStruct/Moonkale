@@ -266,3 +266,46 @@ camera and selection stability against the shipped wasm. `graph-egraph-ui.mjs`
 drives the production Graph panel paste and controls. Native tests cover delta
 restoration, malformed identities/membership, bounds and cycles. The standalone
 `fuzz` workspace has an `egraph` target seeded with the same fixture.
+
+## WP-06 coarse host and measurement (2026-10-23)
+
+The source-level hierarchy cut and tier selector live in core and the Graph
+panel, not the renderer. Region expansion reuses `apply_delta`, pinned context
+and existing visual groups; boundary relations are proxy edges. The host
+explicitly calls the additive `hold_camera()` API before region deltas to disable
+initial-load auto-fit while retaining the exact camera. Without that opt-in,
+warming the region layout can continue
+fitting the camera on subsequent frames. The committed wasm was rebuilt with
+`bash packages/graph-render/build.sh` after this change.
+
+The hermetic production-panel test (`graph-coarse.mjs`) used a lazy
+1,000,501-node source, showed the 500-node coarse cut in **110 ms**, expanded
+2,000 members (2,499 visible nodes total), retained the camera, restored the
+500-node/499-edge cut on collapse, and passed Detailed/Auto override checks.
+Settled expanded pan: **41 sampled frames, 33.4 ms median / 50.0 ms p95** on
+Chromium SwiftShader. The local software-GL gate is 50 ms p95; this establishes
+functional interactivity, not physical-display 60 FPS. The first pan run while
+layout was settling hit the same 50 ms boundary; the final suite explicitly
+waits for settling before measuring continuous pan.
+
+The isolated 100k-node/99,999-edge engine probe (`graph-coarse-costs.mjs`)
+encoded **7,955,563 bytes in 14.7 ms**, with **144.3 ms** to submitted first
+picture. Engine parse/build/fit were **47.5 / 47.0 / 2.5 ms**, and CPU pointer
+hover was **0.3 ms median / 0.4 ms p95** over 100 deterministic pointer positions.
+The probe pins nodes before measuring the real hover event handler so layout
+work is not charged to picking. Raw results: `target/coarse-costs.log` and
+`target/coarse-browser-final.log`. JSON encoding is not the dominant engine cost and
+picking is well under one frame; no binary transport or GPU picking is added.
+This probe excludes a native webview's Eval bridge; P-224's native transport
+numbers remain the evidence for that separate boundary. The native Sophia copy contains 199,257 graph nodes and projects to
+two
+representatives in 3.68 s cold / 1.81–1.83 s warm. An initial full-snapshot
+attempt overflowed its worker stack; the coarse adapter now reads metadata
+and indexed References without decoding term bodies. See [[P-229 Sophia full graph traversal can exhaust its worker stack]].
+
+Core's fully materialised 1,000,001-node hierarchy separately projects to 1,000
+nodes/999 weighted relations in **1.32 s native development build**. The browser
+fixture tests the source-native query seam; it does not pretend to generate or
+transfer a million-node snapshot in the browser. Default coarse queries still
+materialise a bounded complete source snapshot, or walk folder metadata, and
+cached source cuts/layouts remain an optimization seam.

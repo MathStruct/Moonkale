@@ -79,3 +79,18 @@ instead of decoding every historical change in 256-entry pages. The contract
 is unchanged: the first answer carries only the tail position, with no paths
 or reset; later polling still consumes bounded pages. This removes work
 proportional to historical log size and SQLite contention at store opening.
+
+## WP-06 coarse namespace queries / P-229
+
+`Query::Coarse` enumerates namespace/name/definition-ID/indexed-reference
+metadata on the blocking worker. It does not decode terms to infer Calls. A
+shared content definition belongs to its smallest stable name id for navigation;
+all original Names relations remain. Definition labels in these navigation
+snapshots are short content ids; normal Node/fetch APIs retain their full detail.
+The adapter checks the log position before/after listing and refuses changes.
+Bounds and projection are shared with core.
+
+The copied P-224 store has 199,257 graph nodes and projects to two representatives
+in 3.68 s cold / 1.81–1.83 s warm. The initial full-snapshot implementation
+exhausted its blocking worker stack; metadata listing avoids that path. Original
+full graph/neighbour/body traversal remains an upstream follow-up (P-229).

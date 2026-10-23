@@ -681,8 +681,12 @@ impl Source for IndexSource {
     }
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
+        if let Query::Coarse { level, region } = query {
+            return moonkale_core::source::coarse::query(self, level, region).await;
+        }
         let g = self.graph.r();
         match query {
+            Query::Coarse { .. } => unreachable!("dispatched before locking"),
             Query::Node(id) => g
                 .node(id)
                 .cloned()

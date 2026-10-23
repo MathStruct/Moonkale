@@ -215,6 +215,9 @@ impl Source for TursoSource {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Coarse { .. } => Err(moonkale_core::SourceError::Unsupported(
+                "hierarchy coarsening".into(),
+            )),
             Query::Node(id) => {
                 let key = self.key_of(id)?;
                 let node = if key.is_empty() {

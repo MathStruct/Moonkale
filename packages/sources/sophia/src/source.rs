@@ -217,6 +217,7 @@ impl SophiaSource {
             to,
             kind: match e.kind.as_str() {
                 "Contains" => EdgeKind::Contains,
+                "Defines" => EdgeKind::Defines,
                 "References" => EdgeKind::References,
                 "Calls" => EdgeKind::Calls,
                 k => EdgeKind::Custom(k.into()),
@@ -480,6 +481,38 @@ impl Source for SophiaSource {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Coarse { level, region } => {
+                use moonkale_core::source::coarse::{project, MAX_LEVEL};
+                if level > MAX_LEVEL {
+                    return Err(SourceError::Invalid("coarse level limit".into()));
+                }
+                let g = self.call(coarse_metadata).await?;
+                let mut snapshot = self.result(&g, None);
+                // Names alias content-addressed definitions. Assign each shared
+                // definition to its smallest stable name id for navigation only;
+                // retain every Names edge as a real relation in the projection.
+                let owned: std::collections::HashSet<_> = snapshot
+                    .edges
+                    .iter()
+                    .filter(|e| matches!(e.kind, EdgeKind::Contains | EdgeKind::Defines))
+                    .map(|e| e.to)
+                    .collect();
+                let mut owners = std::collections::BTreeMap::<NodeId, NodeId>::new();
+                for edge in &snapshot.edges {
+                    if edge.kind == EdgeKind::Custom("Names".into()) && !owned.contains(&edge.to) {
+                        owners
+                            .entry(edge.to)
+                            .and_modify(|id| *id = (*id).min(edge.from))
+                            .or_insert(edge.from);
+                    }
+                }
+                snapshot.edges.extend(
+                    owners
+                        .into_iter()
+                        .map(|(definition, name)| self.contains(name, definition)),
+                );
+                project(snapshot, level, region)
+            }
             Query::Node(id) => {
                 let key = self.key(id)?;
                 if let Some(n) = self.view_node(&key) {
@@ -665,6 +698,120 @@ impl Source for SophiaSource {
             tokio::time::sleep(POLL_EVERY).await;
         }
     }
+}
+
+/// Coarse navigation reads metadata only. Interface::all also decodes/traverses
+/// every definition to infer Calls; a sufficiently deep stored term can exhaust
+/// its worker stack (P-229). References are indexed metadata and need no body.
+fn coarse_metadata(interface: &Interface<Sqlite>) -> Result<Subgraph, SourceError> {
+    use moonkale_core::source::coarse::{MAX_INPUT_EDGES, MAX_INPUT_NODES};
+    let limit = || SourceError::Invalid("coarse Sophia metadata limit".into());
+    let start = interface
+        .store()
+        .read(|tx| tx.last_seq())
+        .map_err(store_error)?;
+    let root = interface.root();
+    let mut nodes = HashMap::new();
+    if let Some(node) = interface.node(&root).map_err(store_error)? {
+        nodes.insert(root.clone(), node);
+    }
+    let mut pending = std::collections::VecDeque::from([root]);
+    let mut visited = std::collections::HashSet::new();
+    let mut edges = Vec::new();
+    while let Some(key) = pending.pop_front() {
+        if !visited.insert(key.clone()) {
+            continue;
+        }
+        let children = interface.children(&key).map_err(store_error)?;
+        if nodes.len() + children.nodes.len() > MAX_INPUT_NODES
+            || edges.len() + children.edges.len() > MAX_INPUT_EDGES
+        {
+            return Err(limit());
+        }
+        for node in children.nodes {
+            if node.kind == "Directory" {
+                pending.push_back(node.key.clone());
+            }
+            nodes.insert(node.key.clone(), node);
+        }
+        edges.extend(children.edges);
+    }
+    // One metadata transaction supplies names, definition ids and indexed refs.
+    // No definition_of/Term traversal or body parsing is performed.
+    let (names, records, references) = interface
+        .store()
+        .read(|tx| {
+            let names = tx.names_under("", MAX_INPUT_NODES + 1)?;
+            let records = tx.records_of_kind(None, MAX_INPUT_NODES + 1)?;
+            if names.len() + records.len() > MAX_INPUT_NODES {
+                return Err(StoreError::QueryRefused(
+                    "coarse Sophia metadata limit".into(),
+                ));
+            }
+            let mut references = Vec::new();
+            for id in &records {
+                let targets = tx.refs_of(id)?;
+                if references.len() + targets.len() > MAX_INPUT_EDGES {
+                    return Err(StoreError::QueryRefused("coarse Sophia edge limit".into()));
+                }
+                references.extend(targets.into_iter().map(|target| (*id, target)));
+            }
+            Ok((names, records, references))
+        })
+        .map_err(store_error)?;
+    // Definitions get short content-id labels in a coarse navigation snapshot;
+    // opening a definition still uses the complete normal Source API.
+    for id in records
+        .into_iter()
+        .chain(names.iter().map(|n| n.target.digest()))
+    {
+        let key = Key::Content(id);
+        nodes.entry(key.clone()).or_insert_with(|| NodeView {
+            key,
+            kind: "Definition".into(),
+            label: id.short(12),
+            props: Vec::new(),
+        });
+        if nodes.len() > MAX_INPUT_NODES {
+            return Err(limit());
+        }
+    }
+    for name in names {
+        edges.push(EdgeView {
+            from: Key::name(&name.path),
+            to: Key::Content(name.target.digest()),
+            kind: "Names".into(),
+            props: Vec::new(),
+        });
+    }
+    for (from, to) in references {
+        let (from, to) = (Key::Content(from), Key::Content(to));
+        if nodes.contains_key(&from) && nodes.contains_key(&to) {
+            edges.push(EdgeView {
+                from,
+                to,
+                kind: "References".into(),
+                props: Vec::new(),
+            });
+        }
+    }
+    if edges.len() > MAX_INPUT_EDGES {
+        return Err(limit());
+    }
+    let end = interface
+        .store()
+        .read(|tx| tx.last_seq())
+        .map_err(store_error)?;
+    if start != end {
+        return Err(SourceError::Invalid(
+            "coarse Sophia snapshot changed".into(),
+        ));
+    }
+    Ok(Subgraph {
+        nodes: nodes.into_values().collect(),
+        edges,
+        ..Default::default()
+    })
 }
 
 #[cfg(test)]

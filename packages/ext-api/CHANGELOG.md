@@ -19,8 +19,12 @@ Rules:
 **Folder source version semantics (WP-23):** Query node versions are cheap metadata change hints, while `fetch_text`/`fetch_bytes` return exact-byte content hashes. Always pass the fetched text version to `WriteText.expected`; a listing version is not a save precondition. Workspace state/history/settings writers now fetch first and refuse failed reads. The wire type remains `Version(u64)`; no tag is cut here.
 
 **moonkale-core**
+- **Breaking for exhaustive matches (WP-06):** `Query` gains `Coarse { level: u32, region: Option<NodeId> }`. Hierarchical sources can delegate to `source::coarse::query`; other sources must return Unsupported. Shared `source::coarse::project` returns bounded hierarchy cuts, member counts and aggregated edge multiplicities, preserving distinct edge owners. Sophia uses metadata/indexed references to avoid term traversal (P-229). Existing query wire forms are unchanged; older servers reject the new variant. No tag is cut here.
 - **Breaking for struct literals:** `Capabilities` gains `extra_text_query: Option<TextDialect>`, a second dialect the source also answers; add `extra_text_query: None` (or finish with `..Default::default()`). Missing in serialized descriptors, it reads as `None`. `Capabilities::text_dialects()` lists both, main first. `TextDialect` gains `SophiaQuery` (wire name `query`, Sophia SPEC-007); exhaustive matches must handle it (2026-10-21).
 - Additive `graph::code` string constants define the shared L2 vocabulary; new kinds use existing `Custom` values. `NodeKind::definition()` constructs the new kind and `is_definition()` reads it and legacy `Symbol` values. No enum variants, fields, or legacy wire encodings change.
+
+**moonkale-graph-render**
+- Additive `hold_camera()` stops initial-load auto-fit before host-driven region deltas; explicit Fit/Relayout can enable it again. Ordinary delta behavior remains compatible.
 
 **moonkale-ext-api**
 - Followed sources now reload open documents without unsaved edits when the change feed names them or resets, comparing text as well as version (2026-10-21). No API change.

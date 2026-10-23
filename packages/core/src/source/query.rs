@@ -37,6 +37,12 @@ pub enum Query {
         limit: usize,
         kinds: Option<Vec<NodeKind>>,
     },
+    /// A bounded hierarchy cut. `level = 0` selects hierarchy roots; higher
+    /// levels expose descendants. `region` restricts the cut to one subtree.
+    /// Nodes carry `coarse.members`; aggregated edges carry `coarse.weight`.
+    /// A one-row table has `source.nodes` and `source.edges` input counts.
+    /// Sources may return Unsupported when no hierarchy/community cut exists.
+    Coarse { level: u32, region: Option<NodeId> },
     /// A query in the source's own language. `dialect` is `"sql"`,
     /// `"cypher"`, … — the source rejects dialects it doesn't speak.
     Text { dialect: String, text: String },

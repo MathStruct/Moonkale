@@ -197,6 +197,9 @@ impl<S: KvStore> Source for KvSource<S> {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Coarse { .. } => Err(moonkale_core::SourceError::Unsupported(
+                "hierarchy coarsening".into(),
+            )),
             Query::Node(id) => {
                 let key = self.key_of(id)?;
                 if key.is_empty() {

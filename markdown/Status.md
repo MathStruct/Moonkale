@@ -64,6 +64,17 @@ engine/panel browser suites cover this path. Input is an in-memory bounded
 snapshot; JSON file opening, editing and live Sophia production remain open.
 See [[Graph View]] and [[North Star]] for the producer contract.
 
+## Coarse graph queries and navigation (WP-06, checked 2026-10-23)
+
+Hierarchy sources expose bounded coarse cuts, counts, weighted relations and
+region members. The graph toolbar chooses a tier at open/Reload, shows it and
+offers a per-source override. One region expands/collapses through the existing
+aggregate delta path, with pinned context and a stable camera. Core's fully
+generated million-node native projection takes about 1.32 seconds; the separate
+lazy million-node browser fixture checks the production panel. Sophia
+copy queries take 3.68 s cold / 1.81–1.83 s warm for 199,257 nodes → 2; cached source cuts/layouts, upstream full traversal, nested navigation and persistent
+workspace overrides remain open. See [[Case Selector]] and [[Graph View]].
+
 ## By area
 
 | area | state | notes |
@@ -79,7 +90,7 @@ See [[Graph View]] and [[North Star]] for the producer contract.
 | **Markdown** — rich (Milkdown), source, wiki-links, KaTeX, front matter, typography | ✅ | specs 012, 013, 019, 021, 026 |
 | **Typst preview** | ✅ | no packages |
 | **Diagram fences** (tabs, Typst math, Mermaid, TikZ) | 📝 | [[Markdown Diagrams and Math]] |
-| **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; 2026-10-22: overview drags pan below a 3 CSS px radius (P-223); private WebKit desktop initial picture 6.78 → 2.54 s, warm median 5.70 → 2.63 s (P-224; physical NVIDIA recheck due), see `packages/graph-render/graph-render.md`; coarse tier 📝 ([[Case Selector]]) |
+| **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; 2026-10-22: overview drags pan below a 3 CSS px radius (P-223); private WebKit desktop initial picture 6.78 → 2.54 s, warm median 5.70 → 2.63 s (P-224; physical NVIDIA recheck due), see `packages/graph-render/graph-render.md`; WP-06 coarse queries, selector and one-region expansion built (1M fixture first picture 110 ms); cached cuts/layouts and upstream Sophia full traversal remain open ([[Case Selector]]) |
 | **Flow editor** + Lux.jl library | ◐ | editing and codegen; running the model is not built |
 | **Table editor** | ✅ | read-only |
 | **Image viewer** | ✅ | spec [[008]] |

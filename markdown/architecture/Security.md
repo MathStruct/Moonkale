@@ -219,3 +219,28 @@ remain canvas/Dioxus text. There is no evaluation, connection, new dependency or
 persistence. The `fuzz` workspace's `egraph` target exercises parsing, ancestry,
 collapse and expansion, seeded by the synthetic snapshot. It is available for
 local fuzzing; the existing two-target nightly jobs are unchanged.
+
+WP-06 hierarchy projection (2026-10-23) reuses the structured serde query
+protocol and existing source reads. It fetches no content bodies and adds no
+connection, dependency or authority. The snapshot fallback refuses incomplete
+results, duplicate ids, cycles and multiple parents of equal precedence; it caps input at two
+million nodes/eight million edges, requested level at 64 and output at 100,000
+nodes. Traversal is iterative, including malformed cyclic input. These are
+projection bounds after source enumeration, not new limits on source-internal
+allocation. Source-native cached cuts and end-to-end performance remain open.
+
+WP-06 region navigation sends source query results as escaped JSON strings
+through the existing Eval channel. The static controller never interpolates
+labels into script or HTML. Source membership and complete-source counts stay
+source-owned; only numeric placement, pinning, groups and boundary proxies are
+computed in the host. The combined visible cut/region refuses more than 100k
+nodes. Generation checks discard replies after source replacement. The lazy
+million-node test source lives only in a separate fixture crate. No new
+production parser, connection, permission or dependency is introduced.
+
+P-229: Sophia coarse queries use namespace/name/definition-ID/indexed-reference
+metadata instead of Interface::all's definition/Calls traversal, after the latter
+exhausted a worker stack on the large local copy. Metadata limits remain two
+million nodes/eight million edges, and log-position checks reject changes during
+listing. No term decoder is added. This avoids that traversal in coarse queries;
+existing All/neighbour/body traversal is not declared fixed or bounded by it.

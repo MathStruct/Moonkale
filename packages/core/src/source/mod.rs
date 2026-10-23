@@ -12,6 +12,7 @@
 //! selected there; on native the futures are `Send` so the server can spawn
 //! them onto tokio.
 
+pub mod coarse;
 pub mod descriptor;
 pub mod event;
 pub mod opener;
