@@ -43,4 +43,6 @@ Against making it the default *now*, from the week of 2026-10-20:
 - `moonkale-content-id` stays shared. A normaliser change means a version bump on both sides, as with v7.
 - Risk: Moonkale's code analysis depends on a young project in the same organisation. It's mitigated by the feature gate, the derived-cache rule (deleting the store loses nothing) and the default gates above.
 
+**Interface (2026-10-23):** Sophia's SPEC-009 "Moonkale Folder Store" (Sophia rev 773d9898, accepted by Daniel 2026-10-23), which covers finished records per file, `Store::replace_files`, the enforced `store/mode = derived`, read-only SQLite for wasm, and `binding()`/`entity_path()` in `moonkale-content-id`. Daniel also cleared SP-015 and a v0.1.0 tag on those conditions; the Sophia work starts 2026-10-24.
+
 Related: [[ADR-0028 Files or the graph]], [[Code Graph Schema]], [[Indexing]], [[North Star]], [[Work Packages]] (WP-21, WP-68).
