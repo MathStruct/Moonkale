@@ -59,3 +59,20 @@ replacement source handles still supersede old reads; navigating away invalidate
 a pending generation, so returning cannot accidentally reuse a discarded load.
 Completion or a current error releases the pending key. Stale errors do not
 replace the current graph's error state. The key policy has a regression test.
+
+## WP-07 — e-graph snapshots (2026-10-23)
+
+The existing trace paste box also offers **Draw e-graph JSON**. The fixed eval
+loop sends the string to the engine's bounded `set_egraph` parser; it never
+interpolates graph text into script. This transient view pauses source reloads
+and invalidates pending load generations. A class picker, per-class/all-class
+collapse/expand, provenance visibility and **Back to sources** drive engine
+methods. Engine count reports update the readout after each projection. Invalid
+input reports a localised status and resumes normal source loading. Opening no
+source is valid: a pasted snapshot suppresses the source-empty overlay.
+
+The wire format, limits and fixture live in `packages/graph-render/graph-render.md`.
+The engine keeps rewrite highlighting separate from the user's selection and
+uses its existing group/layer/delta renderer. The panel adds no source, file
+opener, persistence or Sophia-specific contract. `graph-egraph-ui.mjs` exercises
+this production path; `graph-egraph.mjs` probes the committed engine separately.

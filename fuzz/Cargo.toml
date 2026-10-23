@@ -12,6 +12,7 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
+moonkale-graph-render = { path = "../packages/graph-render" }
 libfuzzer-sys = "=0.4.13"
 pulldown-cmark = { version = "=0.13.4", default-features = false }
 serde = { version = "=1.0.229", features = ["derive"] }
@@ -34,3 +35,10 @@ bench = false
 # The same patched parser as the app (P-212; see the root Cargo.toml).
 [patch.crates-io]
 pulldown-cmark = { path = "../packages/code-view/vendor/pulldown-cmark" }
+
+[[bin]]
+name = "egraph"
+path = "fuzz_targets/egraph.rs"
+test = false
+doc = false
+bench = false

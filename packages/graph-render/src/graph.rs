@@ -321,6 +321,12 @@ pub struct InGraph {
 /// drives membership through deltas; the renderer only tints (spec 031 §4).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InGroup {
+    /// `eclass` enables the optional e-graph presentation controller.
+    #[serde(default)]
+    pub kind: String,
+    /// Preferred e-node member; absent chooses the first member.
+    #[serde(default)]
+    pub representative: Option<String>,
     pub id: String,
     #[serde(default)]
     pub label: String,
@@ -1817,6 +1823,8 @@ mod delta_tests {
         let mut g = Graph::from_input(input());
         g.apply_delta(InDelta {
             add_groups: vec![InGroup {
+                kind: String::new(),
+                representative: None,
                 id: "mod".into(),
                 label: "module".into(),
                 members: vec!["a".into(), "b".into()],
@@ -1833,6 +1841,8 @@ mod delta_tests {
             remove_nodes: vec!["b".into()],
             add_nodes: vec![delta_node("agg", [10.0, 0.0])],
             add_groups: vec![InGroup {
+                kind: String::new(),
+                representative: None,
                 id: "mod".into(),
                 label: "module".into(),
                 members: vec!["a".into(), "agg".into()],

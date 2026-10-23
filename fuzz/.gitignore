@@ -13,3 +13,5 @@
 !/corpus/math_delimiters/exclusions.md
 !/corpus/flow_format/basic.json
 !/corpus/flow_format/subflow.json
+
+!/corpus/egraph/saturation.json

@@ -101,3 +101,22 @@ Prior art to study (requirements only, [[Scrutiny]] rules): Unison (names as dis
 - **No language is privileged:** the graph's node and edge kinds must not assume one language's concepts. A language-specific kind is namespaced by its frontend.
 - **Prefer the graph store's model over the file system's** whenever the two disagree. Files remain one source among several.
 - **The proxy until Sophia exists:** track the Unison language's internals (definitions, types, dependency DAG) as a graph source. It is a real, content-addressed code database to design against.
+
+## E-graph drawing contract (built WP-07, 2026-10-23)
+
+The drawing boundary is plain engine JSON, independent of any code store. An
+e-class is a `kind:"eclass"` group of e-node ids with a stable class anchor
+node sharing the group's id. An e-node's operator is its label; directed `child`
+edges point to **class anchors**, with argument positions as labels. Directed
+`provenance` edges connect the source and added e-nodes and name the rewrite
+rule. This keeps equivalent expressions shared rather than unfolding a tree.
+The complete format and synthetic equality-saturation fixture live in
+`packages/graph-render/graph-render.md` and `fixtures/egraph.json` beside it.
+
+The Graph panel can paste that JSON today. A class, or all classes, collapses
+through the existing aggregate/proxy delta path to its named representative
+(or first member); expansion restores the members. Provenance has its own
+visibility control, and selecting a term highlights incoming rewrite ancestry,
+including congruence dependencies. Producing these snapshots from Sophia or
+another live store remains that source's work; no Sophia-specific fields or
+connection are required by the renderer.

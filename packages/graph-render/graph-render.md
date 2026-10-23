@@ -198,3 +198,71 @@ cover the additive protocol and committed wasm.
 to leave room for parameter cards around a lone block. It rejects non-finite
 limits and clamps to the engine's zoom range; explicit wheel/pinch zoom remains
 unrestricted. Native tests cover this distinction.
+
+## E-graph input and presentation (WP-07, 2026-10-23)
+
+Built: `egraph::EGraph` is a bounded presentation controller over **ordinary
+engine JSON**, groups, layers and `InDelta`. There is no Sophia-specific ABI or
+second renderer. The complete portable example is `fixtures/egraph.json`.
+
+- Every e-class has a stable ordinary **anchor node**, whose `id` equals its
+  group id. The group has `kind:"eclass"`, `members:[enode ids]`, a display
+  `label`, and optionally `representative:"enode-id"` (otherwise the first
+  member). Anchor nodes are not listed in the input members; the controller
+  includes them in the drawn hull. Classes are disjoint sets of e-nodes.
+- E-nodes are ordinary nodes: their `label` names the operator. A directed
+  `kind:"child"` edge runs from the operator to the **child class anchor**,
+  never to a particular equivalent member. Label each edge with its argument
+  index; separate stable edge ids preserve repeated operands. Cyclic classes
+  are legal. An anchor makes a class addressable even when its chosen term
+  changes. Expanded views show that class endpoint and every member together.
+- Rewrites are directed `kind:"provenance"` edges from the source e-node to
+  the added e-node, with the rule name in `label`. Several incoming edges can
+  record contextual/congruence dependencies. They automatically use the
+  ordinary `provenance` layer; other edge kinds remain independent. Rule labels
+  appear on edge hover as they do for other labelled edges.
+
+Example fragment (indices refer to `nodes`):
+
+```json
+{
+  "nodes": [
+    {"id":"C", "label":"equivalent terms", "kind":"eclass"},
+    {"id":"mul", "label":"×", "kind":"enode"},
+    {"id":"shift", "label":"<<", "kind":"enode"}
+  ],
+  "edges": [
+    {"id":"operand-0", "a":1, "b":0, "kind":"child", "label":"0", "directed":true},
+    {"id":"rewrite-0", "a":1, "b":2, "kind":"provenance", "label":"mul-to-shift", "directed":true}
+  ],
+  "groups": [{"id":"C", "kind":"eclass", "label":"equivalent terms", "members":["mul","shift"], "representative":"mul"}]
+}
+```
+
+Browser hosts call `set_egraph(json)`, then `collapse_eclass(id, bool)`; an empty
+id addresses all classes. Collapse retains the stable class anchor at its live
+position, displays the representative's operator label/kind plus class caption,
+and removes member nodes through `apply_delta`. Every incident edge keeps its
+id, direction, rule label and style, with hidden endpoints proxied to the
+anchor. Internal edges therefore become self-loops rather than disappearing.
+Expand restores all members at their last observed positions. The canonical
+snapshot remains intact, and class operations preserve the camera. Selection of
+a hidden member follows its aggregate. This is a small-snapshot adapter: up to
+4 MiB JSON, 4096 nodes, 32768 edges and 4096 groups, using serde's default depth
+limit. Larger live stores should supply their own targeted aggregate deltas.
+
+Selecting an e-node automatically highlights all incoming rewrite ancestry;
+visited ids bound cyclic/shared walks to O(V+E). Highlighting is separate from
+user selection and does not select unrelated rewrites. Collapsed endpoints
+project onto their class anchors. `rewrite_state()` exposes highlighted ids;
+`eclass_state()` exposes class ids/labels for host controls. The ordinary
+`set_layer_visibility("provenance", false)` hides provenance ink/picking without
+removing topology. Ordinary graph loads clear e-graph state. Native users can
+use `EGraph::parse`, `graph`, `collapse` and `ancestry` with `Graph::apply_delta`.
+
+`graph-egraph.mjs` checks group pixels/counts, real selection ancestry,
+provenance visibility, single/all collapse/expand, representative fallback,
+camera and selection stability against the shipped wasm. `graph-egraph-ui.mjs`
+drives the production Graph panel paste and controls. Native tests cover delta
+restoration, malformed identities/membership, bounds and cycles. The standalone
+`fuzz` workspace has an `egraph` target seeded with the same fixture.
