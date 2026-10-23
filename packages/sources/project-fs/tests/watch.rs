@@ -15,6 +15,11 @@ fn fixture() -> tempfile::TempDir {
     fs::write(p.join("src/main.rs"), "fn main() {}\n").unwrap();
     fs::write(p.join("README.md"), "# hi\n").unwrap();
     fs::write(p.join(".gitignore"), "target/\n*.log\n").unwrap();
+    // P-230: macOS FSEvents can deliver these writes after a watcher that
+    // starts right away is already running, so they show up as changes.
+    // Let them settle first.
+    #[cfg(target_os = "macos")]
+    std::thread::sleep(std::time::Duration::from_millis(1500));
     dir
 }
 
