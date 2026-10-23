@@ -1,6 +1,6 @@
 .mk-graph { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .mk-graph-toolbar {
-  display: flex; align-items: center; gap: 8px; padding: 4px 8px; font-size: 12px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px; font-size: 12px;
   border-bottom: 1px solid var(--wb-line); background: var(--wb-surface); color: var(--wb-ink-soft);
 }
 .mk-graph-modes { display: inline-flex; gap: 2px; }
@@ -24,7 +24,7 @@
 .mk-graph-popup-meta { color: var(--mk-ink-soft); font-family: 'JetBrains Mono', 'Noto Sans Mono CJK SC', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-graph-popup-hint { color: var(--mk-ink-faint); font-size: 11px; margin-top: 2px; }
 
-.mk-graph-source {
+.mk-graph-source, .mk-graph-tier-choice {
     background: var(--mk-input-bg);
     color: inherit;
     border: 1px solid var(--mk-line-strong);

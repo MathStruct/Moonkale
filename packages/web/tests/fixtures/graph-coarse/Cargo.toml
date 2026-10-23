@@ -1,0 +1,10 @@
+[package]
+name = "moonkale-coarse-host"
+version = "0.1.0"
+edition = "2021"
+[workspace]
+[dependencies]
+dioxus = { version = "0.7.10", default-features = false, features = ["launch", "macro", "html", "signals", "hooks", "document", "asset", "web"] }
+moonkale-ext-api = { path = "../../../../ext-api" }
+moonkale-core = { path = "../../../../core" }
+moonkale-editor-graph = { path = "../../../../editors/graph" }

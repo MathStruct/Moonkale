@@ -29,15 +29,17 @@ Why the rich tier stops at 4 MB: CodeMirror itself is fine well past that, but o
 |---|---|---|---|---|
 | **exact** | < 1 500 nodes | Fruchterman–Reingold, exact O(n²), settles in < 1 s | wgpu instanced, labels on | *exists* (`BARNES_HUT_FROM = 1500`) |
 | **approximate** | 1 500 – 100 000 nodes | Barnes–Hut quadtree (θ = 0.8), iteration caps, fewer steps per frame | same; labels off above 20 000 (`web.rs` LOD); CPU hit test | *exists*; measured 100k at 169 ms/step native, 189 in wasm — a 100k graph settles in ~17–20 s ([[Milestone 6 - Implementation Log]]); the panel asks sources for at most `GRAPH_LIMIT = 100 000` |
-| **coarse** | > 100 000 nodes, up to millions | **not a bigger layout — a smaller graph**: the source returns a *coarsened* graph (folders instead of files, modules instead of symbols, communities instead of vertices; ≤ 100k nodes at any level) with a precomputed or cached layout, and the user expands a region into the approximate tier | instanced as now, plus a **picking buffer** (GPU id pass) because the CPU hit test is O(n); edges drawn only for the expanded region | **new** |
+| **coarse** | > 100 000 nodes, up to millions | Source hierarchy cut (≤ 100k nodes), stable representatives and member counts; one region expands through aggregate deltas with the surrounding graph pinned | Existing instanced renderer and CPU picking; projected boundary relations remain proxies | *built (WP-06)*; source-native cached cuts/layouts and community detection remain open |
 
-Why coarsening, not "GPU layout" first: extrapolating Barnes–Hut, 1 M nodes is ≈ 2 s per step and ≥ 120 steps — minutes, on any CPU. A WebGPU compute layout (an n-body kernel or GPU Barnes–Hut) would be 50–100× faster per step, but it does not run on WebGL2 (Firefox, the Android WebView, the desktop's GL path — P-089) and it does not solve the other two walls: **transfer** (1 M nodes as JSON is ≈ 100 MB through `eval`; the coarse tier needs a binary path — typed arrays over the wasm memory, or a fetch of a compact buffer) and **legibility** (1 M points is a hairball; nobody reads it). Coarsening removes all three; GPU compute is then an optional accelerator *inside* the approximate tier (`graph.layout = "gpu"` when WebGPU is real), which is where [[Graph View]] already puts it ("only if Barnes–Hut fell short").
+Why coarsening, not "GPU layout" first: extrapolating Barnes–Hut, 1 M nodes is ≈ 2 s per step and ≥ 120 steps — minutes, on any CPU. A WebGPU compute layout (an n-body kernel or GPU Barnes–Hut) would be 50–100× faster per step, but it does not run on WebGL2 (Firefox, the Android WebView, the desktop's GL path — P-089) and it does not solve the other two walls: **transfer** (1 M nodes as JSON is ≈ 100 MB through `eval`; a binary path (typed arrays over wasm memory, or a compact fetch) is an option if measured coarse payload transfer dominates) and **legibility** (1 M points is a hairball; nobody reads it). Coarsening removes all three; GPU compute is then an optional accelerator *inside* the approximate tier (`graph.layout = "gpu"` when WebGPU is real), which is where [[Graph View]] already puts it ("only if Barnes–Hut fell short").
 
 Sparsification in the coarse tier, concretely: (1) hierarchy-based — the index already has `Contains` and `Defines` edges, so folder/module nodes are free; (2) degree-based — keep hubs and the k-nearest neighbourhood of the selection; (3) community-based (Louvain/Leiden on the server or natively, cached in `.moonkale/`) for sources without a hierarchy (databases, graph DBs). The layout of a coarse level is computed once (server/native, off the UI thread) and cached with the index; expanding a region lays out only that region, pinned around its coarse node.
 
 ## What exists, what is missing
 - *Exists*: the trait for text backends; the Barnes–Hut switch, label LOD, iteration caps and the source limit for graphs; measured numbers to set thresholds from.
-- *Missing*: the selector (measure at open, choose, indicate, override, remember); `backend::plain` and the viewer; P-037 splices; the coarsened graph queries in the index (`Query::Coarse { level }`), the binary transfer path, the picking buffer, region expansion; optional WebGPU compute layout.
+- *Exists (WP-06 step 1, 2026-10-23)*: `Query::Coarse { level, region }` and a bounded hierarchy snapshot fallback for folders, the index and Sophia; stable representative ids, descendant counts, weighted projected edges and region member queries. A generated 1,000,001-node forest projects to 1,000 nodes / 999 edges in **1.32 s native development build** (projection only). No browser first-paint claim yet; see `packages/core/core.md` for limits.
+- *Exists (WP-06 graph selector and navigation)*: source size accompanies the coarse query, exact/approximate/coarse is chosen at open and explicit Reload, a translated toolbar indicates the tier/count and offers Auto/Detailed/Coarse. Choices persist while the panel stays mounted and are independent per source. Change-feed refreshes retain the tier; Local and explicit query views retain their own semantics. Coarse node captions show hidden member counts. A coarse node double-click opens one region using the existing delta/group path, with context pinned, proxy boundary edges and a collapse control. Detailed overrides retain the existing 100k cap and truncation indicator.
+- *Missing*: text selector, `backend::plain` and viewer; source-native/cached coarse queries and layouts, nested region navigation, boundary membership queries, configurable thresholds and persisted workspace overrides. Binary transfer, GPU picking and optional WebGPU compute are conditional optimizations, not prerequisites without measurements.
 - Verification when built: E2E opens a generated 50 MB file and scrolls/edits fluently in the plain tier (frame time asserted via `performance.now()`), and a synthetic 1 M-node source shows a coarse graph in < 2 s with a region that expands.
 
 ## Order (when scheduled)
@@ -45,3 +47,23 @@ Sparsification in the coarse tier, concretely: (1) hierarchy-based — the index
 2. Text selector + `backend::plain` + indicator/override.
 3. Graph coarse tier from the hierarchy the index already has + picking buffer + binary transfer.
 4. Viewer tier; community coarsening; GPU compute as an accelerator.
+
+## WP-06 measurement scope (2026-10-23)
+
+The separate `packages/web/tests/fixtures/graph-coarse` host runs the production
+Graph panel against a lazy generated 1,000,501-node source (500 folders × 2,000
+files plus folder/root nodes). It materialises requested cuts only. Core's
+independent native scale test generates the full million-node hierarchy and
+tests the shared projection, rather than trusting the fixture's source-native
+cut. `graph-coarse.mjs` checks first picture under two seconds, tier/count, real
+double-click expansion to 2,499 visible nodes, camera retention, collapse,
+explicit detail/auto overrides and a 50 ms p95 settled-pan software-GL budget.
+This functional budget is not a physical-display 60 FPS claim.
+
+The 100k isolated engine probe (`graph-coarse-costs.mjs`) measures actual JSON
+encoding/parse/build/first-draw and the pointer hover handler. Its initial local
+run encoded 7.96 MB in 14.7 ms, submitted the first picture in 144.3 ms, and
+measured 0.4 ms p95 CPU hover. This does not measure a native webview's eval
+bridge. See [[Graph View]] and `packages/graph-render/graph-render.md` for the
+final browser evidence and the Sophia copy measurement (3.68 s cold /
+1.81–1.83 s warm; P-229). Physical native-display verification remains separate.

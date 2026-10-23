@@ -1,6 +1,7 @@
 //! The Graph panel: toolbar, two stacked canvases (wgpu + label overlay),
 //! popup, and the eval channel to the renderer module.
 
+use crate::tier::{Choice, Measurement};
 use crate::L;
 use dioxus::document::{self, Eval};
 use dioxus::prelude::*;
@@ -30,6 +31,8 @@ struct Filters {
 struct OutNode<'a> {
     id: String,
     label: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    caption: Option<String>,
     kind: &'static str,
     key: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,6 +132,7 @@ fn database_graph(res: &moonkale_core::QueryResult) -> (OutGraph<'_>, Vec<(Strin
                 OutNode {
                     id: n.id.to_string(),
                     label: &n.label,
+                    caption: n.props.get("coarse.members").map(ToString::to_string),
                     kind: kind_name(&n.kind),
                     key: &n.native_key,
                     color,
@@ -405,10 +409,13 @@ const unload = () => {
     try { const gl = canvas.getContext("webgl2") || canvas.getContext("webgl"); gl && gl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
 };
 window.addEventListener("pagehide", unload, { once: true });
+COARSE_SCRIPT
 let loadSerial = 0;
 for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "setGraph") {
+        coarseGraph = null;
+        coarseExpanded = null;
         const serial = ++loadSerial;
         const received = Date.now();
         const start = performance.now();
@@ -418,6 +425,11 @@ for (;;) {
         if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g);
         requestAnimationFrame(() => requestAnimationFrame(() => { if (serial === loadSerial) dioxus.send({kind:"loadProfile", stringify_ms, handoff_ms, engine: Array.from(view.load_stats())}); }));
     }
+    else if (msg.kind === "coarseBase") { coarseGraph = JSON.parse(msg.graph); }
+    else if (msg.kind === "coarseExpand") {
+        try { coarseExpand(msg.id, JSON.parse(msg.graph)); } catch (_) { dioxus.send({kind:"error",message:msg.error}); }
+    }
+    else if (msg.kind === "coarseCollapse") { coarseCollapse(); }
     else if (msg.kind === "setEgraph") {
         try {
             view.set_egraph(msg.graph);
@@ -483,6 +495,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut local_center: Signal<Option<moonkale_core::NodeId>> = use_signal(|| None);
     // Nodes currently shown, by id string, so events can be resolved back to model nodes.
     let mut shown: Signal<HashMap<String, Node>> = use_signal(HashMap::new);
+    let mut tier_cache: Signal<HashMap<SourceId, Measurement>> = use_signal(HashMap::new);
+    let mut tier_choices: Signal<HashMap<SourceId, Choice>> = use_signal(HashMap::new);
+    let mut tier_reload = use_signal(|| 0_u64);
+    let mut tier_info: Signal<Option<Measurement>> = use_signal(|| None);
+    let mut region_sources: Signal<HashMap<String, std::sync::Arc<dyn moonkale_core::Source>>> =
+        use_signal(HashMap::new);
+    let mut region_expanded = use_signal(|| false);
+    let mut load_gen: Signal<u64> = use_signal(|| 0);
 
     // Mount the renderer from the host element's `onmounted` event (an event
     // handler, not an effect: nothing here re-runs or drops the eval later).
@@ -493,6 +513,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 return;
             }
             let script = SCRIPT
+                .replace("COARSE_SCRIPT", include_str!("coarse.js"))
                 .replace("ID", &serde_json::to_string(&id).unwrap())
                 .replace(
                     "JS_URL",
@@ -534,12 +555,54 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         }
                         Ok(FromJs::Loaded) => loaded.set(true),
                         Ok(FromJs::Ready { backend: b }) => backend.set(Some(b)),
-                        Ok(FromJs::Error { message }) => error.set(Some(message)),
+                        Ok(FromJs::Error { message }) => {
+                            region_expanded.set(false);
+                            error.set(Some(message));
+                        }
                         Ok(h @ FromJs::Hover { .. }) => hover.set(Some(h)),
                         Ok(FromJs::Dblclick { id }) => {
                             let node = shown.peek().get(&id).cloned();
                             if let Some(node) = node {
-                                spawn(open_node(ws, node));
+                                let expandable = matches!(node.props.get("coarse.members"), Some(moonkale_core::Value::Int(n)) if *n > 0);
+                                if expandable && !region_expanded() {
+                                    let source = region_sources.peek().get(&id).cloned();
+                                    if let Some(source) = source {
+                                        let generation = *load_gen.peek();
+                                        region_expanded.set(true);
+                                        error.set(None);
+                                        spawn(async move {
+                                            let result = source
+                                                .query(Query::Coarse {
+                                                    level: 1,
+                                                    region: Some(node.id),
+                                                })
+                                                .await;
+                                            if *load_gen.peek() != generation {
+                                                return;
+                                            }
+                                            match result {
+                                                Ok(result) => {
+                                                    let (graph, _) = database_graph(&result);
+                                                    let graph = serde_json::to_string(&graph)
+                                                        .unwrap_or_default();
+                                                    let _ = ev.send(serde_json::json!({"kind":"coarseExpand","id":id,"graph":graph,"error":t!(ws, L, "graph-coarse-error")}));
+                                                    shown.write().extend(
+                                                        result
+                                                            .nodes
+                                                            .into_iter()
+                                                            .map(|n| (n.id.to_string(), n)),
+                                                    );
+                                                }
+                                                Err(e) => {
+                                                    region_expanded.set(false);
+                                                    error.set(Some(e.to_string()));
+                                                }
+                                            }
+                                        });
+                                    }
+                                } else if !expandable {
+                                    spawn(open_node(ws, node));
+                                }
                             }
                         }
                         Ok(FromJs::Select { nodes, edges }) => selected.set((nodes, edges)),
@@ -566,7 +629,6 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // A graph database that was just opened is what the user wants to see:
     // switch the picker to it (the picker still offers the index).
     let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
-    let mut load_gen: Signal<u64> = use_signal(|| 0);
     let mut pending_db: Signal<Option<PendingDatabaseLoad>> = use_signal(|| None);
     use_effect(move || {
         let graph_ids: Vec<SourceId> = ws
@@ -621,6 +683,8 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         let f = filters();
         let active = *ws.docs.active.read();
         let epoch = *ws.sources.graph_epoch.read();
+        let _reload = tier_reload();
+        let choices = tier_choices.read().clone();
         let picked_id = picked();
         let dbm = db_mode();
         let request = if dbm == DbMode::Query {
@@ -688,20 +752,38 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             }));
             spawn(async move {
                 let profile_start = sent_ms();
-                let res = match handle.source.query(query).await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        if *load_gen.peek() == gen {
-                            pending_db.set(None);
-                            error.set(Some(e.to_string()));
-                        }
-                        return;
-                    }
+                let whole = matches!(query, Query::All { .. });
+                let choice = choices.get(&pid).copied().unwrap_or(Choice::Auto);
+                let cached = if whole {
+                    tier_cache.peek().get(&pid).copied()
+                } else {
+                    None
                 };
+                let res =
+                    match crate::tier::load(handle.source.as_ref(), query, choice, cached).await {
+                        Ok((r, measurement)) => {
+                            if *load_gen.peek() != gen {
+                                return;
+                            }
+                            if whole {
+                                tier_cache.write().insert(pid.clone(), measurement);
+                            }
+                            tier_info.set(Some(measurement));
+                            r
+                        }
+                        Err(e) => {
+                            if *load_gen.peek() == gen {
+                                pending_db.set(None);
+                                error.set(Some(e.to_string()));
+                            }
+                            return;
+                        }
+                    };
                 if *load_gen.peek() != gen {
                     return;
                 }
                 pending_db.set(None);
+                error.set(None);
                 let query_ms = sent_ms() - profile_start;
                 let (out, groups) = database_graph(&res);
                 let payload_ms = sent_ms() - profile_start - query_ms;
@@ -712,6 +794,21 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     fresh: false,
                     sent_ms: sent_ms(),
                 });
+                region_expanded.set(false);
+                region_sources.set(
+                    res.nodes
+                        .iter()
+                        .map(|n| (n.id.to_string(), handle.source.clone()))
+                        .collect(),
+                );
+                if res
+                    .nodes
+                    .iter()
+                    .any(|n| n.props.contains_key("coarse.members"))
+                {
+                    let (graph, _) = database_graph(&res);
+                    let _ = ev.send(serde_json::json!({"kind":"coarseBase","graph":serde_json::to_string(&graph).unwrap_or_default()}));
+                }
                 #[cfg(not(target_arch = "wasm32"))]
                 if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
                     eprintln!(
@@ -795,11 +892,52 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             // they never collide; with several folders each gets a colour.
             let mut res = moonkale_core::QueryResult::default();
             let mut owner: Vec<usize> = Vec::new();
+            let mut source_map = HashMap::new();
+            let mut total_measurement = Measurement {
+                tier: crate::tier::Tier::Exact,
+                nodes: 0,
+                exact: true,
+            };
             let mut groups: Vec<(String, &'static str)> = Vec::new();
             for (i, index) in indices.iter().enumerate() {
-                let Ok(r) = index.source.query(query.clone()).await else {
-                    continue;
+                let choice = choices
+                    .get(&index.descriptor.id)
+                    .copied()
+                    .unwrap_or(Choice::Auto);
+                let cached = if m == Mode::Whole {
+                    tier_cache.peek().get(&index.descriptor.id).copied()
+                } else {
+                    None
                 };
+                let result =
+                    crate::tier::load(index.source.as_ref(), query.clone(), choice, cached).await;
+                let (r, measurement) = match result {
+                    Ok(result) => result,
+                    Err(e) => {
+                        if *load_gen.peek() == gen {
+                            error.set(Some(e.to_string()));
+                        }
+                        return;
+                    }
+                };
+                if *load_gen.peek() != gen {
+                    return;
+                }
+                if m == Mode::Whole {
+                    tier_cache
+                        .write()
+                        .insert(index.descriptor.id.clone(), measurement);
+                }
+                total_measurement.nodes += measurement.nodes;
+                total_measurement.exact &= measurement.exact;
+                if measurement.tier == crate::tier::Tier::Coarse {
+                    total_measurement.tier = crate::tier::Tier::Coarse;
+                }
+                source_map.extend(
+                    r.nodes
+                        .iter()
+                        .map(|n| (n.id.to_string(), index.source.clone())),
+                );
                 owner.extend(std::iter::repeat_n(i, r.nodes.len()));
                 res.nodes.extend(r.nodes);
                 res.edges.extend(r.edges);
@@ -823,7 +961,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 .nodes
                 .iter()
                 .zip(owner.iter())
-                .filter(|(n, _)| kinds.contains(&n.kind))
+                .filter(|(n, _)| n.props.contains_key("coarse.members") || kinds.contains(&n.kind))
                 .map(|(n, o)| (n, groups.get(*o).map(|g| g.1)))
                 .collect();
             let idx: HashMap<_, _> = nodes
@@ -837,6 +975,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     .map(|(n, color)| OutNode {
                         id: n.id.to_string(),
                         label: &n.label,
+                        caption: n.props.get("coarse.members").map(ToString::to_string),
                         kind: kind_name(&n.kind),
                         key: &n.native_key,
                         color: *color,
@@ -855,6 +994,17 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     })
                     .collect(),
             };
+            if total_measurement.tier != crate::tier::Tier::Coarse
+                && total_measurement.nodes >= 1500
+            {
+                total_measurement.tier = crate::tier::Tier::Approximate;
+            }
+            tier_info.set(Some(total_measurement));
+            let coarse_base = res
+                .nodes
+                .iter()
+                .any(|n| n.props.contains_key("coarse.members"))
+                .then(|| serde_json::to_string(&out).unwrap_or_default());
             counts.set((out.nodes.len(), out.edges.len(), res.truncated));
             legend.set(groups);
             let _ = ev.send(ToJs::SetGraph {
@@ -862,6 +1012,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 fresh,
                 sent_ms: sent_ms(),
             });
+            region_expanded.set(false);
+            region_sources.set(source_map);
+            if let Some(graph) = coarse_base {
+                let _ = ev.send(serde_json::json!({"kind":"coarseBase","graph":graph}));
+            }
             shown.set(
                 nodes
                     .into_iter()
@@ -942,6 +1097,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut paste_text = use_signal(String::new);
     let has_request = ws.docs.graph_request.read().is_some();
     let picked_str = picked().map(|p| p.to_string()).unwrap_or_default();
+    let choice_source = picked().or_else(|| {
+        ws.sources
+            .open
+            .read()
+            .iter()
+            .find(|source| source.descriptor.family == SourceFamily::Index)
+            .map(|source| source.descriptor.id.clone())
+    });
     let is_index = picked().is_none() || picked_is_index;
     let has_any = has_index || !databases.is_empty();
 
@@ -1016,6 +1179,42 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } {t!(ws, L, "graph-symbols")} }
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } {t!(ws, L, "graph-folders")} }
                     label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } {t!(ws, L, "graph-unresolved")} }
+                }
+                if !egraph_mode() {
+                    if let Some(info) = tier_info() {
+                        span { class: "mk-graph-tier", "data-tier": info.tier.name(), "data-source-nodes": "{info.nodes}",
+                            {t!(ws, L, "graph-tier-indicator", tier = match info.tier { crate::tier::Tier::Exact => t!(ws, L, "graph-tier-exact"), crate::tier::Tier::Approximate => t!(ws, L, "graph-tier-approximate"), crate::tier::Tier::Coarse => t!(ws, L, "graph-tier-coarse") }, nodes = info.nodes)}
+                            if !info.exact { " +" }
+                        }
+                    }
+                    if region_expanded() {
+                        button { class: "mk-btn mk-graph-coarse-collapse", onclick: move |_| {
+                            if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(serde_json::json!({"kind":"coarseCollapse"})); }
+                            region_expanded.set(false);
+                        }, {t!(ws, L, "graph-coarse-collapse")} }
+                    }
+                    select { class: "mk-graph-tier-choice", aria_label: t!(ws, L, "graph-tier-choice"),
+                        value: choice_source.clone().and_then(|id| tier_choices.read().get(&id).copied()).unwrap_or(Choice::Auto).name(),
+                        onchange: move |e| {
+                            pending_db.set(None);
+                            if let Some(id) = picked() {
+                                tier_cache.write().remove(&id);
+                                tier_choices.write().insert(id, Choice::parse(&e.value()));
+                            } else {
+                                let ids: Vec<_> = ws.sources.open.peek().iter().filter(|s| s.descriptor.family == SourceFamily::Index).map(|s| s.descriptor.id.clone()).collect();
+                                tier_cache.write().clear();
+                                tier_choices.with_mut(|choices| { for id in ids { choices.insert(id, Choice::parse(&e.value())); } });
+                            }
+                        },
+                        option { value: "auto", {t!(ws, L, "graph-tier-auto")} }
+                        option { value: "detailed", {t!(ws, L, "graph-tier-detailed")} }
+                        option { value: "coarse", {t!(ws, L, "graph-tier-coarse")} }
+                    }
+                    button { class: "mk-btn mk-graph-reload", onclick: move |_| {
+                        pending_db.set(None);
+                        tier_cache.write().clear();
+                        tier_reload.with_mut(|n| *n += 1);
+                    }, {t!(ws, L, "graph-tier-reload")} }
                 }
                 span { class: "mk-graph-spacer" }
                 span {
@@ -1272,6 +1471,7 @@ mod store_tests {
             nodes: vec![OutNode {
                 id: "id".into(),
                 label,
+                caption: None,
                 kind: "symbol",
                 key: "a\\b",
                 color: None,

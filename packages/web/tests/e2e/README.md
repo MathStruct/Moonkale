@@ -600,3 +600,30 @@ hulls, aggregate collapse/expand, rewrite layer visibility and automatic incomin
 ancestry highlights. `graph-egraph-ui` uses the production Graph panel's paste
 and translated controls against the normal app server. Both consume
 `packages/graph-render/fixtures/egraph.json` through `MOONKALE_REPO`.
+
+### Coarse graph tier (WP-06)
+
+`graph-coarse.mjs` targets the separate hermetic fixture in
+`packages/web/tests/fixtures/graph-coarse`, which embeds the **production** GraphPanel.
+Start it with `CARGO_TARGET_DIR=<this-worktree>/target/agent dx serve --platform web
+--port 8112 --interactive false --open false` from that fixture directory, through
+the heavy slot helper. Stop that owned server when done. Run the suite with
+`COARSE_PORT=8112` using the usual isolated Playwright directory. This suite is
+not in run-all's default server list because it requires the separate fixture.
+The fixture lockfile starts from the workspace's reviewed dependency versions;
+no additional production dependency is introduced.
+
+The lazy source has 1,000,501 nodes (500 folders × 2,000 files, folders and root),
+but emits only the requested cuts. The suite gates first picture at two seconds,
+checks the source count/tier, double-click expansion, stable camera, collapse and
+Detailed/Auto overrides. A settled expanded pan must sustain a p95 frame interval
+of at most 50 ms on software GL; this is a functional interactivity gate, not a
+physical-display 60 FPS claim. The independent native test
+`cargo test -p moonkale-core million_node_hierarchy -- --ignored --nocapture`
+materialises a complete million-node hierarchy and tests the shared projection.
+
+`graph-coarse-costs.mjs` uses the existing isolated committed-engine harness. It
+records JSON size/encoding/first-draw at 100k coarse-sized nodes and times the
+actual synchronous pointer hover handler, with a 16.7 ms p95 picking budget.
+It does not include a native webview's Eval bridge. Run it with run-all or directly
+with `MOONKALE_REPO` pointing at this worktree.

@@ -76,3 +76,17 @@ The engine keeps rewrite highlighting separate from the user's selection and
 uses its existing group/layer/delta renderer. The panel adds no source, file
 opener, persistence or Sophia-specific contract. `graph-egraph-ui.mjs` exercises
 this production path; `graph-egraph.mjs` probes the committed engine separately.
+
+## WP-06 source tier and region navigation
+
+`tier.rs` reads the complete source count from the coarse query's table and
+chooses a tier once at open/Reload. Panel-local per-source caches preserve the
+choice across change-feed updates; explicit overrides clear the measurement.
+Sources refusing hierarchy queries use capped detailed results with a lower
+bound indicator. Schema, Local and explicit query views retain their semantics.
+
+`coarse.js` is a static host controller, inserted into the existing eval script.
+It uses existing node positions, `apply_delta` and visual groups, pins context,
+and restores representatives and proxy boundaries on collapse. Only one region
+is open. Contents remain serialized channel data, never executable source.
+`graph-coarse.mjs` uses a separate test fixture crate to exercise this panel.

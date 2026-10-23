@@ -124,3 +124,27 @@ chain, and hovering a rewrite edge shows the rule name. Selection remains
 separate from that highlight. Single-class and all-class operations keep the
 camera and restore hidden members' positions. Snapshots are capped at 4 MiB,
 4096 nodes, 32768 edges and 4096 groups. Live producer integration remains open.
+
+## Coarse source navigation (WP-06, 2026-10-23)
+
+The panel chooses exact (<1,500), approximate (through 100,000) or coarse
+(above 100,000) at open/Reload. Hierarchical sources answer
+`Query::Coarse { level, region }` with stable representatives, hidden member
+counts and weighted projected relations; a complete source count accompanies
+the response. Auto/Detailed/Coarse overrides are remembered per source for the
+mounted panel. Detailed still respects the 100k query cap. Non-hierarchical
+sources keep the capped detailed path and show a lower-bound count when cut.
+
+Double-click one coarse representative to open a region. Its members start
+around the representative's world position; context nodes are pinned and the
+engine's existing delta/group path lays out the region without fitting the
+camera again. Boundary relations use the first stable member as a proxy.
+Collapse removes members/group, reinstates the representative at its original
+position and restores boundary relations. Only one region can be open; nested
+region navigation and precise boundary membership remain future work.
+
+The hermetic `graph-coarse.mjs` host exercises the production panel with a lazy
+million-node source; native core tests separately project a fully generated
+million-node snapshot. Source-native cached cuts/layouts remain open; the
+default fallback enumerates a bounded complete snapshot (or folder metadata
+walk) for each uncached region query. See [[Case Selector]].
