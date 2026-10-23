@@ -234,6 +234,9 @@ pub struct TerminalFile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct EditorFile {
+    /// Flow grid spacing: 0 disables, otherwise 4–128 world units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flow_grid: Option<u16>,
     /// Soft-wrap long lines at the view's edge.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wrap: Option<bool>,
@@ -381,6 +384,7 @@ impl SettingsFile {
             .implementation
             .clone()
             .or(self.terminal.implementation.take());
+        self.editor.flow_grid = other.editor.flow_grid.or(self.editor.flow_grid);
         self.editor.wrap = other.editor.wrap.or(self.editor.wrap);
         self.editor.insert_spaces = other.editor.insert_spaces.or(self.editor.insert_spaces);
         self.editor.indent_width = other.editor.indent_width.or(self.editor.indent_width);
@@ -558,6 +562,9 @@ pub struct TerminalSettings {
 /// Resolved editor settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct EditorSettings {
+    /// Flow grid spacing, default 16 world units; zero disables.
+    #[serde(default)]
+    pub flow_grid: u16,
     /// Soft-wrap long lines (default off, like most code editors).
     pub wrap: bool,
     /// Optional language-default override: spaces (`true`) or tabs (`false`).
@@ -655,6 +662,7 @@ impl Default for Settings {
             agent: AgentSettings::default(),
             terminal: TerminalSettings::default(),
             editor: EditorSettings {
+                flow_grid: 16,
                 implementation: DEFAULT_CODE_EDITOR.into(),
                 ..Default::default()
             },
@@ -803,6 +811,11 @@ impl Settings {
                     .unwrap_or_else(|| "ask".into()),
             },
             editor: EditorSettings {
+                flow_grid: merged
+                    .editor
+                    .flow_grid
+                    .map(|n| if n == 0 { 0 } else { n.clamp(4, 128) })
+                    .unwrap_or(16),
                 wrap: merged.editor.wrap.unwrap_or(false),
                 insert_spaces: merged.editor.insert_spaces,
                 indent_width: merged.editor.indent_width.map(|width| width.clamp(1, 8)),
@@ -1310,6 +1323,37 @@ mod layout_record_tests {
         assert_eq!(
             SettingsFile::parse(&serde_json::to_string(&user).unwrap()).unwrap(),
             user
+        );
+    }
+}
+
+#[cfg(test)]
+mod flow_grid_tests {
+    use super::*;
+    #[test]
+    fn grid_settings_layer_clamp_and_round_trip() {
+        let user = SettingsFile::parse(r#"{"editor":{"flow_grid":32}}"#).unwrap();
+        let off = SettingsFile::parse(r#"{"editor":{"flow_grid":0}}"#).unwrap();
+        let mut merged = user;
+        merged.overlay(&off);
+        assert_eq!(merged.editor.flow_grid, Some(0));
+        let empty = SettingsFile::new();
+        assert_eq!(
+            Settings::resolve(&empty, &empty, &empty).editor.flow_grid,
+            16
+        );
+        for (input, expected) in [(0, 0), (1, 4), (32, 32), (65535, 128)] {
+            merged.editor.flow_grid = Some(input);
+            assert_eq!(
+                Settings::resolve(&merged, &empty, &empty).editor.flow_grid,
+                expected
+            );
+        }
+        merged.editor.flow_grid = Some(0);
+        let encoded = serde_json::to_string(&merged).unwrap();
+        assert_eq!(
+            SettingsFile::parse(&encoded).unwrap().editor.flow_grid,
+            Some(0)
         );
     }
 }

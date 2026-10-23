@@ -21,3 +21,6 @@ flow-mirror = ⇋
 flow-mirror-title = 将模块左右镜像（M）
 flow-layout-title = 按连线从左到右排列模块
 flow-fit-title = 将整个流程适配到视图中
+
+flow-grid = 网格
+flow-grid-title = 网格间距（0 关闭）；按住 Alt 自由拖动

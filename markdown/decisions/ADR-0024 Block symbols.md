@@ -27,7 +27,7 @@ The engine already had what a drawing needs:
    pub struct Anchor { port: String, side: Side, offset: f32 }   // offset 0..1, default 0.5
    pub enum Side { Left, Right, Top, Bottom }
    ```
-   - `path` is **SVG path data only**, in the box `0 0 width height` (canvas units). It is stroked in the block's colour: no fills, no other SVG elements, nothing to sanitise beyond what `Path2D` parses.
+   - `path` is **SVG path data only**, in the box `0 0 width height` (canvas units). It is stroked in the block's colour: explicitly closed absolute M…Z subpaths fill in that colour (WP-11, 2026-10-23); no other SVG elements, nothing to sanitise beyond what `Path2D` parses.
    - `anchors` place each port on the box's sides.
    - `BlockPorts.symbol` carries the symbol through `Flow::ports_of`. A subflow and a boundary pseudo-block have none.
 2. **The engine draws it.** `InNode.symbol` (and `InDeltaNode.symbol`, where absent keeps the old symbol, like `icon`) holds the path in the node's box. The overlay strokes it at ~1.6 px, zooming with the canvas, and in the hover colour (thicker) while hovered or selected. It is skipped below a few pixels (LOD) and in 3D.
@@ -70,8 +70,14 @@ The engine already had what a drawing needs:
 - **The change is additive.** `BlockKind` and the engine's `InNode` gain defaulted fields. `BlockPorts` gains `symbol`: a caller that builds it literally adds `symbol: None` (inside Moonkale, only the flow panel). It shipped in `ext-api-2026-10-14`; moonkale-julia v0.5.0 is its first user.
 - **Files don't change.** The symbol belongs to the kind, not to the block. A `.flow.json` keeps its positions, and only the drawing and the pin sides differ.
 - **§5–6 are additive too.** `Block` gains `turn` and `mirror`; a literal that lists every field adds `turn: 0, mirror: false`. `BlockKind` gains `caption`, and `BlockPorts` gains `caption` (`caption: None` in a literal). They shipped in `ext-api-2026-10-14-2` (moonkale-julia v0.6.0).
-- **Not decided here:**
-  - filled regions;
-  - wires snapping to a grid.
-
-  Each can follow when a library needs it.
+- **WP-11 amendment (2026-10-23):** explicitly closed absolute `M…Z`
+  subpaths fill with the block colour, including turn/mirror and hover. Open
+  paths remain strokes; relative moveto subpaths remain stroke-only. Regions
+  are independently filled (no compound holes). Symbols cap at 64 KiB and 256
+  fill regions per draw.
+- Flow's Grid control persists `editor.flow_grid`: default 16 world units,
+  0 disables, otherwise clamped to 4–128. Palette insertion, Layout, canvas
+  dragging and card-header dragging persist snapped centres; Alt bypasses
+  dragging. The faint dot grid follows the camera. Orthogonal wire bends snap
+  their free axes; terminal-aligned axes remain exact so arbitrary symbol
+  anchors stay connected. Existing files retain their coordinates until edited.

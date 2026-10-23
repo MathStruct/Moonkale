@@ -145,6 +145,18 @@ try {
     if (ink < 4) throw new Error(`the selected diamond lost its icon (${ink} px)`);
     await page.keyboard.press("Escape");
   });
+  await step("closed symbol region has filled interior pixels", async () => {
+    await page.evaluate(() => Object.values(window.moonkale.graphViews)[0].set_graph(JSON.stringify({
+      nodes: [{ id: "filled", label: "", kind: "file", shape: "rect", width: 40, height: 20,
+        color: "#8ccf6a", symbol: "M 5 5 H 75 V 35 H 5 Z", pos: [0,0], pinned: true }], edges: []
+    })));
+    await page.mouse.move(0, 0);
+    await sleep(500);
+    const p = await screen("filled");
+    const png = await page.screenshot({clip});
+    const pixels = patch(png, p[0], p[1], 3, (r,g,b) => g > r + 20 && g > 130);
+    if (pixels < 20) throw new Error("closed region interior was not filled: " + pixels);
+  });
   console.log("\nGRAPH-SHAPES E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

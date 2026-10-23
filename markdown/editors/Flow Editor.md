@@ -41,3 +41,17 @@ Undirected pins are in the model (ADR-0020, 2026-10-12): `BlockKind.connections`
 2. Lux.jl library + codegen; run via [[Terminal]] (`julia model.jl`) with errors linked back to blocks.
 3. MTK library — **done 2026-10-12** (ADR-0020's pins + the library in moonkale-julia; `mtk.mjs` builds and simulates an RC circuit).
 4. Execute-in-place (Julia kernel) — research.
+
+## Grid and filled symbols (WP-11, 2026-10-23)
+
+The toolbar's Grid control sets persistent `editor.flow_grid` (16 world units
+by default, zero off, 4–128 otherwise). Insertion, Layout and dragging save
+snapped centres; hold Alt during canvas or card-header dragging to place freely.
+A faint camera-aligned dot grid appears at readable zoom levels. Orthogonal
+wire bends snap free coordinates while preserving terminal lines. Undo restores
+the previous exact coordinates. Existing files are not rewritten on open.
+
+Explicitly closed absolute `M…Z` symbol subpaths fill with the block colour
+token; other subpaths remain strokes. Fill follows turn, mirror, selection and
+zoom. Independent regions have no compound-hole rule. No library API field or
+new SVG element is required.

@@ -25,3 +25,6 @@ flow-mirror = ⇋
 flow-mirror-title = Den Block links–rechts spiegeln (M)
 flow-layout-title = Die Blöcke entlang ihrer Verbindungen von links nach rechts anordnen
 flow-fit-title = Den ganzen Flow in die Ansicht einpassen
+
+flow-grid = Raster
+flow-grid-title = Rasterweite (0 deaktiviert); Alt für freies Ziehen
