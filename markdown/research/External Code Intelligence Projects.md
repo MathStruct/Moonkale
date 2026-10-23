@@ -5,6 +5,8 @@ tags: [research, indexing, graph, requirements]
 ---
 First draft by Codex (2026-10-11) from the local checkouts `../recoco-main/` and `../thread-main/`; trimmed by Claude to requirements and fit (2026-10-12). This is a **research inventory**, not a commitment to build anything. Both projects describe themselves as unmaintained or incomplete, so every status below is what their documents claim, not what was tested.
 
+**2026-10-23:** [[ADR-0029 Sophia stores the code graph]] drops the plan for a persisted index of Moonkale's own. The persisted, incremental store is a Sophia store per folder. The requirements below stay as WP-21's checklist for it.
+
 > [!warning] Licences: ideas and requirements only, no code
 > **Thread is AGPL-3.0-or-later.** Moonkale is MIT. No Thread code, schema or text may be copied into Moonkale, and nothing here depends on doing so. The note records *requirements and design ideas*, which licences do not cover, so that Moonkale can write its own specs. **Recoco is Apache-2.0**, which is compatible with MIT, but nothing below proposes reusing its code either; if that ever changes, it needs its own decision and attribution.
 
