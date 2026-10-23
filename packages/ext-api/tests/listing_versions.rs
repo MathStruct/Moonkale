@@ -47,6 +47,9 @@ impl Source for Files {
     }
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Coarse { .. } => Err(moonkale_core::SourceError::Unsupported(
+                "hierarchy coarsening".into(),
+            )),
             Query::Text { text, .. } => Ok(QueryResult::single(Self::node(&text))),
             _ => Ok(QueryResult::default()),
         }

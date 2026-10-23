@@ -248,6 +248,7 @@ impl Source for FolderSource {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Coarse { level, region } => moonkale_core::source::coarse::query(self, level, region).await,
             Query::Neighbours { node, depth, direction } => {
                 self.neighbours(node, depth, direction).await
             }

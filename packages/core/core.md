@@ -38,3 +38,39 @@ Implementation notes for `moonkale-core` (Milestone 1). Design: [[Graph-Native M
 - `graph::Properties` (`BTreeMap<String, Value>`) as `Node::props` and `Edge::props`, empty and unserialized by default; `Value` compares floats by bits and is `Eq`.
 - `NodeId::from_content(digest)` — content-addressed ids in their own UUID v5 namespace.
 - `GraphView` and `subscribe` dropped from the design; `changes_since` is the change protocol.
+
+## WP-06 hierarchy queries (2026-10-23)
+
+`Query::Coarse { level, region }` returns a hierarchy cut using existing node
+identities. Level zero keeps roots (or the region root); level one replaces
+roots with direct children, retaining shallow leaves. `coarse.members` counts
+hidden descendants, excluding the representative. `coarse.weight` counts
+original edges with the same owner, projected endpoints and kind. Internal edges are
+suppressed. Ancestors above the cut are navigation structure, not members.
+
+`source::coarse::project` is the pure shared implementation; `coarse::query`
+provides the snapshot fallback used by FolderSource, IndexSource and Unison.
+Sophia supplies a metadata-only snapshot to the shared projection (P-229).
+A source may override the query with indexed/cached cuts; community detection
+can use the same query contract. Other sources explicitly return Unsupported.
+The fallback refuses truncated snapshots, duplicate ids, multiple hierarchy
+parents of equal precedence, cycles, absent hierarchy and cuts exceeding
+100,000 nodes. Work is
+bounded to 2,000,000 input nodes, 8,000,000 edges and requested levels 0–64.
+It does not cache or accelerate source enumeration; source-native cuts remain
+the optimization seam. No node bodies are fetched. Region queries return the
+subtree cut and its internal relations, not external boundary proxies.
+
+Core regression tests cover counts, weights, region membership, invalid forests,
+and the output cap. The explicit `million_node_hierarchy` scale test generates
+1,000 folders × 999 files plus one root (1,000,001 nodes), reduces it to 1,000
+nodes and 999 cross-folder relations in 1.32 seconds in the development native
+test build. This is projection time, not source I/O or browser first paint.
+
+The response table has one row with `source.nodes` and `source.edges`; the
+selector uses the complete input count without requesting a million-node wire
+snapshot. `Contains` takes precedence over file-level `Defines` for nested
+scopes. For sources without All, the fallback walks Children metadata from the
+root, queuing directories only. Sophia assigns a shared content definition to
+its smallest stable name id for navigation and retains every original Names
+relation; aliases do not multiply membership counts.

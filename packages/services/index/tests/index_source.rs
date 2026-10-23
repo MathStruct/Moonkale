@@ -691,3 +691,30 @@ async fn encoding_failure_removes_previously_indexed_symbols_and_search_chunks()
         .props
         .contains_key("index_error"));
 }
+
+#[tokio::test]
+async fn coarse_index_query_preserves_hierarchy_and_definitions() {
+    let dir = vault();
+    let (_, index) = open(&dir).await;
+    let coarse = index
+        .query(Query::Coarse {
+            level: 1,
+            region: None,
+        })
+        .await
+        .unwrap();
+    let folder = coarse.nodes.iter().find(|n| n.label == "src").unwrap();
+    let region = index
+        .query(Query::Coarse {
+            level: 1,
+            region: Some(folder.id),
+        })
+        .await
+        .unwrap();
+    assert_eq!(region.nodes.len(), 1);
+    assert_eq!(region.nodes[0].native_key, "src/lib.rs");
+    assert_eq!(
+        region.nodes[0].props["coarse.members"],
+        moonkale_core::Value::Int(4)
+    );
+}

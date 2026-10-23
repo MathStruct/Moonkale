@@ -597,6 +597,7 @@ impl Source for MemoryFile {
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         let (folder, target) = definition_nodes(&self.id());
         match query {
+            Query::Coarse { .. } => Err(moonkale_core::SourceError::Unsupported("hierarchy coarsening".into())),
             Query::Children(id) if id == self.descriptor.root => {
                 let mut result = QueryResult::single(folder);
                 let mut page = wiki_node();

@@ -55,6 +55,9 @@ impl Source for Files {
     }
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Coarse { .. } => Err(moonkale_core::SourceError::Unsupported(
+                "hierarchy coarsening".into(),
+            )),
             Query::Text { text, .. }
                 if matches!(text.as_str(), "saved.md" | "next.md" | "user.md") =>
             {
