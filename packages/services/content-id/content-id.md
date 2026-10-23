@@ -20,13 +20,34 @@ For Julia, the crate also resolves references, per **module** (SPEC-008 in Sophi
 
 Rules:
 - **Units** are definitions whose only ancestors are `module` blocks; a module itself is a namespace. A macro call's arguments count (`@inline f(x) = …`, `@static if … end`), but nothing inside a call does: there an `x::T = v` is a keyword argument, as in `@deprecate f(A; check::Bool = true) g(A; check)`.
-- **Bindings:** a unit binds its name (`julia_name`: the callee of its head call, or its type head) in its module path, unless the name is qualified (`Base.show(…) = …`), the head isn't a name (`(::Type{T})(x)`, `$S(x)`), or it is a macro. Submodules are separate scopes.
+- **Reference-resolution bindings:** a unit binds its name (`julia_name`: the callee of its head call, or its type head) in its module path, unless the name is qualified (`Base.show(…) = …`), the head isn't a name (`(::Type{T})(x)`, `$S(x)`), or it is a macro. Submodules are separate scopes.
 - **What resolves:** an identifier resolves only to the **unique** binding of its spelling in its module, and only if no `using`/`import` there mentions that name. In a module with a dynamic include, functions stay unresolved (an unseen file could add methods); types and constants still resolve.
 - **Not references:** fields (`x.name`), struct field names, keyword and named-tuple labels, and identifiers inside strings, symbols, quotes and `using`/`import`/`export`. Locals are left to the normal form: v4 scoping wins over a proposed reference.
 - **Refusal propagates:** a unit whose encoding refers to a refused unit is refused too (`DependencyRefused`).
 - **Limits** (normative, since over them there are no ids): 1024 files, 32 MiB, and 1,000,000 + 64 steps per source byte for the whole module.
 
 On LinearAlgebra (Julia 1.13, v7), 3416 of 3552 units get ids. That is 27 unsupported, 6 malformed and 103 refused through a dependency. There are 2469 references (948 across files) and 2237 generic uses, computed in 1.3 s (release build). Measure a package with `MOONKALE_JULIA_PACKAGE=<src/Pkg.jl> cargo test --release -p moonkale-content-id --test corpus -- --nocapture`.
+
+## Shared bindings (SPEC-009 §8, 2026-10-23)
+
+Naming is separate from normalization: this additive API leaves `NORMALIZER_VERSION = 7`, canonical bytes and existing ids unchanged. The initial shared binding contract is recorded in `golden/bindings.tsv`; future changes to that established contract must be coordinated with Sophia (SPEC-009 §7).
+
+Origin: ported from **Sophia rev `773d9898`**, MIT, `crates/sophia-ingest/src/sophia_ingest.rs` (`Binding`, `binding`, `entity_path`, `segment`) and `code.rs` (`julia_scopes`, `julia_extends`, `locate`, `BASE_SUBMODULES` and helpers). The Julia ownership/membership regression and `golden/generics/{Gen,sub}.jl` come from Sophia's `tests/generics.rs` and its Julia fixture. No Sophia checkout is modified.
+
+- `Definition` carries `language`, `name`, syntax `kind`, byte spans, `qualified`, `module`, resolved `extends`, `path_derived`, and an optional `diagnostic` explaining why a definition binds nothing.
+- `definitions(lang, root, text, NamingContext, &JuliaScopes, &mut Budget) -> Result<Vec<Definition>>` extracts this metadata in source order. Use a tree from `parse` for the exact same text, and one request budget. Julia emits the same top-level units as `julia::module`, including unnamed/refused units for diagnostics; Rust/Python also include nested items and class members.
+- `binding(&Definition, package: &str) -> Option<Binding>` returns `Method(Vec<String>)` for functions/methods, `Named(Vec<String>)` for other definitions, or `None` for unnamed, unresolved qualified or unspellable names. It never rewrites a name to make it fit. Supply the same package used in extraction.
+- `entity_path(prefix: &str, key: &[String]) -> String`: fixed language prefix `jl`, `rs` or `py`, then dotted segments. Letters/digits/`_`/`!` are plain (first character a letter or `_`); other valid segments are backquoted, including operators, dots and `fmt::Display`. Empty segments, whitespace, control characters and backquotes cannot bind. Call this on a key returned by `binding`; arbitrary invalid keys/prefixes are not repaired. Tests independently check Sophia's `validate_path` rule.
+- `binding_groups(&[Definition], package) -> Result<Vec<BindingGroup>, Vec<String>>` groups one language/package batch into one sorted binding per store path, with all method members (input indices). Named collisions return explicit conflicting paths. Julia constructor methods share `<Type>.new` when the type itself owns `<Type>`, as in Sophia. Member indices are local to the input batch, never persistent ids. A `None` binding remains reported on the definition, outside these groups.
+
+The caller supplies **root context**, without adding filesystem access to this crate:
+
+- **Rust:** discover the nearest `Cargo.toml` and its crate/target name outside the crate; pass that name as `NamingContext.package`, the source-root-relative file path as `path`. Conventional `src/lib.rs` / `src/main.rs` bind in the root, `src/foo.rs` / `src/foo/mod.rs` in `foo`; inline `mod` blocks append their names. For module-tree overrides (`#[path]`, renamed roots or unconventional layouts), pass the authoritative relative module path in `module: Some(&path)`; file inference is then bypassed. Impl members append the implementing type, stripping its type arguments: `rs.c.m.Foo.new` groups `Foo<i32>` and `Foo<u8>`. Trait impls append the trait as a separate segment: ``rs.c.m.Foo.`fmt::Display`.fmt``. Trait declarations append the trait name. Type spellings that cannot be represented safely are reported rather than guessed.
+- **Python:** discover the `__init__.py` chain or pyproject.toml package root outside the crate. Pass the package name and package-relative file path: `sub/mod.py` gives `py.pkg.sub.mod.name`, `sub/__init__.py` gives `py.pkg.sub.name`. Supply `module` for an authoritative package/module mapping (including src layouts). Classes and enclosing functions append their names, so members are `py.pkg.mod.Class.name`.
+- **Unknown Rust/Python root:** `package: None` uses the full folder-relative path (extension removed, root-file spellings retained) and sets `path_derived = true`; `loose/file.py` gives `py.loose.file.name`. This flag is metadata, not an identity change.
+- **Julia:** first collect `julia_scopes(root, text, include_base, &mut scopes)` across **all** included files, then call `definitions` with each file's absolute include base in `module`. Module blocks append to that base. `julia_extends` resolves qualified heads, selected/function imports, relative imports, enclosing modules and Julia 1.13's implicit Base submodules. `using` is not treated as permission to extend. Conflicting imports are unresolved in every file enumeration order, rather than last-file-wins. Qualified dynamic heads such as `Base.$f` bind nothing. These ownership rules do not change Julia reference resolution or canonical bytes.
+
+`NamingContext<'a> { package: Option<&'a str>, path: &'a str, module: Option<&'a [String]> }` uses slash-separated folder-relative paths. Package discovery, file reads, include traversal and store writes belong to callers. No dependencies were added.
 
 ## What the crate doesn't do
 
@@ -36,6 +57,7 @@ On LinearAlgebra (Julia 1.13, v7), 3416 of 3552 units get ids. That is 27 unsupp
 
 `golden/` has fixtures in all three languages, with recursion, a struct used as a parameter type and a constructor, and a renamed copy of a method. `scopes.jl` covers the v4 Julia forms:
 
+- `bindings.tsv`: naming metadata (`binding`, `entity_path`, refusal diagnostic) for every definition in the three-language and Julia module fixtures, plus the ported generic-function fixture. `tests/naming.rs::golden_bindings` compares it; `MOONKALE_BLESS_BINDINGS=1` updates only this naming snapshot, never ids. Sophia can copy it alongside the fixtures and check the same API.
 - `ids.tsv`: Moonkale's digest, component index and component size for every definition;
 - `references.tsv`: the reference spans Moonkale resolved, for Rust and Python;
 - `module.tsv`: Julia in module mode, for `module/Geo.jl`, `module/Dyn.jl` (a dynamic include), `module/Callable.jl` (v6: type parameters, callable and interpolated heads, a local named like a generic function), `module/Macros.jl` (v7: definitions in macro calls, keyword arguments in calls) and the single-file modules `geometry.jl` and `scopes.jl`. It lists ids, depends_on, references by span and generic uses. `module/` is Sophia's fixture from SPEC-008, at Sophia eb549c6.

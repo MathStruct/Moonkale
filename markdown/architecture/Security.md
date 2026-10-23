@@ -256,3 +256,13 @@ opening reuses workspace source/editor behavior. New direct chrono dependency
 reuses the locked version with std/serde only, no clock or connection.
 The typed_cells and symbol_paths fuzz targets exercise production serde/date
 and closed-region parsing with 64 KiB inputs; no new network, process or permission authority is added.
+
+
+WP-21 naming prerequisite (2026-10-23) adds pure metadata extraction over the
+existing bounded content-id syntax trees, with the same file/definition/depth
+limits and request budget. Package discovery and file reads stay with callers.
+Names with empty segments, whitespace, controls or backquotes bind nothing and
+are reported; formatting never removes offending bytes. Store paths remain data,
+with independent Sophia path-validation regression checks. Conflicting imports
+are unresolved independent of read order; named collisions are explicit errors.
+No normalizer/id change, dependency, evaluation, persistence or connection is added.
