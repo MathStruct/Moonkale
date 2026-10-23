@@ -25,6 +25,7 @@ You are working on **Moonkale**, a graph-native code and knowledge editor in Rus
 
 ```sh
 cargo fmt --all --check
+cargo fmt --manifest-path fuzz/Cargo.toml --check   # the fuzz crate is its own workspace
 python3 tools/check-deps.py        # layering rules
 python3 tools/check-colors.py      # no hard-coded colours outside the theme
 python3 tools/check-strings.py     # every UI string in en, de and zh-CN, every id used
