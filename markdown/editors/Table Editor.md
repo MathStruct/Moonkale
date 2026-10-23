@@ -14,7 +14,6 @@ Because the grid renders any `QueryResult::Rows`, it is also "open as table" for
 The grid is virtualised in rows and columns: only the cells under the viewport, plus a little overscan, are in the DOM. It has a sticky header and row-number column, sort by header click (ascending, descending, off; NULLs last), resizable columns, a row filter, and a keyboard cell cursor that scrolls into view. Sort and filter apply to the loaded rows. The SQL sources now return up to 50 000 rows (was 500).
 
 Not yet:
-- typed cells beyond NULL, numbers and bytes (`Value` has no `Ref`, `Vector` or `DateTime` yet);
 - inline edits;
 - pushdown;
 - "open as table" for other sources.
@@ -26,3 +25,25 @@ Sort/filter/paginate are sent to the source when `Capabilities` allow; otherwise
 
 ## Why not AG Grid / a JS grid
 The grid is where Rust-native pays off immediately: it is data-heavy, not text-input-heavy, and Dioxus signals + virtualisation are sufficient. Keeping it Rust also means it works identically in a wasm extension's `moonkale_shell::Tree` (the `Table` primitive is this component).
+
+## Typed cells (WP-15, 2026-10-23)
+
+`Value::DateTime` holds a UTC instant and optional original offset. Grid display
+uses English, German or Chinese date ordering and retains the original wall
+time/offset (UTC when none was supplied). Sorting compares instants including
+subseconds. SQLite and Turso use declared DATE/DATETIME/TIMESTAMP metadata;
+invalid values and untyped strings remain text. Time-only values have no UTC
+instant and remain text. DuckDB dates/timestamps map directly; values outside
+the core date range retain a text representation rather than becoming NULL.
+
+`Value::Ref` carries a NodeId and label; index search's path cells provide known
+file identities. A grid link opens the corresponding result/open node through
+the workspace editor. UUID-shaped arbitrary text is never inferred as a link.
+
+`Value::Vector` holds up to 4096 finite f64 samples (f32 widens losslessly).
+DuckDB numeric lists/fixed arrays map to vectors; oversized, nullable and
+unsupported lists show a fixed marker. The grid draws a bounded SVG sparkline
+in current theme text colour, with numeric samples as its accessible label.
+Empty/constant/extreme vectors keep finite coordinates. Sorting vectors uses
+length; filter uses their numeric text. Existing Value wire encodings remain
+unchanged; the new variants have explicit serde names.

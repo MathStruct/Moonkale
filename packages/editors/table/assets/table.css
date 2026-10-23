@@ -31,3 +31,6 @@
 .mk-cell-null { opacity: 0.4; font-style: italic; }
 .mk-cell-num { text-align: right; }
 .mk-cell-bytes { opacity: 0.6; }
+
+.mk-cell-ref { color: var(--wb-accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; font: inherit; }
+.mk-cell-vector { color: var(--wb-ink); display: block; max-width: 100%; }

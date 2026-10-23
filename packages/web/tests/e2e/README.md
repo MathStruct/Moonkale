@@ -627,3 +627,13 @@ records JSON size/encoding/first-draw at 100k coarse-sized nodes and times the
 actual synchronous pointer hover handler, with a 16.7 ms p95 picking budget.
 It does not include a native webview's Eval bridge. Run it with run-all or directly
 with `MOONKALE_REPO` pointing at this worktree.
+
+## Typed cells (WP-15)
+
+`fixture.sh` seeds SQLite dates and typed.duckdb (timestamp, DOUBLE list and
+FLOAT fixed array). table-grid.mjs checks their production source conversions.
+
+Run table-typed.mjs separately against packages/web/tests/fixtures/typed-cells
+on port 8112, using an owned Dioxus server and the Playwright working directory.
+This production TablePanel fixture checks English/German/Chinese rerenders and
+a Ref click opening its target in workspace state. It complements the SQL tests.

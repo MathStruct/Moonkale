@@ -12,6 +12,7 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
+moonkale-core = { path = "../packages/core" }
 moonkale-graph-render = { path = "../packages/graph-render" }
 libfuzzer-sys = "=0.4.13"
 pulldown-cmark = { version = "=0.13.4", default-features = false }
@@ -39,6 +40,20 @@ pulldown-cmark = { path = "../packages/code-view/vendor/pulldown-cmark" }
 [[bin]]
 name = "egraph"
 path = "fuzz_targets/egraph.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "typed_cells"
+path = "fuzz_targets/typed_cells.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "symbol_paths"
+path = "fuzz_targets/symbol_paths.rs"
 test = false
 doc = false
 bench = false

@@ -109,7 +109,10 @@ fn sample(n: usize) -> impl Iterator<Item = usize> {
 pub fn compare(a: &Value, b: &Value) -> Ordering {
     use Value::*;
     let rank = |v: &Value| match v {
-        Null => 4,
+        Null => 7,
+        DateTime(_) => 4,
+        Ref { .. } => 5,
+        Vector(_) => 6,
         Bool(_) => 0,
         Int(_) | Float(_) => 1,
         Text(_) => 2,
@@ -121,6 +124,9 @@ pub fn compare(a: &Value, b: &Value) -> Ordering {
         _ => 0.0,
     };
     match (a, b) {
+        (DateTime(x), DateTime(y)) => x.compare(y),
+        (Ref { label: x, .. }, Ref { label: y, .. }) => x.cmp(y),
+        (Vector(x), Vector(y)) => x.as_slice().len().cmp(&y.as_slice().len()),
         (Bool(x), Bool(y)) => x.cmp(y),
         (Int(x), Int(y)) => x.cmp(y),
         (Int(_) | Float(_), Int(_) | Float(_)) => num(a).total_cmp(&num(b)),
@@ -254,6 +260,35 @@ pub fn reveal(
         }
     }
     (to != (left, top)).then_some(to)
+}
+
+/// Bounded SVG points; constant and empty vectors have stable geometry.
+/// Normalize before subtracting to avoid overflow for extreme finite samples.
+pub fn sparkline(v: &moonkale_core::NumericVector) -> String {
+    let values = v.as_slice();
+    let magnitude = values.iter().fold(1.0f64, |a, b| a.max(b.abs()));
+    let min = values
+        .iter()
+        .map(|n| n / magnitude)
+        .fold(f64::INFINITY, f64::min);
+    let max = values
+        .iter()
+        .map(|n| n / magnitude)
+        .fold(f64::NEG_INFINITY, f64::max);
+    values
+        .iter()
+        .enumerate()
+        .map(|(i, n)| {
+            let x = i as f64 * 96.0 / values.len().saturating_sub(1).max(1) as f64 + 2.0;
+            let y = if max == min {
+                10.0
+            } else {
+                18.0 - (n / magnitude - min) / (max - min) * 16.0
+            };
+            format!("{x:.2},{y:.2}")
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(test)]
@@ -414,5 +449,23 @@ mod tests {
         // Right past the edge, and back left.
         assert_eq!(reveal((0.0, 0.0), (0, 7), &l, view), Some((300.0, 0.0)));
         assert_eq!(reveal((300.0, 0.0), (0, 1), &l, view), Some((100.0, 0.0)));
+    }
+}
+
+#[cfg(test)]
+mod typed_tests {
+    use super::*;
+    #[test]
+    fn sparklines_handle_empty_constant_and_extreme_samples() {
+        for values in [
+            vec![],
+            vec![1.],
+            vec![2., 2.],
+            vec![-f64::MAX, 0., f64::MAX],
+        ] {
+            let v = moonkale_core::NumericVector::new(values).unwrap();
+            let points = sparkline(&v);
+            assert!(!points.contains("NaN") && !points.contains("inf"));
+        }
     }
 }

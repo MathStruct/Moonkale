@@ -317,6 +317,45 @@ fn convert(v: ValueRef<'_>) -> Value {
     match v {
         ValueRef::Null => Value::Null,
         ValueRef::Boolean(b) => Value::Text(b.to_string()),
+        ValueRef::Date32(days) => moonkale_core::DateTimeCell::new(days as i64 * 86400, 0, None)
+            .map(Value::DateTime)
+            .unwrap_or_else(|| Value::Text(format!("Date32({days})"))),
+        ValueRef::Timestamp(unit, value) => {
+            use duckdb::types::TimeUnit;
+            let per_second = match unit {
+                TimeUnit::Second => 1,
+                TimeUnit::Millisecond => 1000,
+                TimeUnit::Microsecond => 1_000_000,
+                TimeUnit::Nanosecond => 1_000_000_000,
+            };
+            moonkale_core::DateTimeCell::new(
+                value.div_euclid(per_second),
+                (value.rem_euclid(per_second) * (1_000_000_000 / per_second)) as u32,
+                None,
+            )
+            .map(Value::DateTime)
+            .unwrap_or_else(|| Value::Text(format!("Timestamp({unit:?}, {value})")))
+        }
+        ValueRef::List(items, i) => {
+            use duckdb::types::ListType;
+            let (values, start, end) = match items {
+                ListType::Regular(a) => (
+                    a.values(),
+                    a.offsets()[i] as usize,
+                    a.offsets()[i + 1] as usize,
+                ),
+                ListType::Large(a) => (
+                    a.values(),
+                    a.offsets()[i] as usize,
+                    a.offsets()[i + 1] as usize,
+                ),
+            };
+            numeric_array(values.as_ref(), start, end)
+        }
+        ValueRef::Array(a, i) => {
+            let len = a.value_length() as usize;
+            numeric_array(a.values().as_ref(), i * len, (i + 1) * len)
+        }
         ValueRef::TinyInt(i) => Value::Int(i as i64),
         ValueRef::SmallInt(i) => Value::Int(i as i64),
         ValueRef::Int(i) => Value::Int(i as i64),
@@ -457,6 +496,36 @@ impl Source for DuckDbSource {
     }
 }
 
+/// Inspect Arrow's borrowed numeric carrier before allocating. Nested,
+/// nullable, non-numeric and oversized lists remain a fixed text marker.
+fn numeric_array(values: &dyn duckdb::arrow::array::Array, start: usize, end: usize) -> Value {
+    use duckdb::arrow::array::{Float32Array, Float64Array, Int32Array, Int64Array};
+    if end < start || end > values.len() || end - start > moonkale_core::NumericVector::MAX_LEN {
+        return Value::Text("<list>".into());
+    }
+    let mut out = Vec::with_capacity(end - start);
+    for i in start..end {
+        if values.is_null(i) {
+            return Value::Text("<list>".into());
+        }
+        let value = if let Some(a) = values.as_any().downcast_ref::<Float32Array>() {
+            a.value(i) as f64
+        } else if let Some(a) = values.as_any().downcast_ref::<Float64Array>() {
+            a.value(i)
+        } else if let Some(a) = values.as_any().downcast_ref::<Int32Array>() {
+            a.value(i) as f64
+        } else if let Some(a) = values.as_any().downcast_ref::<Int64Array>() {
+            a.value(i) as f64
+        } else {
+            return Value::Text("<list>".into());
+        };
+        out.push(value);
+    }
+    moonkale_core::NumericVector::new(out)
+        .map(Value::Vector)
+        .unwrap_or_else(|| Value::Text("<list>".into()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -585,5 +654,28 @@ mod tests {
                 .await;
             assert!(r.is_err() && !leaked(&r), "folder mode: {sql}: {r:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod typed_tests {
+    use super::*;
+    #[tokio::test]
+    async fn dates_timestamps_lists_and_arrays_are_typed_and_bounded() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("seed.csv"), "x\n1\n").unwrap();
+        let source = DuckDbSource::open_data_folder(dir.path()).unwrap();
+        let table = source.run_read("SELECT DATE '2026-10-23', TIMESTAMP '1969-12-31 23:59:59.5', [1.0,2.0,3.0]::DOUBLE[], [1,2,3]::FLOAT[3], range(4097), [1,NULL], DATE 'infinity'".into()).await.unwrap();
+        let row = &table.rows[0];
+        assert!(matches!(row[0], Value::DateTime(_)));
+        assert!(matches!(&row[1], Value::DateTime(d) if d.seconds() == -1));
+        assert!(matches!(&row[2], Value::Vector(v) if v.as_slice() == [1.,2.,3.]));
+        assert!(matches!(&row[3], Value::Vector(v) if v.as_slice() == [1.,2.,3.]));
+        assert!(matches!(&row[4], Value::Text(_)));
+        assert!(matches!(&row[5], Value::Text(_)));
+        assert!(
+            matches!(&row[6], Value::Text(_)),
+            "out-of-range dates must not become NULL"
+        );
     }
 }

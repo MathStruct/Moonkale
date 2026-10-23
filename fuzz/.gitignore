@@ -15,3 +15,8 @@
 !/corpus/flow_format/subflow.json
 
 !/corpus/egraph/saturation.json
+
+!/corpus/typed_cells/vector
+!/corpus/typed_cells/date
+!/corpus/typed_cells/ref
+!/corpus/symbol_paths/closed

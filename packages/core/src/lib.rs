@@ -47,7 +47,9 @@ pub const VERSION: &str = match option_env!("MOONKALE_RELEASE") {
 
 pub use error::SourceError;
 pub use graph::{Actor, EntityLog, Event, EventId, EventKind, HistoryState};
-pub use graph::{ContentRef, Edge, EdgeKind, Node, NodeKind, Value, Version};
+pub use graph::{
+    ContentRef, DateTimeCell, Edge, EdgeKind, Node, NodeKind, NumericVector, Value, Version,
+};
 pub use id::{NodeId, SourceId};
 pub use source::async_trait;
 pub use source::{

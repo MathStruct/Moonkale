@@ -136,6 +136,11 @@ impl SqliteSource {
         self.blocking(move |c| {
             let mut st = c.prepare(&sql)?;
             let columns: Vec<String> = st.column_names().iter().map(|s| s.to_string()).collect();
+            let declared: Vec<_> = st
+                .columns()
+                .iter()
+                .map(|c| c.decl_type().map(str::to_owned))
+                .collect();
             let n = columns.len();
             let mut rows = Vec::new();
             let mut truncated = false;
@@ -146,12 +151,15 @@ impl SqliteSource {
                     break;
                 }
                 let mut out = Vec::with_capacity(n);
-                for i in 0..n {
+                for (i, declared_type) in declared.iter().enumerate().take(n) {
                     out.push(match r.get_ref(i)? {
                         ValueRef::Null => Value::Null,
                         ValueRef::Integer(i) => Value::Int(i),
                         ValueRef::Real(f) => Value::Float(f),
-                        ValueRef::Text(t) => Value::Text(String::from_utf8_lossy(t).into_owned()),
+                        ValueRef::Text(t) => crate::typed_text(
+                            String::from_utf8_lossy(t).into_owned(),
+                            declared_type.as_deref(),
+                        ),
                         ValueRef::Blob(b) => Value::Bytes {
                             len: b.len() as u64,
                         },
@@ -325,5 +333,23 @@ impl Source for SqliteSource {
         Err(SourceError::Unsupported(
             "SQLite sources are read-only in this milestone".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod typed_tests {
+    use super::*;
+    #[tokio::test]
+    async fn schema_dates_are_typed_but_text_and_invalid_dates_are_preserved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("dates.sqlite");
+        let c = Connection::open(&path).unwrap();
+        c.execute_batch("CREATE TABLE dates(d DATETIME, plain TEXT, invalid DATE); INSERT INTO dates VALUES('2026-10-23T10:30:00+02:00','2026-10-23','bad');").unwrap();
+        drop(c);
+        let source = SqliteSource::open(&path).unwrap();
+        let table = source.run_read("SELECT * FROM dates".into()).await.unwrap();
+        assert!(matches!(&table.rows[0][0], Value::DateTime(d) if d.offset() == Some(7200)));
+        assert!(matches!(&table.rows[0][1], Value::Text(_)));
+        assert_eq!(table.rows[0][2], Value::Text("bad".into()));
     }
 }
