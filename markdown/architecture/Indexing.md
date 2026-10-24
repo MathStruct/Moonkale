@@ -113,8 +113,8 @@ on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
-**Rerun with the P-231 fix: clean.** Sophia `77f5c1c9` (master; the v0.1.1 tag
-waits for Daniel) fixes both causes of P-231: duplicate old member ids, and
+**Rerun with the P-231 fix: clean.** Sophia `77f5c1c9` (tagged v0.1.1,
+`def22b0c`, now pinned) fixes both causes of P-231: duplicate old member ids, and
 names changing kind. With the same tool, checker `full-digest-v1` and debug
 build, both histories show **0 differences at every checkpoint**, with no write
 or fresh-build errors and no retries:
