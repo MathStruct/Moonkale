@@ -4,7 +4,7 @@
 
 ## Dependency
 
-`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below. Currently bed1e02e (2026-10-23: `Interface::all` builds `Calls` edges without term recursion and de-duplicates edges with a set, P-229).
+`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below. Currently cafe940e (2026-10-24): SPEC-009's folder store (`replace_files`, derived mode, `NameClaimed`, `text_source`), the read-only wasm path (`Sqlite::from_bytes`, `Interface::open_read_only`), and SP-015 resolved (no pass recurses on the call stack, `Limits::max_nodes` replaces `max_depth`, SR-145). Before: bed1e02e (P-229).
 
 ## Opening
 
