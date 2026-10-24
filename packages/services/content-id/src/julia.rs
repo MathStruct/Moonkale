@@ -175,8 +175,8 @@ fn imported(root: Syntax, src: &str, base: &[String], out: &mut HashSet<(Vec<Str
 /// not a field (`x.name`), a field declaration in a struct, a keyword or
 /// named-tuple label, or inside a string, symbol, quote or `using`/
 /// `import`/`export` statement.
-fn is_use(node: Syntax) -> bool {
-    let Some(parent) = node.parent() else {
+fn is_use(node: Syntax, parent: Option<Syntax>, grandparent: Option<Syntax>) -> bool {
+    let Some(parent) = parent else {
         return true;
     };
     let first = |p: Syntax| p.named_child(0).is_some_and(|c| c.id() == node.id());
@@ -185,9 +185,7 @@ fn is_use(node: Syntax) -> bool {
     }
     if matches!(parent.kind(), "assignment" | "named_argument")
         && first(parent)
-        && parent
-            .parent()
-            .is_some_and(|g| matches!(g.kind(), "argument_list" | "tuple_expression"))
+        && grandparent.is_some_and(|g| matches!(g.kind(), "argument_list" | "tuple_expression"))
     {
         return false;
     }
@@ -208,23 +206,6 @@ fn is_use(node: Syntax) -> bool {
         && (child.id() == node.id() || child.named_child(0).is_some())
     {
         return false;
-    }
-    let mut ancestor = Some(parent);
-    while let Some(a) = ancestor {
-        if matches!(
-            a.kind(),
-            "string_literal"
-                | "command_literal"
-                | "prefixed_string_literal"
-                | "quote_expression"
-                | "quote_statement"
-                | "using_statement"
-                | "import_statement"
-                | "export_statement"
-        ) {
-            return false;
-        }
-        ancestor = a.parent();
     }
     true
 }
@@ -295,10 +276,25 @@ pub fn module(files: &[ModuleFile], dynamic: &[Vec<String>]) -> Result<JuliaModu
         let src = files[unit.key.0 as usize].text;
         let own = unit.name.as_ref().map(|(_, span)| *span);
         let mut references = HashMap::new();
-        let mut stack = vec![unit.node];
-        while let Some(node) = stack.pop() {
+        let mut stack = vec![(unit.node, false, None, None)];
+        while let Some((node, hidden, parent, grandparent)) = stack.pop() {
             budget.step()?;
-            if matches!(node.kind(), "identifier" | "operator") && is_use(node) {
+            let hidden = hidden
+                || matches!(
+                    node.kind(),
+                    "string_literal"
+                        | "command_literal"
+                        | "prefixed_string_literal"
+                        | "quote_expression"
+                        | "quote_statement"
+                        | "using_statement"
+                        | "import_statement"
+                        | "export_statement"
+                );
+            if !hidden
+                && matches!(node.kind(), "identifier" | "operator")
+                && is_use(node, parent, grandparent)
+            {
                 let span = (node.start_byte(), node.end_byte());
                 let key = (unit.module.clone(), text(node, src).to_string());
                 if Some(span) != own && !blocked.contains(&key) {
@@ -318,7 +314,10 @@ pub fn module(files: &[ModuleFile], dynamic: &[Vec<String>]) -> Result<JuliaModu
                 }
             }
             let mut cursor = node.walk();
-            stack.extend(node.children(&mut cursor));
+            stack.extend(
+                node.children(&mut cursor)
+                    .map(|child| (child, hidden, Some(node), parent)),
+            );
         }
         proposed.push(references);
         generic.push(uses);

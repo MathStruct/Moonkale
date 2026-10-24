@@ -15,8 +15,8 @@ pub mod julia;
 mod naming;
 mod normalize;
 pub use naming::{
-    binding, binding_groups, definitions, entity_path, julia_extends, julia_scopes, Binding,
-    BindingGroup, Definition, JuliaScopes, NamingContext,
+    binding, binding_groups, definitions, entity_path, julia_extends, julia_scopes, locate,
+    modules_around, Binding, BindingGroup, Definition, JuliaScopes, NamingContext,
 };
 
 pub use arborium_tree_sitter::{Node as Syntax, Tree};
@@ -36,13 +36,13 @@ pub use normalize::{definition, definition_and_uses, Encoded};
 /// inside a Julia call is a module-level unit (2026-10-20).
 pub const NORMALIZER_VERSION: u32 = 7;
 /// Maximum bytes of a single source file.
-pub const MAX_FILE_BYTES: usize = 512 * 1024;
+pub const MAX_FILE_BYTES: usize = 16 * 1024 * 1024;
 /// Maximum reachable definitions in one request.
 pub const MAX_DEFINITIONS: usize = 4096;
 /// Maximum canonicalization work per request (syntax nodes and graph visits).
-pub const MAX_STEPS: usize = 1_000_000;
-/// Maximum aggregate canonical syntax bytes retained by a request.
-pub const MAX_INPUT_BYTES: usize = 32 * 1024 * 1024;
+pub const MAX_STEPS: usize = 32_000_000;
+/// Maximum accumulated canonical fields and graph input/candidate bytes.
+pub const MAX_INPUT_BYTES: usize = 256 * 1024 * 1024;
 
 /// A definition's identity: digests only; the caller names it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,7 +112,14 @@ impl Budget {
     }
     /// Counts one unit of work; fails once the request is over its bounds.
     pub fn step(&mut self) -> Result<()> {
-        self.steps += 1;
+        self.steps = self.steps.saturating_add(1);
+        self.check()
+    }
+    fn retain(&mut self, bytes: usize) -> Result<()> {
+        self.bytes = self.bytes.saturating_add(bytes);
+        self.check()
+    }
+    fn check(&self) -> Result<()> {
         if self.steps > self.limit || self.bytes > MAX_INPUT_BYTES {
             Err(ContentIdError::LimitExceeded)
         } else {
@@ -141,7 +148,7 @@ pub fn language(lang: &str) -> Result<arborium_tree_sitter::Language> {
 }
 
 /// Parses a file with bounded parser work, and fails when it has more than
-/// [`MAX_DEFINITIONS`] definitions or nests deeper than the walkers allow.
+/// [`MAX_DEFINITIONS`] definitions. Nesting consumes heap memory, not stack.
 pub fn parse(lang: &str, text: &str, budget: &mut Budget) -> Result<Tree> {
     if text.len() > MAX_FILE_BYTES {
         return Err(ContentIdError::LimitExceeded);
@@ -165,14 +172,11 @@ pub fn parse(lang: &str, text: &str, budget: &mut Budget) -> Result<Tree> {
     let tree = parser
         .parse_with_options(&mut input, None, Some(options))
         .ok_or(ContentIdError::LimitExceeded)?;
-    // Protect recursive walkers and bound resolver input.
-    let mut stack = vec![(tree.root_node(), 0)];
+    // Bound total syntax nodes and resolver input, independently of depth.
+    let mut stack = vec![tree.root_node()];
     let mut definition_count = 0;
-    while let Some((node, depth)) = stack.pop() {
+    while let Some(node) = stack.pop() {
         budget.step()?;
-        if depth > 128 {
-            return Err(ContentIdError::LimitExceeded);
-        }
         if is_definition(lang, node) {
             definition_count += 1;
             if definition_count > MAX_DEFINITIONS {
@@ -180,7 +184,7 @@ pub fn parse(lang: &str, text: &str, budget: &mut Budget) -> Result<Tree> {
             }
         }
         let mut cursor = node.walk();
-        stack.extend(node.children(&mut cursor).map(|child| (child, depth + 1)));
+        stack.extend(node.children(&mut cursor));
     }
     Ok(tree)
 }

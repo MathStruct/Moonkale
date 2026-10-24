@@ -4,6 +4,12 @@ use super::{field, Budget, ContentIdError, Identity, Part, Result, NORMALIZER_VE
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
+fn bounded_field(budget: &mut Budget, out: &mut Vec<u8>, tag: &[u8], value: &[u8]) -> Result<()> {
+    budget.retain(8 + tag.len() + value.len())?;
+    field(out, tag, value);
+    Ok(())
+}
+
 fn targets<K: Copy>(parts: &[Part<K>]) -> impl DoubleEndedIterator<Item = K> + '_ {
     parts.iter().filter_map(|p| match p {
         Part::Reference(id) => Some(*id),
@@ -18,12 +24,28 @@ pub fn identities<K: Copy + Eq + Hash>(
     units: &HashMap<K, Vec<Part<K>>>,
     budget: &mut Budget,
 ) -> Result<HashMap<K, Identity>> {
+    // Validate and account for caller-owned input before allocating graph copies.
+    for parts in units.values() {
+        budget.step()?;
+        for part in parts {
+            budget.step()?;
+            if let Part::Bytes(bytes) = part {
+                budget.retain(bytes.len())?;
+            }
+            if let Part::Reference(target) = part {
+                if !units.contains_key(target) {
+                    return Err(ContentIdError::MalformedSyntax);
+                }
+            }
+        }
+    }
     // Iterative Kosaraju: no native stack use proportional to component size.
     let mut visited = HashSet::new();
     let mut finish = Vec::new();
     let mut reverse: HashMap<K, Vec<K>> = HashMap::new();
     for (&id, parts) in units {
         for target in targets(parts) {
+            budget.step()?;
             reverse.entry(target).or_default().push(id);
         }
     }
@@ -87,30 +109,41 @@ pub fn identities<K: Copy + Eq + Hash>(
                 }
             }
             let mut bytes = Vec::new();
-            field(
+            bounded_field(
+                budget,
                 &mut bytes,
                 b"moonkale-component",
                 &NORMALIZER_VERSION.to_le_bytes(),
-            );
-            field(&mut bytes, b"size", &(group.len() as u32).to_le_bytes());
+            )?;
+            bounded_field(
+                budget,
+                &mut bytes,
+                b"size",
+                &(group.len() as u32).to_le_bytes(),
+            )?;
             for id in order {
-                field(&mut bytes, b"member", &[]);
+                bounded_field(budget, &mut bytes, b"member", &[])?;
                 for part in &units[&id] {
                     budget.step()?;
                     match part {
-                        Part::Bytes(value) => field(&mut bytes, b"syntax", value),
+                        Part::Bytes(value) => bounded_field(budget, &mut bytes, b"syntax", value)?,
                         Part::Reference(target) => {
                             if let Some(index) = numbered.get(target) {
-                                field(&mut bytes, b"internal", &index.to_le_bytes());
+                                bounded_field(
+                                    budget,
+                                    &mut bytes,
+                                    b"internal",
+                                    &index.to_le_bytes(),
+                                )?;
                             } else {
                                 let target =
                                     done.get(target).ok_or(ContentIdError::MalformedSyntax)?;
-                                field(&mut bytes, b"external", &target.digest);
+                                bounded_field(budget, &mut bytes, b"external", &target.digest)?;
                             }
                         }
                     }
                 }
-                field(&mut bytes, b"end-member", &[]);
+                bounded_field(budget, &mut bytes, b"end-member", &[])?;
             }
             match &best {
                 Some(previous) if bytes > *previous => {}
@@ -130,8 +163,8 @@ pub fn identities<K: Copy + Eq + Hash>(
         for id in group.iter() {
             let index = indices[id];
             let mut bytes = Vec::new();
-            field(&mut bytes, b"moonkale-member", &digest);
-            field(&mut bytes, b"index", &index.to_le_bytes());
+            bounded_field(budget, &mut bytes, b"moonkale-member", &digest)?;
+            bounded_field(budget, &mut bytes, b"index", &index.to_le_bytes())?;
             let member_digest = *blake3::hash(&bytes).as_bytes();
             done.insert(
                 *id,

@@ -7,7 +7,23 @@ struct Frame {
     names: HashMap<String, u32>,
     next: u32,
 }
-struct Normalizer<'a, 'b, K> {
+// Continuations retain traversal order without using the native call stack.
+enum Task<'t> {
+    Walk(Syntax<'t>),
+    Open(&'static str),
+    Close(&'static str),
+    PopFrame,
+    RestoreFrame(Frame),
+    Outer(Syntax<'t>),
+    RustPattern(Syntax<'t>),
+    ScopeBody(&'static str, Vec<Syntax<'t>>),
+    LetBinding(Syntax<'t>),
+    Bind(Syntax<'t>),
+    Parameter(Syntax<'t>),
+    Collect(Syntax<'t>),
+}
+struct Normalizer<'a, 'b, 't, K> {
+    parents: HashMap<usize, Syntax<'t>>,
     lang: &'a str,
     text: &'a str,
     budget: &'b mut Budget,
@@ -55,6 +71,9 @@ pub fn definition_and_uses<K: Copy + Eq + Hash>(
     probes: &HashSet<(usize, usize)>,
     budget: &mut Budget,
 ) -> Result<Encoded<K>> {
+    if text.len() > crate::MAX_FILE_BYTES {
+        return Err(ContentIdError::LimitExceeded);
+    }
     if syntax.has_error() {
         return Err(ContentIdError::MalformedSyntax);
     }
@@ -73,7 +92,20 @@ pub fn definition_and_uses<K: Copy + Eq + Hash>(
     {
         syntax = syntax.parent().ok_or(ContentIdError::MalformedSyntax)?;
     }
+    // tree-sitter's Node::parent searches from the root. Cache parents once
+    // so leaf classification stays linear even in long binary expressions.
+    let mut parents = HashMap::new();
+    let mut pending = vec![syntax];
+    while let Some(node) = pending.pop() {
+        budget.step()?;
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            parents.insert(child.id(), node);
+            pending.push(child);
+        }
+    }
     let mut n = Normalizer {
+        parents,
         lang,
         text,
         budget,
@@ -87,8 +119,8 @@ pub fn definition_and_uses<K: Copy + Eq + Hash>(
         probes,
         hits: Vec::new(),
     };
-    n.bytes(b"language", lang.as_bytes());
-    n.bytes(b"normalizer", &NORMALIZER_VERSION.to_le_bytes());
+    n.bytes(b"language", lang.as_bytes())?;
+    n.bytes(b"normalizer", &NORMALIZER_VERSION.to_le_bytes())?;
     if lang == "rust" {
         // Attributes are siblings in tree-sitter-rust, not children of the item.
         let mut attributes = Vec::new();
@@ -102,104 +134,118 @@ pub fn definition_and_uses<K: Copy + Eq + Hash>(
             previous = node.prev_named_sibling();
         }
         for attribute in attributes.into_iter().rev() {
-            n.walk(attribute, 0)?;
+            n.walk(attribute)?;
         }
     }
-    n.walk(syntax, 0)?;
+    n.walk(syntax)?;
     Ok((n.parts, n.hits))
 }
 
-impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
-    fn bytes(&mut self, tag: &[u8], value: &[u8]) {
+impl<K: Copy + Eq + Hash> Normalizer<'_, '_, '_, K> {
+    fn bytes(&mut self, tag: &[u8], value: &[u8]) -> Result<()> {
+        self.budget.retain(8 + tag.len() + value.len())?;
         let mut bytes = Vec::new();
         field(&mut bytes, tag, value);
-        self.budget.bytes += bytes.len();
         self.parts.push(Part::Bytes(bytes));
+        Ok(())
     }
     fn raw<'n>(&self, node: Syntax<'n>) -> Result<&str> {
         node.utf8_text(self.text.as_bytes())
             .map_err(|_| ContentIdError::MalformedSyntax)
     }
     fn bind(&mut self, node: Syntax, preserve: bool) -> Result<()> {
-        self.budget.step()?;
-        match node.kind() {
-            "identifier" | "self" => {
-                let name = self.raw(node)?.to_string();
-                let outer = self.frames.len().saturating_sub(1);
-                if self.soft
-                    && self.frames[..outer]
-                        .iter()
-                        .any(|f| f.names.contains_key(&name))
-                {
-                    return Ok(());
-                }
-                let frame = self
-                    .frames
-                    .last_mut()
-                    .ok_or(ContentIdError::UnsupportedSyntax)?;
-                let slot = if let Some(slot) = frame.names.get(&name) {
-                    *slot
-                } else {
-                    let slot = frame.next;
-                    frame.next += 1;
-                    frame.names.insert(name, slot);
-                    slot
-                };
-                self.declarations.insert(node.id(), (slot, preserve));
-            }
-            "tuple_pattern"
-            | "tuple"
-            | "pattern_list"
-            | "list_pattern"
-            | "mut_pattern"
-            | "ref_pattern"
-            | "reference_pattern"
-            | "typed_expression"
-            | "typed_parameter"
-            | "default_parameter"
-            | "typed_default_parameter"
-            | "list_splat_pattern"
-            | "dictionary_splat_pattern"
-            | "slurp_expression"
-            | "splat_expression"
-            | "open_tuple"
-            | "tuple_expression" => {
-                if matches!(
-                    node.kind(),
-                    "tuple_pattern"
-                        | "tuple"
-                        | "pattern_list"
-                        | "list_pattern"
-                        | "open_tuple"
-                        | "tuple_expression"
-                ) {
-                    // Julia `(; a, b) = x` reads properties by name.
-                    let by_name = node.kind() == "tuple_expression"
-                        && node.child(1).is_some_and(|c| c.kind() == ";");
-                    let mut cursor = node.walk();
-                    for child in node.named_children(&mut cursor) {
-                        self.bind(child, preserve || by_name)?;
+        let mut pending = vec![(node, preserve)];
+        while let Some((node, preserve)) = pending.pop() {
+            self.budget.step()?;
+            match node.kind() {
+                "identifier" | "self" => {
+                    let name = self.raw(node)?.to_string();
+                    let outer = self.frames.len().saturating_sub(1);
+                    let mut bound_outside = false;
+                    if self.soft {
+                        for frame in &self.frames[..outer] {
+                            self.budget.step()?;
+                            if frame.names.contains_key(&name) {
+                                bound_outside = true;
+                                break;
+                            }
+                        }
                     }
-                } else {
-                    let pattern = node
-                        .child_by_field_name("name")
-                        .or_else(|| node.named_child(0))
+                    if bound_outside {
+                        continue;
+                    }
+                    let frame = self
+                        .frames
+                        .last_mut()
                         .ok_or(ContentIdError::UnsupportedSyntax)?;
-                    self.bind(
-                        pattern,
-                        preserve
-                            && !matches!(
-                                node.kind(),
-                                "list_splat_pattern"
-                                    | "dictionary_splat_pattern"
-                                    | "splat_expression"
-                            ),
-                    )?;
+                    let slot = if let Some(slot) = frame.names.get(&name) {
+                        *slot
+                    } else {
+                        let slot = frame.next;
+                        frame.next += 1;
+                        frame.names.insert(name, slot);
+                        slot
+                    };
+                    self.declarations.insert(node.id(), (slot, preserve));
                 }
+                "tuple_pattern"
+                | "tuple"
+                | "pattern_list"
+                | "list_pattern"
+                | "mut_pattern"
+                | "ref_pattern"
+                | "reference_pattern"
+                | "typed_expression"
+                | "typed_parameter"
+                | "default_parameter"
+                | "typed_default_parameter"
+                | "list_splat_pattern"
+                | "dictionary_splat_pattern"
+                | "slurp_expression"
+                | "splat_expression"
+                | "open_tuple"
+                | "tuple_expression" => {
+                    if matches!(
+                        node.kind(),
+                        "tuple_pattern"
+                            | "tuple"
+                            | "pattern_list"
+                            | "list_pattern"
+                            | "open_tuple"
+                            | "tuple_expression"
+                    ) {
+                        // Julia `(; a, b) = x` reads properties by name.
+                        let by_name = node.kind() == "tuple_expression"
+                            && node.child(1).is_some_and(|c| c.kind() == ";");
+                        let mut cursor = node.walk();
+                        let children: Vec<_> = node.named_children(&mut cursor).collect();
+                        pending.extend(
+                            children
+                                .into_iter()
+                                .rev()
+                                .map(|child| (child, preserve || by_name)),
+                        );
+                    } else {
+                        let pattern = node
+                            .child_by_field_name("name")
+                            .or_else(|| node.named_child(0))
+                            .ok_or(ContentIdError::UnsupportedSyntax)?;
+                        pending.push((
+                            pattern,
+                            preserve
+                                && !matches!(
+                                    node.kind(),
+                                    "list_splat_pattern"
+                                        | "dictionary_splat_pattern"
+                                        | "splat_expression"
+                                ),
+                        ));
+                    }
+                }
+                // Julia's anonymous `::T` parameter binds nothing.
+                "_" | "unary_typed_expression" => {}
+                _ => return Err(ContentIdError::UnsupportedSyntax),
             }
-            // Julia's anonymous `::T` parameter binds nothing.
-            "_" | "unary_typed_expression" => {}
-            _ => return Err(ContentIdError::UnsupportedSyntax),
         }
         Ok(())
     }
@@ -236,21 +282,24 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
     }
     /// Julia type parameters: `T`, `{T, S}`, `T <: X` or `T >: X`.
     fn type_parameters(&mut self, node: Syntax) -> Result<()> {
-        match node.kind() {
-            "identifier" => self.bind(node, false),
-            "curly_expression" => {
-                let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
-                    self.type_parameters(child)?;
+        let mut pending = vec![node];
+        while let Some(node) = pending.pop() {
+            self.budget.step()?;
+            match node.kind() {
+                "identifier" => self.bind(node, false)?,
+                "curly_expression" => {
+                    let mut cursor = node.walk();
+                    let children: Vec<_> = node.named_children(&mut cursor).collect();
+                    pending.extend(children.into_iter().rev());
                 }
-                Ok(())
+                "binary_expression" => match node.named_child(0) {
+                    Some(name) if name.kind() == "identifier" => self.bind(name, false)?,
+                    _ => return Err(ContentIdError::UnsupportedSyntax),
+                },
+                _ => return Err(ContentIdError::UnsupportedSyntax),
             }
-            "binary_expression" => match node.named_child(0) {
-                Some(name) if name.kind() == "identifier" => self.bind(name, false),
-                _ => Err(ContentIdError::UnsupportedSyntax),
-            },
-            _ => Err(ContentIdError::UnsupportedSyntax),
         }
+        Ok(())
     }
     /// Julia parameters: an argument list, a tuple or one parameter.
     /// Keyword names (after `;`) are observable.
@@ -285,27 +334,35 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
     /// outside itself (a `while` condition, a `for` iterable, a `let`
     /// right-hand side) is walked before its own names are bound, so a name
     /// read there never encodes as the scope's local.
-    fn julia_scope(&mut self, node: Syntax, depth: usize) -> Result<()> {
+    fn julia_scope<'t>(&mut self, node: Syntax<'t>, tasks: &mut Vec<Task<'t>>) -> Result<()> {
         let kind = node.kind();
-        self.bytes(b"open", kind.as_bytes());
+        self.bytes(b"open", kind.as_bytes())?;
         let mut cursor = node.walk();
         let mut children: Vec<_> = node.named_children(&mut cursor).collect();
-        if kind == "while_statement" && !children.is_empty() {
-            let condition = children.remove(0);
-            self.walk(condition, depth + 1)?;
+        let condition = if kind == "while_statement" && !children.is_empty() {
+            Some(children.remove(0))
+        } else {
+            None
+        };
+        tasks.push(Task::Close(kind));
+        tasks.push(Task::PopFrame);
+        tasks.push(Task::ScopeBody(kind, children));
+        if let Some(condition) = condition {
+            tasks.push(Task::Walk(condition));
         }
-        self.frames.push(Frame::default());
-        let result = self.julia_scope_body(kind, children, depth);
-        self.frames.pop();
-        result?;
-        self.bytes(b"close", kind.as_bytes());
         Ok(())
     }
-    fn julia_scope_body(&mut self, kind: &str, children: Vec<Syntax>, depth: usize) -> Result<()> {
-        // Comprehension and generator clauses bind before the body is read.
+    fn julia_scope_body<'t>(
+        &mut self,
+        kind: &'static str,
+        children: Vec<Syntax<'t>>,
+        tasks: &mut Vec<Task<'t>>,
+    ) -> Result<()> {
+        self.frames.push(Frame::default());
         let (clauses, mut rest): (Vec<_>, Vec<_>) = children
             .into_iter()
             .partition(|c| matches!(c.kind(), "for_clause" | "for_binding"));
+        let mut sequence = Vec::new();
         for clause in clauses {
             let bindings = if clause.kind() == "for_clause" {
                 let mut cursor = clause.walk();
@@ -313,14 +370,16 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
             } else {
                 vec![clause]
             };
-            self.bytes(b"open", clause.kind().as_bytes());
+            // Opening a clause must occur after the preceding clause finishes.
+            // LetBinding includes its own open/close, as in the v7 encoding.
+            sequence.push(Task::Open(clause.kind()));
             for binding in bindings {
                 if binding.kind() != "for_binding" {
                     return Err(ContentIdError::UnsupportedSyntax);
                 }
-                self.let_binding(binding, depth + 1)?;
+                sequence.push(Task::LetBinding(binding));
             }
-            self.bytes(b"close", clause.kind().as_bytes());
+            sequence.push(Task::Close(clause.kind()));
         }
         let parameters = match kind {
             "arrow_function_expression" if rest.len() > 1 => 1,
@@ -331,40 +390,36 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         };
         let body = rest.split_off(parameters);
         for parameter in rest {
-            match kind {
-                "let_statement" if parameter.kind() == "assignment" => {
-                    self.let_binding(parameter, depth + 1)?
-                }
-                _ => {
-                    self.julia_parameters(parameter)?;
-                    self.walk(parameter, depth + 1)?;
-                }
+            if kind == "let_statement" && parameter.kind() == "assignment" {
+                sequence.push(Task::LetBinding(parameter));
+            } else {
+                sequence.push(Task::Parameter(parameter));
+                sequence.push(Task::Walk(parameter));
             }
         }
-        for part in &body {
-            if !julia_scope(*part) {
-                self.collect_locals(*part)?;
+        for &part in &body {
+            if !julia_scope(part, self.parents.get(&part.id()).copied()) {
+                sequence.push(Task::Collect(part));
             }
         }
-        for part in body {
-            self.walk(part, depth + 1)?;
-        }
+        sequence.extend(body.into_iter().map(Task::Walk));
+        tasks.extend(sequence.into_iter().rev());
         Ok(())
     }
-    /// `left in iterable` or `left = value`: the right side first, then the
-    /// new binding.
-    fn let_binding(&mut self, node: Syntax, depth: usize) -> Result<()> {
+    fn let_binding<'t>(&mut self, node: Syntax<'t>, tasks: &mut Vec<Task<'t>>) -> Result<()> {
         let mut cursor = node.walk();
         let parts: Vec<_> = node.named_children(&mut cursor).collect();
         let [left, operator, right] = parts[..] else {
             return Err(ContentIdError::UnsupportedSyntax);
         };
-        self.bytes(b"open", node.kind().as_bytes());
-        self.walk(right, depth + 1)?;
-        self.walk(operator, depth + 1)?;
-        self.bind(left, false)?;
-        self.walk(left, depth + 1)?;
-        self.bytes(b"close", node.kind().as_bytes());
+        self.bytes(b"open", node.kind().as_bytes())?;
+        tasks.extend([
+            Task::Close(node.kind()),
+            Task::Walk(left),
+            Task::Bind(left),
+            Task::Walk(operator),
+            Task::Walk(right),
+        ]);
         Ok(())
     }
     fn collect_locals(&mut self, root: Syntax) -> Result<()> {
@@ -386,7 +441,10 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 return Err(ContentIdError::UnsupportedSyntax);
             }
             // A nested Julia scope collects its own names when walked.
-            if self.lang == "julia" && node.id() != root.id() && julia_scope(node) {
+            if self.lang == "julia"
+                && node.id() != root.id()
+                && julia_scope(node, self.parents.get(&node.id()).copied())
+            {
                 continue;
             }
             // `local x` declares in this scope even if an outer `x` exists.
@@ -429,18 +487,64 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         }
         Ok(())
     }
-    fn local(&self, name: &str) -> Option<(u32, u32)> {
-        self.frames
-            .iter()
-            .rev()
-            .enumerate()
-            .find_map(|(depth, frame)| frame.names.get(name).map(|slot| (depth as u32, *slot)))
-    }
-    fn walk(&mut self, node: Syntax, depth: usize) -> Result<()> {
-        self.budget.step()?;
-        if depth > 128 {
-            return Err(ContentIdError::LimitExceeded);
+    fn local(&mut self, name: &str) -> Result<Option<(u32, u32)>> {
+        for (depth, frame) in self.frames.iter().rev().enumerate() {
+            self.budget.step()?;
+            if let Some(slot) = frame.names.get(name) {
+                return Ok(Some((depth as u32, *slot)));
+            }
         }
+        Ok(None)
+    }
+    fn walk(&mut self, node: Syntax) -> Result<()> {
+        let mut tasks = vec![Task::Walk(node)];
+        while let Some(task) = tasks.pop() {
+            self.budget.step()?;
+            match task {
+                Task::Walk(node) => self.walk_node(node, &mut tasks)?,
+                Task::Open(kind) => self.bytes(b"open", kind.as_bytes())?,
+                Task::Close(kind) => self.bytes(b"close", kind.as_bytes())?,
+                Task::PopFrame => {
+                    self.frames.pop();
+                }
+                Task::RestoreFrame(frame) => self.frames.push(frame),
+                Task::Outer(node) => {
+                    if let Some(frame) = self.frames.pop() {
+                        tasks.push(Task::RestoreFrame(frame));
+                    }
+                    tasks.push(Task::Walk(node));
+                }
+                Task::Bind(node) => self.bind(node, false)?,
+                Task::Parameter(node) => self.julia_parameters(node)?,
+                Task::Collect(node) => self.collect_locals(node)?,
+                Task::ScopeBody(kind, children) => {
+                    self.julia_scope_body(kind, children, &mut tasks)?
+                }
+                Task::LetBinding(node) => self.let_binding(node, &mut tasks)?,
+                Task::RustPattern(pattern) => {
+                    let mut names = Vec::new();
+                    let mut pending = vec![pattern];
+                    while let Some(p) = pending.pop() {
+                        self.budget.step()?;
+                        if p.kind() == "identifier" {
+                            names.push(self.raw(p)?.to_string());
+                        }
+                        let mut c = p.walk();
+                        pending.extend(p.named_children(&mut c));
+                    }
+                    if let Some(frame) = self.frames.last_mut() {
+                        for name in names {
+                            frame.names.remove(&name);
+                        }
+                    }
+                    self.bind(pattern, false)?;
+                    tasks.push(Task::Walk(pattern));
+                }
+            }
+        }
+        self.budget.check()
+    }
+    fn walk_node<'t>(&mut self, node: Syntax<'t>, tasks: &mut Vec<Task<'t>>) -> Result<()> {
         let kind = node.kind();
         if node.is_error() || node.is_missing() {
             return Err(ContentIdError::MalformedSyntax);
@@ -451,9 +555,8 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         // Optional attribute containers must not make a doc-only edit visible.
         if kind == "attributes" {
             let mut cursor = node.walk();
-            for child in node.named_children(&mut cursor) {
-                self.walk(child, depth + 1)?;
-            }
+            let children: Vec<_> = node.named_children(&mut cursor).collect();
+            tasks.extend(children.into_iter().rev().map(Task::Walk));
             return Ok(());
         }
         if matches!(kind, "attribute_item" | "attribute") {
@@ -466,8 +569,9 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 return Ok(());
             }
         }
-        if self.lang == "julia" && julia_scope(node) {
-            return self.julia_scope(node, depth);
+        if self.lang == "julia" && julia_scope(node, self.parents.get(&node.id()).copied()) {
+            self.julia_scope(node, tasks)?;
+            return Ok(());
         }
         if matches!(
             kind,
@@ -514,7 +618,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
             return Err(ContentIdError::UnsupportedSyntax);
         }
         if self.own == Some((node.start_byte(), node.end_byte())) {
-            self.bytes(b"declaration-name", &[]);
+            self.bytes(b"declaration-name", &[])?;
             return Ok(());
         }
         let mut scoped = false;
@@ -616,7 +720,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 "expression_statement" | "string" | "concatenated_string"
             )
             && first_noncomment(node)
-            && node.parent().is_some_and(|p| {
+            && self.parents.get(&node.id()).copied().is_some_and(|p| {
                 p.kind() == "block"
                     && p.parent().is_some_and(|p| {
                         matches!(p.kind(), "function_definition" | "class_definition")
@@ -639,61 +743,49 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
         {
             return Ok(());
         }
-        if self.lang == "rust" && kind == "let_declaration" {
-            self.bytes(b"open", kind.as_bytes());
-            // Initializer sees the previous binding, not the one being declared.
-            if let Some(value) = node.child_by_field_name("value") {
-                self.walk(value, depth + 1)?;
-            }
-            if let Some(pattern) = node.child_by_field_name("pattern") {
-                // Rust `let x = ...; let x = ...` introduces a fresh slot.
-                let mut names = Vec::new();
-                let mut pending = vec![pattern];
-                while let Some(p) = pending.pop() {
-                    if p.kind() == "identifier" {
-                        names.push(self.raw(p)?.to_string());
-                    }
-                    let mut c = p.walk();
-                    pending.extend(p.named_children(&mut c));
-                }
-                if let Some(frame) = self.frames.last_mut() {
-                    for name in names {
-                        frame.names.remove(&name);
-                    }
-                }
-                self.bind(pattern, false)?;
-                self.walk(pattern, depth + 1)?;
-            }
-            let pattern = node.child_by_field_name("pattern").map(|n| n.id());
-            let value = node.child_by_field_name("value").map(|n| n.id());
-            let mut c = node.walk();
-            for child in node.children(&mut c) {
-                if Some(child.id()) != pattern && Some(child.id()) != value {
-                    self.walk(child, depth + 1)?;
-                }
-            }
-            self.bytes(b"close", kind.as_bytes());
-        } else {
-            self.encode(node, depth)?;
-        }
         if scoped {
-            self.frames.pop();
+            tasks.push(Task::PopFrame);
+        }
+        if self.lang == "rust" && kind == "let_declaration" {
+            self.bytes(b"open", kind.as_bytes())?;
+            tasks.push(Task::Close(kind));
+            let pattern = node.child_by_field_name("pattern");
+            let value = node.child_by_field_name("value");
+            let mut c = node.walk();
+            let children: Vec<_> = node
+                .children(&mut c)
+                .filter(|child| {
+                    Some(child.id()) != pattern.map(|n| n.id())
+                        && Some(child.id()) != value.map(|n| n.id())
+                })
+                .collect();
+            tasks.extend(children.into_iter().rev().map(Task::Walk));
+            if let Some(pattern) = pattern {
+                tasks.push(Task::RustPattern(pattern));
+            }
+            if let Some(value) = value {
+                tasks.push(Task::Walk(value));
+            }
+        } else {
+            self.encode(node, tasks)?;
         }
         Ok(())
     }
-    fn encode(&mut self, node: Syntax, depth: usize) -> Result<()> {
+    fn encode<'t>(&mut self, node: Syntax<'t>, tasks: &mut Vec<Task<'t>>) -> Result<()> {
         let kind = node.kind();
-        let raw = self.raw(node)?.to_string();
+        let raw = node
+            .utf8_text(self.text.as_bytes())
+            .map_err(|_| ContentIdError::MalformedSyntax)?;
         if let Some((slot, preserve)) = self.declarations.get(&node.id()).copied() {
-            self.bytes(b"binding", &slot.to_le_bytes());
+            self.bytes(b"binding", &slot.to_le_bytes())?;
             if preserve {
-                self.bytes(b"observable", raw.as_bytes());
+                self.bytes(b"observable", raw.as_bytes())?;
             }
             return Ok(());
         }
         let identifier = matches!(kind, "identifier" | "self");
         let observable = self.member_names.contains(&node.id())
-            || node.parent().is_some_and(|p| {
+            || self.parents.get(&node.id()).copied().is_some_and(|p| {
                 if matches!(
                     p.kind(),
                     "function_item"
@@ -720,10 +812,10 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                 }
             });
         if identifier && !observable {
-            if let Some((scope, slot)) = self.local(&raw) {
+            if let Some((scope, slot)) = self.local(raw)? {
                 let mut bytes = scope.to_le_bytes().to_vec();
                 bytes.extend_from_slice(&slot.to_le_bytes());
-                self.bytes(b"local", &bytes);
+                self.bytes(b"local", &bytes)?;
                 return Ok(());
             }
         }
@@ -754,7 +846,7 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                     | "quote_expression"
             )
         {
-            self.bytes(b"token-kind", kind.as_bytes());
+            self.bytes(b"token-kind", kind.as_bytes())?;
             self.bytes(
                 if identifier && !observable {
                     b"unresolved"
@@ -762,12 +854,14 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                     b"token"
                 },
                 raw.as_bytes(),
-            );
+            )?;
             return Ok(());
         }
-        self.bytes(b"open", kind.as_bytes());
+        self.bytes(b"open", kind.as_bytes())?;
         let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
+        tasks.push(Task::Close(kind));
+        let children: Vec<_> = node.children(&mut cursor).collect();
+        for child in children.into_iter().rev() {
             let outer_expression = self.lang == "python"
                 && ((matches!(
                     kind,
@@ -779,24 +873,19 @@ impl<K: Copy + Eq + Hash> Normalizer<'_, '_, K> {
                     && node
                         .child_by_field_name("return_type")
                         .is_some_and(|n| n.id() == child.id())));
-            if outer_expression {
-                let frame = self.frames.pop();
-                self.walk(child, depth + 1)?;
-                if let Some(frame) = frame {
-                    self.frames.push(frame);
-                }
+            tasks.push(if outer_expression {
+                Task::Outer(child)
             } else {
-                self.walk(child, depth + 1)?;
-            }
+                Task::Walk(child)
+            });
         }
-        self.bytes(b"close", kind.as_bytes());
         Ok(())
     }
 }
 
 /// Julia's local scopes below a definition: loops, closures, `do`, `let`,
 /// `try`/`catch`/`finally` and comprehensions.
-fn julia_scope(node: Syntax) -> bool {
+fn julia_scope(node: Syntax, parent: Option<Syntax>) -> bool {
     matches!(
         node.kind(),
         "for_statement"
@@ -808,7 +897,7 @@ fn julia_scope(node: Syntax) -> bool {
             | "finally_clause"
             | "comprehension_expression"
             | "generator"
-    ) || (node.kind() == "block" && node.parent().is_some_and(|p| p.kind() == "try_statement"))
+    ) || (node.kind() == "block" && parent.is_some_and(|p| p.kind() == "try_statement"))
 }
 
 fn first_noncomment(node: Syntax) -> bool {

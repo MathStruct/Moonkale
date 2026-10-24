@@ -68,3 +68,10 @@ The separate default-off `lossless-syntax` feature exports `lossless::{RustSynta
 ## Text read failures (WP-23, 2026-10-17)
 
 Build, refresh and dependent re-extraction publish `index_error = "text read failed"` on the mirrored file node when `fetch_text` fails, including non-UTF-8 input. This is a content-free node diagnostic, accessible through `Query::Node` and graph queries; no UI string or lossy decoding is introduced. Failed reads clear stale search chunks and derived symbols/links. A subsequent successful read clears the property and resumes indexing. Files excluded by the normal size/type limits are still intentionally skipped. `invalid_utf8_is_reported_and_recovery_clears_the_diagnostic` tests error publication and recovery.
+
+SR-145 (2026-10-24): shared content-id parsing/normalization no longer refuses
+nesting beyond 128. Explicit heap stacks and total byte/work budgets replace the
+depth guard, preserving normalizer v7 and golden ids. The index regression now
+expects a 140-parenthesis body to receive an id; source fetch, reachable-definition
+and cache limits remain enforced independently. The shared crate's
+`tests/deep.rs` covers depth 100,000 on 256 KiB stacks.
