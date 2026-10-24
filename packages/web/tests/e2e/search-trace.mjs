@@ -1,8 +1,8 @@
 // Milestone 4: Search panel (Ctrl+Shift+F, opens the file at the line) and traces drawn as graphs.
-import { firefox } from "playwright";
+import { chromium } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
-const browser = await firefox.launch();
+const browser = await chromium.launch({args:["--use-angle=swiftshader","--enable-unsafe-swiftshader","--ignore-gpu-blocklist"]});
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 const logs = [];
 page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) logs.push(`[${m.type()}] ${t.slice(0, 300)}`); });
@@ -36,7 +36,7 @@ try {
     await page.click(".wb-tab:has-text('Graph')");
     await page.click(".mk-graph-toolbar button:has-text('Trace')");
     await page.fill(".mk-graph-paste-text", "thread 'main' panicked at src/main.rs:7:5:\nboom\nstack backtrace:\n   0: m2root::add\n             at ./src/main.rs:1:1\n   1: m2root::main\n             at ./src/main.rs:6:22\n");
-    await page.click(".mk-graph-paste-actions button:has-text('Draw')");
+    await page.click(".mk-graph-paste-actions button:text-is('Draw')");
     await page.waitForFunction(() => /^trace:/.test(document.querySelector(".mk-graph-source")?.selectedOptions[0]?.textContent || ""), null, { timeout: 10000 });
     // root + 2 files (src/main.rs, ./src/main.rs) + 3 frames = 6 nodes; 2 root→file + 3 file→frame + 2 calls = 7 edges
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.getAttribute("data-nodes") === "6", null, { timeout: 15000 });

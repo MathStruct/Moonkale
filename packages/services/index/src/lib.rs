@@ -38,3 +38,7 @@ pub mod content;
 /// Exact Rust syntax snapshots and guarded, pure structural patch planning.
 #[cfg(all(feature = "lossless-syntax", not(target_arch = "wasm32")))]
 pub mod lossless;
+
+/// Derived per-folder Sophia writer (ADR-0029), disabled by default.
+#[cfg(all(feature = "sophia", not(target_arch = "wasm32")))]
+pub mod folder_store;

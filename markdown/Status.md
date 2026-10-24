@@ -100,8 +100,28 @@ Sophia. See `packages/services/content-id/content-id.md` for limits and checks.
 grouping for Julia, Rust and Python. Julia ownership is ported from Sophia
 `773d9898`; Rust impl/trait paths and Python class paths use caller-supplied root
 context. Unknown roots are flagged, invalid names reported, and naming golden
-data complements the unchanged v7 identity fixtures. The per-folder Sophia
-writer remains planned. See [[Code Graph Schema]] and [[Work Packages]].
+data complements the unchanged v7 identity fixtures. The default-off per-folder Sophia writer is implemented (WP-21, 2026-10-24):
+manifest-hash reuse, atomic watcher batches, bounded conflict retries and
+a read-only additional Source with current-file fallback on stale text.
+Definition ids rebuild from files; generic nominal ids may change on rebuild. See [[Code Graph Schema]] and [[Work Packages]].
+
+
+## Sophia folder cache (WP-21, checked 2026-10-24)
+
+Default-off `sophia` writes admitted Rust/Julia/Python code into the derived
+`.moonkale/code.sophia` cache and opens it as an additional read-only Source.
+Reopen skips unchanged files; one watcher window is one transactional batch,
+including moves and bounded name-owner retries. Stale reads fall back to current
+files. Ten hermetic folder-store regressions and four browser suites pass;
+all 18 mandatory/feature gate commands pass (826 workspace tests, seven ignored;
+73 feature-focused tests). The in-memory index remains the default.
+
+Native debug measurement on Moonkale: **8.830 s cold / 0.664 s reopen**, including
+new folder snapshots; store work alone 8.101 s / 0.030 s. **36,704,256 bytes** for
+478 files / 6,111,526 source bytes. Reopen performs zero parses or replacements (timings rounded independently).
+The normal form refuses 2,787 definitions and reports 12 ambiguous named
+bindings; this is partial syntactic coverage. See [[Indexing]] for methodology,
+module-naming limits and evidence. ADR-0029's release/default gates remain open.
 
 ## By area
 
@@ -129,7 +149,7 @@ writer remains planned. See [[Code Graph Schema]] and [[Work Packages]].
 | **Index**: wiki-links, Rust definitions | ✅ | WP-23: failed text reads carry a content-free node diagnostic, cleared on recovery; WP-65: shared L2 kinds, stable location ids, ranged occurrences, names and provenance; index rows rechecked 2026-10-15 — [[Code Graph Schema]] |
 | **Index**: Julia, Python definitions | ✅ | WP-65: same shared schema; Julia overload ids use signatures rather than order |
 | **Index**: Rust/Julia/Python calls, references and imports | ◐ | WP-22: conservative same-file syntax resolution, explicit unresolved targets; compiler-backed dispatch and cross-file resolution remain open — [[Code Graph Schema]] |
-| **Index**: content identities (Rust/Julia/Python) | ◐ | WP-66: default-off explicit requests, versioned syntactic normalization, canonical recursion components, bounded caches and freshness guards; conservative syntax subset and same-file resolution, not semantic equivalence. Normal form and hashing are the crate `moonkale-content-id`, shared with Sophia, with golden fixtures; normalizer v2 (2026-10-20) — [[Code Graph Schema]] |
+| **Index**: content identities (Rust/Julia/Python) | ◐ | WP-66: default-off explicit requests, versioned syntactic normalization, canonical recursion components, bounded caches and freshness guards; conservative syntax subset and same-file resolution, not semantic equivalence. Normal form and hashing are the crate `moonkale-content-id`, shared with Sophia, with golden fixtures; normalizer v7 (2026-10-24) — [[Code Graph Schema]] |
 | **Code graph**: Rust lossless syntax and patch planning | ◐ | WP-67 slices 1–5 (2026-10-16): exact Rust plans and a revision-aware adapter, plus default-off structural-edits graph controls for declaration names and same-file moves on desktop/web; previews, grouped undo and explicit conflicts built; complete same-folder rename uses rust-analyzer with coordinated keyboard/menu/review history and explicit per-file saves; cross-file moves remain open — [[Rust Lossless Syntax and Patches]] |
 | **Index**: other languages | 📝 | [[Core Languages]] |
 | **Git** (changes, diff, stage, commit, history graph) | ✅ | the `git` CLI; no push/pull |

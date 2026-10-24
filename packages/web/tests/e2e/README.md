@@ -637,3 +637,9 @@ Run table-typed.mjs separately against packages/web/tests/fixtures/typed-cells
 on port 8112, using an owned Dioxus server and the Playwright working directory.
 This production TablePanel fixture checks English/German/Chinese rerenders and
 a Ref click opening its target in workspace state. It complements the SQL tests.
+
+
+WP-21: `sophia-folder` requires a server built with `SERVE_FEATURES=sophia`.
+It opens the additional derived code Source, draws its names despite file
+truth, and observes a new definition through the watcher without Reload.
+Run with `graph watch search-trace` to cover the existing folder/index paths.

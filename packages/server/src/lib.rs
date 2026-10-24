@@ -158,6 +158,15 @@ pub async fn open_folder(
                     .map_err(server_error)?,
             );
             out.push(reg.insert(index.clone()));
+            #[cfg(feature = "sophia")]
+            if let Some(path) = index.folder_store_path() {
+                let source = std::sync::Arc::new(
+                    moonkale_sources_sophia::SophiaSource::open(path)
+                        .await
+                        .map_err(server_error)?,
+                );
+                out.push(reg.insert(source));
+            }
             tokio::spawn(async move {
                 match index.embed_pending().await {
                     Ok(n) if n > 0 => eprintln!("moonkale: embedded {n} chunks"),
@@ -180,6 +189,21 @@ pub async fn refresh_source(
         .get(&source)
         .ok_or_else(|| server_error("unknown source"))?;
     Ok(s.refresh(node).await)
+}
+
+/// Preserve one upstream debounce window across the remote Source boundary.
+#[post("/api/sources/refresh_batch")]
+pub async fn refresh_source_batch(
+    source: SourceId,
+    nodes: Vec<NodeId>,
+) -> Result<Result<(), SourceError>, ServerFnError> {
+    if nodes.len() > 10_000 {
+        return Ok(Err(SourceError::Invalid("refresh batch limit".into())));
+    }
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.refresh_batch(&nodes).await)
 }
 
 /// Changes made on the server's disk after `since` (Milestone 16) — a long

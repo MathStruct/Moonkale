@@ -66,3 +66,6 @@ pub fn source_openers() -> Vec<moonkale_core::SourceOpener> {
     v.extend(moonkale_sources_sophia::openers());
     v
 }
+
+#[cfg(all(feature = "sophia", not(target_arch = "wasm32")))]
+pub use moonkale_sources_sophia::SophiaSource;

@@ -73,6 +73,16 @@ pub trait Source: MaybeSendSync {
         Ok(())
     }
 
+    /// One upstream debounce window. Derived sources can commit all changed
+    /// nodes atomically (including both sides of a rename). The default keeps
+    /// existing sources compatible by refreshing each node in order.
+    async fn refresh_batch(&self, nodes: &[NodeId]) -> Result<(), SourceError> {
+        for node in nodes {
+            self.refresh(*node).await?;
+        }
+        Ok(())
+    }
+
     /// Changes made to the source from outside Moonkale after log position
     /// `since` (see [`Changes`]). A long poll: returns as soon as there is
     /// something newer, or after a bounded wait with an empty `paths`.

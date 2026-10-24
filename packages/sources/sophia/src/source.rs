@@ -40,6 +40,9 @@ pub struct SophiaSource {
     root: NodeId,
     display_name: String,
     iface: Arc<Interface<Sqlite>>,
+    derived_path: Option<PathBuf>,
+    folder_root: Option<PathBuf>,
+    stale: Arc<Mutex<BTreeSet<String>>>,
     /// Moonkale hands back ids; Sophia wants keys. Filled by every answer.
     keys: Mutex<HashMap<NodeId, Key>>,
 }
@@ -65,13 +68,33 @@ impl SophiaSource {
             return Err(SourceError::NotFound);
         }
         let backend = Sqlite::open(path).map_err(store_error)?;
-        Self::with_interface(
+        let iface = Interface::open(backend, reader).map_err(store_error)?;
+        let derived = iface.store().is_derived().map_err(store_error)?;
+        let mut source = Self::with_interface(
             SourceId::new(format!("sophia:{}", path.display())),
             path.file_stem()
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "Sophia".into()),
-            Interface::open(backend, reader).map_err(store_error)?,
-        )
+            iface,
+        )?;
+        if derived {
+            source.derived_path = Some(path.to_path_buf());
+            // Keep no connection to the derived file between calls: Windows
+            // also needs to be able to delete/rebuild it while this source lives.
+            source.iface = Arc::new(Interface::open_read_only(
+                Sqlite::open_in_memory().map_err(store_error)?,
+                READER,
+            ));
+            if path.file_name().is_some_and(|n| n == "code.sophia")
+                && path
+                    .parent()
+                    .and_then(Path::file_name)
+                    .is_some_and(|n| n == ".moonkale")
+            {
+                source.folder_root = path.parent().and_then(Path::parent).map(Path::to_path_buf);
+            }
+        }
+        Ok(source)
     }
 
     /// An in-memory store with SPEC-004 §9's sample, for tests and demos.
@@ -97,12 +120,26 @@ impl SophiaSource {
             id,
             display_name,
             iface: Arc::new(iface),
+            derived_path: None,
+            folder_root: None,
+            stale: Arc::new(Mutex::new(BTreeSet::new())),
             keys: Mutex::new(HashMap::new()),
         };
         source.remember(&root_key);
         source.remember(&Key::settings());
         source.remember_views();
         Ok(source)
+    }
+
+    /// Files for which a read found a different source id (or no current file).
+    /// A later successful fresh read clears that file's stale marker.
+    pub fn stale_files(&self) -> Vec<String> {
+        self.stale
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .cloned()
+            .collect()
     }
 
     fn remember(&self, key: &Key) -> NodeId {
@@ -184,9 +221,21 @@ impl SophiaSource {
         f: impl FnOnce(&Interface<Sqlite>) -> Result<T, SourceError> + Send + 'static,
     ) -> Result<T, SourceError> {
         let iface = self.iface.clone();
-        tokio::task::spawn_blocking(move || f(&iface))
-            .await
-            .map_err(|e| SourceError::Io(e.to_string()))?
+        let path = self.derived_path.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Some(path) = path {
+                if !path.is_file() {
+                    return Err(SourceError::NotFound);
+                }
+                let backend = Sqlite::open(path).map_err(store_error)?;
+                let current = Interface::open_read_only(backend, READER);
+                f(&current)
+            } else {
+                f(&iface)
+            }
+        })
+        .await
+        .map_err(|e| SourceError::Io(e.to_string()))?
     }
 
     fn node(&self, v: &NodeView) -> Node {
@@ -206,7 +255,15 @@ impl SophiaSource {
                 lang: (v.kind != "sophia:Settings").then(|| "sophialang".into()),
             }),
             version: Version(0),
-            props: v.props.iter().map(|(k, p)| (k.clone(), value(p))).collect(),
+            props: {
+                let mut props: moonkale_core::graph::Properties =
+                    v.props.iter().map(|(k, p)| (k.clone(), value(p))).collect();
+                if self.derived_path.is_some() {
+                    props.insert("derived".into(), Value::Bool(true));
+                    props.insert("stale".into(), Value::Bool(!self.stale_files().is_empty()));
+                }
+                props
+            },
         }
     }
 
@@ -329,6 +386,10 @@ impl SophiaSource {
     /// One read of the log after `since`: the position to continue from,
     /// the native keys that changed, and whether to re-read everything.
     fn feed(i: &Interface<Sqlite>, since: u64) -> Result<(u64, Vec<String>, bool), SourceError> {
+        let end = i.store().last_seq().map_err(store_error)?;
+        if end < since {
+            return Ok((end, Vec::new(), true));
+        }
         let (changes, next, more) = i.changes_since(since, FEED_BATCH).map_err(store_error)?;
         let mut seen = BTreeSet::new();
         let mut paths = Vec::new();
@@ -464,13 +525,17 @@ impl Source for SophiaSource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
-            truth: SourceTruth::Store,
+            truth: if self.derived_path.is_some() {
+                SourceTruth::Files
+            } else {
+                SourceTruth::Store
+            },
             id: self.id(),
             display_name: self.display_name.clone(),
             family: SourceFamily::Graph,
             capabilities: Capabilities {
                 read: true,
-                write: true,
+                write: self.derived_path.is_none(),
                 watch: true,
                 text_query: Some(TextDialect::Sql),
                 extra_text_query: Some(TextDialect::SophiaQuery),
@@ -563,8 +628,13 @@ impl Source for SophiaSource {
                 };
                 let g = self
                     .call(move |i| {
-                        i.neighbours(&key, depth.min(MAX_DEPTH), dir, NEIGHBOUR_LIMIT)
-                            .map_err(store_error)
+                        let mut g = i
+                            .neighbours(&key, depth.min(MAX_DEPTH), dir, NEIGHBOUR_LIMIT)
+                            .map_err(store_error)?;
+                        if depth > 0 {
+                            generic_calls(i, &mut g, NEIGHBOUR_LIMIT)?;
+                        }
+                        Ok(g)
                     })
                     .await?;
                 let mut r = self.result(&g, None);
@@ -574,7 +644,11 @@ impl Source for SophiaSource {
             Query::All { limit, kinds } => {
                 let start = std::time::Instant::now();
                 let g = self
-                    .call(move |i| i.all(limit).map_err(store_error))
+                    .call(move |i| {
+                        let mut g = i.all(limit).map_err(store_error)?;
+                        generic_calls(i, &mut g, limit)?;
+                        Ok(g)
+                    })
                     .await?;
                 let interface_ms = start.elapsed().as_secs_f64() * 1000.0;
                 let start = std::time::Instant::now();
@@ -641,6 +715,73 @@ impl Source for SophiaSource {
         if self.view_node(&key).is_some() {
             return Err(SourceError::Unsupported("a view has no text".into()));
         }
+        if let Some(root) = self.folder_root.clone() {
+            let stale = self.stale.clone();
+            let key_for_source = key.clone();
+            let sources = self
+                .call(move |i| {
+                    if let Some(ts) = i.text_source(&key_for_source).map_err(store_error)? {
+                        return Ok(vec![ts]);
+                    }
+                    let generic = match &key_for_source {
+                        Key::Derived(s) if s.starts_with("name:") => i
+                            .store()
+                            .resolve(&s[5..])
+                            .map_err(store_error)?
+                            .map(|n| n.target),
+                        Key::Content(d) => Some(sophia_store::Target::Nominal(*d)),
+                        _ => None,
+                    };
+                    let mut sources = Vec::new();
+                    if let Some(sophia_store::Target::Nominal(id)) = generic {
+                        for member in i.store().read(|tx| tx.relation(&id)).map_err(store_error)? {
+                            if let Some(ts) = i
+                                .text_source(&Key::Content(member.member))
+                                .map_err(store_error)?
+                            {
+                                sources.push(ts);
+                            }
+                        }
+                    }
+                    Ok(sources)
+                })
+                .await?;
+            if !sources.is_empty() {
+                return tokio::task::spawn_blocking(move || {
+                    let mut bodies = Vec::new();
+                    let mut revision = 0u64;
+                    for ts in sources {
+                        let result = read_current(&root, &ts.path);
+                        let mut markers = stale.lock().unwrap_or_else(|e| e.into_inner());
+                        let text = match result {
+                            Ok(text) => text,
+                            Err(e) => {
+                                markers.insert(ts.path);
+                                return Err(e);
+                            }
+                        };
+                        let id = sophia_store::folder::source_record(&ts.path, &text).id;
+                        revision ^= u64::from_le_bytes(id.as_bytes()[..8].try_into().unwrap());
+                        if id != ts.source {
+                            markers.insert(ts.path);
+                            // Old spans cannot safely address newer text.
+                            bodies.push(text);
+                        } else {
+                            markers.remove(&ts.path);
+                            let body =
+                                text.get(ts.start as usize..ts.end as usize)
+                                    .ok_or_else(|| {
+                                        SourceError::Invalid("stored span is invalid".into())
+                                    })?;
+                            bodies.push(body.to_string());
+                        }
+                    }
+                    Ok((bodies.join("\n"), Version(revision)))
+                })
+                .await
+                .map_err(|e| SourceError::Io(e.to_string()))?;
+            }
+        }
         let (text, v) = self
             .call(move |i| i.fetch_text(&key).map_err(store_error))
             .await?;
@@ -648,6 +789,11 @@ impl Source for SophiaSource {
     }
 
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
+        if self.derived_path.is_some() {
+            return Err(SourceError::Unsupported(
+                "derived store: edit the files".into(),
+            ));
+        }
         let mut results = Vec::with_capacity(tx.ops.len());
         for op in tx.ops {
             let node = match &op {
@@ -812,6 +958,118 @@ fn coarse_metadata(interface: &Interface<Sqlite>) -> Result<Subgraph, SourceErro
         edges,
         ..Default::default()
     })
+}
+
+/// Bound reads and keep paths from stored metadata inside the opened folder.
+fn read_current(root: &Path, relative: &str) -> Result<String, SourceError> {
+    use std::io::Read;
+    if relative.is_empty()
+        || relative.split('/').any(|s| s.starts_with('.'))
+        || !matches!(
+            Path::new(relative).extension().and_then(|s| s.to_str()),
+            Some("rs" | "py" | "jl")
+        )
+        || relative.contains('\\')
+        || !Path::new(relative)
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(SourceError::Invalid("invalid derived source path".into()));
+    }
+    let root = root
+        .canonicalize()
+        .map_err(|e| SourceError::Io(e.to_string()))?;
+    let mut candidate = root.clone();
+    for part in Path::new(relative).components() {
+        candidate.push(part);
+        if candidate
+            .symlink_metadata()
+            .is_ok_and(|m| m.file_type().is_symlink())
+        {
+            return Err(SourceError::Invalid(
+                "derived source path is a symlink".into(),
+            ));
+        }
+    }
+    let path = root
+        .join(relative)
+        .canonicalize()
+        .map_err(|_| SourceError::NotFound)?;
+    if !path.starts_with(&root) {
+        return Err(SourceError::Invalid("derived source leaves folder".into()));
+    }
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .map_err(|_| SourceError::NotFound)?
+        .take(512 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| SourceError::Io(e.to_string()))?;
+    if bytes.len() > 512 * 1024 {
+        return Err(SourceError::Invalid("derived source text limit".into()));
+    }
+    String::from_utf8(bytes).map_err(|_| SourceError::Invalid("derived source is not UTF-8".into()))
+}
+
+/// The folder writer stores generic targets as paths: nominal ids are allocated
+/// inside replace_files. Resolve those annotations at read time, never in ids.
+fn generic_calls(
+    interface: &Interface<Sqlite>,
+    graph: &mut Subgraph,
+    limit: usize,
+) -> Result<(), SourceError> {
+    if !interface.store().is_derived().map_err(store_error)? {
+        return Ok(());
+    }
+    let subjects: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter_map(|n| match n.key {
+            Key::Content(d) => Some(d),
+            _ => None,
+        })
+        .collect();
+    for subject in subjects {
+        let facts = interface
+            .store()
+            .read(|tx| tx.facts_of(&subject))
+            .map_err(store_error)?;
+        for fact in facts
+            .into_iter()
+            .filter(|f| f.kind == "uses_generic" && f.by == "moonkale-index")
+        {
+            let Ok(path) = std::str::from_utf8(&fact.value) else {
+                continue;
+            };
+            let Some(name) = interface.store().resolve(path).map_err(store_error)? else {
+                continue;
+            };
+            let key = Key::Content(name.target.digest());
+            if !graph.nodes.iter().any(|n| n.key == key) {
+                if graph.nodes.len() >= limit {
+                    continue;
+                }
+                if let Some(node) = interface.node(&key).map_err(store_error)? {
+                    graph.nodes.push(node);
+                }
+            }
+            if graph.edges.len() >= NEIGHBOUR_LIMIT {
+                return Ok(());
+            }
+            if !graph
+                .edges
+                .iter()
+                .any(|e| e.from == Key::Content(subject) && e.to == key && e.kind == "Calls")
+            {
+                graph.edges.push(EdgeView {
+                    from: Key::Content(subject),
+                    to: key,
+                    kind: "Calls".into(),
+                    props: vec![],
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

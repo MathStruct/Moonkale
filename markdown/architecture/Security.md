@@ -277,3 +277,23 @@ two-second deadline. Julia modules retain their aggregate source/work budgets.
 No dependency, code execution or new authority is added. See
 `packages/services/content-id/content-id.md` for the full budget contract and
 256 KiB-stack depth-100,000 regression coverage.
+
+
+## WP-21 folder-cache boundary (2026-10-24)
+
+Behind `sophia`, the index persists only the code it admits through the
+ignore-aware folder Source: Rust, Python and Julia, no hidden/ignored files,
+configuration or `.env`, at most 512 KiB each. A truncated 5,000-file walk or
+64 MiB aggregate snapshot fails rather than reconciling incomplete input.
+Cargo/Python naming metadata is read with a 64 KiB bound, not persisted.
+Parser/normal-form budgets still apply. `.moonkale/` is excluded from the walk
+and receives an ignore file. Cache directory/database/SQLite sidecar symlinks and code aliases are refused.
+
+The store is enforced derived and the adapter advertises file truth and no
+writes; application writes are refused before any op executes. Current-file
+reads validate code paths, folder containment, UTF-8 and the same size cap,
+compare source digests, and expose stale markers when falling back from stored
+spans. It keeps no live derived-file connection between calls. Sophia owns
+atomic per-file fact replacement, provenance and rollback; Moonkale neither
+executes stored code nor directly edits Sophia's tables. Failed retries are
+bounded (16 owners), and the remote refresh endpoint caps batches at 10,000 ids.

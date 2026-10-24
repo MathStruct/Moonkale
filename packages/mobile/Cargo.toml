@@ -17,6 +17,7 @@ moonkale-ext-git = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-project-fs = { workspace = true }
 moonkale-index = { workspace = true }
+moonkale-sources-sophia = { workspace = true, optional = true }
 # A server's client on the phone (Milestone 12): *Connect to Server…*.
 moonkale-server = { workspace = true }
 moonkale-terminal = { workspace = true }
@@ -29,6 +30,7 @@ tracing = "0.1"
 
 [features]
 default = []
+sophia = ["moonkale-index/sophia", "moonkale-distribution/sophia", "moonkale-server/sophia", "dep:moonkale-sources-sophia"]
 mobile = ["dioxus/mobile"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
 # Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.

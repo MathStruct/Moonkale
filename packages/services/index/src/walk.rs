@@ -32,7 +32,10 @@ pub async fn walk(
         let res = source.query(Query::Children(dir)).await?;
         for node in res.nodes {
             if node.kind == NodeKind::Directory {
-                if matches!(node.label.as_str(), ".git" | "target" | "node_modules") {
+                if matches!(
+                    node.label.as_str(),
+                    ".git" | ".moonkale" | "target" | "node_modules"
+                ) {
                     continue;
                 }
                 queue.push(node.id);

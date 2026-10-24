@@ -1,9 +1,7 @@
-// Graph panel data path. Headless Firefox here has no WebGL/WebGPU, so the
-// renderer is expected to report that clearly; on a real browser the same
-// script sees a backend name instead and probes for a hover popup.
-import { firefox } from "playwright";
+// Graph panel: production payloads and the renderer using CPU SwiftShader.
+import { chromium } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
-const browser = await firefox.launch();
+const browser = await chromium.launch({args:["--use-angle=swiftshader","--enable-unsafe-swiftshader","--ignore-gpu-blocklist"]});
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 let unresolvedHidden = 0;

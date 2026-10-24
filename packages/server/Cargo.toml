@@ -55,7 +55,7 @@ moonkale-sources-graph = { workspace = true, optional = true, features = ["ladyb
 
 [features]
 unison = ["dep:moonkale-sources-unison"]
-sophia = ["dep:moonkale-sources-sophia"]
+sophia = ["moonkale-index/sophia", "dep:moonkale-sources-sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["dep:moonkale-index", "moonkale-index/lossless-syntax"]
 # Embedded RocksDB and HelixDB stores; off by default, not in the release builds.
