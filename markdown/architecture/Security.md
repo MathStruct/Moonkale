@@ -144,7 +144,7 @@ Since Milestone 18 phase 4.5 the server decides what a client's provider setting
 | Secrets | ◐ names only, env and file | keychain, redaction |
 | SSH remote | ◐ | #18 |
 | Agent and prompt injection | ◐ gate, classification, audit log | provenance, egress, injection tests |
-| Untrusted content | ◐ jail, link allow-list, bounds; P-218 Rich images share native-preview source scoping, image limits and bounded cache, with display-only URLs and blocked remote/escaping destinations; default-off content normalizer and Rust lossless planner have byte/depth/work/parser limits, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed; opt-in structural planning is pure, authenticated on web, capped at 4 MiB raw/512 KiB decoded input, two non-queued workers, and existing parser limits; source bytes are never logged or rendered as HTML; graph Rename reuses the existing LSP connection, rejects cross-source/resource operations and incomplete plans; two-pass target preparation, 64-file/4096-edit/4-MiB-payload/8-MiB-text caps, all-buffer staging and held/stamped editor input guard grouped history; explicit per-file saves report partial success; validates URI/range/version bounds and live identities before preview | #5, sanitising, CSP, fuzzing, #15 |
+| Untrusted content | ◐ jail, link allow-list, bounds; P-218 Rich images share native-preview source scoping, image limits and bounded cache, with display-only URLs and blocked remote/escaping destinations; default-off content normalizer has byte/work/parser limits; the Rust lossless planner also retains its depth limit, exact-input guards and move-token checks; single-document proposals recheck Files/write capability, source/session identity, backing version and exact live revision/text before one bounded in-memory batch (WP-66/67); content caches are bounded/checksummed; opt-in structural planning is pure, authenticated on web, capped at 4 MiB raw/512 KiB decoded input, two non-queued workers, and existing parser limits; source bytes are never logged or rendered as HTML; graph Rename reuses the existing LSP connection, rejects cross-source/resource operations and incomplete plans; two-pass target preparation, 64-file/4096-edit/4-MiB-payload/8-MiB-text caps, all-buffer staging and held/stamped editor input guard grouped history; explicit per-file saves report partial success; validates URI/range/version bounds and live identities before preview | #5, sanitising, CSP, fuzzing, #15 |
 | Wasm extensions | ◐ permissions, fuel, memory limits | signing |
 | Supply chain and releases | ◐ WP-47: blocking Rust/npm audits with dated baseline exceptions, offline vendored hashes; non-blocking parser fuzz smoke jobs | dependency upgrades, signing, release/SSH server checksums, wasm ABI fuzzing |
 | Data at rest | ○ | redaction, encryption decision |
@@ -259,10 +259,21 @@ and closed-region parsing with 64 KiB inputs; no new network, process or permiss
 
 
 WP-21 naming prerequisite (2026-10-23) adds pure metadata extraction over the
-existing bounded content-id syntax trees, with the same file/definition/depth
+existing bounded content-id syntax trees, with the same file/definition/byte
 limits and request budget. Package discovery and file reads stay with callers.
 Names with empty segments, whitespace, controls or backquotes bind nothing and
 are reported; formatting never removes offending bytes. Store paths remain data,
 with independent Sophia path-validation regression checks. Conflicting imports
 are unresolved independent of read order; named collisions are explicit errors.
 No normalizer/id change, dependency, evaluation, persistence or connection is added.
+
+
+SR-145 content identities (2026-10-24): nesting has no depth cap. Explicit heap
+stacks cover normalization, patterns, type parameters and Julia scope
+continuations. Requests instead cap source bytes (16 MiB/file), definitions
+(4,096/file), work (32 million default visits) and accumulated canonical/graph
+bytes (256 MiB, charged before field allocation); parser progress still has a
+two-second deadline. Julia modules retain their aggregate source/work budgets.
+No dependency, code execution or new authority is added. See
+`packages/services/content-id/content-id.md` for the full budget contract and
+256 KiB-stack depth-100,000 regression coverage.

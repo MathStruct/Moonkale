@@ -41,7 +41,9 @@ fn segment(s: &str) -> String {
         format!("`{s}`")
     }
 }
-/// The `module … end` names around a node, within its file.
+/// The enclosing Julia `module … end` names, outermost first, within `src`.
+/// Excludes the node itself and any caller-supplied include base. Use the
+/// exact source text used to parse the node's tree.
 pub fn modules_around(mut n: Syntax, src: &str) -> Vec<String> {
     let mut out = Vec::new();
     while let Some(p) = n.parent() {
@@ -182,7 +184,9 @@ const BASE_SUBMODULES: &[&str] = &[
     "Threads",
 ];
 
-/// Where a module path written in module `m` points. Relative paths
+/// Resolves the written Julia path `q` from absolute module `m`, using
+/// collected `scopes`. `dots` is the number of leading relative dots.
+/// Relative paths
 /// (`.X`, `..X`) go up from `m`. A plain path's first segment is looked up
 /// as Julia does, innermost module outwards: a declared submodule, or the
 /// enclosing module's own name; then Base's exported submodules; otherwise
@@ -386,12 +390,9 @@ pub fn definitions(
         HashSet::new()
     };
     let mut out = Vec::new();
-    let mut stack = vec![(root, 0)];
-    while let Some((n, depth)) = stack.pop() {
+    let mut stack = vec![root];
+    while let Some(n) = stack.pop() {
         budget.step()?;
-        if depth > 128 {
-            return Err(ContentIdError::LimitExceeded);
-        }
         if crate::is_definition(lang, n) && (lang != "julia" || units.contains(&n.id())) {
             let (nn, qualified) = if lang == "julia" {
                 crate::julia_name(n).map_or((None, true), |(x, q)| (Some(x), q))
@@ -476,7 +477,7 @@ pub fn definitions(
         }
         let mut c = n.walk();
         let children: Vec<_> = n.named_children(&mut c).collect();
-        stack.extend(children.into_iter().rev().map(|x| (x, depth + 1)));
+        stack.extend(children.into_iter().rev());
     }
     Ok(out)
 }

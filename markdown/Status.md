@@ -87,6 +87,13 @@ MTK/RxInfer simulations, fill pixels, saved grid positions, locales and referenc
 activation. Both parsers have bounded fuzz targets. See [[Flow Editor]] and
 [[Table Editor]] for conversion limits.
 
+## Content identity nesting (SR-145, checked 2026-10-24)
+
+Content-id syntax, binding and scope passes use explicit heap stacks with total
+byte/work budgets, replacing the depth-128 refusal. Normalizer v7 and golden ids
+remain unchanged. Julia's `modules_around` and `locate` helpers are exported for
+Sophia. See `packages/services/content-id/content-id.md` for limits and checks.
+
 ## Shared code naming (WP-21 prerequisite, checked 2026-10-23)
 
 `moonkale-content-id` now exposes shared binding/entity-path metadata and method

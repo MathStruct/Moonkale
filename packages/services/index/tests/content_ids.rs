@@ -425,7 +425,7 @@ async fn concurrent_refresh_discards_the_entire_in_flight_result() {
 }
 
 #[tokio::test]
-async fn oversized_deep_and_malformed_input_have_typed_failures() {
+async fn size_and_syntax_failures_are_typed_and_deep_input_is_accepted() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("a.rs");
     std::fs::write(&path, "fn f() { 1; }").unwrap();
@@ -460,10 +460,8 @@ async fn oversized_deep_and_malformed_input_have_typed_failures() {
     )
     .unwrap();
     index.refresh(file).await.unwrap();
-    assert_eq!(
-        index.content_id(f).await,
-        Err(ContentIdError::LimitExceeded)
-    );
+    // SR-145: nesting alone no longer refuses a content identity.
+    assert!(index.content_id(f).await.is_ok());
     std::fs::write(&path, "fn f() { let x = ; }").unwrap();
     index.refresh(file).await.unwrap();
     assert_eq!(

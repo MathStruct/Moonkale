@@ -4,12 +4,39 @@ WP-66 syntactic content ids for Rust, Julia and Python definitions: the per-lang
 
 ## API
 
-- `parse(lang, text, &mut Budget) -> Tree`: bounded parse, with the per-file limits (512 KiB, 4,096 definitions, depth 128, two-second parser deadline).
+- `parse(lang, text, &mut Budget) -> Tree`: bounded parse, with the per-file limits (16 MiB, 4,096 definitions, two-second parser deadline).
 - `definition(lang, syntax, text, &references, &mut Budget) -> Vec<Part<K>>`: one definition's canonical encoding. `references` maps the byte span `(start, end)` of every identifier that refers to another definition to that definition's key `K` (any `Copy + Eq + Hash`).
 - `identities(&units, &mut Budget) -> HashMap<K, Identity>`: the ids of a closed set of definitions. Each referenced key must be in `units`. Recursive groups hash together, and the result doesn't depend on the map's order.
 - `Identity { digest, normalizer_version, component_digest, component_index, component_size }`. Moonkale's node id is `NodeId::from_content(&digest)`.
 
 One `Budget` covers a whole request; any error means no identity at all.
+
+### Resource budgets (SR-145, 2026-10-24)
+
+There is no nesting-depth limit. Daniel's SR-145 requires that the code store
+never constrain expressiveness through nesting, including future compiler input.
+Syntax normalization, binding patterns, type parameters and Julia scope
+continuations use explicit heap stacks; graph traversal was already iterative.
+Canonical traversal order and normalizer **7** are unchanged.
+
+Untrusted input remains bounded by total size and work: `MAX_FILE_BYTES` is
+16 MiB, `MAX_DEFINITIONS` is 4,096 per parsed file, `MAX_STEPS` is 32 million
+syntax/continuation/graph visits per default request, and `MAX_INPUT_BYTES` is
+256 MiB of accumulated canonical fields and graph input/candidate bytes.
+Fields are charged before allocation. `Budget::with_steps` changes the work
+allowance, not the byte allowance. Graph candidates share these budgets and
+missing referenced units return `MalformedSyntax`. Parsing retains its two-second
+progress deadline. Julia modules retain their 1,024-file / 32 MiB source and
+1,000,000 + 64 steps per source byte allowances, with the shared canonical-byte cap.
+These are request resource bounds, not restrictions on tree shape or a new id
+format. Index source-fetch limits remain independently enforced by the caller.
+
+`tests/deep.rs` runs the public parse/naming/normalization/identity paths with
+100,000 parentheses and binary operators in Rust, Julia and Python, and
+100,000 Rust/Julia blocks, binding patterns, Julia type parameters/local scopes and graph dependencies, on 256 KiB threads. Python's indentation would require
+more than 5 GB for 100,000 suites, so that shape exceeds the source-byte budget.
+The tests also cover exhausted work and bytes; the existing golden fixtures
+check unchanged ids and bindings.
 
 ## Julia modules (v5)
 
@@ -34,6 +61,8 @@ Naming is separate from normalization: this additive API leaves `NORMALIZER_VERS
 
 Origin: ported from **Sophia rev `773d9898`**, MIT, `crates/sophia-ingest/src/sophia_ingest.rs` (`Binding`, `binding`, `entity_path`, `segment`) and `code.rs` (`julia_scopes`, `julia_extends`, `locate`, `BASE_SUBMODULES` and helpers). The Julia ownership/membership regression and `golden/generics/{Gen,sub}.jl` come from Sophia's `tests/generics.rs` and its Julia fixture. No Sophia checkout is modified.
 
+- `modules_around(node: Syntax, src: &str) -> Vec<String>` returns enclosing Julia module names, outermost first, excluding the node itself and the caller's include base.
+- `locate(module: &[String], dots: usize, path: &[String], scopes: &JuliaScopes) -> Vec<String>` resolves a written Julia module path using relative dots, declared enclosing modules and implicit Base submodules. Both helpers are exported at the crate root for Sophia (sophia-89).
 - `Definition` carries `language`, `name`, syntax `kind`, byte spans, `qualified`, `module`, resolved `extends`, `path_derived`, and an optional `diagnostic` explaining why a definition binds nothing.
 - `definitions(lang, root, text, NamingContext, &JuliaScopes, &mut Budget) -> Result<Vec<Definition>>` extracts this metadata in source order. Use a tree from `parse` for the exact same text, and one request budget. Julia emits the same top-level units as `julia::module`, including unnamed/refused units for diagnostics; Rust/Python also include nested items and class members.
 - `binding(&Definition, package: &str) -> Option<Binding>` returns `Method(Vec<String>)` for functions/methods, `Named(Vec<String>)` for other definitions, or `None` for unnamed, unresolved qualified or unspellable names. It never rewrites a name to make it fit. Supply the same package used in extraction.
