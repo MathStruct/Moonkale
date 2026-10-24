@@ -308,3 +308,9 @@ paths cannot traverse outside scratch; cache/build paths are skipped. Temporary
 snapshots/databases are cleaned on normal exit. Reports contain identifiers,
 paths, counts, timings and errors, without source bodies. No production source,
 write authority, dependency or network capability is added.
+
+
+P-232's opt-in `query_profile` example reads disposable store copies and prints
+only counts/timings. The existing graph profiling flag now splits Sophia's all
+read from generic-call expansion. No stored values, text bodies, new dependency,
+network access or Source write authority are added.

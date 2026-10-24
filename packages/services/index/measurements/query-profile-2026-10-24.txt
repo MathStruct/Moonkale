@@ -1,0 +1,277 @@
+P-232 All(1000) phase profile, 2026-10-24
+Sophia v0.1.1 def22b0c8e02a47ec1f541d55a1dd2e2651e8627; normalizer v7
+Linux; Rust 1.98.1; dev unoptimized / release optimized
+Copies of kept non-GC replay stores; own target/agent; heavy slot and bench lock.
+Builds/checks completed before measurements. Warm-up run 0 excluded; five samples per phase.
+Probes are separate operations, not exclusive subspans. Source interface_ms includes open/scheduling, all and generic-call expansion.
+
+| phase (median ms) | Moonkale debug | Moonkale release | Lenticulum debug | Lenticulum release |
+|---|---:|---:|---:|---:|
+| Source total | 6226.105 | 1847.296 | 126.209 | 31.962 |
+| Sophia all (Source span) | 6221.367 | 1845.872 | 122.008 | 30.404 |
+| Generic-call expansion | 0.024 | 0.012 | 0.017 | 0.010 |
+| Adapter conversion | 3.017 | 0.915 | 2.915 | 1.017 |
+| Interface all (direct probe) | 6174.008 | 1825.720 | 120.975 | 29.582 |
+| Individual nodes (probe) | 604.355 | 123.697 | 15.245 | 5.191 |
+| Namespace children (probe) | 5595.927 | 1701.048 | 104.916 | 24.901 |
+| Metadata prefixes (probe) | 4353.745 | 1408.430 | 81.618 | 18.072 |
+| Names under prefix (probe) | 592.313 | 120.335 | 8.684 | 1.852 |
+| Names from prefix (probe) | 541.570 | 103.005 | 8.693 | 1.939 |
+
+=== moonkale debug ===
+run=0 all_ms=6193.677 nodes=1000 edges=999 truncated=true
+run=0 phase=names_under ms=592.951 rows=1882
+run=0 phase=meta_prefix ms=4371.654 rows=0
+run=0 phase=names_from ms=542.826 rows=11084
+run=0 individual_nodes_ms=606.087
+run=0 namespace_children_ms=5617.502 namespaces=1000 children=4871
+run=1 all_ms=6171.312 nodes=1000 edges=999 truncated=true
+run=1 phase=names_under ms=592.313 rows=1882
+run=1 phase=meta_prefix ms=4365.176 rows=0
+run=1 phase=names_from ms=541.443 rows=11084
+run=1 individual_nodes_ms=602.980
+run=1 namespace_children_ms=5583.198 namespaces=1000 children=4871
+run=2 all_ms=6174.008 nodes=1000 edges=999 truncated=true
+run=2 phase=names_under ms=595.917 rows=1882
+run=2 phase=meta_prefix ms=4343.690 rows=0
+run=2 phase=names_from ms=541.540 rows=11084
+run=2 individual_nodes_ms=604.355
+run=2 namespace_children_ms=5607.040 namespaces=1000 children=4871
+run=3 all_ms=6180.264 nodes=1000 edges=999 truncated=true
+run=3 phase=names_under ms=591.817 rows=1882
+run=3 phase=meta_prefix ms=4353.020 rows=0
+run=3 phase=names_from ms=542.402 rows=11084
+run=3 individual_nodes_ms=604.667
+run=3 namespace_children_ms=5595.927 namespaces=1000 children=4871
+run=4 all_ms=6182.658 nodes=1000 edges=999 truncated=true
+run=4 phase=names_under ms=591.221 rows=1882
+run=4 phase=meta_prefix ms=4360.648 rows=0
+run=4 phase=names_from ms=542.216 rows=11084
+run=4 individual_nodes_ms=604.665
+run=4 namespace_children_ms=5606.499 namespaces=1000 children=4871
+run=5 all_ms=6168.255 nodes=1000 edges=999 truncated=true
+run=5 phase=names_under ms=592.520 rows=1882
+run=5 phase=meta_prefix ms=4353.745 rows=0
+run=5 phase=names_from ms=541.570 rows=11084
+run=5 individual_nodes_ms=602.739
+run=5 namespace_children_ms=5594.178 namespaces=1000 children=4871
+graph source profile: all_ms=5846.06915 generic_calls_ms=0.024677
+graph source profile: interface_ms=5846.871937 adapter_ms=2.721714
+run=0 source_ms=5849.792 nodes=1000 edges=999
+graph source profile: all_ms=6187.245049 generic_calls_ms=0.022032
+graph source profile: interface_ms=6188.29831 adapter_ms=3.016502
+run=1 source_ms=6191.519 nodes=1000 edges=999
+graph source profile: all_ms=6221.92641 generic_calls_ms=0.025348
+graph source profile: interface_ms=6223.035285 adapter_ms=2.96257
+run=2 source_ms=6226.196 nodes=1000 edges=999
+graph source profile: all_ms=6235.334051 generic_calls_ms=0.023134
+graph source profile: interface_ms=6236.368817 adapter_ms=3.040487
+run=3 source_ms=6239.615 nodes=1000 edges=999
+graph source profile: all_ms=6221.366636 generic_calls_ms=0.024046
+graph source profile: interface_ms=6222.475982 adapter_ms=3.4081609999999998
+run=4 source_ms=6226.105 nodes=1000 edges=999
+graph source profile: all_ms=6197.7674990000005 generic_calls_ms=0.025678
+graph source profile: interface_ms=6198.798407 adapter_ms=2.89433
+run=5 source_ms=6201.898 nodes=1000 edges=999
+
+=== lenticulum debug ===
+run=0 all_ms=125.685 nodes=1000 edges=999 truncated=true
+run=0 phase=names_under ms=8.691 rows=145
+run=0 phase=meta_prefix ms=81.423 rows=0
+run=0 phase=names_from ms=8.749 rows=2118
+run=0 individual_nodes_ms=15.311
+run=0 namespace_children_ms=105.001 namespaces=74 children=1085
+run=1 all_ms=120.627 nodes=1000 edges=999 truncated=true
+run=1 phase=names_under ms=8.721 rows=145
+run=1 phase=meta_prefix ms=81.236 rows=0
+run=1 phase=names_from ms=8.677 rows=2118
+run=1 individual_nodes_ms=15.211
+run=1 namespace_children_ms=104.843 namespaces=74 children=1085
+run=2 all_ms=122.723 nodes=1000 edges=999 truncated=true
+run=2 phase=names_under ms=8.655 rows=145
+run=2 phase=meta_prefix ms=81.990 rows=0
+run=2 phase=names_from ms=8.694 rows=2118
+run=2 individual_nodes_ms=15.237
+run=2 namespace_children_ms=104.916 namespaces=74 children=1085
+run=3 all_ms=120.975 nodes=1000 edges=999 truncated=true
+run=3 phase=names_under ms=8.701 rows=145
+run=3 phase=meta_prefix ms=81.618 rows=0
+run=3 phase=names_from ms=8.681 rows=2118
+run=3 individual_nodes_ms=15.245
+run=3 namespace_children_ms=104.729 namespaces=74 children=1085
+run=4 all_ms=123.070 nodes=1000 edges=999 truncated=true
+run=4 phase=names_under ms=8.678 rows=145
+run=4 phase=meta_prefix ms=81.724 rows=0
+run=4 phase=names_from ms=8.708 rows=2118
+run=4 individual_nodes_ms=15.301
+run=4 namespace_children_ms=105.110 namespaces=74 children=1085
+run=5 all_ms=120.597 nodes=1000 edges=999 truncated=true
+run=5 phase=names_under ms=8.684 rows=145
+run=5 phase=meta_prefix ms=81.500 rows=0
+run=5 phase=names_from ms=8.693 rows=2118
+run=5 individual_nodes_ms=15.299
+run=5 namespace_children_ms=104.979 namespaces=74 children=1085
+graph source profile: all_ms=123.02776899999999 generic_calls_ms=0.017202
+graph source profile: interface_ms=123.87348700000001 adapter_ms=2.68757
+run=0 source_ms=126.711 nodes=1000 edges=999
+graph source profile: all_ms=122.554154 generic_calls_ms=0.016561
+graph source profile: interface_ms=123.497136 adapter_ms=2.905522
+run=1 source_ms=126.565 nodes=1000 edges=999
+graph source profile: all_ms=121.911719 generic_calls_ms=0.016962
+graph source profile: interface_ms=122.912401 adapter_ms=2.8156309999999998
+run=2 source_ms=125.879 nodes=1000 edges=999
+graph source profile: all_ms=122.296848 generic_calls_ms=0.017232
+graph source profile: interface_ms=123.28966299999999 adapter_ms=2.985914
+run=3 source_ms=126.422 nodes=1000 edges=999
+graph source profile: all_ms=122.00758 generic_calls_ms=0.020148
+graph source profile: interface_ms=122.968727 adapter_ms=3.0834780000000004
+run=4 source_ms=126.209 nodes=1000 edges=999
+graph source profile: all_ms=121.886021 generic_calls_ms=0.016461
+graph source profile: interface_ms=122.809606 adapter_ms=2.91514
+run=5 source_ms=125.881 nodes=1000 edges=999
+
+=== moonkale release ===
+run=0 all_ms=1820.544 nodes=1000 edges=999 truncated=true
+run=0 phase=names_under ms=117.742 rows=1882
+run=0 phase=meta_prefix ms=1404.580 rows=0
+run=0 phase=names_from ms=97.419 rows=11084
+run=0 individual_nodes_ms=120.216
+run=0 namespace_children_ms=1692.688 namespaces=1000 children=4871
+run=1 all_ms=1825.720 nodes=1000 edges=999 truncated=true
+run=1 phase=names_under ms=117.958 rows=1882
+run=1 phase=meta_prefix ms=1407.816 rows=0
+run=1 phase=names_from ms=103.005 rows=11084
+run=1 individual_nodes_ms=121.638
+run=1 namespace_children_ms=1695.009 namespaces=1000 children=4871
+run=2 all_ms=1827.636 nodes=1000 edges=999 truncated=true
+run=2 phase=names_under ms=121.953 rows=1882
+run=2 phase=meta_prefix ms=1414.729 rows=0
+run=2 phase=names_from ms=98.174 rows=11084
+run=2 individual_nodes_ms=122.289
+run=2 namespace_children_ms=1701.853 namespaces=1000 children=4871
+run=3 all_ms=1827.849 nodes=1000 edges=999 truncated=true
+run=3 phase=names_under ms=120.335 rows=1882
+run=3 phase=meta_prefix ms=1408.430 rows=0
+run=3 phase=names_from ms=104.238 rows=11084
+run=3 individual_nodes_ms=124.173
+run=3 namespace_children_ms=1700.593 namespaces=1000 children=4871
+run=4 all_ms=1824.604 nodes=1000 edges=999 truncated=true
+run=4 phase=names_under ms=119.946 rows=1882
+run=4 phase=meta_prefix ms=1401.885 rows=0
+run=4 phase=names_from ms=99.063 rows=11084
+run=4 individual_nodes_ms=123.697
+run=4 namespace_children_ms=1703.270 namespaces=1000 children=4871
+run=5 all_ms=1824.069 nodes=1000 edges=999 truncated=true
+run=5 phase=names_under ms=120.805 rows=1882
+run=5 phase=meta_prefix ms=1412.670 rows=0
+run=5 phase=names_from ms=104.549 rows=11084
+run=5 individual_nodes_ms=124.391
+run=5 namespace_children_ms=1701.048 namespaces=1000 children=4871
+graph source profile: all_ms=1445.85142 generic_calls_ms=0.012062999999999999
+graph source profile: interface_ms=1446.2241439999998 adapter_ms=0.779073
+run=0 source_ms=1447.221 nodes=1000 edges=999
+graph source profile: all_ms=1814.908875 generic_calls_ms=0.011222000000000001
+graph source profile: interface_ms=1815.415773 adapter_ms=0.934687
+run=1 source_ms=1816.573 nodes=1000 edges=999
+graph source profile: all_ms=1856.768296 generic_calls_ms=0.011752
+graph source profile: interface_ms=1857.142003 adapter_ms=0.807836
+run=2 source_ms=1858.167 nodes=1000 edges=999
+graph source profile: all_ms=1845.872159 generic_calls_ms=0.011803000000000001
+graph source profile: interface_ms=1846.234453 adapter_ms=0.848484
+run=3 source_ms=1847.296 nodes=1000 edges=999
+graph source profile: all_ms=1839.5163320000001 generic_calls_ms=0.011592
+graph source profile: interface_ms=1839.969259 adapter_ms=0.9146580000000001
+run=4 source_ms=1841.100 nodes=1000 edges=999
+graph source profile: all_ms=1846.361833 generic_calls_ms=0.017302
+graph source profile: interface_ms=1846.7571 adapter_ms=1.019447
+run=5 source_ms=1847.998 nodes=1000 edges=999
+
+=== lenticulum release ===
+run=0 all_ms=33.593 nodes=1000 edges=999 truncated=true
+run=0 phase=names_under ms=1.837 rows=145
+run=0 phase=meta_prefix ms=18.120 rows=0
+run=0 phase=names_from ms=1.948 rows=2118
+run=0 individual_nodes_ms=5.185
+run=0 namespace_children_ms=25.128 namespaces=74 children=1085
+run=1 all_ms=30.074 nodes=1000 edges=999 truncated=true
+run=1 phase=names_under ms=1.880 rows=145
+run=1 phase=meta_prefix ms=18.286 rows=0
+run=1 phase=names_from ms=1.939 rows=2118
+run=1 individual_nodes_ms=5.210
+run=1 namespace_children_ms=24.868 namespaces=74 children=1085
+run=2 all_ms=29.414 nodes=1000 edges=999 truncated=true
+run=2 phase=names_under ms=1.812 rows=145
+run=2 phase=meta_prefix ms=17.946 rows=0
+run=2 phase=names_from ms=1.890 rows=2118
+run=2 individual_nodes_ms=5.186
+run=2 namespace_children_ms=24.917 namespaces=74 children=1085
+run=3 all_ms=29.606 nodes=1000 edges=999 truncated=true
+run=3 phase=names_under ms=1.845 rows=145
+run=3 phase=meta_prefix ms=17.962 rows=0
+run=3 phase=names_from ms=1.935 rows=2118
+run=3 individual_nodes_ms=5.191
+run=3 namespace_children_ms=24.922 namespaces=74 children=1085
+run=4 all_ms=29.479 nodes=1000 edges=999 truncated=true
+run=4 phase=names_under ms=1.894 rows=145
+run=4 phase=meta_prefix ms=18.072 rows=0
+run=4 phase=names_from ms=1.981 rows=2118
+run=4 individual_nodes_ms=5.183
+run=4 namespace_children_ms=24.844 namespaces=74 children=1085
+run=5 all_ms=29.582 nodes=1000 edges=999 truncated=true
+run=5 phase=names_under ms=1.852 rows=145
+run=5 phase=meta_prefix ms=18.075 rows=0
+run=5 phase=names_from ms=1.954 rows=2118
+run=5 individual_nodes_ms=5.203
+run=5 namespace_children_ms=24.901 namespaces=74 children=1085
+graph source profile: all_ms=31.543188999999998 generic_calls_ms=0.01028
+graph source profile: interface_ms=31.869887 adapter_ms=0.984751
+run=0 source_ms=33.013 nodes=1000 edges=999
+graph source profile: all_ms=31.163832 generic_calls_ms=0.009708999999999999
+graph source profile: interface_ms=31.500017999999997 adapter_ms=0.7799839999999999
+run=1 source_ms=32.426 nodes=1000 edges=999
+graph source profile: all_ms=31.607832000000002 generic_calls_ms=0.01076
+graph source profile: interface_ms=32.067309 adapter_ms=0.866247
+run=2 source_ms=33.098 nodes=1000 edges=999
+graph source profile: all_ms=30.403665999999998 generic_calls_ms=0.009517999999999999
+graph source profile: interface_ms=30.744099000000002 adapter_ms=1.034114
+run=3 source_ms=31.962 nodes=1000 edges=999
+graph source profile: all_ms=30.36877 generic_calls_ms=0.013235
+graph source profile: interface_ms=30.709724 adapter_ms=1.017263
+run=4 source_ms=31.862 nodes=1000 edges=999
+graph source profile: all_ms=30.111384 generic_calls_ms=0.009928999999999999
+graph source profile: interface_ms=30.521638 adapter_ms=1.05326
+run=5 source_ms=31.769 nodes=1000 edges=999
+
+=== SQL plans (Python sqlite3, exact backend SQL) and store counts ===
+moonkale
+t_definition 11541
+t_name 5569
+t_meta 15951
+meta_prefix [(3, 0, 215, 'SCAN t_meta')]
+names_under [(4, 0, 215, 'SCAN t_name')]
+names_from [(4, 0, 195, 'SEARCH t_name USING PRIMARY KEY (path>?)')]
+lenticulum
+t_definition 2775
+t_name 1011
+t_meta 4654
+meta_prefix [(3, 0, 215, 'SCAN t_meta')]
+names_under [(4, 0, 215, 'SCAN t_name')]
+names_from [(4, 0, 195, 'SEARCH t_name USING PRIMARY KEY (path>?)')]
+
+=== Verification ===
+GATE RESULT 0: cargo fmt --all --check
+GATE RESULT 0: cargo fmt --manifest-path fuzz/Cargo.toml --check
+GATE RESULT 0: python3 tools/check-deps.py
+GATE RESULT 0: python3 tools/check-colors.py
+GATE RESULT 0: python3 tools/check-strings.py
+GATE RESULT 0: python3 tools/check-frontmatter.py
+GATE RESULT 0: cargo test --workspace
+GATE RESULT 0: cargo clippy --workspace --all-targets -- -D warnings
+GATE RESULT 0: cargo test -p moonkale-index -p moonkale-sources-sophia --features moonkale-index/sophia
+GATE RESULT 0: cargo clippy -p moonkale-index -p moonkale-sources-sophia --all-targets --features moonkale-index/sophia -- -D warnings
+GATE RESULT 0: cargo check -p moonkale-distribution --no-default-features
+GATE RESULT 0: cargo check -p moonkale-distribution --features julia
+GATE RESULT 0: env RUSTDOCFLAGS=-D warnings cargo doc -p moonkale-core -p moonkale-ext-api -p moonkale-graph-render --no-deps
+GATE RESULT 0: cargo check -p web --target wasm32-unknown-unknown --features web
+Final fmt (workspace/fuzz), frontmatter, deps, colors, strings and git diff --check: passed.
+No browser UI changed. Existing wasm warning: ext-api SettingsFile::env_overrides missing docs.

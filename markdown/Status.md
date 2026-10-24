@@ -208,3 +208,13 @@ so gate 4 is met. Search
 stays on the in-memory index (Sophia has no `search` dialect). The feature
 remains off by default until gate 3 (wasm or server fallback) is met too. Exact runs and measurements are in [[Indexing]];
 this checks the replay only, not the older whole-product inventory above.
+
+
+## Sophia capped read profile (checked 2026-10-24)
+
+The optional folder store's slow All(1000) read is traced to Sophia v0.1.1:
+namespace dependency discovery repeats child enumeration and full metadata
+scans. Moonkale's node conversion and generic-call expansion are negligible
+by comparison. A debug/release numeric profiler and upstream request are ready;
+the performance issue remains open ([[P-232 Sophia capped graph reads scan namespace metadata]]).
+See [[Indexing]] for measurements. This does not change the default backend.

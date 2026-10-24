@@ -127,9 +127,74 @@ or fresh-build errors and no retries:
 Final-checkpoint reads (median / p95 ms): Moonkale lookup 0.009 / 0.010,
 text_source 4.78 / 5.95, All(1000) 6180 / 6226; Lenticulum lookup 0.006 / 0.007,
 text_source 1.37 / 1.46, All(1000) 128.0 / 128.7. The All(1000) growth is
-unchanged by the fix and still unprofiled. Raw reports:
+unchanged by the fix; the P-232 profile below identifies its upstream cause. Raw reports:
 `packages/services/index/measurements/history-2026-10-24-{moonkale,lenticulum}-77f5c1c9.jsonl`.
 The run header now names the Sophia source from Cargo.lock.
+
+### All(1000) profile: P-232 (2026-10-24)
+
+The delay is in **Sophia's namespace reads**. The opt-in adapter timing now
+separates `Interface::all` from generic-call expansion; node/edge conversion
+remains a separate span. The new `sources/sophia` example `query_profile`
+reproduces both the Interface and Source reads, then probes individual nodes,
+namespace children and ReadTx prefix operations. No production query semantics,
+Sophia dependency pin or default backend changed.
+
+The measurements use disposable copies of the kept **v0.1.1 (`def22b0c`)**
+stores, rather than replaying history again: Moonkale's 471-commit replay
+through `44c40663` (11,541 definitions, 5,569 names, 15,951 metadata rows), and
+Lenticulum's 130 commits through `488ce636` (2,775 / 1,011 / 4,654).
+Linux, Rust 1.98.1, native debug and release, own `target/agent`, heavy slot and
+shared bench lock, after builds/checks finished. Run 0 warms each phase;
+medians below use runs 1–5. These diagnostic probes are separate operations,
+not exclusive subspans to add together.
+
+| phase (median ms) | Moonkale debug | Moonkale release | Lenticulum debug | Lenticulum release |
+|---|---:|---:|---:|---:|
+| Source total | 6226.105 | 1847.296 | 126.209 | 31.962 |
+| Sophia all (Source span) | 6221.367 | 1845.872 | 122.008 | 30.404 |
+| Generic-call expansion | 0.024 | 0.012 | 0.017 | 0.010 |
+| Adapter conversion | 3.017 | 0.915 | 2.915 | 1.017 |
+| Interface all (direct probe) | 6174.008 | 1825.720 | 120.975 | 29.582 |
+| Individual nodes (probe) | 604.355 | 123.697 | 15.245 | 5.191 |
+| Namespace children (probe) | 5595.927 | 1701.048 | 104.916 | 24.901 |
+| Metadata prefixes (probe) | 4353.745 | 1408.430 | 81.618 | 18.072 |
+| Names under prefix (probe) | 592.313 | 120.335 | 8.684 | 1.852 |
+| Names from prefix (probe) | 541.570 | 103.005 | 8.693 | 1.939 |
+
+`Interface::all` first builds Contains edges, then asks `edges_at(Out)` for each
+retained namespace. That calls `children_in`, rebuilds child views and Contains
+edges, and finally `all` discards those edges through its dependency filter.
+The Moonkale answer has **1,000 namespaces, no definitions/names, 999 Contains
+edges**, and is truncated; generic-call expansion therefore has no subjects.
+The namespace child probes construct 4,871 children, despite the answer's cap.
+Lenticulum's same-sized answer has only 74 namespaces; its child probes build
+1,085 children. Namespace count and metadata-table size explain the difference
+in work despite the identical 1,000-node cap.
+No text rendering or per-definition lookup is needed for this answer.
+
+`children_in` calls `meta_prefix` once per namespace. Its SQLite `substr`
+predicate scans all metadata; EXPLAIN reports `SCAN t_meta`. The corresponding
+1,000 prefix probes return **zero rows** yet take most of the all-read time.
+`namespace_exists` also uses `names_under(path, 2)`, whose OR predicate reports
+`SCAN t_name`. `names_from` instead reports an indexed primary-key search.
+The metadata/file-manifest scan explains why deleting historical definitions
+alone did not remove the delay.
+
+**Before/after:** the slow read is reproduced and localized; it remains
+unfixed upstream. Moonkale's change only adds diagnostic spans and the example,
+so there is no post-fix speedup to report. The exact upstream request is in
+`HANDOFF-from-codex.md`: avoid namespace dependency expansion whose edges are
+immediately discarded; make metadata and namespace-existence prefix reads
+indexed; preserve graph semantics and add operation-count/query-plan tests.
+See [[P-232 Sophia capped graph reads scan namespace metadata]].
+
+Reproduce on a disposable copy with
+`MOONKALE_GRAPH_PROFILE=1 cargo run [--release] -p moonkale-sources-sophia --example query_profile -- <copy.sophia>`
+(use `--release` for the optimized build). Raw samples and SQL query plans:
+[query-profile-2026-10-24.txt](https://github.com/MathStruct/Moonkale/blob/master/packages/services/index/measurements/query-profile-2026-10-24.txt).
+All AGENTS gates and feature-specific index/Sophia tests/clippy pass; this
+profiling-only change has no browser UI surface.
 
 The v0.1.0 run below is kept as the evidence for P-231.
 

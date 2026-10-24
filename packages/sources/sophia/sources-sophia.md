@@ -118,3 +118,20 @@ each call opens a fresh read-only Interface. This permits deletion/rebuild while
 a source stays open, including on Windows. A feed cursor beyond the new log
 requests a reset. Content ids and source-scoped name ids remain stable; generic
 nominal ids are store-owned allocations and may change after cache recreation.
+
+
+## Capped graph read profiling (P-232, 2026-10-24)
+
+`cargo run [--release] -p moonkale-sources-sophia --example query_profile --
+<disposable-copy.sophia>` measures `Interface::all(1000)`, node and namespace
+child reads, and the `names_under`, `meta_prefix`, `names_from` access paths.
+Run 0 warms each
+phase; runs 1–5 supply samples. Take the shared bench lock on a quiet machine.
+Open a copy because Sophia's SQLite open can perform maintenance. Probes are
+separate operations, not exclusive spans within `all`.
+
+`MOONKALE_GRAPH_PROFILE=1` prints numeric Source spans: `all_ms`,
+`generic_calls_ms`, `interface_ms` (including opening/scheduling and the first
+two spans), and `adapter_ms` for node/edge conversion. No body text or values
+are logged. The kept replay store's slow path is Sophia's repeated namespace
+metadata scans; see [[Indexing]] and [[P-232 Sophia capped graph reads scan namespace metadata]].

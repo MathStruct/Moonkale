@@ -645,8 +645,17 @@ impl Source for SophiaSource {
                 let start = std::time::Instant::now();
                 let g = self
                     .call(move |i| {
+                        let start = Instant::now();
                         let mut g = i.all(limit).map_err(store_error)?;
+                        let all_ms = start.elapsed().as_secs_f64() * 1000.0;
+                        let start = Instant::now();
                         generic_calls(i, &mut g, limit)?;
+                        if std::env::var_os("MOONKALE_GRAPH_PROFILE").is_some() {
+                            eprintln!(
+                                "graph source profile: all_ms={all_ms} generic_calls_ms={}",
+                                start.elapsed().as_secs_f64() * 1000.0
+                            );
+                        }
                         Ok(g)
                     })
                     .await?;
