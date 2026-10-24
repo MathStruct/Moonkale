@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Extension catalogue — current, planned, core or separate</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Extension catalogue — current, planned, core or separate"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Extension catalogue — current, planned, core or separate"/><meta name="twitter:description" content="Every extension Moonkale has and every one it plans, with tier, crate, platform fit (desktop / web / mobile), what each needs from outside (server, binary, network), what should stay core and what belongs in a separate repository — and a critique of how much of the core could become extensions."/><meta property="og:description" content="Every extension Moonkale has and every one it plans, with tier, crate, platform fit (desktop / web / mobile), what each needs from outside (server, binary, network), what should stay core and what belongs in a separate repository — and a critique of how much of the core could become extensions."/><meta property="og:image:alt" content="Every extension Moonkale has and every one it plans, with tier, crate, platform fit (desktop / web / mobile), what each needs from outside (server, binary, network), what should stay core and what belongs in a separate repository — and a critique of how much of the core could become extensions."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/extensions/Extension-Catalogue"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/extensions/Extension-Catalogue"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Every extension Moonkale has and every one it plans, with tier, crate, platform fit (desktop / web / mobile), what each needs from outside (server, binary, network), what should stay core and what belongs in a separate repository — and a critique of how much of the core could become extensions."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS8ucXVhcnR6L3F1YXJ0ei9jb21wb25lbnRzL3N0eWxlcyIsInNvdXJjZXMiOlsibWVybWFpZC5pbmxpbmUuc2NzcyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTs7O0FBS0Y7RUFDRTtFQUNBOzs7QUFJSjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFOztBQUdGO0VBQ0U7O0FBSUY7RUFDRTtFQUNBO0VBQ0EiLCJzb3VyY2VzQ29udGVudCI6WyIuZXhwYW5kLWJ1dHRvbiB7XG4gIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgZGlzcGxheTogZmxleDtcbiAgZmxvYXQ6IHJpZ2h0O1xuICBwYWRkaW5nOiAwLjRyZW07XG4gIG1hcmdpbjogMC4zcmVtO1xuICByaWdodDogMDsgLy8gTk9URTogcmlnaHQgd2lsbCBiZSBzZXQgaW4gbWVybWFpZC5pbmxpbmUudHNcbiAgY29sb3I6IHZhcigtLWdyYXkpO1xuICBib3JkZXItY29sb3I6IHZhcigtLWRhcmspO1xuICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1saWdodCk7XG4gIGJvcmRlcjogMXB4IHNvbGlkO1xuICBib3JkZXItcmFkaXVzOiA1cHg7XG4gIG9wYWNpdHk6IDA7XG4gIHRyYW5zaXRpb246IDAuMnM7XG5cbiAgJiA+IHN2ZyB7XG4gICAgZmlsbDogdmFyKC0tbGlnaHQpO1xuICAgIGZpbHRlcjogY29udHJhc3QoMC4zKTtcbiAgfVxuXG4gICY6aG92ZXIge1xuICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICBib3JkZXItY29sb3I6IHZhcigtLXNlY29uZGFyeSk7XG4gIH1cblxuICAmOmZvY3VzIHtcbiAgICBvdXRsaW5lOiAwO1xuICB9XG59XG5cbnByZSB7XG4gICY6aG92ZXIgPiAuZXhwYW5kLWJ1dHRvbiB7XG4gICAgb3BhY2l0eTogMTtcbiAgICB0cmFuc2l0aW9uOiAwLjJzO1xuICB9XG59XG5cbiNtZXJtYWlkLWNvbnRhaW5lciB7XG4gIHBvc2l0aW9uOiBmaXhlZDtcbiAgY29udGFpbjogbGF5b3V0O1xuICB6LWluZGV4OiA5OTk7XG4gIGxlZnQ6IDA7XG4gIHRvcDogMDtcbiAgd2lkdGg6IDEwMHZ3O1xuICBoZWlnaHQ6IDEwMHZoO1xuICBvdmVyZmxvdzogaGlkZGVuO1xuICBkaXNwbGF5OiBub25lO1xuICBiYWNrZHJvcC1maWx0ZXI6IGJsdXIoNHB4KTtcbiAgYmFja2dyb3VuZDogcmdiYSgwLCAwLCAwLCAwLjUpO1xuXG4gICYuYWN0aXZlIHtcbiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gIH1cblxuICAmID4gI21lcm1haWQtc3BhY2Uge1xuICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICBwb3NpdGlvbjogZml4ZWQ7XG4gICAgdG9wOiA1MCU7XG4gICAgbGVmdDogNTAlO1xuICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlKC01MCUsIC01MCUpO1xuICAgIGhlaWdodDogODB2aDtcbiAgICB3aWR0aDogODB2dztcbiAgICBvdmVyZmxvdzogaGlkZGVuO1xuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRlbnQge1xuICAgICAgcG9zaXRpb246IHJlbGF0aXZlO1xuICAgICAgdHJhbnNmb3JtLW9yaWdpbjogMCAwO1xuICAgICAgdHJhbnNpdGlvbjogdHJhbnNmb3JtIDAuMXMgZWFzZTtcbiAgICAgIG92ZXJmbG93OiB2aXNpYmxlO1xuICAgICAgbWluLWhlaWdodDogMjAwcHg7XG4gICAgICBtaW4td2lkdGg6IDIwMHB4O1xuXG4gICAgICBwcmUge1xuICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgIH1cblxuICAgICAgc3ZnIHtcbiAgICAgICAgbWF4LXdpZHRoOiBub25lO1xuICAgICAgICBoZWlnaHQ6IGF1dG87XG4gICAgICB9XG4gICAgfVxuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRyb2xzIHtcbiAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgIGJvdHRvbTogMjBweDtcbiAgICAgIHJpZ2h0OiAyMHB4O1xuICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgIGdhcDogOHB4O1xuICAgICAgcGFkZGluZzogOHB4O1xuICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgIGJvcmRlci1yYWRpdXM6IDZweDtcbiAgICAgIGJveC1zaGFkb3c6IDAgMnB4IDRweCByZ2JhKDAsIDAsIDAsIDAuMSk7XG4gICAgICB6LWluZGV4OiAyO1xuXG4gICAgICAubWVybWFpZC1jb250cm9sLWJ1dHRvbiB7XG4gICAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICAgIGFsaWduLWl0ZW1zOiBjZW50ZXI7XG4gICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB3aWR0aDogMzJweDtcbiAgICAgICAgaGVpZ2h0OiAzMnB4O1xuICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodCk7XG4gICAgICAgIGNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgICAgICAgYm9yZGVyLXJhZGl1czogNHB4O1xuICAgICAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgICAgIGZvbnQtc2l6ZTogMTZweDtcbiAgICAgICAgZm9udC1mYW1pbHk6IHZhcigtLWJvZHlGb250KTtcbiAgICAgICAgdHJhbnNpdGlvbjogYWxsIDAuMnMgZWFzZTtcblxuICAgICAgICAmOmhvdmVyIHtcbiAgICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICB9XG5cbiAgICAgICAgJjphY3RpdmUge1xuICAgICAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgxcHgpO1xuICAgICAgICB9XG5cbiAgICAgICAgLy8gU3R5bGUgdGhlIHJlc2V0IGJ1dHRvbiBkaWZmZXJlbnRseVxuICAgICAgICAmOm50aC1jaGlsZCgyKSB7XG4gICAgICAgICAgd2lkdGg6IGF1dG87XG4gICAgICAgICAgcGFkZGluZzogMCAxMnB4O1xuICAgICAgICAgIGZvbnQtc2l6ZTogMTRweDtcbiAgICAgICAgfVxuICAgICAgfVxuICAgIH1cbiAgfVxufVxuIl19 */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="extensions/Extension-Catalogue"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-198"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-198" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../extensions/">extensions</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Extension catalogue — current, planned, core or separate</a></div></nav><h1 class="article-title">Extension catalogue — current, planned, core or separate</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-19T23:41:26.000Z">Oct 19, 2026</time><span>12 min read</span></p><ul class="tags"><li><a href="../tags/extensions" class="internal tag-link">extensions</a></li><li><a href="../tags/moc" class="internal tag-link">moc</a></li><li><a href="../tags/architecture" class="internal tag-link">architecture</a></li><li><a href="../tags/reference" class="internal tag-link">reference</a></li></ul></div></div><article class="popover-hint"><p>From <a href="../Prompt15" class="internal" data-slug="Prompt15">Prompt15</a> (2026-09-19). <strong>Rule: whoever adds, removes, retiers or moves an extension updates this page in the same change.</strong> Mechanism: <a href="../architecture/Extension-System" class="internal alias" data-slug="architecture/Extension-System">Extension System</a>; writing one: <a href="../extensions/Writing-an-Extension" class="internal alias" data-slug="extensions/Writing-an-Extension">Writing an Extension</a>; where they come from after install: <a href="../extensions/Publishing-and-Platforms" class="internal alias" data-slug="extensions/Publishing-and-Platforms">Publishing and Platforms</a>, <a href="../packaging/Android-Extensions-and-Bundling" class="internal alias" data-slug="packaging/Android-Extensions-and-Bundling">Android Extensions and Bundling</a>.</p>
+<p>Tiers (<a href="../architecture/Extension-System" class="internal alias" data-slug="architecture/Extension-System">Extension System</a>): <strong>core</strong> — always on, cannot be disabled; <strong>optional</strong> — on by default, can be switched off in the <em>Extensions</em> panel; <strong>opt-in</strong> — off until enabled. <em>Static</em> = a Rust crate compiled into a build and listed in <code>moonkale_distribution::default_extensions()</code> (one Cargo feature per optional extension, Milestone 18 phase 4.1; the shell’s own four come from <code>moonkale_shell::builtin_extensions()</code>); <em>wasm</em> = a module loaded at runtime (JSON ABI v1: commands and agent tools only).</p>
+<p>Platform columns: ✅ works · ⚙️ works through the server (the web client’s process has no PTY/binaries/drivers; the server has) · ❌ not available · ⏳ compiles, not wired. The phone today has no server behind it, so anything that needs a process, a binary or a network driver is ❌ there until it talks to a hub.</p>
+<h2 id="current-milestone-17-line-counts-2026-10-01">Current (Milestone 17; line counts 2026-10-01)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#current-milestone-17-line-counts-2026-10-01" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Milestone 14 added the Rust code editor next to CodeMirror (<a href="../editors/Code-Editor-Implementations" class="internal alias" data-slug="editors/Code-Editor-Implementations">Code Editor Implementations</a>). Since Milestone 13 an extension can contribute its own <strong>settings</strong> (<code>Extension::settings</code>), shown under its row in the Extensions panel: the code editor (wrap), markdown (Rich by default, typography), the terminal (shell), the agent (policy, run on the server). Since Milestone 15 Settings no longer lists extensions at all; it keeps what is nobody’s alone — the saved agents (<a href="../architecture/Agent-Sessions-and-Profiles" class="internal alias" data-slug="architecture/Agent-Sessions-and-Profiles">Agent Sessions and Profiles</a>), search, the <em>Which extension</em> selectors (code editor, terminal), keybindings, You.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>id</th><th>name</th><th>crate (lines)</th><th>tier</th><th>contributes</th><th>desktop</th><th>web</th><th>mobile</th><th>needs from outside</th></tr></thead><tbody><tr><td><code>explorer</code></td><td>Explorer</td><td><code>shell/explorer.rs</code></td><td>core</td><td>side panel: sources, tree, file ops, context menu, drag-move, vcs/presence marks</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr><tr><td><code>search</code></td><td>Search</td><td><code>shell/search.rs</code></td><td>core</td><td>side panel: hybrid search, replace</td><td>✅</td><td>✅</td><td>✅</td><td>embeddings need an LLM provider (optional)</td></tr><tr><td><code>settings</code></td><td>Settings</td><td><code>shell/settings_panel.rs</code></td><td>core</td><td>panel: saved agents, search, which-extension selectors, keybindings, You (Milestone 15)</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr><tr><td><code>dev.moonkale.extensions</code></td><td>Extensions</td><td><code>shell/extensions_panel.rs</code></td><td>core</td><td>panel + activity-bar entry (Milestone 12): built-ins by tier with toggles and permissions, installed wasm modules</td><td>✅</td><td>✅</td><td>✅</td><td>—</td></tr><tr><td><code>dev.moonkale.editor-code</code></td><td>Code editor</td><td><code>editors/code</code> + the component crate <code>code-view</code> (1 505; split in Milestone 18 phase 4.1, Markdown’s Source mode uses <code>code-view</code> too)</td><td>core</td><td>editor for every text node; CodeMirror by default, Rust through the backend setting even in minimal distributions; LSP hover/definition/completion/rename/actions/references; presence gutter</td><td>✅</td><td>✅ (LSP ⚙️)</td><td>✅ (LSP ❌)</td><td>LSP servers on <code>PATH</code> (desktop) or on the server; CodeMirror bundle</td></tr><tr><td><code>dev.moonkale.editor-code-native</code></td><td>Code Editor (Rust)</td><td><code>editors/code-native</code> (313)</td><td><strong>opt-in</strong></td><td>the JS-free code editor (Milestone 14): editor-core + Dioxus, tree-sitter in Rust/wasm for every core language incl. Lean, Nix, Typst; revisioned save/history, LSP, search/folds, Markdown decorations and default-off Rust/Python/Julia documentation previews. <code>editor.implementation = &quot;native&quot;</code> activates it unless explicitly disabled; backend choices stay per document. WP-69 gives it four toolbar controls (Save/Reload/Wrap/⋯), palette commands, and a gear inside ⋯ for shared wrap/indentation/width preferences. Named input, bounded live caret/selection context, keyboard focus escape and native AT-SPI/browser accessibility checks are implemented; desktop FPS/Android/default cutover remain open</td><td>✅</td><td>✅</td><td>✅</td><td><code>dioxus-code</code> + <code>arborium</code> (two crates, MIT)</td></tr><tr><td><code>dev.moonkale.editor-markdown</code></td><td>Markdown &amp; links</td><td><code>editors/markdown</code> (987)</td><td>optional</td><td>rich (Milkdown) + source editing, backlinks/Links panel, Typst preview</td><td>✅</td><td>✅ (Typst ⚙️)</td><td>✅ (Typst ⏳: <code>compile_typst: None</code>)</td><td>Milkdown bundle; the <code>typst</code> crate (in-process; server on web)</td></tr><tr><td><code>dev.moonkale.editor-graph</code></td><td>Graph</td><td><code>editors/graph</code> + <code>graph-render</code> (930 + 2 340)</td><td>optional</td><td>the graph panel (2D/3D, wgpu, Barnes–Hut), stack-trace graphs; opt-in Rust declaration/move previews and complete same-folder reference-aware Rename on desktop/web (grouped buffer history and explicit per-file saves) (<a href="../architecture/Rust-Lossless-Syntax-and-Patches" class="internal alias" data-slug="architecture/Rust-Lossless-Syntax-and-Patches">Rust Lossless Syntax and Patches</a>)</td><td>✅ (WebKitGTK: GL)</td><td>✅</td><td>✅ (WebGL2, P-089)</td><td>a GPU context in the webview</td></tr><tr><td><code>dev.moonkale.editor-image</code></td><td>Image viewer</td><td><code>editors/image</code> (359)</td><td>optional</td><td>viewer for png/jpg/gif/webp/svg/bmp/ico/avif: fit/zoom/pan, SVG source</td><td>✅</td><td>✅ (bytes via <code>/api/sources/fetch_bytes</code>)</td><td>✅</td><td>—</td></tr><tr><td><code>dev.moonkale.editor-table</code></td><td>Table</td><td><code>editors/table</code> (242)</td><td>optional</td><td>editor for SQL/graph sources: schema, rows, queries</td><td>✅</td><td>⚙️</td><td>⏳ (no drivers in the mobile build)</td><td>drivers: SQLite, DuckDB, Turso (<code>sources-sql</code>), LadybugDB (Linux, <code>sources-graph</code>), redb (<code>sources-kv</code>) — compiled into desktop and the server, not extensions yet; HelixDB and RocksDB are opt-in build features (<code>helix</code>, <code>rocksdb</code>) since 2026-10-19, off in the release builds</td></tr><tr><td><code>dev.moonkale.editor-terminal</code></td><td>Terminal</td><td><code>editors/terminal</code> (441) + <code>terminal</code>, <code>terminal-pty</code>, <code>trace</code></td><td>optional</td><td>terminal panel (xterm), trace → graph</td><td>✅</td><td>⚙️</td><td>⚙️ (a server’s shell, Milestone 12)</td><td>a PTY; xterm bundle</td></tr><tr><td><code>dev.moonkale.editor-terminal-native</code></td><td>Terminal (Rust)</td><td><code>editors/terminal-native</code> (634)</td><td><strong>opt-in</strong></td><td>the JS-free twin (Milestone 12): a <code>vt100</code> screen rendered by Dioxus, keys encoded in Rust, colours, scrollback, Ctrl+click links; same backends. <code>terminal.implementation</code> picks, or a chooser asks when both are on</td><td>✅</td><td>⚙️</td><td>⚙️</td><td>a PTY (desktop) or a server; <code>vt100</code></td></tr><tr><td><code>dev.moonkale.editor-agent</code></td><td>Agent</td><td><code>editors/agent</code> (1 765) + <code>llm</code> (3 040)</td><td>optional</td><td>chat panel, tools under the policy gate, transcripts as pages, MCP for external agents (server); <strong>server sessions</strong> (<code>agent.on_server</code>, Milestone 12) that finish without a client; the <strong><code>claude-code</code> provider</strong> (the <code>claude</code> CLI on the subscription); <strong>sessions</strong> (Milestone 15): any number at once, each on a saved agent, history in the folder (<a href="../architecture/Agent-Sessions-and-Profiles" class="internal alias" data-slug="architecture/Agent-Sessions-and-Profiles">Agent Sessions and Profiles</a>)</td><td>✅</td><td>⚙️</td><td>⚙️ (server sessions when connected)</td><td>an LLM provider: Claude Code / Anthropic / OpenAI-compatible / Ollama / mock, keys via <code>SecretRef</code></td></tr><tr><td><code>dev.moonkale.editor-flow</code></td><td>Flow editor</td><td><code>editors/flow</code> (596)</td><td>opt-in</td><td>editor for <code>*.flow.json</code>: typed ports, block libraries from other extensions</td><td>✅</td><td>✅</td><td>✅</td><td>— (<code>dioxus-flow</code>)</td></tr><tr><td><code>dev.moonkale.lux</code></td><td>Lux.jl model assembler</td><td><strong><a href="https://github.com/MathStruct/moonkale-julia" class="external"><code>MathStruct/moonkale-julia</code><svg aria-hidden="true" class="external-icon" style="max-width:0.8em;max-height:0.8em;" viewBox="0 0 512 512"><path d="M320 0H288V64h32 82.7L201.4 265.4 178.7 288 224 333.3l22.6-22.6L448 109.3V192v32h64V192 32 0H480 320zM32 32H0V64 480v32H32 456h32V480 352 320H424v32 96H64V96h96 32V32H160 32z"></path></svg></a></strong> (583; moved in Milestone 18 phase 6.4, pulled by git tag behind the distribution’s off-by-default <code>julia</code> feature)</td><td>opt-in</td><td>a block library for the flow editor + Julia code generation</td><td>✅</td><td>✅</td><td>✅ (generate only)</td><td>Julia + Lux.jl to <em>run</em> the generated model (never from Moonkale yet)</td></tr><tr><td><code>dev.moonkale.git</code></td><td>Git</td><td><code>extensions/git</code> (1 051) + <code>ext-api/git.rs</code></td><td>optional</td><td>Changes panel, diff panel, commit, history as a graph, vcs marks</td><td>✅</td><td>⚙️</td><td>❌ (no <code>git</code>)</td><td>the <code>git</code> binary (feature <code>cli</code>)</td></tr><tr><td><code>history</code></td><td>History</td><td><code>extensions/history</code> (its own crate since Milestone 18 phase 4.2; feature <code>history</code> of the distribution)</td><td>optional</td><td>entity-log panel: events, text at any event, compact, restore</td><td>✅</td><td>✅</td><td>✅</td><td>— (the host’s state store, table <code>events</code>; was <code>.moonkale/history.jsonl</code>)</td></tr><tr><td><code>org.example.wordcount</code></td><td>Word count</td><td><code>extensions/wordcount</code> (164)</td><td>wasm example</td><td>two commands / agent tools</td><td>✅ (wasmtime)</td><td>✅ (browser runtime or server)</td><td>❌ (no runtime yet)</td><td>the module file</td></tr></tbody></table></div>
+<p>WP-18 (2026-10-17): <code>sources/unison</code> is a <strong>source driver</strong>, not an extension manifest. The default-off <code>unison</code> distribution/platform/server feature registers local <code>*.unison</code> codebase roots; store-backed namespaces, names and definitions draw through the existing Graph panel. UCM 1.5 is a runtime dependency only; read-only snapshots, no watch/write/dialect. See <code>packages/sources/unison/sources-unison.md</code>.</p>
+<p>WP-68 (2026-10-20): <code>sources/sophia</code> is a <strong>source driver</strong> too. The default-off <code>sophia</code> distribution/platform/server feature registers <code>*.sophia</code> Sophia stores (SQLite), editable as text through Sophia’s <code>sophia-interface</code>. See <code>packages/sources/sophia/sources-sophia.md</code>.</p>
+<p>Not extensions but wired as platform capabilities (<code>WorkspaceConfig</code>): presence (web + desktop hub; mobile <code>None</code>), the wasm runtime, secret store, settings store, folder picker. They are candidates for extension status only where a contribution point exists.</p>
+<h2 id="planned-documented-in-the-vault-not-built">Planned (documented in the vault, not built)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#planned-documented-in-the-vault-not-built" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>extension</th><th>design</th><th>tier</th><th>where it should live</th><th>needs</th></tr></thead><tbody><tr><td><code>lang-rust</code>, <code>lang-julia</code>, <code>lang-c</code>, <code>lang-ts</code>, <code>lang-go</code>, <code>lang-lean</code>, <code>lang-nix</code>, <code>lang-pixi</code>, <code>lang-sql</code>, <code>lang-cypher</code>, <code>lang-helixql</code>, <code>lang-typeql</code>, <code>lang-graphql</code>, <code>lang-json</code>, <code>lang-toml</code>, <code>lang-markdown</code>, <code>lang-typst</code></td><td><a href="../platform/Core-Languages" class="internal alias" data-slug="platform/Core-Languages">Core Languages</a></td><td>core (data-only: grammar, queries, LSP command)</td><td>this repo, <code>packages/extensions/lang-*</code></td><td>the highlighting channel first</td></tr><tr><td><code>tabs</code> (Rust), Typst math + CeTZ fences (Rust via <code>typst</code>), <code>mermaid</code> (JS, lazy), <code>tikz</code> (desktop only: native TeX or TikZJax) — all through a fence-renderer contribution</td><td><a href="../editors/Markdown-Diagrams-and-Math" class="internal alias" data-slug="editors/Markdown-Diagrams-and-Math">Markdown Diagrams and Math</a></td><td>tabs/typst-math: optional; mermaid/tikz: opt-in</td><td>tikz in a separate repo (heavy wasm), the rest here</td><td>TeX on <code>PATH</code> for tikz’s native backend</td></tr><tr><td>Annotations (comments on nodes/ranges, GitHub issues import)</td><td><a href="../architecture/Annotations" class="internal" data-slug="architecture/Annotations">Annotations</a></td><td>optional</td><td>this repo</td><td>host tokens for import</td></tr><tr><td><code>notebook</code> — <code>.ipynb</code> viewer/editor (no new deps) + kernel execution behind a <code>kernel</code> feature (pure-Rust ZeroMQ; ipykernel, IJulia)</td><td><a href="../editors/Notebook-Editor" class="internal alias" data-slug="editors/Notebook-Editor">Notebook Editor</a></td><td>opt-in</td><td>this repo; desktop/web/phone view, desktop + server execute</td><td>Jupyter kernels installed</td></tr><tr><td>Unicode input tables</td><td><a href="../editors/Unicode-Input" class="internal alias" data-slug="editors/Unicode-Input">Unicode Input</a></td><td>core (Julia + Lean tables)</td><td>this repo (<code>shell/assets/unicode</code>)</td><td>the <code>unicode</code> contribution point</td></tr><tr><td>Claude Code — Level 2, the IDE bridge (lock file, WebSocket MCP, <code>openDiff</code>)</td><td><a href="../extensions/Claude-Code-Extension" class="internal alias" data-slug="extensions/Claude-Code-Extension">Claude Code Extension</a></td><td>opt-in</td><td>this repo; Level 3 (the provider) shipped in Milestone 12 inside <code>moonkale-llm</code> (feature <code>claude-code</code>)</td><td>the <code>claude</code> binary</td></tr><tr><td>HelixDB source — <strong>embedded mode built in Milestone 17</strong> inside <code>sources-graph</code> (git dependency); HTTP mode open</td><td><a href="../specifications/002" class="internal" data-slug="specifications/002">002</a></td><td>—</td><td>candidate for <code>moonkale-sources-extra</code> once source openers exist</td><td>the published crate</td></tr><tr><td>Postgres / Redis / TypeDB / FalkorDB sources (Turso, redb and RocksDB embedded: built in Milestone 17)</td><td><a href="../architecture/Data-Sources" class="internal alias" data-slug="architecture/Data-Sources">Data Sources</a></td><td>opt-in</td><td>separate (<code>moonkale-sources-extra</code>)</td><td>a running server each</td></tr><tr><td>Remote folder (SSH), git-host repositories, API (OpenAPI) sources</td><td><a href="../architecture/Projects-and-Sources" class="internal alias" data-slug="architecture/Projects-and-Sources">Projects and Sources</a></td><td>optional</td><td>this repo (sources are core-adjacent)</td><td>ssh / tokens</td></tr><tr><td>Julia REPL, LanguageServer.jl, Lean infoview</td><td><a href="../platform/Core-Languages" class="internal alias" data-slug="platform/Core-Languages">Core Languages</a></td><td>opt-in</td><td><code>MathStruct/moonkale-julia</code>, <code>moonkale-lean</code></td><td>Julia / Lean toolchains</td></tr><tr><td>Julia depot read-only source (<code>Project.toml</code>/<code>Manifest.toml</code> → <code>~/.julia/packages</code>), ModelingToolkit Simulink-like editor, <strong>Lenticulum.jl factor-graph editor and live viewer</strong> + <code>Moonkale.jl</code> companion</td><td><a href="../architecture/Julia-and-Lenticulum" class="internal alias" data-slug="architecture/Julia-and-Lenticulum">Julia and Lenticulum</a></td><td>opt-in</td><td><code>MathStruct/moonkale-julia</code> — never in the standard web build</td><td>Julia; a running Julia session for live state</td></tr><tr><td><strong>Knowledge Graph Studio</strong>: the frontend for oxilite (RDF, SPARQL, reasoning, SHACL, schema registry) and tiramemsu (layered, bitemporal memory), on their crates as they are; plus a language-server contribution point for <code>oxilite studio-server</code></td><td><a href="../extensions/Knowledge-Graph-Studio" class="internal alias" data-slug="extensions/Knowledge-Graph-Studio">Knowledge Graph Studio</a> (proposal, 2026-10-14)</td><td>opt-in</td><td>its own repository, like <code>moonkale-julia</code></td><td>the <code>oxilite</code> and <code>tiramemsu</code> crates; <code>oxilite studio-server</code> for language features</td></tr><tr><td>Plain-text tier for huge files, coarse graph tier</td><td><a href="../editors/Case-Selector" class="internal alias" data-slug="editors/Case-Selector">Case Selector</a></td><td>core (backends, not extensions)</td><td>this repo</td><td>—</td></tr><tr><td>Remote runtime on the phone for wasm extensions + “Install from URL”</td><td><a href="../packaging/Android-Extensions-and-Bundling" class="internal alias" data-slug="packaging/Android-Extensions-and-Bundling">Android Extensions and Bundling</a></td><td>core mechanism</td><td>this repo</td><td>—</td></tr></tbody></table></div>
+<h2 id="what-should-be-core-what-should-be-a-separate-repository">What should be core, what should be a separate repository<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#what-should-be-core-what-should-be-a-separate-repository" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The longer discussion, with criteria and the open placements for the October 2026 requests, is <a href="../architecture/Core-and-Extensions" class="internal alias" data-slug="architecture/Core-and-Extensions">Core and Extensions</a>; the cases it should be argued from are collected in <a href="../research/Use-Cases" class="internal alias" data-slug="research/Use-Cases">Use Cases</a>.</p>
+<p><strong>Core (this repository, every build):</strong> Explorer, Search, Settings, History; the code editor, Markdown &amp; links (+ Typst preview), Graph, Table, Terminal, Agent (with the provider library), Git, <strong>the Flow editor</strong> (a generic editor for <code>*.flow.json</code> with typed ports — the block libraries are what make it domain-specific, and those can live elsewhere); the core language packs; the Unicode tables. Criterion: everything a person needs to <em>edit code and notes and look at their data</em> on the first day, with no toolchain beyond Moonkale itself.</p>
+<p><strong>Separate repositories (under <code>MathStruct/</code>):</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>repo</th><th>contents</th><th>why separate</th><th>how it plugs in</th></tr></thead><tbody><tr><td><code>moonkale-julia</code></td><td>the Lux.jl model assembler (<strong>there since 2026-10-03</strong>, <code>v0.1.0</code>), its block library, later Julia REPL / LanguageServer.jl integration, an MTK/data-pipeline library</td><td>Julia-specific audience, its own release cadence (Lux.jl changes), and it <em>needs a Julia toolchain to be useful</em> — the flow editor does not</td><td>a static Rust crate depending on <code>moonkale-ext-api</code> (published or by git tag) that contributes a <code>flow.library</code>; compiled into a build by a Cargo feature in the platform crates (below)</td></tr><tr><td><code>moonkale-sources-extra</code></td><td>Postgres, Turso, Redis/Dragonfly, TypeDB, HelixDB drivers</td><td>heavy and foreign dependency trees (git deps, C++), each needs a server to test; the core should build in minutes without them</td><td><code>Source</code> implementations behind features; desktop/server opt in</td></tr><tr><td><code>moonkale-lean</code></td><td>Lean infoview, <code>lake</code> integration</td><td>toolchain-bound, small audience</td><td>same as julia</td></tr><tr><td><code>moonkale-extension-template</code></td><td>the wordcount wasm example, the guest crate scaffold</td><td>it is a teaching artefact, not product</td><td>copied by extension authors</td></tr></tbody></table></div>
+<p>A separate repository does <strong>not</strong> mean “downloadable”: static Rust extensions are still compiled into the binary (only wasm ones are loaded at runtime — <a href="../packaging/Android-Extensions-and-Bundling" class="internal alias" data-slug="packaging/Android-Extensions-and-Bundling">Android Extensions and Bundling</a>). The mechanism for external static crates is a Cargo feature per extension in the platform crates and a catalogue assembled <em>there</em>, which the core does not have yet (critique, next).</p>
+<h2 id="critique-how-sleek-is-the-core-today">Critique: how sleek is the core today?<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#critique-how-sleek-is-the-core-today" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>What is good: the boundaries that exist are real — JS behind traits with a protocol per package, <code>Source</code> for every backend, <code>Provider</code> for every LLM, <code>Extension</code> + manifests + tiers for every panel, permissions on the wasm ABI; 129 native tests and 47 browser suites (2026-10; none run in CI); every crate under 4 000 lines. What is not yet sleek, in order of leverage:</p>
+<ol>
+<li><strong><code>ui</code> knows every extension.</strong> <em>(Fixed in Milestone 18 phase 4.1: <code>moonkale-distribution</code> holds the catalogue, <code>ui</code> depends on <code>ext-api</code>, <code>core</code> and the protocol crates only.)</em> <code>packages/shell/Cargo.toml</code> depends on all eight editor/extension crates, on <code>api</code>, and on the SQL/graph driver crates; <code>moonkale_shell::default_extensions()</code> is the catalogue. So the “core” cannot be built without Lux, git, the agent — and an external crate (<code>moonkale-julia</code>) cannot be added without editing <code>ui</code>. <strong>Fix</strong>: the catalogue moves to the platform crates (<code>desktop</code>, <code>web</code>, <code>mobile</code>) or a small <code>distribution</code> crate that lists extensions behind Cargo features (<code>julia</code>, <code>git</code>, <code>agent</code>, …); <code>ui</code> depends only on <code>ext-api</code>. This is the single change that makes separate repositories possible.</li>
+<li><strong><code>ext-api::Workspace</code> is a 2 603-line object</strong> (1 752 when this was written; 39 public signals in 2026-10) holding documents, sources, history, presence, cursor, browser-wasm, file ops, settings, restore, compaction. Every extension touches it, so every change risks every extension. <strong>Fix</strong>: services behind the facade (<code>documents</code>, <code>sources</code>, <code>history</code>, <code>presence</code>, <code>extensions</code>), each its own module with its own tests; the <code>Workspace</code> keeps the signals and delegates.</li>
+<li><strong>Extension code that lives in the core</strong>: the History panel (<code>shell/history.rs</code>) and the git <em>types</em> (<code>ext-api/git.rs</code>, there because the server needs them) belong to their extensions (<code>packages/extensions/history</code>; git types in the git crate behind a <code>types</code> feature). The Explorer knows DuckDB/LadybugDB file extensions by calling the driver crates — that should be a <strong>file-opener contribution</strong> (<code>opens: [&quot;.duckdb&quot;, &quot;.csv&quot;] → source</code>) so the core has no driver knowledge.</li>
+<li><strong>The server cannot be extended.</strong> <code>api</code> (2 811 lines in 2026-10) holds the routes for git, LSP, terminal, Typst, wasm, presence, MCP and the LLM relay; an extension that needs a server half (git, a database driver, Claude Code) has to patch <code>api</code>. <strong>Fix</strong>: a server-side contribution point — an extension crate with a <code>server</code> feature registers its routes/server functions; <code>api</code> becomes the host. Together with 1 this is what lets <code>moonkale-sources-extra</code> exist.</li>
+<li><strong>The wasm ABI cannot contribute UI</strong>, so every panel must be a static crate compiled into every build. Until the UI contribution model (<code>moonkale_shell::Tree</code>) exists, “sleek core + downloadable extensions” is only true for commands and agent tools. This is the long pole; 1–4 are cheap by comparison and worth doing first.</li>
+<li><strong>Performance and bug surface, honestly</strong>: the code paths that hurt are not the extension boundary — they are the whole-document-per-keystroke bridge (P-037), the <code>eval</code> handshake rules (P-047 family), and dx not rebuilding non-rsx changes (P-056). Splitting crates does not fix those; fixing P-037 does more for “performant” than any restructuring.</li>
+</ol>
+<h2 id="proposed-steps--now-scheduled-as-milestone-18---library-refactor-phases-2-4-and-6">Proposed steps — now scheduled as <a href="../milestones/Milestone-18---Library-Refactor" class="internal alias" data-slug="milestones/Milestone-18---Library-Refactor">Milestone 18 - Library Refactor</a> (phases 2, 4 and 6)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#proposed-steps--now-scheduled-as-milestone-18---library-refactor-phases-2-4-and-6" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ol>
+<li><code>distribution</code>/platform catalogue + <code>ui</code> without extension deps + Cargo features per extension (<code>--no-default-features</code> builds Explorer/Search/Settings/Code/Markdown/Graph only).</li>
+<li>History → <code>packages/extensions/history</code>; git types → git crate; file-opener contribution replaces the driver calls in the Explorer.</li>
+<li>Server contribution point; git/LSP/terminal/typst relays move into their crates behind <code>server</code> features.</li>
+<li><del><code>packages/extensions/lux</code> → <code>MathStruct/moonkale-julia</code></del> — <strong>done in Milestone 18 phase 6.4</strong>: it depends on <code>moonkale-ext-api</code> by git tag (<code>lib-v1</code> at <code>v0.1.0</code>, <code>ext-api-2026-10-12</code> since the pins); Moonkale pulls it by git behind <code>julia</code> and patches the contract to its own path; CI here checks the distribution with <code>--features julia</code>. The flow editor stays here. Since ADR-0020 it carries the Lux.jl block library and the ModelingToolkit one (acausal, domain-typed pins, <code>circuit.jl</code> codegen, the <code>mtk</code> extension); since ADR-0022 (v0.4.0) also the <strong>RxInfer</strong> one (a bipartite factor graph of variables and distribution factors, <code>inference.jl</code> codegen, the <code>rxinfer</code> extension); since ADR-0024 (v0.5.0) its kinds draw as symbols, and since v0.6.0 they carry captions.</li>
+<li><code>Workspace</code> split into services.</li>
+</ol>
+<h2 id="changelog-of-this-page">Changelog of this page<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#changelog-of-this-page" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>2026-09-19 — created after Milestone 9 with 13 static + 1 wasm extension.</li>
+<li>2026-09-20 — <code>editor-image</code> added (spec 008); planned rows for the Julia depot source, MTK editor and the Lenticulum editor (<a href="../architecture/Julia-and-Lenticulum" class="internal alias" data-slug="architecture/Julia-and-Lenticulum">Julia and Lenticulum</a>); markdown fence renderers (tabs, Typst math, Mermaid, TikZ), Annotations, and the Notebook editor.</li>
+<li>2026-10-01 — vault refactor: line counts and Milestone 16/17 state updated; Turso/redb/RocksDB/HelixDB (embedded) built as sources inside the driver crates, not as extensions; the proposed steps are scheduled in <a href="../milestones/Milestone-18---Library-Refactor" class="internal alias" data-slug="milestones/Milestone-18---Library-Refactor">Milestone 18 - Library Refactor</a>.</li>
+<li>2026-10-19 — HelixDB and RocksDB out of the default desktop/server build: opt-in features <code>helix</code> and <code>rocksdb</code> (desktop, server, web); the release packages no longer open them (Daniel).</li>
+<li>2026-10-20 — <code>sources/sophia</code> (WP-68): Sophia code stores as a default-off source driver, feature <code>sophia</code>.</li>
+</ul></article><hr/><div class="page-footer"><div class="giscus" data-repo="MathStruct/Moonkale" data-repo-id="R_kgDOUeDr7g" data-category="Announcements" data-category-id="DIC_kwDOUeDr7s4DJXDC" data-mapping="pathname" data-strict="1" data-reactions-enabled="1" data-input-position="bottom" data-light-theme="light" data-dark-theme="dark" data-theme-url="https://mathstruct.org/Moonkale/static/giscus" data-lang="en"></div></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-88" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#current-milestone-17-line-counts-2026-10-01" data-for="current-milestone-17-line-counts-2026-10-01">Current (Milestone 17; line counts 2026-10-01)</a></li><li class="depth-0"><a href="#planned-documented-in-the-vault-not-built" data-for="planned-documented-in-the-vault-not-built">Planned (documented in the vault, not built)</a></li><li class="depth-0"><a href="#what-should-be-core-what-should-be-a-separate-repository" data-for="what-should-be-core-what-should-be-a-separate-repository">What should be core, what should be a separate repository</a></li><li class="depth-0"><a href="#critique-how-sleek-is-the-core-today" data-for="critique-how-sleek-is-the-core-today">Critique: how sleek is the core today?</a></li><li class="depth-0"><a href="#proposed-steps--now-scheduled-as-milestone-18---library-refactor-phases-2-4-and-6" data-for="proposed-steps--now-scheduled-as-milestone-18---library-refactor-phases-2-4-and-6">Proposed steps — now scheduled as Milestone 18 - Library Refactor (phases 2, 4 and 6)</a></li><li class="depth-0"><a href="#changelog-of-this-page" data-for="changelog-of-this-page">Changelog of this page</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../Development" class="internal">Development</a></li><li><a href="../Getting-Started" class="internal">Getting started — Moonkale for VS Code and Obsidian users</a></li><li><a href="../Home" class="internal">Moonkale — Vault Home</a></li><li><a href="../Status" class="internal">Status</a></li><li><a href="../architecture/Core-and-Extensions" class="internal">Core and extensions — a discussion</a></li><li><a href="../architecture/Extension-System" class="internal">Extension System</a></li><li><a href="../architecture/Julia-and-Lenticulum" class="internal">Julia and Lenticulum.jl — the goal behind Moonkale</a></li><li><a href="../editors/Notebook-Editor" class="internal">Notebook editor (.ipynb) — plan</a></li><li><a href="../editors/Rust-Code-Editor-Accessibility-and-Cutover" class="internal">Rust Code Editor Accessibility and Cutover</a></li><li><a href="../" class="internal">Moonkale</a></li><li><a href="../milestones/Milestone-12---Agents-and-a-Native-Terminal" class="internal">Milestone 12 — Agents and a native terminal: the plan</a></li><li><a href="../milestones/Milestone-12---Implementation-Log" class="internal">Milestone 12 — Implementation Log</a></li><li><a href="../milestones/Milestone-13---Implementation-Log" class="internal">Milestone 13 — Implementation Log</a></li><li><a href="../milestones/Milestone-14---Implementation-Log" class="internal">Milestone 14 — Implementation Log</a></li><li><a href="../milestones/Milestone-14---Rust-Code-Editor" class="internal">Milestone 14 — A Rust code editor: the plan</a></li><li><a href="../milestones/Milestone-15---Agents,-Profiles-and-Connections" class="internal">Milestone 15 — Agents, profiles and connections: the plan</a></li><li><a href="../milestones/Milestone-15---Implementation-Log" class="internal">Milestone 15 — Implementation Log</a></li><li><a href="../milestones/Milestone-18---Library-Refactor" class="internal">Milestone 18 — Library refactor (plan)</a></li><li><a href="../problems/Problem-Ranking" class="internal">Problem Ranking</a></li><li><a href="../problems/Work-Packages" class="internal">Work Packages</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>

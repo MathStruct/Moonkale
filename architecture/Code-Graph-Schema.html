@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Code Graph Schema — definitions, identity and edges for many languages on one graph</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Code Graph Schema — definitions, identity and edges for many languages on one graph"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Code Graph Schema — definitions, identity and edges for many languages on one graph"/><meta name="twitter:description" content="Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches."/><meta property="og:description" content="Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches."/><meta property="og:image:alt" content="Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/architecture/Code-Graph-Schema"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/architecture/Code-Graph-Schema"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS8ucXVhcnR6L3F1YXJ0ei9jb21wb25lbnRzL3N0eWxlcyIsInNvdXJjZXMiOlsibWVybWFpZC5pbmxpbmUuc2NzcyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTs7O0FBS0Y7RUFDRTtFQUNBOzs7QUFJSjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFOztBQUdGO0VBQ0U7O0FBSUY7RUFDRTtFQUNBO0VBQ0EiLCJzb3VyY2VzQ29udGVudCI6WyIuZXhwYW5kLWJ1dHRvbiB7XG4gIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgZGlzcGxheTogZmxleDtcbiAgZmxvYXQ6IHJpZ2h0O1xuICBwYWRkaW5nOiAwLjRyZW07XG4gIG1hcmdpbjogMC4zcmVtO1xuICByaWdodDogMDsgLy8gTk9URTogcmlnaHQgd2lsbCBiZSBzZXQgaW4gbWVybWFpZC5pbmxpbmUudHNcbiAgY29sb3I6IHZhcigtLWdyYXkpO1xuICBib3JkZXItY29sb3I6IHZhcigtLWRhcmspO1xuICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1saWdodCk7XG4gIGJvcmRlcjogMXB4IHNvbGlkO1xuICBib3JkZXItcmFkaXVzOiA1cHg7XG4gIG9wYWNpdHk6IDA7XG4gIHRyYW5zaXRpb246IDAuMnM7XG5cbiAgJiA+IHN2ZyB7XG4gICAgZmlsbDogdmFyKC0tbGlnaHQpO1xuICAgIGZpbHRlcjogY29udHJhc3QoMC4zKTtcbiAgfVxuXG4gICY6aG92ZXIge1xuICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICBib3JkZXItY29sb3I6IHZhcigtLXNlY29uZGFyeSk7XG4gIH1cblxuICAmOmZvY3VzIHtcbiAgICBvdXRsaW5lOiAwO1xuICB9XG59XG5cbnByZSB7XG4gICY6aG92ZXIgPiAuZXhwYW5kLWJ1dHRvbiB7XG4gICAgb3BhY2l0eTogMTtcbiAgICB0cmFuc2l0aW9uOiAwLjJzO1xuICB9XG59XG5cbiNtZXJtYWlkLWNvbnRhaW5lciB7XG4gIHBvc2l0aW9uOiBmaXhlZDtcbiAgY29udGFpbjogbGF5b3V0O1xuICB6LWluZGV4OiA5OTk7XG4gIGxlZnQ6IDA7XG4gIHRvcDogMDtcbiAgd2lkdGg6IDEwMHZ3O1xuICBoZWlnaHQ6IDEwMHZoO1xuICBvdmVyZmxvdzogaGlkZGVuO1xuICBkaXNwbGF5OiBub25lO1xuICBiYWNrZHJvcC1maWx0ZXI6IGJsdXIoNHB4KTtcbiAgYmFja2dyb3VuZDogcmdiYSgwLCAwLCAwLCAwLjUpO1xuXG4gICYuYWN0aXZlIHtcbiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gIH1cblxuICAmID4gI21lcm1haWQtc3BhY2Uge1xuICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICBwb3NpdGlvbjogZml4ZWQ7XG4gICAgdG9wOiA1MCU7XG4gICAgbGVmdDogNTAlO1xuICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlKC01MCUsIC01MCUpO1xuICAgIGhlaWdodDogODB2aDtcbiAgICB3aWR0aDogODB2dztcbiAgICBvdmVyZmxvdzogaGlkZGVuO1xuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRlbnQge1xuICAgICAgcG9zaXRpb246IHJlbGF0aXZlO1xuICAgICAgdHJhbnNmb3JtLW9yaWdpbjogMCAwO1xuICAgICAgdHJhbnNpdGlvbjogdHJhbnNmb3JtIDAuMXMgZWFzZTtcbiAgICAgIG92ZXJmbG93OiB2aXNpYmxlO1xuICAgICAgbWluLWhlaWdodDogMjAwcHg7XG4gICAgICBtaW4td2lkdGg6IDIwMHB4O1xuXG4gICAgICBwcmUge1xuICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgIH1cblxuICAgICAgc3ZnIHtcbiAgICAgICAgbWF4LXdpZHRoOiBub25lO1xuICAgICAgICBoZWlnaHQ6IGF1dG87XG4gICAgICB9XG4gICAgfVxuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRyb2xzIHtcbiAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgIGJvdHRvbTogMjBweDtcbiAgICAgIHJpZ2h0OiAyMHB4O1xuICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgIGdhcDogOHB4O1xuICAgICAgcGFkZGluZzogOHB4O1xuICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgIGJvcmRlci1yYWRpdXM6IDZweDtcbiAgICAgIGJveC1zaGFkb3c6IDAgMnB4IDRweCByZ2JhKDAsIDAsIDAsIDAuMSk7XG4gICAgICB6LWluZGV4OiAyO1xuXG4gICAgICAubWVybWFpZC1jb250cm9sLWJ1dHRvbiB7XG4gICAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICAgIGFsaWduLWl0ZW1zOiBjZW50ZXI7XG4gICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB3aWR0aDogMzJweDtcbiAgICAgICAgaGVpZ2h0OiAzMnB4O1xuICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodCk7XG4gICAgICAgIGNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgICAgICAgYm9yZGVyLXJhZGl1czogNHB4O1xuICAgICAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgICAgIGZvbnQtc2l6ZTogMTZweDtcbiAgICAgICAgZm9udC1mYW1pbHk6IHZhcigtLWJvZHlGb250KTtcbiAgICAgICAgdHJhbnNpdGlvbjogYWxsIDAuMnMgZWFzZTtcblxuICAgICAgICAmOmhvdmVyIHtcbiAgICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICB9XG5cbiAgICAgICAgJjphY3RpdmUge1xuICAgICAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgxcHgpO1xuICAgICAgICB9XG5cbiAgICAgICAgLy8gU3R5bGUgdGhlIHJlc2V0IGJ1dHRvbiBkaWZmZXJlbnRseVxuICAgICAgICAmOm50aC1jaGlsZCgyKSB7XG4gICAgICAgICAgd2lkdGg6IGF1dG87XG4gICAgICAgICAgcGFkZGluZzogMCAxMnB4O1xuICAgICAgICAgIGZvbnQtc2l6ZTogMTRweDtcbiAgICAgICAgfVxuICAgICAgfVxuICAgIH1cbiAgfVxufVxuIl19 */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="architecture/Code-Graph-Schema"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-23"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-23" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../architecture/">architecture</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Code Graph Schema — definitions, identity and edges for many languages on one graph</a></div></nav><h1 class="article-title">Code Graph Schema — definitions, identity and edges for many languages on one graph</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-24T08:49:56.000Z">Oct 24, 2026</time><span>24 min read</span></p><ul class="tags"><li><a href="../tags/architecture" class="internal tag-link">architecture</a></li><li><a href="../tags/code-graph" class="internal tag-link">code-graph</a></li><li><a href="../tags/spec" class="internal tag-link">spec</a></li><li><a href="../tags/draft" class="internal tag-link">draft</a></li><li><a href="../tags/north-star" class="internal tag-link">north-star</a></li></ul></div></div><article class="popover-hint"><p><strong>Status:</strong> draft, 2026-10-15 (Claude). It fills the gap noted in <a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a>: “a definition is a node, keyed by the hash of its normalised structure, with names as edges to it” had no schema behind it.</p>
+<ul>
+<li><strong>Identity, kinds, edges, layers and provenance</strong> are Claude’s to decide, under the North Star’s constraints. They’re reviewed like any spec.</li>
+<li><strong>Where the truth lives</strong> is <a href="../decisions/ADR-0028-Files-or-the-graph" class="internal alias" data-slug="decisions/ADR-0028-Files-or-the-graph">ADR-0028 Files or the graph</a>, accepted 2026-10-15 as option B: files stay the truth for file-backed code, graph-side edits print back as text patches (Rust first), and store-backed sources hold their own truth.</li>
+</ul>
+<p>It builds on:</p>
+<ul>
+<li><a href="../architecture/Graph-Native-Model" class="internal alias" data-slug="architecture/Graph-Native-Model">Graph-Native Model</a>: nodes, edges, open kinds, properties;</li>
+<li><a href="../decisions/ADR-0015-The-core-model" class="internal alias" data-slug="decisions/ADR-0015-The-core-model">ADR-0015 The core model</a>: <code>NodeId::from_content</code>;</li>
+<li><a href="../architecture/Indexing" class="internal" data-slug="architecture/Indexing">Indexing</a>: tree-sitter symbols today;</li>
+<li><a href="../architecture/Annotations" class="internal" data-slug="architecture/Annotations">Annotations</a> and <a href="../architecture/Shared-Work" class="internal alias" data-slug="architecture/Shared-Work">Shared Work</a> §5: tools as actors, provenance.</li>
+</ul>
+<h2 id="1-principles-from-the-north-stars-constraints">1. Principles (from the North Star’s constraints)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#1-principles-from-the-north-stars-constraints" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ol>
+<li><strong>No language is privileged.</strong> The shared kinds describe what every language has (a definition, a reference, a type). What only one language has is namespaced by its frontend (<code>rust:Impl</code>, <code>julia:Method</code>).</li>
+<li><strong>A definition is the unit.</strong> Not a file, not a line, not a text range. A file <em>contains</em> definitions, and the text range is a property of the occurrence, not of the definition.</li>
+<li><strong>Two identities:</strong>
+<ul>
+<li><strong>where a definition is</strong>, a location id: stable across edits while it stays put;</li>
+<li><strong>what it is</strong>, a content id: stable across moves, renames and reformatting, and changed by any change in meaning.</li>
+</ul>
+</li>
+<li><strong>Names are edges, not identity.</strong> Two names can point at one definition, and a rename changes an edge, not the node.</li>
+<li><strong>Everything derived carries provenance:</strong> which frontend, which version, and from which input hash. It goes stale with its input (<a href="../decisions/ADR-0026-Memory-and-the-store" class="internal alias" data-slug="decisions/ADR-0026-Memory-and-the-store">ADR-0026 Memory and the store</a>).</li>
+<li><strong>Layers, not copies.</strong> Syntax, definitions, elaborated core, IRs and machine code are layers linked by provenance edges. A view shows one layer and follows edges between them.</li>
+<li><strong>Graphs, not trees.</strong> Mutual recursion, generic instantiation, e-classes and shared subterms make it a DAG with cycles in places. Nothing may assume a tree.</li>
+</ol>
+<h2 id="2-layers">2. Layers<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#2-layers" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Layer</th><th>What</th><th>Stored?</th><th>Built by</th></tr></thead><tbody><tr><td><strong>L0 Text</strong></td><td>the file (<code>File</code> node, <code>ContentRef::Text</code>)</td><td>the source (folder, git)</td><td>today</td></tr><tr><td><strong>L1 Syntax</strong></td><td>a lossless syntax tree: tree-sitter nodes plus trivia (comments and whitespace attached to tokens)</td><td>derived, on demand, cached by file hash; never persisted wholesale</td><td>the frontend. Required for printing edits back (ADR-0028 option B)</td></tr><tr><td><strong>L2 Definitions</strong></td><td>definitions, names, references, the shared edge kinds below</td><td>derived and <strong>persisted</strong> (the incremental index, WP-21)</td><td>the frontend’s extractor</td></tr><tr><td><strong>L3 Elaborated</strong></td><td>what an elaborator knows: resolved types, trait and method dispatch, macro expansions, effects</td><td>derived, on demand</td><td>real elaborators (rust-analyzer, Julia’s lowering and inference, Lean’s environment)</td></tr><tr><td><strong>L4+ IR</strong></td><td>MIR or Julia’s typed IR, MLIR dialects, LLVM IR, assembly</td><td>derived, on demand</td><td>compilers, as tools (<a href="../architecture/Shared-Work" class="internal alias" data-slug="architecture/Shared-Work">Shared Work</a> §5)</td></tr></tbody></table></div>
+<p>Provenance edges (<code>LoweredTo</code> / <code>LoweredFrom</code>) connect a node in one layer to the nodes it became in the next. Today L0 exists, the index emits L2 <code>Definition</code>/<code>Name</code> nodes and syntactic references for Rust, Julia and Python (WP-65/WP-22), and a default-off Rust L1 snapshot/patch planner with revision-aware document integration and graph previews exists (WP-67 slices 1–5); the other derived layers remain unbuilt.</p>
+<h2 id="3-definitions">3. Definitions<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#3-definitions" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>A <strong>definition</strong> is a node of kind <code>Definition</code>, with:</p>
+<ul>
+<li><code>def_kind</code>: one of the shared values below, or a namespaced one;</li>
+<li><code>lang</code>: the language id;</li>
+<li><code>frontend</code> and <code>frontend_version</code>;</li>
+<li><code>content_id</code>: §4, once computed;</li>
+<li><code>doc</code>: a reference to its doc comment, an annotation rather than part of the hash (§4).</li>
+</ul>
+<p><strong>Shared <code>def_kind</code> values:</strong></p>
+<ul>
+<li><code>function</code>: free functions, Julia methods, Python functions;</li>
+<li><code>method</code>: one bound to a type;</li>
+<li><code>type</code>: struct, enum, class, record, Julia <code>struct</code>, type alias;</li>
+<li><code>interface</code>: trait, protocol, abstract type, Python ABC;</li>
+<li><code>constant</code>: const, static, module-level binding;</li>
+<li><code>module</code>: module, Julia <code>module</code>, Python module;</li>
+<li><code>macro</code>;</li>
+<li><code>test</code>;</li>
+<li><code>field</code>: of a type;</li>
+<li><code>variant</code>: of an enum or sum type.</li>
+</ul>
+<h3 id="the-first-three-languages">The first three languages<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-first-three-languages" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Question</th><th>Rust</th><th>Julia</th><th>Python</th></tr></thead><tbody><tr><td>The unit</td><td>each <code>fn</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>const</code>, <code>static</code>, <code>type</code>, <code>macro_rules!</code>, <code>mod</code></td><td>each <strong>method</strong> (one signature) is a <code>Definition{function}</code>; the generic function is <code>julia:GenericFunction</code>, with <code>MethodOf</code> edges from its methods</td><td>each <code>def</code>, <code>class</code>, module-level assignment to a name</td></tr><tr><td>Containers</td><td><code>impl</code> blocks are <strong>not</strong> definitions: <code>rust:Impl</code> nodes group their items. An item in <code>impl Trait for T</code> gets <code>Implements(T → Trait)</code> on the impl and <code>MethodOf(item → T)</code></td><td><code>module</code> is a <code>Definition{module}</code>; <code>struct</code> fields are <code>field</code> definitions</td><td><code>class</code> is a <code>Definition{type}</code>; its <code>def</code>s are <code>method</code> definitions with <code>MethodOf</code></td></tr><tr><td>Code that isn’t a definition</td><td>—</td><td>top-level statements other than definitions: a <code>julia:ModuleBody</code> node per module, so they’re not lost</td><td>module-level statements other than definitions: one <code>python:ModuleBody</code> node per module (imports, side effects, <code>if __name__ == …</code>)</td></tr><tr><td>Generics</td><td>one definition per item; instantiations exist only in L3/L4 (<code>InstanceOf</code> edges)</td><td>one definition per method; specialisations exist only in L3/L4</td><td>—</td></tr><tr><td>Conditional code</td><td><code>#[cfg(...)]</code>: the definition exists once and carries <code>cfg</code> as a property, not one node per configuration</td><td>—</td><td><code>if TYPE_CHECKING:</code> and similar: definitions keep a <code>condition</code> property</td></tr><tr><td>Macros</td><td>the call site is a reference to the macro definition; expansions are L3</td><td>the same (<code>@macro</code>)</td><td>decorators: a <code>Decorates</code> edge from the decorator to the definition</td></tr></tbody></table></div>
+<p><strong>An occurrence</strong> (where a definition’s text sits) is an edge, <code>Defines(File → Definition)</code>, with the byte range, line range and the L1 node path as properties. A definition with no file (store-backed, ADR-0028) has no <code>Defines</code> edge.</p>
+<h2 id="4-identity">4. Identity<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#4-identity" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<h3 id="the-location-id-where">The location id (where)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-location-id-where" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><code>NodeId::derive(source, &quot;&lt;relative path>#&lt;symbol path>&quot;)</code>. The symbol path is the chain of containing definitions plus a disambiguator:</p>
+<ul>
+<li>an impl’s self type and trait;</li>
+<li>a Julia method’s signature;</li>
+<li>an index for duplicates.</li>
+</ul>
+<p>This is today’s derived id, extended past files. It stays stable while the definition stays put, even if its body changes. Editors, selections, comments and links use it.</p>
+<h3 id="the-content-id-what">The content id (what)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-content-id-what" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><code>NodeId::from_content(BLAKE3(canonical bytes))</code>. The canonical bytes are a serialisation of the definition’s <strong>normalised</strong> structure:</p>
+<ol>
+<li><strong>Tagged:</strong> the language id and the normaliser’s version are part of the input. A normaliser change gives new ids rather than silently equal ones.</li>
+<li><strong>Trivia dropped:</strong> comments, whitespace, formatting and doc comments. Docs are annotations on the definition, so editing a doc doesn’t change what the code is.</li>
+<li><strong>Locals renamed:</strong> parameters and local bindings get de Bruijn-style positions, so <code>fn f(x) { x }</code> and <code>fn f(y) { y }</code> hash the same.</li>
+<li><strong>The definition’s own name excluded:</strong> names are edges (§5), so a rename doesn’t change the content id.</li>
+<li><strong>References to other definitions</strong> are replaced by the referenced definition’s content id where it’s resolved (Unison’s rule: a change to a dependency gives a dependant a new id). Where it isn’t resolved, a stable placeholder is used: the reference’s name path plus <code>unresolved</code>, so it is never the empty string.</li>
+<li><strong>Mutual recursion:</strong> a strongly connected group of definitions is hashed together as one component. Each member’s id is the component hash plus its index, ordered canonically, as Unison does.</li>
+<li><strong>Language-meaningful spelling kept:</strong> a Rust lifetime name, a Python keyword argument’s name, and anything the language observes. The frontend decides, per language, what is observable. That list is the normaliser’s specification and is versioned with it.</li>
+</ol>
+<p><strong>When it’s computed:</strong> lazily, for the definitions a feature needs (history across moves, equivalence proofs, “is this the same function”). It’s cached by the L1 input hash, and isn’t eagerly computed for a million nodes.</p>
+<p><strong>What it’s used for:</strong></p>
+<ul>
+<li><strong>file-backed code</strong> (ADR-0028 A or B): a derived identity that finds a definition again after moves and renames;</li>
+<li><strong>store-backed code</strong> (Sophia, Unison): <em>the</em> identity.</li>
+</ul>
+<h3 id="sophias-ids-2026-10-20">Sophia’s ids (2026-10-20)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#sophias-ids-2026-10-20" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Sophia’s specs (in its own repository, <code>vault/Specifications/</code>, drafts of 2026-10-20) fill in the store-backed case. Its store is language-agnostic (SPEC-001 Sophia Store v0 there), and the Moonkale side is SPEC-004 Moonkale Interface.</p>
+<ul>
+<li><strong>A definition’s id is <code>from_content(digest)</code></strong>, with Sophia’s digest. Each definition row carries <code>lang</code> and its normaliser (<code>frontend</code>, <code>frontend_version</code>), which is rule 1 above. So a Rust or Julia definition normalised by WP-66 can live in the same store.</li>
+<li><strong>Every definition is a component member.</strong> A non-recursive definition is a component of size 1, so rule 6 has no special case.</li>
+<li><strong>Nominal entities</strong> are the one exception to content addressing: generic functions (with their method tables) and nominal types get a <em>fresh</em> id when they are created, and Moonkale shows them as <code>from_content(nominal id)</code>. What changes over time are their versioned relations (methods added or removed), not the id. That’s how a Julia generic function keeps one identity while its methods change.</li>
+<li><strong>Lineage</strong> (<code>sophia:Lineage</code>, <code>derive(source, &quot;lineage:&quot; + first digest)</code>) links a definition to the definitions it replaced. Moonkale’s own review comments on Sophia code anchor to the lineage id, so they survive edits and renames.</li>
+</ul>
+<h2 id="5-names">5. Names<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#5-names" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>A <strong>name</strong> is a <code>Name</code> node: a namespace path, for example <code>crate::graph::layout</code> plus <code>relax</code> (Rust), <code>Lenticulum.Nodes.factor</code> (Julia), or <code>pkg.mod.fn</code> (Python). It has a <code>Names(Name → Definition)</code> edge to the <em>location</em> id. Store-backed sources point names at the content id.</p>
+<ul>
+<li>A rename moves or recreates the <code>Name</code>. For file-backed code the location id also changes because the symbol path includes the name; only the future content id is rename-invariant.</li>
+<li>Re-exports (<code>pub use</code>, Julia <code>export</code>, Python <code>__all__</code> or <code>from x import y</code>) are further <code>Names</code> edges into the same definition, with a <code>visibility</code> property.</li>
+<li>Two names for one definition is normal.</li>
+<li><strong>For store-backed sources the name is primary</strong> (SPEC-004 §2–§3). It’s what you open, edit and navigate: <code>WriteText</code> on a name parses the text, stores a new definition and moves the name, while a definition itself is immutable and opens read-only. The graph panel hides <code>Name</code> nodes for file-backed code, where they’re metadata, and has to show them for a Sophia source.</li>
+<li><strong>Path spelling:</strong> Moonkale paths use <code>/</code>, Sophia names use <code>.</code>; the adapter maps <code>a/b/c</code> ↔ <code>a.b.c</code> and rejects segments with <code>/</code>, <code>.</code>, whitespace or control characters.</li>
+<li><strong>Shared source naming (SPEC-009 §8, implemented 2026-10-23):</strong> <code>moonkale-content-id</code> owns <code>Definition</code>, <code>binding</code>, <code>entity_path</code> and method grouping, independently of content identity. Rust uses <code>rs.&lt;crate>.&lt;module>.&lt;item></code>, with type and optional backquoted trait segments for impl members; Python uses <code>py.&lt;package>.&lt;module>.&lt;Class>.&lt;member></code>; Julia uses its owning generic function’s absolute module path. Caller-supplied roots/module trees require no file I/O in the crate. Unknown roots are path-derived and flagged; unspellable names are reported, never sanitized. Repeated methods form one group, named collisions are explicit, and constructor methods coexist at <code>&lt;Type>.new</code>. This dotted entity-name contract allows quoted operator/trait segments; it does not widen the source adapter’s slash-path mapping above. See <code>packages/services/content-id/content-id.md</code> and <code>golden/bindings.tsv</code>. The additive naming API changes neither existing ids nor normalizer v7.</li>
+</ul>
+<h2 id="6-edge-kinds">6. Edge kinds<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#6-edge-kinds" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><strong>Shared kinds, which every frontend uses where its language has the concept:</strong></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Kind</th><th>From → to</th><th>Notes</th></tr></thead><tbody><tr><td><code>Contains</code></td><td>module, type or impl → member</td><td>the lexical structure</td></tr><tr><td><code>Defines</code></td><td><code>File</code> → <code>Definition</code></td><td>the occurrence, with ranges (§3)</td></tr><tr><td><code>Names</code></td><td><code>Name</code> → <code>Definition</code></td><td>§5</td></tr><tr><td><code>References</code></td><td>definition → definition</td><td>any use; the base kind the others refine</td></tr><tr><td><code>Calls</code></td><td>definition → definition</td><td>a call site; the count and the ranges are properties (WP-22)</td></tr><tr><td><code>TypeOf</code></td><td>definition → type definition</td><td>a declared type, or an inferred one (L3, with provenance)</td></tr><tr><td><code>Implements</code></td><td>type or impl → interface</td><td>trait impl, subtype of an abstract type, ABC registration</td></tr><tr><td><code>MethodOf</code></td><td>method → type, or method → generic function</td><td></td></tr><tr><td><code>Imports</code></td><td>module → module or definition</td><td><code>use</code>, <code>using</code>/<code>import</code>, <code>import</code>/<code>from</code></td></tr><tr><td><code>Decorates</code></td><td>decorator → definition</td><td>Python decorators, Rust attribute macros, Julia macros on a definition</td></tr><tr><td><code>Overrides</code></td><td>method → method</td><td>an override of a base or default method</td></tr><tr><td><code>InstanceOf</code></td><td>L3 instance → generic definition</td><td>monomorphisation, specialisation</td></tr><tr><td><code>LoweredTo</code></td><td>node in layer n → node in layer n+1</td><td>provenance between layers (§2)</td></tr><tr><td><code>Tests</code></td><td>test → definition</td><td>from naming conventions, or the test calling it directly</td></tr><tr><td><code>Unresolved</code></td><td>definition → an <code>Unresolved</code> node holding the name path</td><td>references the frontend couldn’t resolve, kept so they’re visible and can be resolved later</td></tr></tbody></table></div>
+<p><strong>Namespaced kinds,</strong> for a concept only one language has: <code>rust:Lifetime</code>, <code>julia:Specializes</code>, <code>python:Monkeypatches</code>. Views treat an unknown kind as <code>References</code> for layout and filters.</p>
+<p><strong>Equivalence and other proofs</strong> aren’t edges of the code graph. They’re annotations with a proof payload (<a href="../architecture/Annotations" class="internal" data-slug="architecture/Annotations">Annotations</a>, WP-19) that name their subjects by content id, so a proof survives moves and goes stale when the content changes.</p>
+<h2 id="7-provenance">7. Provenance<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#7-provenance" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Every node and edge a frontend or tool produces carries:</p>
+<ul>
+<li><code>by</code>: the frontend or tool id;</li>
+<li><code>by_version</code>;</li>
+<li><code>input</code>: the hash of the input it was derived from (the L1 file hash, or a definition’s content id);</li>
+<li><code>derived_at</code>.</li>
+</ul>
+<p>A node is <strong>stale</strong> when its input hash no longer matches. Views show stale results as stale (<a href="../architecture/Shared-Work" class="internal alias" data-slug="architecture/Shared-Work">Shared Work</a> §5, WP-54) and never mix them silently with fresh ones.</p>
+<h2 id="8-scale">8. Scale<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#8-scale" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li><strong>L2 for a large workspace:</strong> about 10⁵ to 10⁶ definitions and a few times as many edges. It’s persisted incrementally (WP-21): a change to one file re-derives that file’s definitions and the edges into them, and nothing else.</li>
+<li><strong>L1, L3 and L4</strong> are computed for what’s on screen or asked for, and dropped by the cache budgets of ADR-0026.</li>
+<li><strong>Content ids</strong> are computed lazily (§4).</li>
+</ul>
+<h2 id="9-how-its-checked">9. How it’s checked<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#9-how-its-checked" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li><strong>Fixtures</strong> in Rust, Julia and Python, each with these tests:
+<ul>
+<li>a renamed local keeps the content id;</li>
+<li>a function moved to another file keeps its content id and gets a new location id;</li>
+<li>a comment or doc edit changes neither id;</li>
+<li>a body change keeps the location id and changes the content id, and the content ids of its dependants;</li>
+<li>a mutually recursive pair gets a shared component;</li>
+<li>a renamed function keeps its content id, changes its location id, and changes the <code>Name</code>;</li>
+<li>an unresolved reference shows up as <code>Unresolved</code>.</li>
+</ul>
+</li>
+<li><strong>The Unison source (WP-18):</strong> a Unison codebase already <em>is</em> this model (definitions by hash, names as metadata, a dependency DAG). Loading it into §3 to §6 without new shared kinds is the test that the schema is general. If it needs new shared kinds, the schema changes before the frontends multiply.</li>
+</ul>
+<h3 id="wp-18-result-2026-10-17">WP-18 result (2026-10-17)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-18-result-2026-10-17" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>The default-off Unison source implements the store-backed form of §3–§6 with existing <code>Definition</code>, <code>Name</code>, <code>Directory</code>, <code>Contains</code>, <code>Names</code>, <code>References</code> and <code>TypeOf</code>: <strong>no new shared kinds</strong>. A hermetic UCM 1.5 transcript checks definition-id stability through rename, two aliases to one definition, dependency hash propagation after releasing an old alias, and shared component/different member ids for mutual recursion. Types, abilities, constructors and tests map through <code>def_kind</code>. Hash references include constructor selectors; intrinsic builtins retain UCM’s <code>##name</code> identity instead of pretending to have content digests. Namespaces are Directory nodes; the source has no file occurrences or <code>Defines</code> edges. <code>TypeOf</code> only targets an exact known type reference, not every constituent in a function signature.</p>
+<p>This is a finite, read-only snapshot, not a live codebase bridge: it imports projects/branches through an owned loopback UCM HTTP server and stops that process before returning. Hash-only display requests avoid UCM’s named documentation-evaluation path. The source opener and graph panel accept store-backed code; a native test checks the fixture’s actual renderer payload. Limits, canonical reference-byte encoding for <code>from_content</code>, API references and exclusions are in <code>packages/sources/unison/sources-unison.md</code>. Full type-expression nodes, store edits, history/watch and a dialect remain later work. §7 provenance is not implemented beyond frontend metadata and content/component references in this slice.</p>
+<h2 id="10-order">10. Order<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#10-order" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ol>
+<li>The shared kinds and the <code>Definition</code> node in <code>moonkale-core</code> as constants: kinds are open strings, so this is a naming change, not a model change. Today’s <code>Symbol</code> nodes are migrated to <code>Definition</code> with <code>def_kind</code>.</li>
+<li>Location ids for definitions in the index (Rust, Julia, Python), with <code>Contains</code>, <code>Defines</code> and <code>Names</code>.</li>
+<li><code>Calls</code>, <code>References</code> and <code>Imports</code> (WP-22), and <code>Unresolved</code>.</li>
+<li>The Unison source against this schema (WP-18).</li>
+<li>Content ids, behind a feature, with the fixture tests of §9.</li>
+<li>L1 lossless syntax and printing back (WP-67; ADR-0028 accepted B), Rust first.</li>
+</ol>
+<h2 id="11-open-questions-non-fundamental-decided-when-their-step-comes">11. Open questions (non-fundamental: decided when their step comes)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#11-open-questions-non-fundamental-decided-when-their-step-comes" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>The exact normalisation per language (what’s observable): written per frontend at step 5, versioned with the normaliser.</li>
+<li>Rust macros that generate items (<code>macro_rules!</code> making functions): are generated items definitions with a <code>GeneratedBy</code> edge, or only L3? Leaning towards L3, with the call site as a reference.</li>
+<li>Python’s dynamic definitions (<code>setattr</code>, metaclasses): out of scope for L2. An elaborator can add them at L3.</li>
+<li><del>How a <code>Definition</code> of a store-backed language (Sophia) differs</del> <strong>Answered</strong> by WP-18 (2026-10-17) and Sophia’s SPEC-004 (2026-10-20): it doesn’t, apart from having no <code>Defines</code> edge. The shared kinds are enough: <code>Directory</code>, <code>Name</code>, <code>Definition</code>, <code>Annotation</code>, plus <code>Contains</code>, <code>Names</code>, <code>References</code>, <code>Calls</code>, <code>Tests</code>, <code>TypeOf</code>, <code>MethodOf</code> and <code>Annotates</code>. Sophia-only concepts are namespaced: <code>sophia:Term</code>, <code>sophia:Type</code> (an inferred compound type that is not a stored definition), <code>sophia:Lineage</code> and <code>sophia:Settings</code> nodes, and <code>sophia:Subterm</code>, <code>sophia:Supersedes</code> and <code>sophia:InLineage</code> edges. <code>sophia:Subterm</code> isn’t <code>Contains</code>, because shared subterms make a DAG, while views treat <code>Contains</code> as a tree.</li>
+<li>Still open for Sophia, decided in WP-68 or later:
+<ul>
+<li><strong>annotation edits:</strong> a new <code>Annotate</code>/<code>Unannotate</code> op, or a pseudo-text node per annotation;</li>
+<li><strong><code>datalog</code>:</strong> a new <code>TextDialect</code> (v0 has read-only <code>sql</code> only);</li>
+<li><strong>a <code>Code</code> family:</strong> a <code>moonkale-core</code> change, out of v0, where a Sophia source is family <code>Graph</code>.</li>
+</ul>
+</li>
+<li><strong>Rendering profiles</strong> (Sophia’s SPEC-005): how code is printed (<code>fn</code>/<code>def</code>/<code>function</code>, 0- or 1-based indexing, …) is stored per reader in the Sophia database, not in Moonkale settings. Julia-like is the default. Moonkale sees the profile as one <code>sophia:Settings</code> node edited as text. A profile switch reprints every definition and changes no id. Whether Moonkale’s own settings for file-backed code move there too is a later question (SR-74, Sophia as Moonkale’s parsing and storage engine).</li>
+</ul>
+<h2 id="implementation-contract-wp-65wp-22-2026-10-15">Implementation contract (WP-65/WP-22, 2026-10-15)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#implementation-contract-wp-65wp-22-2026-10-15" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>The existing core represents kinds with built-in enum variants plus <code>Custom(String)</code>, rather than a bare string. New vocabulary is additive string constants in <code>moonkale_core::graph::code</code>, used as <code>Custom</code> values; existing <code>Contains</code>, <code>Defines</code>, <code>Calls</code> and <code>References</code> keep their wire encoding. Legacy <code>Symbol</code> values remain readable, and the index accepts a legacy <code>Symbol</code> filter for definitions. No node/edge model or enum-variant change is needed.</li>
+<li>This step migrates the existing extractors’ items. Rust impl containers become <code>rust:Impl</code>, not definitions; they retain ranged <code>Defines</code> occurrences so the existing graph navigation can open their file. Bound Rust/Python functions carry <code>def_kind=method</code>. Extraction of additional fields, variants, module-level assignments, Julia generic-function containers and non-definition module-body nodes remains frontend coverage work; this step does not claim those units are implemented.</li>
+<li>Location keys keep the existing <code>path#kind:name/…</code> form. Rust impl keys include self type and optional trait. Julia method keys use the whitespace-normalised complete signature (including <code>where</code> and return annotations), not their order among other overloads. Identical keys receive <code>~2</code>, <code>~3</code>, etc. A duplicate inserted before another identical signature may change its duplicate index; semantic equivalence and move tracking belong to WP-66.</li>
+<li><code>Defines</code> carries half-open UTF-8 <code>start_byte</code>/<code>end_byte</code>, 1-based <code>start_line</code>/<code>end_line</code>, and <code>syntax_path</code> (slash-separated child indices, including unnamed tokens, in the parsed tree). <code>line</code> remains on nodes for legacy consumers. <code>Names</code> points from a file-qualified namespace name to each definition; Julia overloads share a name node. Name nodes are metadata and excluded from the graph panel’s normal symbol filter.</li>
+<li>Resolution is deliberately syntactic and same-file: only an unambiguous visible bare name resolves. Possible local shadows, overload dispatch, qualified/dynamic calls and external imports remain <code>Unresolved</code> nodes with the spelling in the label. A <code>Calls</code> edge also produces <code>References</code>. Imports retain an <code>Imports</code> edge to their unresolved target. An <code>Unresolved</code> edge additionally marks each unresolved use. No compiler, dependency loader, macro expansion, code execution, or network lookup runs.</li>
+<li>A file represents its implicit module until explicit module/body coverage is added. Top-level uses and imports originate there; uses within explicit definitions originate in the innermost extracted item. This extends the edge table’s definition/module origins to <code>File</code> for implicit modules. Rust impl occurrences are likewise an explicit extension of the occurrence table.</li>
+<li>Calls/references aggregate by <code>(from,to,kind)</code> with <code>count</code> and a <code>ranges</code> text property: comma-separated <code>start:end</code> UTF-8 ranges. <code>start_byte</code>/<code>end_byte</code> retain the first encountered occurrence. Ranges are not promised in source order. The property representation follows today’s scalar <code>Value</code> model; a future typed range-list value may replace it with a migration.</li>
+<li>Provenance uses <code>by=moonkale-index</code>, the crate version as <code>by_version</code>, an <code>input</code> UUID-v5 digest of the exact file bytes under the <code>index-input-v1</code> domain, and Unix seconds in <code>derived_at</code>. This input digest is independent of mtime-based source versions and is not a WP-66 content id. It is for freshness, not cryptographic authentication. Wiki-link derivatives carry the same provenance. Mirrored folder nodes and folder containment keep their source metadata.</li>
+<li>The existing 5,000-file / 512 KiB-per-text-file walk bounds apply; the reference pass uses an explicit traversal stack. Refresh atomically replaces a file’s definitions, names, unresolved nodes and derived edges. There is no cross-file semantic resolution or persistence in this step (WP-21 remains separate).</li>
+</ul>
+<p>The rename test above was corrected because location paths include names (§4); keeping both ids through a rename would contradict that definition. The implicit-module and impl-occurrence exceptions make current navigation possible without pretending L1 printing or full frontend coverage exists. Content ids (WP-66) and printing back (WP-67) are unchanged and unimplemented here.</p>
+<h2 id="wp-66-normalizer-v1-2026-10-16-v7-2026-10-20">WP-66 normalizer (v1 2026-10-16, v7 2026-10-20)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-66-normalizer-v1-2026-10-16-v7-2026-10-20" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><strong>Implemented, experimental and off by default:</strong> <code>moonkale-index/content-ids</code>. The normal form and the hashing are their own crate, <code>moonkale-content-id</code> (<code>packages/services/content-id</code>, 2026-10-20), shared with Sophia so a definition can have one id in both (SR-116). The index adds reference resolution and the cache. The crate’s <code>golden/</code> fixtures carry Moonkale’s ids and reference spans for a cross-check. <strong>v2</strong> fixes resolution: Julia and Python parameter types and defaults (<code>p::Point</code>) are uses, not local names. In v1, a method typed with a same-file struct didn’t depend on it. <strong>v3</strong>: a Julia <code>struct</code> no longer references its own name, and a Rust struct expression’s type is a use; Sophia’s cross-check found both. <strong>v4</strong> adds Julia’s local scopes (loops, closures, <code>do</code>, <code>let</code>, <code>try</code>, comprehensions), varargs, keyword parameters, destructuring and anonymous <code>::T</code> parameters; real-code coverage on LinearAlgebra rose from about 69% to 99% of definitions. <strong>v5</strong> resolves Julia references per <strong>module</strong>, as Julia does. A package is one module over its <code>include</code>d files, found from <code>Project.toml</code>. A name resolves only to a unique, unimported binding in its module, and calls to a function with several methods stay unresolved (they are edges to the generic function, not part of ids). Rules agreed with Sophia in its SPEC-008. Rust and Python keep same-file resolution. <strong>v6</strong>: Julia type parameters are locals, and a callable-type or interpolated head names nothing. <strong>v7</strong>: nothing inside a Julia call is a unit, so a keyword default in <code>@deprecate f(A; check::Bool = true) …</code> no longer gets an id (found by Sophia against Julia’s method table). See <code>content-id.md</code> for the version list and rules. These are conservative <strong>syntactic</strong> identities under the rules below, not a proof of language-level equivalence. Runtime introspection, external modules, compiler flags, macro expansion and dynamic dispatch are not modeled. Files and location ids remain authoritative. No application enables the feature automatically and no UI consumer or remote query dialect is added.</p>
+<h3 id="request-and-encoding">Request and encoding<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#request-and-encoding" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p><code>IndexSource::content_id(location_id)</code> explicitly requests a definition and its reachable same-file definitions. The async API returns <code>ContentIdentity { id, digest, normalizer_version, component_digest, component_index, component_size }</code>; the UUID is <code>NodeId::from_content</code> of the full BLAKE3 member digest. The existing definition node receives <code>content_id</code> and the corresponding <code>content_digest</code>, <code>content_normalizer</code>, <code>content_component</code>, <code>content_component_index</code> and <code>content_component_size</code> properties only after the complete request succeeds. Ordinary build/search/graph queries do not compute hashes. No core kind, id encoding or source protocol changes.</p>
+<p>Canonical fields have a little-endian u32 tag length, tag bytes, little-endian u32 payload length and payload bytes. The syntax stream includes language, normalizer version, node kinds, ordered children and leaf tokens, with explicit open/close fields. It has no path, source id, timestamp or byte position. The declaration’s own name is a dedicated empty token. Other observable names remain. Lexical value bindings use declaration slots and <code>(scope depth, slot)</code> references; Rust block bindings activate after the initializer and shadowing allocates a fresh slot. Python function locals are collected before body traversal. Julia positional parameters and function-local assignments use the same scheme.</p>
+<p>References resolved by the existing conservative same-file extractor use the target’s full content digest (the information from which its content UUID is derived). Unresolved free identifiers have an explicit <code>unresolved</code> tag and their spelling; structured paths retain ordered syntax and name tokens. Local bindings take precedence over reference substitution. Cross-file, overload and qualified resolution are deliberately unchanged from WP-22. Reordering an unrelated top-level item does not affect the requested identity.</p>
+<h3 id="observable-spelling-and-supported-syntax">Observable spelling and supported syntax<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#observable-spelling-and-supported-syntax" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Language</th><th>Retained</th><th>Dropped or normalized</th><th>Conservative failures in v1</th></tr></thead><tbody><tr><td>Rust</td><td>literal spelling, operators, types, generic names, lifetime names, field/member names, visibility, non-doc attributes, mutability, macro token-tree spelling</td><td>comments and doc attributes/comments; value parameter names and supported local patterns</td><td>match/conditional/let-else binding scopes, closures, function-local imports, unsupported binding patterns, macro definitions</td></tr><tr><td>Python</td><td>keyword-capable parameter names, keyword argument labels, attributes, decorators, annotations, defaults and literal contents</td><td>comments and leading function/class docstrings; positional-only parameter names; ordinary function-local assignments</td><td>nested functions/classes inside functions, comprehensions/generators, lambdas, global/nonlocal, augmented/walrus bindings, for/with/exception/match/delete bindings and function-local imports</td></tr><tr><td>Julia</td><td>field names, types, generic/where names, literal contents, operators and quoted syntax</td><td>comments and attached doc strings outside occurrences; positional parameters and ordinary function-local assignments</td><td>keyword parameter declarations, nested functions, arrow/do closures, comprehensions, explicit local declarations, for/let/catch scopes, macro definitions and unsupported patterns</td></tr></tbody></table></div>
+<p>Macro token trees and quoted/string data are opaque and preserve their spelling, including interior whitespace. Ordinary formatting outside opaque data is ignored. Python parameter renames that change keyword calling conventions <strong>must</strong> change the id; §9’s renamed-local test does not require them to be equal. Documentation is deliberately excluded even where introspection can observe it. Attributes/decorators and observable local spellings can therefore make two otherwise similar definitions differ. A future extension to these rules must increment the normalizer version; supported syntax must not silently become a fallback approximation.</p>
+<h3 id="recursive-components">Recursive components<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#recursive-components" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Iterative SCC discovery orders components dependency-first. Within an SCC, references are ordered ports determined by the syntax stream. For each possible root, first-visit traversal assigns member indices; the lexicographically smallest complete component serialization is canonical. Its BLAKE3 digest is the component digest. A member digest hashes tagged component digest and u32 canonical index. External references include the already-computed target digest.</p>
+<p>If several roots give the same minimal serialization, each member uses its smallest index across those roots. Automorphic, structurally indistinguishable members may share a content id. This resolves the draft’s previously unspecified symmetric-recursion tie without introducing a name/path/order dependency. Different ordered wiring remains distinguishable. Root candidates share the request work budget rather than performing unbounded graph-isomorphism search.</p>
+<h3 id="cache-freshness-and-bounds">Cache, freshness and bounds<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#cache-freshness-and-bounds" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Parsing/hashing and optional synchronous state-store access run through a blocking worker, outside the UI input path. Memory LRU budgets are 16 MiB per index on desktop/server and 4 MiB on Android. <code>with_content_id_store(Arc&lt;dyn StateStore>)</code> optionally stores rebuildable identity records in a versioned prefix of the existing INDEX table, with the same byte budget and LRU timestamps. Each record is at most 2 MiB and checksummed; malformed, incompatible or failed cache reads are misses. Records contain ids/digests and metadata, never copied source text. Full index persistence remains WP-21; platform constructors do not install this optional cache themselves.</p>
+<p>The key includes normalizer version, exact BLAKE3 file-input hash and source/location selector. Since resolution remains same-file, that exact input covers every resolved dependency; a changed dependency cannot hit an old result. These location-scoped cache keys do not enter content hashes. Persisted cache byte enforcement is serialized within this process; separate processes may temporarily exceed the budget until a later write evicts entries. Cache failures never block recomputation.</p>
+<p>Shared content-id limits (SR-145, 2026-10-24): 16 MiB per file, 4,096 definitions per input file, 256 MiB accumulated canonical/graph bytes, 32 million default syntax/continuation/graph steps, and a two-second parser progress deadline. Nesting has no depth cap: syntax, binding and scope passes use explicit heap stacks. The index retains its separate fetch/closure limits. These acceptance changes preserve normalizer v7 and all existing golden ids. The same-file request fetches one file, then fetches it again for freshness; the shared 16 MiB per-file limit is checked on each result. Resource exhaustion, malformed/unsupported syntax, stale input, unavailable source and failed worker produce typed errors with no partial publication.</p>
+<p>Before computing, fetched bytes must match indexed provenance. Before publishing, bytes are fetched again, the index generation is checked, and every affected node must still exist. Refresh removes previously published identities for that file; deletion removes its definitions. No old id is published over a concurrently refreshed graph. Unrefreshed source changes can still make an already-published graph snapshot stale until the existing watcher/refresh path runs; this feature adds no new watcher guarantee.</p>
+<p>Three-language integration fixtures cover moves/renames/trivia, body and dependency changes, recursion, unresolved references, observable spelling, lexical shadowing, optional persistent reopen, refresh/deletion, concurrent refresh and parser limits. Unit tests cover ordered wiring, disconnected components, canonicalization exhaustion, byte-budget eviction and invalid cache records. See <a href="../problems/P-200-Lazy-syntactic-content-identities" class="internal alias" data-slug="problems/P-200-Lazy-syntactic-content-identities">P-200 Lazy syntactic content identities</a> and <code>packages/services/index/index.md</code>.</p>
+<h2 id="wp-67-slices-15-2026-10-16">WP-67 slices 1–5 (2026-10-16)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-67-slices-15-2026-10-16" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The native, default-off <code>lossless-syntax</code> feature now provides exact Rust token/trivia snapshots and pure guarded declaration-name/move plans. <code>SourceDescriptor.truth</code> is built with backwards-compatible <code>Files</code> deserialization and explicit <code>Store</code> metadata; existing sources remain externally authoritative. Default-off <code>structural-edits</code> now exposes declaration-name and same-file function moves through a revision-aware document adapter and graph preview/conflict UI. Reference-aware graph Rename now uses complete same-folder rust-analyzer plans, coordinated buffer history and explicit per-file saving; cross-file moves remain unimplemented. See <a href="../architecture/Rust-Lossless-Syntax-and-Patches" class="internal alias" data-slug="architecture/Rust-Lossless-Syntax-and-Patches">Rust Lossless Syntax and Patches</a> for the byte/trivia ownership policy, bounds, move-token conservation and the document adapter and experimental graph controls. Content identities and exact input hashes have different purposes; a doc-only change preserves the former but invalidates an old structural edit plan.</p></article><hr/><div class="page-footer"><div class="giscus" data-repo="MathStruct/Moonkale" data-repo-id="R_kgDOUeDr7g" data-category="Announcements" data-category-id="DIC_kwDOUeDr7s4DJXDC" data-mapping="pathname" data-strict="1" data-reactions-enabled="1" data-input-position="bottom" data-light-theme="light" data-dark-theme="dark" data-theme-url="https://mathstruct.org/Moonkale/static/giscus" data-lang="en"></div></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-7" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#1-principles-from-the-north-stars-constraints" data-for="1-principles-from-the-north-stars-constraints">1. Principles (from the North Star’s constraints)</a></li><li class="depth-0"><a href="#2-layers" data-for="2-layers">2. Layers</a></li><li class="depth-0"><a href="#3-definitions" data-for="3-definitions">3. Definitions</a></li><li class="depth-1"><a href="#the-first-three-languages" data-for="the-first-three-languages">The first three languages</a></li><li class="depth-0"><a href="#4-identity" data-for="4-identity">4. Identity</a></li><li class="depth-1"><a href="#the-location-id-where" data-for="the-location-id-where">The location id (where)</a></li><li class="depth-1"><a href="#the-content-id-what" data-for="the-content-id-what">The content id (what)</a></li><li class="depth-1"><a href="#sophias-ids-2026-10-20" data-for="sophias-ids-2026-10-20">Sophia’s ids (2026-10-20)</a></li><li class="depth-0"><a href="#5-names" data-for="5-names">5. Names</a></li><li class="depth-0"><a href="#6-edge-kinds" data-for="6-edge-kinds">6. Edge kinds</a></li><li class="depth-0"><a href="#7-provenance" data-for="7-provenance">7. Provenance</a></li><li class="depth-0"><a href="#8-scale" data-for="8-scale">8. Scale</a></li><li class="depth-0"><a href="#9-how-its-checked" data-for="9-how-its-checked">9. How it’s checked</a></li><li class="depth-1"><a href="#wp-18-result-2026-10-17" data-for="wp-18-result-2026-10-17">WP-18 result (2026-10-17)</a></li><li class="depth-0"><a href="#10-order" data-for="10-order">10. Order</a></li><li class="depth-0"><a href="#11-open-questions-non-fundamental-decided-when-their-step-comes" data-for="11-open-questions-non-fundamental-decided-when-their-step-comes">11. Open questions (non-fundamental: decided when their step comes)</a></li><li class="depth-0"><a href="#implementation-contract-wp-65wp-22-2026-10-15" data-for="implementation-contract-wp-65wp-22-2026-10-15">Implementation contract (WP-65/WP-22, 2026-10-15)</a></li><li class="depth-0"><a href="#wp-66-normalizer-v1-2026-10-16-v7-2026-10-20" data-for="wp-66-normalizer-v1-2026-10-16-v7-2026-10-20">WP-66 normalizer (v1 2026-10-16, v7 2026-10-20)</a></li><li class="depth-1"><a href="#request-and-encoding" data-for="request-and-encoding">Request and encoding</a></li><li class="depth-1"><a href="#observable-spelling-and-supported-syntax" data-for="observable-spelling-and-supported-syntax">Observable spelling and supported syntax</a></li><li class="depth-1"><a href="#recursive-components" data-for="recursive-components">Recursive components</a></li><li class="depth-1"><a href="#cache-freshness-and-bounds" data-for="cache-freshness-and-bounds">Cache, freshness and bounds</a></li><li class="depth-0"><a href="#wp-67-slices-15-2026-10-16" data-for="wp-67-slices-15-2026-10-16">WP-67 slices 1–5 (2026-10-16)</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../Home" class="internal">Moonkale — Vault Home</a></li><li><a href="../Status" class="internal">Status</a></li><li><a href="../architecture/Indexing" class="internal">Indexing</a></li><li><a href="../architecture/North-Star" class="internal">North Star — the code graph</a></li><li><a href="../architecture/Rust-Lossless-Syntax-and-Patches" class="internal">Rust Lossless Syntax and Patches</a></li><li><a href="../decisions/ADR-0028-Files-or-the-graph" class="internal">ADR-0028 — Files or the graph: what is the truth for code</a></li><li><a href="../decisions/ADR-0029-Sophia-stores-the-code-graph" class="internal">ADR-0029 — Sophia stores the code graph; files stay the truth</a></li><li><a href="../problems/P-200-Lazy-syntactic-content-identities" class="internal">P-200 — Lazy syntactic content identities</a></li><li><a href="../problems/Work-Packages" class="internal">Work Packages</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>

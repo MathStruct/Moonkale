@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+    <channel>
+      <title>Moonkale</title>
+      <link>https://mathstruct.org/Moonkale</link>
+      <description>Last 10 notes on Moonkale</description>
+      <generator>Quartz -- quartz.jzhao.xyz</generator>
+      <item>
+    <title>Status</title>
+    <link>https://mathstruct.org/Moonkale/Status</link>
+    <guid>https://mathstruct.org/Moonkale/Status</guid>
+    <description><![CDATA[ What Moonkale can do today, area by area — built, partly built, designed only — checked against the code on 2026-10-01 (after Milestone 17), with the open problems that matter most. The one place where status is kept. ]]></description>
+    <pubDate>Sat, 24 Oct 2026 15:06:41 GMT</pubDate>
+  </item><item>
+    <title>Indexing</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Indexing</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Indexing</guid>
+    <description><![CDATA[ Crate: index. The index turns files and rows into a graph by deriving what sources don’t know: symbols, links, outlines, embeddings, stack frames. ]]></description>
+    <pubDate>Sat, 24 Oct 2026 15:06:41 GMT</pubDate>
+  </item><item>
+    <title>P-231 — Sophia folder replay loses generic memberships</title>
+    <link>https://mathstruct.org/Moonkale/problems/P-231-Sophia-folder-replay-loses-generic-memberships</link>
+    <guid>https://mathstruct.org/Moonkale/problems/P-231-Sophia-folder-replay-loses-generic-memberships</guid>
+    <description><![CDATA[ Status: resolved upstream (Sophia 77f5c1c9; pinned by rev until the v0.1.1 tag) · Related: Indexing, ADR-0029 Sophia stores the code graph Problem A replay of Lenticulum.jl’s real history against Sophia v0.1.0 produces live names/memberships that disagree with a fresh build of the same tree, even wh... ]]></description>
+    <pubDate>Sat, 24 Oct 2026 15:06:41 GMT</pubDate>
+  </item><item>
+    <title>Problem Log</title>
+    <link>https://mathstruct.org/Moonkale/problems/Problem-Log</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Problem-Log</guid>
+    <description><![CDATA[ Running log of problems hit during implementation, P-nnn, sorted by number. ]]></description>
+    <pubDate>Sat, 24 Oct 2026 15:06:41 GMT</pubDate>
+  </item><item>
+    <title>Security — the trust model and the security document</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Security</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Security</guid>
+    <description><![CDATA[ Who and what Moonkale trusts on each platform, and the skeleton of the project's security document. It covers secrets, connections, prompt injection, untrusted content and exploits, extensions, the supply chain and data at rest, plus the rules every change follows so security issues don't pile up. What is enforced where today, and the open findings. ]]></description>
+    <pubDate>Sat, 24 Oct 2026 14:40:52 GMT</pubDate>
+  </item><item>
+    <title>Work Packages</title>
+    <link>https://mathstruct.org/Moonkale/problems/Work-Packages</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Work-Packages</guid>
+    <description><![CDATA[ The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup. ]]></description>
+    <pubDate>Sat, 24 Oct 2026 11:19:35 GMT</pubDate>
+  </item><item>
+    <title>Code Graph Schema — definitions, identity and edges for many languages on one graph</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Code-Graph-Schema</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Code-Graph-Schema</guid>
+    <description><![CDATA[ Draft spec (2026-10-15) for the North Star's code graph: what a definition is in each language, the two ids (where it is, and what it is: a content hash of its normalised structure), names as edges, the edge kinds code needs, layers from text to IR, and provenance on everything derived. Rust, Julia and Python are worked out as the first cases; a Unison codebase (WP-18) checks the model. ADR-0028 (accepted: B) lets graph views edit file-backed code through text patches. ]]></description>
+    <pubDate>Sat, 24 Oct 2026 08:49:56 GMT</pubDate>
+  </item><item>
+    <title>Moonkale — Vault Home</title>
+    <link>https://mathstruct.org/Moonkale/Home</link>
+    <guid>https://mathstruct.org/Moonkale/Home</guid>
+    <description><![CDATA[  Moonkale is a graph-native code and knowledge editor: it opens folders and database connections, shows everything as one graph, and is driven by extensions. ]]></description>
+    <pubDate>Fri, 23 Oct 2026 09:40:02 GMT</pubDate>
+  </item><item>
+    <title>Recoco and Thread — requirements and fit for Moonkale</title>
+    <link>https://mathstruct.org/Moonkale/research/External-Code-Intelligence-Projects</link>
+    <guid>https://mathstruct.org/Moonkale/research/External-Code-Intelligence-Projects</guid>
+    <description><![CDATA[ What two neighbouring code-intelligence projects require and propose, how that fits Moonkale, and whether it would help, as requirements prior art only (Thread is AGPL-licensed, so no code is reused). ]]></description>
+    <pubDate>Fri, 23 Oct 2026 09:40:02 GMT</pubDate>
+  </item><item>
+    <title>Flow Editor</title>
+    <link>https://mathstruct.org/Moonkale/editors/Flow-Editor</link>
+    <guid>https://mathstruct.org/Moonkale/editors/Flow-Editor</guid>
+    <description><![CDATA[ Crate: editors/flow. Drag-and-drop blocks wired by typed ports. ]]></description>
+    <pubDate>Fri, 23 Oct 2026 04:52:06 GMT</pubDate>
+  </item>
+    </channel>
+  </rss>
