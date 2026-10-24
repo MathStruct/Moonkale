@@ -215,7 +215,7 @@ this checks the replay only, not the older whole-product inventory above.
 The optional folder store's slow All(1000) read is traced to Sophia v0.1.1:
 namespace dependency discovery repeats child enumeration and full metadata
 scans. Moonkale's node conversion and generic-call expansion are negligible
-by comparison. Sophia fixed it in v0.1.2, which Moonkale pins: All(1000) now takes 43 ms
+by comparison. Sophia fixed it in v0.1.2 (Moonkale pins v0.1.3): All(1000) now takes 43 ms
 debug / 16 ms release, and folder stores collect their own garbage (Sophia
 SR-146) ([[P-232 Sophia capped graph reads scan namespace metadata]]).
 See [[Indexing]] for measurements. This does not change the default backend.

@@ -113,7 +113,11 @@ on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
-**Current: Sophia v0.1.2** (`3c4b4a9`; the replays ran on `7680bed`, the same
+**Current: Sophia v0.1.3** (`79f6429`, 2026-10-25): in derived stores, facts
+no longer keep records alive, and a file listing a generic twice counts once.
+Replayed again on v0.1.3: 0 differences, Moonkale 41,467,904 bytes, All(1000)
+43.5 ms debug; raw reports `history-2026-10-25-{moonkale,lenticulum}-v0.1.3.jsonl`.
+The table below is v0.1.2 (`3c4b4a9`; the replays ran on `7680bed`, the same
 code without the version bump). It adds folder-store garbage collection (Sophia
 SR-146: `replace_files` removes what only the batch's old manifests reached) and
 the P-232 fixes. Both histories: **0 differences**, 0 errors, 0 retries.
