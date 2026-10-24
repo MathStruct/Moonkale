@@ -10862,7 +10862,7 @@ dependencies = [
 [[package]]
 name = "sophia-hash"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Sophia.git?rev=cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296#cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=c3c48e02f8e9b566c4136922ac529e15e305fbb0#c3c48e02f8e9b566c4136922ac529e15e305fbb0"
 dependencies = [
  "blake3",
  "thiserror 2.0.20",
@@ -10871,7 +10871,7 @@ dependencies = [
 [[package]]
 name = "sophia-interface"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Sophia.git?rev=cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296#cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=c3c48e02f8e9b566c4136922ac529e15e305fbb0#c3c48e02f8e9b566c4136922ac529e15e305fbb0"
 dependencies = [
  "blake3",
  "sophia-hash",
@@ -10885,7 +10885,7 @@ dependencies = [
 [[package]]
 name = "sophia-query"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Sophia.git?rev=cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296#cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=c3c48e02f8e9b566c4136922ac529e15e305fbb0#c3c48e02f8e9b566c4136922ac529e15e305fbb0"
 dependencies = [
  "sophia-hash",
  "sophia-store",
@@ -10895,7 +10895,7 @@ dependencies = [
 [[package]]
 name = "sophia-store"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Sophia.git?rev=cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296#cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=c3c48e02f8e9b566c4136922ac529e15e305fbb0#c3c48e02f8e9b566c4136922ac529e15e305fbb0"
 dependencies = [
  "blake3",
  "rusqlite",
@@ -10906,7 +10906,7 @@ dependencies = [
 [[package]]
 name = "sophialang-core"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Sophia.git?rev=cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296#cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=c3c48e02f8e9b566c4136922ac529e15e305fbb0#c3c48e02f8e9b566c4136922ac529e15e305fbb0"
 dependencies = [
  "sophia-hash",
  "thiserror 2.0.20",
@@ -10915,7 +10915,7 @@ dependencies = [
 [[package]]
 name = "sophialang-syntax"
 version = "0.1.0"
-source = "git+https://github.com/MathStruct/Sophia.git?rev=cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296#cafe940e79bcb17518f1e5a85c5d7a0ac2a2c296"
+source = "git+https://github.com/MathStruct/Sophia.git?rev=c3c48e02f8e9b566c4136922ac529e15e305fbb0#c3c48e02f8e9b566c4136922ac529e15e305fbb0"
 dependencies = [
  "sophia-hash",
  "sophialang-core",
