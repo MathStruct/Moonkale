@@ -223,7 +223,7 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 | P-230 macOS watch tests see the fixture's own writes | CI `Portable macos-14` (advisory) failed twice in 25 master runs on project-fs watch tests: run 39889363844 `an_unknown_position_asks_for_a_reset_and_an_idle_poll_returns_empty` (the idle poll returned 2 paths, the fixture's `src/main.rs` and `README.md`) and run 39483652408 `ignores_hidden_gitignored_and_temporary_files`. FSEvents delivered the fixture's writes after the watcher had started. Fix: the test fixture waits 1.5 s on macOS before the source opens. Linux and Windows unchanged | resolved | — |
 | [[P-231 Sophia folder replay loses generic memberships]] | ADR-0029 history replay finds live generic names/members differing from fresh stores; Sophia v0.1.0 subtracts duplicate old member digests without the deduplication used for new contributions. Fixed in Sophia 77f5c1c9; both replays clean | resolved | — |
 
-| [[P-232 Sophia capped graph reads scan namespace metadata]] | All(1000) spends seconds in Sophia namespace discovery: discarded Contains edges trigger repeated metadata scans; debug/release profile and upstream request prepared | open (upstream) | — |
+| [[P-232 Sophia capped graph reads scan namespace metadata]] | All(1000) spends seconds in Sophia namespace discovery: discarded Contains edges trigger repeated metadata scans; debug/release profile and upstream request prepared | resolved (Sophia v0.1.2) | — |
 
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.

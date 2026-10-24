@@ -1,10 +1,10 @@
 ---
 title: "P-232 — Sophia capped graph reads scan namespace metadata"
 tags: [problem, sophia, index, performance]
-status: open
+status: resolved
 phase: "ADR-0029 folder store"
 ---
-**Status:** open, upstream request prepared · **Related:** [[Indexing]], [[ADR-0029 Sophia stores the code graph]]
+**Status:** resolved upstream (Sophia v0.1.2, pinned) · **Related:** [[Indexing]], [[ADR-0029 Sophia stores the code graph]]
 
 ## Problem
 
@@ -55,3 +55,14 @@ The Moonkale changes only improve the numeric profiling example and spans.
 A node cap does not bound work done before/after truncation. Avoid rebuilding
 hierarchy edges during dependency discovery; prefix reads should seek even when
 metadata stores contain large file manifests.
+
+## Resolution (2026-10-24)
+
+Sophia fixed all three points: `Interface::all` no longer expands namespace
+children in its dependency loop (6105608); `meta_prefix` reads an indexed key
+range and `names_under` seeks the root, the exact name and the descendants
+separately (7680bed, with an EXPLAIN-QUERY-PLAN regression that fails on any
+SCAN and a prefix conformance test on all four backends). Tagged v0.1.2
+(`3c4b4a9`). On Moonkale's replayed store, All(1000) is 41 ms debug / 16 ms
+release (was 6221 / 1846 ms); see [[Indexing]]. The eager record-id listing
+before the cap was left as is; it isn't dominant.

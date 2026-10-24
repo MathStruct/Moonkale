@@ -113,6 +113,22 @@ on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
+**Current: Sophia v0.1.2** (`3c4b4a9`; the replays ran on `7680bed`, the same
+code without the version bump). It adds folder-store garbage collection (Sophia
+SR-146: `replace_files` removes what only the batch's old manifests reached) and
+the P-232 fixes. Both histories: **0 differences**, 0 errors, 0 retries.
+
+| repository | commits | batch median / p95 | sum of batch times | final store bytes | records / live facts | All(1000) median / p95 | text_source median |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| moonkale (→ `44c40663`) | 471 | 72.5 / 552.5 ms | 78.6 s | 41,472,000 | 5,940 / 3 | 43.1 / 44.4 ms | 2.39 ms |
+| lenticulum (→ `488ce636`) | 130 | 215.2 / 1097.5 ms | 52.8 s | 11,390,976 | 1,770 / 408 | 13.6 / 14.5 ms | 0.71 ms |
+
+Against v0.1.1 over the same ranges: Moonkale's store shrinks from 92.6 to
+41.5 MB (fresh build 36.9 MB), batch times are unchanged within noise, and
+All(1000) drops from 6.2 s to 43 ms in debug (release: 1.85 s to 16 ms, by
+`query_profile`). Raw reports:
+`packages/services/index/measurements/history-2026-10-24-{moonkale,lenticulum}-v0.1.2.jsonl`.
+
 **Rerun with the P-231 fix: clean.** Sophia `77f5c1c9` (tagged v0.1.1,
 `def22b0c`, now pinned) fixes both causes of P-231: duplicate old member ids, and
 names changing kind. With the same tool, checker `full-digest-v1` and debug

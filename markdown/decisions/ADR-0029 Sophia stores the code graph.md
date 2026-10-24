@@ -83,3 +83,8 @@ differences at any checkpoint; see [[Indexing]]. Moonkale pins it by the tag
 in-memory index: Sophia has no `search` dialect, and adding one is a new
 requirement for Daniel. Still open before the default switch: gate 3 (wasm read
 path or the server fallback).
+
+**Sophia v0.1.2 (2026-10-24):** folder stores collect their own garbage
+(Sophia SR-146, derived mode only; stores that are the truth keep their whole
+history), and the capped graph read is fast (P-232). The replays stay clean;
+see [[Indexing]].
