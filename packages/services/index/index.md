@@ -168,7 +168,6 @@ dialect; those durations measure rejection, not successful searches.
 `cargo test -p moonkale-index --features sophia --test history_replay` runs the
 hermetic five-commit add/modify/rename/move/delete replay in CI, with checkpoints
 at every commit and a second non-root range. It also checks scratch refusal and
-that input Git status is unchanged. The ignored P-231 regression deliberately
-asserts the upstream contract and fails on Sophia v0.1.0; enable it explicitly
-after pinning the upstream fix. Full history measurements and findings live in
+that input Git status is unchanged. The P-231 regression asserts the upstream
+contract; it failed on Sophia v0.1.0 and passes since the fix (`77f5c1c9`). Full history measurements and findings live in
 [[Indexing]].

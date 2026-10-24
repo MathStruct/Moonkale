@@ -113,6 +113,28 @@ on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
+**Rerun with the P-231 fix: clean.** Sophia `77f5c1c9` (master; the v0.1.1 tag
+waits for Daniel) fixes both causes of P-231: duplicate old member ids, and
+names changing kind. With the same tool, checker `full-digest-v1` and debug
+build, both histories show **0 differences at every checkpoint**, with no write
+or fresh-build errors and no retries:
+
+| repository | commits | batch median / p95 | sum of batch times | final store bytes | records / live facts |
+|---|---:|---:|---:|---:|---:|
+| moonkale (→ `edcf3c86`) | 469 | 122.1 / 932.9 ms | 119.6 s | 92,475,392 | 11,536 / 3 |
+| lenticulum (→ `488ce636`) | 130 | 187.3 / 1089.2 ms | 49.3 s | 20,258,816 | 2,775 / 408 |
+
+Final-checkpoint reads (median / p95 ms): Moonkale lookup 0.009 / 0.010,
+text_source 4.78 / 5.95, All(1000) 6180 / 6226; Lenticulum lookup 0.006 / 0.007,
+text_source 1.37 / 1.46, All(1000) 128.0 / 128.7. The All(1000) growth is
+unchanged by the fix and still unprofiled. Raw reports:
+`packages/services/index/measurements/history-2026-10-24-{moonkale,lenticulum}-77f5c1c9.jsonl`.
+The run header now names the Sophia source from Cargo.lock.
+
+The v0.1.0 run below is kept as the evidence for P-231.
+
+### First run, Sophia v0.1.0
+
 The opt-in `history_replay` example runs behind `sophia`; its shared test helper
 also drives the hermetic five-commit CI test. Both real repositories were read
 through Git blobs, without checkout or writes to either repository or Sophia's

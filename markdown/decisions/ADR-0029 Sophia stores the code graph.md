@@ -75,3 +75,11 @@ rejection times are not successful search timings. See [[Indexing]] for the
 complete runs, exact commits, measurements, limitations and verification.
 This does not enable Sophia by default. A fixed tagged release and a clean
 replay are still required.
+
+**Gate 4 met at Sophia `77f5c1c9` (2026-10-24):** with Sophia's P-231 fix, the
+replay of both histories (Moonkale 469 commits, Lenticulum.jl 130) has no
+differences at any checkpoint; see [[Indexing]]. It counts once Moonkale pins
+the fix by a tag (v0.1.1, waiting for Daniel), per gate 1. Search stays on the
+in-memory index: Sophia has no `search` dialect, and adding one is a new
+requirement for Daniel. Still open before the default switch: gate 3 (wasm read
+path or the server fallback).

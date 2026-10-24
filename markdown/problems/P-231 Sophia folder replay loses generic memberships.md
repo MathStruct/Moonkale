@@ -1,10 +1,10 @@
 ---
 title: "P-231 — Sophia folder replay loses generic memberships"
 tags: [problem, sophia, index]
-status: open
+status: resolved
 phase: "ADR-0029 gate 4"
 ---
-**Status:** open · **Related:** [[Indexing]], [[ADR-0029 Sophia stores the code graph]]
+**Status:** resolved upstream (Sophia `77f5c1c9`; pinned by rev until the v0.1.1 tag) · **Related:** [[Indexing]], [[ADR-0029 Sophia stores the code graph]]
 
 ## Problem
 
@@ -45,3 +45,14 @@ left orphaned when generic delta processing sees a Content target and skips it.
 
 File manifests are necessary evidence, but are not sufficient: compare actual
 names and live memberships, and enumerate facts on historical subjects too.
+
+## Resolution (2026-10-24)
+
+Sophia `77f5c1c9` fixes two causes. (1) Old and new contributions are both
+counted once per (file, generic). (2) Names changing kind: a generic that becomes
+a definition closes its old nominal relations in the same batch, and a freed name
+rebuilds its memberships from every file's manifest. Sophia added replay
+regressions on all four backends. Moonkale pins the rev, the regression
+`repeated_generic_content_survives_a_file_refresh` runs again, and both history
+replays are clean ([[Indexing]]). Stores written by v0.1.0 may hold wrong counts:
+delete `.moonkale/code.sophia` to rebuild.

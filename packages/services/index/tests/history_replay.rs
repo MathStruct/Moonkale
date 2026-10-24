@@ -80,11 +80,9 @@ async fn five_commit_history_matches_fresh_stores() {
     assert_eq!((result.commits, result.findings, result.errors), (2, 0, 0));
 }
 
-/// Sophia v0.1.0 subtracts duplicate old generic member ids twice while
-/// counting the new contribution once. Keep this failing contract visible
-/// until the upstream fix is pinned; the normal five-commit CI test still runs.
+/// P-231: Sophia v0.1.0 subtracted duplicate old generic member ids twice
+/// while counting the new contribution once (fixed in Sophia 77f5c1c9).
 #[tokio::test]
-#[ignore = "P-231: Sophia v0.1.0 loses a generic with duplicate content ids"]
 async fn repeated_generic_content_survives_a_file_refresh() {
     let repo = tempfile::tempdir().unwrap();
     let root = repo.path();

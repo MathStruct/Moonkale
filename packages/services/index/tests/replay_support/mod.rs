@@ -18,6 +18,22 @@ use std::{
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 type State = BTreeMap<String, String>;
 
+/// The Sophia source pinned in Cargo.lock, so reports name the store they measured.
+fn sophia_pin() -> String {
+    let lock = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../Cargo.lock");
+    let text = std::fs::read_to_string(lock).unwrap_or_default();
+    text.split("[[package]]")
+        .find(|p| p.contains("name = \"sophia-store\""))
+        .and_then(|p| p.lines().find_map(|l| l.strip_prefix("source = ")))
+        .map(|s| {
+            s.trim_matches('"')
+                .rsplit_once('#')
+                .map_or(s, |(_, rev)| rev)
+                .to_string()
+        })
+        .unwrap_or_else(|| "unknown".into())
+}
+
 pub fn git(repo: &Path, args: &[&str]) -> Result<Vec<u8>> {
     let output = Command::new("git")
         .arg("--no-optional-locks")
@@ -411,7 +427,7 @@ pub async fn replay(
     writeln!(
         output,
         "{}",
-        serde_json::json!({"type":"run", "checker":"full-digest-v1", "repo":repo, "range":range, "commits":commits.len(), "first":commits[0], "last":commits.last(), "checkpoint_interval":interval, "normaliser":moonkale_index::folder_store::normaliser(), "sophia":"v0.1.0 c3c48e02", "build":"debug", "order":"reverse topo; adjacent tree transitions", "sample_seed":"4d6f6f6e6b616c65"})
+        serde_json::json!({"type":"run", "checker":"full-digest-v1", "repo":repo, "range":range, "commits":commits.len(), "first":commits[0], "last":commits.last(), "checkpoint_interval":interval, "normaliser":moonkale_index::folder_store::normaliser(), "sophia":sophia_pin(), "build":"debug", "order":"reverse topo; adjacent tree transitions", "sample_seed":"4d6f6f6e6b616c65"})
     )?;
     let mut outcome = Outcome {
         commits: 0,

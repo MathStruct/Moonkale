@@ -202,7 +202,9 @@ ADR-0029 gate 4 now uses reproducible Git-history replay in place of unavailable
 daily use of the optional folder store. The opt-in tool and hermetic five-commit
 CI test are implemented. Real Moonkale and Lenticulum histories expose missing
 and stale live generic names/memberships despite matching file manifests
-([[P-231 Sophia folder replay loses generic memberships]]). The Sophia Source
-also rejects the Search panel's query dialect. The gate remains unmet and the
-feature remains off by default. Exact runs and measurements are in [[Indexing]];
+([[P-231 Sophia folder replay loses generic memberships]]). Sophia fixed P-231
+in `77f5c1c9`, which Moonkale pins by rev; with it both replays are clean (0
+differences). The gate counts once that fix is pinned by the v0.1.1 tag. Search
+stays on the in-memory index (Sophia has no `search` dialect). The feature
+remains off by default until gate 3 (wasm or server fallback) is met too. Exact runs and measurements are in [[Indexing]];
 this checks the replay only, not the older whole-product inventory above.
