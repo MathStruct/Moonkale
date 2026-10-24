@@ -55,3 +55,5 @@ for verification, measurements and the initial module-naming limits.
 **Interface (2026-10-23):** Sophia's SPEC-009 "Moonkale Folder Store" (Sophia rev 773d9898, accepted by Daniel 2026-10-23), which covers finished records per file, `Store::replace_files`, the enforced `store/mode = derived`, read-only SQLite for wasm, and `binding()`/`entity_path()` in `moonkale-content-id`. Daniel also cleared SP-015 and a v0.1.0 tag on those conditions; the Sophia work starts 2026-10-24.
 
 Related: [[ADR-0028 Files or the graph]], [[Code Graph Schema]], [[Indexing]], [[North Star]], [[Work Packages]] (WP-21, WP-68).
+
+**Gate 1 met (2026-10-24):** Sophia v0.1.0 is tagged (commit c3c48e02), and Moonkale pins `tag = "v0.1.0"` in `sources/sophia` and `services/index`. SP-015 is resolved too (Sophia cafe940e).
