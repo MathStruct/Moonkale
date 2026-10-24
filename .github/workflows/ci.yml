@@ -202,6 +202,8 @@ jobs:
           shared-key: ci-test
       - name: cargo test
         run: cargo test --workspace --locked
+      - name: Sophia folder history replay (hermetic)
+        run: cargo test -p moonkale-index --features sophia --test history_replay --locked
       - name: Content identities and lossless Rust syntax (off by default)
         run: |
           cargo test -p moonkale-index --features content-ids,lossless-syntax --locked
