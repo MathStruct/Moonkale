@@ -110,3 +110,116 @@ Verification: all 18 mandatory/feature gate commands passed in
 73 feature-focused tests, including ten folder-store regressions). Browser
 `sophia-folder`, `graph`, `watch` and `search-trace` pass with the feature enabled
 on owned port 8117; the renderer suites use Chromium/SwiftShader.
+
+## ADR-0029 gate 4: history replay (2026-10-24)
+
+The opt-in `history_replay` example runs behind `sophia`; its shared test helper
+also drives the hermetic five-commit CI test. Both real repositories were read
+through Git blobs, without checkout or writes to either repository or Sophia's
+checkout. Owned scratch/target directories, the heavy slot and the shared bench
+lock were used. Native debug build, Sophia **v0.1.0 (`c3c48e02`)**, normalizer v7,
+Linux, Rust 1.98.1. These are observed timings, not performance assertions.
+Compilation/checks were excluded from the measured runs.
+
+Each adjacent tree in reverse topological order is one watcher-shaped
+`sync_selected` window, using the production `replace_files`/`NameClaimed`
+retry path. The full eligible snapshot supplies dependency/owner recovery.
+Only regular Rust/Julia/Python blobs and naming/ignore metadata are materialized;
+the ordinary ignore-aware Source walk selects the code. Limits remain 512 KiB
+per file, 5,000 walked files and 64 MiB admitted code. Unsupported/hidden/ignored
+files, symlinks and internal cache/build directories do not enter the store.
+This measures the folder writer, not OS event delivery or full app startup.
+Equivalence checks consistency within today's conservative producer, not full
+compiler-level definition/extraction coverage.
+
+At every 50 commits and the end, a separate snapshot/store is built fresh.
+Comparison covers full content ids/canonical bytes, actual names, text-source
+pointers, file manifests, live generic memberships (including orphan relations),
+and facts even on historical record subjects. Immutable historical records,
+logs, randomly allocated nominal ids and first-writer display labels are
+excluded from equivalence. Record counts below include retained history;
+fact counts count actual live facts, not manifest claims. Differences are
+reported without repairing or resynchronizing the incremental store.
+
+| repository | commits | batch median / p95 | sum of batch times | retries | final store bytes | retained records / live facts | checkpoint differences / write or fresh-build errors |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| moonkale | 467 | 105.462 / 795.053 ms | 106.232 s | 0 | 92,307,456 | 11,514 / 3 | 10 / 0 |
+| lenticulum | 130 | 200.187 / 1193.086 ms | 54.676 s | 0 | 20,254,720 | 2,775 / 408 | 35 / 0 |
+
+Ranges and evidence (JSONL contains every commit, count, error, difference and checkpoint timing):
+
+- **moonkale**: `master`, `0bf404d7b42f998a06a3b28f09e1cf5b84df59f0` → `6d2afa4aaf2c63a8f501518747b4137acf3a5ee4`; [raw report](https://github.com/MathStruct/Moonkale/blob/master/packages/services/index/measurements/history-2026-10-24-moonkale.jsonl).
+- **lenticulum**: `HEAD`, `6267a1576ec1d055572cdafb370903f018e7c31d` → `488ce636f193f95afb5ccbbbf92d34ea711e5e2a`; [raw report](https://github.com/MathStruct/Moonkale/blob/master/packages/services/index/measurements/history-2026-10-24-lenticulum.jsonl).
+
+Checkpoint queries use 100 name resolutions, 100 fixed-seed random definition
+`text_source` reads with replacement (seed `4d6f6f6e6b616c65`), and ten graph
+`Source::query(All { limit: 1000 })` reads. Each cell below is median / p95 in
+milliseconds. p95 uses nearest rank. Empty stores have no lookup/text samples.
+These graph reads are capped snapshots, not whole-store traversal timings.
+
+| repository / checkpoint | name lookup | text_source | graph All(1000) |
+|---|---:|---:|---:|
+| moonkale / 50 | 0.006 / 0.007 | 0.859 / 0.936 | 503.495 / 511.265 |
+| moonkale / 100 | 0.007 / 0.007 | 1.076 / 1.176 | 745.031 / 747.243 |
+| moonkale / 150 | 0.006 / 0.007 | 1.318 / 1.380 | 1070.522 / 1074.204 |
+| moonkale / 200 | 0.007 / 0.007 | 1.464 / 1.537 | 1225.233 / 1231.006 |
+| moonkale / 250 | 0.007 / 0.007 | 2.433 / 2.574 | 2734.605 / 2749.230 |
+| moonkale / 300 | 0.007 / 0.007 | 2.522 / 2.669 | 2895.382 / 2949.424 |
+| moonkale / 350 | 0.007 / 0.008 | 2.826 / 3.023 | 3310.263 / 3356.621 |
+| moonkale / 400 | 0.009 / 0.010 | 4.592 / 5.891 | 5986.299 / 6013.897 |
+| moonkale / 450 | 0.009 / 0.010 | 5.004 / 6.206 | 6161.308 / 6257.106 |
+| moonkale / 467 | 0.009 / 0.010 | 4.782 / 6.017 | 6240.104 / 6372.789 |
+| lenticulum / 50 | 0.006 / 0.007 | 0.754 / 0.787 | 67.256 / 68.306 |
+| lenticulum / 100 | 0.006 / 0.007 | 1.205 / 1.318 | 110.904 / 111.521 |
+| lenticulum / 130 | 0.007 / 0.007 | 1.357 / 1.458 | 127.903 / 129.483 |
+
+The actual Search-panel read (`Text { dialect: "search", text: "main" }`,
+ten attempts per checkpoint) is **unsupported** by SophiaSource. The raw reports
+record its rejection latency and error; these are not successful search
+measurements. Graph-read errors, if any, are separate checkpoint fields.
+Search still uses the existing in-memory index, not this Sophia read path.
+
+**Findings — gate 4 remains unmet.** P-231 affects both Rust and Julia:
+Sophia deduplicates new generic contributions by content id but subtracts
+repeated old manifest ids without deduplicating. Live generic names/members
+can disappear even though file manifests agree. Old nominal relations can also
+remain orphaned after a name becomes Content; that transition needs upstream
+review. The exact request is in `HANDOFF-from-codex.md`; a minimal ignored
+contract regression fails on v0.1.0. No cache repair or workaround is included.
+
+Checkpoint difference counts are counts of differing state keys, not independent
+bugs (a missing generic can affect its name and membership, and a persistent
+error can recur at later checkpoints). Exact commits and owning paths are in
+the raw reports. Differing checkpoints:
+
+- moonkale #300 `2fe0c7f216c965f90ac2241a3494072d540f5071`: 2 differing keys.
+- moonkale #350 `5a2cb07de26b793e0ad29ee18d3f589d2a679242`: 2 differing keys.
+- moonkale #400 `48d17bff874a2fabd94e35202592135568280ad4`: 2 differing keys.
+- moonkale #450 `02bf57ba285c537a18fb9bc0730966488defe27f`: 2 differing keys.
+- moonkale #467 `6d2afa4aaf2c63a8f501518747b4137acf3a5ee4`: 2 differing keys.
+- lenticulum #50 `cf7e331b23fb3464004ac8b1cd4ab36a97a85fc4`: 1 differing keys.
+- lenticulum #100 `53b8b15b29ce0cf0698d4f7cc99271fbac3332ac`: 10 differing keys.
+- lenticulum #130 `488ce636f193f95afb5ccbbbf92d34ea711e5e2a`: 24 differing keys.
+
+All reported differences are name/membership keys: Moonkale has five missing
+name keys and five missing membership keys across its checkpoints; Lenticulum
+has 13 name and 22 membership differences. No content-record, manifest,
+text-source or stored-fact differences were observed. A `paths=[]` orphan has
+no current owning file manifest; its full member id and commit remain in the
+report. The orphan is already present at Lenticulum checkpoint 50.
+
+The fixed graph read gets slower across Moonkale's replay: median 503 ms at
+checkpoint 50 and 6,240 ms at the end (p95 6,373 ms), despite its 1,000-node cap.
+This is a debug observation against the accumulated store, not a full UI
+measurement or a diagnosed cause; profiling the retained-history read path is
+follow-up work. Lenticulum ends at 128 ms median / 129 ms p95.
+
+Verification: all mandatory AGENTS gates passed, including separate fuzz fmt,
+826 workspace tests (seven ignored), clippy, both distribution checks, rustdoc
+and wasm. Sophia feature tests pass (74 tests, one ignored), including the new
+five-commit replay, non-root range and scratch-refusal checks. Feature clippy
+passes after fixing a byte-slice style lint in the new helper. The explicitly
+run ignored P-231 contract regression fails as expected with two missing state
+keys. Evidence: `target/next18-gates.log`, `target/next18-final-checks.log`,
+`target/next18-p231-regression.log`, and the two checked-in JSONL reports above.
+No production UI changed, so no browser suite was added or rerun.

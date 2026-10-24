@@ -297,3 +297,14 @@ spans. It keeps no live derived-file connection between calls. Sophia owns
 atomic per-file fact replacement, provenance and rollback; Moonkale neither
 executes stored code nor directly edits Sophia's tables. Failed retries are
 bounded (16 owners), and the remote refresh endpoint caps batches at 10,000 ids.
+
+ADR-0029 history replay (2026-10-24) is an opt-in example/test behind `sophia`.
+It reads Git object ids/blobs through argument-based Git subprocesses, without
+shell interpolation, hooks, checkout or writes to the input repository. Scratch
+must exist outside the canonical input path; snapshots admit only bounded
+regular code/naming/ignore blobs, without symlinks or executable permissions. Sources still
+pass through the normal ignore-aware selection and producer budgets. Git tree
+paths cannot traverse outside scratch; cache/build paths are skipped. Temporary
+snapshots/databases are cleaned on normal exit. Reports contain identifiers,
+paths, counts, timings and errors, without source bodies. No production source,
+write authority, dependency or network capability is added.

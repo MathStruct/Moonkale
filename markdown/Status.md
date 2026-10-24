@@ -195,3 +195,14 @@ module-naming limits and evidence. ADR-0029's release/default gates remain open.
 
 ## Next
 [[Milestone 18 - Library Refactor]] is merged ([[Milestone 18 - Implementation Log]]; library crates tagged `lib-v1`, Lux.jl in `MathStruct/moonkale-julia`). Spec [[030]] — English/German/Chinese and themes ([[Languages and Themes]]) — is done on the `spec-030` branch; German and Chinese await a native review. The order beyond that is in the [[Roadmap]].
+
+## Sophia history replay (checked 2026-10-24)
+
+ADR-0029 gate 4 now uses reproducible Git-history replay in place of unavailable
+daily use of the optional folder store. The opt-in tool and hermetic five-commit
+CI test are implemented. Real Moonkale and Lenticulum histories expose missing
+and stale live generic names/memberships despite matching file manifests
+([[P-231 Sophia folder replay loses generic memberships]]). The Sophia Source
+also rejects the Search panel's query dialect. The gate remains unmet and the
+feature remains off by default. Exact runs and measurements are in [[Indexing]];
+this checks the replay only, not the older whole-product inventory above.

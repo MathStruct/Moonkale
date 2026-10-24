@@ -49,7 +49,7 @@ per-file fact replacement fixed). Reopen skips unchanged manifests, watcher
 windows are atomic batches, normalizer changes rebuild, and stale reads fall
 back to the current file. Definition ids and names rebuild from files; nominal
 generic ids remain Sophia allocations. The tagged-release/default gates above
-still apply, including several days of ordinary repository use. See [[Indexing]]
+still apply; gate 4's measurement method is refined below. See [[Indexing]]
 for verification, measurements and the initial module-naming limits.
 
 **Interface (2026-10-23):** Sophia's SPEC-009 "Moonkale Folder Store" (Sophia rev 773d9898, accepted by Daniel 2026-10-23), which covers finished records per file, `Store::replace_files`, the enforced `store/mode = derived`, read-only SQLite for wasm, and `binding()`/`entity_path()` in `moonkale-content-id`. Daniel also cleared SP-015 and a v0.1.0 tag on those conditions; the Sophia work starts 2026-10-24.
@@ -57,3 +57,21 @@ for verification, measurements and the initial module-naming limits.
 Related: [[ADR-0028 Files or the graph]], [[Code Graph Schema]], [[Indexing]], [[North Star]], [[Work Packages]] (WP-21, WP-68).
 
 **Gate 1 met (2026-10-24):** Sophia v0.1.0 is tagged (commit c3c48e02), and Moonkale pins `tag = "v0.1.0"` in `sources/sophia` and `services/index`. SP-015 is resolved too (Sophia cafe940e).
+
+**Gate 4 methodology (2026-10-24):** replaced by a history replay, 2026-10-24,
+because nobody yet uses the optional folder store in ordinary daily work and
+cannot supply the requested days of use (Claude's decision, agreed by Daniel).
+The original gate text above is retained. Real Git history is replayed as
+watcher-shaped batches; every 50 commits and at the end, a fresh store of the
+same tree is compared with the incremental one. Names, content ids, text-source
+pointers, manifests, live generic memberships and facts are checked. Query
+reads and batch times are measured, with no performance assertions.
+
+**Gate 4 remains unmet:** the replay found lost/stale generic names and
+memberships in both repositories ([[P-231 Sophia folder replay loses generic memberships]]).
+Sophia v0.1.0 counts duplicate old generic member ids incorrectly during
+replacement. Its Source also rejects the Search panel's `search` dialect;
+rejection times are not successful search timings. See [[Indexing]] for the
+complete runs, exact commits, measurements, limitations and verification.
+This does not enable Sophia by default. A fixed tagged release and a clean
+replay are still required.

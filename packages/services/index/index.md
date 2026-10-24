@@ -125,3 +125,50 @@ A different `folder/normaliser` rebuilds the cache; deleting it is safe.
 Acceptance tests: `cargo test -p moonkale-index --features sophia --test folder_store`.
 The `folder_store` example measures a real folder without a UI. See [[Indexing]]
 for the repository measurement and limitations.
+
+### History replay (ADR-0029 gate 4)
+
+`cargo run -p moonkale-index --features sophia --example history_replay --
+REPO RANGE SCRATCH_DIRECTORY` is an opt-in measurement, with no UI or server.
+Create the scratch directory **outside** the input repository first. The tool
+canonicalizes both paths and refuses scratch locations inside the repository.
+Git is read through `rev-list`, `ls-tree` and a persistent `cat-file --batch`
+process. It never checks out, adds a worktree to, or changes the input repo.
+Scratch snapshots and databases are temporary and removed on normal exit.
+
+Commits run oldest first in reverse topological order. Each transition between
+adjacent trees becomes one selected debounce window passed to
+`FolderStore::sync_selected`, including rename old/new paths. Non-root ranges
+first build the first commit's parent as a baseline. Only bounded regular
+Rust/Julia/Python blobs plus Cargo/Python naming and ignore metadata are
+materialized; tracked symlinks, internal cache/build directories and other
+files are skipped. The ordinary ignore-aware FolderSource walk then selects
+inputs. Aggregate/parser limits remain in force. This measures the folder
+writer's watcher batch path, not OS notification delivery or full index/UI
+startup. Non-code changes are not counted in `changed_paths`.
+
+JSONL reports each batch's time (writer only), selected-path and replaced-file
+counts, retries, SQLite size, retained record count, live fact count and errors.
+Every 50 commits and at the end, an independent scratch tree is built afresh.
+Comparison covers manifests, actual names, content identities/bytes, text-source
+pointers, live generic memberships (including orphan relations), and actual
+facts even on historical record subjects. Append-only records/logs, random
+nominal UUIDs and first-writer display metadata are not equivalence criteria.
+Each difference is reported with the commit and owning paths when available.
+Errors/findings cause a nonzero exit after the report is written; no repair is
+attempted. Query timing failures are recorded separately in checkpoint output.
+
+Checkpoint reads use 100 name lookups, 100 fixed-seed random definition
+`text_source` reads with replacement, ten `Source::query(All { limit: 1000 })`
+graph reads and ten actual Search-panel `Text { dialect: "search", text:
+"main" }` reads. Empty stores have no lookup/text samples. Reports contain
+sample counts, median and nearest-rank p95. Sophia currently rejects the search
+dialect; those durations measure rejection, not successful searches.
+
+`cargo test -p moonkale-index --features sophia --test history_replay` runs the
+hermetic five-commit add/modify/rename/move/delete replay in CI, with checkpoints
+at every commit and a second non-root range. It also checks scratch refusal and
+that input Git status is unchanged. The ignored P-231 regression deliberately
+asserts the upstream contract and fails on Sophia v0.1.0; enable it explicitly
+after pinning the upstream fix. Full history measurements and findings live in
+[[Indexing]].
