@@ -75,3 +75,53 @@ depth guard, preserving normalizer v7 and golden ids. The index regression now
 expects a 140-parenthesis body to receive an id; source fetch, reachable-definition
 and cache limits remain enforced independently. The shared crate's
 `tests/deep.rs` covers depth 100,000 on 256 KiB stacks.
+
+## WP-21: derived folder store (2026-10-24)
+
+Default-off `sophia` adds `folder_store/{mod,producer}.rs`. The index remains
+in memory and keeps its current queries. Desktop, server and mobile builds
+with that feature register `.moonkale/code.sophia` as an additional graph source.
+The wasm client uses the server's `RemoteSource`.
+
+The writer uses the bounded, ignore-aware folder walk: Rust, Python and Julia
+only, at most 512 KiB per file, 5,000 walked files and 64 MiB aggregate code
+text. A truncated walk fails visibly instead of deleting unseen contributions.
+Markdown, configuration, hidden files and ignored files never enter this store.
+The cache directory has its own `*` ignore file and is explicitly skipped by
+the index walk. Cache paths may not be symlinks.
+
+`CodeFile` is the admitted snapshot, `FolderStore::sync` the blocking writer,
+and `FolderReport` the evidence (parsed/skipped files, writes, retries, refusals,
+rebuild). Reads/hashing occur on reopen; unchanged files cause zero parses and
+zero `replace_files` calls. A changed Rust/Python file uses the index extractor's
+lexical references on its content-id tree. Julia follows literal includes in
+module mode, records dynamic includes conservatively, and re-evaluates module
+dependants; only changed manifests are replaced. Refused definitions contribute
+no guessed identities; ambiguous named bindings (for example conditional Rust
+statics) keep their records but publish no arbitrarily chosen name, and appear
+in `FolderReport.naming_diagnostics` and index-root properties; aggregate/budget/conflict errors leave the prior store
+and return an error through `folder_store_report` and refresh.
+
+The record mapping **mirrors** Sophia `sophia-ingest/src/code.rs::to_record`
+at `c3c48e02`: canonical bytes contain full referenced digests, `refs` excludes
+intra-component references, and display/kind/component metadata come from shared
+content-id output. Sophia does no parsing. Names use shared `binding_groups` /
+`entity_path`, with nearest Cargo package names (hyphens become underscores),
+conventional Rust file modules, Python `__init__.py` / `pyproject.toml` roots,
+and Julia include bases and module ownership. Unknown Rust/Python roots use the
+shared path-derived `unknown` namespace. No normalizer or content-id changes.
+Generic-call facts have kind `uses_generic`, producer `moonkale-index`, version
+`moonkale-wp66@7`, and a UTF-8 absolute generic path as value. Paths are resolved
+when read: nominal ids are allocated within Sophia's transaction.
+
+`Source::refresh_batch` preserves a watcher debounce window through workspace,
+server function and remote proxy. The writer reconciles the current snapshot
+once, including old-path deletion/new-path insertion and Julia dependants, in
+one `replace_files` transaction. A structured `NameClaimed` adds its owner from
+the admitted snapshot and retries at most 16 new owners; empty/repeated owners
+fail. Sophia owns fact replacement and rollback (manifest format @1).
+A different `folder/normaliser` rebuilds the cache; deleting it is safe.
+
+Acceptance tests: `cargo test -p moonkale-index --features sophia --test folder_store`.
+The `folder_store` example measures a real folder without a UI. See [[Indexing]]
+for the repository measurement and limitations.

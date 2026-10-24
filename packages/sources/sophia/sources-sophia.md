@@ -94,3 +94,27 @@ The copied P-224 store has 199,257 graph nodes and projects to two representativ
 in 3.68 s cold / 1.81–1.83 s warm. The initial full-snapshot implementation
 exhausted its blocking worker stack; metadata listing avoids that path. Original
 full graph/neighbour/body traversal remains an upstream follow-up (P-229).
+
+## Derived folder stores (WP-21, 2026-10-24)
+
+`open` detects Sophia's enforced `store/mode = derived`. Such a source has
+`truth: Files`, `write: false`, and returned nodes carry `derived: true` and
+`stale` properties. Authored `.sophia` stores retain store truth and editing.
+The graph picker includes folder-store names/definitions despite file truth;
+search (`sql`/`query`) and agents use the same Source interface.
+
+For `.moonkale/code.sophia`, `fetch_text` obtains the definition's `text_source`
+(and each member's for a generic), reads the bounded current code file under
+the folder jail, and compares Sophia's `source_record(path,text).id`. A matching
+id returns its exact source span. A mismatch returns the current whole file,
+because old spans cannot address new text, and records the path in
+`stale_files()`. Missing/invalid files fail and mark stale. A subsequent current
+read clears that path. Hidden/non-code paths and paths leaving the folder are
+refused. Generic-call facts from the index become Calls edges by resolving their
+absolute paths against current names.
+
+Derived sources keep no live connection to their cache file between calls;
+each call opens a fresh read-only Interface. This permits deletion/rebuild while
+a source stays open, including on Windows. A feed cursor beyond the new log
+requests a reset. Content ids and source-scoped name ids remain stable; generic
+nominal ids are store-owned allocations and may change after cache recreation.
