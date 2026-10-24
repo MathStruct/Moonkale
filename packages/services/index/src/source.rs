@@ -43,6 +43,12 @@ pub struct IndexSource {
     graph: RwLock<IndexGraph>,
     stats: RwLock<IndexStats>,
     limits: Limits,
+    #[cfg(feature = "sophia")]
+    folder_store: Option<Arc<crate::folder_store::FolderStore>>,
+    #[cfg(feature = "sophia")]
+    folder_store_lock: tokio::sync::Mutex<()>,
+    #[cfg(feature = "sophia")]
+    folder_report: RwLock<Result<crate::folder_store::FolderReport, String>>,
     search: RwLock<SearchIndex>,
     /// Embedding provider for hybrid search (`None` = BM25 only).
     embedder: Option<Arc<dyn moonkale_llm::Provider>>,
@@ -72,6 +78,17 @@ impl IndexSource {
     ) -> Result<Self, SourceError> {
         let fd = folder.descriptor();
         let id = SourceId::new(format!("index:{}", fd.id));
+        #[cfg(feature = "sophia")]
+        let folder_store = if let Some(path) = fd.id.as_str().strip_prefix("folder:") {
+            let path = std::path::PathBuf::from(path);
+            Some(Arc::new(
+                tokio::task::spawn_blocking(move || crate::folder_store::FolderStore::open(path))
+                    .await
+                    .map_err(|e| SourceError::Io(e.to_string()))??,
+            ))
+        } else {
+            None
+        };
         let this = Self {
             id,
             root: fd.root,
@@ -79,6 +96,12 @@ impl IndexSource {
             graph: RwLock::new(IndexGraph::default()),
             stats: RwLock::new(IndexStats::default()),
             limits: Limits::default(),
+            #[cfg(feature = "sophia")]
+            folder_store,
+            #[cfg(feature = "sophia")]
+            folder_store_lock: tokio::sync::Mutex::new(()),
+            #[cfg(feature = "sophia")]
+            folder_report: RwLock::new(Ok(Default::default())),
             search: RwLock::new(SearchIndex::default()),
             embedder: embedder.filter(|e| e.supports_embed()),
             #[cfg(feature = "content-ids")]
@@ -87,7 +110,54 @@ impl IndexSource {
             content_generation: std::sync::atomic::AtomicU64::new(0),
         };
         this.rebuild().await?;
+        #[cfg(feature = "sophia")]
+        this.sync_folder_store().await?;
         Ok(this)
+    }
+
+    /// The optional code store is an additional Source, opened by the app.
+    #[cfg(feature = "sophia")]
+    pub fn folder_store_path(&self) -> Option<std::path::PathBuf> {
+        self.folder_store.as_ref().map(|s| s.path())
+    }
+
+    #[cfg(feature = "sophia")]
+    pub fn folder_store_report(&self) -> Result<crate::folder_store::FolderReport, String> {
+        self.folder_report.r().clone()
+    }
+
+    #[cfg(feature = "sophia")]
+    async fn sync_folder_store(&self) -> Result<(), SourceError> {
+        let Some(store) = &self.folder_store else {
+            return Ok(());
+        };
+        let _serial = self.folder_store_lock.lock().await;
+        let result = async {
+            let (entries, truncated) = walk::walk(&*self.folder, self.root, &self.limits).await?;
+            if truncated { return Err(SourceError::Invalid("folder-store walk truncated".into())); }
+            let mut files = Vec::new();
+            let mut bytes = 0usize;
+            for (_, node) in entries {
+                if node.kind != NodeKind::File || !walk::wants_text(&node, &self.limits)
+                    || !matches!(&node.content, Some(ContentRef::Text { lang: Some(l), .. }) if matches!(l.as_str(), "rust" | "julia" | "python")) { continue; }
+                if !store.admits_path(&node.native_key) { continue; }
+                let (text, _) = match self.folder.fetch_text(node.id).await {
+                    Ok(text) => text,
+                    // The index has already exposed index_error and removed
+                    // symbols for a non-UTF-8 file. Remove its cached facts too.
+                    Err(SourceError::Unsupported(_)) => continue,
+                    Err(error) => return Err(error),
+                };
+                bytes = bytes.saturating_add(text.len());
+                if text.len() > self.limits.max_text_bytes as usize { continue; }
+                if bytes > crate::folder_store::MAX_SNAPSHOT_BYTES { return Err(SourceError::Invalid("folder-store byte limit".into())); }
+                files.push(crate::folder_store::CodeFile { node, text });
+            }
+            let store = store.clone();
+            tokio::task::spawn_blocking(move || store.sync(&files)).await.map_err(|e| SourceError::Io(e.to_string()))?
+        }.await;
+        *self.folder_report.w() = result.clone().map_err(|e| e.to_string());
+        result.map(|_| ())
     }
 
     /// Attach an optional rebuildable persistent content-id cache. No source
@@ -687,11 +757,32 @@ impl Source for IndexSource {
         let g = self.graph.r();
         match query {
             Query::Coarse { .. } => unreachable!("dispatched before locking"),
-            Query::Node(id) => g
-                .node(id)
-                .cloned()
-                .map(QueryResult::single)
-                .ok_or(SourceError::NotFound),
+            Query::Node(id) => {
+                let node = g.node(id).cloned().ok_or(SourceError::NotFound)?;
+                #[cfg(feature = "sophia")]
+                let node = {
+                    let mut node = node;
+                    if id == self.root {
+                        match self.folder_store_report() {
+                            Ok(r) => {
+                                node.props.insert(
+                                    "sophia_refused".into(),
+                                    Value::Int(r.refused_definitions as i64),
+                                );
+                                node.props.insert(
+                                    "sophia_naming_diagnostics".into(),
+                                    Value::Text(r.naming_diagnostics.join("\n")),
+                                );
+                            }
+                            Err(error) => {
+                                node.props.insert("sophia_error".into(), Value::Text(error));
+                            }
+                        }
+                    }
+                    node
+                };
+                Ok(QueryResult::single(node))
+            }
             Query::Children(id) => {
                 let ids = g.children(id);
                 let nodes: Vec<Node> = ids.iter().filter_map(|i| g.node(*i).cloned()).collect();
@@ -798,11 +889,23 @@ impl Source for IndexSource {
         ))
     }
 
-    /// A node changed, appeared or vanished in the folder: a vanished node
-    /// (rename/delete) is dropped with its subtree and derived data; a new
-    /// directory is walked; a file is re-extracted. The parent's `Contains`
-    /// edge is kept in step so new files show up in the graph.
     async fn refresh(&self, node: NodeId) -> Result<(), SourceError> {
+        self.refresh_batch(&[node]).await
+    }
+
+    async fn refresh_batch(&self, nodes: &[NodeId]) -> Result<(), SourceError> {
+        for node in nodes {
+            self.refresh_one(*node).await?;
+        }
+        #[cfg(feature = "sophia")]
+        self.sync_folder_store().await?;
+        Ok(())
+    }
+}
+
+impl IndexSource {
+    /// Refresh the in-memory graph; the outer batch publishes Sophia once.
+    async fn refresh_one(&self, node: NodeId) -> Result<(), SourceError> {
         let found = match self.folder.query(Query::Node(node)).await {
             Ok(r) => r.nodes.into_iter().next(),
             Err(SourceError::NotFound) => None,

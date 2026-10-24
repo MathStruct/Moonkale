@@ -138,11 +138,15 @@ fn open_local(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderF
             let index_id = moonkale_core::SourceId::new(format!("index:{id}"));
             let mut v = vec![existing];
             v.extend(registry().get(&index_id));
+            #[cfg(feature = "sophia")]
+            v.extend(registry().get(&moonkale_core::SourceId::new(format!(
+                "sophia:{}/.moonkale/code.sophia",
+                id.as_str().strip_prefix("folder:").unwrap_or("")
+            ))));
             return Ok(v);
         }
         let folder: Arc<dyn Source> = Arc::new(folder);
-        registry().insert(folder.clone());
-        tracing::info!("open_local: folder registered, building index");
+        tracing::info!("open_local: building folder index");
         // Embeddings (if configured) fill in the background; search is
         // BM25-only until they arrive.
         let embedder = options.embed.as_ref().map(provider_for);
@@ -158,8 +162,27 @@ fn open_local(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderF
                 Err(e) => eprintln!("moonkale: embedding failed: {e}"),
             }
         });
+        #[cfg(feature = "sophia")]
+        let derived = if let Some(path) = index.folder_store_path() {
+            let source: Arc<dyn Source> =
+                Arc::new(moonkale_distribution::SophiaSource::open(path).await?);
+            registry().insert(source.clone());
+            Some(source)
+        } else {
+            None
+        };
+        // Publish the folder only after its derived sources opened: a failed
+        // cache build must not make the next Open return an incomplete registry.
+        registry().insert(folder.clone());
         let index: Arc<dyn Source> = index;
-        Ok(vec![folder, index])
+        let sources = vec![folder, index];
+        #[cfg(feature = "sophia")]
+        let sources = {
+            let mut sources = sources;
+            sources.extend(derived);
+            sources
+        };
+        Ok(sources)
     })
 }
 

@@ -376,8 +376,8 @@ impl Workspace {
             .map(|s| s.source.clone())
             .collect();
         for other in others {
-            for n in nodes {
-                let _ = other.refresh(*n).await;
+            if let Err(error) = other.refresh_batch(nodes).await {
+                tracing::warn!("derived source refresh failed: {error}");
             }
         }
         self.sources.graph_epoch.with_mut(|e| *e += 1);

@@ -12,6 +12,13 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — WP-21 (2026-10-24)
+
+- Core `Source::refresh_batch(&[NodeId])` preserves an upstream watcher
+  debounce window. Its default calls `refresh` sequentially, so existing
+  implementations remain source compatible. The workspace and server proxy
+  forward batches; the optional Sophia index writer commits one file batch.
+
 ## Unreleased — WP-11 / WP-15 (2026-10-23)
 
 - Breaking: core `Value` gains explicit serde variants `DateTime(DateTimeCell)`,

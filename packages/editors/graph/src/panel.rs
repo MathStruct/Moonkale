@@ -83,8 +83,11 @@ fn is_pickable(f: &SourceFamily) -> bool {
 }
 
 // Store-backed code has namespaces, names and definitions rather than Vertex nodes.
-fn data_kinds(truth: moonkale_core::SourceTruth) -> Option<Vec<NodeKind>> {
-    match truth {
+fn data_kinds(descriptor: &moonkale_core::SourceDescriptor) -> Option<Vec<NodeKind>> {
+    if descriptor.id.as_str().starts_with("sophia:") {
+        return None;
+    }
+    match descriptor.truth {
         moonkale_core::SourceTruth::Store => None,
         moonkale_core::SourceTruth::Files => Some(vec![NodeKind::Vertex]),
     }
@@ -637,7 +640,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             .read()
             .iter()
             .filter(|s| {
-                s.descriptor.family == SourceFamily::Graph || is_trace(&s.descriptor.family)
+                (s.descriptor.family == SourceFamily::Graph
+                    && !(s.descriptor.truth == moonkale_core::SourceTruth::Files
+                        && s.descriptor.id.as_str().starts_with("sophia:")))
+                    || is_trace(&s.descriptor.family)
             })
             .map(|s| s.descriptor.id.clone())
             .collect();
@@ -722,7 +728,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 },
                 (_, DbMode::Data) => Query::All {
                     limit: GRAPH_LIMIT,
-                    kinds: data_kinds(handle.descriptor.truth),
+                    kinds: data_kinds(&handle.descriptor),
                 },
                 _ => Query::All {
                     limit: GRAPH_LIMIT,
@@ -1354,7 +1360,8 @@ async fn open_node(mut ws: Workspace, node: Node) {
     let store_text = node.content.is_some()
         && ws.sources.open.peek().iter().any(|s| {
             s.descriptor.id == node.source
-                && s.descriptor.truth == moonkale_core::SourceTruth::Store
+                && (s.descriptor.truth == moonkale_core::SourceTruth::Store
+                    || s.descriptor.id.as_str().starts_with("sophia:"))
         });
     if store_text {
         if let Err(e) = ws.open_node(node).await {
@@ -1562,7 +1569,7 @@ mod store_tests {
         let r = source
             .query(Query::All {
                 limit: GRAPH_LIMIT,
-                kinds: data_kinds(source.descriptor().truth),
+                kinds: data_kinds(&source.descriptor()),
             })
             .await
             .unwrap();
@@ -1594,7 +1601,7 @@ mod store_tests {
         let r = source
             .query(Query::All {
                 limit: GRAPH_LIMIT,
-                kinds: data_kinds(source.descriptor().truth),
+                kinds: data_kinds(&source.descriptor()),
             })
             .await
             .unwrap();

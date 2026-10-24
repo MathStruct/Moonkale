@@ -86,6 +86,12 @@ impl Source for RemoteSource {
             .map_err(transport)?
     }
 
+    async fn refresh_batch(&self, nodes: &[NodeId]) -> Result<(), SourceError> {
+        crate::refresh_source_batch(self.id(), nodes.to_vec())
+            .await
+            .map_err(transport)?
+    }
+
     /// The server's watcher, through one long poll per call (Milestone 16).
     async fn changes_since(
         &self,

@@ -158,9 +158,24 @@ fn open_local(path: String, _options: moonkale_shell::OpenOptions) -> OpenFolder
         let folder: Arc<dyn Source> =
             Arc::new(moonkale_project_fs::FolderSource::open(&path).map_err(SourceError::from)?);
         // The index (links, symbols, search) as on desktop; no embeddings here.
-        let index: Arc<dyn Source> =
-            Arc::new(moonkale_index::IndexSource::build(folder.clone()).await?);
-        Ok(vec![folder, index])
+        let index = Arc::new(moonkale_index::IndexSource::build(folder.clone()).await?);
+        #[cfg(feature = "sophia")]
+        let derived = if let Some(path) = index.folder_store_path() {
+            Some(
+                Arc::new(moonkale_sources_sophia::SophiaSource::open(path).await?)
+                    as Arc<dyn Source>,
+            )
+        } else {
+            None
+        };
+        let sources: Vec<Arc<dyn Source>> = vec![folder, index];
+        #[cfg(feature = "sophia")]
+        let sources = {
+            let mut sources = sources;
+            sources.extend(derived);
+            sources
+        };
+        Ok(sources)
     })
 }
 

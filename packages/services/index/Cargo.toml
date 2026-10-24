@@ -7,6 +7,7 @@ description = "Parsing and indexing: wiki-links and tree-sitter symbols derived 
 
 [features]
 default = []
+sophia = ["content-ids", "dep:sophia-store", "dep:sophia-hash", "dep:toml"]
 lossless-syntax = ["dep:blake3"]
 content-ids = ["dep:blake3", "dep:moonkale-content-id", "dep:moonkale-state", "dep:serde", "dep:serde_json"]
 
@@ -30,6 +31,9 @@ arborium-julia = "2.18"
 arborium-python = "2.18"
 # WP-66 normal form and hashing, shared with Sophia (SR-116).
 moonkale-content-id = { workspace = true, optional = true }
+sophia-store = { git = "https://github.com/MathStruct/Sophia.git", rev = "c3c48e02f8e9b566c4136922ac529e15e305fbb0", default-features = false, features = ["sqlite"], optional = true }
+sophia-hash = { git = "https://github.com/MathStruct/Sophia.git", rev = "c3c48e02f8e9b566c4136922ac529e15e305fbb0", optional = true }
+toml = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tracing = "0.1"
 
@@ -38,3 +42,4 @@ moonkale-project-fs = { workspace = true }
 moonkale-llm = { workspace = true }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+moonkale-sources-sophia = { workspace = true }
