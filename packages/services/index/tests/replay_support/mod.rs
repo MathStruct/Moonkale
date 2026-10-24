@@ -429,6 +429,7 @@ pub async fn replay(
         "{}",
         serde_json::json!({"type":"run", "checker":"full-digest-v1", "repo":repo, "range":range, "commits":commits.len(), "first":commits[0], "last":commits.last(), "checkpoint_interval":interval, "normaliser":moonkale_index::folder_store::normaliser(), "sophia":sophia_pin(), "build":"debug", "order":"reverse topo; adjacent tree transitions", "sample_seed":"4d6f6f6e6b616c65"})
     )?;
+    let mut last_fresh = None;
     let mut outcome = Outcome {
         commits: 0,
         findings: 0,
@@ -523,6 +524,9 @@ pub async fn replay(
                 }
             }
             output.flush()?;
+            if i + 1 == commits.len() {
+                last_fresh = Some(fresh);
+            }
         }
         outcome.commits += 1;
     }
@@ -531,5 +535,25 @@ pub async fn replay(
         "{}",
         serde_json::json!({"type":"summary","commits":outcome.commits,"findings":outcome.findings,"errors":outcome.errors})
     )?;
+    // MOONKALE_REPLAY_KEEP=<dir> keeps the final replayed and fresh stores for
+    // inspection (replayed.sqlite, fresh.sqlite); otherwise both are removed.
+    if let Some(keep) = std::env::var_os("MOONKALE_REPLAY_KEEP") {
+        drop(writer);
+        let keep = Path::new(&keep);
+        std::fs::create_dir_all(keep)?;
+        let stores = [Some(root), last_fresh.as_ref().map(|d| d.path())];
+        for (name, dir) in ["replayed", "fresh"].into_iter().zip(stores) {
+            let Some(dir) = dir else { continue };
+            for suffix in ["", "-wal"] {
+                let from = dir.join(format!(
+                    "{}{suffix}",
+                    moonkale_index::folder_store::STORE_PATH
+                ));
+                if from.exists() {
+                    std::fs::copy(&from, keep.join(format!("{name}.sqlite{suffix}")))?;
+                }
+            }
+        }
+    }
     Ok(outcome)
 }

@@ -134,7 +134,8 @@ Create the scratch directory **outside** the input repository first. The tool
 canonicalizes both paths and refuses scratch locations inside the repository.
 Git is read through `rev-list`, `ls-tree` and a persistent `cat-file --batch`
 process. It never checks out, adds a worktree to, or changes the input repo.
-Scratch snapshots and databases are temporary and removed on normal exit.
+Scratch snapshots and databases are temporary and removed on normal exit. With `MOONKALE_REPLAY_KEEP=<dir>`, the final replayed and fresh stores are
+copied there first (`replayed.sqlite`, `fresh.sqlite`).
 
 Commits run oldest first in reverse topological order. Each transition between
 adjacent trees becomes one selected debounce window passed to
