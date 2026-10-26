@@ -218,4 +218,6 @@ scans. Moonkale's node conversion and generic-call expansion are negligible
 by comparison. Sophia fixed it in v0.1.2 (Moonkale pins v0.1.4): All(1000) now takes 43 ms
 debug / 16 ms release, and folder stores collect their own garbage (Sophia
 SR-146) ([[P-232 Sophia capped graph reads scan namespace metadata]]).
-See [[Indexing]] for measurements. This does not change the default backend.
+See [[Indexing]] for measurements. ADR-0029's four default gates are met (2026-10-26;
+gate 3 by the server fallback, checked in CI). The in-memory index stays the
+default until Daniel decides.

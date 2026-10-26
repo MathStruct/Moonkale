@@ -250,6 +250,12 @@ jobs:
             features: julia,structural-edits
             browser: chromium
             suites: structural-edits graph-rename group-history graph-a11y
+          # ADR-0029 gate 3: the web client reads the Sophia folder store through the server.
+          - name: sophia
+            check_name: browser Sophia folder store
+            features: sophia
+            browser: chromium
+            suites: sophia-folder
     env:
       # Both attempts share one hour; only 20 minutes of inactivity triggers a retry.
       SERVE_WAIT: 3600

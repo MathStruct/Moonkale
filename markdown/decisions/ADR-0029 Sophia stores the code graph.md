@@ -88,3 +88,14 @@ path or the server fallback).
 (Sophia SR-146, derived mode only; stores that are the truth keep their whole
 history), and the capped graph read is fast (P-232). The replays stay clean;
 see [[Indexing]].
+
+**Gate 3 met (2026-10-26), by the server fallback.** A server built with
+`sophia` writes and reads the folder store, and the web client reads it through
+the server. CI's "browser Sophia folder store" job checks this in Chromium on
+every push (`sophia-folder.mjs`: the store is created, it is a graph source,
+and a new definition reaches it without a reload). Sophia itself compiles for
+wasm and has a read-only path (`Sqlite::from_bytes`, `Interface::open_read_only`),
+but Moonkale's web client doesn't include Sophia yet; reading a store in the
+browser itself only matters for a serverless reader, which is way later
+(Daniel: the full web version stays). **All four gates
+are met;** making the folder store the default is Daniel's decision.
