@@ -28,6 +28,9 @@ ignore = [
     { id = "RUSTSEC-2024-0429", reason = "2026-10-17: existing glib 0.18.5: Unsoundness in `Iterator` and `DoubleEndedIterator` impls for `glib::VariantStrIter`; upgrade deferred to Daniel (WP-47)." },
     { id = "RUSTSEC-2026-0253", reason = "2026-10-17: existing lru 0.16.4: Potential use-after-free due to lack of panic safety in `LruCache::pop()`; upgrade deferred to Daniel (WP-47)." },
     { id = "RUSTSEC-2026-0097", reason = "2026-10-17: existing rand 0.7.3: Rand is unsound with a custom logger using `rand::rng()`; upgrade deferred to Daniel (WP-47)." },
+    { id = "RUSTSEC-2026-0391", reason = "2026-10-26: zstd 0.13.3 via tantivy (turso): data from an abandoned stream leaks into the next stream on a reused context; fix needs zstd 0.14.3, held back by tantivy; ignored until turso/tantivy release it (Daniel)." },
+    { id = "RUSTSEC-2026-0398", reason = "2026-10-26: zstd-safe 7.3.0 via tantivy (turso): Seekable::decompress sets a Vec length beyond capacity; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0403", reason = "2026-10-26: zstd-safe 7.3.0 via tantivy (turso): uninitialized memory on a failed legacy-frame streaming decompression; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
 ]
 
 [licenses]

@@ -26,7 +26,12 @@ ADR-0029 made Sophia the code graph's store with files as the truth, and set fou
 ## Consequences
 
 - **Detection.** The workspace decides a folder's mode when it opens it: a store-truth marker in `.moonkale/` means store, anything else that has files means legacy files-truth. A new project starts store-backed. The source descriptor's `truth` field (ADR-0028) carries the result.
-- **ADR-0029's default question splits in two.** For legacy folders, the derived folder store can replace the in-memory index as the code graph's cache (search stays on the in-memory index; Sophia has no search dialect). For new work, the store is the truth, so the store isn't optional there.
+- **ADR-0029's default question splits in two.** For new work, the store is the truth, so the store isn't optional there. For legacy folders, Daniel decided (2026-10-26) to keep both, with the Sophia cache as the default:
+  - the code graph reads the derived folder store; search stays on the in-memory index (Sophia has no search dialect);
+  - if the store can't open (a browser without a server, a broken file), Moonkale falls back to the in-memory index on its own and says so in the status bar; a setting forces the in-memory index;
+  - a "Check the cache" command builds a fresh store from the files and compares it with the cache (the replay's full-digest check); a mismatch rebuilds the cache and is reported as a problem;
+  - the cache can be exported in the same text form as a store-truth folder (SPEC-010 Q5), optional and not committed by default, since the files stay the truth. Uses: handing over a built cache of a large repo, and the starting point for moving the truth into Sophia.
+- **Sharing a store-truth folder** (Daniel, 2026-10-26): a committed text export of the store, rebuilt into SQLite on open. Later perhaps a pointer file type that only says which information to request from the store.
 - **New work:**
   - the "move the truth into Sophia" command and its reverse;
   - a store-truth project template ("New project");
