@@ -113,7 +113,14 @@ on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
-**Current: Sophia v0.1.3** (`79f6429`, 2026-10-25): in derived stores, facts
+**Current: Sophia v0.1.4** (`919d723`, 2026-10-26): `replace_files` refuses
+records that none of the file's names, spans or generic memberships reach
+(`StoreError::UnreachedRecord`, Sophia RQ-002), so a derived store can't drift
+from a fresh build. Replayed on its code (`dcf8660`): 0 UnreachedRecord errors,
+0 differences, Moonkale 5,940 records / 41,422,848 bytes; raw reports
+`history-2026-10-26-{moonkale,lenticulum}-v0.1.4.jsonl`.
+
+Sophia v0.1.3 (`79f6429`, 2026-10-25): in derived stores, facts
 no longer keep records alive, and a file listing a generic twice counts once.
 Replayed again on v0.1.3: 0 differences, Moonkale 41,467,904 bytes, All(1000)
 43.5 ms debug; raw reports `history-2026-10-25-{moonkale,lenticulum}-v0.1.3.jsonl`.
