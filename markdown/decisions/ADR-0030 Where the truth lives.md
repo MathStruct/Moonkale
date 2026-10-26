@@ -1,0 +1,36 @@
+---
+title: "ADR-0030 — Where the truth lives: legacy folders keep files, everything else is Sophia"
+tags: [adr, architecture, code-graph, sophia]
+status: accepted
+date: 2026-10-26
+---
+**Status:** accepted 2026-10-26 by Daniel (the decision below, in his words). The points under "How it applies" are Claude's reading of it; Daniel may correct them. Refines [[ADR-0028 Files or the graph]] (the `truth: files | store` field) and [[ADR-0029 Sophia stores the code graph]] (the derived folder store). Related: [[North Star]].
+
+## Context
+
+ADR-0029 made Sophia the code graph's store with files as the truth, and set four gates before the derived folder store could become the default. All four were met on 2026-10-26 (see ADR-0029). Asked whether the folder store should now become the default, Daniel answered with a broader rule about which side is the truth.
+
+## Decision (Daniel, 2026-10-26)
+
+> If there are legacy data where working on a folder is expected, then the folder should be the source of truth, except if the user explicitly moves the source of truth into Sophia.
+> In all other cases assume Sophia store to be the source of truth, even if there are files generated from the store.
+
+## How it applies
+
+1. **Legacy folders: files are the truth.** A folder whose code already exists as files that other tools read: a git repository, a Cargo, Julia, Python or other project, or any folder opened with Open Folder that isn't a Sophia project. It is `truth: files`. The Sophia store in `.moonkale/code.sophia` stays a derived cache (ADR-0029, SPEC-009), and deleting it loses nothing.
+2. **Moving the truth is explicit.** Only a deliberate user action makes a legacy folder store-backed: a command such as "Make Sophia the source of truth", with a confirmation that says what changes. It ingests the files, switches the folder to `truth: store`, and records that in the folder. It is never automatic, never triggered by an agent on its own, and can be reversed. Reversing exports the files, makes them the truth again, and turns the store back into a derived cache.
+3. **Everything else: the Sophia store is the truth.** A new project or new code created in Moonkale, code created by an agent in Moonkale, a `.sophia` file, a folder already moved: all are `truth: store`.
+4. **Generated files don't change that.** A store-backed project may print files for compilers, language servers, CI or git (Sophia prints in the chosen profile). Those files are outputs. Their header or a manifest marks them as generated, and they are rewritten from the store. If one is edited outside Moonkale, the edit is detected and offered as a change to the store, which the user accepts or rejects. It is never silently overwritten, and never silently taken as the truth.
+5. **One folder, one truth.** A folder is either files-truth or store-truth as a whole. Mixing within a folder (some definitions in files, some in the store) is out of scope until it's needed.
+
+## Consequences
+
+- **Detection.** The workspace decides a folder's mode when it opens it: a store-truth marker in `.moonkale/` means store, anything else that has files means legacy files-truth. A new project starts store-backed. The source descriptor's `truth` field (ADR-0028) carries the result.
+- **ADR-0029's default question splits in two.** For legacy folders, the derived folder store can replace the in-memory index as the code graph's cache (search stays on the in-memory index; Sophia has no search dialect). For new work, the store is the truth, so the store isn't optional there.
+- **New work:**
+  - the "move the truth into Sophia" command and its reverse;
+  - a store-truth project template ("New project");
+  - generated-file output: a marker, regeneration, and detecting outside edits as proposed store changes;
+  - the mode in the status bar and the explorer, so the user always sees which side is the truth (ADR-0027: simple by default).
+- **Sophia's side.** `truth: store` folders use Sophia's normal, non-derived mode, where the graph is the version history (no garbage collection, SR-146). Generated files need Sophia to print a whole project to files and to take an outside edit back in as a patch. Sophia's session is told.
+- **Kept:** ADR-0028's patch model for file-backed code, ADR-0029's derived store and its gates, and the flow editor's diagram-as-document (ADR-0020 to ADR-0022), which is already store-like.

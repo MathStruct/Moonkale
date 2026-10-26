@@ -99,3 +99,5 @@ but Moonkale's web client doesn't include Sophia yet; reading a store in the
 browser itself only matters for a serverless reader, which is way later
 (Daniel: the full web version stays). **All four gates
 are met;** making the folder store the default is Daniel's decision.
+
+**Refined by [[ADR-0030 Where the truth lives]] (2026-10-26):** files stay the truth for legacy folders, unless the user explicitly moves the truth into Sophia. Everything else (new projects, code created in Moonkale) is store-truth, even when files are generated from the store.
