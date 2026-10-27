@@ -31,6 +31,16 @@ ignore = [
     { id = "RUSTSEC-2026-0391", reason = "2026-10-26: zstd 0.13.3 via tantivy (turso): data from an abandoned stream leaks into the next stream on a reused context; fix needs zstd 0.14.3, held back by tantivy; ignored until turso/tantivy release it (Daniel)." },
     { id = "RUSTSEC-2026-0398", reason = "2026-10-26: zstd-safe 7.3.0 via tantivy (turso): Seekable::decompress sets a Vec length beyond capacity; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
     { id = "RUSTSEC-2026-0403", reason = "2026-10-26: zstd-safe 7.3.0 via tantivy (turso): uninitialized memory on a failed legacy-frame streaming decompression; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0395", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: use-after-free with CParameter::StableInBuffer; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0396", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: Seekable reads a NULL or out-of-bounds seek table; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0397", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: OutBuffer::around_pos exposes uninitialized memory; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0399", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: use-after-free through init_using_cdict/ddict; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0400", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: use-after-free of a dictionary after a one-shot call; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0401", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: out-of-bounds read in train_from_buffer; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0402", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: heap overflow in CCtx::try_clone (multithreaded); fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0404", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: double free in DCtx::try_clone; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0405", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: out-of-bounds read with an out-of-range InBuffer::pos; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
+    { id = "RUSTSEC-2026-0406", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: use-after-free changing a multithreaded context mid-frame; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
 ]
 
 [licenses]
