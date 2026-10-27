@@ -56,3 +56,16 @@ Differences you will notice: no canvas, no daily notes, no templates plugin, few
 Moonkale is at version 0.1: usable daily by its author, rough at the edges. Things that are solid: opening folders and databases, the graph, the rich editor with wiki-links and KaTeX, CodeMirror with language servers, git, history, the agent, remote folders over SSH. Things that are not there: a debugger, a marketplace, sync, most of Obsidian's plugin ecosystem, signed Windows/macOS builds. When something is wrong, say so — [[Feedback]] says where it goes (the issue forms label it for you), and the [[Problem Log]] is where every reported problem ends up with its fix.
 
 Next: [[Install]] · [[Feedback]] (how to report anything) · the [[Extension Catalogue]] (what each extension does and where it runs) · [[Remote and Server Modes]] (working on another machine) · [[Overview]] (how it is built).
+
+## Code graph cache
+
+For an existing folder, files remain the source of truth. The status bar shows
+**Code graph: Sophia cache**. If the cache is unavailable, it says
+**Code graph: in-memory index (fallback: …)** and gives the reason. Search stays
+on the in-memory index in both cases.
+
+Settings → **Code graph source** offers Automatic and In-memory index; this
+choice is saved with your other user or workspace settings. Run **Check the
+cache** from `Ctrl+Shift+P` to compare it with the current files. It reports
+`same`, or the differing keys and a rebuild; problems also go to the runtime
+log. Deleting the derived cache loses no authored code.

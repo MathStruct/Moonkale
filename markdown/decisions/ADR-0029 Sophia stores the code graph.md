@@ -101,3 +101,5 @@ browser itself only matters for a serverless reader, which is way later
 are met;** making the folder store the default is Daniel's decision.
 
 **Refined by [[ADR-0030 Where the truth lives]] (2026-10-26):** files stay the truth for legacy folders, unless the user explicitly moves the truth into Sophia. Everything else (new projects, code created in Moonkale) is store-truth, even when files are generated from the store.
+
+**Default switched (2026-10-26), per ADR-0030:** legacy code graph reads use the Sophia cache, with visible automatic fallback; search keeps the in-memory index.

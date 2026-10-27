@@ -141,6 +141,46 @@ pub(crate) async fn load(
     }
 }
 
+/// Folder graph protocol. Search and other index readers keep their own path.
+pub(crate) struct CodeGraph<'a>(pub &'a dyn Source, pub bool);
+#[cfg_attr(not(target_arch = "wasm32"), moonkale_core::async_trait)]
+#[cfg_attr(target_arch = "wasm32", moonkale_core::async_trait(?Send))]
+impl Source for CodeGraph<'_> {
+    fn id(&self) -> moonkale_core::SourceId {
+        self.0.id()
+    }
+    fn descriptor(&self) -> moonkale_core::SourceDescriptor {
+        self.0.descriptor()
+    }
+    async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
+        let result = self
+            .0
+            .query(Query::Text {
+                dialect: "code-graph".into(),
+                text: serde_json::to_string(&(self.1, &query))
+                    .map_err(|e| SourceError::Invalid(e.to_string()))?,
+            })
+            .await;
+        match result {
+            // Serverless readers and older hosts may offer only the index.
+            Err(SourceError::Unsupported(_)) => self.0.query(query).await,
+            result => result,
+        }
+    }
+    async fn fetch_text(
+        &self,
+        node: moonkale_core::NodeId,
+    ) -> Result<(String, moonkale_core::Version), SourceError> {
+        self.0.fetch_text(node).await
+    }
+    async fn apply(
+        &self,
+        tx: moonkale_core::Transaction,
+    ) -> Result<moonkale_core::Applied, SourceError> {
+        self.0.apply(tx).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

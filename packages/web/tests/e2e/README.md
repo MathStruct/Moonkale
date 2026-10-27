@@ -639,7 +639,10 @@ This production TablePanel fixture checks English/German/Chinese rerenders and
 a Ref click opening its target in workspace state. It complements the SQL tests.
 
 
-WP-21: `sophia-folder` requires a server built with `SERVE_FEATURES=sophia`. CI runs it in its own job ("browser Sophia folder store", ADR-0029 gate 3), so the extra source doesn't change the other suites' graphs.
-It opens the additional derived code Source, draws its names despite file
-truth, and observes a new definition through the watcher without Reload.
+ADR-0030: `sophia-folder` uses the server's default Sophia folder cache.
+Use `SERVE_FEATURES= .../serve.sh start` to check platform defaults without
+explicit extra features. CI also runs it in its own job ("browser Sophia folder store", ADR-0029 gate 3).
+It asserts the default graph draws cache names despite file truth, observes a
+new definition through the watcher without Reload, and checks backend status
+text while changing the persisted source setting.
 Run with `graph watch search-trace` to cover the existing folder/index paths.

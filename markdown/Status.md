@@ -100,28 +100,38 @@ Sophia. See `packages/services/content-id/content-id.md` for limits and checks.
 grouping for Julia, Rust and Python. Julia ownership is ported from Sophia
 `773d9898`; Rust impl/trait paths and Python class paths use caller-supplied root
 context. Unknown roots are flagged, invalid names reported, and naming golden
-data complements the unchanged v7 identity fixtures. The default-off per-folder Sophia writer is implemented (WP-21, 2026-10-24):
+data complements the unchanged v7 identity fixtures. The per-folder Sophia writer is implemented (WP-21, 2026-10-24):
 manifest-hash reuse, atomic watcher batches, bounded conflict retries and
 a read-only additional Source with current-file fallback on stale text.
 Definition ids rebuild from files; generic nominal ids may change on rebuild. See [[Code Graph Schema]] and [[Work Packages]].
 
 
-## Sophia folder cache (WP-21, checked 2026-10-24)
+## Sophia folder cache (WP-21 / ADR-0030, checked 2026-10-27)
 
-Default-off `sophia` writes admitted Rust/Julia/Python code into the derived
+Default-on `sophia` on desktop/mobile, implied by the server feature, writes admitted Rust/Julia/Python code into the derived
 `.moonkale/code.sophia` cache and opens it as an additional read-only Source.
 Reopen skips unchanged files; one watcher window is one transactional batch,
 including moves and bounded name-owner retries. Stale reads fall back to current
-files. Ten hermetic folder-store regressions and four browser suites pass;
-all 18 mandatory/feature gate commands pass (826 workspace tests, seven ignored;
-73 feature-focused tests). The in-memory index remains the default.
+files. Legacy code graph reads now default to the cache; search remains in memory.
+The 2026-10-27 verification passes 867 workspace tests (seven ignored), 81
+focused index/Sophia tests including 16 folder-cache regressions. Eight browser
+suites cover default cache reads, persisted override, visible fallback, repair,
+watch updates and ordinary graph/search/settings/palette behavior. See [[Indexing]]
+for the passing mandatory gates and desktop/server/mobile/Android compilation
+checks. The final defaults-only Sophia and Local browser checks also pass.
+The setting `code_graph.source = auto | in-memory` and the status-bar backend
+item expose the choice and fallback reason. A corrupt cache gets one rebuild
+attempt; **Check the cache** compares a fresh temporary store with the replay
+digest, repairs differences and logs/notifies the problem. Browser-only builds
+keep the in-memory path or use their server.
 
 Native debug measurement on Moonkale: **8.830 s cold / 0.664 s reopen**, including
 new folder snapshots; store work alone 8.101 s / 0.030 s. **36,704,256 bytes** for
 478 files / 6,111,526 source bytes. Reopen performs zero parses or replacements (timings rounded independently).
 The normal form refuses 2,787 definitions and reports 12 ambiguous named
 bindings; this is partial syntactic coverage. See [[Indexing]] for methodology,
-module-naming limits and evidence. ADR-0029's release/default gates remain open.
+module-naming limits and evidence. ADR-0029's four default gates are met;
+ADR-0030 authorizes this legacy-folder default.
 
 ## By area
 
@@ -131,7 +141,7 @@ module-naming limits and evidence. ADR-0029's release/default gates remain open.
 | **Folders** (open several, watch disk, file ops, trash, find/replace) | ✅ | Milestone 7, 16; WP-23 (2026-10-17): metadata-only listings with separate fetched content versions, locked/rechecked saves, consistent directory versions, bounded directional neighbourhoods and native no-replace moves; final external-writer race remains #15; symlink swaps remain #5 |
 | **Remote folders over SSH**, desktop as a server's client | ✅ | Milestone 11; hardening #18 |
 | **Unison codebase source** | ✅ read-only, default-off | WP-18 (2026-10-17): local UCM 1.5 HTTP snapshot, store truth, content-addressed definitions/names/dependencies, hermetic schema tests and native graph-renderer payload test; `unison` feature, `*.unison` root opener; bounded snapshots, reopen for updates; see `packages/sources/unison/sources-unison.md` |
-| **Sophia code store source** | ◐ default-off | WP-68 (2026-10-20): `*.sophia` stores through Sophia's `sophia-interface` (git rev): store truth, names/definitions/namespaces, text edits that move names, parse diagnostics, polling change feed, rendering profile as a `sophia:Settings` node, read-only `sql` and Sophia's `query` (table panel switch, views as tables, 2026-10-21); SPEC-004 §9 tests through `Source`. Missing: annotation edits, typings (Sophia M4); see `packages/sources/sophia/sources-sophia.md` |
+| **Sophia code store source** | ◐ default-on in apps/server | WP-68 (2026-10-20): `*.sophia` stores through Sophia's `sophia-interface` (git rev): store truth, names/definitions/namespaces, text edits that move names, parse diagnostics, polling change feed, rendering profile as a `sophia:Settings` node, read-only `sql` and Sophia's `query` (table panel switch, views as tables, 2026-10-21); SPEC-004 §9 tests through `Source`. Missing: annotation edits, typings (Sophia M4); see `packages/sources/sophia/sources-sophia.md` |
 | **Projects** (saved sets of sources, selector, sync) | 📝 | [[Projects and Sources]], spec [[003]] |
 | **Code editor** — CodeMirror (LSP, highlighting, wiki-links, presence) | ✅ | splices (spec [[018]]); full-text LSP sync (#19) |
 | **Code editor** — Rust (editor-core + Dioxus, opt-in) | ◐ | WP-69 (2026-10-17) compact icon toolbar (Save/Reload/Wrap/⋯), indentation settings in its gear popover, inline cursor word hidden on phones; preview typing regression fixed (P-211: 83 ms Preview / 73 ms Source with code fixes alone in the local development browser check); revisioned edits/history, highlighting, live browser/native WebKit LSP integration, browser/native AT-SPI accessibility semantics, tested backend migration, search/folds, Markdown preview and default-off Rust/Python/Julia documentation previews; latest strict release web frames 21/21 after the focus-border fix (prior preview-scrollbar failure retained); Rust highlight CPU time reduced, desktop software-GL timing still fails with quantized clocks; default prepared but unflipped; 2026-10-22: native FPS idle/input accounting corrected (P-225), session-specific undo under investigation (P-226); real-desktop frames and Android acceptance remain open — [[Rust Code Editor Implementation]], [[Rust Code Editor Roadmap]] |
@@ -205,8 +215,7 @@ and stale live generic names/memberships despite matching file manifests
 ([[P-231 Sophia folder replay loses generic memberships]]). Sophia fixed P-231
 in v0.1.1, which Moonkale pins; with it both replays are clean (0 differences),
 so gate 4 is met. Search
-stays on the in-memory index (Sophia has no `search` dialect). The feature
-remains off by default until gate 3 (wasm or server fallback) is met too. Exact runs and measurements are in [[Indexing]];
+stays on the in-memory index (Sophia has no `search` dialect). Gate 3 is met through the server; ADR-0030 switches the legacy graph default. Exact runs and measurements are in [[Indexing]];
 this checks the replay only, not the older whole-product inventory above.
 
 

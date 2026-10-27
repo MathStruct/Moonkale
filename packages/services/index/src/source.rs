@@ -48,7 +48,11 @@ pub struct IndexSource {
     #[cfg(feature = "sophia")]
     folder_store_lock: tokio::sync::Mutex<()>,
     #[cfg(feature = "sophia")]
+    cache_repair_attempted: std::sync::atomic::AtomicBool,
+    #[cfg(feature = "sophia")]
     folder_report: RwLock<Result<crate::folder_store::FolderReport, String>>,
+    cache_reader: RwLock<Option<Arc<dyn Source>>>,
+    cache_error: RwLock<Option<String>>,
     search: RwLock<SearchIndex>,
     /// Embedding provider for hybrid search (`None` = BM25 only).
     embedder: Option<Arc<dyn moonkale_llm::Provider>>,
@@ -78,15 +82,31 @@ impl IndexSource {
     ) -> Result<Self, SourceError> {
         let fd = folder.descriptor();
         let id = SourceId::new(format!("index:{}", fd.id));
+        #[cfg(not(feature = "sophia"))]
+        let cache_error = Some("Sophia unavailable in this build".to_string());
+        #[cfg(feature = "sophia")]
+        let cache_error;
         #[cfg(feature = "sophia")]
         let folder_store = if let Some(path) = fd.id.as_str().strip_prefix("folder:") {
             let path = std::path::PathBuf::from(path);
-            Some(Arc::new(
-                tokio::task::spawn_blocking(move || crate::folder_store::FolderStore::open(path))
-                    .await
-                    .map_err(|e| SourceError::Io(e.to_string()))??,
-            ))
+            match tokio::task::spawn_blocking(move || crate::folder_store::FolderStore::open(path))
+                .await
+            {
+                Ok(Ok(store)) => {
+                    cache_error = None;
+                    Some(Arc::new(store))
+                }
+                Ok(Err(error)) => {
+                    cache_error = Some(cache_failure("cache open failed", &error));
+                    None
+                }
+                Err(_) => {
+                    cache_error = Some("cache open worker failed".into());
+                    None
+                }
+            }
         } else {
+            cache_error = Some("source has no local cache directory".into());
             None
         };
         let this = Self {
@@ -101,7 +121,14 @@ impl IndexSource {
             #[cfg(feature = "sophia")]
             folder_store_lock: tokio::sync::Mutex::new(()),
             #[cfg(feature = "sophia")]
-            folder_report: RwLock::new(Ok(Default::default())),
+            cache_repair_attempted: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(feature = "sophia")]
+            folder_report: RwLock::new(match &cache_error {
+                Some(reason) => Err(reason.clone()),
+                None => Ok(Default::default()),
+            }),
+            cache_reader: RwLock::new(None),
+            cache_error: RwLock::new(cache_error),
             search: RwLock::new(SearchIndex::default()),
             embedder: embedder.filter(|e| e.supports_embed()),
             #[cfg(feature = "content-ids")]
@@ -111,14 +138,28 @@ impl IndexSource {
         };
         this.rebuild().await?;
         #[cfg(feature = "sophia")]
-        this.sync_folder_store().await?;
+        let _ = this.sync_folder_store().await;
         Ok(this)
+    }
+
+    /// Attach the read-only adapter without exposing any Sophia types.
+    pub fn set_cache_reader(&self, reader: Result<Arc<dyn Source>, SourceError>) {
+        match reader {
+            Ok(reader) => *self.cache_reader.w() = Some(reader),
+            Err(error) => {
+                *self.cache_error.w() = Some(cache_failure("cache reader open failed", &error))
+            }
+        }
     }
 
     /// The optional code store is an additional Source, opened by the app.
     #[cfg(feature = "sophia")]
     pub fn folder_store_path(&self) -> Option<std::path::PathBuf> {
-        self.folder_store.as_ref().map(|s| s.path())
+        if self.folder_report.r().is_ok() {
+            self.folder_store.as_ref().map(|s| s.path())
+        } else {
+            None
+        }
     }
 
     #[cfg(feature = "sophia")]
@@ -133,31 +174,94 @@ impl IndexSource {
         };
         let _serial = self.folder_store_lock.lock().await;
         let result = async {
-            let (entries, truncated) = walk::walk(&*self.folder, self.root, &self.limits).await?;
-            if truncated { return Err(SourceError::Invalid("folder-store walk truncated".into())); }
-            let mut files = Vec::new();
-            let mut bytes = 0usize;
-            for (_, node) in entries {
-                if node.kind != NodeKind::File || !walk::wants_text(&node, &self.limits)
-                    || !matches!(&node.content, Some(ContentRef::Text { lang: Some(l), .. }) if matches!(l.as_str(), "rust" | "julia" | "python")) { continue; }
-                if !store.admits_path(&node.native_key) { continue; }
-                let (text, _) = match self.folder.fetch_text(node.id).await {
-                    Ok(text) => text,
-                    // The index has already exposed index_error and removed
-                    // symbols for a non-UTF-8 file. Remove its cached facts too.
-                    Err(SourceError::Unsupported(_)) => continue,
-                    Err(error) => return Err(error),
-                };
-                bytes = bytes.saturating_add(text.len());
-                if text.len() > self.limits.max_text_bytes as usize { continue; }
-                if bytes > crate::folder_store::MAX_SNAPSHOT_BYTES { return Err(SourceError::Invalid("folder-store byte limit".into())); }
-                files.push(crate::folder_store::CodeFile { node, text });
-            }
+            let files = self.cache_files(store).await?;
             let store = store.clone();
-            tokio::task::spawn_blocking(move || store.sync(&files)).await.map_err(|e| SourceError::Io(e.to_string()))?
-        }.await;
+            let may_repair = !self
+                .cache_repair_attempted
+                .load(std::sync::atomic::Ordering::Relaxed);
+            let (result, repaired) = tokio::task::spawn_blocking(move || {
+                let result = store.sync(&files);
+                if result.is_err() && may_repair && store.is_broken() {
+                    (store.rebuild(&files), true)
+                } else {
+                    (result, false)
+                }
+            })
+            .await
+            .map_err(|e| SourceError::Io(e.to_string()))?;
+            if repaired {
+                self.cache_repair_attempted
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            result
+        }
+        .await;
+        *self.cache_error.w() = result
+            .as_ref()
+            .err()
+            .map(|error| cache_failure("cache sync failed", error));
         *self.folder_report.w() = result.clone().map_err(|e| e.to_string());
         result.map(|_| ())
+    }
+
+    #[cfg(feature = "sophia")]
+    async fn cache_files(
+        &self,
+        store: &crate::folder_store::FolderStore,
+    ) -> Result<Vec<crate::folder_store::CodeFile>, SourceError> {
+        let (entries, truncated) = walk::walk(&*self.folder, self.root, &self.limits).await?;
+        if truncated {
+            return Err(SourceError::Invalid("folder-store walk truncated".into()));
+        }
+        let mut files = Vec::new();
+        let mut bytes = 0usize;
+        for (_, node) in entries {
+            if node.kind != NodeKind::File
+                || !walk::wants_text(&node, &self.limits)
+                || !matches!(&node.content, Some(ContentRef::Text { lang: Some(l), .. }) if matches!(l.as_str(), "rust" | "julia" | "python"))
+            {
+                continue;
+            }
+            if !store.admits_path(&node.native_key) {
+                continue;
+            }
+            let (text, _) = match self.folder.fetch_text(node.id).await {
+                Ok(text) => text,
+                // The index has already exposed index_error and removed
+                // symbols for a non-UTF-8 file. Remove its cached facts too.
+                Err(SourceError::Unsupported(_)) => continue,
+                Err(error) => return Err(error),
+            };
+            bytes = bytes.saturating_add(text.len());
+            if text.len() > self.limits.max_text_bytes as usize {
+                continue;
+            }
+            if bytes > crate::folder_store::MAX_SNAPSHOT_BYTES {
+                return Err(SourceError::Invalid("folder-store byte limit".into()));
+            }
+            files.push(crate::folder_store::CodeFile { node, text });
+        }
+        Ok(files)
+    }
+
+    #[cfg(feature = "sophia")]
+    async fn check_cache(&self) -> Result<QueryResult, SourceError> {
+        let store = self
+            .folder_store
+            .as_ref()
+            .ok_or_else(|| SourceError::Unsupported("cache unavailable".into()))?;
+        let _serial = self.folder_store_lock.lock().await;
+        let files = self.cache_files(store).await?;
+        let store = store.clone();
+        let diff = tokio::task::spawn_blocking(move || store.check(&files))
+            .await
+            .map_err(|e| SourceError::Io(e.to_string()))??;
+        *self.cache_error.w() = None;
+        Ok(message_result(if diff.is_empty() {
+            "same".into()
+        } else {
+            format!("cache problem; rebuilt: {}", diff.join(", "))
+        }))
     }
 
     /// Attach an optional rebuildable persistent content-id cache. No source
@@ -751,6 +855,141 @@ impl Source for IndexSource {
     }
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
+        if let Query::Text { dialect, text } = &query {
+            if dialect == "code-graph-status" {
+                let reason = self.cache_error.r().clone().or_else(|| {
+                    self.cache_reader
+                        .r()
+                        .is_none()
+                        .then(|| "cache reader unavailable".into())
+                });
+                return Ok(message_result(reason.unwrap_or_default()));
+            }
+            #[cfg(feature = "sophia")]
+            if dialect == "check-code-cache" {
+                return self.check_cache().await;
+            }
+            if dialect == "code-graph" {
+                // The envelope is a bounded host protocol, not arbitrary nested queries.
+                if text.len() > 8192 {
+                    return Err(SourceError::Invalid("graph query limit".into()));
+                }
+                let (memory, query): (bool, Query) = serde_json::from_str(text)
+                    .map_err(|_| SourceError::Invalid("invalid graph query".into()))?;
+                if !matches!(
+                    query,
+                    Query::All { .. }
+                        | Query::Neighbours { .. }
+                        | Query::Coarse { .. }
+                        | Query::Node(_)
+                ) {
+                    return Err(SourceError::Unsupported("graph query".into()));
+                }
+                let reader = if !memory && self.cache_error.r().is_none() {
+                    self.cache_reader.r().clone()
+                } else {
+                    None
+                };
+                if let Some(reader) = reader {
+                    let cache_query = match &query {
+                        Query::All { limit, .. } => Query::All {
+                            limit: *limit,
+                            kinds: None,
+                        },
+                        Query::Neighbours {
+                            node,
+                            depth,
+                            direction,
+                        } => {
+                            let file = {
+                                let graph = self.graph.r();
+                                graph
+                                    .node(*node)
+                                    .filter(|n| n.kind == NodeKind::File)
+                                    .cloned()
+                                    .or_else(|| {
+                                        graph
+                                            .edges()
+                                            .find(|e| {
+                                                e.kind == moonkale_core::EdgeKind::Defines
+                                                    && e.to == *node
+                                            })
+                                            .and_then(|e| graph.node(e.from))
+                                            .cloned()
+                                    })
+                            };
+                            match file {
+                                Some(file)
+                                    if matches!(
+                                        file.language_hint(),
+                                        Some("rust" | "julia" | "python")
+                                    ) =>
+                                {
+                                    Query::Text {
+                                        dialect: "folder-neighbours".into(),
+                                        text: serde_json::to_string(&(
+                                            file.native_key,
+                                            depth,
+                                            direction,
+                                        ))
+                                        .map_err(|e| SourceError::Invalid(e.to_string()))?,
+                                    }
+                                }
+                                // Notes and other knowledge nodes remain index-owned.
+                                Some(_) => return self.query(query).await,
+                                None => query.clone(),
+                            }
+                        }
+                        _ => query.clone(),
+                    };
+                    match reader.query(cache_query).await {
+                        Ok(mut result) => {
+                            if matches!(
+                                query,
+                                Query::All { .. } | Query::Coarse { region: None, .. }
+                            ) {
+                                // Keep the file/knowledge graph while code definitions,
+                                // names and code relations come exclusively from Sophia.
+                                let limit = match query {
+                                    Query::All { limit, .. } => {
+                                        limit.saturating_sub(result.nodes.len())
+                                    }
+                                    _ => 10_000,
+                                };
+                                let mut files = self
+                                    .query(Query::All {
+                                        limit,
+                                        kinds: Some(vec![
+                                            NodeKind::File,
+                                            NodeKind::Directory,
+                                            NodeKind::Page,
+                                        ]),
+                                    })
+                                    .await?;
+                                let ids: std::collections::HashSet<_> =
+                                    files.nodes.iter().map(|n| n.id).collect();
+                                files
+                                    .edges
+                                    .retain(|e| ids.contains(&e.from) && ids.contains(&e.to));
+                                result.nodes.extend(files.nodes);
+                                result.edges.extend(files.edges);
+                                result.truncated |= files.truncated;
+                            }
+                            return Ok(result);
+                        }
+                        Err(SourceError::NotFound)
+                            if matches!(query, Query::Neighbours { .. } | Query::Node(_)) =>
+                        {
+                            return Ok(QueryResult::default())
+                        }
+                        Err(error) => {
+                            *self.cache_error.w() = Some(cache_failure("cache read failed", &error))
+                        }
+                    }
+                }
+                return self.query(query).await;
+            }
+        }
         if let Query::Coarse { level, region } = query {
             return moonkale_core::source::coarse::query(self, level, region).await;
         }
@@ -898,7 +1137,7 @@ impl Source for IndexSource {
             self.refresh_one(*node).await?;
         }
         #[cfg(feature = "sophia")]
-        self.sync_folder_store().await?;
+        let _ = self.sync_folder_store().await;
         Ok(())
     }
 }
@@ -990,6 +1229,25 @@ fn relative(dir: &str, rel: &str) -> Option<String> {
         }
     }
     Some(parts.join("/"))
+}
+
+fn message_result(message: String) -> QueryResult {
+    QueryResult {
+        table: Some(Table {
+            columns: vec!["message".into()],
+            rows: vec![vec![Value::Text(message)]],
+            truncated: false,
+        }),
+        ..Default::default()
+    }
+}
+
+fn cache_failure(action: &str, error: &SourceError) -> String {
+    // Structural read/storage diagnostics only; bound status/remote payloads.
+    format!(
+        "{action}: {}",
+        error.to_string().chars().take(240).collect::<String>()
+    )
 }
 
 #[cfg(test)]

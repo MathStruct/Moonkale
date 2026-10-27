@@ -12,6 +12,13 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — ADR-0030 (2026-10-26)
+
+- `SettingsFile.code_graph` and `Settings.code_graph` expose the persisted
+  `auto | in-memory` graph backend preference. Add the fields to explicit
+  struct literals or finish them with `Default`.
+- `Command::CheckCodeCache` is a new variant; update exhaustive matches.
+
 ## Unreleased — WP-21 (2026-10-24)
 
 - Core `Source::refresh_batch(&[NodeId])` preserves an upstream watcher

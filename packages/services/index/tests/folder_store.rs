@@ -392,10 +392,10 @@ async fn duplicate_claim_rolls_back_and_is_reported_without_an_unbounded_retry()
         "pub const COLLISION: i32 = 2;\n",
     )
     .unwrap();
-    assert!(index
+    index
         .refresh(NodeId::derive(&folder.id(), "src/main.rs"))
         .await
-        .is_err());
+        .unwrap();
     assert!(index.folder_store_report().is_err());
     assert_eq!(s.last_seq().unwrap(), seq);
     assert_eq!(manifests(&s), before);
@@ -428,4 +428,230 @@ async fn code_symlink_to_hidden_secret_is_not_persisted() {
     let (_, index) = open(&dir).await;
     assert!(index.folder_store_report().is_ok());
     assert!(!store(&dir).files().unwrap().iter().any(|p| p == "alias.py"));
+}
+
+fn cache_query(memory: bool) -> Query {
+    Query::Text {
+        dialect: "code-graph".into(),
+        text: serde_json::to_string(&(
+            memory,
+            Query::All {
+                limit: 1000,
+                kinds: None,
+            },
+        ))
+        .unwrap(),
+    }
+}
+fn report_text(result: moonkale_core::QueryResult) -> String {
+    result.table.unwrap().rows[0][0].to_string()
+}
+#[tokio::test]
+async fn graph_reads_cache_and_setting_forces_index_search_stays_indexed() {
+    let dir = fixture();
+    let (_, index) = open(&dir).await;
+    let reader: Arc<dyn Source> = Arc::new(
+        SophiaSource::open(index.folder_store_path().unwrap())
+            .await
+            .unwrap(),
+    );
+    let expected = reader
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    index.set_cache_reader(Ok(reader));
+    let cached = index.query(cache_query(false)).await.unwrap();
+    assert!(expected
+        .nodes
+        .iter()
+        .all(|node| cached.nodes.contains(node)));
+    assert!(cached
+        .nodes
+        .iter()
+        .filter(|n| n.kind.is_definition())
+        .all(|n| n.source.as_str().starts_with("sophia:")));
+    let memory = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(index.query(cache_query(true)).await.unwrap(), memory);
+    assert_ne!(expected, memory);
+    assert!(index
+        .query(Query::Text {
+            dialect: "search".into(),
+            text: "answer".into()
+        })
+        .await
+        .unwrap()
+        .table
+        .is_some());
+    index.set_cache_reader(Err(moonkale_core::SourceError::Io(
+        "injected open failure".into(),
+    )));
+    assert_eq!(index.query(cache_query(false)).await.unwrap(), memory);
+    assert!(!report_text(
+        index
+            .query(Query::Text {
+                dialect: "code-graph-status".into(),
+                text: String::new()
+            })
+            .await
+            .unwrap()
+    )
+    .is_empty());
+}
+
+#[tokio::test]
+async fn cache_directory_failure_preserves_folder_index() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.py"), "def answer():\n    return 42\n").unwrap();
+    fs::write(dir.path().join(".moonkale"), "directory open failure").unwrap();
+    let (_, index) = open(&dir).await;
+    assert!(index.folder_store_report().is_err());
+    let memory = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    assert!(!memory.nodes.is_empty());
+    assert_eq!(index.query(cache_query(false)).await.unwrap(), memory);
+}
+
+#[tokio::test]
+async fn broken_database_rebuilds_once_and_authored_store_is_protected() {
+    let dir = fixture();
+    fs::create_dir(dir.path().join(".moonkale")).unwrap();
+    fs::write(dir.path().join(STORE_PATH), "broken sqlite").unwrap();
+    let (_, index) = open(&dir).await;
+    assert!(index.folder_store_report().unwrap().rebuilt);
+    assert!(!store(&dir).files().unwrap().is_empty());
+    drop(index);
+    let dir = fixture();
+    fs::create_dir(dir.path().join(".moonkale")).unwrap();
+    let authored = Store::new(Sqlite::open(dir.path().join(STORE_PATH)).unwrap());
+    authored.set_meta("authored-test", b"keep").unwrap();
+    let (_, index) = open(&dir).await;
+    assert!(index.folder_store_report().is_err());
+    assert_eq!(
+        authored.meta("authored-test").unwrap(),
+        Some(b"keep".to_vec())
+    );
+}
+
+#[tokio::test]
+async fn check_cache_same_then_detects_one_corrupt_record_in_copy_and_repairs() {
+    use sophia_store::Backend;
+    let dir = fixture();
+    let (_, index) = open(&dir).await;
+    let check = || Query::Text {
+        dialect: "check-code-cache".into(),
+        text: String::new(),
+    };
+    assert_eq!(report_text(index.query(check()).await.unwrap()), "same");
+    // Corrupt a disposable copy, never the source fixture's original store.
+    let copy = fixture();
+    fs::create_dir(copy.path().join(".moonkale")).unwrap();
+    fs::copy(dir.path().join(STORE_PATH), copy.path().join(STORE_PATH)).unwrap();
+    {
+        let backend = Sqlite::open(copy.path().join(STORE_PATH)).unwrap();
+        let id = backend
+            .read(|tx| Ok(tx.records_of_kind(None, 1)?[0]))
+            .unwrap();
+        let mut record = backend.read(|tx| tx.record(&id)).unwrap().unwrap();
+        record.bytes.push(0);
+        backend
+            .write(|tx| {
+                tx.remove_record(&id)?;
+                tx.put_record(&record)
+            })
+            .unwrap();
+    }
+    let (_, copied_index) = open(&copy).await;
+    let message = report_text(copied_index.query(check()).await.unwrap());
+    assert!(
+        message.contains("cache problem; rebuilt: stale record:"),
+        "{message}"
+    );
+    assert_eq!(
+        report_text(copied_index.query(check()).await.unwrap()),
+        "same"
+    );
+    assert_eq!(report_text(index.query(check()).await.unwrap()), "same");
+}
+
+#[tokio::test]
+async fn local_code_file_reads_cache_but_notes_keep_their_index_neighbourhood() {
+    let dir = fixture();
+    fs::write(dir.path().join("Home.md"), "See [[Other]].").unwrap();
+    let (folder, index) = open(&dir).await;
+    let reader: Arc<dyn Source> = Arc::new(
+        SophiaSource::open(index.folder_store_path().unwrap())
+            .await
+            .unwrap(),
+    );
+    index.set_cache_reader(Ok(reader));
+    for (path, cache) in [("a.jl", true), ("Home.md", false)] {
+        let query = Query::Neighbours {
+            node: NodeId::derive(&folder.id(), path),
+            depth: 2,
+            direction: moonkale_core::Direction::Both,
+        };
+        let result = index
+            .query(Query::Text {
+                dialect: "code-graph".into(),
+                text: serde_json::to_string(&(false, &query)).unwrap(),
+            })
+            .await
+            .unwrap();
+        assert!(!result.nodes.is_empty(), "{path}");
+        if cache {
+            assert!(result
+                .nodes
+                .iter()
+                .all(|n| n.source.as_str().starts_with("sophia:")));
+        } else {
+            let mut expected = index.query(query).await.unwrap();
+            let mut result = result;
+            // Neighbourhood traversal order is deliberately unspecified.
+            expected.nodes.sort_by_key(|n| n.id);
+            result.nodes.sort_by_key(|n| n.id);
+            expected.edges.sort_by_cached_key(|e| format!("{e:?}"));
+            result.edges.sort_by_cached_key(|e| format!("{e:?}"));
+            assert_eq!(result, expected);
+        }
+    }
+}
+
+#[tokio::test]
+async fn cache_read_failure_switches_to_current_index_with_visible_reason() {
+    let dir = fixture();
+    let (_, index) = open(&dir).await;
+    let path = index.folder_store_path().unwrap();
+    let reader: Arc<dyn Source> = Arc::new(SophiaSource::open(&path).await.unwrap());
+    index.set_cache_reader(Ok(reader));
+    fs::remove_file(path).unwrap();
+    let expected = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    assert_eq!(index.query(cache_query(false)).await.unwrap(), expected);
+    let status = index
+        .query(Query::Text {
+            dialect: "code-graph-status".into(),
+            text: String::new(),
+        })
+        .await
+        .unwrap();
+    assert!(report_text(status).starts_with("cache read failed:"));
 }

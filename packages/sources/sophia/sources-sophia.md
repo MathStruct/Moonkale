@@ -1,6 +1,6 @@
 # Sophia source (WP-68)
 
-`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialects `sql` and `query` (`extra_text_query`), Sophia's own language. Enable the default-off `sophia` feature in `desktop`, `web` (client and server builds) or `moonkale-distribution`; the server has its own matching feature. This is a source driver, not an extension manifest.
+`moonkale-sources-sophia` implements `Source` over a Sophia code store, as a thin translation of `sophia-interface`'s types (Sophia SPEC-004, in [MathStruct/Sophia](https://github.com/MathStruct/Sophia) `vault/Specifications/`). Descriptor: `truth: Store`, family `Graph`, read, write and watch (polling), text dialects `sql` and `query` (`extra_text_query`), Sophia's own language. The `sophia` feature is default-on in desktop/mobile and implied by the server feature. Browser clients use the server; distribution-only builds can still opt in. This is a source driver, not an extension manifest.
 
 ## Dependency
 
@@ -135,3 +135,20 @@ separate operations, not exclusive spans within `all`.
 two spans), and `adapter_ms` for node/edge conversion. No body text or values
 are logged. The kept replay store's slow path is Sophia's repeated namespace
 metadata scans; see [[Indexing]] and [[P-232 Sophia capped graph reads scan namespace metadata]].
+
+## Legacy folder default (ADR-0030, 2026-10-26)
+
+The folder graph reads the derived Sophia adapter by default. Search keeps the
+in-memory index. `code_graph.source = auto | in-memory` is persisted through the
+normal settings store; `auto` is the default. The status bar identifies the
+cache, an explicit in-memory preference, or an automatic fallback with its reason.
+Cache open/sync/read failures preserve folder opening and current index reads;
+a corrupt cache receives one rebuild attempt. Authored stores and symlink paths
+are protected. The internal bounded `folder-neighbours` dialect maps a file's
+manifest spans to stored definition neighbourhoods for Local graph mode.
+
+**Check the cache** builds a fresh snapshot under `.moonkale/`, using the real
+folder's bounded naming metadata. It compares the replay's shared full digest,
+reports `same` or differing keys, rebuilds a mismatch and records the problem
+in the runtime log/status notification. No Sophia types cross into the shell,
+graph editor or platform wiring. See [[Indexing]].

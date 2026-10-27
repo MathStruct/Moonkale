@@ -1,5 +1,6 @@
 //! File-backed Sophia cache. Only the index's bounded, ignore-aware code
 //! selection enters here. Sophia never parses or authors these files.
+pub mod digest;
 mod producer;
 
 use moonkale_core::{ContentRef, Node, SourceError};
@@ -120,18 +121,7 @@ impl FolderStore {
         Ok(())
     }
 
-    pub fn sync(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
-        self.sync_selected(files, None)
-    }
-
-    /// `selected` is a debounce window; `files` is the current eligible
-    /// snapshot, used to recover owners on NameClaimed. None reconciles all.
-    pub fn sync_selected(
-        &self,
-        files: &[CodeFile],
-        selected: Option<&BTreeSet<String>>,
-    ) -> Result<FolderReport, SourceError> {
-        self.check_path()?;
+    fn validate_files(&self, files: &[CodeFile]) -> Result<(), SourceError> {
         let mut total = 0usize;
         for f in files {
             total = total.saturating_add(f.text.len());
@@ -144,6 +134,99 @@ impl FolderStore {
                 return Err(SourceError::Invalid("ineligible folder-store input".into()));
             }
         }
+        Ok(())
+    }
+
+    pub(crate) fn is_broken(&self) -> bool {
+        let Ok(db) = Sqlite::open(self.path()) else {
+            return true;
+        };
+        let store = Store::new(db);
+        // A readable authored store is protected, not a broken cache.
+        match store.is_derived() {
+            Ok(false) => false,
+            Ok(true) => digest::state(&store).is_err(),
+            Err(_) => true,
+        }
+    }
+
+    /// Rebuild only the reserved derived cache; never follow cache symlinks or
+    /// replace an authored store. An unreadable database at this reserved path
+    /// is disposable, but a readable non-derived store is not.
+    pub fn rebuild(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
+        self.check_path()?;
+        self.validate_files(files)?;
+        if self.path().exists() {
+            if let Ok(db) = Sqlite::open(self.path()) {
+                if Store::new(db).is_derived().is_ok_and(|derived| !derived) {
+                    return Err(error("reserved cache path contains an authored store"));
+                }
+            }
+        }
+        for suffix in ["", "-wal", "-shm", "-journal"] {
+            match std::fs::remove_file(format!("{}{suffix}", self.path().display())) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(io(e)),
+            }
+        }
+        let mut report = self.sync(files)?;
+        report.rebuilt = true;
+        Ok(report)
+    }
+
+    /// Compare against a fresh producer snapshot under the folder's cache
+    /// directory. Diagnostics contain keys, never record bodies/source text.
+    pub fn check(&self, files: &[CodeFile]) -> Result<Vec<String>, SourceError> {
+        self.check_path()?;
+        self.validate_files(files)?;
+        let scratch = tempfile::Builder::new()
+            .prefix("check-")
+            .tempdir_in(self.root.join(".moonkale"))
+            .map_err(io)?;
+        // Producer naming reads bounded Cargo/Python metadata from the real
+        // root, while its database lives only in the scratch directory.
+        let fresh = Self::open(scratch.path())?;
+        let mut report = FolderReport::default();
+        let changed = files.iter().map(|f| f.node.native_key.clone()).collect();
+        let records = producer::produce(&self.root, files, &changed, true, &mut report)?;
+        let db = Store::new(Sqlite::open(fresh.path()).map_err(error)?);
+        db.set_derived().map_err(error)?;
+        db.replace_files(&records.into_values().collect::<Vec<_>>())
+            .map_err(error)?;
+        let expected = digest::state(&db).map_err(error)?;
+        let actual = if self.path().is_file() {
+            Sqlite::open(self.path())
+                .map_err(error)
+                .and_then(|db| digest::state(&Store::new(db)).map_err(error))
+        } else {
+            Err(error("cache file is missing"))
+        };
+        let diff = match actual {
+            Ok(actual) => digest::differences(&actual, &expected),
+            Err(_) => vec!["missing or unreadable active cache records".into()],
+        };
+        drop(db);
+        if !diff.is_empty() {
+            self.rebuild(files)?;
+            tracing::error!(differences = ?diff, "code graph cache problem; rebuilt from files");
+        }
+        Ok(diff)
+    }
+
+    pub fn sync(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
+        self.sync_selected(files, None)
+    }
+
+    /// `selected` is a debounce window; `files` is the current eligible
+    /// snapshot, used to recover owners on NameClaimed. None reconciles all.
+    pub fn sync_selected(
+        &self,
+        files: &[CodeFile],
+        selected: Option<&BTreeSet<String>>,
+    ) -> Result<FolderReport, SourceError> {
+        self.check_path()?;
+        self.validate_files(files)?;
         let existed = self.path().exists();
         let mut store = Store::new(Sqlite::open(self.path()).map_err(error)?);
         if !existed {

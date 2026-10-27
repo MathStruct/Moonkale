@@ -31,8 +31,10 @@ ADR-0029 made Sophia the code graph's store with files as the truth, and set fou
   - if the store can't open (a browser without a server, a broken file), Moonkale falls back to the in-memory index on its own and says so in the status bar; a setting forces the in-memory index;
   - a "Check the cache" command builds a fresh store from the files and compares it with the cache (the replay's full-digest check); a mismatch rebuilds the cache and is reported as a problem;
   - the cache can be exported in the same text form as a store-truth folder (SPEC-010 Q5), optional and not committed by default, since the files stay the truth. Uses: handing over a built cache of a large repo, and the starting point for moving the truth into Sophia.
+- **Legacy default implementation (2026-10-26):** retain the `sophia` feature, default-on for desktop/mobile and implied by the server feature; browser-only builds stay free of the native writer and read through their server.
 - **Sharing a store-truth folder** (Daniel, 2026-10-26): a committed text export of the store, rebuilt into SQLite on open. Later perhaps a pointer file type that only says which information to request from the store.
 - **New work:**
+  - TODO: export the derived cache after SPEC-010 defines its text form;
   - the "move the truth into Sophia" command and its reverse;
   - a store-truth project template ("New project");
   - generated-file output: a marker, regeneration, and detecting outside edits as proposed store changes;

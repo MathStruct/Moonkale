@@ -49,6 +49,8 @@ pub struct SettingsFile {
     pub policy: PolicyFile,
     /// Search.
     pub search: SearchFile,
+    /// Code graph backend; search remains independent.
+    pub code_graph: CodeGraphFile,
     /// The agent panel.
     #[serde(default)]
     pub agent: AgentFile,
@@ -89,6 +91,25 @@ pub struct SettingsFile {
     /// The focused document (a folder's, per machine; in the state store since phase 5.7).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_document: Option<String>,
+}
+
+/// Legacy folder code graph reads. Files remain the truth in either mode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CodeGraphSource {
+    /// Use the cache when healthy, otherwise the in-memory index.
+    #[default]
+    Auto,
+    /// Explicitly use the in-memory index.
+    InMemory,
+}
+
+/// Persisted code graph preference, overlaid per scope.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CodeGraphFile {
+    /// `auto` (default) or `in-memory`.
+    pub source: Option<CodeGraphSource>,
 }
 
 /// A language-model provider, as stored (every field optional; later scopes win per field).
@@ -365,6 +386,7 @@ impl SettingsFile {
             .denied_tools
             .clone()
             .or(self.policy.denied_tools.take());
+        self.code_graph.source = other.code_graph.source.or(self.code_graph.source);
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
         self.agent.on_server = other.agent.on_server.or(self.agent.on_server);
         self.agent.default = other.agent.default.clone().or(self.agent.default.take());
@@ -480,6 +502,8 @@ pub struct Settings {
     pub policy: PolicySettings,
     /// Search.
     pub search: SearchSettings,
+    /// Resolved code graph backend.
+    pub code_graph: CodeGraphSource,
     /// The agent panel.
     pub agent: AgentSettings,
     /// The terminal.
@@ -658,6 +682,7 @@ impl Default for Settings {
             agents: Vec::new(),
             remote_saved: Vec::new(),
             policy: PolicySettings::default(),
+            code_graph: CodeGraphSource::Auto,
             search: SearchSettings { embeddings: true },
             agent: AgentSettings::default(),
             terminal: TerminalSettings::default(),
@@ -796,6 +821,7 @@ impl Settings {
                 allow_writes: merged.policy.allow_writes.unwrap_or(false),
                 denied_tools: merged.policy.denied_tools.unwrap_or_default(),
             },
+            code_graph: merged.code_graph.source.unwrap_or_default(),
             search: SearchSettings {
                 embeddings: merged.search.embeddings.unwrap_or(true),
             },
@@ -1355,5 +1381,24 @@ mod flow_grid_tests {
             SettingsFile::parse(&encoded).unwrap().editor.flow_grid,
             Some(0)
         );
+    }
+}
+
+#[cfg(test)]
+mod code_graph_tests {
+    use super::*;
+    #[test]
+    fn graph_preference_defaults_and_overlays_without_affecting_search() {
+        let mut base = SettingsFile::new();
+        assert_eq!(Settings::default().code_graph, CodeGraphSource::Auto);
+        let force = SettingsFile::parse(r#"{"code_graph":{"source":"in-memory"}}"#).unwrap();
+        base.overlay(&force);
+        assert_eq!(base.code_graph.source, Some(CodeGraphSource::InMemory));
+        assert_eq!(base.search.embeddings, None);
+        let auto = SettingsFile::parse(r#"{"code_graph":{"source":"auto"}}"#).unwrap();
+        base.overlay(&auto);
+        assert_eq!(base.code_graph.source, Some(CodeGraphSource::Auto));
+        assert_eq!(SettingsFile::parse(&base.to_json()).unwrap(), base);
+        assert!(SettingsFile::parse(r#"{"code_graph":{"source":"other"}}"#).is_err());
     }
 }

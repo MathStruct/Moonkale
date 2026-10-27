@@ -7,6 +7,7 @@ description = "Sophia code stores as store-backed graph sources (WP-68, Sophia S
 
 [dependencies]
 moonkale-core = { workspace = true }
+serde_json = "1"
 
 # One revision for both crates: Sophia announces it when the interface is
 # dependable (SPEC-004 §3a). SQLite only: it is the backend with `sql`, and

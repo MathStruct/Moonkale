@@ -501,6 +501,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut tier_cache: Signal<HashMap<SourceId, Measurement>> = use_signal(HashMap::new);
     let mut tier_choices: Signal<HashMap<SourceId, Choice>> = use_signal(HashMap::new);
     let mut tier_reload = use_signal(|| 0_u64);
+    use_effect(move || {
+        let _source = ws.settings.resolved.read().code_graph;
+        tier_cache.write().clear();
+    });
     let mut tier_info: Signal<Option<Measurement>> = use_signal(|| None);
     let mut region_sources: Signal<HashMap<String, std::sync::Arc<dyn moonkale_core::Source>>> =
         use_signal(HashMap::new);
@@ -631,6 +635,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
 
     // A graph database that was just opened is what the user wants to see:
     // switch the picker to it (the picker still offers the index).
+    let mut cache_health: Signal<HashMap<SourceId, String>> = use_signal(HashMap::new);
     let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
     let mut pending_db: Signal<Option<PendingDatabaseLoad>> = use_signal(|| None);
     use_effect(move || {
@@ -685,6 +690,8 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             .filter(|s| s.descriptor.family == SourceFamily::Index)
             .cloned()
             .collect();
+        let force_memory = ws.settings.resolved.read().code_graph
+            == moonkale_ext_api::settings::CodeGraphSource::InMemory;
         let m = mode();
         let f = filters();
         let active = *ws.docs.active.read();
@@ -915,8 +922,13 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 } else {
                     None
                 };
-                let result =
-                    crate::tier::load(index.source.as_ref(), query.clone(), choice, cached).await;
+                let result = crate::tier::load(
+                    &crate::tier::CodeGraph(index.source.as_ref(), force_memory),
+                    query.clone(),
+                    choice,
+                    cached,
+                )
+                .await;
                 let (r, measurement) = match result {
                     Ok(result) => result,
                     Err(e) => {
@@ -926,6 +938,31 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         return;
                     }
                 };
+                if let Ok(status) = index
+                    .source
+                    .query(Query::Text {
+                        dialect: "code-graph-status".into(),
+                        text: String::new(),
+                    })
+                    .await
+                {
+                    let reason = status
+                        .table
+                        .and_then(|t| t.rows.first().and_then(|r| r.first()).cloned())
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    let previous = cache_health
+                        .peek()
+                        .get(&index.descriptor.id)
+                        .cloned()
+                        .unwrap_or_default();
+                    if reason != previous {
+                        cache_health
+                            .write()
+                            .insert(index.descriptor.id.clone(), reason);
+                        ws.sources.graph_epoch.with_mut(|e| *e += 1);
+                    }
+                }
                 if *load_gen.peek() != gen {
                     return;
                 }
@@ -939,11 +976,12 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 if measurement.tier == crate::tier::Tier::Coarse {
                     total_measurement.tier = crate::tier::Tier::Coarse;
                 }
-                source_map.extend(
-                    r.nodes
-                        .iter()
-                        .map(|n| (n.id.to_string(), index.source.clone())),
-                );
+                source_map.extend(r.nodes.iter().map(|n| {
+                    (
+                        n.id.to_string(),
+                        ws.source(&n.source).unwrap_or_else(|| index.source.clone()),
+                    )
+                }));
                 owner.extend(std::iter::repeat_n(i, r.nodes.len()));
                 res.nodes.extend(r.nodes);
                 res.edges.extend(r.edges);
@@ -967,7 +1005,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 .nodes
                 .iter()
                 .zip(owner.iter())
-                .filter(|(n, _)| n.props.contains_key("coarse.members") || kinds.contains(&n.kind))
+                .filter(|(n, _)| {
+                    n.props.contains_key("coarse.members")
+                        || kinds.contains(&n.kind)
+                        || (f.symbols && n.source.as_str().starts_with("sophia:"))
+                })
                 .map(|(n, o)| (n, groups.get(*o).map(|g| g.1)))
                 .collect();
             let idx: HashMap<_, _> = nodes

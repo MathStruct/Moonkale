@@ -1,4 +1,4 @@
-// WP-21: the feature-gated folder cache is an additional source in the real UI.
+// ADR-0030: folder code graph defaults to Sophia, with a visible backend.
 import { chromium } from "playwright";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
@@ -20,11 +20,13 @@ try {
   await page.waitForSelector(".wb-workspace");
   await page.click(".mk-explorer-open button[type=submit]");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("index:"));
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
   assert(fs.statSync(`${root}/.moonkale/code.sophia`).size > 0);
   await page.click(".wb-tab[id^='wb-tab-graph']");
   await page.waitForSelector(".mk-graph-source option[value^='sophia:']",{state:"attached"});
   const source = await page.$eval(".mk-graph-source option[value^='sophia:']",e => e.value);
-  await page.selectOption(".mk-graph-source",source);
+  // Default folder view must read the cache without manually picking it.
+  assert.equal(await page.$eval(".mk-graph-source", e => e.value), "");
   await page.waitForFunction(() => Number(document.querySelector(".mk-graph-info")?.dataset.nodes) > 0);
   await page.waitForFunction(() => /gl|gpu/i.test(document.querySelector(".mk-graph-info")?.dataset.backend || ""),null,{timeout:30000});
   // The names/definitions must survive the Graph panel's data-kind filter
@@ -38,6 +40,38 @@ try {
   fs.writeFileSync(`${root}/Cache.jl`, "module Cache\nconst initial = 1\nconst added = 2\nend\n");
   const addedId = nameId(source,"name:jl.Cache.added");
   await page.waitForFunction(id => !!JSON.parse(window.moonkale.graphViews["mk-graph-panel"].node_positions())[id],addedId,{timeout:20000});
+  // Settings are persisted through the regular settings store and affect
+  // graph reads immediately, including the visible status item.
+  await page.keyboard.press("Control+,");
+  await page.waitForSelector(".mk-settings-code-graph");
+  await page.selectOption(".mk-settings-code-graph", "in-memory");
+  await page.waitForFunction(() => {
+    const text = document.querySelector(".wb-status-bar")?.textContent || "";
+    return text.includes("Code graph: in-memory index") && !text.includes("Code graph: Sophia cache");
+  });
+  await page.click(".wb-tab[id^='wb-tab-graph']");
+  await page.waitForFunction(id => {
+    const positions = JSON.parse(window.moonkale.graphViews["mk-graph-panel"].node_positions());
+    return Object.keys(positions).length > 0 && !positions[id];
+  }, initialId);
+  await page.keyboard.press("Control+,");
+  await page.waitForSelector(".mk-settings-code-graph");
+  await page.selectOption(".mk-settings-code-graph", "auto");
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
+  await page.click(".wb-tab[id^='wb-tab-graph']");
+  fs.rmSync(`${root}/.moonkale/code.sophia`);
+  await page.click(".mk-graph-reload");
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: in-memory index (fallback:"));
+  await page.keyboard.press("Control+Shift+P");
+  await page.fill(".mk-palette-input", "Check the cache");
+  await page.click(".mk-palette-item[data-key='codeGraph.checkCache']");
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Cache problem; rebuilt:"));
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
+  await page.waitForFunction(id => !!JSON.parse(window.moonkale.graphViews["mk-graph-panel"].node_positions())[id], initialId);
+  await page.keyboard.press("Control+Shift+P");
+  await page.fill(".mk-palette-input", "Check the cache");
+  await page.click(".mk-palette-item[data-key='codeGraph.checkCache']");
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Cache check: same"));
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder.png`});
   console.log("SOPHIA FOLDER E2E: PASS");
 } catch(error) {

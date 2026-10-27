@@ -338,3 +338,14 @@ ext-crash-reload = Reload panel
 panel-settings = Settings for { $name }
 panel-settings-close = Close settings
 panel-settings-all = All settings in Extensions…
+
+status-code-cache = Code graph: Sophia cache
+status-code-memory = Code graph: in-memory index
+status-code-fallback = Code graph: in-memory index (fallback: { $reason })
+cmd-check-cache = Check the cache
+cache-check-unavailable = Cache check unavailable
+
+settings-code-graph = Code graph source
+settings-code-auto = Automatic (Sophia cache)
+cache-check-same = Cache check: same
+cache-check-rebuilt = Cache problem; rebuilt: { $differences }

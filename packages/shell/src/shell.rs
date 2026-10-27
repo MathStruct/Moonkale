@@ -44,6 +44,48 @@ pub const NARROW_MAX_PX: u32 = 700;
 #[component]
 pub fn Shell() -> Element {
     let mut ws = use_context::<Workspace>();
+    let cache_status = use_resource(move || {
+        let indices: Vec<_> = ws
+            .sources
+            .open
+            .read()
+            .iter()
+            .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
+            .map(|s| s.source.clone())
+            .collect();
+        let _epoch = *ws.sources.graph_epoch.read();
+        let force_memory = ws.settings.resolved.read().code_graph
+            == moonkale_ext_api::settings::CodeGraphSource::InMemory;
+        async move {
+            let mut messages = Vec::new();
+            for index in indices {
+                if force_memory {
+                    messages.push(t!(ws, L, "status-code-memory"));
+                    continue;
+                }
+                let reason = match index
+                    .query(moonkale_core::Query::Text {
+                        dialect: "code-graph-status".into(),
+                        text: String::new(),
+                    })
+                    .await
+                {
+                    Ok(result) => result
+                        .table
+                        .and_then(|t| t.rows.first().and_then(|r| r.first()).cloned())
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "cache status unavailable".into()),
+                    Err(_) => "Sophia unavailable in this build".into(),
+                };
+                messages.push(if reason.is_empty() {
+                    t!(ws, L, "status-code-cache")
+                } else {
+                    t!(ws, L, "status-code-fallback", reason = reason)
+                });
+            }
+            messages.join(" · ")
+        }
+    });
     let exts: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     // Controlled layout so "View → Reset Layout" can put it back.
     let mut layout = use_signal(default_layout);
@@ -679,6 +721,9 @@ pub fn Shell() -> Element {
                         },
                         message: rsx! { StatusMessage { if status.is_empty() { {t!(ws, L, "status-ready")} } else { "{status}" } } },
                         right: rsx! {
+                            if let Some(message) = cache_status.read().as_ref().filter(|s| !s.is_empty()) {
+                                StatusItem { "{message}" }
+                            }
                             if let Some(url) = server {
                                 StatusItem { title: t!(ws, L, "status-server-client"),
                                     span { class: "mk-status-remote", "⇅ {url}" }
