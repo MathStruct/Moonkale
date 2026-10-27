@@ -501,8 +501,12 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut tier_cache: Signal<HashMap<SourceId, Measurement>> = use_signal(HashMap::new);
     let mut tier_choices: Signal<HashMap<SourceId, Choice>> = use_signal(HashMap::new);
     let mut tier_reload = use_signal(|| 0_u64);
+    // Only the code-graph choice, not every settings change: the workspace
+    // settings load right after a folder opens, and a reload then would
+    // replace the graph the user (or a test) is already looking at.
+    let code_graph = use_memo(move || ws.settings.resolved.read().code_graph);
     use_effect(move || {
-        let _source = ws.settings.resolved.read().code_graph;
+        let _source = code_graph();
         tier_cache.write().clear();
     });
     let mut tier_info: Signal<Option<Measurement>> = use_signal(|| None);
@@ -690,8 +694,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             .filter(|s| s.descriptor.family == SourceFamily::Index)
             .cloned()
             .collect();
-        let force_memory = ws.settings.resolved.read().code_graph
-            == moonkale_ext_api::settings::CodeGraphSource::InMemory;
+        let force_memory = code_graph() == moonkale_ext_api::settings::CodeGraphSource::InMemory;
         let m = mode();
         let f = filters();
         let active = *ws.docs.active.read();
@@ -960,7 +963,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         cache_health
                             .write()
                             .insert(index.descriptor.id.clone(), reason);
-                        ws.sources.graph_epoch.with_mut(|e| *e += 1);
+                        ws.sources.code_graph_status_epoch.with_mut(|e| *e += 1);
                     }
                 }
                 if *load_gen.peek() != gen {

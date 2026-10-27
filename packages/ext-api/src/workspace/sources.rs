@@ -22,18 +22,27 @@ impl Workspace {
         else {
             return Err(SourceError::NotFound);
         };
-        // Everything derived from this source closes too.
+        // Everything derived from this source closes too: its index, and a
+        // folder's Sophia cache in `.moonkale/` (ADR-0030).
+        let cache = id.as_str().strip_prefix("folder:").map(|path| {
+            format!(
+                "sophia:{}",
+                std::path::Path::new(path).join(".moonkale").display()
+            )
+        });
         let derived: Vec<SourceId> = self
             .sources
             .open
             .peek()
             .iter()
             .filter(|s| {
-                s.descriptor
-                    .id
-                    .as_str()
-                    .ends_with(&format!(":{}", id.as_str()))
-                    && s.descriptor.family == moonkale_core::SourceFamily::Index
+                let sid = s.descriptor.id.as_str();
+                (sid.ends_with(&format!(":{}", id.as_str()))
+                    && s.descriptor.family == moonkale_core::SourceFamily::Index)
+                    || cache.as_ref().is_some_and(|cache| {
+                        sid.strip_prefix(cache.as_str())
+                            .is_some_and(|rest| rest.starts_with(['/', '\\']))
+                    })
             })
             .map(|s| s.descriptor.id.clone())
             .collect();
@@ -393,6 +402,10 @@ impl Workspace {
             .open
             .peek()
             .iter()
+            // A folder's derived Sophia cache changes only when its index
+            // syncs it, and that refresh already bumps the epochs. Following
+            // it too reloaded every graph and editor a second time per change.
+            .filter(|s| !is_derived_cache(&s.descriptor))
             .map(|s| s.descriptor.id.clone())
             .collect();
         let mut followed = self.sources.followed;
@@ -564,6 +577,10 @@ pub struct SourcesState {
     /// Bumped whenever derived data may have changed (after a save was
     /// refreshed into the index); graph/backlink panels re-query on it.
     pub graph_epoch: Signal<u64>,
+    /// Bumped when a code graph's cache status changes (ADR-0030): only the
+    /// status bar re-reads on it. Bumping `graph_epoch` instead reloads every
+    /// graph and editor view.
+    pub code_graph_status_epoch: Signal<u64>,
 }
 
 impl SourcesState {
@@ -574,6 +591,15 @@ impl SourcesState {
             followed: Signal::new_in_scope(std::collections::HashSet::new(), ScopeId::ROOT),
             fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            code_graph_status_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
         }
     }
+}
+
+/// A folder's derived Sophia cache (`.moonkale/code.sophia`, ADR-0029/0030):
+/// files stay the truth, and the folder's index keeps it in step.
+fn is_derived_cache(descriptor: &moonkale_core::SourceDescriptor) -> bool {
+    descriptor.family == moonkale_core::SourceFamily::Graph
+        && descriptor.truth == moonkale_core::SourceTruth::Files
+        && descriptor.id.as_str().starts_with("sophia:")
 }

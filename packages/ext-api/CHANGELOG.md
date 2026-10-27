@@ -18,6 +18,7 @@ Rules:
   `auto | in-memory` graph backend preference. Add the fields to explicit
   struct literals or finish them with `Default`.
 - `Command::CheckCodeCache` is a new variant; update exhaustive matches.
+- `SourcesState::code_graph_status_epoch` is bumped when a code graph's cache status changes; only status displays read it.
 
 ## Unreleased — WP-21 (2026-10-24)
 

@@ -58,6 +58,10 @@ try {
   await clickNativeCommand(panel().locator('.mk-native-preview'));
 
   await page.locator('.mk-tree-file').filter({hasText: 'PropertiesOther.md'}).click(); await input().waitFor();
+  // The previous document's editor stays visible until the new one mounts;
+  // give it a moment, then the assertion below reports what is shown.
+  await page.waitForFunction(() => [...document.querySelectorAll('.mk-crust[data-editor="rust"]')].some(e => e.checkVisibility()
+    && e.querySelector('.mk-properties-summary')?.textContent === 'none'), null, { timeout: 5000 }).catch(() => {});
   assert.equal(await panel().locator('.mk-properties-summary').textContent(), 'none');
   await panel().locator('.mk-properties-head').click(); await yaml().fill('title: Other\naliases: [one, two]');
   await panel().locator('.mk-properties-apply').click(); await save();

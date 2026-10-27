@@ -312,7 +312,7 @@ jobs:
         run: packages/web/tests/e2e/run-all.sh structural-edits graph-rename
       - name: Server log and screenshots on failure
         if: failure()
-        run: tail -100 "$MOONKALE_E2E"/dx-*.log || true
+        run: tail -n 100 "$MOONKALE_E2E"/dx-*.log || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -224,6 +224,7 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 | [[P-231 Sophia folder replay loses generic memberships]] | ADR-0029 history replay finds live generic names/members differing from fresh stores; Sophia v0.1.0 subtracts duplicate old member digests without the deduplication used for new contributions. Fixed in Sophia 77f5c1c9; both replays clean | resolved | — |
 
 | [[P-232 Sophia capped graph reads scan namespace metadata]] | All(1000) spends seconds in Sophia namespace discovery: discarded Contains edges trigger repeated metadata scans; debug/release profile and upstream request prepared | resolved (Sophia v0.1.2) | — |
+| [[P-233 Structural edits need index nodes in the graph]] | With the Sophia cache as the default graph, structural edits select nothing (Sophia node ids differ from the index ids they key on); their suites use the in-memory index meanwhile | open | — |
 
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.

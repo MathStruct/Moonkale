@@ -12,7 +12,8 @@ fs.writeFileSync(file, original);
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 const context = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
 const engine = process.env.STRUCTURAL_EDITOR ?? 'native';
-await context.addInitScript(engine => localStorage.setItem('moonkale.settings', JSON.stringify({ editor: { implementation: engine, markdown_rich: false } })), engine);
+// Structural edits work on index nodes; the Sophia cache graph has its own ids (P-233).
+await context.addInitScript(engine => localStorage.setItem('moonkale.settings', JSON.stringify({ editor: { implementation: engine, markdown_rich: false }, code_graph: { source: 'in-memory' } })), engine);
 const page = await context.newPage();
 const base = `http://127.0.0.1:${process.env.PORT ?? 8080}`;
 const test = id => page.getByTestId(`structural-${id}`);

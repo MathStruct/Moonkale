@@ -71,6 +71,7 @@ pub fn Shell() -> Element {
             })
             .collect();
         let _epoch = *ws.sources.graph_epoch.read();
+        let _status = *ws.sources.code_graph_status_epoch.read();
         let force_memory = ws.settings.resolved.read().code_graph
             == moonkale_ext_api::settings::CodeGraphSource::InMemory;
         let selected = status_folder.read().clone();
