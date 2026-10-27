@@ -23,7 +23,10 @@ silently authorizes cache disposal when metadata cannot be trusted. See
 [[ADR-0030 Where the truth lives]] for the format and future migration commands.
 
 The status bar and explorer root show “Truth: files” or “Truth: Sophia store”
-in English, German and Chinese. Until SPEC-010 is implemented, marked folders
+in English, German and Chinese. The status item follows the active document or
+Explorer selection, falling back to the first folder. Its tooltip lists each
+open folder’s name, truth, backend and fallback/read-only reason.
+Until SPEC-010 is implemented, marked folders
 show “Code graph read-only: store editing is not available yet”. Their graph and
 search read the in-memory index; the code store is left untouched. Plain file
 editing remains available, without propagating changes into the authoritative

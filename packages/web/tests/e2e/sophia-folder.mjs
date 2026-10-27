@@ -84,6 +84,7 @@ try {
   fs.writeFileSync(`${storeRoot}/owned.py`, "def owned():\n    return 42\n");
   await page.fill(".mk-explorer-open input", storeRoot);
   await page.click(".mk-explorer-open button[type=submit]");
+  await page.locator(".mk-explorer-source-name").filter({hasText:"store-truth-fixture"}).click();
   await page.waitForFunction(() => {
     const text = document.querySelector(".wb-status-bar")?.textContent || "";
     return text.includes("Truth: Sophia store") && text.includes("Code graph read-only: store editing is not available yet");
@@ -92,6 +93,22 @@ try {
   assert.equal(await marked.locator(".mk-source-truth").textContent(), "Truth: Sophia store");
   assert.equal(fs.readFileSync(`${storeRoot}/.moonkale/code.sophia`, "utf8"), authored);
   assert(!fs.existsSync(`${storeRoot}/.moonkale/.gitignore`));
+  const folderStatus = page.locator(".mk-status-folder");
+  assert(!(await folderStatus.textContent()).includes("Truth: files"));
+  const tooltip = await folderStatus.locator("..").getAttribute("title");
+  assert(tooltip.includes("store-truth-fixture: Truth: Sophia store"));
+  assert(tooltip.includes("Truth: files · Code graph: Sophia cache"));
+  assert(tooltip.includes("Code graph read-only: store editing is not available yet"));
+  await page.locator(".mk-explorer-source-name").first().click();
+  await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent === "Truth: files · Code graph: Sophia cache");
+  await page.locator(".mk-explorer-source").first().locator(".mk-tree-file").filter({hasText:"Cache.jl"}).click();
+  await page.locator(".wb-tab").filter({hasText:"Cache.jl"}).waitFor();
+  await marked.locator(".mk-tree-file").filter({hasText:"owned.py"}).click();
+  await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent.includes("Truth: Sophia store"));
+  await page.locator(".wb-tab").filter({hasText:"Cache.jl"}).click();
+  await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent === "Truth: files · Code graph: Sophia cache");
+  await page.locator(".wb-tab").filter({hasText:"owned.py"}).click();
+  await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent.includes("Truth: Sophia store"));
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder-truth.png`});
   console.log("SOPHIA FOLDER E2E: PASS");
 } catch(error) {

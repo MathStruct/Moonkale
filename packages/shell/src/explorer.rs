@@ -347,10 +347,14 @@ fn ExplorerSource(
     };
     let color = crate::icons::source_color(descriptor.id.as_str());
     let read_only = !descriptor.capabilities.write;
+    let mut status_folder = use_context::<Signal<Option<moonkale_core::SourceId>>>();
+    let selected_source = descriptor.id.clone();
     let watched = ws.sources.watched.read().contains(&descriptor.id);
     rsx! {
         div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
-            div { class: "mk-explorer-source-name", title: if read_only { format!("{kind} · {}", t!(ws, L, "explorer-read-only")) } else { kind.to_string() },
+            div { class: "mk-explorer-source-name",
+                onclick: move |_| status_folder.set(Some(selected_source.clone())),
+                title: if read_only { format!("{kind} · {}", t!(ws, L, "explorer-read-only")) } else { kind.to_string() },
                 oncontextmenu: {
                     let root_id = descriptor.root;
                     let sid = descriptor.id.clone();
@@ -420,6 +424,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
     let others = ws.others();
     // Return keyed row VNodes directly. A nested expression inside an RSX
     // loop wraps each row in an unkeyed node and loses identity on reorder.
+    let ws_status_folder = use_context::<Signal<Option<moonkale_core::SourceId>>>();
     let mut rows = Vec::with_capacity(total.min(limit) + 1);
     for node in children.into_iter().take(limit) {
         let vcs_class = match marks.get(&node.native_key) {
@@ -495,6 +500,8 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     },
                     onclick: move |_| {
                         if renaming { return; }
+                        let mut status_folder = ws_status_folder;
+                        status_folder.set(Some(n.source.clone()));
                         let n = n.clone();
                         if is_dir {
                             spawn(toggle(ws, state, n));

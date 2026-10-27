@@ -44,6 +44,12 @@ pub const NARROW_MAX_PX: u32 = 700;
 #[component]
 pub fn Shell() -> Element {
     let mut ws = use_context::<Workspace>();
+    let mut status_folder = use_context_provider(|| Signal::new(None::<moonkale_core::SourceId>));
+    use_effect(move || {
+        if let Some((_, doc)) = ws.active_document() {
+            status_folder.set(Some(doc.peek().node.source.clone()));
+        }
+    });
     let cache_status = use_resource(move || {
         let indices: Vec<_> = ws
             .sources
@@ -51,14 +57,27 @@ pub fn Shell() -> Element {
             .read()
             .iter()
             .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
-            .map(|s| (s.source.clone(), s.descriptor.truth))
+            .filter_map(|s| {
+                let open = ws.sources.open.read();
+                let folder = open.iter().find(|f| {
+                    f.descriptor.family == moonkale_core::SourceFamily::Folder
+                        && s.descriptor.id.as_str() == format!("index:{}", f.descriptor.id)
+                })?;
+                Some((
+                    s.source.clone(),
+                    s.descriptor.truth,
+                    folder.descriptor.clone(),
+                ))
+            })
             .collect();
         let _epoch = *ws.sources.graph_epoch.read();
         let force_memory = ws.settings.resolved.read().code_graph
             == moonkale_ext_api::settings::CodeGraphSource::InMemory;
+        let selected = status_folder.read().clone();
         async move {
-            let mut messages = Vec::new();
-            for (index, truth) in indices {
+            let mut folders = Vec::new();
+            for (index, truth, folder) in indices {
+                let mut messages = Vec::new();
                 messages.push(if truth == moonkale_core::SourceTruth::Store {
                     t!(ws, L, "status-truth-store")
                 } else {
@@ -67,10 +86,12 @@ pub fn Shell() -> Element {
                 if truth == moonkale_core::SourceTruth::Store {
                     messages.push(t!(ws, L, "status-store-read-only"));
                     messages.push(t!(ws, L, "status-code-memory"));
+                    folders.push((folder, messages.join(" · ")));
                     continue;
                 }
                 if force_memory {
                     messages.push(t!(ws, L, "status-code-memory"));
+                    folders.push((folder, messages.join(" · ")));
                     continue;
                 }
                 let reason = match index
@@ -92,8 +113,20 @@ pub fn Shell() -> Element {
                 } else {
                     t!(ws, L, "status-code-fallback", reason = reason)
                 });
+                folders.push((folder, messages.join(" · ")));
             }
-            messages.join(" · ")
+            let message = folders
+                .iter()
+                .find(|(folder, _)| Some(&folder.id) == selected.as_ref())
+                .or_else(|| folders.first())
+                .map(|(_, message)| message.clone())
+                .unwrap_or_default();
+            let tooltip = folders
+                .iter()
+                .map(|(folder, message)| format!("{}: {message}", folder.display_name))
+                .collect::<Vec<_>>()
+                .join("\n");
+            (message, tooltip)
         }
     });
     let exts: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
@@ -731,8 +764,8 @@ pub fn Shell() -> Element {
                         },
                         message: rsx! { StatusMessage { if status.is_empty() { {t!(ws, L, "status-ready")} } else { "{status}" } } },
                         right: rsx! {
-                            if let Some(message) = cache_status.read().as_ref().filter(|s| !s.is_empty()) {
-                                StatusItem { "{message}" }
+                            if let Some((message, tooltip)) = cache_status.read().as_ref().filter(|(s, _)| !s.is_empty()) {
+                                StatusItem { title: tooltip.clone(), span { class: "mk-status-folder", "{message}" } }
                             }
                             if let Some(url) = server {
                                 StatusItem { title: t!(ws, L, "status-server-client"),
