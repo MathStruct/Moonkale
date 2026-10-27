@@ -40,6 +40,10 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
     let c = |id: &str, title: String| CommandContribution::new(id, title);
     vec![
         (
+            c("codeGraph.checkCache", t!(ws, L, "cmd-check-cache")),
+            Command::CheckCodeCache,
+        ),
+        (
             c(
                 "workspace.openFolder",
                 t!(ws, L, "cmd-workspace-openFolder"),

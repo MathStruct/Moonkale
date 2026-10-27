@@ -15,7 +15,7 @@ Crate: `index`. The index turns *files and rows* into a *graph* by deriving what
 
 ## Sophia folder cache (WP-21, implemented 2026-10-24)
 
-With the default-off `sophia` feature, opening a folder writes the index's code
+With `sophia` enabled by default on desktop/mobile and by the server feature, opening a folder writes the index's code
 records into `.moonkale/code.sophia` (SQLite, enforced derived mode). The existing
 in-memory index and its search remain available. The extra Sophia Source offers
 names, definitions, references, generic Calls, SQL and Sophia queries to the
@@ -44,8 +44,26 @@ exact source spans; stale spans fall back to the current whole file and mark
 the path stale. No reprinted code is written back. A derived reader reopens
 its cache connection per call so it can follow cache recreation. Rebuilding
 preserves definition content ids and names; generic nominal ids are allocated
-by Sophia and may change. This does not yet make Sophia the default backend
-or complete ADR-0029's release/default gates.
+by Sophia and may change. ADR-0030 makes this the default for legacy code graph reads; search remains in memory.
+
+`code_graph.source` in the regular user/workspace settings store selects
+`auto` (default) or `in-memory`. The graph's bounded `code-graph` query envelope
+carries this preference per request; it never changes search or another client's
+choice. The index delegates code graph queries to its read-only Sophia adapter.
+File/note nodes and wiki-links remain index-owned; Local code-file queries use
+manifest spans to reach stored definitions. The status bar always names the
+backend, including an explicit reason for fallback. A cache directory/open,
+sync or read error preserves the current index. A corrupt database is rebuilt
+once per open; an authored store at the reserved path is never deleted.
+
+**Check the cache** in the command palette takes a new bounded, ignore-aware
+snapshot of current files, builds a fresh store in a temporary directory under
+`.moonkale/`, and compares the shared `folder_store::digest` full-digest-v1
+implementation used by the history replay. It checks manifests, names, live
+generic memberships, canonical record bytes, text pointers and facts. A fresh
+cache reports `same`; differences name keys, rebuild the cache, and file a
+problem in the runtime log and status notification. Temporary stores are cleaned
+on return. Cache export awaits SPEC-010's text form.
 
 Rust acceptance tests live in `packages/services/index/tests/folder_store.rs`;
 producer/mapping details in `packages/services/index/index.md`, reader details
@@ -337,3 +355,34 @@ run ignored P-231 contract regression fails as expected with two missing state
 keys. Evidence: `target/next18-gates.log`, `target/next18-final-checks.log`,
 `target/next18-p231-regression.log`, and the two checked-in JSONL reports above.
 No production UI changed, so no browser suite was added or rerun.
+
+
+## Legacy default verification (2026-10-27)
+
+NEXT-20 completes ADR-0030's legacy-folder default. All AGENTS gates pass:
+workspace and fuzz formatting, layering, colours, translated strings,
+frontmatter, **867 workspace tests (seven ignored)**, strict workspace/all-targets
+Clippy, distribution checks both without defaults and with Julia, strict
+core/extension-API/renderer rustdoc, and the wasm web check. The focused
+index/Sophia suite passes **81 tests**, including **16 folder-cache regressions**.
+
+Desktop with its desktop feature, the server, mobile on the host and mobile
+with its mobile feature on `aarch64-linux-android` all pass `cargo check`.
+The Android check uses NDK 29's API-24 clang and llvm-ar; it verifies compilation,
+not an APK installation or device runtime. The `sophia` feature remains default-on
+for mobile as well as desktop, and implied by the server feature.
+
+The defaults-only browser build (explicitly empty `SERVE_FEATURES`) passes
+`sophia-folder` and `graph-local`. The former verifies cache-backed definition
+ids before choosing a source, watcher updates, the persisted in-memory setting
+changing both the status item and displayed ids, fallback after deleting the
+cache, palette repair, restored cache ids and a subsequent `same` check.
+`graph`, `watch`, `search-trace`, `shell`, `settings` and `palette` also pass.
+Owned servers were stopped through `serve.sh stop`.
+
+The three interrupted-run failures are resolved: cache-open errors initialize
+the report as errors, read failures preserve a bounded diagnostic reason, and
+the Local regression normalizes node/edge order before comparing the graphs.
+Neighbourhood order is unspecified; production traversal order is unchanged.
+The shared full-digest check detects a changed record's canonical bytes in a
+copy, reports the stale record key, repairs it and then reports `same`.

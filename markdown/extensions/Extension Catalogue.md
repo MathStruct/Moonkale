@@ -36,7 +36,7 @@ Milestone 14 added the Rust code editor next to CodeMirror ([[Code Editor Implem
 
 WP-18 (2026-10-17): `sources/unison` is a **source driver**, not an extension manifest. The default-off `unison` distribution/platform/server feature registers local `*.unison` codebase roots; store-backed namespaces, names and definitions draw through the existing Graph panel. UCM 1.5 is a runtime dependency only; read-only snapshots, no watch/write/dialect. See `packages/sources/unison/sources-unison.md`.
 
-WP-68 (2026-10-20): `sources/sophia` is a **source driver** too. The default-off `sophia` distribution/platform/server feature registers `*.sophia` Sophia stores (SQLite), editable as text through Sophia's `sophia-interface`. See `packages/sources/sophia/sources-sophia.md`.
+WP-68 (2026-10-20): `sources/sophia` is a **source driver** too. The `sophia` feature (default-on desktop/mobile and implied by the server feature since ADR-0030, 2026-10-26) registers `*.sophia` Sophia stores (SQLite), editable as text through Sophia's `sophia-interface`. See `packages/sources/sophia/sources-sophia.md`.
 
 Not extensions but wired as platform capabilities (`WorkspaceConfig`): presence (web + desktop hub; mobile `None`), the wasm runtime, secret store, settings store, folder picker. They are candidates for extension status only where a contribution point exists.
 

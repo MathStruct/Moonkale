@@ -338,6 +338,8 @@ pub struct ForeignDrag {
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Compare the derived cache with a fresh snapshot of current files.
+    CheckCodeCache,
     /// Open a folder (the Explorer's path field or the picker).
     OpenFolder,
     /// Close the first folder source (spec 015); the Explorer's context

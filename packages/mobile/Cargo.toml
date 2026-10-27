@@ -29,7 +29,7 @@ moonkale-sources-kv = { workspace = true }
 tracing = "0.1"
 
 [features]
-default = []
+default = ["sophia"]
 sophia = ["moonkale-index/sophia", "moonkale-distribution/sophia", "moonkale-server/sophia", "dep:moonkale-sources-sophia"]
 mobile = ["dioxus/mobile"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]

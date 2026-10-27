@@ -314,3 +314,14 @@ P-232's opt-in `query_profile` example reads disposable store copies and prints
 only counts/timings. The existing graph profiling flag now splits Sophia's all
 read from generic-call expansion. No stored values, text bodies, new dependency,
 network access or Source write authority are added.
+
+ADR-0030 (2026-10-26): the default folder cache retains the existing code/path
+bounds. Repair never follows symlinks or replaces a readable authored store; a
+broken database receives one repair attempt per open. Cache comparison uses a
+temporary store under the checked `.moonkale/` directory and the real folder's
+bounded naming metadata, cleans up on return and reports differing keys without
+source bodies. Graph protocol envelopes are limited to 8 KiB and admit only
+structural reads; user preferences travel per request. Local code-file reads
+charge repeated neighbourhood traversal against an aggregate 10,000-item budget
+and deduplicate/cap their combined edges. Cache checks write only
+the derived cache, with files remaining the truth.

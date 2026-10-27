@@ -160,12 +160,15 @@ pub async fn open_folder(
             out.push(reg.insert(index.clone()));
             #[cfg(feature = "sophia")]
             if let Some(path) = index.folder_store_path() {
-                let source = std::sync::Arc::new(
-                    moonkale_sources_sophia::SophiaSource::open(path)
-                        .await
-                        .map_err(server_error)?,
-                );
-                out.push(reg.insert(source));
+                match moonkale_sources_sophia::SophiaSource::open(path).await {
+                    Ok(source) => {
+                        let source: std::sync::Arc<dyn moonkale_core::Source> =
+                            std::sync::Arc::new(source);
+                        index.set_cache_reader(Ok(source.clone()));
+                        out.push(reg.insert(source));
+                    }
+                    Err(error) => index.set_cache_reader(Err(error)),
+                }
             }
             tokio::spawn(async move {
                 match index.embed_pending().await {

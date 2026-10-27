@@ -368,6 +368,52 @@ pub fn Frame(
             Some(Command::DisconnectServer) => ws.disconnect_server(),
             Some(Command::Palette) => palette.set(Some(crate::palette::PaletteMode::Commands)),
             Some(Command::QuickOpen) => palette.set(Some(crate::palette::PaletteMode::Files)),
+            Some(Command::CheckCodeCache) => {
+                let sources: Vec<_> = ws
+                    .sources
+                    .open
+                    .peek()
+                    .iter()
+                    .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
+                    .map(|s| s.source.clone())
+                    .collect();
+                spawn(async move {
+                    let mut messages = Vec::new();
+                    for source in sources {
+                        let message = match source
+                            .query(moonkale_core::Query::Text {
+                                dialect: "check-code-cache".into(),
+                                text: String::new(),
+                            })
+                            .await
+                        {
+                            Ok(result) => result
+                                .table
+                                .and_then(|t| t.rows.first().and_then(|r| r.first()).cloned())
+                                .map(|v| v.to_string())
+                                .unwrap_or_default(),
+                            Err(_) => t!(ws, L, "cache-check-unavailable"),
+                        };
+                        let message = if message == "same" {
+                            t!(ws, L, "cache-check-same")
+                        } else if let Some(differences) =
+                            message.strip_prefix("cache problem; rebuilt: ")
+                        {
+                            t!(
+                                ws,
+                                L,
+                                "cache-check-rebuilt",
+                                differences = differences.to_string()
+                            )
+                        } else {
+                            message
+                        };
+                        messages.push(message);
+                    }
+                    ws.sources.graph_epoch.with_mut(|e| *e += 1);
+                    ws.set_status(messages.join(" · "));
+                });
+            }
             Some(Command::SearchWorkspace) => crate::search::focus_search(ws),
             Some(Command::NewFile(name, template)) => {
                 let folder = ws

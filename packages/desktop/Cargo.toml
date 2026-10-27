@@ -56,7 +56,7 @@ unison = ["moonkale-distribution/unison", "moonkale-server/unison"]
 sophia = ["moonkale-index/sophia", "moonkale-distribution/sophia", "moonkale-server/sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["moonkale-distribution/structural-edits", "moonkale-server/structural-edits"]
-default = []
+default = ["sophia"]
 desktop = ["dioxus/desktop", "moonkale-code-view/native-desktop"]
 server = ["dioxus/server", "moonkale-server/server", "moonkale-distribution/server"]
 # Lux.jl from MathStruct/moonkale-julia (Milestone 18 phase 6.4); off by default.

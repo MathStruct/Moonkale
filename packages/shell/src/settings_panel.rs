@@ -176,6 +176,18 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         {t!(ws, L, "settings-use-embeddings")}
                     }
 
+                    label { {t!(ws, L, "settings-code-graph")}
+                        select { class: "mk-input mk-settings-code-graph",
+                            value: if settings.code_graph == moonkale_ext_api::settings::CodeGraphSource::InMemory { "in-memory" } else { "auto" },
+                            onchange: move |e| {
+                                let source = if e.value() == "in-memory" { moonkale_ext_api::settings::CodeGraphSource::InMemory } else { moonkale_ext_api::settings::CodeGraphSource::Auto };
+                                apply(Box::new(move |f| f.code_graph.source = Some(source)));
+                            },
+                            option { value: "auto", selected: settings.code_graph == moonkale_ext_api::settings::CodeGraphSource::Auto, {t!(ws, L, "settings-code-auto")} }
+                            option { value: "in-memory", selected: settings.code_graph == moonkale_ext_api::settings::CodeGraphSource::InMemory, {t!(ws, L, "status-code-memory")} }
+                        }
+                    }
+
                     // Milestone 15: the one extension-related thing here — which of
                     // several extensions does a job. On/off and each extension's own
                     // settings are in the Extensions panel.

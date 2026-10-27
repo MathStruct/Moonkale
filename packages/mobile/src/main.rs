@@ -161,10 +161,17 @@ fn open_local(path: String, _options: moonkale_shell::OpenOptions) -> OpenFolder
         let index = Arc::new(moonkale_index::IndexSource::build(folder.clone()).await?);
         #[cfg(feature = "sophia")]
         let derived = if let Some(path) = index.folder_store_path() {
-            Some(
-                Arc::new(moonkale_sources_sophia::SophiaSource::open(path).await?)
-                    as Arc<dyn Source>,
-            )
+            match moonkale_sources_sophia::SophiaSource::open(path).await {
+                Ok(source) => {
+                    let source: Arc<dyn Source> = Arc::new(source);
+                    index.set_cache_reader(Ok(source.clone()));
+                    Some(source)
+                }
+                Err(error) => {
+                    index.set_cache_reader(Err(error));
+                    None
+                }
+            }
         } else {
             None
         };

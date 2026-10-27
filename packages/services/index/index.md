@@ -78,7 +78,7 @@ and cache limits remain enforced independently. The shared crate's
 
 ## WP-21: derived folder store (2026-10-24)
 
-Default-off `sophia` adds `folder_store/{mod,producer}.rs`. The index remains
+`sophia` adds `folder_store/{mod,producer,digest}.rs` (default in apps/server since ADR-0030). The index remains
 in memory and keeps its current queries. Desktop, server and mobile builds
 with that feature register `.moonkale/code.sophia` as an additional graph source.
 The wasm client uses the server's `RemoteSource`.
@@ -100,7 +100,8 @@ dependants; only changed manifests are replaced. Refused definitions contribute
 no guessed identities; ambiguous named bindings (for example conditional Rust
 statics) keep their records but publish no arbitrarily chosen name, and appear
 in `FolderReport.naming_diagnostics` and index-root properties; aggregate/budget/conflict errors leave the prior store
-and return an error through `folder_store_report` and refresh.
+and report an error through `folder_store_report`; refresh keeps the current
+in-memory graph available and the code graph visibly falls back.
 
 The record mapping **mirrors** Sophia `sophia-ingest/src/code.rs::to_record`
 at `c3c48e02`: canonical bytes contain full referenced digests, `refs` excludes
@@ -172,3 +173,23 @@ at every commit and a second non-root range. It also checks scratch refusal and
 that input Git status is unchanged. The P-231 regression asserts the upstream
 contract; it failed on Sophia v0.1.0 and passes since the fix (`77f5c1c9`). Full history measurements and findings live in
 [[Indexing]].
+
+### Default legacy reads (ADR-0030, 2026-10-26)
+
+Desktop/mobile enable `sophia` by default; building the server implies it.
+`IndexSource::set_cache_reader` attaches a read-only `Arc<dyn Source>` after the
+writer syncs, without leaking Sophia types. Ordinary index/search queries keep
+their prior meaning. The graph uses a bounded `code-graph` text envelope carrying
+`(force_memory, Query)`: a per-request choice, safe for separate server clients.
+`code-graph-status` returns an empty reason when the cache is healthy, otherwise
+a fallback reason. File/note nodes and wiki-links stay index-owned; code-file
+Local queries use the adapter's bounded `folder-neighbours` manifest path.
+
+A cache open/sync/read failure never prevents folder indexing. A broken database
+gets one rebuild attempt per index lifetime; readable authored stores and all
+cache symlink paths are protected. `check-code-cache` builds a new producer
+snapshot in a temporary directory under `.moonkale`, compares the shared
+`folder_store::digest` full-digest-v1 state and repairs a mismatch. It returns
+`same` or differing keys and logs the problem without source bodies. The shell
+owns translated status items, the persisted `code_graph.source` setting and the
+**Check the cache** palette command.

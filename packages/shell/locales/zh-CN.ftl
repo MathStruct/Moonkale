@@ -318,3 +318,14 @@ ext-crash-reload = 重新加载面板
 panel-settings = { $name } 的设置
 panel-settings-close = 关闭设置
 panel-settings-all = 在“扩展”中查看全部设置…
+
+status-code-cache = 代码图：Sophia 缓存
+status-code-memory = 代码图：内存索引
+status-code-fallback = 代码图：内存索引（回退原因：{ $reason }）
+cmd-check-cache = 检查缓存
+cache-check-unavailable = 缓存检查不可用
+
+settings-code-graph = 代码图来源
+settings-code-auto = 自动（Sophia 缓存）
+cache-check-same = 缓存检查：相同
+cache-check-rebuilt = 缓存问题；已重建：{ $differences }

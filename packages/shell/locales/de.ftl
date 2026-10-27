@@ -334,3 +334,14 @@ ext-crash-reload = Panel neu laden
 panel-settings = Einstellungen für { $name }
 panel-settings-close = Einstellungen schließen
 panel-settings-all = Alle Einstellungen unter Erweiterungen …
+
+status-code-cache = Codegraph: Sophia-Cache
+status-code-memory = Codegraph: Index im Arbeitsspeicher
+status-code-fallback = Codegraph: Index im Arbeitsspeicher (Fallback: { $reason })
+cmd-check-cache = Cache prüfen
+cache-check-unavailable = Cache-Prüfung nicht verfügbar
+
+settings-code-graph = Quelle des Codegraphs
+settings-code-auto = Automatisch (Sophia-Cache)
+cache-check-same = Cache-Prüfung: identisch
+cache-check-rebuilt = Cache-Problem; neu aufgebaut: { $differences }

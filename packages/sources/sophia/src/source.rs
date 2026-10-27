@@ -546,6 +546,76 @@ impl Source for SophiaSource {
 
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
+            Query::Text { dialect, text }
+                if dialect == "folder-neighbours" && self.derived_path.is_some() =>
+            {
+                if text.len() > 8192 {
+                    return Err(SourceError::Invalid("folder query limit".into()));
+                }
+                let (path, depth, direction): (String, u32, Direction) =
+                    serde_json::from_str(&text)
+                        .map_err(|_| SourceError::Invalid("invalid folder query".into()))?;
+                let dir = match direction {
+                    Direction::In => SDirection::In,
+                    Direction::Out => SDirection::Out,
+                    Direction::Both => SDirection::Both,
+                };
+                let g = self
+                    .call(move |i| {
+                        let manifest = i.store().file_manifest(&path).map_err(store_error)?;
+                        let mut out = Subgraph {
+                            nodes: Vec::new(),
+                            edges: Vec::new(),
+                            truncated: false,
+                        };
+                        let mut seen = BTreeSet::new();
+                        let mut seen_edges = BTreeSet::new();
+                        let mut work = 0usize;
+                        if let Some(manifest) = manifest {
+                            for (id, _, _) in manifest.spans {
+                                if work >= NEIGHBOUR_LIMIT {
+                                    out.truncated = true;
+                                    break;
+                                }
+                                let graph = i
+                                    .neighbours(
+                                        &Key::Content(id),
+                                        depth.min(MAX_DEPTH),
+                                        dir,
+                                        NEIGHBOUR_LIMIT - work,
+                                    )
+                                    .map_err(store_error)?;
+                                work = work
+                                    .saturating_add(graph.nodes.len())
+                                    .saturating_add(graph.edges.len());
+                                for node in graph.nodes {
+                                    if seen.insert(format!("{:?}", node.key)) {
+                                        out.nodes.push(node);
+                                    }
+                                }
+                                for edge in graph.edges {
+                                    if out.edges.len() >= NEIGHBOUR_LIMIT {
+                                        out.truncated = true;
+                                        break;
+                                    }
+                                    let key = (
+                                        format!("{:?}", edge.from),
+                                        format!("{:?}", edge.to),
+                                        edge.kind.clone(),
+                                    );
+                                    if seen_edges.insert(key) {
+                                        out.edges.push(edge);
+                                    }
+                                }
+                                out.truncated |= graph.truncated || work > NEIGHBOUR_LIMIT;
+                            }
+                        }
+                        out.truncated |= depth > MAX_DEPTH;
+                        Ok(out)
+                    })
+                    .await?;
+                Ok(self.result(&g, None))
+            }
             Query::Coarse { level, region } => {
                 use moonkale_core::source::coarse::{project, MAX_LEVEL};
                 if level > MAX_LEVEL {
