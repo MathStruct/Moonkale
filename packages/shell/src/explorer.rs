@@ -364,6 +364,15 @@ fn ExplorerSource(
                 },
                 span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
                 span { class: "mk-source-label", "{descriptor.display_name}" }
+                if descriptor.family == moonkale_core::SourceFamily::Folder {
+                    span { class: "mk-source-truth",
+                        if descriptor.truth == moonkale_core::SourceTruth::Store {
+                            {t!(ws, L, "status-truth-store")}
+                        } else {
+                            {t!(ws, L, "status-truth-files")}
+                        }
+                    }
+                }
                 if read_only { span { class: "mk-source-lock", title: t!(ws, L, "explorer-read-only"), crate::icons::Icon { name: "lock" } } }
                 // Changes on disk are followed for watched sources
                 // (Milestone 16); the others get a refresh button.

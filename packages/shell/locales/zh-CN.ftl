@@ -329,3 +329,8 @@ settings-code-graph = 代码图来源
 settings-code-auto = 自动（Sophia 缓存）
 cache-check-same = 缓存检查：相同
 cache-check-rebuilt = 缓存问题；已重建：{ $differences }
+
+# ADR-0030 folder truth
+status-truth-files = 权威来源：文件
+status-truth-store = 权威来源：Sophia 存储
+status-store-read-only = 代码图只读：存储编辑尚不可用

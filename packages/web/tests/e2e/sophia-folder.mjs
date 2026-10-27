@@ -10,6 +10,7 @@ function nameId(source,key) {
 }
 import assert from "node:assert/strict";
 const root = process.env.M1_ROOT;
+const storeRoot = `${root}/store-truth-fixture`;
 const browser = await chromium.launch({args:["--use-angle=swiftshader","--enable-unsafe-swiftshader","--ignore-gpu-blocklist"]});
 const page = await browser.newPage({ viewport: {width:1500,height:900} });
 const logs = [];
@@ -21,6 +22,8 @@ try {
   await page.click(".mk-explorer-open button[type=submit]");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("index:"));
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
+  await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Truth: files"));
+  assert.equal(await page.locator(".mk-source-truth").first().textContent(), "Truth: files");
   assert(fs.statSync(`${root}/.moonkale/code.sophia`).size > 0);
   await page.click(".wb-tab[id^='wb-tab-graph']");
   await page.waitForSelector(".mk-graph-source option[value^='sophia:']",{state:"attached"});
@@ -73,6 +76,23 @@ try {
   await page.click(".mk-palette-item[data-key='codeGraph.checkCache']");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Cache check: same"));
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder.png`});
+  // A separate marked folder opens without touching its unreadable store.
+  fs.mkdirSync(`${storeRoot}/.moonkale`, {recursive:true});
+  fs.writeFileSync(`${storeRoot}/.moonkale/truth.json`, JSON.stringify({truth:"store",since:"2026-10-27"}));
+  const authored = "unreadable authored store: preserve these bytes";
+  fs.writeFileSync(`${storeRoot}/.moonkale/code.sophia`, authored);
+  fs.writeFileSync(`${storeRoot}/owned.py`, "def owned():\n    return 42\n");
+  await page.fill(".mk-explorer-open input", storeRoot);
+  await page.click(".mk-explorer-open button[type=submit]");
+  await page.waitForFunction(() => {
+    const text = document.querySelector(".wb-status-bar")?.textContent || "";
+    return text.includes("Truth: Sophia store") && text.includes("Code graph read-only: store editing is not available yet");
+  });
+  const marked = page.locator(".mk-explorer-source").filter({has: page.locator(".mk-source-label",{hasText:"store-truth-fixture"})});
+  assert.equal(await marked.locator(".mk-source-truth").textContent(), "Truth: Sophia store");
+  assert.equal(fs.readFileSync(`${storeRoot}/.moonkale/code.sophia`, "utf8"), authored);
+  assert(!fs.existsSync(`${storeRoot}/.moonkale/.gitignore`));
+  await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder-truth.png`});
   console.log("SOPHIA FOLDER E2E: PASS");
 } catch(error) {
   console.error(error,logs.slice(-10));
@@ -80,5 +100,6 @@ try {
   process.exitCode=1;
 } finally {
   fs.rmSync(`${root}/Cache.jl`,{force:true});
+  fs.rmSync(storeRoot,{recursive:true,force:true});
   await browser.close();
 }

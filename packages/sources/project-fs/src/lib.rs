@@ -19,6 +19,8 @@ pub mod platform;
 pub mod source;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod tree;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod truth;
 pub mod watch;
 
 #[cfg(not(target_arch = "wasm32"))]

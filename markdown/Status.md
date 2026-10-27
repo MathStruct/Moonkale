@@ -133,6 +133,20 @@ bindings; this is partial syntactic coverage. See [[Indexing]] for methodology,
 module-naming limits and evidence. ADR-0029's four default gates are met;
 ADR-0030 authorizes this legacy-folder default.
 
+## Folder truth (ADR-0030, checked 2026-10-27)
+
+Folders detect the bounded `.moonkale/truth.json` marker on open and carry
+`truth: files | store` in folder/index descriptors. The status bar and explorer
+root label the truth in English, German and Chinese. Marked folders use the
+in-memory code graph with an explicit read-only explanation until SPEC-010
+lands. Plain file editing/search remain available; code-store writes, cache
+checks and repairs are refused, preserving even unreadable stores and SQLite
+sidecars. No command creates a marker or moves the truth yet. Generated files,
+outside-edit proposals and New project remain planned. See [[Indexing]] and
+[[ADR-0030 Where the truth lives]]. All AGENTS gates pass (871 workspace tests,
+seven ignored); the focused folder/index/Sophia run passes 118 tests and the
+`sophia-folder` browser suite checks both labels and the read-only explanation.
+
 ## By area
 
 | area | state | notes |

@@ -12,6 +12,7 @@ ignore = "0.4"
 blake3 = "1"
 # Portable open-handle/path identity checks (also used transitively by ignore).
 same-file = "1"
+serde_json = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 notify = "8.2.0"

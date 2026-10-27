@@ -53,11 +53,19 @@ pub struct FolderReport {
 /// deletion or a normaliser rebuild. Serialize callers in the index.
 pub struct FolderStore {
     root: PathBuf,
+    truth: moonkale_core::SourceTruth,
 }
 impl FolderStore {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceError> {
         let root = root.as_ref().canonicalize().map_err(io)?;
-        let dir = root.join(".moonkale");
+        let truth = moonkale_project_fs::truth::detect(&root).map_err(io)?;
+        let this = Self { root, truth };
+        this.check_path()?;
+        // A store-truth folder is never initialized or altered as a cache.
+        if truth == moonkale_core::SourceTruth::Store {
+            return Ok(this);
+        }
+        let dir = this.root.join(".moonkale");
         if dir
             .symlink_metadata()
             .is_ok_and(|m| m.file_type().is_symlink())
@@ -77,8 +85,6 @@ impl FolderStore {
                 .and_then(|mut f| f.write_all(b"*\n"))
                 .map_err(io)?;
         }
-        let this = Self { root };
-        this.check_path()?;
         Ok(this)
     }
     pub fn path(&self) -> PathBuf {
@@ -137,7 +143,22 @@ impl FolderStore {
         Ok(())
     }
 
+    /// Recheck before every writer entry point, and never downgrade a handle
+    /// opened with store truth even if its marker is later removed.
+    fn require_file_truth(&self) -> Result<(), SourceError> {
+        if self.truth == moonkale_core::SourceTruth::Store
+            || moonkale_project_fs::truth::detect(&self.root).map_err(io)?
+                == moonkale_core::SourceTruth::Store
+        {
+            return Err(error("store truth: code graph writes await SPEC-010"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn is_broken(&self) -> bool {
+        if self.require_file_truth().is_err() {
+            return false;
+        }
         let Ok(db) = Sqlite::open(self.path()) else {
             return true;
         };
@@ -151,9 +172,10 @@ impl FolderStore {
     }
 
     /// Rebuild only the reserved derived cache; never follow cache symlinks or
-    /// replace an authored store. An unreadable database at this reserved path
-    /// is disposable, but a readable non-derived store is not.
+    /// replace an authored store. Only files-truth folders permit disposal of
+    /// an unreadable database; a store-truth marker protects even broken files.
     pub fn rebuild(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
+        self.require_file_truth()?;
         self.check_path()?;
         self.validate_files(files)?;
         if self.path().exists() {
@@ -178,6 +200,7 @@ impl FolderStore {
     /// Compare against a fresh producer snapshot under the folder's cache
     /// directory. Diagnostics contain keys, never record bodies/source text.
     pub fn check(&self, files: &[CodeFile]) -> Result<Vec<String>, SourceError> {
+        self.require_file_truth()?;
         self.check_path()?;
         self.validate_files(files)?;
         let scratch = tempfile::Builder::new()
@@ -225,6 +248,7 @@ impl FolderStore {
         files: &[CodeFile],
         selected: Option<&BTreeSet<String>>,
     ) -> Result<FolderReport, SourceError> {
+        self.require_file_truth()?;
         self.check_path()?;
         self.validate_files(files)?;
         let existed = self.path().exists();

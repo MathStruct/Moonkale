@@ -655,3 +655,121 @@ async fn cache_read_failure_switches_to_current_index_with_visible_reason() {
         .unwrap();
     assert!(report_text(status).starts_with("cache read failed:"));
 }
+
+fn mark_store_truth(dir: &tempfile::TempDir) {
+    fs::create_dir_all(dir.path().join(".moonkale")).unwrap();
+    fs::write(
+        dir.path().join(moonkale_project_fs::truth::MARKER_PATH),
+        r#"{"truth":"store","since":"2026-10-27"}"#,
+    )
+    .unwrap();
+}
+
+#[tokio::test]
+async fn store_truth_protects_unreadable_store_and_sidecars_from_every_repair_path() {
+    let dir = fixture();
+    mark_store_truth(&dir);
+    let bytes = b"unreadable SQLite database: authored data must survive";
+    fs::write(dir.path().join(STORE_PATH), bytes).unwrap();
+    // SQLite sidecars must be protected along with the main file.
+    for suffix in ["-wal", "-shm", "-journal"] {
+        fs::write(
+            format!("{}{suffix}", dir.path().join(STORE_PATH).display()),
+            bytes,
+        )
+        .unwrap();
+    }
+    let (folder, index) = open(&dir).await;
+    assert_eq!(folder.descriptor().truth, SourceTruth::Store);
+    assert_eq!(index.descriptor().truth, SourceTruth::Store);
+    assert!(index
+        .folder_store_report()
+        .unwrap_err()
+        .contains("SPEC-010"));
+    assert!(index.folder_store_path().is_none());
+    assert!(index
+        .query(Query::Text {
+            dialect: "check-code-cache".into(),
+            text: String::new(),
+        })
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("SPEC-010"));
+    let writer = FolderStore::open(dir.path()).unwrap();
+    assert!(writer.rebuild(&[]).is_err());
+    assert!(writer.sync(&[]).is_err());
+    assert!(writer.check(&[]).is_err());
+    let memory = index
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    assert!(!memory.nodes.is_empty());
+    assert_eq!(index.query(cache_query(false)).await.unwrap(), memory);
+    // Ordinary file saves remain possible, then watcher reconciliation must
+    // still leave the store alone.
+    let file = folder
+        .query(Query::Text {
+            dialect: "path".into(),
+            text: "a.jl".into(),
+        })
+        .await
+        .unwrap()
+        .nodes
+        .remove(0);
+    let (text, version) = folder.fetch_text(file.id).await.unwrap();
+    let saved = folder
+        .apply(Transaction::write_text(
+            file.id,
+            version,
+            TextPatch::whole("const external_edit = 9\n", text.chars().count()),
+        ))
+        .await
+        .unwrap();
+    assert!(saved
+        .results
+        .iter()
+        .all(|r| matches!(r, moonkale_core::OpResult::Ok { .. })));
+    index.refresh(file.id).await.unwrap();
+    for suffix in ["", "-wal", "-shm", "-journal"] {
+        assert_eq!(
+            fs::read(format!("{}{suffix}", dir.path().join(STORE_PATH).display())).unwrap(),
+            bytes
+        );
+    }
+    assert!(!dir.path().join(".moonkale/.gitignore").exists());
+}
+
+#[tokio::test]
+async fn store_truth_stopgap_leaves_readable_and_missing_stores_untouched() {
+    let dir = fixture();
+    let (_, index) = open(&dir).await;
+    assert!(index.folder_store_report().is_ok());
+    // This also protects the normaliser-rebuild path on an already-open writer.
+    store(&dir)
+        .set_meta("folder/normaliser", b"old-normaliser")
+        .unwrap();
+    let writer = FolderStore::open(dir.path()).unwrap();
+    mark_store_truth(&dir);
+    let before = fs::read(dir.path().join(STORE_PATH)).unwrap();
+    assert!(writer.sync(&[]).is_err());
+    assert!(writer.rebuild(&[]).is_err());
+    assert!(writer.check(&[]).is_err());
+    let (_, reopened) = open(&dir).await;
+    assert!(reopened.folder_store_report().is_err());
+    assert_eq!(fs::read(dir.path().join(STORE_PATH)).unwrap(), before);
+
+    let missing = fixture();
+    mark_store_truth(&missing);
+    let (_, index) = open(&missing).await;
+    assert!(index.folder_store_report().is_err());
+    let protected = FolderStore::open(missing.path()).unwrap();
+    fs::remove_file(missing.path().join(moonkale_project_fs::truth::MARKER_PATH)).unwrap();
+    assert!(protected.sync(&[]).is_err());
+    assert!(protected.rebuild(&[]).is_err());
+    assert!(!missing.path().join(STORE_PATH).exists());
+    assert!(!missing.path().join(".moonkale/.gitignore").exists());
+}

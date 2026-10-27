@@ -51,14 +51,24 @@ pub fn Shell() -> Element {
             .read()
             .iter()
             .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
-            .map(|s| s.source.clone())
+            .map(|s| (s.source.clone(), s.descriptor.truth))
             .collect();
         let _epoch = *ws.sources.graph_epoch.read();
         let force_memory = ws.settings.resolved.read().code_graph
             == moonkale_ext_api::settings::CodeGraphSource::InMemory;
         async move {
             let mut messages = Vec::new();
-            for index in indices {
+            for (index, truth) in indices {
+                messages.push(if truth == moonkale_core::SourceTruth::Store {
+                    t!(ws, L, "status-truth-store")
+                } else {
+                    t!(ws, L, "status-truth-files")
+                });
+                if truth == moonkale_core::SourceTruth::Store {
+                    messages.push(t!(ws, L, "status-store-read-only"));
+                    messages.push(t!(ws, L, "status-code-memory"));
+                    continue;
+                }
                 if force_memory {
                     messages.push(t!(ws, L, "status-code-memory"));
                     continue;

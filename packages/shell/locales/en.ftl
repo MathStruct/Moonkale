@@ -349,3 +349,8 @@ settings-code-graph = Code graph source
 settings-code-auto = Automatic (Sophia cache)
 cache-check-same = Cache check: same
 cache-check-rebuilt = Cache problem; rebuilt: { $differences }
+
+# ADR-0030 folder truth
+status-truth-files = Truth: files
+status-truth-store = Truth: Sophia store
+status-store-read-only = Code graph read-only: store editing is not available yet

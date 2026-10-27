@@ -87,7 +87,10 @@ impl IndexSource {
         #[cfg(feature = "sophia")]
         let cache_error;
         #[cfg(feature = "sophia")]
-        let folder_store = if let Some(path) = fd.id.as_str().strip_prefix("folder:") {
+        let folder_store = if fd.truth == moonkale_core::SourceTruth::Store {
+            cache_error = Some("store truth: code graph writes await SPEC-010".into());
+            None
+        } else if let Some(path) = fd.id.as_str().strip_prefix("folder:") {
             let path = std::path::PathBuf::from(path);
             match tokio::task::spawn_blocking(move || crate::folder_store::FolderStore::open(path))
                 .await
@@ -246,6 +249,11 @@ impl IndexSource {
 
     #[cfg(feature = "sophia")]
     async fn check_cache(&self) -> Result<QueryResult, SourceError> {
+        if self.folder.descriptor().truth == moonkale_core::SourceTruth::Store {
+            return Err(SourceError::Unsupported(
+                "store truth: code graph writes await SPEC-010".into(),
+            ));
+        }
         let store = self
             .folder_store
             .as_ref()
@@ -830,7 +838,7 @@ impl Source for IndexSource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
-            truth: Default::default(),
+            truth: self.folder.descriptor().truth,
             id: self.id.clone(),
             display_name: {
                 let s = self.stats();

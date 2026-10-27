@@ -25,7 +25,7 @@ ADR-0029 made Sophia the code graph's store with files as the truth, and set fou
 
 ## Consequences
 
-- **Detection.** The workspace decides a folder's mode when it opens it: a store-truth marker in `.moonkale/` means store, anything else that has files means legacy files-truth. A new project starts store-backed. The source descriptor's `truth` field (ADR-0028) carries the result.
+- **Detection (implemented 2026-10-27).** Open Folder reads `.moonkale/truth.json`, a UTF-8 JSON object such as `{"truth":"store","since":"2026-10-27"}`. `truth` is `store` or `files`; `since` is optional informational metadata (the switch date, `YYYY-MM-DD`), with no effect on authority. A missing marker means files. The folder and index source descriptors carry the result in `truth` (ADR-0028), including through the server. The marker is bounded to 4 KiB, must be a regular file, and neither it nor `.moonkale/` may be a symlink. Invalid/unreadable metadata refuses opening/writing instead of making an authored store disposable. No command creates this marker yet; tests write it by hand. A future New project starts store-backed.
 - **ADR-0029's default question splits in two.** For new work, the store is the truth, so the store isn't optional there. For legacy folders, Daniel decided (2026-10-26) to keep both, with the Sophia cache as the default:
   - the code graph reads the derived folder store; search stays on the in-memory index (Sophia has no search dialect);
   - if the store can't open (a browser without a server, a broken file), Moonkale falls back to the in-memory index on its own and says so in the status bar; a setting forces the in-memory index;
@@ -38,7 +38,7 @@ ADR-0029 made Sophia the code graph's store with files as the truth, and set fou
   - the "move the truth into Sophia" command and its reverse;
   - a store-truth project template ("New project");
   - generated-file output: a marker, regeneration, and detecting outside edits as proposed store changes;
-  - the mode in the status bar and the explorer, so the user always sees which side is the truth (ADR-0027: simple by default).
+  - extend today's truth labels when store editing and generated-file workflows land.
 - **Sophia's side.** `truth: store` folders use Sophia's normal, non-derived mode, where the graph is the version history (no garbage collection, SR-146). Generated files need Sophia to print a whole project to files and to take an outside edit back in as a patch. Sophia's session is told.
 - **Kept:** ADR-0028's patch model for file-backed code, ADR-0029's derived store and its gates, and the flow editor's diagram-as-document (ADR-0020 to ADR-0022), which is already store-like.
 
@@ -46,4 +46,28 @@ ADR-0029 made Sophia the code graph's store with files as the truth, and set fou
 - **Moving the truth:** switching a store between derived and normal mode can happen in place, in one transaction each way. It keeps each file's text and the order of its definitions, which export needs. Sophia doesn't yet have a call that clears derived mode, nor a rule for who owns names after the switch. Claude's proposal for that rule: the name belongs to the store, and its file and span stay as layout for export.
 - **Generated files:** these need a new Sophia spec, which goes to Daniel. Moonkale's position, sent to Sophia: Moonkale normalises Julia, Rust and Python code on the write path and patches the edited definition back into the file text with its lossless syntax layer. It hands Sophia the finished records, as `replace_files` does. Sophia then needs three things: a counterpart of `replace_files` for stores that are the truth, guarded by its edit tokens; export markers; and a "propose, don't apply" mode for outside edits.
 
-**SPEC-010 accepted (2026-10-26).** Daniel accepted Sophia's SPEC-010 (Store-Truth Folders and Generated Files): Sophia refuses interface edits of names laid out in files (`LaidOut { path, token }`); a confirmation is enough for `give_truth`, after Moonkale copies the store to `.moonkale/code.sophia.before-give-truth-<date>`; sophialang is printed one file per namespace; generated-file markers live in `.moonkale/generated.json`; a store-truth folder is shared as a committed text export (Sophia SR-149). Not implemented yet. Before store-truth folders land, the cache repair (`FolderStore::rebuild`) must refuse to delete an unreadable store in a `truth: store` folder: today it treats any unreadable database at the cache path as disposable.
+**SPEC-010 accepted (2026-10-26).** Daniel accepted Sophia's SPEC-010 (Store-Truth Folders and Generated Files): Sophia refuses interface edits of names laid out in files (`LaidOut { path, token }`); a confirmation is enough for `give_truth`, after Moonkale copies the store to `.moonkale/code.sophia.before-give-truth-<date>`; sophialang is printed one file per namespace; generated-file markers live in `.moonkale/generated.json`; a store-truth folder is shared as a committed text export (Sophia SR-149). Not implemented yet. The safety stopgap below now prevents cache repair (`FolderStore::rebuild`) from deleting an unreadable store in a `truth: store` folder; only files-truth folders treat an unreadable database at the cache path as disposable.
+
+
+## Store-truth safety stopgap (implemented 2026-10-27)
+
+Until SPEC-010's checked file writes and migration calls are available, a marked
+folder opens with **code-graph writes disabled**. The status bar says “Truth:
+Sophia store” and “Code graph read-only: store editing is not available yet”,
+next to the current in-memory backend. The explorer root carries the same truth
+label; legacy folders say “Truth: files”. All three locales are supplied, with
+no new panel or status item (ADR-0027). Plain file editing and the in-memory
+index/search stay available, but those edits do not update the authoritative
+store. Reading marked folders' code graph from that store is also deferred;
+the current cache adapter's file-staleness fallback assumes file truth.
+
+The folder writer refuses `sync`/`sync_selected`, `check` and `rebuild` before
+opening SQLite, creating a store/ignore file, comparing with a file-derived
+snapshot, replacing files or deleting a database/sidecar. This protects readable,
+missing and unreadable stores alike, including the automatic one-shot repair
+and normalizer rebuild paths. Writer handles retain store truth for their
+lifetime and recheck the marker on each writer entry point, so an added marker
+also protects a previously opened files-truth writer. Removing a marker from an
+already store-truth handle does not authorize writes. This is a safety stopgap,
+not implementation of the truth-move commands or a store migration. Sharing,
+generated files, outside-edit proposals and project templates remain deferred.

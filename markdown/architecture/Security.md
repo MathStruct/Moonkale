@@ -325,3 +325,13 @@ structural reads; user preferences travel per request. Local code-file reads
 charge repeated neighbourhood traversal against an aggregate 10,000-item budget
 and deduplicate/cap their combined edges. Cache checks write only
 the derived cache, with files remaining the truth.
+
+
+ADR-0030 folder truth (2026-10-27): shared detection bounds `truth.json` to 4 KiB,
+requires a regular file and refuses symlinked marker/cache directories or invalid
+metadata. Missing metadata means file truth. Store-truth writer handles retain
+that authority and recheck on every writer entry point; cache sync/check/repair
+stop before SQLite open or database/sidecar deletion, including unreadable
+stores. The temporary read-only code-graph mode leaves plain file editing
+available without feeding those edits into the authoritative store. No migration
+or marker-creation command is supplied yet.

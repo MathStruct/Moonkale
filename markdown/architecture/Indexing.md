@@ -4,18 +4,48 @@ tags: [architecture, index]
 ---
 Crate: `index`. The index turns *files and rows* into a *graph* by deriving what sources don't know: symbols, links, outlines, embeddings, stack frames. It is exposed as `IndexSource`, so its output is just more nodes and edges.
 
-> [!note] Index rechecked 2026-10-24 (WP-21/WP-65/WP-22/WP-66)
+> [!note] Index storage rechecked 2026-10-27 (ADR-0030); extractor coverage from 2026-10-24 (WP-21/WP-65/WP-22/WP-66)
 > - **Extractors**: wiki-links and tree-sitter definitions for Rust, Julia and Python. The three languages run through the same dispatch. Definitions have location ids, names, ranged occurrences, lexical containment and provenance; syntactic calls/references/imports resolve unique same-file names and preserve other targets as `Unresolved`. See [[Code Graph Schema]] for exact coverage and limitations. No headings/front matter nodes yet.
 > - **Parsing** is native tree-sitter through `arborium` (shared with the Rust code editor, P-113) — not `.wasm` grammars; the index runs on desktop and the server, and the web/phone query the server's.
-> - **Default storage is memory**: graph, BM25 postings (`search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) rebuild on open. Default-off `sophia` now adds a derived SQLite code store per folder, reused on reopen (below; ADR-0029). No tantivy, usearch or recoco dependency.
+> - **Default code graph reads use Sophia** in files-truth folders on desktop/mobile and the server. The in-memory graph, BM25 postings (`search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) rebuild on open; search and explicit/fallback graph reads use them. Marked store-truth folders use the read-only stopgap below. No tantivy, usearch or recoco dependency.
 > - **Content identities**: experimental `moonkale-index/content-ids`, off by default. Explicit async requests hash normalized Rust/Julia/Python syntax and same-file recursive dependencies; a bounded memory cache and optional state-store adapter are available. Unsupported syntax fails explicitly. No eager workspace hashing or UI activation. See [[Code Graph Schema]] for normalizer v7 and its conservative syntax subset.
 > - **Rust L1 foundation**: default-off `lossless-syntax` snapshots preserve exact bytes/trivia and return guarded pure patch plans. The separate default-off `structural-edits` host feature now connects these plans to revision-aware document buffers and graph preview/conflict controls on desktop/web, plus complete same-folder reference-aware Rename via the existing LSP manager (coordinated buffer history, separate per-file saves); see [[Rust Lossless Syntax and Patches]].
 > - **LSP as a second extractor** and the `precision` field are not built.
 > - Stack traces live in their own crate, `moonkale-trace` (`TraceSource`), not in `index::trace`.
 
+## Folder truth (ADR-0030, implemented 2026-10-27)
+
+Opening a folder detects `.moonkale/truth.json`: `{"truth":"store","since":"2026-10-27"}`
+means store truth; no marker (or explicit `truth: files`) means file truth. The
+folder and index descriptors carry this mode. The shared folder detector bounds
+the JSON to 4 KiB and refuses invalid, unreadable or linked metadata; it never
+silently authorizes cache disposal when metadata cannot be trusted. See
+[[ADR-0030 Where the truth lives]] for the format and future migration commands.
+
+The status bar and explorer root show “Truth: files” or “Truth: Sophia store”
+in English, German and Chinese. Until SPEC-010 is implemented, marked folders
+show “Code graph read-only: store editing is not available yet”. Their graph and
+search read the in-memory index; the code store is left untouched. Plain file
+editing remains available, without propagating changes into the authoritative
+store. There is no marker-creation or truth-move command yet.
+
+`FolderStore` refuses all writer/check/repair entry points for store truth,
+before SQLite is opened or any store/sidecar/ignore file is created or removed.
+This covers automatic broken-cache repair, manual **Check the cache** and
+normalizer changes, even when the existing store is unreadable. The writer
+retains store truth and rechecks the marker on each entry point. The cache
+behavior below applies only to files-truth folders.
+
+Verification (2026-10-27): all AGENTS gates pass, with 871 workspace tests
+(seven ignored). The focused project-fs/index/Sophia run passes 118 tests,
+including 18 folder-store regressions; `sophia-folder` passes with unmarked
+and marked-folder status/explorer assertions and corrupt-store preservation.
+Logs: `target/next21-gates.log`, `target/next21-focused-final.log`,
+`target/next21-final-checks.log` and `target/next21-browser.log`.
+
 ## Sophia folder cache (WP-21, implemented 2026-10-24)
 
-With `sophia` enabled by default on desktop/mobile and by the server feature, opening a folder writes the index's code
+With `sophia` enabled by default on desktop/mobile and by the server feature, opening a files-truth folder writes the index's code
 records into `.moonkale/code.sophia` (SQLite, enforced derived mode). The existing
 in-memory index and its search remain available. The extra Sophia Source offers
 names, definitions, references, generic Calls, SQL and Sophia queries to the

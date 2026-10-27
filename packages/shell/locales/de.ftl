@@ -345,3 +345,8 @@ settings-code-graph = Quelle des Codegraphs
 settings-code-auto = Automatisch (Sophia-Cache)
 cache-check-same = Cache-Prüfung: identisch
 cache-check-rebuilt = Cache-Problem; neu aufgebaut: { $differences }
+
+# ADR-0030 folder truth
+status-truth-files = Quelle: Dateien
+status-truth-store = Quelle: Sophia-Speicher
+status-store-read-only = Codegraph schreibgeschützt: Speicherbearbeitung noch nicht verfügbar

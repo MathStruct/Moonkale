@@ -46,3 +46,13 @@ The index records a content-free `index_error = "text read failed"` property on 
 Regression tests in `tests/races.rs` cover unchanged mtime/length conflicts, simultaneous source saves, directory version agreement, direction/depth/caps, rename exclusion and rejection of listing hints as save preconditions. An internal 64 MiB sparse-file test counts content opens: `Children`, `ls`, `path`, `Node` and `Neighbours` all perform zero, while `fetch_bytes` increments the same counter and returns a content hash. Internal save tests inject edits/path replacement during staging and check refusal/temp cleanup. The obsolete streaming-listing hasher and timing test have been removed; listing cost no longer scales with bytes in each file.
 
 Workspace state-file writes, file-backed history and folder settings all fetch text plus its content version before replacing existing files. A read failure refuses the write; there is no fallback to `node.version` or invented empty text. Document open/reload already store fetched versions, and proposals use those document versions. Image preview freshness compares query hints before/after fetching bytes rather than comparing a query hint with a content hash.
+
+## Folder truth (ADR-0030, 2026-10-27)
+
+`truth.rs` shares bounded `.moonkale/truth.json` detection with the index's
+folder writer. Open snapshots `truth: files | store` into the folder descriptor;
+the index inherits it. Missing metadata means files. Invalid/unreadable,
+oversized or linked metadata is refused before cache writes can be authorized.
+Store truth does not remove ordinary file-write capabilities: the temporary
+code-store write restriction lives in the index writer. See [[Indexing]] and
+[[ADR-0030 Where the truth lives]] for the marker and stopgap.

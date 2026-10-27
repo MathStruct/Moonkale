@@ -65,3 +65,9 @@
 .mk-source-refresh { margin-left: auto; border: 0; background: none; color: var(--wb-ink-soft); cursor: pointer; font-size: 13px; line-height: 1; padding: 0 4px; border-radius: 3px; }
 .mk-source-refresh:hover { color: var(--wb-ink); background: var(--wb-hover); }
 .mk-tree-more .mk-tree-label { font-style: italic; opacity: 0.75; }
+
+.mk-source-truth {
+  color: var(--mk-muted);
+  font-size: 0.8em;
+  margin-inline-start: 0.5em;
+}

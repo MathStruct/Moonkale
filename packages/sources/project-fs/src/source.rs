@@ -25,6 +25,7 @@ use std::time::UNIX_EPOCH;
 pub struct FolderSource {
     id: SourceId,
     root: PathBuf,
+    truth: moonkale_core::SourceTruth,
     /// `NodeId → relative path` for everything we have listed so far.
     known: RwLock<HashMap<NodeId, String>>,
     /// The watcher, started by the first `changes_since` (Milestone 16) —
@@ -49,12 +50,14 @@ impl FolderSource {
                 "not a directory",
             ));
         }
+        let truth = crate::truth::detect(&root)?;
         let id = SourceId::new(format!("folder:{}", root.display()));
         let mut known = HashMap::new();
         known.insert(NodeId::derive(&id, ""), String::new());
         Ok(Self {
             id,
             root,
+            truth,
             known: RwLock::new(known),
             watch: tokio::sync::OnceCell::new(),
         })
@@ -227,7 +230,7 @@ impl Source for FolderSource {
 
     fn descriptor(&self) -> SourceDescriptor {
         SourceDescriptor {
-            truth: Default::default(),
+            truth: self.truth,
             id: self.id.clone(),
             display_name: self
                 .root

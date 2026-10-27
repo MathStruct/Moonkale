@@ -7461,6 +7461,7 @@ dependencies = [
  "notify",
  "rustix 1.1.4",
  "same-file",
+ "serde_json",
  "tempfile",
  "tokio",
 ]

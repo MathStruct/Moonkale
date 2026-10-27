@@ -13,6 +13,7 @@ content-ids = ["dep:blake3", "dep:moonkale-content-id", "dep:moonkale-state", "d
 
 [dependencies]
 moonkale-core = { workspace = true }
+moonkale-project-fs = { workspace = true }
 moonkale-llm = { workspace = true }
 regex = "1"
 tempfile = { version = "3", optional = true }
