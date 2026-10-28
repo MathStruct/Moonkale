@@ -29,6 +29,7 @@ pub fn TerminalChooser(open: Signal<bool>) -> Element {
             onclick: move |_| open.set(false),
             div {
                 class: "mk-palette mk-remote-dialog mk-terminal-chooser",
+                role: "dialog", "aria-modal": "true", aria_label: t!(ws, L, "chooser-title"),
                 onclick: move |e| e.stop_propagation(),
                 onkeydown: move |e| { if e.key() == Key::Escape { open.set(false); } },
                 div { class: "mk-remote-title", {t!(ws, L, "chooser-title")} }

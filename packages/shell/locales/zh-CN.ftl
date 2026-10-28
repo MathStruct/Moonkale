@@ -347,3 +347,11 @@ crash-test-disable = 禁用测试扩展
 crash-web-stopped = Moonkale 已停止。重新加载以恢复已保存的会话。
 crash-web-reload = 重新加载
 crash-web-copy = 复制详情
+
+# Shortcut discovery (ADR-0027)
+cmd-help-shortcuts = 帮助：键盘快捷键
+discovery-search = 搜索文件或运行命令…
+discovery-filter = 筛选命令或快捷键…
+discovery-other = 其他命令
+discovery-nudge = { $shortcut } 可执行此操作
+settings-shortcut-nudges = 使用鼠标后显示快捷键提示

@@ -14,6 +14,7 @@ use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Run {
+    CheatSheet,
     Builtin(Command),
     /// Index into the extension list.
     Extension(usize),
@@ -234,6 +235,10 @@ impl Registry {
         for (c, cmd) in builtins(ws) {
             push(c, Run::Builtin(cmd));
         }
+        push(
+            CommandContribution::new("help.shortcuts", t!(ws, L, "cmd-help-shortcuts")).key("F1"),
+            Run::CheatSheet,
+        );
         for (i, ext) in exts.iter().enumerate() {
             if !settings.extensions.is_enabled(&ext.manifest())
                 || !ws.crashes.allows(&ext.manifest())
@@ -301,6 +306,10 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
         return false;
     };
     match &entry.run {
+        Run::CheatSheet => {
+            let mut sheet = consume_context::<crate::discovery::CheatSheetState>();
+            sheet.set(true);
+        }
         Run::Builtin(cmd) => ws.dispatch(*cmd),
         Run::ShowPanel(id) => ws.show_panel(id),
         Run::Extension(i) => {

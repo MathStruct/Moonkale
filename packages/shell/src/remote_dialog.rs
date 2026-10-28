@@ -79,6 +79,7 @@ pub fn RemoteDialog(open: Signal<bool>) -> Element {
             onclick: move |_| open.set(false),
             form {
                 class: "mk-palette mk-remote-dialog",
+                role: "dialog", "aria-modal": "true", aria_label: t!(ws, L, "remote-title"),
                 onclick: move |e| e.stop_propagation(),
                 onsubmit: move |e| { e.prevent_default(); connect(); },
                 onkeydown: move |e| { if e.key() == Key::Escape { open.set(false); } },

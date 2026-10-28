@@ -153,6 +153,8 @@ fn FrameContent(
     })
     .0;
     let mut palette: crate::palette::PaletteState = use_context_provider(|| Signal::new(None));
+    use_context_provider(|| crate::palette::SearchSeed(Signal::new(String::new())));
+    let sheet: crate::discovery::CheatSheetState = use_context_provider(|| Signal::new(false));
     let mut remote_dialog = use_signal(|| false);
     let mut server_dialog = use_signal(|| false);
     let mut terminal_chooser = use_signal(|| false);
@@ -295,6 +297,8 @@ fn FrameContent(
         ws.docs.assets_epoch.with_mut(|e| *e += 1);
         // Tabs can be dragged by touch too (Prompt26, Android).
         crate::touch_drag::install();
+        crate::discovery::install(ws, sheet);
+        let _ = document::eval(include_str!("../assets/focus.js"));
         spawn(async move { ws.load_user_settings().await });
         // Spec 030: the system's light/dark preference, followed live …
         spawn(async move {
@@ -605,6 +609,7 @@ fn FrameContent(
             }
             div { class: "mk-frame-body", {children} }
             crate::palette::Palette {}
+            crate::discovery::CheatSheet {}
             if remote_dialog() {
                 crate::remote_dialog::RemoteDialog { open: remote_dialog }
             }

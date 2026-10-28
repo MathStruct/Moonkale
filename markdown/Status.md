@@ -32,8 +32,16 @@ resolved keymap, including rebinding and unbinding. Holding Ctrl/Cmd alone for
 500 ms shows shortcut badges on visible command buttons; text inputs
 and editors suppress them. The web's Open Folder command focuses the Sources
 path field. The keyboard journey covers folder/file open, edit/save, tabs,
-Graph and closing editors. Cheat sheet, mouse nudges, type-to-search-anywhere
-and the mouse journey remain open. See [[ADR-0027 Simple by default]].
+Graph and closing editors. F1, the palette and Help open one grouped,
+searchable cheat sheet with effective bindings. Mouse commands get one quiet
+shortcut hint on their third use in a day, remembered in the platform state
+store; Settings can disable hints. Printable keys and `/` open the title-bar
+file/command search outside text owners, preserving graph navigation.
+Command-opened panels and dialogs take focus and return it on closure.
+Both interaction journeys, the discovery/focus suite, both-editor structural
+matrix, Sophia and the default graph suites pass; the hold-Ctrl screenshot is
+recorded. Keymap presets and five-button mouse mapping remain WP-61.
+See [[ADR-0027 Simple by default]].
 
 ## Crash safety (WP-57, checked 2026-10-28)
 

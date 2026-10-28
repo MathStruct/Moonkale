@@ -238,6 +238,12 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         }
                     }
 
+                    label { class: "mk-settings-check",
+                        input { r#type: "checkbox", class: "mk-settings-nudges", checked: settings.shortcut_nudges,
+                            onchange: moonkale_ext_api::crash::event(move |e: FormEvent| { let enabled = e.checked(); apply(Box::new(move |f| f.shortcut_nudges = Some(enabled))); })
+                        }
+                        {t!(ws, L, "settings-shortcut-nudges")}
+                    }
                     h3 { {t!(ws, L, "settings-keybindings")} }
                     p { class: "mk-muted", {t!(ws, L, "settings-keybindings-hint")} }
                     for entry in registry.read().entries.iter() {

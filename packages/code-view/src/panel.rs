@@ -743,7 +743,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 moonkale_ext_api::icons::PanelSettingsButton {}
             }
             if let Some((_, _, word)) = rename_prompt() {
-                div { class: "mk-editor-bar mk-editor-rename",
+                div { class: "mk-editor-bar mk-editor-rename", role: "dialog", aria_label: t!(ws, L, "editor-rename"),
+                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); rename_prompt.set(None); } }),
                     span { {t!(ws, L, "editor-rename-prompt", word = word.clone())} }
                     input { id: "{rename_id}", class: "mk-input", value: "{rename_value}",
                         onmounted: moonkale_ext_api::crash::event({ let w = word.clone(); move |_| rename_value.set(w.clone()) }),
@@ -763,7 +764,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 }
             }
             if let Some(list) = actions() {
-                div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}",
+                div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}", role: "dialog", aria_label: t!(ws, L, "editor-actions"),
+                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); actions.set(None); } }),
                     if list.is_empty() { span { class: "mk-muted", {t!(ws, L, "editor-no-actions")} } } else { span { {t!(ws, L, "editor-actions")} } }
                     for (i, a) in list.iter().enumerate() {
                         button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: moonkale_ext_api::crash::event({
@@ -786,7 +788,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 }
             }
             if let Some(list) = references() {
-                div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}",
+                div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}", role: "dialog", aria_label: t!(ws, L, "editor-references", n = list.len()),
+                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); references.set(None); } }),
                     span { {t!(ws, L, "editor-references", n = list.len())} }
                     button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| references.set(None)), "✕" }
                     ul {

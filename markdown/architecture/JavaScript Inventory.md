@@ -70,3 +70,10 @@ WP-64 (2026-10-28): `packages/shell/assets/key-tips.js` is a fixed DOM-only
 presentation adapter for delayed Ctrl/Cmd shortcut badges. Rust supplies the
 resolved shortcut attributes. It owns only a timer and temporary badge geometry;
 no editor state, command execution, dependencies or bundle build is added.
+
+WP-64 second half (2026-10-28): `shell/assets/discovery.js` forwards printable
+search text and clicked command ids to Rust and presents text-only status hints.
+`focus.js` retains DOM focus references, handles dialog focus/Tab containment and
+returns focus on closure, and focuses command-opened panels after layout. No
+JavaScript editor state, nudge history, dependency or bundle build is added;
+Rust owns registry matching, the counters and platform-state persistence.

@@ -384,3 +384,17 @@ P-234 (2026-10-28): crash helpers heap-pin task inputs before constructing their
 async wrappers, preventing inline future amplification on the wasm stack.
 Owner checks, per-poll native unwind containment and payload-free web panic
 handling remain in place. No parser, source write or network authority is added.
+
+WP-64 second half (2026-10-28): shortcut search accepts one printable character
+from the DOM adapter; command clicks are checked against the enabled registry
+and its effective binding before nudge accounting. Records contain only a
+command id key, local date, saturating count and shown flag in the existing
+platform state store (SQLite on desktop). No document text, secret, source
+write or network authority is added. Hints use `textContent`; cheat-sheet and
+search labels use escaped Dioxus text. Focus adapters retain DOM references
+only and leave editor/composition/terminal input with its existing owner.
+
+Focus restoration accepts only real outer workbench panels and matching tab
+buttons outside panel content. A nested content element imitating workbench
+classes or `aria-labelledby` cannot cause an automatic click on another
+control; the shortcut-discovery browser suite includes that regression.

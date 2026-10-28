@@ -7542,6 +7542,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-lsp",
+ "moonkale-state",
  "moonkale-terminal",
  "serde",
  "serde_json",

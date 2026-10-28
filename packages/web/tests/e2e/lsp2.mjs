@@ -47,6 +47,7 @@ try {
     await clickAt("add(1, 2)", 1);
     await page.keyboard.press("F2");
     await page.waitForSelector(".mk-editor-rename input", { timeout: 5000 });
+    await page.waitForFunction(() => document.activeElement?.matches(".mk-editor-rename input"));
     await page.fill(".mk-editor-rename input", "plus");
     await page.locator(".mk-editor-rename input").evaluate(input => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", isComposing: true, bubbles: true })));
     await sleep(150);
@@ -85,6 +86,7 @@ try {
     await clickAt("plus(1, 2)", 1);
     await page.keyboard.press("Shift+F12");
     await page.waitForFunction(selector => Number(document.querySelector(selector)?.dataset.count) >= 2, editor.references, { timeout: 20000 });
+    if (!editor.native) await page.waitForFunction(() => document.activeElement?.closest('.mk-editor-refs'));
     const n = await page.$eval(editor.references, (e) => e.dataset.count);
     const rows = await page.$$eval(editor.reference, (l) => l.map((x) => x.textContent));
     console.log("\n  references:", n, rows.join(" | "));
@@ -102,12 +104,14 @@ try {
     await page.keyboard.press("Shift+End");
     await page.keyboard.press("Control+.");
     await page.waitForFunction(selector => Number(document.querySelector(selector)?.dataset.count) > 0, editor.actions, { timeout: 20000 });
+    if (!editor.native) await page.waitForFunction(() => document.activeElement?.closest('.mk-editor-actions'));
     const titles = await page.$$eval(editor.action, (b) => b.map((x) => x.textContent).filter((t) => t !== "✕"));
     console.log("\n  actions:", titles.join(" | "));
     const extract = titles.find((t) => /Extract into variable/i.test(t));
     if (!extract) throw new Error("no extract action");
     await page.locator(editor.action).filter({ hasText: extract }).click();
     await editor.waitText("let \\w+ = a \\+ b;");
+    if (!editor.native) await page.waitForFunction(() => document.activeElement?.matches('.cm-content'));
     console.log("  line:", (await editor.text()).split("\n").find(t => /= a \+ b/.test(t)));
     await page.screenshot({ path: `${S}/m7-lsp-actions.png` });
   });

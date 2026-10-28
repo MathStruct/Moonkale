@@ -75,3 +75,11 @@ keyboard focus escape/wiki follow and actual browser/AT-SPI semantic checks.
 See [[Rust Code Editor Accessibility and Cutover]] for limits, validation and the
 conditional fallback/retirement plan; physical desktop frames and Android remain
 gates before the default flip.
+
+
+WP-64 focus audit (2026-10-28): CodeMirror rename, code-action and reference
+bars now declare their dialog role and localized label, letting the shell
+focus their controls and restore their opener on dismissal. Escape closes
+each bar. They remain nonmodal; Tab can leave the bar to edit code while
+references remain visible. The LSP2 browser journey checks focus on rename,
+references and actions and return to the editor after applying an action.

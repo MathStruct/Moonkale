@@ -367,3 +367,11 @@ crash-test-disable = Disable test extension
 crash-web-stopped = Moonkale stopped. Reload to restore your saved session.
 crash-web-reload = Reload
 crash-web-copy = Copy details
+
+# Shortcut discovery (ADR-0027)
+cmd-help-shortcuts = Help: Keyboard Shortcuts
+discovery-search = Search files or run a command…
+discovery-filter = Filter commands or shortcuts…
+discovery-other = Other commands
+discovery-nudge = { $shortcut } does this
+settings-shortcut-nudges = Show shortcut hints after using the mouse

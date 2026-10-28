@@ -679,7 +679,7 @@ It checks empty-tile hints; modifier delay, editor suppression, chord cancellati
 and release cover key tips. The palette suite additionally checks Settings
 rebinding and unbinding in palette rows and editor-button tooltips. `journey-keyboard-hold-ctrl.png` in `M1_SHOTS` records
 the badges. Run it with `run-all.sh journey-keyboard`; Firefox and the normal
-fixture suffice. The mouse journey is the next half of WP-64.
+fixture suffice. The matching mouse journey and remaining discovery coverage are described below.
 
 Graph renderer fixtures that replace the scene must first wait for the host's
 initial node count to be positive and match the engine's `node_count()`.
@@ -687,3 +687,18 @@ A live GL backend alone means the canvas is ready, while the folder graph may
 still be in flight and overwrite the fixture. `graph-edit`, `graph-layers`,
 `graph-pulse` and `graph-flow` now use the same readiness check as the other
 injected-scene suites (NEXT-28, 2026-10-28); their scene assertions are unchanged.
+
+## Shortcut discovery and mouse journey (WP-64)
+
+`journey-mouse.mjs` follows the keyboard journey using menus, Explorer rows,
+editor buttons and document tabs. Its only keyboard operation types document
+text; folder opening, saving, Graph and closing use the mouse. Run both with
+`run-all.sh journey-keyboard journey-mouse`. The modifier screenshot remains
+`journey-keyboard-hold-ctrl.png` in `M1_SHOTS`.
+
+`shortcut-discovery.mjs` covers F1 and palette access, grouped/filterable effective
+bindings, rebinding/unbinding, printable/slash search, input/editor protection,
+persisted once-only mouse nudges and their disable setting, utility-panel focus, remote/server dialogs and the terminal chooser.
+`graph-a11y` checks printable/slash search and focus restoration on the actual
+Chromium-rendered canvas. `lsp2` checks CodeMirror rename/reference/action focus
+and editor return; it also runs against the native editor with `LSP_EDITOR=native`. These three suites use the normal smoke feature set.

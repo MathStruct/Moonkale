@@ -363,3 +363,11 @@ crash-test-disable = Testerweiterung deaktivieren
 crash-web-stopped = Moonkale wurde angehalten. Neu laden stellt die gespeicherte Sitzung wieder her.
 crash-web-reload = Neu laden
 crash-web-copy = Details kopieren
+
+# Shortcut discovery (ADR-0027)
+cmd-help-shortcuts = Hilfe: Tastenkürzel
+discovery-search = Dateien suchen oder Befehl ausführen…
+discovery-filter = Befehle oder Tastenkürzel filtern…
+discovery-other = Weitere Befehle
+discovery-nudge = { $shortcut } führt dies aus
+settings-shortcut-nudges = Tastenkürzel nach Mausaktionen anzeigen

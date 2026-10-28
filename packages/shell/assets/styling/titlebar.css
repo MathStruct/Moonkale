@@ -72,3 +72,6 @@
 .mk-resize-se { bottom: 0; right: 0; width: 8px; height: 8px; cursor: se-resize; }
 .mk-resize-sw { bottom: 0; left: 0; width: 8px; height: 8px; cursor: sw-resize; }
 .mk-menu-recent-path { font-size: 12px; color: var(--mk-muted); max-width: 40ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; display: inline-block; }
+
+.mk-titlebar .mk-titlebar-search { flex: 0 1 380px; width: clamp(140px, 25vw, 380px); min-width: 100px; height: 26px; box-sizing: border-box; font-size: 12px; border-color: var(--mk-line); background: var(--mk-sunken); color: var(--mk-ink); -webkit-app-region: no-drag; }
+@media (max-width: 700px) { .mk-titlebar-search { width: 140px; } }

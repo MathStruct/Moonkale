@@ -68,6 +68,9 @@ pub struct SettingsFile {
     /// the name of a theme file / an extension's theme.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
+    /// Show each command’s mouse shortcut hint once (default true).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shortcut_nudges: Option<bool>,
     /// The UI language (spec 030): a tag such as `en`, `de`, `zh-CN`; unset =
     /// the system's language.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -450,6 +453,7 @@ impl SettingsFile {
         for (id, key) in &other.keybindings {
             self.keybindings.insert(id.clone(), key.clone());
         }
+        self.shortcut_nudges = other.shortcut_nudges.or(self.shortcut_nudges);
         self.theme = other.theme.clone().or(self.theme.take());
         self.language = other.language.clone().or(self.language.take());
         self.user_name = other.user_name.clone().or(self.user_name.take());
@@ -488,6 +492,10 @@ pub enum Scope {
     Env,
 }
 
+fn nudges_enabled() -> bool {
+    true
+}
+
 /// The resolved settings the app reads.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
@@ -516,6 +524,9 @@ pub struct Settings {
     pub keybindings: BTreeMap<String, String>,
     /// The theme's name (`dark`, `light`, `system`, or a theme file's).
     pub theme: String,
+    /// Quiet, once-per-command shortcut hints after mouse use.
+    #[serde(default = "nudges_enabled")]
+    pub shortcut_nudges: bool,
     /// The UI language the user chose (a tag); empty = the system's
     /// ([`crate::Workspace::lang`] resolves it).
     pub language: String,
@@ -695,6 +706,7 @@ impl Default for Settings {
             user_name: default_user_name(),
             extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
+            shortcut_nudges: true,
             language: String::new(),
             recent_folders: Vec::new(),
             layout: None,
@@ -861,6 +873,7 @@ impl Settings {
                 permissions: merged.extensions.permissions,
             },
             theme: merged.theme.unwrap_or(d.theme),
+            shortcut_nudges: merged.shortcut_nudges.unwrap_or(true),
             language: merged.language.unwrap_or_default().trim().to_string(),
             recent_folders: user.recent_folders.clone(),
             layout: workspace.layout.clone(),

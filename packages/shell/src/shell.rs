@@ -270,6 +270,10 @@ pub fn Shell() -> Element {
                 if next.activate(&PanelId::from(id)) {
                     target.set(next);
                 }
+                let _ = document::eval(&format!(
+                    "window.moonkaleFocusPanel?.({});",
+                    serde_json::to_string(id).unwrap_or_default()
+                ));
             }
             Some(Command::OpenFolder) => {
                 if !ws.has_folder_dialog() {
@@ -403,6 +407,8 @@ pub fn Shell() -> Element {
         }
     });
 
+    let mut tab_navigation = use_signal(|| None::<moonkale_core::NodeId>);
+
     // Collect panels from every extension. `panels()` reads workspace
     // signals, so this render re-runs when documents open/close or turn dirty.
     let mut panels = Vec::new();
@@ -503,6 +509,27 @@ pub fn Shell() -> Element {
         }
     }
 
+    // Document navigation opens/focuses its concrete editor. Retained-tab
+    // keyboard navigation keeps focus on the tab so another arrow can follow.
+    let focus_editor = editor_panel.clone();
+    let focused_document = use_hook(|| Rc::new(std::cell::Cell::new(None)));
+    use_effect(move || {
+        let active = *ws.docs.active.read();
+        if focused_document.replace(active) == active {
+            return;
+        }
+        let from_tab = tab_navigation.peek().is_some() && *tab_navigation.peek() == active;
+        tab_navigation.set(None);
+        if active.is_some() && !from_tab {
+            if let Some(id) = &focus_editor {
+                let _ = document::eval(&format!(
+                    "window.moonkaleFocusPanel?.({}, true);",
+                    serde_json::to_string(id).unwrap_or_default()
+                ));
+            }
+        }
+    });
+
     // A user-selected retained tab is foreground navigation too. Programmatic
     // activation during restore does not call the workbench's event callback.
     let on_activate = move |id: PanelId| {
@@ -510,6 +537,13 @@ pub fn Shell() -> Element {
             .get(id.as_str())
             .and_then(|node| ws.open_node_by_id(*node))
         {
+            // Focus restoration can reactivate the already-active document's
+            // retained tab. Do not launch a redundant async open that could
+            // complete after that document has subsequently been closed.
+            if *ws.docs.active.peek() == Some(node.id) {
+                return;
+            }
+            tab_navigation.set(Some(node.id));
             spawn(async move {
                 let _ = ws.open_node(node).await;
             });

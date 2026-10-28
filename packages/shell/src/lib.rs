@@ -14,6 +14,7 @@
 
 pub mod commands;
 pub mod crash;
+mod discovery;
 mod explorer;
 mod extensions_panel;
 mod frame;

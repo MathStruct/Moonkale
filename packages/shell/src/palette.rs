@@ -11,10 +11,14 @@ use moonkale_ext_api::{fuzzy_score, t, Workspace};
 pub enum PaletteMode {
     Commands,
     Files,
+    Search,
 }
 
 /// `Some(mode)` while open. Provided by the frame (`use_context`).
 pub type PaletteState = Signal<Option<PaletteMode>>;
+
+#[derive(Clone, Copy)]
+pub struct SearchSeed(pub Signal<String>);
 
 pub const INPUT_ID: &str = "mk-palette-input";
 
@@ -24,6 +28,7 @@ struct Item {
     key: String,
     label: String,
     detail: String,
+    command: bool,
 }
 
 #[component]
@@ -31,6 +36,7 @@ pub fn Palette() -> Element {
     let mut ws = use_context::<Workspace>();
     let mut state = use_context::<PaletteState>();
     let reg = use_context::<CommandRegistry>();
+    let seed = use_context::<SearchSeed>().0;
     let mut query = use_signal(String::new);
     let mut selected = use_signal(|| 0usize);
     // Quick open: the folder's files from the index, loaded when opening.
@@ -39,9 +45,16 @@ pub fn Palette() -> Element {
     let mode = *state.read();
     use_effect(move || {
         let mode = *state.read();
-        query.set(String::new());
+        query.set(if mode == Some(PaletteMode::Search) {
+            seed.peek().clone()
+        } else {
+            String::new()
+        });
         selected.set(0);
-        if mode == Some(PaletteMode::Files) {
+        if mode.is_some() {
+            dioxus_workbench::focus_after_render(INPUT_ID);
+        }
+        if matches!(mode, Some(PaletteMode::Files | PaletteMode::Search)) {
             let Some(index) = ws.index() else {
                 files.set(Vec::new());
                 return;
@@ -61,9 +74,6 @@ pub fn Palette() -> Element {
                 files.set(list);
             });
         }
-        if mode.is_some() {
-            dioxus_workbench::focus_after_render(INPUT_ID);
-        }
     });
 
     let Some(mode) = mode else {
@@ -79,10 +89,10 @@ pub fn Palette() -> Element {
             }
             _ => (q.clone(), None),
         },
-        PaletteMode::Commands => (q.clone(), None),
+        PaletteMode::Commands | PaletteMode::Search => (q.clone(), None),
     };
     let mut ranked: Vec<(i32, Item)> = match mode {
-        PaletteMode::Commands => reg
+        PaletteMode::Commands | PaletteMode::Search => reg
             .read()
             .entries
             .iter()
@@ -91,6 +101,7 @@ pub fn Palette() -> Element {
                     (
                         s,
                         Item {
+                            command: true,
                             key: e.id.clone(),
                             label: e.title.clone(),
                             detail: moonkale_ext_api::command_hint(&e.id, "").shortcut,
@@ -111,6 +122,7 @@ pub fn Palette() -> Element {
                     (
                         s,
                         Item {
+                            command: false,
                             key: p.clone(),
                             label: name,
                             detail: dir,
@@ -120,6 +132,21 @@ pub fn Palette() -> Element {
             })
             .collect(),
     };
+    if mode == PaletteMode::Search {
+        ranked.extend(files.read().iter().filter_map(|path| {
+            fuzzy_score(&needle, path).map(|score| {
+                (
+                    score,
+                    Item {
+                        command: false,
+                        key: path.clone(),
+                        label: path.rsplit('/').next().unwrap_or(path).to_string(),
+                        detail: path.clone(),
+                    },
+                )
+            })
+        }));
+    }
     if needle.is_empty() {
         // Keep the natural order (registry order, alphabetical paths).
     } else {
@@ -136,28 +163,22 @@ pub fn Palette() -> Element {
                 return;
             };
             state.set(None);
-            match mode {
-                PaletteMode::Commands => {
-                    commands::run(&item.key, ws);
-                }
-                PaletteMode::Files => {
-                    let path = item.key.clone();
-                    spawn(async move {
-                        match ws.open_relative_path(&path).await {
-                            Ok(node) => {
-                                if let Some(line) = goto_line {
-                                    let _ = ws.reveal(node, line.saturating_sub(1), 0).await;
-                                }
+            if item.command {
+                commands::run(&item.key, ws);
+            } else {
+                let path = item.key.clone();
+                spawn(async move {
+                    match ws.open_relative_path(&path).await {
+                        Ok(node) => {
+                            if let Some(line) = goto_line {
+                                let _ = ws.reveal(node, line.saturating_sub(1), 0).await;
                             }
-                            Err(e) => ws.set_status(t!(
-                                ws,
-                                L,
-                                "palette-open-failed",
-                                error = e.to_string()
-                            )),
                         }
-                    });
-                }
+                        Err(e) => {
+                            ws.set_status(t!(ws, L, "palette-open-failed", error = e.to_string()))
+                        }
+                    }
+                });
             }
         }
     });
@@ -165,11 +186,12 @@ pub fn Palette() -> Element {
     let placeholder = match mode {
         PaletteMode::Commands => t!(ws, L, "palette-commands"),
         PaletteMode::Files => t!(ws, L, "palette-files"),
+        PaletteMode::Search => t!(ws, L, "discovery-search"),
     };
 
     rsx! {
         div { class: "mk-palette-backdrop", onclick: move |_| state.set(None),
-            div { class: "mk-palette", role: "dialog", "aria-label": "Command palette", onclick: |e| e.stop_propagation(),
+            div { class: "mk-palette", role: "dialog", "aria-modal": "true", "aria-label": "Command palette", onclick: |e| e.stop_propagation(),
                 input {
                     id: INPUT_ID,
                     class: "mk-palette-input",
@@ -198,6 +220,7 @@ pub fn Palette() -> Element {
                             role: "option",
                             "aria-selected": i == sel,
                             "data-key": "{item.key}",
+                            "data-command-id": if item.command { item.key.as_str() } else { "" },
                             onmousedown: move |e| e.prevent_default(),
                             onclick: move |_| choose.call(i),
                             span { class: "mk-palette-label", "{item.label}" }

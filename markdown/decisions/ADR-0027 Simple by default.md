@@ -59,9 +59,23 @@ Command Palette and workspace Search with their current bindings. Holding
 Ctrl/Cmd alone for 500 ms adds temporary badges to visible command
 buttons, suppressed in text inputs/editors and cancelled by chords or release.
 The keyboard journey covers opening a folder/file, edit/save, tab switching,
-Graph and closing editors, plus rebinding and the hold screenshot. The cheat
-sheet, once-per-command nudges, type-to-search-anywhere and mouse journey remain
-in WP-64; the general focus audit remains open.
+Graph and closing editors, plus rebinding and the hold screenshot.
+
+WP-64 second half: F1 (rebindable), the palette and Help open a grouped,
+searchable command cheat sheet from that same effective keymap. The title-bar
+field reuses the existing palette for files and commands. Printable keys and
+`/` enter search outside text owners; editors, inputs, IME and terminals retain
+their keys, and graph navigation keeps handled events. Flow/table letter keys
+remain local. Mouse commands receive one status hint on their third use in a
+local day, with a permanent shown flag in the platform state store (SQLite on
+desktop); Appearance can disable future hints. No second discovery overlay is
+added. Dialogs take focus and return it on dismissal; modal dialogs contain Tab,
+while inline editor bars remain nonmodal. Command-opened utility panels take
+focus without overriding a panel's own focus request and return it on closure.
+The mouse journey follows the keyboard journey through folder/file opening,
+edit/save, document tabs, Graph and closing editors. Both journeys and the
+focus/discovery tests pass. WP-61 still owns input presets and five-button maps;
+WP-60 owns the overview and its broader journey.
 
 
 - **Symbols, with their description on hover:**

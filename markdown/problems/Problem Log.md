@@ -228,6 +228,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-234 Guarded futures overflow the wasm stack]] | WP-57 inline future wrappers crash Chromium on structural Preview. Shared heap pinning bounds task/resource/event wrappers; a large-future regression fails the old guards. | resolved | WP-57 |
 
+| [[P-235 Focus restoration needs the retained panel]] | Closing Graph can reveal Settings while its editor opener remains hidden. Restoration activates the saved panel through the workbench and then focuses its control, after pending command focus. | resolved | WP-64 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

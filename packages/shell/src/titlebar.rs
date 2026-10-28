@@ -308,7 +308,7 @@ fn menus(
             },
             Item::Cmd {
                 label: tl!(lang, "menu-shortcuts"),
-                id: "view.settings",
+                id: "help.shortcuts",
             },
             Item::Direct {
                 label: tl!(lang, "menu-docs"),
@@ -323,6 +323,8 @@ fn menus(
 pub fn TitleBar(controls: Option<WindowControls>) -> Element {
     let mut ws = use_context::<Workspace>();
     let registry = use_context::<crate::commands::CommandRegistry>();
+    let mut palette = use_context::<crate::palette::PaletteState>();
+    let mut seed = use_context::<crate::palette::SearchSeed>();
     let mut open: Signal<Option<String>> = use_signal(|| None);
 
     let title = {
@@ -443,6 +445,15 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                         }
                     }
                 }
+            }
+            input { class: "mk-titlebar-search mk-input", id: "mk-titlebar-search",
+                placeholder: moonkale_ext_api::command_hint("view.quickOpen", moonkale_ext_api::t!(ws, crate::L, "discovery-search")).title,
+                value: if palette() == Some(crate::palette::PaletteMode::Search) { seed.0() } else { String::new() },
+                title: moonkale_ext_api::command_hint("view.quickOpen", moonkale_ext_api::t!(ws, crate::L, "discovery-search")).title,
+                onmousedown: |e| e.stop_propagation(),
+                ondoubleclick: |e| e.stop_propagation(),
+                onclick: move |_| { seed.0.set(String::new()); palette.set(Some(crate::palette::PaletteMode::Search)); },
+                oninput: move |e| { seed.0.set(e.value()); palette.set(Some(crate::palette::PaletteMode::Search)); },
             }
             div { class: "mk-titlebar-title", "{title}" }
             if let Some(c) = controls {

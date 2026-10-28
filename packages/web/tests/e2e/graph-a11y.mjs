@@ -106,6 +106,19 @@ try {
     if (!/nothing/.test(text)) throw new Error(`the cleared selection is not announced: "${text}"`);
     await page.screenshot({ path: `${S}/s10-a11y.png`, clip });
   });
+  await step("letters and slash search from the canvas; Escape returns its focus", async () => {
+    await page.locator('.mk-graph-overlay').focus();
+    await page.keyboard.type('g');
+    await page.waitForFunction(() => document.activeElement?.id === 'mk-palette-input');
+    if (await page.locator('#mk-palette-input').inputValue() !== 'g') throw Error('lost first search character');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.activeElement?.matches('.mk-graph-overlay'));
+    await page.keyboard.press('/');
+    await page.waitForFunction(() => document.activeElement?.id === 'mk-palette-input');
+    if (await page.locator('#mk-palette-input').inputValue() !== '') throw Error('slash should open empty search');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.activeElement?.matches('.mk-graph-overlay'));
+  });
   console.log("\nGRAPH-A11Y E2E: PASS");
 } catch (e) {
   console.log("\nFAIL:", e.message);

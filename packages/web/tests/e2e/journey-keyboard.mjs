@@ -4,6 +4,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const browser = await firefox.launch();
 const page = await browser.newPage({viewport: {width: 1500, height: 900}});
+if (process.env.FOCUS_TRACE) await page.addInitScript(() => {
+  window.focusTrace = [];
+  for (const kind of ['focusin', 'keydown']) document.addEventListener(kind, event => {
+    if (kind === 'keydown' && event.key !== 'Tab') return;
+    window.focusTrace.push({kind, tag: event.target.tagName, id: event.target.id, cls: event.target.className, pageFocused: document.hasFocus(), ctrl: event.ctrlKey, shift: event.shiftKey});
+    if (window.focusTrace.length > 80) window.focusTrace.shift();
+  }, true);
+});
 const shots = process.env.M1_SHOTS ?? '.';
 const root = process.env.M1_ROOT;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -15,7 +23,7 @@ const tabTo = async selector => {
     if (await page.evaluate(() => document.activeElement?.matches('.cm-content'))) {
       await page.keyboard.press('Escape');
     }
-    await page.keyboard.press(selector.startsWith('.wb-tab') ? 'Shift+Tab' : 'Tab');
+    await page.keyboard.press((selector.startsWith('.wb-tab') || selector === '.mk-menu-button') ? 'Shift+Tab' : 'Tab');
   }
   console.log(JSON.stringify(await page.evaluate(() => ({focus: document.activeElement?.outerHTML.slice(0, 200), tabs: [...document.querySelectorAll('.wb-tab')].map(tab => ({text: tab.textContent, control: tab.getAttribute('aria-controls'), selected: tab.getAttribute('aria-selected')}))}))));
   throw new Error(`Tab did not reach ${selector}`);
@@ -111,6 +119,7 @@ try {
   console.log('JOURNEY KEYBOARD E2E: PASS');
 } catch (error) {
   console.error('JOURNEY KEYBOARD E2E: FAIL', error);
+  if (process.env.FOCUS_TRACE) console.error(JSON.stringify(await page.evaluate(() => window.focusTrace)));
   await page.screenshot({path: `${shots}/journey-keyboard-fail.png`}).catch(() => {});
   process.exitCode = 1;
 } finally { await browser.close(); }

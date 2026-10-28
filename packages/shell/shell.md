@@ -129,4 +129,40 @@ buttons, including rail children; it reads no document text or application
 state. No new persistent setting or chrome is added. Web Open Folder focuses
 the Sources path field when no native picker exists. The keyboard journey
 covers opening, editing, saving, tab navigation, Graph, closing documents,
-rebinding and key tips. Remaining WP-64 work lives in the Work Packages row.
+rebinding and key tips. The remaining discovery surfaces are described below.
+
+## Shortcut discovery, second half (WP-64, 2026-10-28)
+
+`discovery.rs` renders the F1 cheat sheet from the same `command_hint` effective
+keymap as menu/tooltips. Commands are grouped by their translated category;
+the filter matches title, id and binding, including unbound commands. The Help
+menu and palette expose `help.shortcuts`; its binding can itself be changed.
+
+The title-bar search opens the existing palette in combined files/commands
+mode, preserving the first typed character. `discovery.js` forwards printable
+keys only after local handlers, outside inputs, contenteditable, both code
+editors and both terminals. Flow/table letter handling retains its letters;
+`/` explicitly searches when the local handler has not consumed it. IME and
+modifier chords are excluded.
+
+Mouse events identify command surfaces through `data-command` or the palette's
+`data-command-id`. Rust validates the id against the current registry and
+serializes reads/writes of one `MouseUse` record per command in the platform
+state store (`shortcut_nudges`, version 1). Counts reset on a new local date;
+the third use marks the command permanently shown. A quiet status-bar hint
+lasts 4.5 seconds and is suppressed when a text owner is active. Settings →
+Appearance can disable hints (`shortcut_nudges`, default true). Desktop uses
+its SQLite state store; the browser uses its existing state adapter.
+
+`focus.js` retains the opener for mounted dialogs, focuses their input or
+preferred autofocus control, wraps Tab/Shift+Tab inside modal dialogs and restores
+focus on removal. It handles replacement dialogs and stable panel-based
+fallbacks after a workbench rerender. `ShowPanel` explicitly schedules focus
+inside the activated panel, remembering the opener for panel closure. Editors
+and native prompts keep their own focus/caret logic. The adapter stores only
+DOM presentation references, never document state.
+
+Document navigation also schedules focus in its concrete editor (including
+reactivated files), remembering its first opener for closure. Workbench tab
+activation marks that navigation separately so ArrowLeft/ArrowRight retain
+their tab focus instead of jumping into the editor between presses.

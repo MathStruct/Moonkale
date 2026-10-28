@@ -14,6 +14,11 @@ Rules:
 
 ## Unreleased — 2026-10-28 (WP-64)
 
+- `SettingsFile.shortcut_nudges` (optional) and resolved
+  `Settings.shortcut_nudges` (default true) control once-per-command mouse hints.
+  Full struct literals must include the new fields or use `..Default::default()`;
+  existing persisted settings load with hints enabled.
+
 - Additive: shell-provided `CommandBindings`, `CommandHint`, `command_hint` and
   `IconButton.command` share effective platform-formatted shortcuts across UI
   surfaces. Existing explicit `shortcut` props remain supported.

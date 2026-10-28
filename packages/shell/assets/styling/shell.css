@@ -168,3 +168,10 @@
     font: 11px var(--mk-font-mono, monospace);
     box-shadow: 0 2px 5px var(--mk-line);
 }
+
+.mk-cheatsheet { max-height: 75vh; display: flex; flex-direction: column; }
+.mk-cheatsheet-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.mk-cheatsheet-list { overflow: auto; padding: 0 16px 16px; }
+.mk-cheatsheet-row { display: flex; justify-content: space-between; gap: 20px; padding: 5px 0; }
+.mk-cheatsheet-row kbd { color: var(--mk-ink-soft); white-space: nowrap; }
+.mk-shortcut-nudge { margin-left: auto; color: var(--mk-ink-soft); }
