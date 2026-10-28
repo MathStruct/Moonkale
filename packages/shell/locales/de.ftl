@@ -318,7 +318,6 @@ wb-close-tab = { "{" }title{ "}" } schließen
 wb-empty-group = Leere Gruppe
 wb-empty-title = Leere Panelgruppe
 wb-empty-hint = Ziehe einen Panel-Tab hierher oder schließe diese Gruppe.
-wb-empty-keys = Alt+Umschalt+Pfeile teilt · Alt+Umschalt+Bild-Tasten verschiebt · Pfeile wechseln Tabs
 wb-split-right = Panelgruppe nach rechts teilen
 wb-split-right-hint = Rechts teilen (Alt+Umschalt+Rechts)
 wb-split-down = Panelgruppe nach unten teilen

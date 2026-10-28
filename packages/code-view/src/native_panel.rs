@@ -626,10 +626,9 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         && editor_settings.markdown_preview
         && language == Some(dioxus_code::Language::Markdown);
     let wrap_on = editor_settings.wrap || preview_on;
-    let actions_label = t!(ws, L, "editor-actions-shortcut").replace(
-        "Mod-.",
-        &format!("{}+.", moonkale_ext_api::keys::primary_name()),
-    );
+    let actions_label =
+        moonkale_ext_api::command_hint("editor.codeActions", t!(ws, L, "editor-actions-shortcut"))
+            .title;
     rsx! {
         div {
             class: "mk-editor mk-crust",
@@ -678,17 +677,17 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "save", label: t!(ws, L, "editor-save"),
-                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    command: "file.save".to_string(),
                     disabled: !dirty && properties_draft.read().is_none(),
                     onclick: moonkale_ext_api::crash::event(move |_| save.call(())),
                 }
                 moonkale_ext_api::icons::IconButton {
-                    icon: "reload", label: t!(ws, L, "editor-reload"),
+                    icon: "reload", command: "native.reload".to_string(), label: t!(ws, L, "editor-reload"),
                     description: t!(ws, L, "editor-reload-title"),
                     onclick: moonkale_ext_api::crash::event(move |_| reload.call(())),
                 }
                 moonkale_ext_api::icons::IconButton {
-                    icon: "wrap", label: t!(ws, L, "editor-wrap"),
+                    icon: "wrap", command: "editor.toggleWrap".to_string(), label: t!(ws, L, "editor-wrap"),
                     description: t!(ws, L, "editor-wrap-title"),
                     pressed: Some(wrap_on), disabled: preview_on,
                     class: "mk-native-wrap".to_string(),
@@ -700,8 +699,8 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     button {
                         class: if preview_on { "mk-btn mk-btn-on mk-native-preview" } else { "mk-btn mk-native-preview" },
                         aria_pressed: preview_on.to_string(),
-                        title: t!(ws, L, "editor-preview-title"),
-                        onclick: moonkale_ext_api::crash::event(move |_| {
+
+                         title: moonkale_ext_api::command_hint("native.preview", t!(ws, L, "editor-preview-title")).title, "data-command": "native.preview", "data-shortcut": moonkale_ext_api::command_hint("native.preview", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| {
                             let next = !ws.settings.resolved.peek().editor.markdown_preview;
                             moonkale_ext_api::crash::spawn_forever(async move {
                                 ws.update_user_settings(|file| file.editor.markdown_preview = Some(next)).await;
@@ -713,8 +712,8 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 }
                 if cfg!(feature = "markdown-preview") && matches!(language.map(|language| language.slug()), Some("rust" | "python" | "julia")) {
                     button { class: if editor_settings.doc_comment_preview { "mk-btn mk-btn-on mk-native-doc-preview" } else { "mk-btn mk-native-doc-preview" },
-                        aria_pressed: editor_settings.doc_comment_preview.to_string(), title: t!(ws, L, "editor-doc-preview-title"),
-                        onclick: moonkale_ext_api::crash::event(move |_| {
+                        aria_pressed: editor_settings.doc_comment_preview.to_string(),
+                         title: moonkale_ext_api::command_hint("native.docPreview", t!(ws, L, "editor-doc-preview-title")).title, "data-command": "native.docPreview", "data-shortcut": moonkale_ext_api::command_hint("native.docPreview", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| {
                             let next = !ws.settings.resolved.peek().editor.doc_comment_preview;
                             moonkale_ext_api::crash::spawn(async move { ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next)).await; });
                             focus_request.with_mut(|value| *value += 1);
@@ -723,28 +722,28 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 }
                 button {
                     class: "mk-btn mk-native-show-hover",
-                    title: t!(ws, L, "editor-hover"),
-                    onclick: moonkale_ext_api::crash::event(move |_| {
+
+                     title: moonkale_ext_api::command_hint("native.hover", t!(ws, L, "editor-hover")).title, "data-command": "native.hover", "data-shortcut": moonkale_ext_api::command_hint("native.hover", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| {
                         let caret = model.peek().engine.get_cursor_state().position;
                         hover_target.set(Some((caret.line, caret.column)));
                     }),
                     {t!(ws, L, "editor-hover")}
                 }
-                button { class: "mk-btn mk-native-complete", title: format!("{} ({}+Space)", t!(ws, L, "editor-completion"), moonkale_ext_api::keys::primary_name()), onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); complete.call(()); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-completion")} " (" {moonkale_ext_api::keys::primary_name()} "+Space)" }
-                button { class: "mk-btn mk-native-definition", title: t!(ws, L, "editor-definition"), onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); tools.dismiss.call(()); rename.dismiss.call(()); definition.call(()); }), {t!(ws, L, "editor-definition")} }
-                button { class: "mk-btn mk-native-rename", title: t!(ws, L, "editor-rename-shortcut"), onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); tools.dismiss.call(()); rename.invoke.call(()); }), {t!(ws, L, "editor-rename-shortcut")} }
-                button { class:"mk-btn mk-native-code-actions", title:actions_label.clone(), onclick:moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.actions.call(()); }), "{actions_label}" }
-                button { class:"mk-btn mk-native-find-references", title:t!(ws,L,"editor-references-shortcut"), onclick:moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.references.call(()); }), {t!(ws,L,"editor-references-shortcut")} }
+                button { class: "mk-btn mk-native-complete",   title: moonkale_ext_api::command_hint("native.complete", t!(ws, L, "editor-completion")).title, "data-command": "native.complete", "data-shortcut": moonkale_ext_api::command_hint("native.complete", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); complete.call(()); focus_request.with_mut(|value| *value += 1); }), {moonkale_ext_api::command_hint("native.complete", t!(ws, L, "editor-completion")).title} }
+                button { class: "mk-btn mk-native-definition",   title: moonkale_ext_api::command_hint("editor.definition", t!(ws, L, "editor-definition")).title, "data-command": "editor.definition", "data-shortcut": moonkale_ext_api::command_hint("editor.definition", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); tools.dismiss.call(()); rename.dismiss.call(()); definition.call(()); }), {t!(ws, L, "editor-definition")} }
+                button { class: "mk-btn mk-native-rename",   title: moonkale_ext_api::command_hint("editor.rename", t!(ws, L, "editor-rename-shortcut")).title, "data-command": "editor.rename", "data-shortcut": moonkale_ext_api::command_hint("editor.rename", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); tools.dismiss.call(()); rename.invoke.call(()); }), {moonkale_ext_api::command_hint("editor.rename", t!(ws, L, "editor-rename-shortcut")).title} }
+                button { class:"mk-btn mk-native-code-actions",   title: moonkale_ext_api::command_hint("editor.codeActions", t!(ws, L, "editor-actions-shortcut")).title, "data-command": "editor.codeActions", "data-shortcut": moonkale_ext_api::command_hint("editor.codeActions", "").shortcut, onclick:moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.actions.call(()); }), "{actions_label}" }
+                button { class:"mk-btn mk-native-find-references",   title: moonkale_ext_api::command_hint("editor.references", t!(ws, L, "editor-references-shortcut")).title, "data-command": "editor.references", "data-shortcut": moonkale_ext_api::command_hint("editor.references", "").shortcut, onclick:moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.references.call(()); }), {moonkale_ext_api::command_hint("editor.references", t!(ws,L,"editor-references-shortcut")).title} }
                 if comments(model.read().language).is_some() {
                     button { class: "mk-btn mk-native-comment",
-                        title: format!("{} ({}+/)", t!(ws, L, "editor-toggle-comment"), moonkale_ext_api::keys::primary_name()),
-                        onclick: moonkale_ext_api::crash::event(move |_| { toggle_comment.call(()); focus_request.with_mut(|value| *value += 1); }),
-                        {t!(ws, L, "editor-toggle-comment")} " (" {moonkale_ext_api::keys::primary_name()} "+/)"
+
+                         title: moonkale_ext_api::command_hint("editor.toggleComment", t!(ws, L, "editor-toggle-comment")).title, "data-command": "editor.toggleComment", "data-shortcut": moonkale_ext_api::command_hint("editor.toggleComment", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| { toggle_comment.call(()); focus_request.with_mut(|value| *value += 1); }),
+                        {moonkale_ext_api::command_hint("editor.toggleComment", t!(ws, L, "editor-toggle-comment")).title}
                     }
                 }
                 if !model.read().structure.folds.is_empty() {
-                    button { class: "mk-btn mk-native-fold-all", onclick: moonkale_ext_api::crash::event(move |_| { fold.call((None, true)); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-fold-all")} }
-                    button { class: "mk-btn mk-native-unfold-all", onclick: moonkale_ext_api::crash::event(move |_| { fold.call((None, false)); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-unfold-all")} }
+                    button { class: "mk-btn mk-native-fold-all",  title: moonkale_ext_api::command_hint("editor.foldAll", t!(ws, L, "editor-fold-all")).title, "data-command": "editor.foldAll", "data-shortcut": moonkale_ext_api::command_hint("editor.foldAll", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| { fold.call((None, true)); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-fold-all")} }
+                    button { class: "mk-btn mk-native-unfold-all",  title: moonkale_ext_api::command_hint("editor.unfoldAll", t!(ws, L, "editor-unfold-all")).title, "data-command": "editor.unfoldAll", "data-shortcut": moonkale_ext_api::command_hint("editor.unfoldAll", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| { fold.call((None, false)); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-unfold-all")} }
                 }
                 if codemirror_on {
                     button {

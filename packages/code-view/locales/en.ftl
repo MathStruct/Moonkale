@@ -14,7 +14,7 @@ editor-edit-failed = Edit failed: { $error }
 editor-nothing-to-rename = Nothing to rename here
 editor-plain-text = plain text
 editor-unsaved = Unsaved changes
-editor-wrap-title = Wrap long lines (Alt+Z)
+editor-wrap-title = Wrap long lines
 editor-wrap = Wrap
 editor-save = Save
 editor-reload-title = Discard edits and reload from the source
@@ -60,17 +60,17 @@ editor-search-invalid = Invalid regular expression: { $error }
 
 editor-diagnostics = Diagnostics
 editor-hover = Show hover information
-editor-completion = Complete (Ctrl+Space)
-editor-definition = Go to definition (F12)
+editor-completion = Complete
+editor-definition = Go to definition
 editor-definition-needs-lsp = Go to definition needs a language server for this file
 editor-definition-failed = Go to definition failed: { $error }
 editor-definition-timeout = Go to definition timed out
 
-editor-rename-shortcut = Rename symbol (F2)
+editor-rename-shortcut = Rename symbol
 editor-rename-timeout = Rename request timed out
 
-editor-actions-shortcut = Code actions (Mod-.)
-editor-references-shortcut = Find references (Shift-F12)
+editor-actions-shortcut = Code actions
+editor-references-shortcut = Find references
 editor-tools-needs-lsp = This action needs a language server for the file
 editor-tools-timeout = Language server request timed out
 editor-tools-loading = Loading…

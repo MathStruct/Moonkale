@@ -295,7 +295,7 @@ pub type CommandRegistry = Signal<Rc<Registry>>;
 /// Run a command by id: built-ins dispatch through the workspace, extension
 /// commands call the owning extension. `false` when unknown.
 pub fn run(id: &str, mut ws: Workspace) -> bool {
-    let reg = use_context::<CommandRegistry>();
+    let reg = consume_context::<CommandRegistry>();
     let reg = reg.peek().clone();
     let Some(entry) = reg.find(id) else {
         return false;
@@ -304,7 +304,7 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
         Run::Builtin(cmd) => ws.dispatch(*cmd),
         Run::ShowPanel(id) => ws.show_panel(id),
         Run::Extension(i) => {
-            let exts = use_context::<Extensions_>().0;
+            let exts = consume_context::<Extensions_>().0;
             if let Some(ext) = exts.get(*i) {
                 moonkale_ext_api::crash::ExtensionGuard::new(ws, ext.manifest().id)
                     .run(|| ext.run_command(id, ws));
@@ -317,7 +317,7 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
 /// Handle a key event against the registry. Returns `true` when a command
 /// ran (the caller prevents the default).
 pub fn handle_key(ws: Workspace, ctrl_or_meta: bool, shift: bool, alt: bool, key: &str) -> bool {
-    let reg = use_context::<CommandRegistry>();
+    let reg = consume_context::<CommandRegistry>();
     let id = reg
         .peek()
         .resolve_key(ctrl_or_meta, shift, alt, key)

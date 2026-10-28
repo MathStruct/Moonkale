@@ -148,6 +148,10 @@ fn FrameContent(
     // enabled extensions) change, read by menus, keys and the palette.
     let mut registry: crate::commands::CommandRegistry =
         use_context_provider(|| Signal::new(Rc::new(crate::commands::Registry::default())));
+    let mut bindings = use_context_provider(|| {
+        moonkale_ext_api::CommandBindings(Signal::new(std::collections::BTreeMap::new()))
+    })
+    .0;
     let mut palette: crate::palette::PaletteState = use_context_provider(|| Signal::new(None));
     let mut remote_dialog = use_signal(|| false);
     let mut server_dialog = use_signal(|| false);
@@ -184,6 +188,21 @@ fn FrameContent(
         use_effect(move || {
             let next = crate::commands::Registry::build(&exts, ws);
             if **registry.peek() != next {
+                bindings.set(
+                    next.entries
+                        .iter()
+                        .map(|entry| {
+                            (
+                                entry.id.clone(),
+                                entry
+                                    .binding
+                                    .as_ref()
+                                    .map(|binding| binding.display())
+                                    .unwrap_or_default(),
+                            )
+                        })
+                        .collect(),
+                );
                 registry.set(Rc::new(next));
             }
         });
@@ -311,6 +330,7 @@ fn FrameContent(
     // Links that would run code or load a document of their own (#10).
     use_hook(|| {
         let _ = document::eval(LINK_GUARD);
+        let _ = document::eval(include_str!("../assets/key-tips.js"));
     });
 
     // Shortcuts when nothing inside the frame has focus (P-065): a

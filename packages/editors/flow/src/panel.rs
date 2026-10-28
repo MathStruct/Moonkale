@@ -1557,7 +1557,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 moonkale_ext_api::icons::IconButton {
                     icon: "save",
                     label: t!(ws, L, "flow-save"),
-                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    command: "file.save".to_string(),
                     disabled: !dirty || broken.read().is_some(),
                     onclick: moonkale_ext_api::crash::event(move |_| save(())),
                 }

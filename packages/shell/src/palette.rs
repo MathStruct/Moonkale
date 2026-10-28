@@ -93,7 +93,7 @@ pub fn Palette() -> Element {
                         Item {
                             key: e.id.clone(),
                             label: e.title.clone(),
-                            detail: e.binding.as_ref().map(|b| b.display()).unwrap_or_default(),
+                            detail: moonkale_ext_api::command_hint(&e.id, "").shortcut,
                         },
                     )
                 })

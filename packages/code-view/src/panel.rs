@@ -711,7 +711,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 span { class: "mk-editor-meta", "{lang} · {version}" }
                 // Symbols, with their description on hover (ADR-0027).
                 moonkale_ext_api::icons::IconButton {
-                    icon: "wrap",
+                    icon: "wrap", command: "editor.toggleWrap".to_string(),
                     label: t!(ws, L, "editor-wrap"),
                     description: t!(ws, L, "editor-wrap-title"),
                     pressed: Some(wrap_on),
@@ -720,7 +720,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 moonkale_ext_api::icons::IconButton {
                     icon: "save",
                     label: t!(ws, L, "editor-save"),
-                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    command: "file.save".to_string(),
                     disabled: !dirty,
                     onclick: moonkale_ext_api::crash::event(save),
                 }

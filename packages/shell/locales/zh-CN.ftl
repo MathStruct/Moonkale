@@ -302,7 +302,6 @@ wb-close-tab = 关闭 { "{" }title{ "}" }
 wb-empty-group = 空组
 wb-empty-title = 空面板组
 wb-empty-hint = 将面板标签拖到这里，或关闭此组。
-wb-empty-keys = Alt+Shift+方向键拆分 · Alt+Shift+翻页键移动 · 方向键切换标签
 wb-split-right = 向右拆分面板组
 wb-split-right-hint = 向右拆分（Alt+Shift+Right）
 wb-split-down = 向下拆分面板组

@@ -2,6 +2,7 @@
 //! it can do, the shell owns one registry, one keybinding table (overridable
 //! from settings) and the palette. Built-in commands are contributions too.
 
+use dioxus::prelude::ReadableExt;
 use serde::{Deserialize, Serialize};
 
 /// One command an extension (or the shell) offers.
@@ -238,5 +239,102 @@ mod tests {
         assert!(exact > spread);
         assert_eq!(fuzzy_score("", "anything"), Some(0));
         assert!(fuzzy_score("mainrs", "src/main.rs").is_some());
+    }
+}
+
+/// Effective command bindings supplied reactively by the shell. An empty value
+/// means unbound; panel components never guess defaults from a command's name.
+#[derive(Clone, Copy, PartialEq)]
+pub struct CommandBindings(pub dioxus::prelude::Signal<std::collections::BTreeMap<String, String>>);
+
+/// One command's presentation, shared by buttons, menus, hints and palettes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CommandHint {
+    /// Current platform-formatted binding, empty when unbound.
+    pub shortcut: String,
+    /// Localized action name with its binding in parentheses when bound.
+    pub title: String,
+}
+
+/// Read the shell's current keymap in a component. Without a shell context the
+/// action stays named but unbound, so standalone panel hosts remain supported.
+pub fn command_hint(id: &str, label: impl Into<String>) -> CommandHint {
+    let shortcut = dioxus::prelude::try_consume_context::<CommandBindings>()
+        .and_then(|bindings| bindings.0.read().get(id).cloned())
+        .unwrap_or_default();
+    let label = label.into();
+    let title = if shortcut.is_empty() {
+        label
+    } else {
+        format!("{label} ({shortcut})")
+    };
+    CommandHint { shortcut, title }
+}
+
+#[cfg(test)]
+mod presentation_tests {
+    use super::*;
+    use dioxus::prelude::*;
+
+    #[test]
+    fn filtering_command_rows_preserves_component_hook_order() {
+        thread_local! {
+            static COUNT: std::cell::Cell<Option<Signal<usize>>> = const { std::cell::Cell::new(None) };
+            static RENDERS: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
+        }
+        fn app() -> Element {
+            let count = use_signal(|| 2usize);
+            use_context_provider(|| {
+                CommandBindings(Signal::new(std::collections::BTreeMap::new()))
+            });
+            for _ in 0..count() {
+                let _ = command_hint("file.save", "Save");
+            }
+            // A hook after the variable-length command list must retain its slot.
+            let marker = use_signal(|| 41usize);
+            COUNT.with(|value| value.set(Some(count)));
+            RENDERS.with(|values| values.borrow_mut().push(marker()));
+            rsx! {}
+        }
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        for count in [1, 3, 0] {
+            dom.in_scope(ScopeId::ROOT, || {
+                COUNT.with(|value| value.get().unwrap().set(count))
+            });
+            dom.render_immediate(&mut dioxus_core::NoOpMutations);
+        }
+        RENDERS.with(|values| assert_eq!(*values.borrow(), vec![41; 4]));
+    }
+
+    #[test]
+    fn presentation_reads_rebinding_unbinding_and_missing_context() {
+        fn app() -> Element {
+            assert_eq!(command_hint("file.save", "Save").title, "Save");
+            let mut bindings = use_context_provider(|| {
+                CommandBindings(Signal::new(std::collections::BTreeMap::from([(
+                    "file.save".into(),
+                    "Ctrl+S".into(),
+                )])))
+            })
+            .0;
+            assert_eq!(command_hint("file.save", "Save").title, "Save (Ctrl+S)");
+            bindings.set(std::collections::BTreeMap::from([(
+                "file.save".into(),
+                "Alt+S".into(),
+            )]));
+            assert_eq!(
+                command_hint("file.save", "Speichern").title,
+                "Speichern (Alt+S)"
+            );
+            bindings.set(std::collections::BTreeMap::from([(
+                "file.save".into(),
+                String::new(),
+            )]));
+            assert_eq!(command_hint("file.save", "保存").title, "保存");
+            assert_eq!(command_hint("absent", "Action").shortcut, "");
+            rsx! {}
+        }
+        VirtualDom::new(app).rebuild_in_place();
     }
 }

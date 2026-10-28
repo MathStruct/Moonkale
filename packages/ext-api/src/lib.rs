@@ -61,7 +61,9 @@ pub mod session;
 pub mod workspace;
 
 pub use assets::{Stylesheet, StylesheetUrl};
-pub use command::{fuzzy_score, CommandContribution, Keybinding};
+pub use command::{
+    command_hint, fuzzy_score, CommandBindings, CommandContribution, CommandHint, Keybinding,
+};
 pub use contrib::{Activity, FileMark, PanelContribution, PanelHome};
 pub use document::Document;
 pub use extension::Extension;

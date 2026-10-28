@@ -272,6 +272,11 @@ pub fn Shell() -> Element {
                 }
             }
             Some(Command::OpenFolder) => {
+                if !ws.has_folder_dialog() {
+                    ws.show_panel("explorer");
+                    dioxus_workbench::focus_after_render("mk-explorer-path");
+                    return;
+                }
                 spawn(async move {
                     if let Err(e) = ws.open_folder_dialog().await {
                         ws.set_status(t!(
@@ -692,9 +697,10 @@ pub fn Shell() -> Element {
                                 ActivityButton {
                                     id: format!("mk-rail-{id}"),
                                     label: label.clone(),
-                                    title: t!(ws, L, "rail-title", label = label.clone()),
+                                    title: moonkale_ext_api::command_hint(&if id == "settings" { "view.settings".to_string() } else { format!("view.panel.{id}") }, t!(ws, L, "rail-title", label = label.clone())).title,
                                     icon: rsx! {
                                         span { class: "mk-rail-icon",
+                                            "data-shortcut": moonkale_ext_api::command_hint(&if id == "settings" { "view.settings".to_string() } else { format!("view.panel.{id}") }, "").shortcut,
                                             crate::icons::Icon { name: icon }
                                             if badge > 0 {
                                                 span { class: "mk-badge", "data-count": "{badge}", if badge > 99 { "99+" } else { "{badge}" } }
@@ -809,8 +815,10 @@ pub fn Shell() -> Element {
                                     button {
                                         class: if active { "mk-phone-btn mk-active" } else { "mk-phone-btn" },
                                         "data-panel": "{id}",
+                                        title: moonkale_ext_api::command_hint(&if id == "settings" { "view.settings".to_string() } else { format!("view.panel.{id}") }, label.clone()).title,
                                         onclick: { let mut show = show.clone(); let id = id.clone(); move |_| { more_open.set(false); ws.show_panel(&id); show(&id) } },
-                                        span { class: "mk-rail-icon", crate::icons::Icon { name: icon } if badge > 0 { span { class: "mk-badge", "{badge}" } } }
+                                        span { class: "mk-rail-icon",
+                                            "data-shortcut": moonkale_ext_api::command_hint(&if id == "settings" { "view.settings".to_string() } else { format!("view.panel.{id}") }, "").shortcut, crate::icons::Icon { name: icon } if badge > 0 { span { class: "mk-badge", "{badge}" } } }
                                         span { "{label}" }
                                     }
                                 }
@@ -822,8 +830,10 @@ pub fn Shell() -> Element {
                                     class: if active { "mk-phone-btn mk-active" } else { "mk-phone-btn" },
                                     disabled: id.is_empty(),
                                     "data-panel": "{id}",
+                                        title: moonkale_ext_api::command_hint(&if id == "settings" { "view.settings".to_string() } else { format!("view.panel.{id}") }, label.clone()).title,
                                     onclick: { let mut show = show.clone(); let id = id.clone(); move |_| { ws.show_panel(&id); show(&id) } },
-                                    span { class: "mk-rail-icon", crate::icons::Icon { name: icon } if badge > 0 { span { class: "mk-badge", "{badge}" } } }
+                                    span { class: "mk-rail-icon",
+                                            "data-shortcut": moonkale_ext_api::command_hint(&if id == "settings" { "view.settings".to_string() } else { format!("view.panel.{id}") }, "").shortcut, crate::icons::Icon { name: icon } if badge > 0 { span { class: "mk-badge", "{badge}" } } }
                                     span { "{label}" }
                                 }
                             }
@@ -1027,7 +1037,14 @@ fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
         empty_group_label: t!(ws, L, "wb-empty-group"),
         empty_tile_title: t!(ws, L, "wb-empty-title"),
         empty_tile_hint: t!(ws, L, "wb-empty-hint"),
-        empty_tile_keys: t!(ws, L, "wb-empty-keys"),
+        empty_tile_keys: [
+            ("workspace.openFolder", t!(ws, L, "menu-open-folder")),
+            ("view.quickOpen", t!(ws, L, "menu-go-to-file")),
+            ("view.palette", t!(ws, L, "menu-palette")),
+            ("search.workspace", t!(ws, L, "menu-find-workspace")),
+        ]
+        .map(|(id, label)| moonkale_ext_api::command_hint(id, label).title)
+        .join("\n"),
         split_right_label: t!(ws, L, "wb-split-right"),
         split_right_hint: t!(ws, L, "wb-split-right-hint"),
         split_down_label: t!(ws, L, "wb-split-down"),

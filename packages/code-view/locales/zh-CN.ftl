@@ -10,7 +10,7 @@ editor-edit-failed = 编辑失败：{ $error }
 editor-nothing-to-rename = 此处没有可重命名的内容
 editor-plain-text = 纯文本
 editor-unsaved = 未保存的更改
-editor-wrap-title = 自动换行（Alt+Z）
+editor-wrap-title = 自动换行
 editor-wrap = 换行
 editor-save = 保存
 editor-reload-title = 放弃修改并从来源重新加载
@@ -52,17 +52,17 @@ editor-search-invalid = 无效的正则表达式：{ $error }
 
 editor-diagnostics = 诊断
 editor-hover = 显示悬停信息
-editor-completion = 补全（Ctrl+空格）
-editor-definition = 转到定义（F12）
+editor-completion = 补全
+editor-definition = 转到定义
 editor-definition-needs-lsp = 转到定义需要此文件的语言服务器
 editor-definition-failed = 转到定义失败：{ $error }
 editor-definition-timeout = 转到定义超时
 
-editor-rename-shortcut = 重命名符号（F2）
+editor-rename-shortcut = 重命名符号
 editor-rename-timeout = 重命名请求超时
 
-editor-actions-shortcut = 代码操作（Mod-.）
-editor-references-shortcut = 查找引用（Shift-F12）
+editor-actions-shortcut = 代码操作
+editor-references-shortcut = 查找引用
 editor-tools-needs-lsp = 此操作需要此文件的语言服务器
 editor-tools-timeout = 语言服务器请求超时
 editor-tools-loading = 正在加载…

@@ -14,7 +14,7 @@ editor-edit-failed = Bearbeitung fehlgeschlagen: { $error }
 editor-nothing-to-rename = Hier gibt es nichts umzubenennen
 editor-plain-text = Klartext
 editor-unsaved = Ungespeicherte Änderungen
-editor-wrap-title = Lange Zeilen umbrechen (Alt+Z)
+editor-wrap-title = Lange Zeilen umbrechen
 editor-wrap = Umbruch
 editor-save = Speichern
 editor-reload-title = Änderungen verwerfen und aus der Quelle neu laden
@@ -60,17 +60,17 @@ editor-search-invalid = Ungültiger regulärer Ausdruck: { $error }
 
 editor-diagnostics = Diagnosen
 editor-hover = Hover-Information anzeigen
-editor-completion = Vervollständigen (Strg+Leertaste)
-editor-definition = Zur Definition (F12)
+editor-completion = Vervollständigen
+editor-definition = Zur Definition
 editor-definition-needs-lsp = Zur Definition benötigt einen Sprachserver für diese Datei
 editor-definition-failed = Zur Definition fehlgeschlagen: { $error }
 editor-definition-timeout = Zeitüberschreitung beim Laden der Definition
 
-editor-rename-shortcut = Symbol umbenennen (F2)
+editor-rename-shortcut = Symbol umbenennen
 editor-rename-timeout = Zeitüberschreitung bei der Umbenennung
 
-editor-actions-shortcut = Code-Aktionen (Mod-.)
-editor-references-shortcut = Referenzen suchen (Umschalt-F12)
+editor-actions-shortcut = Code-Aktionen
+editor-references-shortcut = Referenzen suchen
 editor-tools-needs-lsp = Diese Aktion benötigt einen Sprachserver für die Datei
 editor-tools-timeout = Zeitüberschreitung bei der Sprachserver-Anfrage
 editor-tools-loading = Wird geladen…

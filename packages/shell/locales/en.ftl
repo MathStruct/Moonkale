@@ -322,7 +322,6 @@ wb-close-tab = Close { "{" }title{ "}" }
 wb-empty-group = Empty group
 wb-empty-title = Empty panel group
 wb-empty-hint = Drag a panel tab here, or close this group.
-wb-empty-keys = Alt+Shift+Arrows split · Alt+Shift+Page keys move · Arrows switch tabs
 wb-split-right = Split panel group right
 wb-split-right-hint = Split right (Alt+Shift+Right)
 wb-split-down = Split panel group down

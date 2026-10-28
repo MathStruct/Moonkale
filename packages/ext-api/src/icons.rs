@@ -71,12 +71,18 @@ pub fn IconButton(
     label: String,
     #[props(default)] description: Option<String>,
     #[props(default)] shortcut: Option<String>,
+    #[props(default)] command: Option<String>,
     #[props(default)] pressed: Option<bool>,
     #[props(default)] disabled: bool,
     #[props(default)] class: String,
     onclick: EventHandler<MouseEvent>,
 ) -> Element {
     let text = description.clone().unwrap_or_else(|| label.clone());
+    let shortcut = command
+        .as_deref()
+        .map(|id| crate::command_hint(id, "").shortcut)
+        .or(shortcut)
+        .filter(|key| !key.is_empty());
     let tip = match &shortcut {
         Some(k) => format!("{text} ({k})"),
         None => text,
@@ -96,6 +102,8 @@ pub fn IconButton(
             class: "{class}",
             r#type: "button",
             title: "{tip}",
+            "data-command": command,
+            "data-shortcut": shortcut,
             disabled,
             aria_pressed: pressed.map(|p| p.to_string()),
             onclick: move |e| onclick.call(e),

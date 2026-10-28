@@ -154,3 +154,17 @@
 
 .mk-crash-notice { padding: 8px; background: var(--wb-surface); color: var(--wb-ink); }
 .mk-crash-overlay { position: fixed; inset: 0; z-index: 100000; padding: 10vh 10vw; background: var(--wb-surface); color: var(--wb-ink); }
+
+/* ADR-0027: useful commands in an empty tile, transient modifier key tips. */
+.mk-shell .wb-empty-keys { white-space: pre-line; line-height: 2; }
+.mk-key-tips { position: fixed; inset: 0; z-index: 10000; pointer-events: none; }
+.mk-key-tip {
+    position: fixed;
+    padding: 2px 5px;
+    border: 1px solid var(--mk-line);
+    border-radius: 3px;
+    background: var(--mk-raised);
+    color: var(--mk-ink);
+    font: 11px var(--mk-font-mono, monospace);
+    box-shadow: 0 2px 5px var(--mk-line);
+}

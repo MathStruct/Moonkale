@@ -398,7 +398,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 moonkale_ext_api::icons::IconButton {
                     icon: "save",
                     label: t!(ws, L, "save"),
-                    shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
+                    command: "file.save".to_string(),
                     disabled: !dirty,
                     onclick: moonkale_ext_api::crash::event(move |_| save(())),
                 }

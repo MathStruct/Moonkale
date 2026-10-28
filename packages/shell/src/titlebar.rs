@@ -400,9 +400,12 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                                         Item::Sep => rsx! { div { class: "mk-menu-sep" } },
                                         Item::Cmd { label, id } => rsx! {
                                             button { class: "mk-menu-item", role: "menuitem", r#type: "button",
+                                                title: moonkale_ext_api::command_hint(id, label.clone()).title,
+                                                "data-command": id,
+                                                "data-shortcut": moonkale_ext_api::command_hint(id, "").shortcut,
                                                 onclick: move |_| { open.set(None); crate::commands::run(id, ws); },
                                                 span { "{label}" }
-                                                span { class: "mk-menu-shortcut", "{registry.read().shortcut(id)}" }
+                                                span { class: "mk-menu-shortcut", {moonkale_ext_api::command_hint(id, "").shortcut} }
                                             }
                                         },
                                         Item::Direct { label, cmd } => rsx! {
@@ -420,9 +423,12 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                                         },
                                         Item::Dyn { label, id } => rsx! {
                                             button { class: "mk-menu-item", role: "menuitem", r#type: "button",
+                                                title: moonkale_ext_api::command_hint(&id, label.clone()).title,
+                                                "data-command": id.clone(),
+                                                "data-shortcut": moonkale_ext_api::command_hint(&id, "").shortcut,
                                                 onclick: { let id = id.clone(); move |_| { open.set(None); crate::commands::run(&id, ws); } },
                                                 span { "{label}" }
-                                                span { class: "mk-menu-shortcut", "{registry.read().shortcut(&id)}" }
+                                                span { class: "mk-menu-shortcut", {moonkale_ext_api::command_hint(&id, "").shortcut} }
                                             }
                                         },
                                         Item::Native { label, kind } => rsx! {

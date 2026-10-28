@@ -69,6 +69,16 @@ try {
     await input.fill("Ctrl+K");
     await input.press("Tab");
     await page.waitForFunction(() => /view\.palette/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
+    // Editor buttons share the effective registry, including explicit unbinding.
+    const saveBinding = page.locator(".mk-settings-key input[data-command='file.save']");
+    await saveBinding.fill("Alt+S");
+    await saveBinding.press("Tab");
+    await page.waitForFunction(() => [...document.querySelectorAll('.mk-icon-btn[data-command="file.save"]')].some(button => button.title.endsWith('(Alt+S)') && button.dataset.shortcut === 'Alt+S'));
+    await saveBinding.fill("");
+    await saveBinding.press("Tab");
+    await page.waitForFunction(() => [...document.querySelectorAll('.mk-icon-btn[data-command="file.save"]')].every(button => !button.dataset.shortcut && !button.title.includes('Ctrl+S') && !button.title.includes('Alt+S')));
+    await saveBinding.fill("Ctrl+S");
+    await saveBinding.press("Tab");
     await page.click(".wb-status-bar");
     await page.keyboard.press("Control+K");
     await page.waitForSelector(".mk-palette-input", { timeout: 5000 });
