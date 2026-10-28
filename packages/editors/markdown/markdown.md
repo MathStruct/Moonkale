@@ -34,3 +34,8 @@ Only the index-backed part exists so far: `LinksExtension` contributes a **Links
 
 
 WP-64 (2026-10-28): Rich Save uses the shared file.save command binding for its tooltip and hold-Ctrl badge.
+
+
+WP-61 adds the rebindable `markdown.toggleMode` command for the Obsidian
+preset's Ctrl+E, preserving the existing per-document Source/Rich choice.
+Links-panel file middle clicks use guarded background loading.

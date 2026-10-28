@@ -166,3 +166,12 @@ Document navigation also schedules focus in its concrete editor (including
 reactivated files), remembering its first opener for closure. Workbench tab
 activation marks that navigation separately so ArrowLeft/ArrowRight retain
 their tab focus instead of jumping into the editor between presses.
+
+
+WP-61 adds JSON preset base layers under explicit command overrides, a single
+preset chooser and mouse command rows in the existing binding editor. The
+registry also carries layout labels and supplies every discovery surface.
+`input-layouts.js` adapts physical punctuation/macro keys, layout maps and thumb
+buttons; Rust resolves ids and owns visits. Alt+Enter/middle click in quick-open
+load background tabs; shell reconciliation retains every tile's selected tab.
+The dedicated Settings test field keeps last-input state local to itself.

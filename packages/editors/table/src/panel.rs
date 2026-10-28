@@ -106,6 +106,18 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         }
     };
 
+    moonkale_ext_api::crash::use_effect({
+        let run = run.clone();
+        let node_id = node.id;
+        move || {
+            if matches!(ws.shell.commands.read().1, Some(Command::RunDocument))
+                && *ws.docs.active.peek() == Some(node_id)
+                && !*running.peek()
+            {
+                run();
+            }
+        }
+    });
     // First load.
     use_hook({
         let run = run.clone();
@@ -347,7 +359,18 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
             }),
             onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                 let primary = moonkale_ext_api::keys::primary(&e.modifiers());
+                let left_hand = ws.settings.resolved.peek().keymap == "left-hand" && !primary && !e.modifiers().alt();
+                if e.is_composing() { return; }
                 let mv = match e.key() {
+                    Key::Tab if left_hand && e.modifiers().shift() => Move::Previous,
+                    Key::Tab if left_hand => Move::Next,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("w") => Move::Up,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("s") => Move::Down,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("a") => Move::Left,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("d") => Move::Right,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("q") => Move::PageUp,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("e") => Move::PageDown,
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("f") => { e.prevent_default(); let _ = dioxus::document::eval("document.activeElement?.closest('.mk-table')?.querySelector('.mk-table-filter')?.focus();"); return; },
                     Key::ArrowUp => Move::Up,
                     Key::ArrowDown => Move::Down,
                     Key::ArrowLeft => Move::Left,
@@ -361,6 +384,7 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                     _ => return,
                 };
                 e.prevent_default();
+                e.stop_propagation();
                 go(mv);
             }),
             onmousemove: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
@@ -431,11 +455,13 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                                                     title: if matches!(v, Value::Text(_)) { "{text}" } else { "" },
                                                     onclick: moonkale_ext_api::crash::event(move |_| cursor.set(Some((pos, c)))),
                                                     if let Some(target) = target {
-                                                        button { class: "mk-cell-ref", role: "link", onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
+                                                        { let beside = known.clone(); rsx! { button { class: "mk-cell-ref", role: "link", onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                                             e.stop_propagation();
                                                             let known = known.clone();
-                                                            moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, known).await; });
-                                                        }), "{text}" }
+                                                            moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, known, false).await; });
+                                                        }), onauxclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| {
+                                                            if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { e.prevent_default(); e.stop_propagation(); let node = beside.clone(); moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, node, true).await; }); }
+                                                        }), "{text}" } } }
                                                     } else if let Some(points) = points {
                                                         svg { class: "mk-cell-vector", view_box: "0 0 100 20", width: "100", height: "20",
                                                             role: "img", "aria-label": "{text}",
@@ -458,9 +484,18 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
 
 /// Resolve a source-known identity through existing readers; never turn labels
 /// into paths or URLs. A result can omit its nodes after transport.
-async fn open_reference(ws: Workspace, target: moonkale_core::NodeId, known: Option<Node>) {
+async fn open_reference(
+    ws: Workspace,
+    target: moonkale_core::NodeId,
+    known: Option<Node>,
+    background: bool,
+) {
     if let Some(node) = known {
-        let _ = ws.open_node(node).await;
+        if background {
+            let _ = ws.load_node_guarded(node, || true).await;
+        } else {
+            let _ = ws.open_node(node).await;
+        }
         return;
     }
     let sources: Vec<_> = ws
@@ -474,7 +509,11 @@ async fn open_reference(ws: Workspace, target: moonkale_core::NodeId, known: Opt
         if let Some(source) = ws.source(&id) {
             if let Ok(result) = source.query(Query::Node(target)).await {
                 if let Some(node) = result.nodes.into_iter().find(|n| n.id == target) {
-                    let _ = ws.open_node(node).await;
+                    if background {
+                        let _ = ws.load_node_guarded(node, || true).await;
+                    } else {
+                        let _ = ws.open_node(node).await;
+                    }
                     return;
                 }
             }

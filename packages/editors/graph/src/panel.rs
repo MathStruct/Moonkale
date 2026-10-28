@@ -264,6 +264,13 @@ enum ToJs<'a> {
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum FromJs {
     Loaded,
+    CameraVisit {
+        state: [f32; 7],
+    },
+    OpenBeside {
+        id: String,
+    },
+    ToggleLocal,
     GraphCounts {
         nodes: usize,
         edges: usize,
@@ -383,6 +390,25 @@ try {
     return failed(String(e && e.message ? e.message : e));
 }
 const host = canvas.parentElement;
+const visit = () => dioxus.send({kind:"cameraVisit",state:Array.from(view.navigation_camera_state())});
+let cameraTimer;
+const beginVisit = () => { if (!cameraTimer) visit(); };
+const endVisit = () => { clearTimeout(cameraTimer); cameraTimer = setTimeout(() => { cameraTimer = null; visit(); }, 180); };
+overlay.addEventListener("pointerdown", beginVisit, true);
+overlay.addEventListener("pointerup", endVisit);
+overlay.addEventListener("wheel", () => { beginVisit(); endVisit(); }, {passive:true,capture:true});
+overlay.addEventListener("keydown", e => {
+    if (document.documentElement.dataset.keymap === "left-hand" && !e.ctrlKey && !e.metaKey && !e.altKey && ["w","a","s","d","q","e","f"].includes(e.key.toLowerCase())) { beginVisit(); endVisit(); }
+}, true);
+overlay.addEventListener("keydown", e => {
+    if (!e.isComposing && !e.ctrlKey && !e.metaKey && !e.altKey && document.documentElement.dataset.keymap === "left-hand" && e.key.toLowerCase() === "g") {
+        e.preventDefault(); e.stopPropagation(); dioxus.send({kind:"toggleLocal"});
+    }
+});
+window.moonkaleRestoreCamera = ([id, state]) => {
+    const target = window.moonkale?.graphViews?.[id];
+    if (target) { target.restore_camera(new Float32Array(state)); document.getElementById(id + "-ov")?.focus(); }
+};
 const ro = new ResizeObserver(() => {
     const r = host.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) view.resize(r.width, r.height, window.devicePixelRatio || 1);
@@ -406,6 +432,7 @@ window.addEventListener("moonkale-theme", retheme);
 // the NVIDIA EGL driver crashes WebKit's web process when it exits with a
 // live WebGL context (P-061). Only helps on graceful unloads.
 const unload = () => {
+    clearTimeout(cameraTimer);
     themeObserver.disconnect();
     window.removeEventListener("moonkale-theme", retheme);
     try { view.destroy(); } catch (_) {}
@@ -452,7 +479,7 @@ for (;;) {
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "relayout") view.relayout();
     else if (msg.kind === "setMode") view.set_mode(msg.mode);
-    else if (msg.kind === "destroy") { ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme); scheme && scheme.removeEventListener && scheme.removeEventListener("change", retheme); view.destroy(); delete window.moonkale.graphViews[ID]; break; }
+    else if (msg.kind === "destroy") { clearTimeout(cameraTimer); ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme); scheme && scheme.removeEventListener && scheme.removeEventListener("change", retheme); view.destroy(); delete window.moonkale.graphViews[ID]; break; }
 }
 "#;
 
@@ -471,6 +498,19 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut loaded = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut mode = use_signal(|| Mode::Whole);
+    moonkale_ext_api::crash::use_effect(move || {
+        if matches!(
+            ws.shell.commands.read().1,
+            Some(moonkale_ext_api::Command::ToggleGraphScope)
+        ) {
+            let next = if *mode.peek() == Mode::Whole {
+                Mode::Local
+            } else {
+                Mode::Whole
+            };
+            mode.set(next);
+        }
+    });
     let mut filters = use_signal(|| Filters {
         files: true,
         symbols: true,
@@ -536,6 +576,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 );
             let ev = document::eval(&script);
             let mut rx = ev;
+            let id = id.clone();
             moonkale_ext_api::crash::spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
@@ -563,6 +604,20 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                             eclass.set(classes.first().map(|c| c.0.clone()).unwrap_or_default());
                             eclasses.set(classes);
                             error.set(None);
+                        }
+                        Ok(FromJs::CameraVisit { state }) => ws.visit_camera(&id, state),
+                        Ok(FromJs::ToggleLocal) => {
+                            let next = if mode() == Mode::Whole {
+                                Mode::Local
+                            } else {
+                                Mode::Whole
+                            };
+                            mode.set(next);
+                        }
+                        Ok(FromJs::OpenBeside { id }) => {
+                            if let Some(node) = shown.peek().get(&id).cloned() {
+                                moonkale_ext_api::crash::spawn(open_beside(ws, node));
+                            }
                         }
                         Ok(FromJs::Loaded) => loaded.set(true),
                         Ok(FromJs::Ready { backend: b }) => backend.set(Some(b)),
@@ -1463,6 +1518,50 @@ fn split_location(key: &str) -> (String, u32, u32) {
         (Ok(line), _, _) if b.is_some() => (key[..key.len() - a.len() - 1].to_string(), line, 0),
         _ => (key.to_string(), 0, 0),
     }
+}
+
+/// A middle-click shares the symbol-to-file resolution, without activation.
+async fn open_beside(ws: Workspace, node: Node) {
+    let mut target = node;
+    if target.content.is_some()
+        && ws.sources.open.peek().iter().any(|source| {
+            source.descriptor.id == target.source
+                && source.descriptor.truth == moonkale_core::SourceTruth::Store
+        })
+    {
+        let _ = ws.load_node_guarded(target, || true).await;
+        return;
+    }
+    if target.kind.is_definition()
+        || matches!(&target.kind, NodeKind::Custom(kind) if kind == "rust:Impl")
+    {
+        let Some(index_node) = ws.index_node(&target).await else {
+            return;
+        };
+        let Some(index) = ws.index() else {
+            return;
+        };
+        let Ok(result) = index
+            .source
+            .query(Query::Neighbours {
+                node: index_node.id,
+                depth: 1,
+                direction: Direction::In,
+            })
+            .await
+        else {
+            return;
+        };
+        let Some(file) = result
+            .nodes
+            .into_iter()
+            .find(|node| node.kind == NodeKind::File)
+        else {
+            return;
+        };
+        target = file;
+    }
+    let _ = ws.load_node_guarded(target, || true).await;
 }
 
 #[cfg(test)]

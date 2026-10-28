@@ -467,6 +467,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                 .read()
                 .as_ref()
                 .is_some_and(|d| d.id != node.id);
+        let n_middle = node.clone();
         let (n_menu, n_drag, n_drop) = (node.clone(), node.clone(), node.clone());
         rows.push(rsx! {
             li { key: "{node.id}",
@@ -483,6 +484,12 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                         e.stop_propagation();
                         let c = e.client_coordinates();
                         state.menu.set(Some(Menu { node: n_menu.clone(), is_dir, x: c.x, y: c.y }));
+                    }),
+                    onauxclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| {
+                        if e.trigger_button() != Some(dioxus::html::input_data::MouseButton::Auxiliary) || is_dir || is_db_path { return; }
+                        e.prevent_default(); e.stop_propagation();
+                        let node = n_middle.clone();
+                        moonkale_ext_api::crash::spawn(async move { let _ = ws.load_node_guarded(node, || true).await; });
                     }),
                     ondragstart: moonkale_ext_api::crash::event(move |_| state.dragging.set(Some(n_drag.clone()))),
                     ondragend: moonkale_ext_api::crash::event(move |_| state.dragging.set(None)),
@@ -614,9 +621,16 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
         .iter()
         .find(|source| source.descriptor.id == node.source)
         .is_some_and(|source| moonkale_ext_api::workspace::is_derived_cache(&source.descriptor));
+    let beside = node.clone();
     let can_terminal = menu.is_dir && ws.spawn_terminal().is_some();
     rsx! {
         div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: moonkale_ext_api::crash::event(|e: dioxus::prelude::MouseEvent| e.stop_propagation()),
+            if !menu.is_dir {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| {
+                    state.menu.set(None); let node = beside.clone();
+                    moonkale_ext_api::crash::spawn(async move { let _ = ws.load_node_guarded(node, || true).await; });
+                }), {t!(ws, L, "input-open-beside")} }
+            }
             if menu.is_dir {
                 button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewFile { parent: n1.clone() })); state.expanded.with_mut(|e| { e.insert(n1.id); }); }), {t!(ws, L, "menu-new-file")} }
                 button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewDir { parent: n2.clone() })); state.expanded.with_mut(|e| { e.insert(n2.id); }); }), {t!(ws, L, "explorer-new-folder")} }

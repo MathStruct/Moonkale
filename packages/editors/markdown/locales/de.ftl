@@ -39,3 +39,5 @@ typst-pages =
     }
 typst-compiling =  · wird kompiliert …
 typst-unsafe-svg = Diese Seite wurde nicht angezeigt: das erzeugte SVG enthielt Skript oder eingebettetes HTML.
+
+md-toggle-mode = Markdown: Quelltext / Rich umschalten

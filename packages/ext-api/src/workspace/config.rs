@@ -338,6 +338,12 @@ pub struct ForeignDrag {
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Toggle the graph panel between whole and local scope.
+    ToggleGraphScope,
+    /// Split the active editor group to the right.
+    SplitEditor,
+    /// Run the active table query or generate the active flow.
+    RunDocument,
     /// Compare the derived cache with a fresh snapshot of current files.
     CheckCodeCache,
     /// Open a folder (the Explorer's path field or the picker).

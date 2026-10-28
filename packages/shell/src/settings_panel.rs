@@ -87,6 +87,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
     let mut secret_name = use_signal(String::new);
     let mut secret_value = use_signal(String::new);
     let mut secret_status = use_signal(String::new);
+    let mut last_input = use_signal(String::new);
 
     let registry = use_context::<crate::commands::CommandRegistry>();
     let settings = ws.settings.resolved.read().clone();
@@ -245,15 +246,59 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         {t!(ws, L, "settings-shortcut-nudges")}
                     }
                     h3 { {t!(ws, L, "settings-keybindings")} }
+                    label { class: "mk-settings-key",
+                        span { {t!(ws, L, "input-preset")} }
+                        select { class: "mk-input mk-keymap-preset", value: "{settings.keymap}",
+                            onchange: moonkale_ext_api::crash::event(move |e: FormEvent| { let value = e.value(); apply(Box::new(move |f| f.keymap = Some(value))); }),
+                            option { value: "moonkale", "Moonkale" }
+                            option { value: "vscode", "VS Code" }
+                            option { value: "obsidian", "Obsidian" }
+                            option { value: "left-hand", {t!(ws, L, "input-left-hand")} }
+                        }
+                    }
                     p { class: "mk-muted", {t!(ws, L, "settings-keybindings-hint")} }
+                    p { class: "mk-muted", {t!(ws, L, "input-layout-hint")} }
+                    p { class: "mk-muted", {t!(ws, L, "input-mouse-setup")} }
+                    label { class: "mk-settings-key",
+                        span { {t!(ws, L, "input-test")} }
+                        input { class: "mk-input mk-input-test", readonly: true, value: "{last_input}", placeholder: t!(ws, L, "input-test-hint"),
+                            onkeydown: move |e| {
+                                if e.is_composing() { return; }
+                                // Keep normal keyboard traversal out of the tester.
+                                if e.key() == Key::Tab { e.stop_propagation(); return; }
+                                e.prevent_default(); e.stop_propagation();
+                                let m = e.modifiers();
+                                let key = e.key().to_string();
+                                let binding = moonkale_ext_api::Keybinding { ctrl: moonkale_ext_api::keys::primary(&m), shift: m.shift(), alt: m.alt(), key };
+                                last_input.set(format!("{} ({:?})", binding.display(), e.code()));
+                            },
+                            onpointerdown: move |e| { last_input.set(format!("{:?}", e.trigger_button())); }
+                        }
+                    }
+                    for (button, label) in [("back", t!(ws, L, "input-back")), ("forward", t!(ws, L, "input-forward")), ("middle", t!(ws, L, "input-middle"))] {
+                        label { class: "mk-settings-key",
+                            span { "{label}" }
+                            select { class: "mk-input", "data-mouse": button, value: crate::commands::mouse_command(ws, button),
+                                onchange: moonkale_ext_api::crash::event(move |e: FormEvent| {
+                                    let value = e.value().trim().to_string();
+                                    if !value.is_empty() && value != "contextual" && registry.peek().find(&value).is_none() { ws.set_status(t!(ws, L, "input-unknown-command")); return; }
+                                    apply(Box::new(move |f| { f.mouse.insert(button.into(), value); }));
+                                }),
+                                option { value: "", {t!(ws, L, "settings-unbound")} }
+                                if button == "middle" { option { value: "contextual", {t!(ws, L, "input-contextual")} } }
+                                for entry in registry.read().entries.iter() { option { value: "{entry.id}", "{entry.title}" } }
+                            }
+                        }
+                    }
                     for entry in registry.read().entries.iter() {
                         {
                             let id = entry.id.clone();
                             let bound = entry.binding.as_ref().map(|b| b.display()).unwrap_or_default();
+                            let conflict = entry.binding.as_ref().is_some_and(|b| registry.read().entries.iter().any(|other| other.id != id && other.binding.as_ref() == Some(b)));
                             let overridden = settings.keybindings.contains_key(&id);
                             rsx! {
                                 label { key: "{id}", class: "mk-settings-key",
-                                    span { "{entry.title}" if overridden { span { class: "mk-settings-scope", {t!(ws, L, "settings-custom")} } } }
+                                    span { "{entry.title}" if conflict { span { class: "mk-settings-conflict", {t!(ws, L, "input-conflict")} } } if overridden { span { class: "mk-settings-scope", {t!(ws, L, "settings-custom")} } } }
                                     input { class: "mk-input", value: "{bound}", placeholder: t!(ws, L, "settings-unbound"), "data-command": "{id}",
                                         onchange: moonkale_ext_api::crash::event({
                                             let id = id.clone();

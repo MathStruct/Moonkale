@@ -126,6 +126,18 @@ pub fn CheatSheet() -> Element {
                 div { class: "mk-cheatsheet-heading", h2 { {t!(ws, L, "cmd-help-shortcuts")} }
                     button { class: "mk-btn", onclick: move |_| open.set(false), {t!(ws, L, "dismiss")} }
                 }
+                p { class: "mk-cheatsheet-preset", {t!(ws, L, "input-preset")} ": " "{ws.settings.resolved.read().keymap}" }
+                p { class: "mk-cheatsheet-mouse", {t!(ws, L, "input-mouse-summary")} }
+                for (button, label) in [("back", t!(ws, L, "input-back")), ("forward", t!(ws, L, "input-forward")), ("middle", t!(ws, L, "input-middle"))] {
+                    div { class: "mk-cheatsheet-mouse-binding",
+                        span { "{label}: " }
+                        {
+                            let id = crate::commands::mouse_command(ws, button);
+                            if id == "contextual" { t!(ws, L, "input-contextual") }
+                            else { registry.read().find(&id).map(|entry| entry.title.clone()).unwrap_or_else(|| t!(ws, L, "settings-unbound")) }
+                        }
+                    }
+                }
                 input { id: "mk-cheatsheet-input", autofocus: true, class: "mk-palette-input", placeholder: t!(ws, L, "discovery-filter"), value: "{query}", oninput: move |e| query.set(e.value()) }
                 div { class: "mk-cheatsheet-list",
                     for (group, entries) in groups {

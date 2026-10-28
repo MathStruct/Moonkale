@@ -214,6 +214,32 @@ pub fn Shell() -> Element {
         }
         handled_command.set(Some(seq));
         match cmd {
+            Some(Command::SplitEditor) => {
+                let mut target = if *narrow.peek() { phone_layout } else { layout };
+                let mut next = target.peek().clone();
+                let closed = ws.shell.closed_panels.peek().clone();
+                let settings = ws.settings.resolved.peek().extensions.clone();
+                let placements: Vec<_> = contributions(exts, &settings, ws, false)
+                    .into_iter()
+                    .map(|(_, contribution)| contribution)
+                    .filter(|contribution| {
+                        contribution.node.is_some() || !closed.contains(&contribution.id)
+                    })
+                    .map(|contribution| {
+                        let home = home_tile(*narrow.peek(), contribution.home);
+                        PanelPlacement::new(PanelId::from(contribution.id), TileId::from(home))
+                            .with_zone(home_zone(&next, home))
+                    })
+                    .collect();
+                next.reconcile(&placements);
+                let active = *ws.docs.active.peek();
+                let panel = active.map(|id| PanelId::from(format!("editor:{id}")));
+                if let Some(tile) = panel.and_then(|panel| next.tile_for_panel(&panel)) {
+                    if next.split_active(&tile, DockZone::Right) {
+                        target.set(next);
+                    }
+                }
+            }
             Some(Command::ResetLayout) => {
                 layout.set(default_layout());
                 if !*ws.crashes.safe.peek() && ws.settings.folder.peek().is_some() {
@@ -506,6 +532,18 @@ pub fn Shell() -> Element {
                 });
             }
             panels.push(panel);
+        }
+    }
+
+    // The workbench activates newly attached panels by default. Reconcile
+    // background document loads here and retain each tile's chosen tab.
+    if let Some(next) =
+        attach_background_panels(&current_layout, &panels, &document_nodes, active_node)
+    {
+        if is_narrow {
+            phone_layout.set(next);
+        } else {
+            layout.set(next);
         }
     }
 
@@ -1231,6 +1269,65 @@ pub(crate) fn remember_panics() {
     });
 }
 
+fn attach_background_panels(
+    layout: &PanelLayout,
+    panels: &[Panel],
+    nodes: &HashMap<String, moonkale_core::NodeId>,
+    active: Option<moonkale_core::NodeId>,
+) -> Option<PanelLayout> {
+    if !panels.iter().any(|panel| {
+        nodes
+            .get(panel.id.as_str())
+            .is_some_and(|node| Some(*node) != active)
+            && layout.tile_for_panel(&panel.id).is_none()
+    }) {
+        return None;
+    }
+    fn actives(node: &LayoutNode, selected: &mut Vec<PanelId>) {
+        match node {
+            LayoutNode::Tile(tile) => selected.extend(tile.active.clone()),
+            LayoutNode::Split { first, second, .. } => {
+                actives(first, selected);
+                actives(second, selected);
+            }
+        }
+    }
+    let background: std::collections::HashSet<_> = panels
+        .iter()
+        .filter(|panel| {
+            nodes
+                .get(panel.id.as_str())
+                .is_some_and(|node| Some(*node) != active)
+                && layout.tile_for_panel(&panel.id).is_none()
+        })
+        .map(|panel| panel.id.clone())
+        .collect();
+    // Controlled layouts can lag panels attached only by the workbench's
+    // derived render tree. Reconstruct that previous registry before saving
+    // selected tabs, rather than treating an empty canonical tile as visible.
+    let previous: Vec<_> = panels
+        .iter()
+        .filter(|panel| !background.contains(&panel.id))
+        .map(|panel| {
+            PanelPlacement::new(panel.id.clone(), panel.home.clone()).with_zone(panel.home_zone)
+        })
+        .collect();
+    let before = layout.reconciled(&previous);
+    let mut selected = Vec::new();
+    actives(&before.root, &mut selected);
+    let placements: Vec<_> = panels
+        .iter()
+        .map(|panel| {
+            PanelPlacement::new(panel.id.clone(), panel.home.clone()).with_zone(panel.home_zone)
+        })
+        .collect();
+    let mut next = layout.reconciled(&placements);
+    for panel in selected {
+        next.activate(&panel);
+    }
+    (next != *layout).then_some(next)
+}
+
 #[cfg(test)]
 mod responsive_tests {
     use super::*;
@@ -1326,5 +1423,39 @@ mod responsive_tests {
             assert!(requests[0]);
             assert!(requests[1..].iter().all(|request| !request));
         });
+    }
+}
+
+#[cfg(test)]
+mod background_tests {
+    use super::*;
+    #[test]
+    fn background_attachment_preserves_each_tiles_selected_tab() {
+        let node = moonkale_core::NodeId::fresh("background-alpha");
+        let layout = PanelLayout::new(LayoutNode::split(
+            "root",
+            SplitAxis::Horizontal,
+            0.5,
+            LayoutNode::tile("main", ["readme"]),
+            LayoutNode::tile("side", ["search"]),
+        ));
+        let panels = vec![
+            Panel::new("readme", "Readme", "main", rsx! {}),
+            Panel::new("search", "Search", "side", rsx! {}),
+            Panel::new("alpha", "Alpha", "main", rsx! {}),
+        ];
+        let nodes = HashMap::from([("alpha".into(), node)]);
+        let next = attach_background_panels(&layout, &panels, &nodes, None).unwrap();
+        assert_eq!(
+            next.tile(&TileId::from("main")).unwrap().active,
+            Some(PanelId::from("readme"))
+        );
+        assert_eq!(
+            next.tile(&TileId::from("side")).unwrap().active,
+            Some(PanelId::from("search"))
+        );
+        assert!(next.tile_for_panel(&PanelId::from("alpha")).is_some());
+        assert!(attach_background_panels(&next, &panels, &nodes, None).is_none());
+        assert!(attach_background_panels(&layout, &panels, &nodes, Some(node)).is_none());
     }
 }

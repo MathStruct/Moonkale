@@ -19,6 +19,7 @@ mod explorer;
 mod extensions_panel;
 mod frame;
 pub mod icons;
+mod input_layouts;
 mod palette;
 mod remote_dialog;
 mod search;

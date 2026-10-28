@@ -25,6 +25,26 @@ See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
 older whole-product inventory date above is unchanged; this paragraph checks only
 WP-47, not every area below.
 
+## Input layouts (WP-61, checked 2026-10-28)
+
+Moonkale, VS Code, Obsidian and Left hand + mouse presets are available in
+Settings → Keybindings. Explicit bindings and unbindings stay above each
+preset; conflicts are marked. Tooltips, key tips and the cheat sheet use the
+same effective registry. Punctuation follows physical US key positions and
+uses platform layout labels when available; letters remain logical. F13–F24
+are bindable, with defaults for existing actions.
+
+Mouse thumb buttons navigate a bounded window-local history of foreground
+documents and graph-camera gestures. The middle button opens supported targets
+in background tabs, closes tabs and pans canvases; mappings are configurable
+beside keybindings. Alt+Enter in Go to File and the Explorer menu also open in
+background. The left-hand preset adds focused canvas/table controls, including
+camera-plane pan and dolly in 3D. F1 lists the active preset and mouse actions.
+New mouse/keymap suites, the full smoke/structural/Sophia/default-graph matrix
+and all AGENTS gates pass. Real OS layout/IME, WebKitGTK and Android input checks
+remain manual; reserved keys for unbuilt overview/link-group/proposal/comment
+features stay unbound. See [[Input Layouts]] for shipped scope and later work.
+
 ## Shortcut discovery (WP-64, checked 2026-10-28)
 
 Command tooltips, menu entries, palette rows and empty-tile hints now share the
@@ -40,7 +60,7 @@ file/command search outside text owners, preserving graph navigation.
 Command-opened panels and dialogs take focus and return it on closure.
 Both interaction journeys, the discovery/focus suite, both-editor structural
 matrix, Sophia and the default graph suites pass; the hold-Ctrl screenshot is
-recorded. Keymap presets and five-button mouse mapping remain WP-61.
+recorded. Keymap presets and five-button mouse mapping are covered by WP-61 above.
 See [[ADR-0027 Simple by default]].
 
 ## Crash safety (WP-57, checked 2026-10-28)

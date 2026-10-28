@@ -27,6 +27,9 @@ impl Workspace {
 
     pub(super) fn set_active_document(&mut self, node: Option<NodeId>) {
         if *self.docs.active.peek() != node {
+            if let Some(id) = node {
+                self.visit_document(id);
+            }
             self.docs.active.set(node);
             self.docs.selection.set(None);
             self.docs.cursor.set(None);
@@ -78,7 +81,20 @@ impl Workspace {
 
     /// Open a file by path relative to any open folder (used by terminal
     /// links and go-to-definition). Returns the opened node.
-    pub async fn open_relative_path(mut self, rel: &str) -> Result<Node, SourceError> {
+    pub async fn open_relative_path(self, rel: &str) -> Result<Node, SourceError> {
+        self.open_relative_path_in(rel, false).await
+    }
+
+    /// Load a relative file in the background, keeping focus and the active tab.
+    pub async fn load_relative_path(self, rel: &str) -> Result<Node, SourceError> {
+        self.open_relative_path_in(rel, true).await
+    }
+
+    async fn open_relative_path_in(
+        mut self,
+        rel: &str,
+        background: bool,
+    ) -> Result<Node, SourceError> {
         let rel = rel.trim_start_matches("./").to_string();
         let folders: Vec<_> = self
             .sources
@@ -112,7 +128,11 @@ impl Workspace {
             }
             if ok {
                 if let Some(n) = found.filter(|n| n.kind == NodeKind::File) {
-                    self.open_node(n.clone()).await?;
+                    if background {
+                        self.load_node_guarded(n.clone(), || true).await?;
+                    } else {
+                        self.open_node(n.clone()).await?;
+                    }
                     return Ok(n);
                 }
             }

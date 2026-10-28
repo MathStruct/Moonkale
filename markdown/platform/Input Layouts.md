@@ -1,11 +1,69 @@
 ---
 title: "Input layouts — the five-button mouse, keymap presets, and keyboards other than US"
 description: Developers using Moonkale are assumed to have at least a five-button mouse, for full functionality (Daniel, 2026-10-14; spec 025 becomes a requirement). The default mouse map, an extended map for gamer mice with more buttons (through F13–F24), keymap presets to choose from (Moonkale, VS Code, JetBrains, Vim, Emacs, Obsidian, and a left-hand layout for mouse-heavy graph work), and correct shortcuts on QWERTZ, AZERTY, Dvorak and other layouts.
-tags: [platform, input, keybindings, mouse, spec, planned]
+tags: [platform, input, keybindings, mouse, spec]
 ---
 **From Daniel (2026-10-14):** assume developers in Moonkale have at least a five-key gamer mouse for full functionality, and suggest multiple key layouts. Spec [[025]] (documented 2026-09-22) described the five-button mouse; this page makes it a requirement and adds the layouts.
 
 **Two-button users keep everything reachable:** every mouse action has a keyboard shortcut and a menu entry. Five buttons make Moonkale *faster*, never *possible*.
+
+## Built scope (WP-61, 2026-10-28)
+
+The shipped presets are **Moonkale, VS Code, Obsidian and Left hand + mouse**.
+Settings → Keybindings has one chooser; explicit command overrides and empty
+unbinds remain above the preset, across changes. Presets are bundled JSON base
+layers in `packages/shell/keymaps`; extension defaults fill commands a preset
+does not change. Duplicate effective bindings are marked in the editor;
+explicit overrides resolve before base bindings. The command registry feeds
+menus, tooltips, key tips and the cheat sheet from the same effective bindings.
+Obsidian includes Ctrl+O for Go to File, Ctrl+P for the palette, Ctrl+E for
+Source/Rich Markdown and Ctrl+Shift+F for search.
+
+The `mouse` settings object maps `back`, `forward` and `middle` to command ids.
+The defaults are `navigation.back`, `navigation.forward` and `contextual`.
+Empty strings disable a button; left/right selection and context gestures remain
+owned by each surface. Thumb events are captured before the browser/webview's
+page-history handlers. Visits are window-local, capped at 256 and shared by
+foreground documents and committed graph-camera gestures. They are separate
+from edit/undo history and are not persisted or shared across windows. Link-group
+subjects remain WP-59.
+
+Middle-click loads Explorer files, quick-open results, Links-panel files, graph
+files/symbol owners and table references in background tabs. It closes a tab
+and pans either canvas, including when the drag starts over a node. Go to File's
+**Alt+Enter** and the Explorer context menu offer background opening without a
+middle button. Inline links inside rich/text editors retain their existing
+editor-owned behaviour. Table rows without a node/reference have no document
+to open. Background attachment preserves each tile's selected tab.
+
+F13–F24 are bindable. Shipped extra defaults cover existing commands: F14
+palette, F16 graph Local/Whole, F17 definition, F18 references, F19 active table
+query/flow generation and F22 split right. F13 (overview), F15 (link-group
+context), F20 (proposal approval), F21 (comments) await their owning packages;
+F23/F24 are unbound. Settings includes a dedicated key/button test field and
+remapper setup guidance; Tab/Shift+Tab leave the test field normally. It does
+not record typing in documents or secret fields.
+
+Punctuation bindings match US physical codes; letters match logical keys.
+Chromium's layout map supplies labels when permitted, with US labels and an
+explicit Settings hint as the fallback. AltGraph and composition are excluded;
+ordinary registered Ctrl+Alt chords still dispatch. Native OS layout-map wiring,
+real OS keyboard/IME runs, and desktop WebKit/Android mouse verification remain
+platform acceptance work. Browser cases simulate German/French/Dvorak key/code
+pairs and composition; they do not switch the OS layout or prove a live IME.
+
+The left-hand preset enables WASD pan, Q/E zoom, F fit, held Space+drag and
+Tab along graph edges on focused canvases; flow keeps R/M rotate/mirror. Graph
+also has G for Local/Whole. Tables use WASD cell movement, Q/E page movement,
+F filter and Tab/Shift+Tab cells. Text inputs retain their letters. Link-group
+1–8, Vim, Emacs and JetBrains remain planned. Existing canvas wheel zoom is
+unchanged; editor font zoom, wheel tilt and per-surface wheel remapping remain
+future work. Canvas context menus and some inline symbol/link actions are
+still owned by their respective editor work packages.
+
+`mouse.mjs` and `keymaps.mjs` are registered in run-all, its README and CI smoke.
+See [[Status]] and the handoff for validation; the tables below retain the broader
+target, including actions whose owning feature does not exist yet.
 
 ## 1. The mouse
 
@@ -21,7 +79,7 @@ tags: [platform, input, keybindings, mouse, spec, planned]
 | Wheel | scroll; with **Ctrl** zoom (graph, flow, editor font); with **Shift** scroll sideways | everywhere |
 | Wheel tilt (left/right) | scroll sideways; on the tab bar, the previous or next tab | where the mouse has it |
 
-**The webview's own handling** of buttons 4 and 5 is history navigation of the *page*, which would navigate out of the app. It is prevented on desktop (WebKitGTK), web and Android ([[025]]'s warning, verified per platform in `mouse.mjs`).
+**The webview's own handling** of buttons 4 and 5 is page-history navigation, which would navigate out of the app. A shared capture guard prevents the default; `mouse.mjs` exercises Chromium. Desktop WebKitGTK and Android verification remains manual.
 
 ### More buttons: the extended map
 
@@ -87,8 +145,8 @@ These keys act only while a canvas or table has the focus. A text field always g
 - **Punctuation follows the position.** `Ctrl+/`, `Ctrl+[`, `Ctrl+\`, `Ctrl+`` ` and similar bindings are defined by the US *position* of the key (`KeyboardEvent.code`). Otherwise they are unreachable or need AltGr on QWERTZ and AZERTY: on a German keyboard `/` is Shift+7, and `[` is AltGr+8.
 - **Labels show what's printed on the user's key:** a binding defined as the US `Slash` position shows as `Ctrl+-` on a German keyboard. Chromium's `navigator.keyboard.getLayoutMap()` gives the labels on the web. On the desktop the layout comes from the OS; until that's wired, the label falls back to the US name with a hint.
 - **AltGr is never a modifier for bindings.** It types characters (`@`, `{`, `|` on QWERTZ), and a binding on it would swallow them.
-- **Tested layouts:** US, German (QWERTZ, Daniel's), French (AZERTY), Dvorak, and a Chinese IME session.
-- **The IME's own keys win:** Ctrl+Space and Shift switch input methods in fcitx and IBus. A binding on them is flagged as a conflict when an IME is active (completion falls back to Ctrl+. there).
+- **Browser-covered layouts:** US plus simulated German/French/Dvorak physical-key events; composition exclusion is covered. Real OS layout and Chinese IME sessions remain manual.
+- **The IME's own keys win:** Ctrl+Space and Shift switch input methods in fcitx and IBus. An IME-aware conflict indicator and automatic completion fallback remain planned; these are not supplied by WP-61.
 
 ## 4. Conflicts the presets must avoid
 
@@ -103,7 +161,7 @@ These keys act only while a canvas or table has the focus. A text field always g
 
 [[ADR-0027 Simple by default]] §4 puts shortcuts in plain sight: in every tooltip and menu, on the empty workbench, as key tips while Ctrl is held, and as once-per-command nudges. Then:
 
-- **A cheat sheet:** hold Ctrl for a second, or press F1. It's an overlay with the active preset's bindings for the focused panel, mouse buttons and F13–F24 included, and it can be printed per preset.
+- **A cheat sheet:** press F1 (holding Ctrl currently shows key tips). It's an overlay with the active preset's bindings for the focused panel, mouse buttons and F13–F24 included, and it can be printed per preset.
 - **Settings → Input:** the preset, the overrides, the mouse maps, the last key or button received, and the conflicts.
 
 ## Steps

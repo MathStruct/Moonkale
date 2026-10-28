@@ -1,0 +1,10 @@
+{
+  "view.quickOpen": "Ctrl+P",
+  "view.palette": "Ctrl+Shift+P",
+  "editor.definition": "F12",
+  "editor.references": "Shift+F12",
+  "editor.toggleComment": "Ctrl+/",
+  "view.toggleSide": "Ctrl+B",
+  "view.toggleBottom": "Ctrl+J",
+  "view.newTerminal": "Ctrl+`"
+}

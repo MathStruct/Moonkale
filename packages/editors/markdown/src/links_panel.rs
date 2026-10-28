@@ -100,12 +100,19 @@ fn LinkSection(ws: Workspace, heading: String, nodes: Vec<Node>, empty: String) 
                 for node in nodes {
                     {
                         let n = node.clone();
+                        let middle = node.clone();
                         let phantom = node.kind == NodeKind::Page;
                         let mut ws2 = ws;
                         rsx! {
                             li { key: "{node.id}",
                                 class: if phantom { "mk-links-item mk-links-phantom" } else { "mk-links-item" },
                                 title: if phantom { t!(ws, L, "links-unresolved") } else { node.native_key.clone() },
+                                onauxclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| {
+                                    if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) && middle.kind == NodeKind::File {
+                                        e.prevent_default(); let node = middle.clone();
+                                        moonkale_ext_api::crash::spawn(async move { let _ = ws.load_node_guarded(node, || true).await; });
+                                    }
+                                }),
                                 onclick: moonkale_ext_api::crash::event(move |_| {
                                     let n = n.clone();
                                     if n.kind == NodeKind::File {

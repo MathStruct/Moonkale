@@ -28,6 +28,7 @@ struct State {
     layout: Layout,
     camera: Camera,
     reported_camera: Option<[f32; 6]>,
+    space_pan: bool,
     renderer: Renderer,
     overlay: web_sys::CanvasRenderingContext2d,
     dpr: f32,
@@ -352,6 +353,7 @@ pub async fn create(
             ..Default::default()
         },
         reported_camera: None,
+        space_pan: false,
         graph,
         layout,
         renderer,
@@ -430,6 +432,62 @@ fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<Stat
     let st = state.clone();
     let cb = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
         let mut s = st.borrow_mut();
+        if e.is_composing() || e.ctrl_key() || e.meta_key() || e.alt_key() {
+            return;
+        }
+        let left_hand = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.document_element())
+            .and_then(|el| el.get_attribute("data-keymap"))
+            .as_deref()
+            == Some("left-hand");
+        let key = e.key().to_ascii_lowercase();
+        if left_hand {
+            let centre = (s.camera.width / 2.0, s.camera.height / 2.0);
+            let handled = match key.as_str() {
+                "w" => {
+                    s.camera.pan(0.0, 40.0);
+                    true
+                }
+                "a" => {
+                    s.camera.pan(40.0, 0.0);
+                    true
+                }
+                "s" => {
+                    s.camera.pan(0.0, -40.0);
+                    true
+                }
+                "d" => {
+                    s.camera.pan(-40.0, 0.0);
+                    true
+                }
+                "q" => {
+                    s.camera.zoom_at(1.0 / 1.2, centre.0, centre.1);
+                    true
+                }
+                "e" => {
+                    s.camera.zoom_at(1.2, centre.0, centre.1);
+                    true
+                }
+                "f" => {
+                    let State { camera, graph, .. } = &mut *s;
+                    camera.fit(graph, 40.0);
+                    true
+                }
+                " " => {
+                    s.space_pan = true;
+                    true
+                }
+                _ => false,
+            };
+            if handled {
+                s.auto_fit = false;
+                s.dirty = true;
+                e.prevent_default();
+                e.stop_propagation();
+                return;
+            }
+        }
         let n = s.graph.nodes.len();
         if n == 0 {
             return;
@@ -466,6 +524,26 @@ fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<Stat
                     emit(&s, serde_json::json!({ "kind": "focus", "id": id }));
                 }
             }
+            "Tab" if left_hand && !e.shift_key() => {
+                let from = idx.unwrap_or(0);
+                let next = s.graph.edges.iter().find_map(|edge| {
+                    if edge.a == from {
+                        Some(edge.b)
+                    } else if edge.b == from {
+                        Some(edge.a)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(next) = next {
+                    let id = s.graph.nodes[next].id.clone();
+                    s.focus_id = Some(id.clone());
+                    s.dirty = true;
+                    emit(&s, serde_json::json!({"kind":"focus","id":id}));
+                    e.prevent_default();
+                    e.stop_propagation();
+                }
+            }
             "Enter" => {
                 if let Some(i) = idx {
                     e.prevent_default();
@@ -493,6 +571,20 @@ fn install_keyboard(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefCell<Stat
     let target: &web_sys::EventTarget = overlay.as_ref();
     let _ = target.add_event_listener_with_callback("keydown", cb.as_ref().unchecked_ref());
     cb.forget();
+    let key_state = state.clone();
+    let release =
+        Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |event: web_sys::KeyboardEvent| {
+            if event.key() == " " {
+                key_state.borrow_mut().space_pan = false;
+            }
+        });
+    let _ = target.add_event_listener_with_callback("keyup", release.as_ref().unchecked_ref());
+    release.forget();
+    let blur = Closure::<dyn FnMut(web_sys::Event)>::new(move |_| {
+        state.borrow_mut().space_pan = false;
+    });
+    let _ = target.add_event_listener_with_callback("blur", blur.as_ref().unchecked_ref());
+    blur.forget();
 }
 
 #[wasm_bindgen]
@@ -1068,6 +1160,35 @@ impl GraphView {
     pub fn camera_state(&self) -> Vec<f32> {
         let c = &self.state.borrow().camera;
         vec![c.scale, c.cx, c.cy, c.yaw, c.pitch, c.dist]
+    }
+
+    /// Navigation snapshot `[scale, cx, cy, cz, yaw, pitch, dist]`.
+    /// Includes depth while retaining the original six-value `camera_state` API.
+    pub fn navigation_camera_state(&self) -> Vec<f32> {
+        let c = &self.state.borrow().camera;
+        vec![c.scale, c.cx, c.cy, c.cz, c.yaw, c.pitch, c.dist]
+    }
+
+    /// Restore a bounded, finite camera snapshot from session navigation.
+    pub fn restore_camera(&self, values: &[f32]) -> bool {
+        if values.len() != 7
+            || values.iter().any(|x| !x.is_finite())
+            || !(crate::camera::MIN_SCALE..=crate::camera::MAX_SCALE).contains(&values[0])
+            || values[6] <= 0.0
+        {
+            return false;
+        }
+        let mut state = self.state.borrow_mut();
+        state.camera.scale = values[0];
+        state.camera.cx = values[1];
+        state.camera.cy = values[2];
+        state.camera.cz = values[3];
+        state.camera.yaw = values[4];
+        state.camera.pitch = values[5];
+        state.camera.dist = values[6];
+        state.auto_fit = false;
+        state.dirty = true;
+        true
     }
 
     /// The current selection as `{"nodes":[…],"edges":[…]}` — for tests
@@ -1655,8 +1776,16 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                 e.prevent_default();
                 let (x, y) = local(&e);
                 let mut s = st.borrow_mut();
+                if e.button() > 2 {
+                    return;
+                }
                 s.drag_moved = false;
                 s.press = (x, y);
+                if e.button() == 1 || s.space_pan {
+                    s.dragging = Drag::Pan { last: (x, y) };
+                    s.auto_fit = false;
+                    return;
+                }
                 if e.pointer_type() == "touch" {
                     // Keep receiving moves after the finger leaves the canvas.
                     let _ = el.set_pointer_capture(e.pointer_id());
@@ -1991,6 +2120,25 @@ fn install_pointer_handlers(overlay: &web_sys::HtmlCanvasElement, state: Rc<RefC
                         }
                     }
                     return; // a released pan or node move is not a pick
+                }
+                if s.space_pan {
+                    return;
+                }
+                if e.button() == 1 {
+                    if let Some(i) = s
+                        .camera
+                        .hit(&s.graph, x, y)
+                        .filter(|i| node_visible(&s.graph, *i))
+                    {
+                        emit(
+                            &s,
+                            serde_json::json!({"kind":"openBeside", "id":s.graph.nodes[i].id}),
+                        );
+                    }
+                    return;
+                }
+                if e.button() != 0 {
+                    return;
                 }
                 if let Some(i) = s
                     .camera

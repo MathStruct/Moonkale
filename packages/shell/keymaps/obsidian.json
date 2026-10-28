@@ -1,0 +1,7 @@
+{
+  "markdown.toggleMode": "Ctrl+E",
+  "workspace.openFolder": "Ctrl+Alt+O",
+  "view.quickOpen": "Ctrl+O",
+  "view.palette": "Ctrl+P",
+  "search.workspace": "Ctrl+Shift+F"
+}

@@ -196,6 +196,10 @@ fn menus(
             label: tl!(lang, "menu-unfold-all"),
             id: "editor.unfoldAll",
         },
+        Item::Cmd {
+            label: tl!(lang, "input-split"),
+            id: "editor.split",
+        },
         Item::Sep,
         Item::Cmd {
             label: tl!(lang, "menu-new-window"),
@@ -219,6 +223,15 @@ fn menus(
         });
     }
     let edit = vec![
+        Item::Cmd {
+            label: tl!(lang, "input-back"),
+            id: "navigation.back",
+        },
+        Item::Cmd {
+            label: tl!(lang, "input-forward"),
+            id: "navigation.forward",
+        },
+        Item::Sep,
         Item::Cmd {
             label: tl!(lang, "menu-undo"),
             id: "edit.undo",

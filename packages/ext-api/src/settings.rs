@@ -64,6 +64,12 @@ pub struct SettingsFile {
     /// string unbinds. Later scopes override per id.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub keybindings: BTreeMap<String, String>,
+    /// Base keymap; user command bindings always override it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keymap: Option<String>,
+    /// Mouse input name → command id; empty disables it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub mouse: BTreeMap<String, String>,
     /// The theme (spec 030): `dark`, `light`, `system` (follow the OS), or
     /// the name of a theme file / an extension's theme.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -453,6 +459,8 @@ impl SettingsFile {
         for (id, key) in &other.keybindings {
             self.keybindings.insert(id.clone(), key.clone());
         }
+        self.mouse.extend(other.mouse.clone());
+        self.keymap = other.keymap.clone().or(self.keymap.take());
         self.shortcut_nudges = other.shortcut_nudges.or(self.shortcut_nudges);
         self.theme = other.theme.clone().or(self.theme.take());
         self.language = other.language.clone().or(self.language.take());
@@ -522,6 +530,12 @@ pub struct Settings {
     pub extensions: ExtensionsSettings,
     /// Command id → keybinding.
     pub keybindings: BTreeMap<String, String>,
+    /// Active base keymap (`moonkale`, `vscode`, `obsidian`, `left-hand`).
+    #[serde(default)]
+    pub keymap: String,
+    /// Mouse overrides, layered per button.
+    #[serde(default)]
+    pub mouse: BTreeMap<String, String>,
     /// The theme's name (`dark`, `light`, `system`, or a theme file's).
     pub theme: String,
     /// Quiet, once-per-command shortcut hints after mouse use.
@@ -703,6 +717,8 @@ impl Default for Settings {
                 ..Default::default()
             },
             keybindings: BTreeMap::new(),
+            keymap: "moonkale".into(),
+            mouse: BTreeMap::new(),
             user_name: default_user_name(),
             extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
@@ -866,6 +882,12 @@ impl Settings {
                 rich_code_font: merged.editor.rich_code_font.unwrap_or_default(),
             },
             keybindings: merged.keybindings.clone(),
+            mouse: merged.mouse.clone(),
+            keymap: merged
+                .keymap
+                .clone()
+                .filter(|p| ["moonkale", "vscode", "obsidian", "left-hand"].contains(&p.as_str()))
+                .unwrap_or(d.keymap),
             user_name: merged.user_name.clone().unwrap_or_else(default_user_name),
             extensions: ExtensionsSettings {
                 enabled: merged.extensions.enabled,
@@ -1413,5 +1435,38 @@ mod code_graph_tests {
         assert_eq!(base.code_graph.source, Some(CodeGraphSource::Auto));
         assert_eq!(SettingsFile::parse(&base.to_json()).unwrap(), base);
         assert!(SettingsFile::parse(r#"{"code_graph":{"source":"other"}}"#).is_err());
+    }
+}
+
+#[cfg(test)]
+mod input_layout_tests {
+    use super::*;
+    #[test]
+    fn preset_changes_keep_scoped_overrides_and_mouse_buttons() {
+        let user = SettingsFile {
+            keymap: Some("obsidian".into()),
+            keybindings: BTreeMap::from([("file.save".into(), "F24".into())]),
+            mouse: BTreeMap::from([("back".into(), "help.shortcuts".into())]),
+            ..Default::default()
+        };
+        let folder = SettingsFile {
+            keymap: Some("vscode".into()),
+            mouse: BTreeMap::from([("middle".into(), String::new())]),
+            ..Default::default()
+        };
+        let settings = Settings::resolve(&user, &folder, &SettingsFile::default());
+        assert_eq!(settings.keymap, "vscode");
+        assert_eq!(settings.keybindings["file.save"], "F24");
+        assert_eq!(settings.mouse["back"], "help.shortcuts");
+        assert_eq!(settings.mouse["middle"], "");
+        assert_eq!(
+            Settings::resolve(
+                &SettingsFile::default(),
+                &SettingsFile::default(),
+                &SettingsFile::default()
+            )
+            .keymap,
+            "moonkale"
+        );
     }
 }

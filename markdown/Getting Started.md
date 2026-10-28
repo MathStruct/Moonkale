@@ -69,3 +69,44 @@ choice is saved with your other user or workspace settings. Run **Check the
 cache** from `Ctrl+Shift+P` to compare it with the current files. It reports
 `same`, or the differing keys and a rebuild; problems also go to the runtime
 log. Deleting the derived cache loses no authored code.
+
+
+## Choose your input layout
+
+Settings → **Keybindings** offers Moonkale, VS Code, Obsidian and **Left hand +
+mouse**. Your own overrides stay above the chosen preset. F1 shows the current
+bindings and mouse map; holding Ctrl/Cmd shows key tips on visible controls.
+`Ctrl` below means Cmd on a Mac. These are defaults; F1 reflects your overrides.
+
+| Action | Moonkale / VS Code | Obsidian |
+|---|---|---|
+| Go to File | Ctrl+P | Ctrl+O |
+| Command palette | Ctrl+Shift+P | Ctrl+P |
+| Open Folder | Ctrl+O | Ctrl+Alt+O |
+| Save | Ctrl+S | Ctrl+S |
+| Search workspace | Ctrl+Shift+F | Ctrl+Shift+F |
+| Go to definition | F12 | F12 |
+| Find references | Shift+F12 | Shift+F12 |
+| Toggle comment | Ctrl+/ position | Ctrl+/ position |
+| Toggle side bar | Ctrl+B | Ctrl+B |
+| Toggle bottom panel | Ctrl+J | Ctrl+J |
+
+Obsidian also gives **Ctrl+E** for Markdown Source/Rich. Punctuation follows the
+US physical key position: for example, the comment shortcut is Ctrl+- on a
+German keyboard. Labels follow your layout when the platform provides it;
+otherwise Settings explains the US-label fallback.
+
+A five-button mouse gives **back/forward** through document and graph-camera
+visits. **Middle-click** opens files and supported graph/link/reference targets
+in a background tab, closes a tab, or pans a canvas. In Go to File, **Alt+Enter**
+opens in background; the Explorer context menu offers the same action.
+The left-hand preset keeps WASD/QE/F and Space near the mouse hand's partner;
+its keys act only on the focused canvas or table. See [[Input Layouts]].
+
+To use extra gamer-mouse buttons, map them to **F13–F24** in Piper or
+input-remapper on Linux, or the mouse vendor's software on Windows/macOS.
+Focus the **Test a key or button** field in Settings to check the mapping,
+then assign that F-key to a command in the binding editor. The field observes
+only its own input. Existing defaults include F14 palette, F16 graph scope,
+F17 definition, F18 references, F19 Run/Generate and F22 split right. F-keys
+reserved for features not built yet, and F23/F24, remain free.

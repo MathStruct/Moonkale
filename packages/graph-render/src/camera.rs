@@ -12,6 +12,9 @@ use crate::graph::{Graph, Shape};
 /// zoomed-out graph stays a cloud of dots rather than vanishing.
 pub const MIN_SCALE: f32 = 0.002;
 
+/// Maximum magnification for explicit 2D zoom.
+pub const MAX_SCALE: f32 = 20.0;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Camera {
     /// World point at the viewport centre (2D) / orbit target (3D).
@@ -260,7 +263,7 @@ impl Camera {
             return;
         }
         let (wx, wy) = self.screen_to_world(sx, sy);
-        self.scale = (self.scale * factor).clamp(MIN_SCALE, 20.0);
+        self.scale = (self.scale * factor).clamp(MIN_SCALE, MAX_SCALE);
         let (nx, ny) = self.screen_to_world(sx, sy);
         self.cx += wx - nx;
         self.cy += wy - ny;

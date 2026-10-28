@@ -152,6 +152,8 @@ fn FrameContent(
         moonkale_ext_api::CommandBindings(Signal::new(std::collections::BTreeMap::new()))
     })
     .0;
+    let layout_labels = use_signal(std::collections::BTreeMap::<String, String>::new);
+    use_hook(move || crate::input_layouts::install(ws, layout_labels));
     let mut palette: crate::palette::PaletteState = use_context_provider(|| Signal::new(None));
     use_context_provider(|| crate::palette::SearchSeed(Signal::new(String::new())));
     let sheet: crate::discovery::CheatSheetState = use_context_provider(|| Signal::new(false));
@@ -188,21 +190,14 @@ fn FrameContent(
     {
         let exts = exts.clone();
         use_effect(move || {
-            let next = crate::commands::Registry::build(&exts, ws);
+            let mut next = crate::commands::Registry::build(&exts, ws);
+            next.layout = layout_labels.read().clone();
+            crate::input_layouts::publish(ws, &next);
             if **registry.peek() != next {
                 bindings.set(
                     next.entries
                         .iter()
-                        .map(|entry| {
-                            (
-                                entry.id.clone(),
-                                entry
-                                    .binding
-                                    .as_ref()
-                                    .map(|binding| binding.display())
-                                    .unwrap_or_default(),
-                            )
-                        })
+                        .map(|entry| (entry.id.clone(), next.shortcut(&entry.id)))
                         .collect(),
                 );
                 registry.set(Rc::new(next));
@@ -583,11 +578,12 @@ fn FrameContent(
             // own error state); everything else that bubbles here is looked up.
             onkeydown: move |e| {
                 let m = e.modifiers();
+                if e.is_composing() || (m.ctrl() && m.alt() && !m.meta()) { return; }
                 let key = key_name(&e.key());
                 if key.is_empty() {
                     return;
                 }
-                if crate::commands::handle_key(ws, moonkale_ext_api::keys::primary(&m), m.shift(), m.alt(), &key) {
+                if crate::commands::handle_event(ws, moonkale_ext_api::keys::primary(&m), m.shift(), m.alt(), &key, &format!("{:?}", e.code())) {
                     e.prevent_default();
                     e.stop_propagation();
                 }
@@ -717,6 +713,19 @@ fn key_name(key: &Key) -> String {
         Key::F10 => "F10".into(),
         Key::F11 => "F11".into(),
         Key::F12 => "F12".into(),
+        Key::F13 => "F13".into(),
+        Key::F14 => "F14".into(),
+        Key::F15 => "F15".into(),
+        Key::F16 => "F16".into(),
+        Key::F17 => "F17".into(),
+        Key::F18 => "F18".into(),
+        Key::F19 => "F19".into(),
+        Key::F20 => "F20".into(),
+        Key::F21 => "F21".into(),
+        Key::F22 => "F22".into(),
+        Key::F23 => "F23".into(),
+        Key::F24 => "F24".into(),
+
         _ => String::new(),
     }
 }
@@ -753,6 +762,7 @@ if (!window.__mkLinkGuard) {
 
 const GLOBAL_KEYS: &str = r#"
 document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.isComposing || e.getModifierState("AltGraph") || (e.ctrlKey && e.altKey)) return;
     const fkey = /^F\d{1,2}$/.test(e.key);
     if (!(e.ctrlKey || e.metaKey || e.altKey || fkey)) return;
     const t = e.target;

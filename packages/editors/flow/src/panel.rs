@@ -720,7 +720,7 @@ let view;
 // (a `moved` carries its positions, a `select` the first node's screen)
 // because the host cannot call back into the view from inside an event
 // — the engine holds its state borrow while emitting.
-const onEvent = (ev) => dioxus.send(ev);
+const onEvent = (ev) => { if (ev.kind !== "openBeside") dioxus.send(ev); };
 try {
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("renderer did not start within 15s")), 15000));
     const prefer = /\bAndroid\b/.test(navigator.userAgent) && /\bwv\b/.test(navigator.userAgent) ? "gl" : null;
@@ -1094,7 +1094,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         .cloned()
         .collect();
     let generate = move |lib: FlowLibrary| {
-        let flow = flow.read().clone();
+        let flow = flow.peek().clone();
         moonkale_ext_api::crash::spawn(async move {
             let Some(gen) = lib.codegen else { return };
             match gen(&flow, &lib) {
@@ -1169,6 +1169,21 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             }
         });
     };
+
+    moonkale_ext_api::crash::use_effect({
+        let libraries = generators.clone();
+        move || {
+            if matches!(
+                ws.shell.commands.read().1,
+                Some(moonkale_ext_api::Command::RunDocument)
+            ) && *ws.docs.active.peek() == Some(node)
+            {
+                if let Some(lib) = libraries.iter().find(|lib| lib.codegen.is_some()) {
+                    generate(lib.clone());
+                }
+            }
+        }
+    });
 
     // A palette pick adds a block on a 3-column grid, as before. The
     // kinds resolve against the libraries as they are now, so a library

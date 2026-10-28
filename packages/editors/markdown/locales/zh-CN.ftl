@@ -35,3 +35,5 @@ md-katex-ignored = 已忽略 { $file }：{ $error }
 typst-pages = { $n } 页
 typst-compiling =  · 编译中…
 typst-unsafe-svg = 此页面未显示：生成的 SVG 包含脚本或嵌入的 HTML。
+
+md-toggle-mode = Markdown：切换源码与富文本

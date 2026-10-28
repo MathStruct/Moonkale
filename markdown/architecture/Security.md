@@ -398,3 +398,17 @@ Focus restoration accepts only real outer workbench panels and matching tab
 buttons outside panel content. A nested content element imitating workbench
 classes or `aria-labelledby` cannot cause an automatic click on another
 control; the shortcut-discovery browser suite includes that regression.
+
+
+WP-61 (2026-10-28): input adapters send only command/button ids and bounded
+platform layout labels (256 entries, 32-byte codes, 64-byte labels). The input
+monitor runs only in its dedicated Settings field; document and secret typing
+are not retained. Browser side-button defaults are prevented even when unbound.
+Rust checks command ids against the enabled registry. Keymap files are bundled
+JSON data, with scoped explicit overrides; no document content becomes script,
+HTML or a command. Session navigation retains at most 256 node ids or finite
+seven-number camera states, is window-local and is not persisted. Camera restores
+validate magnification/distance; host-created ids and numbers cross the adapter
+as serde-escaped JSON. Background opens use the existing Source reads, identity
+and guarded document paths, without new writes or connection authority. The
+new input paths add no dependency or server permission.

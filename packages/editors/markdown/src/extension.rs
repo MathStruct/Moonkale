@@ -44,6 +44,35 @@ impl Extension for LinksExtension {
         L
     }
 
+    fn commands(&self, ws: Workspace) -> Vec<moonkale_ext_api::CommandContribution> {
+        vec![moonkale_ext_api::CommandContribution::new(
+            "markdown.toggleMode",
+            t!(ws, L, "md-toggle-mode"),
+        )]
+    }
+
+    fn run_command(&self, id: &str, ws: Workspace) {
+        if id != "markdown.toggleMode" {
+            return;
+        }
+        let Some((node, doc)) = ws.active_document() else {
+            return;
+        };
+        if !is_markdown(&doc.peek().node) {
+            return;
+        }
+        let current = self
+            .rich
+            .peek()
+            .get(&node)
+            .copied()
+            .unwrap_or(ws.settings.resolved.peek().editor.markdown_rich);
+        let mut rich = self.rich;
+        rich.with_mut(|modes| {
+            modes.insert(node, !current);
+        });
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest::optional(
             "dev.moonkale.editor-markdown",

@@ -39,3 +39,5 @@ typst-pages =
     }
 typst-compiling =  · compiling…
 typst-unsafe-svg = This page was not shown: the compiled SVG contained script or embedded HTML.
+
+md-toggle-mode = Markdown: Toggle Source / Rich

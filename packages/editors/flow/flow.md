@@ -44,3 +44,10 @@ If LOD removes a captured header before pointer-up, the host closes that gesture
 
 
 WP-64 (2026-10-28): Save uses the shared file.save command binding for its tooltip and hold-Ctrl badge.
+
+
+WP-61 shares the engine's focused left-hand camera controls and preserves
+flow's R/M orientation actions. Middle dragging always pans, including over
+ports/nodes. The host ignores the engine's background-open event for flow
+blocks. F19 (`RunDocument`) generates with the first applicable library, using
+the active document only; the normal generator validation/save path still runs.

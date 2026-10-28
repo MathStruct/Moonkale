@@ -98,3 +98,11 @@ results are keyed to the current selection. Shared content bodies with several
 file locations have no automatic target.
 The review dropdown marks its selected option explicitly when asynchronous
 function options arrive, so the visible choice matches the review target.
+
+
+WP-61 records camera state at pointer/wheel gesture boundaries, debounced
+180 ms, into the workspace's bounded visit history. Restore uses the engine's
+finite numeric API. Middle-click emits `openBeside`; file/symbol ownership is
+resolved through the existing source/index paths and loaded without activation.
+The left-hand preset gives the focused overlay WASD/QE/F/Space/Tab controls;
+G and the rebindable F16 command toggle Local/Whole.

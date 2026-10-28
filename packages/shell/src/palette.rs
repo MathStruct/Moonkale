@@ -158,16 +158,23 @@ pub fn Palette() -> Element {
 
     let choose = Callback::new({
         let items = items.clone();
-        move |i: usize| {
+        move |(i, background): (usize, bool)| {
             let Some(item) = items.get(i).cloned() else {
                 return;
             };
+            if background && item.command {
+                return;
+            }
             state.set(None);
             if item.command {
                 commands::run(&item.key, ws);
             } else {
                 let path = item.key.clone();
                 spawn(async move {
+                    if background {
+                        let _ = ws.load_relative_path(&path).await;
+                        return;
+                    }
                     match ws.open_relative_path(&path).await {
                         Ok(node) => {
                             if let Some(line) = goto_line {
@@ -204,7 +211,7 @@ pub fn Palette() -> Element {
                         match e.key() {
                             Key::ArrowDown => { e.prevent_default(); selected.set((sel + 1).min(count.saturating_sub(1))); }
                             Key::ArrowUp => { e.prevent_default(); selected.set(sel.saturating_sub(1)); }
-                            Key::Enter => { e.prevent_default(); choose.call(sel); }
+                            Key::Enter => { e.prevent_default(); choose.call((sel, e.modifiers().alt())); }
                             Key::Escape => { e.prevent_default(); state.set(None); }
                             _ => {}
                         }
@@ -222,7 +229,10 @@ pub fn Palette() -> Element {
                             "data-key": "{item.key}",
                             "data-command-id": if item.command { item.key.as_str() } else { "" },
                             onmousedown: move |e| e.prevent_default(),
-                            onclick: move |_| choose.call(i),
+                            onclick: move |_| choose.call((i, false)),
+                            onauxclick: move |e| {
+                                if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { e.prevent_default(); choose.call((i, true)); }
+                            },
                             span { class: "mk-palette-label", "{item.label}" }
                             span { class: "mk-palette-detail", "{item.detail}" }
                         }

@@ -34,7 +34,7 @@ impl CommandContribution {
 }
 
 /// A parsed keybinding: modifiers plus one key name (lower case for
-/// characters, `F1`…`F12`, `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`,
+/// characters, `F1`…`F24`, `Enter`, `Escape`, `Tab`, `Backspace`, `Delete`,
 /// `Space`, `ArrowUp`… as the DOM names them). `Ctrl` means the platform's
 /// primary modifier — Cmd on macOS, Ctrl elsewhere (spec 027) — so one
 /// table serves every platform; `crate::keys::primary` decides per event.
@@ -89,6 +89,38 @@ impl Keybinding {
             && self.key == normalize_key(key)
     }
 
+    /// Match punctuation by US physical position, letters by their logical key.
+    /// Composition and AltGraph must be rejected by the platform adapter.
+    pub fn matches_event(
+        &self,
+        primary: bool,
+        shift: bool,
+        alt: bool,
+        key: &str,
+        code: &str,
+    ) -> bool {
+        let physical = punctuation_code(&self.key);
+        self.ctrl == primary
+            && self.shift == shift
+            && self.alt == alt
+            && match physical {
+                Some(position) if !code.is_empty() => position == code,
+                _ => self.key == normalize_key(key),
+            }
+    }
+
+    /// Display a positional binding using the platform's current layout labels.
+    pub fn display_with_layout(
+        &self,
+        layout: &std::collections::BTreeMap<String, String>,
+    ) -> String {
+        let mut label = self.clone();
+        if let Some(value) = punctuation_code(&self.key).and_then(|code| layout.get(code)) {
+            label.key = value.clone();
+        }
+        label.display()
+    }
+
     /// Human form for menus and the palette: `Ctrl+Shift+P` (`Cmd+Shift+P`
     /// on a Mac).
     pub fn display(&self) -> String {
@@ -106,6 +138,24 @@ impl Keybinding {
         s.push_str(&display_key(&self.key));
         s
     }
+}
+
+/// US punctuation positions used in portable shortcut definitions.
+pub fn punctuation_code(key: &str) -> Option<&'static str> {
+    Some(match key {
+        "/" => "Slash",
+        "[" => "BracketLeft",
+        "]" => "BracketRight",
+        "\\" => "Backslash",
+        "`" => "Backquote",
+        "," => "Comma",
+        "." => "Period",
+        ";" => "Semicolon",
+        "'" => "Quote",
+        "-" => "Minus",
+        "=" => "Equal",
+        _ => return None,
+    })
 }
 
 fn normalize_key(key: &str) -> String {
@@ -336,5 +386,30 @@ mod presentation_tests {
             rsx! {}
         }
         VirtualDom::new(app).rebuild_in_place();
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+    #[test]
+    fn punctuation_is_physical_and_letters_are_logical() {
+        let slash = Keybinding::parse("Ctrl+/").unwrap();
+        for key in ["/", "-", ":", "z"] {
+            assert!(slash.matches_event(true, false, false, key, "Slash"));
+        }
+        assert!(!slash.matches_event(true, false, false, "/", "Digit7"));
+        assert!(!slash.matches_event(true, false, true, "/", "Slash"));
+        let undo = Keybinding::parse("Ctrl+Z").unwrap();
+        assert!(undo.matches_event(true, false, false, "z", "KeyY"));
+        assert!(!undo.matches_event(true, false, false, "y", "KeyZ"));
+        let layout = std::collections::BTreeMap::from([("Slash".into(), "-".into())]);
+        assert!(slash.display_with_layout(&layout).ends_with("+-"));
+        for n in 13..=24 {
+            let text = format!("F{n}");
+            assert!(Keybinding::parse(&text)
+                .unwrap()
+                .matches_event(false, false, false, &text, &text));
+        }
     }
 }

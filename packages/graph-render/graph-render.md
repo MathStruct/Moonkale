@@ -309,3 +309,15 @@ fixture tests the source-native query seam; it does not pretend to generate or
 transfer a million-node snapshot in the browser. Default coarse queries still
 materialise a bounded complete source snapshot, or walk folder metadata, and
 cached source cuts/layouts remain an optimization seam.
+
+
+WP-61 adds finite `restore_camera` snapshots and `openBeside` for unmoved
+middle clicks. Middle/held-Space drags bypass node/port picking and pan. The
+focused canvas reads the host's left-hand preset attribute for WASD/QE/F/Space
+and Tab along an edge; text owners never send these canvas keyboard events.
+The committed wasm/JS assets are rebuilt with this change.
+
+Navigation snapshots include the 3D target depth (`cz`) without changing the
+existing six-value `camera_state` inspection API. Left-hand pan/zoom reuse
+`Camera::pan` and `zoom_at`, so 3D moves in the camera plane and zoom dollies.
+Restore accepts explicit magnification up to the same `MAX_SCALE` as wheel zoom.

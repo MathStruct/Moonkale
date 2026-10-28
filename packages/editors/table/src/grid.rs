@@ -188,6 +188,10 @@ pub fn next_sort(current: Option<(usize, bool)>, column: usize) -> Option<(usize
 /// A cursor move on the keyboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
+    /// Next cell in row order.
+    Next,
+    /// Previous cell in row order.
+    Previous,
     Up,
     Down,
     Left,
@@ -220,6 +224,10 @@ pub fn step(
     let (r, c) = (r.min(last_r), c.min(last_c));
     let page = page.max(1);
     match mv {
+        Move::Next if c == last_c && r < last_r => (r + 1, 0),
+        Move::Next => (r, (c + 1).min(last_c)),
+        Move::Previous if c == 0 && r > 0 => (r - 1, last_c),
+        Move::Previous => (r, c.saturating_sub(1)),
         Move::Up => (r.saturating_sub(1), c),
         Move::Down => ((r + 1).min(last_r), c),
         Move::Left => (r, c.saturating_sub(1)),

@@ -27,6 +27,7 @@ mod documents;
 mod extensions;
 pub mod grouped_edits;
 mod history;
+mod navigation;
 mod processes;
 pub mod proposals;
 mod remote;
@@ -38,6 +39,7 @@ pub use config::*;
 pub use documents::DocsState;
 pub use extensions::ContribState;
 pub use history::{event_key, EventRecord, HistoryState};
+pub use navigation::NavigationState;
 pub use processes::ProcessesState;
 pub use remote::RemoteLinks;
 pub use session::SessionState;
@@ -74,6 +76,8 @@ pub struct Workspace {
     pub docs: DocsState,
     /// The entity log.
     pub history: HistoryState,
+    /// Document and camera visits in this window.
+    pub navigation: NavigationState,
     /// The resolved settings and their scopes.
     pub settings: SettingsState,
     /// Status line, commands, closed panels.
@@ -107,6 +111,7 @@ impl Workspace {
             sources: SourcesState::new(),
             docs: DocsState::new(),
             history: HistoryState::new(),
+            navigation: NavigationState::new(),
             settings: SettingsState::new(),
             shell: ShellState::new(),
             contrib: ContribState::new(),

@@ -15,6 +15,7 @@ use std::rc::Rc;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Run {
     CheatSheet,
+    Navigate(bool),
     Builtin(Command),
     /// Index into the extension list.
     Extension(usize),
@@ -33,6 +34,7 @@ pub struct Entry {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Registry {
     pub entries: Vec<Entry>,
+    pub layout: std::collections::BTreeMap<String, String>,
 }
 
 /// The shell's own commands. Undo/Redo stay unbound here: the editors own
@@ -209,6 +211,7 @@ impl Registry {
     /// id wins on a clash), with `settings.keybindings` applied last.
     pub fn build(exts: &[Box<dyn Extension>], ws: Workspace) -> Self {
         let settings = ws.settings.resolved.read();
+        let preset = preset(&settings.keymap);
         let mut entries: Vec<Entry> = Vec::new();
         let mut push = |c: CommandContribution, run: Run| {
             if entries.iter().any(|e| e.id == c.id) {
@@ -217,13 +220,17 @@ impl Registry {
                 }
                 return;
             }
+            let base = preset
+                .get(&c.id)
+                .map(String::as_str)
+                .or(c.keybinding.as_deref());
             let binding = match settings.keybindings.get(&c.id) {
                 Some(text) if text.is_empty() => None,
                 Some(text) => Keybinding::parse(text).or_else(|| {
                     tracing::warn!("commands: cannot parse keybinding {text:?} for {}", c.id);
-                    c.keybinding.as_deref().and_then(Keybinding::parse)
+                    base.and_then(Keybinding::parse)
                 }),
-                None => c.keybinding.as_deref().and_then(Keybinding::parse),
+                None => base.and_then(Keybinding::parse),
             };
             entries.push(Entry {
                 id: c.id,
@@ -239,6 +246,67 @@ impl Registry {
             CommandContribution::new("help.shortcuts", t!(ws, L, "cmd-help-shortcuts")).key("F1"),
             Run::CheatSheet,
         );
+        for (id, label, key, forward) in [
+            ("navigation.back", "input-back", "Alt+ArrowLeft", false),
+            (
+                "navigation.forward",
+                "input-forward",
+                "Alt+ArrowRight",
+                true,
+            ),
+        ] {
+            push(
+                CommandContribution::new(
+                    id,
+                    moonkale_ext_api::i18n::tr(L, &ws.lang(), label, None),
+                )
+                .key(key),
+                Run::Navigate(forward),
+            );
+        }
+        for (id, label, key, command) in [
+            (
+                "editor.split",
+                t!(ws, L, "input-split"),
+                "F22",
+                Command::SplitEditor,
+            ),
+            (
+                "graph.toggleLocal",
+                t!(ws, L, "input-toggle-graph"),
+                "F16",
+                Command::ToggleGraphScope,
+            ),
+            (
+                "input.run",
+                t!(ws, L, "input-run"),
+                "F19",
+                Command::RunDocument,
+            ),
+            (
+                "input.palette",
+                t!(ws, L, "cmd-view-palette"),
+                "F14",
+                Command::Palette,
+            ),
+            (
+                "input.definition",
+                t!(ws, L, "cmd-editor-definition"),
+                "F17",
+                Command::Editor(EditorAction::Definition),
+            ),
+            (
+                "input.references",
+                t!(ws, L, "cmd-editor-references"),
+                "F18",
+                Command::Editor(EditorAction::References),
+            ),
+        ] {
+            push(
+                CommandContribution::new(id, label).key(key),
+                Run::Builtin(command),
+            );
+        }
         for (i, ext) in exts.iter().enumerate() {
             if !settings.extensions.is_enabled(&ext.manifest())
                 || !ws.crashes.allows(&ext.manifest())
@@ -263,7 +331,11 @@ impl Registry {
                 );
             }
         }
-        Self { entries }
+        entries.sort_by_key(|entry| !settings.keybindings.contains_key(&entry.id));
+        Self {
+            entries,
+            layout: Default::default(),
+        }
     }
 
     pub fn find(&self, id: &str) -> Option<&Entry> {
@@ -289,7 +361,7 @@ impl Registry {
     pub fn shortcut(&self, id: &str) -> String {
         self.find(id)
             .and_then(|e| e.binding.as_ref())
-            .map(Keybinding::display)
+            .map(|binding| binding.display_with_layout(&self.layout))
             .unwrap_or_default()
     }
 }
@@ -306,6 +378,7 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
         return false;
     };
     match &entry.run {
+        Run::Navigate(forward) => ws.navigate(*forward),
         Run::CheatSheet => {
             let mut sheet = consume_context::<crate::discovery::CheatSheetState>();
             sheet.set(true);
@@ -334,5 +407,112 @@ pub fn handle_key(ws: Workspace, ctrl_or_meta: bool, shift: bool, alt: bool, key
     match id {
         Some(id) => run(&id, ws),
         None => false,
+    }
+}
+
+/// Presets are a base layer; explicit user overrides (including empty) win.
+fn preset(name: &str) -> std::collections::BTreeMap<String, String> {
+    let data = match name {
+        "vscode" => include_str!("../keymaps/vscode.json"),
+        "obsidian" => include_str!("../keymaps/obsidian.json"),
+        "left-hand" => include_str!("../keymaps/left-hand.json"),
+        _ => "{}",
+    };
+    serde_json::from_str(data).expect("bundled keymap")
+}
+
+/// The contextual middle-button action stays with the target; side buttons
+/// always suppress page navigation, even when explicitly disabled.
+pub fn mouse_command(ws: Workspace, button: &str) -> String {
+    ws.settings
+        .resolved
+        .read()
+        .mouse
+        .get(button)
+        .cloned()
+        .unwrap_or_else(|| {
+            match button {
+                "back" => "navigation.back",
+                "forward" => "navigation.forward",
+                "middle" => "contextual",
+                _ => "",
+            }
+            .into()
+        })
+}
+
+/// Resolve a full platform keyboard event without logical punctuation fallback.
+pub fn handle_event(
+    ws: Workspace,
+    primary: bool,
+    shift: bool,
+    alt: bool,
+    key: &str,
+    code: &str,
+) -> bool {
+    let registry = consume_context::<CommandRegistry>();
+    let id = registry
+        .peek()
+        .entries
+        .iter()
+        .find(|entry| {
+            entry
+                .binding
+                .as_ref()
+                .is_some_and(|binding| binding.matches_event(primary, shift, alt, key, code))
+        })
+        .map(|entry| entry.id.clone());
+    id.is_some_and(|id| run(&id, ws))
+}
+
+#[cfg(test)]
+mod preset_tests {
+    use super::*;
+    #[test]
+    fn presets_and_user_unbinding_resolve_once_for_every_surface() {
+        fn app() -> Element {
+            let mut ws = Workspace::new(moonkale_ext_api::WorkspaceConfig {
+                folders: moonkale_ext_api::FolderAccess {
+                    open: |_, _| Box::pin(async { Ok(Vec::new()) }),
+                    pick: None,
+                    attach: |_| Box::pin(async { Err(moonkale_core::SourceError::NotFound) }),
+                    reopen_last: false,
+                    openers: &moonkale_core::source::opener::NO_OPENERS,
+                },
+                processes: Default::default(),
+                persistence: Default::default(),
+                network: Default::default(),
+                runtimes: Default::default(),
+                services: &[],
+            });
+            let mut settings = moonkale_ext_api::Settings {
+                keymap: "obsidian".into(),
+                ..Default::default()
+            };
+            settings
+                .keybindings
+                .insert("view.palette".into(), "F24".into());
+            settings
+                .keybindings
+                .insert("editor.toggleComment".into(), String::new());
+            ws.settings.resolved.set(settings.clone());
+            let registry = Registry::build(&[], ws);
+            assert_eq!(
+                registry.resolve_key(true, false, false, "o").unwrap().id,
+                "view.quickOpen"
+            );
+            assert_eq!(
+                registry.resolve_key(false, false, false, "F24").unwrap().id,
+                "view.palette"
+            );
+            assert_eq!(registry.shortcut("editor.toggleComment"), "");
+            settings.keymap = "vscode".into();
+            ws.settings.resolved.set(settings);
+            let registry = Registry::build(&[], ws);
+            assert_eq!(registry.shortcut("view.palette"), "F24");
+            assert_eq!(registry.shortcut("editor.toggleComment"), "");
+            rsx! {}
+        }
+        VirtualDom::new(app).rebuild_in_place();
     }
 }

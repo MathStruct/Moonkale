@@ -12,6 +12,24 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — 2026-10-28 (WP-61)
+
+- `SettingsFile` and resolved `Settings` gain `keymap` and per-button `mouse`
+  maps. Older files retain the Moonkale/default mouse map; full struct literals
+  need these fields or `..Default::default()`.
+- `Workspace.navigation` / `NavigationState` retain up to 256 window-local
+  document/camera visits. `visit_camera`, `navigate` and `load_relative_path`
+  are additive. Foreground document activation records visits; guarded
+  background loading does not activate or record a visit.
+- `Command` adds `ToggleGraphScope`, `RunDocument` and `SplitEditor`; callers
+  with exhaustive matches must handle them. `Keybinding::matches_event`,
+  `display_with_layout` and `punctuation_code` support physical punctuation
+  and platform labels; existing logical matcher/display methods remain.
+- graph-render adds seven-coordinate `navigation_camera_state` /
+  `restore_camera` snapshots, retaining the original `camera_state` API, and
+  `openBeside` events on unmoved middle clicks. Middle drags always pan.
+  Host event consumers must tolerate/handle the new event kind.
+
 ## Unreleased — 2026-10-28 (WP-64)
 
 - `SettingsFile.shortcut_nudges` (optional) and resolved

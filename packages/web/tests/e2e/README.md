@@ -702,3 +702,12 @@ persisted once-only mouse nudges and their disable setting, utility-panel focus,
 `graph-a11y` checks printable/slash search and focus restoration on the actual
 Chromium-rendered canvas. `lsp2` checks CodeMirror rename/reference/action focus
 and editor return; it also runs against the native editor with `LSP_EDITOR=native`. These three suites use the normal smoke feature set.
+
+WP-61 input layout suites (smoke feature set): `mouse.mjs` exercises thumb-button
+document/camera history, background tree opening, middle pan/tab closing and mouse
+overrides. `keymaps.mjs` checks preset layering, F14/F24, German layout labels,
+physical Slash on simulated QWERTZ/AZERTY/Dvorak and composition/AltGr exclusion,
+plus focused left-hand graph controls. These use Chromium software WebGL.
+The keyboard-layout cases inject DOM key/code pairs; they do not change the OS
+keyboard or exercise a real IME. Desktop WebKit and Android input remain manual
+platform checks.
