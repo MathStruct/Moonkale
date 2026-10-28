@@ -58,6 +58,7 @@ pub struct FolderReport {
 pub struct FolderStore {
     root: PathBuf,
     truth: moonkale_core::SourceTruth,
+    budget_evicted: std::sync::atomic::AtomicBool,
     imports: std::sync::Mutex<import_edges::SyntaxCache>,
 }
 impl FolderStore {
@@ -67,6 +68,7 @@ impl FolderStore {
         let this = Self {
             root,
             truth,
+            budget_evicted: Default::default(),
             imports: Default::default(),
         };
         this.check_path()?;
@@ -96,6 +98,18 @@ impl FolderStore {
         }
         Ok(this)
     }
+    /// Once evicted, use the memory index until this folder is reopened.
+    pub fn check_budget_active(&self) -> Result<(), SourceError> {
+        if self
+            .budget_evicted
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            Err(error("derived folder cache evicted: byte budget exceeded"))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn path(&self) -> PathBuf {
         self.root.join(STORE_PATH)
     }
@@ -168,7 +182,7 @@ impl FolderStore {
     }
 
     pub(crate) fn is_broken(&self) -> bool {
-        if self.require_file_truth().is_err() {
+        if self.check_budget_active().is_err() || self.require_file_truth().is_err() {
             return false;
         }
         let Ok(db) = Sqlite::open(self.path()) else {
@@ -187,6 +201,7 @@ impl FolderStore {
     /// replace an authored store. Only files-truth folders permit disposal of
     /// an unreadable database; a store-truth marker protects even broken files.
     pub fn rebuild(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
+        self.check_budget_active()?;
         self.require_file_truth()?;
         self.check_path()?;
         self.validate_files(files)?;
@@ -212,6 +227,7 @@ impl FolderStore {
     /// Compare against a fresh producer snapshot under the folder's cache
     /// directory. Diagnostics contain keys, never record bodies/source text.
     pub fn check(&self, files: &[CodeFile]) -> Result<Vec<String>, SourceError> {
+        self.check_budget_active()?;
         self.require_file_truth()?;
         self.check_path()?;
         self.validate_files(files)?;
@@ -284,6 +300,10 @@ impl FolderStore {
         }
         self.require_file_truth()?;
         self.check_path()?;
+        // Latch before disposal, including a partially failed removal. No
+        // automatic repair/sync may recreate an over-budget cache this open.
+        self.budget_evicted
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         for path in paths {
             match std::fs::remove_file(path) {
                 Ok(()) => (),
@@ -305,6 +325,7 @@ impl FolderStore {
         files: &[CodeFile],
         selected: Option<&BTreeSet<String>>,
     ) -> Result<FolderReport, SourceError> {
+        self.check_budget_active()?;
         self.require_file_truth()?;
         self.check_path()?;
         self.validate_files(files)?;
@@ -556,6 +577,17 @@ mod budget_tests {
             std::fs::read_to_string(dir.path().join("keep.rs")).unwrap(),
             "fn keep() {}\n"
         );
+        // Sync, repair, explicit rebuild and check must all leave it absent.
+        for _ in 0..3 {
+            assert!(cache.sync(&[]).is_err());
+            assert!(!cache.is_broken());
+            assert!(cache.rebuild(&[]).is_err());
+            assert!(cache.check(&[]).is_err());
+            assert!(!cache.path().exists());
+        }
+        // A new folder open may try again.
+        let cache = FolderStore::open(dir.path()).unwrap();
+        assert!(cache.check_budget_active().is_ok());
         let authored = Store::new(Sqlite::open(cache.path()).unwrap());
         drop(authored);
         assert!(cache.enforce_byte_budget(1).is_err());

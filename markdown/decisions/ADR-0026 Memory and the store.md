@@ -109,3 +109,27 @@ manifests/log position. `recovery.mjs` passes reload → restore → save, stale
 comparison and discard; a private desktop check killed the process with a dirty
 buffer, restored it after restart and verified save removed the SQLite row.
 All AGENTS gates and the complete CI browser matrix pass (2026-10-28).
+
+### Folder-cache budget check (NEXT-33, 2026-10-28)
+
+A private desktop opened `Moonkale-codex` itself and completed indexing
+(1,398 walked files, 8,698 symbols; 43.2 seconds in the index build). After
+shutdown/checkpoint, `.moonkale/code.sophia` occupied **38,367,232 bytes
+(36.59 MiB)**; no nonempty WAL remained. The graph and status bar were inspected
+in `target/next33-cache-repo.png`. Only this worktree was opened.
+
+A disposable larger *definition-count* fixture, 1,000 Python modules with 20
+functions each (20,000 definitions, 948,325 source bytes), occupied
+**34,095,104 bytes (32.52 MiB)** plus a 32 KiB shared-memory sidecar and empty
+WAL while open. This is more definitions, not more source bytes, than the real
+repository; it is not a representative large monorepo benchmark. Evidence:
+`target/next33-large-measure.log` and `target/next33-cache-large.png`. Both
+private displays were stopped. Neither measurement justifies raising 256 MiB.
+
+An eviction now latches the FolderStore handle into memory-only operation for
+that folder open. Sync checks the latch before taking another code snapshot;
+repair detection, rebuild and check cannot recreate the evicted database.
+The existing status-bar fallback keeps the byte-budget reason. Reopening the
+folder creates a new handle and permits another attempt. The regression evicts
+with a one-byte limit, repeats sync/check/rebuild, checks that no database
+reappears, and verifies authored stores and original files remain protected.

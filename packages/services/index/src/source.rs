@@ -177,6 +177,7 @@ impl IndexSource {
         };
         let _serial = self.folder_store_lock.lock().await;
         let result = async {
+            store.check_budget_active()?;
             let files = self.cache_files(store).await?;
             let store = store.clone();
             let may_repair = !self
