@@ -22,6 +22,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -p) port="$2"; shift 2 ;;
     -L) fwd="$2"; shift 2 ;;
+    -O) operation="$2"; shift 2 ;;
     -S|-o) shift 2 ;;
     -M) shift ;;
     --) shift; break ;;
@@ -29,12 +30,20 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ "$port" = 443 ] || { echo "-p 443 missing" >&2; exit 8; }
+if [ "$operation" = forward ]; then
+  printf '%s' "$fwd" > "$HOME/forward"
+  exit 0
+fi
 cmd="$*"
 # The command is `sh -c 'eval "$(echo <b64> | base64 -d)"'` (P-103): decode it here
 # so the remote port in the script can be turned into the local one.
 b64=$(printf '%s' "$cmd" | sed -n 's/.*echo \([A-Za-z0-9+\/=]*\) | base64 -d.*/\1/p')
 [ -n "$b64" ] || { echo "not a base64-wrapped command: $cmd" >&2; exit 7; }
 script=$(printf '%s' "$b64" | base64 -d)
+if [ -z "$fwd" ]; then
+  script=$(printf '%s' "$script" | sed 's/read TOKEN/read TOKEN; fwd=$(cat "$HOME\/forward"); L=$(printf "%s" "$fwd" | cut -d: -f2)/')
+  script=$(printf '%s' "$script" | sed 's/--port [0-9][0-9]*/--port "$L"/')
+fi
 if [ -n "$fwd" ]; then
   L=$(printf '%s' "$fwd" | cut -d: -f2); R=$(printf '%s' "$fwd" | cut -d: -f4)
   script=$(printf '%s' "$script" | sed "s/--port $R/--port $L/")
@@ -194,7 +203,7 @@ fn fake_ssh_session_reaches_ready() {
         .join(moonkale_remote::VERSION)
         .join("moonkale-server")
         .is_file());
-    assert_eq!(url, format!("http://127.0.0.1:{}", session.local_port));
+    assert_eq!(url, format!("http://127.0.0.1:{}", session.local_port()));
     let remote = moonkale_server::client::active().expect("client connected");
     assert_eq!(remote.url, url);
 

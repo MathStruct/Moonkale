@@ -127,7 +127,7 @@ const REMOTE_DIR: &str = "~/.local/share/moonkale/server";
 pub struct SshSession {
     pub target: SshTarget,
     pub phase: Arc<Mutex<Phase>>,
-    pub local_port: u16,
+    local_port: Arc<std::sync::atomic::AtomicU16>,
     master: Arc<Mutex<Option<Arc<PtyBackend>>>>,
     control: PathBuf,
 }
@@ -171,8 +171,6 @@ impl SshSession {
             "ExitOnForwardFailure=yes".into(),
             "-o".into(),
             "ServerAliveInterval=15".into(),
-            "-L".into(),
-            format!("127.0.0.1:{local_port}:127.0.0.1:{remote_port}"),
         ];
         args.extend(target.options.iter().cloned());
         args.extend([
@@ -191,10 +189,11 @@ impl SshSession {
         let (tee, mut watch) = TeeBackend::new(Box::new(handle), &format!("ssh {}", target.host));
         let notice = tee.notices();
         let phase = Arc::new(Mutex::new(Phase::Connecting));
+        let port = Arc::new(std::sync::atomic::AtomicU16::new(local_port));
         let session = Self {
             target: target.clone(),
             phase: phase.clone(),
-            local_port,
+            local_port: port.clone(),
             master: Arc::new(Mutex::new(Some(pty.clone()))),
             control: control.clone(),
         };
@@ -219,7 +218,9 @@ impl SshSession {
                 on_phase(p);
             }
         };
+        let panic_set = set.clone();
         let handshake = async move {
+            let mut local_port = local_port;
             // Bytes, decoded per line: a multibyte MOTD came out as mojibake (#18).
             let mut line: Vec<u8> = Vec::new();
             let mut uploaded = false;
@@ -281,6 +282,16 @@ impl SshSession {
                             return;
                         } else if l == ASK_TOKEN {
                             set(Phase::Starting);
+                            match forward(&control, &target, local_port, remote_port).await {
+                                Ok(bound) => {
+                                    local_port = bound;
+                                    port.store(bound, std::sync::atomic::Ordering::Relaxed);
+                                }
+                                Err(error) => {
+                                    set(Phase::Failed(error));
+                                    return;
+                                }
+                            }
                             if let Ok(w) = writer.lock() {
                                 w.write(format!("{token}\n").as_bytes());
                             }
@@ -321,14 +332,24 @@ impl SshSession {
         std::thread::Builder::new()
             .name("moonkale-remote-handshake".into())
             .spawn(move || {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("tokio");
-                rt.block_on(handshake);
+                guard_handshake(
+                    || {
+                        let rt = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                            .expect("tokio");
+                        rt.block_on(handshake);
+                    },
+                    panic_set,
+                );
             })
             .map_err(|e| e.to_string())?;
         Ok((session, tee))
+    }
+
+    /// The selected local port; retries may change it before Ready.
+    pub fn local_port(&self) -> u16 {
+        self.local_port.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// End the session: the master `ssh` dies, the forward and the remote
@@ -598,6 +619,77 @@ pub fn server_binary() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+// Never publish panic payloads: they can contain session data.
+fn guard_handshake(run: impl FnOnce(), failed: impl Fn(Phase)) {
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)).is_err() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            failed(Phase::Failed("remote handshake thread panicked".into()));
+        }));
+    }
+}
+
+async fn retry_forward<F, Fut>(first: u16, mut bind: F) -> Result<u16, String>
+where
+    F: FnMut(u16) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    let mut port = first;
+    for attempt in 1..=3 {
+        match bind(port).await {
+            Ok(()) => return Ok(port),
+            Err(error) if attempt < 3 => {
+                tracing::warn!(
+                    error,
+                    attempt,
+                    port,
+                    "remote: local forward failed; retrying with a fresh port"
+                );
+                port = free_port()?;
+            }
+            Err(error) => {
+                tracing::error!(
+                    error,
+                    attempt,
+                    port,
+                    "remote: local forward attempts exhausted"
+                );
+                return Err(
+                    "local SSH forward failed after 3 attempts (see application log)".into(),
+                );
+            }
+        }
+    }
+    unreachable!()
+}
+
+// Add the forward on the authenticated master before sending the token.
+// A failed bind leaves authentication and the terminal intact.
+async fn forward(
+    control: &Path,
+    target: &SshTarget,
+    first: u16,
+    remote: u16,
+) -> Result<u16, String> {
+    retry_forward(first, |port| async move {
+        let status = tokio::process::Command::new("ssh")
+            .arg("-S")
+            .arg(control)
+            .args(["-O", "forward", "-o", "BatchMode=yes", "-L"])
+            .arg(format!("127.0.0.1:{port}:127.0.0.1:{remote}"))
+            .args(&target.options)
+            .envs(target.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .arg(&target.host)
+            .stdin(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .status();
+        match tokio::time::timeout(Duration::from_secs(10), status).await {
+            Ok(Ok(status)) if status.success() => Ok(()),
+            _ => Err("SSH forward failed".into()),
+        }
+    })
+    .await
+}
+
 fn free_port() -> Result<u16, String> {
     std::net::TcpListener::bind("127.0.0.1:0")
         .and_then(|l| l.local_addr())
@@ -673,6 +765,42 @@ pub fn looks_like_prompt(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn forward_retries_and_reports_exhaustion() {
+        let mut ports = Vec::new();
+        let chosen = retry_forward(1, |p| {
+            ports.push(p);
+            std::future::ready(if ports.len() == 1 {
+                Err("occupied".into())
+            } else {
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+        assert_eq!(ports.len(), 2);
+        assert_ne!(chosen, 1);
+        let mut attempts = 0;
+        let error = retry_forward(1, |_| {
+            attempts += 1;
+            std::future::ready(Err("occupied".into()))
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(attempts, 3);
+        assert!(error.contains("3 attempts"));
+    }
+
+    #[test]
+    fn handshake_panic_publishes_failure() {
+        let phase = Mutex::new(Phase::Connecting);
+        guard_handshake(|| panic!("injected"), |p| *phase.lock().unwrap() = p);
+        assert_eq!(
+            *phase.lock().unwrap(),
+            Phase::Failed("remote handshake thread panicked".into())
+        );
+    }
 
     /// #18: another program on the forwarded port answers the challenge
     /// wrongly — the session is refused and the token is never sent to it.

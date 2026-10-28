@@ -7,7 +7,7 @@ Notes for `moonkale-remote` (Milestone 11). Desktop only. Design: [[Remote and S
 ## What it does
 `SshSession::open(SshTarget::parse(spec, path)?, server_binary, on_phase)` turns a folder on another machine into a Moonkale server the desktop talks to:
 
-1. **One `ssh` under a PTY** (`PtyBackend::spawn_args`) is the whole session: `ssh -M -S <tmp>/cm-<port> -o ControlPersist=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -L 127.0.0.1:<local>:127.0.0.1:<remote> <host> -- sh -c '<script>'`. Its output goes through a `TeeBackend` to a **terminal tab** (so passphrase / password / host-key prompts are visible and typed by the user) and to the session's own reader, which watches for the script's marker lines.
+1. **One `ssh` under a PTY** (`PtyBackend::spawn_args`) is the whole session: `ssh -M -S <tmp>/cm-<port> -o ControlPersist=no -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 <host> -- sh -c '<script>'`. Its output goes through a `TeeBackend` to a **terminal tab** (so passphrase / password / host-key prompts are visible and typed by the user) and to the session's own reader, which watches for the script's marker lines.
 2. **The remote script** (`remote_script`, plain `sh`): `mkdir -p ~/.local/share/moonkale/server/<version>`; if `moonkale-server` is missing there it prints `MOONKALE_NEED_UPLOAD <uname -m>` and waits for a `.ready` flag; then `stty -echo`, prints `MOONKALE_TOKEN?`, `read TOKEN`, prints `MOONKALE_STARTING`, and `exec`s the server with `--port <remote> --bind 127.0.0.1 --root <path> --token-stdin`, the token piped in through `printf`.
 3. **Upload** (`upload`): a second `ssh -S <socket> -o BatchMode=yes host -- sh -c 'cat > …tmp && chmod +x && mv && touch .ready'` over the **multiplexed** connection — no second authentication — streams the binary from disk (`tokio::io::copy`, never read into memory: the debug server is 1.7 GB, the release one 188 MB / 142 MB stripped).
 4. **Token**: `moonkale_server::client::session_token()` (32 random bytes, hex) is written to the PTY when the script asks — with echo already off, so it never shows in the terminal tab — and becomes the bearer.
@@ -37,3 +37,16 @@ Notes for `moonkale-remote` (Milestone 11). Desktop only. Design: [[Remote and S
 ## Tests
 - `cargo test -p moonkale-remote` — prompt heuristics, quoting, ANSI stripping, the script's shape.
 - `cargo test -p moonkale-remote --test shim -- --ignored --nocapture` — the **whole session against a fake `ssh`** on `PATH` (a shell script that runs the remote command locally under a scratch `HOME`, turns the `-L` forward into a direct bind, and takes the upload on stdin): `Uploading → Starting → Ready`, the binary lands in `~/.local/share/moonkale/server/0.1.0/`, `open_folder` + `fetch_text` through the session read `Hello.md`, `close()` disconnects. Needs `cd packages/web && dx build --platform server` (the release build is found first). 0.9 s with the release binary.
+
+
+## Audit #18 follow-up (2026-10-28)
+
+The authenticated master starts without a local forward. Before answering the
+remote token prompt, the handshake requests `ssh -S … -O forward -L …` on that
+master. A failed forward retries with a fresh local port, up to three attempts;
+each retry is logged, each command has a ten-second deadline and exhaustion
+publishes Failed. Authentication and the terminal remain on the same master.
+`SshSession::local_port()` reads the selected port, which can change before Ready.
+The handshake thread catches unwinding panics (including runtime creation), kills
+the master and publishes a generic Failed message without a panic payload.
+Injected unit regressions cover retry/recovery, exhaustion and panic failure.
