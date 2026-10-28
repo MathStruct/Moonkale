@@ -5,6 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+futures-util = { version = "0.3", default-features = false }
 tracing = "0.1"
 dioxus = { workspace = true }
 dioxus-workbench = { workspace = true }

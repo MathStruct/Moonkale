@@ -620,6 +620,7 @@ fn FrameContent(
             // The browser wasm runtime (Milestone 8); harmless where unused.
             document::Script { src: WASM_HOST_JS, defer: true }
             TitleBar { controls }
+            crate::recovery::Recovery { ws }
             if *ws.crashes.safe.read() {
                 div { class: "mk-crash-notice", role: "status", {t!(ws, L, "crash-safe-active")} }
             } else if let Some(id) = ws.crashes.notice.read().clone() {

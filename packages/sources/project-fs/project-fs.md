@@ -56,3 +56,5 @@ oversized or linked metadata is refused before cache writes can be authorized.
 Store truth does not remove ordinary file-write capabilities: the temporary
 code-store write restriction lives in the index writer. See [[Indexing]] and
 [[ADR-0030 Where the truth lives]] for the marker and stopgap.
+
+WP-56: read-only `Text{recovery-path}` admits only current ignore-aware regular files without symlink components. It validates 4096-byte/64-component paths and bounds each ancestor listing to 10,000 entries on a blocking worker; unsupported or excluded paths provide no recovery node. Ordinary `path` still resolves hidden files for existing settings/editor uses.

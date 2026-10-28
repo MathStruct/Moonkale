@@ -42,7 +42,7 @@ struct Cache {
     failures: HashMap<Key, String>,
     catalogs: HashMap<SourceId, (u64, Rc<Vec<Node>>)>,
 }
-const CACHE_BYTES: usize = 64 * 1024 * 1024;
+const CACHE_BYTES: usize = moonkale_state::recovery::Budgets::platform().images;
 #[derive(Clone, Default)]
 struct Images(Rc<RefCell<Cache>>);
 impl Cache {

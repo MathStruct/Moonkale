@@ -179,3 +179,8 @@
 .mk-rail-overflow { position: absolute; left: 48px; bottom: 28px; z-index: 95; display: flex; flex-direction: column; gap: 6px; padding: 12px; max-height: 75vh; overflow: auto; background: var(--wb-surface); border: 1px solid var(--wb-line); }
 .mk-chrome-offer { padding: 8px; color: var(--wb-muted); }
 .mk-chrome-offer .mk-btn { margin-left: 8px; }
+
+.mk-recovery { padding: 4px 12px; background: var(--wb-surface); color: var(--wb-ink); }
+.mk-recovery button { margin-inline-start: 8px; }
+.mk-recovery-conflict { position: fixed; inset: 10%; z-index: 1000; overflow: auto; padding: 16px; background: var(--wb-surface); color: var(--wb-ink); border: 1px solid var(--wb-line); }
+.mk-recovery-conflict pre { white-space: pre-wrap; }

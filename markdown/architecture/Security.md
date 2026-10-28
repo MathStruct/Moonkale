@@ -420,3 +420,19 @@ reads acceptance exclusively from user settings. The disclosure adapter sends
 only a boolean close event after a button/outside click, uses generated ids,
 and never reads content as HTML or commands. Existing Source, extension crash
 and permission boundaries stay in effect; no dependency or connection is added.
+
+
+WP-56 (2026-10-28): recovery is client-local, versioned and bounded by encoded
+bytes. Only open folder-file documents are sampled. Hidden path components,
+credential/key filenames and oversized buffers are excluded before copying
+text. The read-only `recovery-path` source query additionally checks current
+ignore rules and rejects every symlink component on a blocking worker; restore
+uses the same admission. Unsupported sources opt out; no snapshot body is logged. Native SQLite I/O uses worker threads.
+Source/path/base-version keys and exact base-text checks prevent stale recovery
+from replacing newer source content; recovery never invokes a Source write.
+Comparison text uses escaped Dioxus text nodes. Snapshot/clear operations are
+serialized per workspace. Snapshots are unencrypted; automatic classification
+of secrets pasted into eligible files is outside the path exclusion rule.
+The Sophia byte cap rechecks file truth, symlink boundaries and the derived
+flag before whole-cache eviction; authored stores remain protected. No new
+package version, connection, execution or server authority is introduced.

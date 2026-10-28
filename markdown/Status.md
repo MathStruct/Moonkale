@@ -7,6 +7,20 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Buffer recovery and cache limits (WP-56, 2026-10-28)
+
+Unsaved folder buffers are sampled into the existing client state store every
+two seconds and on blur/switch, with per-buffer/total bounds and secret-path
+exclusions, checked again by the folder source against ignores and symlinks.
+Startup offers one quiet notice with per-file Restore/Discard;
+stale bases show a comparison. Saving, explicit reload and confirmed close
+remove snapshots. Settings lists platform cache limits. Existing Sophia
+input-hash manifests reuse unchanged code on reopen; content identity, math
+and image caches retain bounded reuse. See [[ADR-0026 Memory and the store]]
+for limits and remaining persistent-preview/Android-pressure follow-ups.
+Validated with all AGENTS gates, the full CI browser matrix, snapshot/cache
+regressions and a private-desktop kill → restore → save check on 2026-10-28.
+
 ## Interface density (WP-63, 2026-10-28)
 
 Simple is the default; Appearance and the palette switch to Detailed. Simple

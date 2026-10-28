@@ -385,3 +385,15 @@ chrome-choice = 显示此扩展的控件
 chrome-offer = 显示 { $name } 的控件？命令始终可用。
 chrome-accept = 显示控件
 chrome-decline = 保留在菜单中
+
+# WP-56 recovery and byte budgets
+recovery-notice = 有未保存的缓冲区（{ $count }）
+recovery-restore = 恢复
+recovery-discard = 丢弃
+recovery-conflict = 源已更改 — 比较恢复内容
+recovery-base = 已保存的基础版本
+recovery-current = 当前文本
+recovery-buffer = 恢复的缓冲区
+recovery-close = 关闭
+recovery-budget = 缓存限制：每个缓冲区 { $buffer } KiB，恢复 { $recovery } KiB，派生索引 { $derived } KiB（淘汰最旧的条目）。 公式 { $math }、图像 { $images }、文件夹图谱 { $folder } KiB。
+recovery-open-source = 请打开此缓冲区的源，然后再次选择恢复。

@@ -401,3 +401,15 @@ chrome-choice = Bedienelemente dieser Erweiterung anzeigen
 chrome-offer = Bedienelemente für { $name } anzeigen? Befehle sind immer verfügbar.
 chrome-accept = Elemente anzeigen
 chrome-decline = In Menüs behalten
+
+# WP-56 recovery and byte budgets
+recovery-notice = Ungespeicherte Puffer verfügbar ({ $count })
+recovery-restore = Wiederherstellen
+recovery-discard = Verwerfen
+recovery-conflict = Die Quelle wurde geändert — Wiederherstellung vergleichen
+recovery-base = Gespeicherte Basis
+recovery-current = Aktueller Text
+recovery-buffer = Wiederhergestellter Puffer
+recovery-close = Schließen
+recovery-budget = Cachegrenzen: { $buffer } KiB pro Puffer, { $recovery } KiB Wiederherstellung, { $derived } KiB abgeleiteter Index (älteste Einträge werden entfernt). Mathematik { $math }, Bilder { $images }, Ordnergraph { $folder } KiB.
+recovery-open-source = Öffne die Quelle dieses Puffers und wähle dann erneut Wiederherstellen.

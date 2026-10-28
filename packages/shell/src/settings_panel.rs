@@ -325,6 +325,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     }
 
                     h3 { {t!(ws, L, "settings-remembered")} }
+                    p { class: "mk-muted", {t!(ws, L, "recovery-budget", buffer = moonkale_state::recovery::Budgets::platform().buffer / 1024, recovery = moonkale_state::recovery::Budgets::platform().recovery / 1024, derived = moonkale_state::recovery::Budgets::platform().derived / 1024, math = moonkale_state::recovery::Budgets::platform().math / 1024, images = moonkale_state::recovery::Budgets::platform().images / 1024, folder = moonkale_state::recovery::Budgets::platform().folder / 1024)} }
                     p { class: "mk-muted",
                         {t!(ws, L, "settings-remembered-line", recent = settings.recent_folders.len(), connections = settings.remote_saved.len(), layout = if settings.layout.is_some() { "yes" } else { "no" }, open = settings.open_documents.len())}
                     }

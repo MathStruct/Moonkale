@@ -83,3 +83,5 @@ focus their controls and restore their opener on dismissal. Escape closes
 each bar. They remain nonmodal; Tab can leave the bar to edit code while
 references remain visible. The LSP2 browser journey checks focus on rename,
 references and actions and return to the editor after applying an action.
+
+WP-56: existing math-markup and image-URL LRUs use platform limits from `moonkale-state::recovery::Budgets`; input/epoch/freshness keys and cache ownership are unchanged.

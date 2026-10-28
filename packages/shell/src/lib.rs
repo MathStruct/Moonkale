@@ -21,6 +21,7 @@ mod frame;
 pub mod icons;
 mod input_layouts;
 mod palette;
+mod recovery;
 mod remote_dialog;
 mod search;
 mod server_dialog;

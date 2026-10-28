@@ -227,10 +227,25 @@ pub fn installed_local_state() -> StateAccess {
             .get()
             .ok_or_else(|| "no state store".to_string())
     }
+    // State I/O never blocks an editor's UI thread, including debounced recovery.
+    fn run<T: Send + 'static>(
+        f: impl FnOnce() -> Result<T, String> + Send + 'static,
+    ) -> SettingsFuture<T> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (tx, rx) = futures_channel::oneshot::channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(f());
+            });
+            Box::pin(async move { rx.await.map_err(|_| "state worker stopped".to_string())? })
+        }
+        #[cfg(target_arch = "wasm32")]
+        Box::pin(async move { f() })
+    }
     StateAccess {
-        get: |t, k| Box::pin(async move { store()?.get(&t, &k).map_err(|e| e.to_string()) }),
-        scan: |t, p| Box::pin(async move { store()?.scan(&t, &p).map_err(|e| e.to_string()) }),
-        write: |b| Box::pin(async move { store()?.write(b).map_err(|e| e.to_string()) }),
+        get: |t, k| run(move || store()?.get(&t, &k).map_err(|e| e.to_string())),
+        scan: |t, p| run(move || store()?.scan(&t, &p).map_err(|e| e.to_string())),
+        write: |b| run(move || store()?.write(b).map_err(|e| e.to_string())),
     }
 }
 

@@ -33,7 +33,7 @@ impl Default for Cache {
             values: HashMap::new(),
             order: VecDeque::new(),
             bytes: 0,
-            budget: if cfg!(target_os = "android") { 4 } else { 16 } * 1024 * 1024,
+            budget: moonkale_state::recovery::Budgets::platform().derived,
             store: None,
         }
     }

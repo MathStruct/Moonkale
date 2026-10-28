@@ -166,3 +166,58 @@ pub fn absolute(root: &Path, rel: &str) -> PathBuf {
         root.join(rel.split('/').collect::<PathBuf>())
     }
 }
+
+/// Recovery may persist only visible, ignore-admitted regular files, with no
+/// symlink component (including aliases to hidden credential files).
+pub fn recovery_path(root: &Path, relative: &str) -> bool {
+    if relative.len() > 4096 || check_rel(relative).is_err() {
+        return false;
+    }
+    let parts: Vec<_> = relative.split('/').collect();
+    if parts.is_empty()
+        || parts.len() > 64
+        || parts.iter().any(|p| p.is_empty() || p.starts_with('.'))
+    {
+        return false;
+    }
+    let mut path = root.to_path_buf();
+    for part in parts {
+        let Ok((entries, _)) = list_children_bounded(root, &path, 10_000) else {
+            return false;
+        };
+        if !entries.iter().any(|entry| entry.name == part) {
+            return false;
+        }
+        path.push(part);
+        if !path
+            .symlink_metadata()
+            .is_ok_and(|m| !m.file_type().is_symlink())
+        {
+            return false;
+        }
+    }
+    path.symlink_metadata().is_ok_and(|m| m.is_file())
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+    #[test]
+    fn recovery_refuses_ignored_hidden_and_symlinked_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(".gitignore"), "private.txt\n").unwrap();
+        for name in ["normal.txt", "private.txt", ".env"] {
+            std::fs::write(dir.path().join(name), "fixture").unwrap();
+        }
+        assert!(recovery_path(dir.path(), "normal.txt"));
+        assert!(!recovery_path(dir.path(), "private.txt"));
+        assert!(!recovery_path(dir.path(), ".env"));
+        assert!(!recovery_path(dir.path(), "../normal.txt"));
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.path().join(".env"), dir.path().join("alias.txt"))
+                .unwrap();
+            assert!(!recovery_path(dir.path(), "alias.txt"));
+        }
+    }
+}

@@ -12,6 +12,13 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — 2026-10-28 (WP-56)
+
+- Additive workspace recovery methods use the existing platform state callbacks.
+  Save, explicit reload and confirmed close remove recovery records. Native
+  `installed_local_state` callbacks now run I/O on worker threads; futures still
+  resolve only after completion. No configuration fields or Source APIs change.
+
 ## Unreleased — 2026-10-28 (WP-61)
 
 - `SettingsFile` and resolved `Settings` gain `keymap` and per-button `mouse`

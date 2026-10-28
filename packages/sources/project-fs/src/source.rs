@@ -255,6 +255,15 @@ impl Source for FolderSource {
             Query::Neighbours { node, depth, direction } => {
                 self.neighbours(node, depth, direction).await
             }
+            Query::Text { dialect, text } if dialect == "recovery-path" => {
+                let root = self.root.clone();
+                let path = text.clone();
+                let admitted = tokio::task::spawn_blocking(move || tree::recovery_path(&root, &path))
+                    .await.map_err(|_| SourceError::Invalid("recovery admission failed".into()))?;
+                if !admitted { return Ok(QueryResult::default()); }
+                let (meta, v) = self.stat(&text).await?;
+                Ok(QueryResult::single(self.node_for(&text, false, meta.len(), v)))
+            }
             // `path`: resolve a relative path directly (hidden files too, e.g.
             // `.moonkale/settings.json`), without walking the tree.
             Query::Text { dialect, text } if dialect == "path" => {

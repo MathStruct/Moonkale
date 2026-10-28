@@ -52,3 +52,60 @@ Today the index is rebuilt on every open and kept only in memory; the state stor
   - encryption at rest for snapshots of unsaved buffers ([[Security]], data at rest).
 
 Work package: WP-56 in [[Work Packages]].
+
+
+## WP-56 implementation notes (2026-10-28)
+
+Unsaved folder-file buffers use versioned `recovery` records in the existing
+client state store (native SQLite; browser storage). Keys contain source id,
+relative document path and the exact fetched base version. Records retain the
+base text for conflict comparison. A serialized background task samples dirty
+buffers every two seconds and on focus/visibility/document switches; unchanged
+buffers cause no write. Native store operations run on worker threads. Save,
+explicit reload and confirmed close/discard remove the document's versions.
+The last interval can still be lost on a kill, and browser teardown cannot await
+an asynchronous final write. Source writes retain optimistic version checks.
+
+At startup, one collapsed notice offers Restore/Discard per file. A browser
+Restore explicitly reopens its folder through the server jail; native sources
+that are not open must be reopened before restoring. Restore fills memory only when both source version and base text match;
+otherwise the comparison shows saved base, current text and recovered text.
+It never writes the file automatically. An already dirty destination also
+requires comparison. Hidden paths, credential/key filenames and oversized
+buffers are excluded. Current source ignore rules and symlink components are
+checked through the read-only `recovery-path` query; arbitrary secrets pasted into otherwise eligible text
+cannot be classified automatically. Snapshots remain unencrypted at rest.
+
+Initial safety limits (KiB; conservative defaults, **not BM-20–26 measurements**):
+
+| Platform | Base + buffer | Recovery total | Content identities | Math markup | Image URLs | Sophia per folder |
+|---|---:|---:|---:|---:|---:|---:|
+| Desktop / server | 2048 | 16384 | 16384 | 8192 | 65536 | 262144 |
+| Browser | 128 | 512 | 4096 | 2048 | 16384 | 65536 |
+| Android | 512 | 4096 | 4096 | 2048 | 16384 | 65536 |
+
+Recovery budgets charge encoded keys/values (JSON escaping included) and evict
+least-recently-changed snapshots first. Content, math and image caches retain
+their existing LRU eviction. Sophia is one consistent derived cache entry per
+folder: exceeding its database/sidecar budget evicts that entry as a unit and
+reports the ordinary file-index fallback. Authored stores are never evicted.
+A web client's Sophia cache runs on its server and takes that host's budget.
+Settings shows the client limits in one short paragraph. Browser storage's own
+quota can refuse a write earlier, which is logged without buffer contents.
+
+WP-21 already stores file-input hashes in Sophia manifests and skips unchanged
+files on reopen; WP-66 already keys content identities by input/module hashes,
+normalizer version and selector. WP-56 reuses both, without another index cache.
+Math markup already reuses exact formula/macro inputs while mounted. Persistent
+math/Typst output, aggregate cross-folder disk budgeting, Android memory-pressure
+callbacks and BM-based tuning remain follow-ups; these initial limits do not
+claim to bound the active graph or decoded DOM image working set.
+
+
+Validation: snapshot bounds/keying/eviction, ignore/symlink admission, derived-only
+folder eviction and persistent identity reuse pass in unit tests. The existing
+six-file folder reopen regression reports zero parsed/written files and unchanged
+manifests/log position. `recovery.mjs` passes reload → restore → save, stale-base
+comparison and discard; a private desktop check killed the process with a dirty
+buffer, restored it after restart and verified save removed the SQLite row.
+All AGENTS gates and the complete CI browser matrix pass (2026-10-28).

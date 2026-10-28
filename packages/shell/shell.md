@@ -178,3 +178,5 @@ The dedicated Settings test field keeps last-input state local to itself.
 
 
 WP-63 (2026-10-28): Appearance/palette share density. Simple folds the title menus behind ☰/Alt, keeps six rail entries plus More, bounds status to five items, and uses flat panel disclosures. Optional chrome choices live in user settings, independently of enablement/permissions. Existing enabled extensions are retained on first migration; new ones are offered in Extensions.
+
+WP-56: `recovery.rs` serializes periodic snapshots and restore/discard actions. One collapsed notice appears when a reopened source has recovery records; mismatched bases show a three-text comparison. Settings exposes platform budgets.

@@ -1,12 +1,14 @@
 ---
 title: "Crash safety — containment and startup recovery"
-description: "Extension task and event guards, bounded wasm retries, the web panic overlay and safe mode; checked against WP-57 on 2026-10-28."
+description: "Extension guards, bounded wasm retries, safe mode and unsaved-buffer recovery; checked against WP-56/57 on 2026-10-28."
 tags: [architecture, reliability, extensions]
 ---
-**Checked 2026-10-28 (WP-57).** Extension failures must be contained, visible
-and recoverable. Recovery restores the **saved** session. Recovery snapshots of
-unsaved buffers (WP-56, [[ADR-0026 Memory and the store]]) remain separate work;
-a hard crash can still lose edits since the last save.
+**Checked 2026-10-28 (WP-56/57).** Extension failures must be contained, visible
+and recoverable. Recovery restores the saved session and offers bounded unsaved
+folder buffers from the client state store (WP-56, [[ADR-0026 Memory and the store]]).
+Snapshots run every two seconds and on blur/switch; the most recent interval can
+still be lost. Restoring only changes memory. A changed base opens a comparison
+instead of replacing current text; Save or explicit Discard removes recovery.
 
 ## Today, by kind
 
@@ -58,7 +60,7 @@ Concurrent browser tabs can affect that heuristic, but never saved preferences.
 ## Steps
 
 1. ✅ Per-panel render boundaries and Reload (2026-10-14).
-2. 📝 Unsaved edit recovery snapshots (WP-56).
+2. ✅ Bounded unsaved-buffer snapshots and explicit restore/discard (WP-56); the last two-second interval can be lost.
 3. ✅ Native extension task/event guards, with session disablement and one notice.
 4. ✅ Web panic hook and independent crash overlay. Unwinding web builds remain future work.
 5. ✅ Startup crash counting, safe-mode offer, `--safe` and `?safe`. The first native guarded panic disables its extension immediately; repeated failures need no additional dialogs.

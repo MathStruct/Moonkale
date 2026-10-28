@@ -6,6 +6,7 @@ license.workspace = true
 description = "The code editing component (CodeMirror 6 behind a swappable backend trait) and the LSP session manager, shared by the Code and Markdown editors. A component crate, not an extension (Milestone 18 phase 4.1)."
 
 [dependencies]
+moonkale-state = { workspace = true }
 dioxus = { workspace = true }
 regex = "1"
 url = "2.5.8"

@@ -26,6 +26,7 @@ mod copy;
 mod key;
 mod memory;
 mod record;
+pub mod recovery;
 pub mod tables;
 pub mod testing;
 

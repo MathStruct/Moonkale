@@ -405,3 +405,15 @@ chrome-choice = Show this extension’s controls
 chrome-offer = Show controls for { $name }? Commands are always available.
 chrome-accept = Show controls
 chrome-decline = Keep in menus
+
+# WP-56 recovery and byte budgets
+recovery-notice = Unsaved buffers available ({ $count })
+recovery-restore = Restore
+recovery-discard = Discard
+recovery-conflict = The source changed — compare recovery
+recovery-base = Saved base
+recovery-current = Current text
+recovery-buffer = Recovered buffer
+recovery-close = Close
+recovery-budget = Cache limits: { $buffer } KiB per buffer, { $recovery } KiB recovery, { $derived } KiB derived index (oldest evicted). Math { $math }, images { $images }, folder graph { $folder } KiB.
+recovery-open-source = Open this buffer’s source, then choose Restore again.

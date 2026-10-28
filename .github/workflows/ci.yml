@@ -244,7 +244,7 @@ jobs:
             check_name: browser smoke suites
             features: julia,rocksdb,helix,crash-test
             browser: firefox chromium
-            suites: density mouse keymaps journey-keyboard journey-mouse shortcut-discovery crash-safety files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
+            suites: density mouse keymaps journey-keyboard journey-mouse shortcut-discovery crash-safety recovery files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
           - name: structural
             check_name: browser structural edits
             features: julia,structural-edits

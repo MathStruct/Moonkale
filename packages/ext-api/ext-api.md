@@ -115,3 +115,5 @@ in `shell/tests/extension_crash.rs`.
 ## Density and chrome (WP-63, 2026-10-28)
 
 WP-63 adds serde `Density`, optional density/chrome migration fields on SettingsFile, resolved density on Settings, `icons::ChromeOwner`, `chrome_visible`, `ToolbarActions` and `ToolbarMenu`. The latter retain action handlers in Rust and use a content-free DOM click adapter only to dismiss a disclosure after a button/outside click.
+
+WP-56 adds `Workspace::{snapshot_documents,recovery_snapshots,forget_recovery}` and a per-workspace async gate. Save/reload/close delete recovery versions. Installed native state callbacks now run I/O on workers; browser callbacks retain their existing browser storage behavior.

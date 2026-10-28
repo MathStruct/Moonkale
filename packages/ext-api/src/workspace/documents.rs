@@ -556,6 +556,18 @@ impl Workspace {
 
     /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
+        if let Some(doc) = self
+            .document(node)
+            .filter(|_| self.config.persistence.state.is_some())
+        {
+            let (source, path) = {
+                let d = doc.peek();
+                (d.node.source.0.clone(), d.node.native_key.clone())
+            };
+            spawn(async move {
+                self.forget_recovery(&source, &path).await;
+            });
+        }
         super::grouped_edits::forget_document(self, node);
         self.begin_document_navigation();
         let pending_reveal = *self.docs.reveal.peek();
@@ -631,6 +643,7 @@ impl Workspace {
                         }
                     }
                 }
+                self.forget_recovery(&source_id.0, &key).await;
                 self.set_status(t!(self, L, "saved", name = key.clone()));
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).
@@ -973,7 +986,9 @@ impl Workspace {
         };
         let source = self.source(&source_id).ok_or(SourceError::NotFound)?;
         let (text, version) = source.fetch_text(node).await?;
+        let path = n.native_key.clone();
         doc.set(Document::new(n, text, version));
+        self.forget_recovery(&source_id.0, &path).await;
         self.set_status(t!(self, L, "reloaded"));
         Ok(())
     }

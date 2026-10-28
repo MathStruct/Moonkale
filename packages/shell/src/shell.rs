@@ -1194,7 +1194,7 @@ fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
 /// instead of blanking the window. Native builds catch render panics
 /// (Dioxus turns them into errors); the web client is built with
 /// `panic = "abort"`, where only a page reload recovers. The session's
-/// saved state is in the store; unsaved recovery remains WP-56 (ADR-0026).
+/// saved state and bounded unsaved-buffer recovery use the store (ADR-0026).
 pub fn guarded(
     ws: Workspace,
     title: String,

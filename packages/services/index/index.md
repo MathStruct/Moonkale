@@ -207,3 +207,5 @@ after build/refresh batches. `folder_store/import_edges.rs` caches syntax by
 input digest, emits file-owned import annotations, and reuses unchanged callers'
 normalized records. Target manifests guard cache reads. See [[Indexing]] for
 syntax/identity limits and `tests/cross_file.rs` for three-language regressions.
+
+WP-56 reuses the existing input-hash caches; the identity LRU takes platform defaults. Sophia database plus sidecars are bounded per folder; the consistent derived graph is one eviction unit. Exceeding the cap removes only a checked derived cache and surfaces the normal fallback. Authored stores remain protected.

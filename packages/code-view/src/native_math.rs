@@ -12,7 +12,7 @@ use std::{
     rc::Rc,
     time::Duration,
 };
-const BUDGET: usize = 8 * 1024 * 1024;
+const BUDGET: usize = moonkale_state::recovery::Budgets::platform().math;
 const MAX_CONFIG: usize = 64 * 1024;
 #[derive(Clone, PartialEq, Eq)]
 struct Config {

@@ -15,3 +15,5 @@ The **interface** of the store for Moonkale's own state, with no engine (those a
 - `copy.rs` — `copy(from, to, tables)`: moving a store to another engine.
 
 In use since phase 5.2: the layout record (`ext-api::settings::LayoutRecord`) through `Persistence::state`. Since phase 5.10: the entity log (`ext-api::workspace::EventRecord`, table `events`, key `str(folder id) · u128(event id)`) through `Persistence::host`.
+
+WP-56 adds `recovery`: versioned snapshots keyed by source/path/base version, conservative path admission, encoded-byte accounting and oldest-change eviction. `Budgets::platform` is shared by recovery, index and preview caches; ADR-0026 records defaults.

@@ -30,6 +30,7 @@ mod history;
 mod navigation;
 mod processes;
 pub mod proposals;
+mod recovery;
 mod remote;
 mod session;
 mod settings;

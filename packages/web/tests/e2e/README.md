@@ -713,3 +713,7 @@ keyboard or exercise a real IME. Desktop WebKit and Android input remain manual
 platform checks.
 
 `density.mjs` checks the Simple chrome budgets, Detailed, shared Settings/palette selection, extension chrome offers, legacy chrome migration, the Detailed Rust toolbar at phone width, and every registered command in both densities. `chrome-controls.mjs` reaches folded controls by clicking their real disclosure; it never changes density or enables chrome.
+
+## Unsaved-buffer recovery (WP-56)
+
+`recovery.mjs` is registered in run-all and CI smoke. It reloads with a dirty CodeMirror buffer, restores explicitly, saves and verifies cleanup, changes the file outside the app to exercise stale-base comparison, then discards and verifies a second reload is quiet. It uses a disposable fixture and reads browser state only to await durability.

@@ -257,6 +257,43 @@ impl FolderStore {
         Ok(diff)
     }
 
+    // A folder's code graph is one consistent cache entry. Partial fact
+    // eviction would make reads incomplete, so evict this entry as a unit.
+    fn enforce_byte_budget(&self, budget: usize) -> Result<(), SourceError> {
+        self.require_file_truth()?;
+        self.check_path()?;
+        let paths: Vec<_> = ["", "-wal", "-shm", "-journal"]
+            .iter()
+            .map(|suffix| PathBuf::from(format!("{}{suffix}", self.path().display())))
+            .collect();
+        let total = paths
+            .iter()
+            .try_fold(0u64, |sum, path| match std::fs::metadata(path) {
+                Ok(meta) => Ok(sum.saturating_add(meta.len())),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(sum),
+                Err(e) => Err(io(e)),
+            })?;
+        if total <= budget as u64 {
+            return Ok(());
+        }
+        {
+            let store = Store::new(Sqlite::open(self.path()).map_err(error)?);
+            if !store.is_derived().map_err(error)? {
+                return Err(error("authored store exceeds cache budget"));
+            }
+        }
+        self.require_file_truth()?;
+        self.check_path()?;
+        for path in paths {
+            match std::fs::remove_file(path) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(io(e)),
+            }
+        }
+        Err(error("derived folder cache evicted: byte budget exceeded"))
+    }
+
     pub fn sync(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
         self.sync_selected(files, None)
     }
@@ -314,6 +351,8 @@ impl FolderStore {
             }
         }
         if changed.is_empty() {
+            drop(store);
+            self.enforce_byte_budget(moonkale_state::recovery::Budgets::platform().folder)?;
             return Ok(report);
         }
         // Julia's unit is a module spread over includes. Recompute its
@@ -349,6 +388,8 @@ impl FolderStore {
             match store.replace_files(&values) {
                 Ok(r) => {
                     report.written = r;
+                    drop(store);
+                    self.enforce_byte_budget(moonkale_state::recovery::Budgets::platform().folder)?;
                     return Ok(report);
                 }
                 Err(StoreError::NameClaimed { name, owner }) => {
@@ -439,4 +480,27 @@ fn io(e: std::io::Error) -> SourceError {
 }
 pub(crate) fn error(e: impl std::fmt::Display) -> SourceError {
     SourceError::Invalid(e.to_string())
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    #[test]
+    fn byte_eviction_drops_only_derived_cache_and_preserves_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("keep.rs"), "fn keep() {}\n").unwrap();
+        let cache = FolderStore::open(dir.path()).unwrap();
+        cache.sync(&[]).unwrap();
+        assert!(cache.path().exists());
+        assert!(cache.enforce_byte_budget(1).is_err());
+        assert!(!cache.path().exists());
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("keep.rs")).unwrap(),
+            "fn keep() {}\n"
+        );
+        let authored = Store::new(Sqlite::open(cache.path()).unwrap());
+        drop(authored);
+        assert!(cache.enforce_byte_budget(1).is_err());
+        assert!(cache.path().exists());
+    }
 }
