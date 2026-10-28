@@ -58,6 +58,7 @@ try {
     await page.evaluate(() => {
       Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async text => { globalThis.copiedCrashDetails = text; }}});
     });
+    if (action === 'event') await page.evaluate(() => { delete globalThis.moonkaleCrashWords; });
     await page.click(`#mk-crash-test-${action}`);
     await page.waitForSelector('#mk-crash-overlay');
     assert.match(await page.locator('#mk-crash-overlay').innerText(), /Reload/);

@@ -599,7 +599,7 @@ pub struct SourcesState {
     /// The open sources, in the order they were opened.
     pub open: Signal<Vec<SourceHandle>>,
     /// Sources whose changes on disk are followed (Milestone 16): their
-    /// `changes_since` answered. Every other source gets a refresh button.
+    /// `changes_since` answered. Other non-derived sources get a refresh button.
     pub watched: Signal<std::collections::HashSet<SourceId>>,
     /// Sources with a follow loop running (answered or not yet).
     pub(crate) followed: Signal<std::collections::HashSet<SourceId>>,
@@ -631,7 +631,7 @@ impl SourcesState {
 
 /// A folder's derived Sophia cache (`.moonkale/code.sophia`, ADR-0029/0030):
 /// files stay the truth, and the folder's index keeps it in step.
-fn is_derived_cache(descriptor: &moonkale_core::SourceDescriptor) -> bool {
+pub fn is_derived_cache(descriptor: &moonkale_core::SourceDescriptor) -> bool {
     descriptor.family == moonkale_core::SourceFamily::Graph
         && descriptor.truth == moonkale_core::SourceTruth::Files
         && descriptor.id.as_str().starts_with("sophia:")

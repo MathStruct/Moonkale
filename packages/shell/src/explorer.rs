@@ -299,7 +299,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             }
             if has_dialog {
                 div { class: "mk-explorer-open",
-                    button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: moonkale_ext_api::crash::event(move |_| ws.dispatch(Command::OpenFolder)), {t!(ws, L, "menu-open-folder")} }
+                    button { class: "mk-btn mk-btn-wide", r#type: "button", title: moonkale_ext_api::command_hint("workspace.openFolder", t!(ws, L, "menu-open-folder")).title, "data-command": "workspace.openFolder", "data-shortcut": moonkale_ext_api::command_hint("workspace.openFolder", "").shortcut, onclick: moonkale_ext_api::crash::event(move |_| ws.dispatch(Command::OpenFolder)), {t!(ws, L, "menu-open-folder")} }
                 }
             }
             form { class: "mk-explorer-open",
@@ -310,11 +310,12 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                     // No cfg!() here: fullstack renders this on the server first and
                     // hydration keeps the server's markup, so the text must be the same
                     // on every platform.
+                    id: "mk-explorer-path",
                     placeholder: t!(ws, L, "explorer-path-placeholder"),
                     value: "{path}",
                     oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| path.set(e.value())),
                 }
-                button { class: "mk-btn", r#type: "submit", disabled: opening(), if opening() { {t!(ws, L, "explorer-opening")} } else { {t!(ws, L, "explorer-open")} } }
+                button { class: "mk-btn", r#type: "submit", title: moonkale_ext_api::command_hint("workspace.openFolder", t!(ws, L, "menu-open-folder")).title, "data-command": "workspace.openFolder", "data-shortcut": moonkale_ext_api::command_hint("workspace.openFolder", "").shortcut, disabled: opening(), if opening() { {t!(ws, L, "explorer-opening")} } else { {t!(ws, L, "explorer-open")} } }
             }
             if let Some(err) = state.error.read().clone() {
                 div { class: "mk-explorer-error", "{err}" }
@@ -380,7 +381,7 @@ fn ExplorerSource(
                 if read_only { span { class: "mk-source-lock", title: t!(ws, L, "explorer-read-only"), crate::icons::Icon { name: "lock" } } }
                 // Changes on disk are followed for watched sources
                 // (Milestone 16); the others get a refresh button.
-                if !watched {
+                if !watched && !moonkale_ext_api::workspace::is_derived_cache(&descriptor) {
                     button { class: "mk-source-refresh", r#type: "button",
                         title: t!(ws, L, "explorer-not-watched"),
                         "aria-label": t!(ws, L, "explorer-refresh-source", name = descriptor.display_name.clone()),
@@ -606,6 +607,13 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
         node.clone(),
         node.clone(),
     );
+    let derived = ws
+        .sources
+        .open
+        .read()
+        .iter()
+        .find(|source| source.descriptor.id == node.source)
+        .is_some_and(|source| moonkale_ext_api::workspace::is_derived_cache(&source.descriptor));
     let can_terminal = menu.is_dir && ws.spawn_terminal().is_some();
     rsx! {
         div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: moonkale_ext_api::crash::event(|e: dioxus::prelude::MouseEvent| e.stop_propagation()),
@@ -625,6 +633,7 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
                 }), {t!(ws, L, "explorer-open-terminal")} }
             }
             if is_root {
+                if !derived {
                 // Milestone 16: re-read by hand — for every source, watched
                 // or not (a watcher can miss what a network share does).
                 button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event({
@@ -637,6 +646,7 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
                         });
                     }
                 }), {t!(ws, L, "explorer-refresh")} }
+                }
                 // Spec 015: a source can be closed again.
                 button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event({
                     let id = node.source.clone();

@@ -42,7 +42,7 @@ pub use processes::ProcessesState;
 pub use remote::RemoteLinks;
 pub use session::SessionState;
 pub use settings::SettingsState;
-pub use sources::SourcesState;
+pub use sources::{is_derived_cache, SourcesState};
 
 thread_local! {
     static UNTRACKED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };

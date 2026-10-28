@@ -19,7 +19,10 @@
   globalThis.moonkaleCrash = () => {
     crashed = true;
     if (document.getElementById('mk-crash-overlay')) return;
-    const words = globalThis.moonkaleCrashWords;
+    const words = globalThis.moonkaleCrashWords ?? [
+      'The Moonkale client stopped. Your saved files are safe.',
+      'Reload', 'Copy details', 'Start in safe mode',
+    ];
     const overlay = document.createElement('div');
     overlay.id = 'mk-crash-overlay'; overlay.className = 'mk-crash-overlay'; overlay.setAttribute('role', 'alert');
     const text = document.createElement('p'); text.textContent = words[0]; overlay.append(text);
