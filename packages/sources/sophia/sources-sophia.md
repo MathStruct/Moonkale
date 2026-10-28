@@ -157,3 +157,10 @@ P-233 adds the derived-only `definition-locations` read dialect: a content
 native key yields file/start/end/input-digest rows from current file manifests. It visits at
 most 5,000 files and 10,000 spans and rejects overflow rather than returning a
 partial mapping. It does not choose one location for a shared content body.
+
+
+WP-22 (2026-10-28): derived graph reads project file-owned `import_edge` facts
+alongside generic calls. The target path/span/source digest must match its
+current manifest. Calls/References retain import provenance, count and ranges;
+annotation reads cap at 64 KiB each and 10,000 examined edges. Authored stores do
+not use this folder-cache projection. See [[Indexing]].

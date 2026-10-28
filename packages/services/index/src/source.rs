@@ -719,6 +719,7 @@ impl IndexSource {
                 }
             }
         }
+        self.graph.w().resolve_imports();
         let g = self.graph.r();
         *self.stats.w() = IndexStats {
             files,
@@ -1202,6 +1203,7 @@ impl Source for IndexSource {
         for node in nodes {
             self.refresh_one(*node).await?;
         }
+        self.graph.w().resolve_imports();
         #[cfg(feature = "sophia")]
         let _ = self.sync_folder_store().await;
         Ok(())

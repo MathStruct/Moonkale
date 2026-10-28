@@ -1177,6 +1177,144 @@ fn read_current(root: &Path, relative: &str) -> Result<String, SourceError> {
     String::from_utf8(bytes).map_err(|_| SourceError::Invalid("derived source is not UTF-8".into()))
 }
 
+/// File-owned import annotations resolve only through a matching current
+/// manifest. An old fact cannot point at a new definition occupying its span.
+fn import_edges(
+    interface: &Interface<Sqlite>,
+    graph: &mut Subgraph,
+    limit: usize,
+) -> Result<(), SourceError> {
+    let subjects: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter_map(|n| match n.key {
+            Key::Content(d) => Some(d),
+            _ => None,
+        })
+        .collect();
+    let mut examined = 0;
+    for subject in subjects {
+        for fact in interface
+            .store()
+            .read(|tx| tx.facts_of(&subject))
+            .map_err(store_error)?
+        {
+            if fact.kind != "import_edge" || fact.by != "moonkale-index" {
+                continue;
+            }
+            examined += 1;
+            if examined > NEIGHBOUR_LIMIT || graph.edges.len() >= NEIGHBOUR_LIMIT {
+                return Ok(());
+            }
+            if fact.value.len() > 64 * 1024 {
+                continue;
+            }
+            let Ok(value) = serde_json::from_slice::<serde_json::Value>(&fact.value) else {
+                continue;
+            };
+            let (Some(path), Some(source), Some(start), Some(end), Some(kind)) = (
+                value["path"].as_str(),
+                value["source"].as_str(),
+                value["start"].as_u64(),
+                value["end"].as_u64(),
+                value["kind"].as_str(),
+            ) else {
+                continue;
+            };
+            if !matches!(kind, "Calls" | "References") {
+                continue;
+            }
+            let Some(manifest) = interface.store().file_manifest(path).map_err(store_error)? else {
+                continue;
+            };
+            if manifest.source.is_none_or(|d| d.to_hex() != source) {
+                continue;
+            }
+            let Some((target, _, _)) = manifest
+                .spans
+                .iter()
+                .find(|(_, a, b)| u64::from(*a) == start && u64::from(*b) == end)
+            else {
+                continue;
+            };
+            let key = Key::Content(*target);
+            if !graph.nodes.iter().any(|n| n.key == key) {
+                if graph.nodes.len() >= limit {
+                    continue;
+                }
+                let Some(node) = interface.node(&key).map_err(store_error)? else {
+                    continue;
+                };
+                graph.nodes.push(node);
+            }
+            let Ok(props) =
+                serde_json::from_value::<moonkale_core::graph::Properties>(value["props"].clone())
+            else {
+                continue;
+            };
+            let mut props: Vec<_> = props
+                .into_iter()
+                .filter_map(|(k, v)| match v {
+                    Value::Text(s) => Some((k, Prop::Text(s))),
+                    Value::Int(i) => Some((k, Prop::Int(i))),
+                    Value::Bool(b) => Some((k, Prop::Bool(b))),
+                    _ => None,
+                })
+                .collect();
+            if let Some(origin) = value["origin"].as_str() {
+                props.push((
+                    "origins".into(),
+                    Prop::Text(
+                        serde_json::to_string(&vec![origin])
+                            .map_err(|e| SourceError::Invalid(e.to_string()))?,
+                    ),
+                ));
+            }
+            let edge = EdgeView {
+                from: Key::Content(subject),
+                to: key,
+                kind: kind.into(),
+                props,
+            };
+            if let Some(existing) = graph
+                .edges
+                .iter_mut()
+                .find(|e| e.from == edge.from && e.to == edge.to && e.kind == edge.kind)
+            {
+                // Content identities can merge callers from different files.
+                // Core edge identity remains (source, from, to, kind).
+                for (key, value) in edge.props {
+                    if let Some((_, old)) = existing.props.iter_mut().find(|(k, _)| k == &key) {
+                        match (key.as_str(), old, value) {
+                            ("count", Prop::Int(a), Prop::Int(b)) => *a += b,
+                            ("ranges", Prop::Text(a), Prop::Text(b)) => {
+                                a.push(',');
+                                a.push_str(&b);
+                            }
+                            ("imports" | "origins", Prop::Text(a), Prop::Text(b)) => {
+                                if let (Ok(mut all), Ok(more)) = (
+                                    serde_json::from_str::<BTreeSet<String>>(a),
+                                    serde_json::from_str::<BTreeSet<String>>(&b),
+                                ) {
+                                    all.extend(more);
+                                    *a = serde_json::to_string(&all)
+                                        .map_err(|e| SourceError::Invalid(e.to_string()))?;
+                                }
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        existing.props.push((key, value));
+                    }
+                }
+            } else {
+                graph.edges.push(edge);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The folder writer stores generic targets as paths: nominal ids are allocated
 /// inside replace_files. Resolve those annotations at read time, never in ids.
 fn generic_calls(
@@ -1236,6 +1374,7 @@ fn generic_calls(
             }
         }
     }
+    import_edges(interface, graph, limit)?;
     Ok(())
 }
 

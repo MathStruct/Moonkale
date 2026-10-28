@@ -4,6 +4,7 @@
 //! `applies()`/`extract()` and extension-contributed extractors arrive with
 //! the language contribution point.
 
+mod imports;
 mod references;
 pub mod symbols_julia;
 pub mod symbols_python;
@@ -26,7 +27,7 @@ pub fn reads(lang: Option<&str>) -> bool {
 }
 
 /// What an extractor produced for one file.
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Derived {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
@@ -122,6 +123,14 @@ impl<'a> Symbols<'a> {
         d.nodes.push(Node {
             props: {
                 let mut props = self.provenance.clone();
+                if s.kind == "mod" {
+                    let supported = unattributed(s.syntax);
+                    props.insert("module_path_supported".into(), Value::Bool(supported));
+                    props.insert(
+                        "external_module".into(),
+                        Value::Bool(supported && s.syntax.child_by_field_name("body").is_none()),
+                    );
+                }
                 props.extend([
                     ("line".into(), Value::Int(s.line as i64)),
                     ("name".into(), Value::Text(s.name.into())),
@@ -237,6 +246,23 @@ impl<'a> Symbols<'a> {
             kind: s.kind.into(),
         }
     }
+}
+
+// Attributes can select different module paths or condition an import.
+// Comments between an attribute and its item do not remove the attribute.
+fn unattributed(node: arborium_tree_sitter::Node) -> bool {
+    if node.child_by_field_name("attributes").is_some() {
+        return false;
+    }
+    let mut previous = node.prev_named_sibling();
+    while let Some(n) = previous {
+        if matches!(n.kind(), "line_comment" | "block_comment") {
+            previous = n.prev_named_sibling();
+        } else {
+            return n.kind() != "attribute_item";
+        }
+    }
+    true
 }
 
 /// Input identity is a domain-separated UUID-v5 digest of exact file bytes.

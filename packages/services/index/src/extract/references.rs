@@ -14,6 +14,8 @@ pub(super) fn extract(
     root: arborium_tree_sitter::Node,
     text: &str,
 ) -> Derived {
+    let lang = file.language_hint().unwrap_or("");
+    let imports = super::imports::collect(root, text, lang);
     let definitions: Vec<_> = derived
         .nodes
         .iter()
@@ -24,8 +26,10 @@ pub(super) fn extract(
     // identifier. Large bounded content-id requests reuse this resolver.
     let mut definitions_by_name: HashMap<&str, Vec<&Node>> = HashMap::new();
     let mut definitions_by_id = HashMap::new();
+    let mut definitions_by_key = HashMap::new();
     for definition in &definitions {
         definitions_by_id.insert(definition.id, definition);
+        definitions_by_key.insert(definition.native_key.as_str(), definition.id);
         if let Some(Value::Text(name)) = definition.props.get("name") {
             definitions_by_name
                 .entry(name.as_str())
@@ -261,6 +265,62 @@ pub(super) fn extract(
         props.insert("start_byte".into(), Value::Int(target.start_byte() as i64));
         props.insert("end_byte".into(), Value::Int(target.end_byte() as i64));
         props.insert("count".into(), Value::Int(1));
+        // Only unresolved, unshadowed occurrences can become cross-file uses.
+        // The original unresolved node is retained in the graph's base facts,
+        // so removing or duplicating a target restores it on the next batch.
+        let head = name
+            .split(if lang == "rust" { "::" } else { "." })
+            .next()
+            .unwrap_or(name);
+        // Rust/Julia module boundaries do not inherit a parent's import
+        // environment. Functions and impl/class bodies retain their module's.
+        let mut module_scope = (root.start_byte(), root.end_byte());
+        let mut ancestor = node.parent();
+        while let Some(parent) = ancestor {
+            if matches!(parent.kind(), "mod_item" | "module_definition") {
+                module_scope = (parent.start_byte(), parent.end_byte());
+                break;
+            }
+            ancestor = parent.parent();
+        }
+        let imports: Vec<_> = imports.iter().filter(|i| i.scope == module_scope).collect();
+        let mut outer_shadow = false;
+        let mut scope = caller_key;
+        while let Some((parent, _)) = scope.rsplit_once('/') {
+            if !parent.contains('#') {
+                break;
+            }
+            if definitions_by_key
+                .get(parent)
+                .and_then(|id| shadows.get(id))
+                .is_some_and(|names| names.contains(head))
+            {
+                outer_shadow = true;
+                break;
+            }
+            scope = parent;
+        }
+        if !import
+            && !outer_shadow
+            && (head == name || !definitions_by_name.contains_key(head))
+            && candidates.is_empty()
+            && !shadows.get(&caller).is_some_and(|s| s.contains(head))
+            && !shadows.get(&file.id).is_some_and(|s| s.contains(head))
+        {
+            let target = super::imports::target(&imports, name, lang).or_else(|| {
+                (lang == "julia"
+                    && name.split('.').count() == 2
+                    && !imports
+                        .iter()
+                        .any(|i| i.local.is_empty() || i.local == head))
+                .then(|| (name.to_string(), name.to_string()))
+            });
+            if let Some((target, statement)) = target {
+                props.insert("import_target".into(), Value::Text(target));
+                props.insert("import".into(), Value::Text(statement));
+                props.insert("lang".into(), Value::Text(lang.into()));
+            }
+        }
         let to = if candidates.len() == 1 {
             candidates[0].id
         } else {

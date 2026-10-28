@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Default)]
 pub struct IndexGraph {
     pub nodes: HashMap<NodeId, Node>,
+    base: HashMap<NodeId, crate::extract::Derived>,
     /// Edges keyed by the file whose content produced them (`Contains`
     /// edges from the folder walk are keyed by the parent directory).
     edges_by_origin: HashMap<NodeId, Vec<Edge>>,
@@ -59,6 +60,17 @@ impl IndexGraph {
 
     /// Replace everything derived from `origin` (edges + derived nodes).
     pub fn set_derived(&mut self, origin: NodeId, nodes: Vec<Node>, edges: Vec<Edge>) {
+        self.base.insert(
+            origin,
+            crate::extract::Derived {
+                nodes: nodes.clone(),
+                edges: edges.clone(),
+            },
+        );
+        self.publish(origin, nodes, edges);
+    }
+
+    fn publish(&mut self, origin: NodeId, nodes: Vec<Node>, edges: Vec<Edge>) {
         if let Some(old) = self.derived_by_origin.remove(&origin) {
             for id in old {
                 self.nodes.remove(&id);
@@ -72,12 +84,45 @@ impl IndexGraph {
         self.edges_by_origin.insert(origin, edges);
     }
 
+    /// Reconcile folder imports once after all files in a debounce batch.
+    pub fn resolve_imports(&mut self) {
+        let files = self
+            .nodes
+            .iter()
+            .filter(|(_, n)| n.kind == NodeKind::File)
+            .map(|(id, n)| (*id, n.clone()))
+            .collect();
+        for (origin, d) in crate::cross_file::resolve(&files, &self.base) {
+            let ids: Vec<_> = d.nodes.iter().map(|n| n.id).collect();
+            if self.edges_by_origin.get(&origin) == Some(&d.edges)
+                && self.derived_by_origin.get(&origin) == Some(&ids)
+            {
+                continue;
+            }
+            let retained: HashSet<_> = ids.iter().copied().collect();
+            if let Some(old) = self.derived_by_origin.insert(origin, ids) {
+                for id in old {
+                    if !retained.contains(&id) {
+                        self.nodes.remove(&id);
+                    }
+                }
+            }
+            // Preserve lazily computed identity metadata on unchanged definitions.
+            // extract_into already replaced changed inputs before reconciliation.
+            for n in d.nodes {
+                self.nodes.entry(n.id).or_insert(n);
+            }
+            self.edges_by_origin.insert(origin, d.edges);
+        }
+    }
+
     /// Forget a mirrored file or directory and everything below it: the
     /// nodes, what was derived from them, and the `Contains` edges that
     /// pointed at them (Milestone 7: rename/delete).
     pub fn remove_subtree(&mut self, id: NodeId) -> Vec<NodeId> {
         let gone = self.subtree(id);
         for g in &gone {
+            self.base.remove(g);
             if let Some(old) = self.derived_by_origin.remove(g) {
                 for d in old {
                     self.nodes.remove(&d);
@@ -93,6 +138,10 @@ impl IndexGraph {
                     list.retain(|x| x != g);
                 }
             }
+        }
+        for d in self.base.values_mut() {
+            d.edges
+                .retain(|e| !gone.contains(&e.to) && !gone.contains(&e.from));
         }
         for edges in self.edges_by_origin.values_mut() {
             edges.retain(|e| !gone.contains(&e.to) && !gone.contains(&e.from));
@@ -155,6 +204,10 @@ impl IndexGraph {
 
     /// Add one edge to an origin's set (idempotent).
     pub fn add_edge(&mut self, origin: NodeId, edge: Edge) {
+        let base = self.base.entry(origin).or_default();
+        if !base.edges.contains(&edge) {
+            base.edges.push(edge.clone());
+        }
         let list = self.edges_by_origin.entry(origin).or_default();
         if !list.contains(&edge) {
             list.push(edge);

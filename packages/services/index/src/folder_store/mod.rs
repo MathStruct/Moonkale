@@ -1,6 +1,7 @@
 //! File-backed Sophia cache. Only the index's bounded, ignore-aware code
 //! selection enters here. Sophia never parses or authors these files.
 pub mod digest;
+mod import_edges;
 mod producer;
 
 use moonkale_core::{ContentRef, Node, SourceError};
@@ -17,7 +18,10 @@ const MAX_OWNER_RETRIES: usize = 16;
 pub const MAX_SNAPSHOT_BYTES: usize = 64 * 1024 * 1024;
 
 pub fn normaliser() -> String {
-    format!("moonkale-wp66@{}", moonkale_content_id::NORMALIZER_VERSION)
+    format!(
+        "moonkale-wp66-imports-v1@{}",
+        moonkale_content_id::NORMALIZER_VERSION
+    )
 }
 
 /// Text admitted by the index walk, not arbitrary filesystem paths.
@@ -54,12 +58,17 @@ pub struct FolderReport {
 pub struct FolderStore {
     root: PathBuf,
     truth: moonkale_core::SourceTruth,
+    imports: std::sync::Mutex<import_edges::SyntaxCache>,
 }
 impl FolderStore {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceError> {
         let root = root.as_ref().canonicalize().map_err(io)?;
         let truth = moonkale_project_fs::truth::detect(&root).map_err(io)?;
-        let this = Self { root, truth };
+        let this = Self {
+            root,
+            truth,
+            imports: Default::default(),
+        };
         this.check_path()?;
         // A store-truth folder is never initialized or altered as a cache.
         if truth == moonkale_core::SourceTruth::Store {
@@ -128,6 +137,9 @@ impl FolderStore {
     }
 
     fn validate_files(&self, files: &[CodeFile]) -> Result<(), SourceError> {
+        if files.len() > crate::walk::Limits::default().max_files {
+            return Err(error("folder-store file count limit"));
+        }
         let mut total = 0usize;
         for f in files {
             total = total.saturating_add(f.text.len());
@@ -212,7 +224,15 @@ impl FolderStore {
         let fresh = Self::open(scratch.path())?;
         let mut report = FolderReport::default();
         let changed = files.iter().map(|f| f.node.native_key.clone()).collect();
-        let records = producer::produce(&self.root, files, &changed, true, &mut report)?;
+        let mut records = producer::produce(&self.root, files, &changed, true, &mut report)?;
+        let mut changed = changed;
+        import_edges::reconcile(
+            &Store::new(Sqlite::open(fresh.path()).map_err(error)?),
+            files,
+            &mut records,
+            &mut changed,
+            &mut Default::default(),
+        )?;
         let db = Store::new(Sqlite::open(fresh.path()).map_err(error)?);
         db.set_derived().map_err(error)?;
         db.replace_files(&records.into_values().collect::<Vec<_>>())
@@ -313,6 +333,13 @@ impl FolderStore {
                 }
             }
         }
+        import_edges::reconcile(
+            &store,
+            files,
+            &mut produced,
+            &mut changed,
+            &mut self.imports.lock().unwrap_or_else(|e| e.into_inner()),
+        )?;
         let mut batch: BTreeMap<String, FileIngest> = changed
             .iter()
             .map(|p| (p.clone(), produced.remove(p).unwrap_or_else(|| deleted(p))))
@@ -340,10 +367,20 @@ impl FolderStore {
                         owner.ends_with(".jl"),
                         &mut report,
                     )?;
-                    batch.insert(
-                        owner.clone(),
-                        extra.remove(&owner).unwrap_or_else(|| deleted(&owner)),
-                    );
+                    extra.retain(|path, _| path == &owner);
+                    extra.extend(batch.clone());
+                    let mut more = more;
+                    import_edges::reconcile(
+                        &store,
+                        files,
+                        &mut extra,
+                        &mut more,
+                        &mut self.imports.lock().unwrap_or_else(|e| e.into_inner()),
+                    )?;
+                    extra
+                        .entry(owner.clone())
+                        .or_insert_with(|| deleted(&owner));
+                    batch = extra;
                 }
                 Err(e) => return Err(error(e)),
             }

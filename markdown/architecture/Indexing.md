@@ -5,7 +5,7 @@ tags: [architecture, index]
 Crate: `index`. The index turns *files and rows* into a *graph* by deriving what sources don't know: symbols, links, outlines, embeddings, stack frames. It is exposed as `IndexSource`, so its output is just more nodes and edges.
 
 > [!note] Index storage rechecked 2026-10-27 (ADR-0030); extractor coverage from 2026-10-24 (WP-21/WP-65/WP-22/WP-66)
-> - **Extractors**: wiki-links and tree-sitter definitions for Rust, Julia and Python. The three languages run through the same dispatch. Definitions have location ids, names, ranged occurrences, lexical containment and provenance; syntactic calls/references/imports resolve unique same-file names and preserve other targets as `Unresolved`. See [[Code Graph Schema]] for exact coverage and limitations. No headings/front matter nodes yet.
+> - **Extractors**: wiki-links and tree-sitter definitions for Rust, Julia and Python. The three languages run through the same dispatch. Definitions have location ids, names, ranged occurrences, lexical containment and provenance; syntactic calls/references resolve unique same-file names and explicit folder imports (WP-22, 2026-10-28), preserving other targets as `Unresolved`. See [[Code Graph Schema]] for exact coverage and limitations. No headings/front matter nodes yet.
 > - **Parsing** is native tree-sitter through `arborium` (shared with the Rust code editor, P-113) — not `.wasm` grammars; the index runs on desktop and the server, and the web/phone query the server's.
 > - **Default code graph reads use Sophia** in files-truth folders on desktop/mobile and the server. The in-memory graph, BM25 postings (`search.rs`) and embeddings (brute-force cosine, reciprocal-rank fusion) rebuild on open; search and explicit/fallback graph reads use them. Marked store-truth folders use the read-only stopgap below. No tantivy, usearch or recoco dependency.
 > - **Content identities**: experimental `moonkale-index/content-ids`, off by default. Explicit async requests hash normalized Rust/Julia/Python syntax and same-file recursive dependencies; a bounded memory cache and optional state-store adapter are available. Unsupported syntax fails explicitly. No eager workspace hashing or UI activation. See [[Code Graph Schema]] for normalizer v7 and its conservative syntax subset.
@@ -430,3 +430,71 @@ existing source routes. A single-member nominal function can resolve to its
 body. Overloads, shared bodies, stale inputs, unrelated stores and bounded-read
 overflow leave the controls without an automatic edit target. The existing
 revision-aware proposal and LSP guards still apply. See [[P-233 Structural edits need index nodes in the graph]].
+
+
+## Cross-file calls and references (WP-22, 2026-10-28)
+
+The folder graph resolves a use only through an explicit admitted import and a
+unique indexed target. Rust supports simple `use a::b::f` and `use crate::m::f`
+through conventional `mod` declarations and `m.rs` / `m/mod.rs`, rooted at
+`lib.rs` or `main.rs`; inline modules contribute namespaces. Python supports
+`from m import f` and `import m` followed by `m.f`, with folder-relative module
+paths. Julia supports `using M: f`, `import M.f` and qualified `M.f` for modules
+defined in the indexed files. Module imports stay in their enclosing module;
+function/conditional imports, aliases, import lists, wildcards, re-exports,
+custom Rust targets/paths and implicit Julia include ownership are outside this
+resolver. Attributed Rust module paths/imports, unsupported import environments, duplicate module owners/targets and possible
+local shadows remain unresolved; no package loader, compiler or execution runs.
+
+Resolved Calls and References carry `resolved_via: import`, `import` (one
+contributing statement), `imports` (a JSON list of contributing statements) and
+`import_target`, alongside input provenance, count and occurrence ranges.
+Julia's directly qualified form records the qualified spelling as its import
+provenance. Same-file edges do not gain these properties. Content normalizer v7
+and lazy identity semantics are unchanged: import edges are annotations, not new
+content-hash inputs.
+
+Each extraction retains its unresolved base facts. After a watcher batch, a
+folder-wide in-memory reconciliation builds a namespace/name lookup and updates
+changed origin projections. It uses admitted facts and does not fetch or reparse
+unchanged callers. Removing, moving, duplicating or restoring a target therefore
+updates incoming dependencies, including uses that were unresolved before.
+The existing file/text walk bounds apply; the cache snapshot also retains its
+64 MiB aggregate bound. No recursive dependency fetch is added.
+
+Sophia stores `import_edge` annotations owned by the caller's file manifest.
+The annotation identifies the target by file, exact span and source digest;
+its reader requires that matching current manifest before adding a graph edge.
+Annotations cap at 64 KiB; overflow refuses cache sync with a visible fallback
+reason instead of silently dropping a dependency. Import resolution retracts
+cross-file edges if incremental additions exceed the 5,000-file walk budget.
+Content-deduplicated callers share one edge with combined counts/ranges and an
+`origins` JSON list. A selected debounce batch never combines another dirty
+caller's new source with old normalized records; that caller waits for its own
+event, while target-source guards suppress outdated edges.
+Only admitted normalized definitions enter this projection; unsupported bodies
+and file-level uses retain the in-memory graph as the fuller fallback. A target
+edit atomically replaces its manifest and affected caller annotations. Reused
+syntax facts avoid reparsing unchanged inputs within a writer lifetime; after a
+no-op reopen the first edit warms that bounded syntax cache. Unchanged callers'
+records are reused rather than normalized again. Manifest-hash reopen still
+performs zero parses/writes. The derived producer stamp is now
+`moonkale-wp66-imports-v1@7`, causing an ordinary cache rebuild once, while
+preserving existing content digests and all store-truth protections.
+
+Multi-file Rust/Python/Julia fixtures cover calls, references, qualified forms,
+ambiguity, globs, external imports, shadows, missing module declarations,
+deletions/reappearance, cache reads and fresh/incremental cache equivalence.
+
+
+Browser coverage also exercises imported calls over the server/Sophia graph
+boundary, including a changed content id and target deletion. The watch suite's
+refresh-button assertion targets the watched folder itself; the additional
+Sophia source has an independent refresh control.
+
+Verification (2026-10-28): all 12 AGENTS gate commands pass
+(`target/next25-gates-verified.log`); 95 focused index/Sophia tests and feature
+clippy pass (`target/next25-feature-ready.log`). Fourteen browser executions
+pass across CI's structural (native and CodeMirror), Sophia and default graph
+feature sets (`target/next25-browser-verified.log`, `target/next25-browser-ci.log`).
+These are functional checks, not a large-folder performance measurement.

@@ -14,8 +14,10 @@
 //! `IndexSource` answers `Node`, `Children`, `Neighbours`, `All`. Native only
 //! (tree-sitter's C runtime does not target `wasm32-unknown-unknown`): on
 //! desktop it runs in-process, on web it runs on the server and the client
-//! sees it as a `RemoteSource`. Persistence, embeddings, LSP symbols and
-//! stack traces remain design notes in the vault (`architecture/Indexing.md`).
+//! sees it as a `RemoteSource`. Explicit folder imports connect Rust, Python
+//! and Julia definitions across files; the optional Sophia folder cache
+//! persists code records and file-owned dependency annotations. Search supports
+//! embeddings; LSP symbols remain planned. See `architecture/Indexing.md`.
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod extract;
@@ -45,3 +47,6 @@ pub mod folder_store;
 
 #[cfg(all(feature = "sophia", not(target_arch = "wasm32")))]
 mod selection;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod cross_file;

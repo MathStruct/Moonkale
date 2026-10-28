@@ -25,6 +25,16 @@ See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
 older whole-product inventory date above is unchanged; this paragraph checks only
 WP-47, not every area below.
 
+## Cross-file code dependencies (WP-22, checked 2026-10-28)
+
+Rust, Python and Julia Calls/References now resolve explicit folder imports to
+unique indexed definitions, with import provenance and occurrence ranges.
+A batch refresh updates incoming edges when targets change, disappear or become
+ambiguous. Sophia persists these as file-owned annotations and projects them
+into cache graph reads; no-op reopen and content identity remain unchanged.
+Globs, external targets, dispatch and unsupported import environments remain
+unresolved. See [[Indexing]] for exact syntax, bounds and coverage.
+
 ## Portable CI (WP-26, checked 2026-10-17)
 
 Windows and Apple-silicon macOS now have an advisory `portable` matrix for core,

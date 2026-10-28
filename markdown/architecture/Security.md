@@ -342,3 +342,20 @@ stores cannot become file-edit targets. Manifest traversal caps at 5,000 files
 and 10,000 spans, refusing overflow and ambiguous bodies. Locations select an
 index node, never grant writes; existing input provenance, document revision,
 proposal and rename guards still decide whether an edit can apply.
+
+
+WP-22 (2026-10-28): cross-file resolution reads only admitted folder syntax facts.
+It does not run code, load dependencies or follow new paths. Explicit imports,
+unique targets and conservative shadow checks gate resolution; unsupported forms
+remain unresolved. Sophia annotations are file-owned and reference target
+manifest path/span/source hashes, so old annotations cannot acquire a new target
+occupying an old span. Cache edge projection bounds annotations to 64 KiB each,
+10,000 examined edges and the query's node cap. Content normalizer inputs,
+store-truth protections and the existing snapshot/path bounds are unchanged.
+
+
+Audit #18 follow-up (2026-10-28): the authenticated SSH master receives its local
+forward through bounded multiplex commands before the token is sent. Failed
+forwards retry fresh ports up to three attempts with a log for each retry and a
+ten-second command deadline. Unwinding handshake panics publish a generic Failed
+phase and terminate the master; panic payloads are not copied into UI messages.

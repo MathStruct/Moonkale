@@ -16,6 +16,8 @@ const page = await browser.newPage({ viewport: {width:1500,height:900} });
 const logs = [];
 page.on("console",m => logs.push(m.text()));
 try {
+  fs.writeFileSync(`${root}/cross_helper.py`, "def cross_plus(x):\n    return x + 1\n");
+  fs.writeFileSync(`${root}/cross_caller.py`, "from cross_helper import cross_plus\ndef cross_caller(x):\n    return cross_plus(x)\n");
   fs.writeFileSync(`${root}/Cache.jl`, "module Cache\nconst initial = 1\nend\n");
   await page.goto(`http://127.0.0.1:${process.env.PORT}/`,{waitUntil:"networkidle"});
   await page.waitForSelector(".wb-workspace");
@@ -32,6 +34,35 @@ try {
   assert.equal(await page.$eval(".mk-graph-source", e => e.value), "");
   await page.waitForFunction(() => Number(document.querySelector(".mk-graph-info")?.dataset.nodes) > 0);
   await page.waitForFunction(() => /gl|gpu/i.test(document.querySelector(".mk-graph-info")?.dataset.backend || ""),null,{timeout:30000});
+  // WP-22: inspect real cache graph edges through the server boundary.
+  const cacheCalls = async () => {
+    const response = await page.request.post(`http://127.0.0.1:${process.env.PORT}/api/sources/query`, {
+      data: {source, q: {All: {limit:10000,kinds:null}}},
+    });
+    assert(response.ok());
+    const result = await response.json();
+    assert(!result.Err, JSON.stringify(result));
+    return (result.Ok ?? result).edges.filter(e => e.kind === "Calls" && e.props?.resolved_via?.Text === "import" && e.props?.import_target?.Text === "cross_helper.cross_plus");
+  };
+  const initialCalls = await cacheCalls();
+  assert.equal(initialCalls.length, 1, "cross-file call reaches cache graph");
+  assert.equal(initialCalls[0].props.import.Text, "from cross_helper import cross_plus");
+  fs.writeFileSync(`${root}/cross_helper.py`, "def cross_plus(x):\n    return x + 77\n");
+  await assert.doesNotReject(async () => {
+    const deadline = Date.now()+20000;
+    while (Date.now()<deadline) {
+      const calls=await cacheCalls();
+      if (calls.length===1 && calls[0].to!==initialCalls[0].to) return;
+      await page.waitForTimeout(200);
+    }
+    throw Error("cache kept old imported target");
+  });
+  fs.rmSync(`${root}/cross_helper.py`);
+  {
+    const deadline = Date.now()+20000;
+    while ((await cacheCalls()).length && Date.now()<deadline) await page.waitForTimeout(200);
+    assert.equal((await cacheCalls()).length,0,"deleting target retracts cache edge");
+  }
   // The names/definitions must survive the Graph panel's data-kind filter
   // even though a folder store declares Files truth.
   const initialId = nameId(source,"name:jl.Cache.initial");
@@ -117,6 +148,8 @@ try {
   process.exitCode=1;
 } finally {
   fs.rmSync(`${root}/Cache.jl`,{force:true});
+  fs.rmSync(`${root}/cross_helper.py`,{force:true});
+  fs.rmSync(`${root}/cross_caller.py`,{force:true});
   fs.rmSync(storeRoot,{recursive:true,force:true});
   await browser.close();
 }

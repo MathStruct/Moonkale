@@ -199,3 +199,11 @@ It returns a current index node directly, or resolves an attached Sophia cache
 definition by native key, then a unique file and exact byte span. Other caches,
 authored stores, missing locations and ambiguous bodies yield no target.
 The pure matching rule lives in `selection.rs`. Search remains on the index.
+
+
+WP-22 (2026-10-28): `extract/imports.rs` admits conservative import syntax;
+`cross_file.rs` reconciles folder namespaces against retained unresolved facts
+after build/refresh batches. `folder_store/import_edges.rs` caches syntax by
+input digest, emits file-owned import annotations, and reuses unchanged callers'
+normalized records. Target manifests guard cache reads. See [[Indexing]] for
+syntax/identity limits and `tests/cross_file.rs` for three-language regressions.

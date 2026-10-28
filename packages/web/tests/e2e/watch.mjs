@@ -24,7 +24,9 @@ try {
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
     await page.waitForSelector(".wb-tab:has-text('Sources')", { timeout: 5000 });
     await sleep(1500); // the first changes_since answer marks the folder watched
-    const refresh = await page.$$(".mk-explorer-source .mk-source-refresh");
+    // Sophia is an additional source with its own refresh control. Check
+    // the watched folder itself rather than every source in the explorer.
+    const refresh = await page.$$(".mk-explorer-source-name:has-text('m2root') .mk-source-refresh");
     if (refresh.length) throw new Error("a watched folder shows a refresh button");
   });
   await step("a file written on disk appears in the tree, unprompted", async () => {
