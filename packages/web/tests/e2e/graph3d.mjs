@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 8: the 3D graph mode, in Chromium with software WebGL (SwiftShader) — the first suite that
 // exercises the wgpu renderer itself: the module loads, draws, the 3D toggle switches modes, nodes are
 // hoverable in both, orbit changes the picture, pixels are not all background.
@@ -28,9 +29,9 @@ try {
   await step("open folder; the renderer starts on WebGL2 and draws the index graph", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".wb-tab:has-text('Graph')");
+    await control(page, 'click', ".wb-tab:has-text('Graph')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.backend, null, { timeout: 30000 });
     await page.waitForFunction(() => +(document.querySelector(".mk-graph-info")?.dataset.nodes || 0) > 5, null, { timeout: 15000 });
     await sleep(1500);
@@ -44,7 +45,7 @@ try {
   let before;
   await step("3D toggle → data-mode=3d, the picture changes, nodes still hover", async () => {
     before = await litFraction();
-    await page.click(".mk-graph-modes ~ button:has-text('3D'), button:has-text('3D')");
+    await control(page, 'click', ".mk-graph-modes ~ button:has-text('3D'), button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "3d", null, { timeout: 5000 });
     await sleep(1500);
     const after = await litFraction();
@@ -75,7 +76,7 @@ try {
     if (Buffer.compare(a, b) === 0) throw new Error("orbit changed nothing");
     await page.mouse.wheel(0, -300);
     await sleep(400);
-    await page.click("button:has-text('Fit')");
+    await control(page, 'click', "button:has-text('Fit')");
     await sleep(400);
     await page.screenshot({ path: `${S}/m8-graph-3d-orbit.png` });
   });
@@ -118,7 +119,7 @@ try {
     if (!moved || (Math.abs(moved.x - found.x) < 2 && Math.abs(moved.y - found.y) < 2)) throw new Error("nothing moved");
   });
   await step("back to 2D", async () => {
-    await page.click("button:has-text('3D')");
+    await control(page, 'click', "button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
   });
   await step("two-finger gestures (spec 006): pinch zooms in 2D, finger rotation orbits in 3D (CDP touch events)", async () => {
@@ -128,7 +129,7 @@ try {
     const touch = async (type, points) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, i) => ({ x: p[0], y: p[1], id: i })) });
     const cam = () => page.evaluate(() => Array.from(Object.values(window.moonkale.graphViews)[0].camera_state()));
     // The 3D button toggles: back to 2D for the pinch.
-    if ((await info()).mode === "3d") await page.click("button:has-text('3D')");
+    if ((await info()).mode === "3d") await control(page, 'click', "button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
     await sleep(300);
     const c0 = await cam();
@@ -140,7 +141,7 @@ try {
     console.log("\n  2d scale:", c0[0].toFixed(3), "→", c1[0].toFixed(3));
     if (!(c1[0] > c0[0] * 2)) throw new Error("pinch did not zoom");
     // 3D: rotate the two fingers around their midpoint → yaw changes, distance does not.
-    await page.click("button:has-text('3D')");
+    await control(page, 'click', "button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "3d", null, { timeout: 5000 });
     await sleep(300);
     const c2 = await cam();
@@ -155,7 +156,7 @@ try {
     if (Math.abs(c3[5] - c2[5]) > c2[5] * 0.05) throw new Error("a pure rotation changed the distance");
   });
   await step("a reload with the same nodes keeps positions and camera (spec 017): zoom, then change the active document", async () => {
-    if ((await info()).mode === "3d") await page.click("button:has-text('3D')");
+    if ((await info()).mode === "3d") await control(page, 'click', "button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
     await sleep(300);
     const box = await page.$eval(".mk-graph-overlay", (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
@@ -165,16 +166,16 @@ try {
     const cam = () => page.evaluate(() => Array.from(Object.values(window.moonkale.graphViews)[0].camera_state()));
     const before = await cam();
     // Opening a document changes `ws.active`, which reloads the graph.
-    await page.click(".mk-tree-file >> text=Alpha.md");
+    await control(page, 'click', ".mk-tree-file >> text=Alpha.md");
     await page.waitForSelector(".cm-content, .mk-rich-host", { timeout: 15000 });
-    await page.click(".wb-tab:has-text('Graph')");
+    await control(page, 'click', ".wb-tab:has-text('Graph')");
     await sleep(1500);
     const after = await cam();
     console.log("\n  camera before:", before.slice(0, 3).map((v) => v.toFixed(2)).join(","), "after:", after.slice(0, 3).map((v) => v.toFixed(2)).join(","));
     if (Math.abs(after[0] - before[0]) > 1e-3 || Math.abs(after[1] - before[1]) > 1 || Math.abs(after[2] - before[2]) > 1) throw new Error("the reload reset the camera");
   });
   await step("a graph replaced under a held node ends the drag instead of panicking (P-155)", async () => {
-    if ((await info()).mode === "3d") await page.click("button:has-text('3D')");
+    if ((await info()).mode === "3d") await control(page, 'click', "button:has-text('3D')");
     await page.waitForFunction(() => document.querySelector(".mk-graph-info")?.dataset.mode === "2d", null, { timeout: 5000 });
     await sleep(300);
     const box = await page.$eval(".mk-graph-overlay", (e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });

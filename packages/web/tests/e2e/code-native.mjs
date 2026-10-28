@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 import { clickNativeCommand } from "./native-toolbar.mjs";
 // Opt-in Rust engine through the real shell, folder source and editor switch.
 import { firefox } from "playwright";
@@ -23,9 +24,9 @@ try {
   await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "domcontentloaded" });
   await hydrated;
   await page.waitForSelector(".wb-workspace");
-  await page.click(".mk-explorer-open button[type=submit]");
+  await control(page, 'click', ".mk-explorer-open button[type=submit]");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-  await page.click(".mk-tree-dir >> text=src"); await page.click(".mk-tree-file >> text=main.rs");
+  await control(page, 'click', ".mk-tree-dir >> text=src"); await control(page, 'click', ".mk-tree-file >> text=main.rs");
   await panel.locator(".mk-native-surface").waitFor();
   await step("Rust syntax, localized input and exact folder save", async () => {
     if (!await panel.locator(".mk-editor-core-cell[class*=a-]").count()) throw Error("missing syntax highlighting");
@@ -64,17 +65,17 @@ try {
   });
   await step("reload restores canonical source text", async () => {
     await input().focus(); await page.keyboard.type("discard"); await panel.locator(".mk-editor-dirty").waitFor();
-    await panel.getByRole("button", { name: "Reload", exact: true }).click();
+    await control(panel.getByRole("button", { name: "Reload", exact: true, includeHidden: true }), 'click');
     await page.waitForFunction(() => ![...document.querySelectorAll(".mk-crust")].filter(x => x.offsetParent !== null).some(x => x.querySelector(".mk-editor-dirty")));
     await save(`λ中// native\n${original}`);
   });
   await step("editor switch preserves canonical text", async () => {
     await clickNativeCommand(panel.locator(".mk-editor-switch")); await page.locator(".cm-content").filter({ visible: true }).waitFor();
-    await page.locator(".mk-editor-switch").filter({ visible: true }).click(); await input().waitFor();
+    await control(page.locator(".mk-editor:visible .mk-editor-switch"), 'click'); await input().waitFor();
     await save(`λ中// native\n${original}`);
   });
   await step("3 MB typing dirties Workspace within 1.5 seconds", async () => {
-    await page.click(".mk-tree-file >> text=perf.rs");
+    await control(page, 'click', ".mk-tree-file >> text=perf.rs");
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-crust")].some(x => x.offsetParent !== null && x.querySelector(".mk-editor-path")?.textContent.endsWith("perf.rs") && !x.querySelector(".mk-editor-dirty")));
     await input().waitFor();
     await input().focus(); await page.keyboard.press("Control+Home");

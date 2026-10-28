@@ -175,3 +175,6 @@ registry also carries layout labels and supplies every discovery surface.
 buttons; Rust resolves ids and owns visits. Alt+Enter/middle click in quick-open
 load background tabs; shell reconciliation retains every tile's selected tab.
 The dedicated Settings test field keeps last-input state local to itself.
+
+
+WP-63 (2026-10-28): Appearance/palette share density. Simple folds the title menus behind ☰/Alt, keeps six rail entries plus More, bounds status to five items, and uses flat panel disclosures. Optional chrome choices live in user settings, independently of enablement/permissions. Existing enabled extensions are retained on first migration; new ones are offered in Extensions.

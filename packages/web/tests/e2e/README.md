@@ -711,3 +711,5 @@ plus focused left-hand graph controls. These use Chromium software WebGL.
 The keyboard-layout cases inject DOM key/code pairs; they do not change the OS
 keyboard or exercise a real IME. Desktop WebKit and Android input remain manual
 platform checks.
+
+`density.mjs` checks the Simple chrome budgets, Detailed, shared Settings/palette selection, extension chrome offers, legacy chrome migration, the Detailed Rust toolbar at phone width, and every registered command in both densities. `chrome-controls.mjs` reaches folded controls by clicking their real disclosure; it never changes density or enables chrome.

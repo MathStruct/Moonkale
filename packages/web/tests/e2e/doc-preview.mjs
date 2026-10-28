@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 import { clickNativeCommand } from "./native-toolbar.mjs";
 import {firefox} from 'playwright';import fs from 'node:fs';import assert from 'node:assert/strict';
 const root=process.env.M1_ROOT;if(!root)throw Error('M1_ROOT must name a disposable fixture');
@@ -13,9 +14,9 @@ const panel=()=>page.locator('.mk-crust[data-editor=rust]:visible'),input=()=>pa
 const ready=()=>page.waitForFunction(()=>{const runs=[...document.querySelectorAll('.mk-crust .mk-proportional-run')].filter(run=>run.getBoundingClientRect().height>0);return runs.length&&runs.every(run=>run.dataset.ready==='true'&&run.dataset.fontLoading==='false');});
 const save=async()=>{await input().focus();await page.keyboard.press('Control+s');await page.waitForFunction(()=>![...document.querySelectorAll('.mk-crust')].filter(el=>el.getBoundingClientRect().height>0).some(el=>el.querySelector('.mk-editor-dirty')));};
 try{
- await page.goto(`http://127.0.0.1:${process.env.PORT??8094}/`,{waitUntil:'networkidle'});await page.waitForSelector('.wb-workspace');await page.click('.mk-explorer-open button[type=submit]');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
+ await page.goto(`http://127.0.0.1:${process.env.PORT??8094}/`,{waitUntil:'networkidle'});await page.waitForSelector('.wb-workspace');await control(page, 'click', '.mk-explorer-open button[type=submit]');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
  for(const [name,original]of Object.entries(sources)){
-  await page.locator('.mk-tree-file').filter({hasText:name}).click();await input().waitFor();
+  await control(page.locator('.mk-tree-file').filter({hasText:name}), 'click');await input().waitFor();
   const toggle=panel().locator('.mk-native-doc-preview');if(await toggle.getAttribute('aria-pressed')==='false')await clickNativeCommand(toggle);
   await input().focus();await page.keyboard.press('Control+End');await panel().locator('.mk-editor-core-viewport').evaluate(el=>el.scrollTop=0);await ready();
   assert.equal(await panel().locator('.mk-native-wrap').getAttribute('aria-pressed'),'false');assert.equal(await panel().locator('.mk-documentation-preview').count(),2);

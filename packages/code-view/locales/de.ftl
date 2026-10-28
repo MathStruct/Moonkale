@@ -120,7 +120,6 @@ editor-a11y-tab-indent = Tab rückt ein.
 
 editor-group-history-blocked = Diese Umbenennung kann nicht rückgängig gemacht oder wiederholt werden. Zuerst neuere Änderungen in { $file } rückgängig machen; möglicherweise ist der gemeinsame Verlauf nicht mehr verfügbar.
 
-editor-more = Weitere Editorbefehle
 
 native-reload = Rust-Editor: Neu laden
 native-hover = Rust-Editor: Hover-Informationen anzeigen

@@ -221,57 +221,62 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
     let foldable = log.len().saturating_sub(KEEP);
 
     rsx! {
-        moonkale_ext_api::Stylesheet { href: CSS }
-        div { class: "mk-history",
-            div { class: "mk-history-head",
-                span { class: "mk-muted", {t!(ws, L, "history-head", events = log.len(), checkpoints = checkpoints, kb = kb)} }
-                span { class: "mk-history-spacer" }
-                if foldable > 0 {
-                    button { class: "mk-btn mk-btn-mini", title: t!(ws, L, "history-compact-title", keep = KEEP),
-                        onclick: moonkale_ext_api::crash::event(move |_| { let n = ws.compact_history(KEEP); ws.set_status(t!(ws, L, "history-folded", n = n)); }),
-                        {t!(ws, L, "history-compact", n = foldable)} }
+            moonkale_ext_api::Stylesheet { href: CSS }
+            div { class: "mk-history",
+                div { class: "mk-history-head",
+                    span { class: "mk-muted", {t!(ws, L, "history-head", events = log.len(), checkpoints = checkpoints, kb = kb)} }
+                    span { class: "mk-history-spacer" }
+                    moonkale_ext_api::icons::ToolbarActions {
+                        primary: rsx! { label { class: "mk-history-check", title: t!(ws, L, "history-active-title"),
+                        input { r#type: "checkbox", checked: only_active(), onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| only_active.set(e.checked()) )}
+                        {t!(ws, L, "history-active")}
+                    } },
+    if foldable > 0 {
+                        button { class: "mk-btn mk-btn-mini", title: t!(ws, L, "history-compact-title", keep = KEEP),
+                            onclick: moonkale_ext_api::crash::event(move |_| { let n = ws.compact_history(KEEP); ws.set_status(t!(ws, L, "history-folded", n = n)); }),
+                            {t!(ws, L, "history-compact", n = foldable)} }
+                    }
+
+
+                    }
                 }
-                label { class: "mk-history-check", title: t!(ws, L, "history-active-title"),
-                    input { r#type: "checkbox", checked: only_active(), onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| only_active.set(e.checked()) )}
-                    {t!(ws, L, "history-active")}
+                if log.is_empty() {
+                    p { class: "mk-muted", {t!(ws, L, "history-empty")} }
                 }
-            }
-            if log.is_empty() {
-                p { class: "mk-muted", {t!(ws, L, "history-empty")} }
-            }
-            if !log.is_empty() && count == 0 {
-                p { class: "mk-muted", {t!(ws, L, "history-none-active")} }
-            }
-            ul { class: "mk-history-list", "data-count": "{count}",
-                for e in events.iter().rev() {
-                    {
-                        let is_checkpoint = matches!(e.kind, EventKind::Checkpoint { .. });
-                        let node = e.node();
-                        let key = e.key.clone().or_else(|| node.map(key_of)).unwrap_or_default();
-                        let has_text = node.is_some_and(|n| log.text_at(n, Some(e.id)).is_some());
-                        let (ev_id, actor, at) = (e.id, e.actor.clone(), e.at);
-                        let who = actor.split(':').nth(1).unwrap_or(&actor).to_string();
-                        let summary = summary(ws, e);
-                        let key2 = key.clone();
-                        rsx! {
-                            li { key: "{e.id}", class: if is_checkpoint { "mk-history-event mk-history-checkpoint" } else { "mk-history-event" },
-                                "data-kind": match &e.kind { EventKind::Add { .. } => "add", EventKind::Remove { .. } => "remove", EventKind::Rename { .. } => "rename", EventKind::Content { .. } => "content", EventKind::Checkpoint { .. } => "checkpoint", EventKind::Snapshot { .. } => "snapshot" },
-                                div { class: "mk-history-line",
-                                    span { class: "mk-history-when", "{when(ws, at, now)}" }
-                                    span { class: "mk-history-actor", title: "{actor}", "{who}" }
-                                    span { class: "mk-history-summary", "{summary}" }
-                                }
-                                if !key.is_empty() {
-                                    div { class: "mk-history-key",
-                                        span { class: "mk-muted", "{key}" }
-                                        if has_text {
-                                            button { class: "mk-btn mk-btn-mini", title: "Open the text as it was after this event", onclick: moonkale_ext_api::crash::event(move |_| {
-                                                let Some(n) = node else { return };
-                                                if !state.views.peek().iter().any(|(x, _, _)| *x == ev_id) {
-                                                    state.views.with_mut(|v| v.push((ev_id, n, key2.clone())));
-                                                }
-                                                ws.dispatch(Command::ShowPanel(Box::leak(format!("{VIEW_PREFIX}{ev_id}").into_boxed_str())));
-                                            }), {t!(ws, L, "history-text")} }
+                if !log.is_empty() && count == 0 {
+                    p { class: "mk-muted", {t!(ws, L, "history-none-active")} }
+                }
+                ul { class: "mk-history-list", "data-count": "{count}",
+                    for e in events.iter().rev() {
+                        {
+                            let is_checkpoint = matches!(e.kind, EventKind::Checkpoint { .. });
+                            let node = e.node();
+                            let key = e.key.clone().or_else(|| node.map(key_of)).unwrap_or_default();
+                            let has_text = node.is_some_and(|n| log.text_at(n, Some(e.id)).is_some());
+                            let (ev_id, actor, at) = (e.id, e.actor.clone(), e.at);
+                            let who = actor.split(':').nth(1).unwrap_or(&actor).to_string();
+                            let summary = summary(ws, e);
+                            let key2 = key.clone();
+                            rsx! {
+                                li { key: "{e.id}", class: if is_checkpoint { "mk-history-event mk-history-checkpoint" } else { "mk-history-event" },
+                                    "data-kind": match &e.kind { EventKind::Add { .. } => "add", EventKind::Remove { .. } => "remove", EventKind::Rename { .. } => "rename", EventKind::Content { .. } => "content", EventKind::Checkpoint { .. } => "checkpoint", EventKind::Snapshot { .. } => "snapshot" },
+                                    div { class: "mk-history-line",
+                                        span { class: "mk-history-when", "{when(ws, at, now)}" }
+                                        span { class: "mk-history-actor", title: "{actor}", "{who}" }
+                                        span { class: "mk-history-summary", "{summary}" }
+                                    }
+                                    if !key.is_empty() {
+                                        div { class: "mk-history-key",
+                                            span { class: "mk-muted", "{key}" }
+                                            if has_text {
+                                                button { class: "mk-btn mk-btn-mini", title: "Open the text as it was after this event", onclick: moonkale_ext_api::crash::event(move |_| {
+                                                    let Some(n) = node else { return };
+                                                    if !state.views.peek().iter().any(|(x, _, _)| *x == ev_id) {
+                                                        state.views.with_mut(|v| v.push((ev_id, n, key2.clone())));
+                                                    }
+                                                    ws.dispatch(Command::ShowPanel(Box::leak(format!("{VIEW_PREFIX}{ev_id}").into_boxed_str())));
+                                                }), {t!(ws, L, "history-text")} }
+                                            }
                                         }
                                     }
                                 }
@@ -281,7 +286,6 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
                 }
             }
         }
-    }
 }
 
 #[component]

@@ -389,3 +389,15 @@ input-test = Taste oder Maustaste testen
 input-test-hint = Hier fokussieren und eine Taste oder Maustaste drücken
 input-split = Editor: Rechts teilen
 input-open-beside = Daneben öffnen (Alt+Eingabe in „Gehe zu Datei“)
+
+density-label = Oberflächendichte
+density-simple = Einfach
+density-detailed = Detailliert
+density-simple-command = Ansicht: Einfache Oberfläche
+density-detailed-command = Ansicht: Detaillierte Oberfläche
+density-menu = Menüs anzeigen (Alt)
+chrome-more = Weitere Aktionen
+chrome-choice = Bedienelemente dieser Erweiterung anzeigen
+chrome-offer = Bedienelemente für { $name } anzeigen? Befehle sind immer verfügbar.
+chrome-accept = Elemente anzeigen
+chrome-decline = In Menüs behalten

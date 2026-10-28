@@ -14,6 +14,7 @@ use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Run {
+    Density(moonkale_ext_api::settings::Density),
     CheatSheet,
     Navigate(bool),
     Builtin(Command),
@@ -239,6 +240,20 @@ impl Registry {
                 run,
             });
         };
+        for (id, title, density) in [
+            (
+                "view.density.simple",
+                t!(ws, L, "density-simple-command"),
+                moonkale_ext_api::settings::Density::Simple,
+            ),
+            (
+                "view.density.detailed",
+                t!(ws, L, "density-detailed-command"),
+                moonkale_ext_api::settings::Density::Detailed,
+            ),
+        ] {
+            push(CommandContribution::new(id, title), Run::Density(density));
+        }
         for (c, cmd) in builtins(ws) {
             push(c, Run::Builtin(cmd));
         }
@@ -378,6 +393,12 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
         return false;
     };
     match &entry.run {
+        Run::Density(density) => {
+            let density = *density;
+            spawn(async move {
+                ws.update_user_settings(|f| f.density = Some(density)).await;
+            });
+        }
         Run::Navigate(forward) => ws.navigate(*forward),
         Run::CheatSheet => {
             let mut sheet = consume_context::<crate::discovery::CheatSheetState>();

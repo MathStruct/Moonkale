@@ -225,14 +225,16 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
             div { class: "mk-agent-toolbar",
                 span { class: "mk-agent-provider", title: t!(ws, L, "agent-server-title"), {t!(ws, L, "agent-on-the-server", provider = provider())} }
                 span { class: "mk-agent-spacer" }
-                select { class: "mk-agent-sessions", title: t!(ws, L, "agent-server-sessions"),
+                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! { select { class: "mk-agent-sessions", title: t!(ws, L, "agent-server-sessions"),
                     value: "{current.clone().unwrap_or_default()}",
                     onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); if v.is_empty() { session.set(None); items.set(Vec::new()); pending.set(None); running.set(false); } else { session.set(Some(v)); } }),
                     option { value: "", selected: current.is_none(), {t!(ws, L, "agent-new-session")} }
                     for s in list.iter() {
                         option { key: "{s.id}", value: "{s.id}", selected: current.as_deref() == Some(s.id.as_str()), if s.running { "● " } "{s.title}" }
                     }
-                }
+                } },
+
                 button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event(move |_| { session.set(None); items.set(Vec::new()); pending.set(None); }), {t!(ws, L, "agent-new")} }
                 select { class: "mk-agent-profile", title: t!(ws, L, "agent-profile-next"),
                     value: "{profile_now}",
@@ -240,6 +242,8 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                     for name in agents.iter() {
                         option { key: "{name}", value: "{name}", selected: *name == profile_now, "{name}" }
                     }
+                }
+
                 }
             }
             div { class: "mk-agent-log",

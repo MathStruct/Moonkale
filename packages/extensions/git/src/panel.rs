@@ -300,9 +300,13 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                 if st.ahead > 0 { span { class: "mk-muted", " ↑{st.ahead}" } }
                                 if st.behind > 0 { span { class: "mk-muted", " ↓{st.behind}" } }
                                 span { class: "mk-git-spacer" }
-                                button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| state.bump()), title: moonkale_ext_api::command_hint("git.refresh", t!(ws, L, "git-refresh")).title, "data-command": "git.refresh", "data-shortcut": moonkale_ext_api::command_hint("git.refresh", "").shortcut, "↻" }
+                                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! { button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| state.bump()), title: moonkale_ext_api::command_hint("git.refresh", t!(ws, L, "git-refresh")).title, "data-command": "git.refresh", "data-shortcut": moonkale_ext_api::command_hint("git.refresh", "").shortcut, "↻" } },
+
                                 button { class: "mk-btn", disabled: busy || log.is_empty(), onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(async move { show_history(ws, state).await; }); }), title: moonkale_ext_api::command_hint("git.history", t!(ws, L, "git-graph-title")).title, "data-command": "git.history", "data-shortcut": moonkale_ext_api::command_hint("git.history", "").shortcut, {t!(ws, L, "git-graph")} }
-                            }
+
+                }
+            }
                             div { class: "mk-git-commit",
                                 textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: t!(ws, L, "git-message"), value: "{message}",
                                     oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| message.set(e.value())),

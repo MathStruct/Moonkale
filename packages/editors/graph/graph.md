@@ -106,3 +106,6 @@ finite numeric API. Middle-click emits `openBeside`; file/symbol ownership is
 resolved through the existing source/index paths and loaded without activation.
 The left-hand preset gives the focused overlay WASD/QE/F/Space/Tab controls;
 G and the rebindable F16 command toggle Local/Whole.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

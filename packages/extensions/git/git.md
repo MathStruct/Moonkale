@@ -20,3 +20,6 @@ Not yet: push/pull/fetch, branch creation, per-hunk staging, merge-view diffs, b
 
 
 WP-64 (2026-10-28): Refresh and history command buttons expose current keybindings through command_hint and data-shortcut. Commit-staged remains a distinct parameterized operation from git.commit, which focuses the commit message field.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

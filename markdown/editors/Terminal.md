@@ -9,3 +9,8 @@ Crates: `terminal` (session, VT grid, links), `terminal-pty` (desktop/server PTY
 - **Links → graph**: `path:line:col`, URLs, rustc/Julia/Go errors → click opens the node; "open trace as graph" hands a stack trace to [[Indexing]].
 - **Commands**: "new terminal here" on any `Directory` node; "run selection" from the [[Code Editor]].
 - **Remote**: web/mobile get a PTY inside `api` over a websocket — gated on the security list in [[Platform Matrix]].
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Terminal session tabs remain navigation. The New, trace and settings action strip follows shared density and extension chrome choices, with secondary actions in ⋯ in Simple.

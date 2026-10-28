@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // WP-61: presets are below user overrides; punctuation uses physical positions.
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
@@ -18,12 +19,12 @@ const settings = async () => {
   await page.waitForSelector('.mk-keymap-preset');
 };
 const preset = async name => {
-  await page.locator('.mk-keymap-preset').selectOption(name);
+  await control(page.locator('.mk-keymap-preset'), 'selectOption', name);
   await page.waitForFunction(name => document.documentElement.dataset.keymap === name, name);
 };
 const rebind = async (id, value) => {
   const field = page.locator(`.mk-settings-key input[data-command="${id}"]`);
-  await field.fill(value); await field.press('Tab');
+  await control(field, 'fill', value); await field.press('Tab');
   await page.waitForFunction(([id,value]) => JSON.parse(localStorage.getItem('moonkale.settings') || '{}').keybindings?.[id] === value, [id,value]);
 };
 try {
@@ -56,10 +57,10 @@ try {
   await macroKey(14); 
   await page.waitForSelector('#mk-palette-input'); await page.keyboard.press('Escape');
   await settings(); await preset('left-hand');
-  await page.locator('.mk-explorer-open button[type=submit]').click();
+  await control(page.locator('.mk-explorer-open button[type=submit]'), 'click');
   await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'), null, {timeout:30000});
-  await page.locator('.mk-tree-row[title="src"]').click();
-  await page.locator('.mk-tree-row[title="src/main.rs"]').click();
+  await control(page.locator('.mk-tree-row[title="src"]'), 'click');
+  await control(page.locator('.mk-tree-row[title="src/main.rs"]'), 'click');
   await page.waitForSelector('.cm-content');
   // German key: logical '-' at physical Slash. French and Dvorak are also
   // represented by different logical keys on the same physical position.
@@ -77,7 +78,7 @@ try {
   const tilesBefore = await page.locator('.wb-tile').count();
   await macroKey(22);
   await page.waitForFunction(count => document.querySelectorAll('.wb-tile').length > count, tilesBefore);
-  await page.locator('.wb-tab:has-text("Graph")').click();
+  await control(page.locator('.wb-tab:has-text("Graph")'), 'click');
   await page.waitForFunction(() => {const v = window.moonkale?.graphViews?.['mk-graph-panel']; return v && v.node_count()>5 && v.layout_state()[0]===0;}, null, {timeout:60000});
   const overlay = page.locator('.mk-graph-overlay');
   await overlay.focus();
@@ -88,7 +89,7 @@ try {
   assert.equal(await page.locator('#mk-palette-input').count(), 0);
   await page.waitForTimeout(300);
   // The same left-hand controls use camera-plane pan and dolly in 3D.
-  await page.locator('.mk-graph button:text-is("3D")').click();
+  await control(page.locator('.mk-graph button:text-is("3D")'), 'click');
   await page.waitForFunction(() => window.moonkale?.graphViews?.['mk-graph-panel']?.mode() === '3d');
   await overlay.focus();
   const depthBefore = await page.evaluate(() => [...window.moonkale.graphViews['mk-graph-panel'].navigation_camera_state()]);
@@ -101,10 +102,10 @@ try {
   await page.waitForFunction(state => [...window.moonkale.graphViews['mk-graph-panel'].navigation_camera_state()].every((value,i) => Math.abs(value-state[i]) < 0.001), depthBefore);
   await page.keyboard.press('Alt+ArrowRight');
   await page.waitForFunction(state => [...window.moonkale.graphViews['mk-graph-panel'].navigation_camera_state()].every((value,i) => Math.abs(value-state[i]) < 0.001), depthAfter);
-  await page.locator('.mk-graph button:text-is("3D")').click();
+  await control(page.locator('.mk-graph button:text-is("3D")'), 'click');
   // Table navigation uses the same preset but retains ordinary filter input.
-  await page.locator('.mk-tree-db >> text=data.sqlite').click();
-  await page.locator('.mk-tree-db >> text=users').click();
+  await control(page.locator('.mk-tree-db >> text=data.sqlite'), 'click');
+  await control(page.locator('.mk-tree-db >> text=users'), 'click');
   const grid = page.locator('.mk-table:visible .mk-table-grid');
   await grid.waitFor(); await grid.focus();
   await page.keyboard.press('Control+Home');
@@ -115,7 +116,7 @@ try {
   await page.waitForFunction(() => document.activeElement?.classList.contains('mk-table-filter'));
   await page.keyboard.type('Ada');
   assert.equal(await page.locator('.mk-table:visible .mk-table-filter').inputValue(), 'Ada');
-  await page.locator('.mk-table:visible .mk-table-sql').fill('SELECT 42 AS answer');
+  await control(page.locator('.mk-table:visible .mk-table-sql'), 'fill', 'SELECT 42 AS answer');
   await macroKey(19);
   await page.waitForFunction(() => [...document.querySelectorAll('.mk-table-hname')].some(el => el.textContent === 'answer'));
   // Letters in fields retain their input, even with the left-hand preset.
@@ -130,9 +131,9 @@ try {
   await page.waitForFunction(() => document.activeElement?.classList.contains('mk-input-test'));
   await page.keyboard.press('Tab');
   const field = page.locator('input[data-command="file.save"]');
-  await field.fill('wasd');
+  await control(field, 'fill', 'wasd');
   assert.equal(await field.inputValue(), 'wasd');
-  await field.fill('Ctrl+Alt+K'); await field.press('Tab');
+  await control(field, 'fill', 'Ctrl+Alt+K'); await field.press('Tab');
   await page.screenshot({path:`${process.env.M1_SHOTS ?? '.'}/input-keymaps.png`});
   console.log('KEYMAPS E2E: PASS');
 } catch(e) { console.error('FAIL:',e.stack); await page.screenshot({path:`${process.env.M1_SHOTS ?? '.'}/input-keymaps-fail.png`}); process.exitCode=1; }

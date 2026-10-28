@@ -30,3 +30,6 @@ E2E: `packages/web/tests/e2e/agent.mjs` (mock provider through the relay: echo, 
 
 ## Milestone 18 phase 5.15
 - `panel.rs`: `SavedSession` is a `moonkale_state::Record` (table `agent_sessions`); `sessions_key(folder)` = `str(folder id) · str("local")`. With a host store (`Workspace::has_host_state`) `persist` puts the session's row, `saved_sessions(ws, folder)` scans the folder's rows and imports the files of `SESSIONS_DIR` once when there are none, `restore` reads the row (the file as a fallback). Without one: the files, as before. Test: `tests/sessions_store.rs`.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

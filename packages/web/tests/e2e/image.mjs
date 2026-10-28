@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Spec 008: png/jpg/svg open in an image viewer (data URL through fetch_bytes), with zoom and
 // an SVG "Source" button that opens the text.
 import { firefox } from "playwright";
@@ -26,10 +27,10 @@ try {
     fs.writeFileSync(`${ROOT}/pics/logo.svg`, `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="#4fb3e8"/></svg>`);
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".mk-tree-row[title='pics']");
-    await page.click(".mk-tree-file >> text=pic.png");
+    await control(page, 'click', ".mk-tree-row[title='pics']");
+    await control(page, 'click', ".mk-tree-file >> text=pic.png");
     await page.waitForSelector(".mk-image img", { timeout: 15000 });
     await page.waitForFunction(() => /4 × 3/.test(document.querySelector(".mk-image .mk-editor-meta")?.textContent || ""), null, { timeout: 10000 });
     const src = await page.$eval(".mk-image img", (i) => i.src.slice(0, 22));
@@ -38,20 +39,20 @@ try {
     if (await page.$(".cm-content")) throw new Error("a text editor opened for the image");
   });
   await step("zoom: + goes to 150 %, 100% sets 4×3 px, Fit returns", async () => {
-    await page.click(".mk-image button:has-text('100%')");
+    await control(page, 'click', ".mk-image button:has-text('100%')");
     await page.waitForFunction(() => document.querySelector(".mk-image")?.dataset.zoom === "100%", null, { timeout: 5000 });
     const w = await page.$eval(".mk-image img", (i) => i.getBoundingClientRect().width);
     if (Math.round(w) !== 4) throw new Error("100% width is " + w);
-    await page.click(".mk-image button[title^='Zoom in']");
+    await control(page, 'click', ".mk-image button[title^='Zoom in']");
     await page.waitForFunction(() => document.querySelector(".mk-image")?.dataset.zoom === "150%", null, { timeout: 5000 });
-    await page.click(".mk-image button:has-text('Fit')");
+    await control(page, 'click', ".mk-image button:has-text('Fit')");
     await page.waitForFunction(() => document.querySelector(".mk-image")?.dataset.zoom === "Fit", null, { timeout: 5000 });
     await page.screenshot({ path: `${S}/m10-image.png` });
   });
   await step("logo.svg renders as an image; Source opens its text in the code editor", async () => {
-    await page.click(".mk-tree-file >> text=logo.svg");
+    await control(page, 'click', ".mk-tree-file >> text=logo.svg");
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-image img")].some((i) => i.src.startsWith("data:image/svg+xml")), null, { timeout: 15000 });
-    await page.click(".mk-image button:has-text('Source'):visible");
+    await control(page, 'click', ".mk-image:visible button:has-text('Source')");
     await page.waitForFunction(() => /<svg/.test([...document.querySelectorAll(".cm-content")].map((c) => c.textContent).join("")), null, { timeout: 10000 });
   });
   console.log("\nIMAGE E2E: PASS");

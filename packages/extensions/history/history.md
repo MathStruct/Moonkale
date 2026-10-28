@@ -7,3 +7,6 @@ Notes for `moonkale-ext-history`, the History panel (Milestones 8 and 9; its own
 - `HistoryExtension`: the side panel `history` (events newest first with when / actor / summary / key, an *active file* filter through `EntityLog::for_node`, **Compact (n)** keeping the last 200 events, the log's size) and `history-view:<event>` panels in the main tile showing `text_at`, with **Restore** when the text differs from the open document. Command `history.show`.
 - `assets/history.css` — the panel's styles (were in the shell's `shell.css`).
 - Reads `ws.history.log`; compaction and restore are `Workspace::compact_history` / `restore_text_at` (ext-api).
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

@@ -148,3 +148,113 @@ pub fn PanelSettingsButton() -> Element {
         }
     }
 }
+
+/// Owner of the current panel's chrome, supplied by the shell.
+#[derive(Clone)]
+pub struct ChromeOwner(pub crate::Manifest);
+
+/// Whether the user has chosen to display this extension's chrome.
+/// Core chrome always appears; Detailed explicitly offers the full surface.
+pub fn chrome_visible(ws: crate::Workspace, manifest: &crate::Manifest) -> bool {
+    !manifest.optional
+        || ws.settings.resolved.read().density == crate::settings::Density::Detailed
+        || chrome_accepted(ws, manifest.id)
+}
+
+/// Moonkale's graph and terminal are today's UI, not added chrome (ADR-0027
+/// trims the rail to seven, it doesn't empty it; Settings, Extensions and More
+/// take three places). They start accepted; a decline still hides them.
+const DEFAULT_CHROME: &[&str] = &["dev.moonkale.editor-graph", "dev.moonkale.editor-terminal"];
+
+/// The user's chrome choice for an extension, or its default.
+pub fn chrome_accepted(ws: crate::Workspace, id: &str) -> bool {
+    ws.settings
+        .user
+        .read()
+        .chrome
+        .get(id)
+        .copied()
+        .unwrap_or(DEFAULT_CHROME.contains(&id))
+}
+
+/// Whether the user still has to be offered this extension's chrome.
+pub fn chrome_undecided(ws: crate::Workspace, id: &str) -> bool {
+    !DEFAULT_CHROME.contains(&id) && !ws.settings.user.read().chrome.contains_key(id)
+}
+
+/// Shared toolbar actions: one primary action and a flat overflow in Simple.
+/// Detailed lays out all actions. Unaccepted extension actions stay in the
+/// overflow, so declining chrome never removes a capability.
+#[component]
+pub fn ToolbarActions(
+    #[props(default = VNode::empty())] primary: Element,
+    children: Element,
+) -> Element {
+    let ws = use_context::<crate::Workspace>();
+    let owner = try_use_context::<ChromeOwner>();
+    let detailed = ws.settings.resolved.read().density == crate::settings::Density::Detailed;
+    let accepted = owner.as_ref().is_none_or(|o| chrome_visible(ws, &o.0));
+    rsx! {
+        crate::Stylesheet { href: asset!("/assets/chrome.css") }
+        if detailed {
+            {primary}
+            {children}
+        } else {
+            if accepted { {primary.clone()} }
+            ToolbarMenu {
+                if !accepted { {primary} }
+                {children}
+            }
+        }
+    }
+}
+
+/// Flat, keyboard/touch accessible overflow. Escape returns focus to its trigger.
+#[component]
+pub fn ToolbarMenu(children: Element) -> Element {
+    let ws = use_context::<crate::Workspace>();
+    let mut open = use_signal(|| false);
+    let mut trigger = use_signal(|| None::<std::rc::Rc<MountedData>>);
+    let label = crate::t!(ws, crate::L, "chrome-more");
+    let id = use_hook(|| format!("mk-more-{}", uuid::Uuid::new_v4()));
+    let listen_id = id.clone();
+    use_hook(move || {
+        let mut events = document::eval(&format!(
+            r#"
+            const id = {};
+            const close = e => {{
+                const menu = document.getElementById(id);
+                if (!menu) {{ document.removeEventListener('click', close); return; }}
+                if (menu.open && (!menu.contains(e.target) || e.target.closest('button'))) dioxus.send(true);
+            }};
+            document.addEventListener('click', close);
+        "#,
+            serde_json::to_string(&listen_id).unwrap_or_default()
+        ));
+        spawn(async move {
+            while events.recv::<bool>().await.is_ok() {
+                open.set(false);
+            }
+        });
+    });
+    rsx! {
+        crate::Stylesheet { href: asset!("/assets/chrome.css") }
+        details { id: "{id}", class: "mk-toolbar-more mk-native-more", open: open(),
+            onkeydown: move |event: KeyboardEvent| {
+                if event.key() == Key::Escape {
+                    event.prevent_default(); event.stop_propagation(); open.set(false);
+                    if let Some(target) = trigger.peek().clone() {
+                        spawn(async move { let _ = target.set_focus(true).await; });
+                    }
+                }
+            },
+            summary { class: "mk-btn mk-icon-btn", title: "{label}", aria_expanded: open().to_string(),
+                onmounted: move |event| trigger.set(Some(event.data())),
+                onclick: move |event| { event.prevent_default(); open.toggle(); },
+                Icon { name: "more" }
+                span { class: "mk-sr-only", "{label}" }
+            }
+            div { class: "mk-toolbar-more-items mk-native-more-items", {children} }
+        }
+    }
+}

@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 7: command palette (Ctrl+Shift+P), quick open (Ctrl+P with :line), an extension-contributed
 // command (agent.focus), menus showing effective keybindings, and rebinding through Settings.
 import { firefox } from "playwright";
@@ -15,9 +16,9 @@ try {
   await step("open folder; Ctrl+Shift+P opens the palette with every command", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".wb-status-bar");
+    await control(page, 'click', ".wb-status-bar");
     await page.keyboard.press("Control+Shift+P");
     await page.waitForSelector(".mk-palette-input", { timeout: 10000 });
     const all = await items();
@@ -53,7 +54,7 @@ try {
     await page.waitForSelector(".mk-palette-input");
     await page.keyboard.press("Escape");
     await page.waitForSelector(".mk-palette", { state: "detached", timeout: 3000 });
-    await page.click(".mk-menu-button:has-text('View')");
+    await control(page, 'click', ".mk-menu-button:has-text('View')");
     const entry = await page.$eval(".mk-menu-item:has-text('Command Palette')", (b) => b.textContent);
     console.log("\n  menu:", entry);
     if (!entry.includes("Ctrl+Shift+P")) throw new Error("shortcut missing in menu");
@@ -61,25 +62,25 @@ try {
     await page.click(".mk-menu-backdrop").catch(() => {});
   });
   await step("Settings → Keybindings: rebind the palette to Ctrl+K; Ctrl+K opens it, Ctrl+Shift+P no longer does", async () => {
-    await page.click(".wb-status-bar");
+    await control(page, 'click', ".wb-status-bar");
     await page.keyboard.press("Control+,");
     await page.waitForSelector(".mk-settings-form", { timeout: 10000 });
     const input = page.locator(".mk-settings-key input[data-command='view.palette']");
     await input.scrollIntoViewIfNeeded();
-    await input.fill("Ctrl+K");
+    await control(input, 'fill', "Ctrl+K");
     await input.press("Tab");
     await page.waitForFunction(() => /view\.palette/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
     // Editor buttons share the effective registry, including explicit unbinding.
     const saveBinding = page.locator(".mk-settings-key input[data-command='file.save']");
-    await saveBinding.fill("Alt+S");
+    await control(saveBinding, 'fill', "Alt+S");
     await saveBinding.press("Tab");
     await page.waitForFunction(() => [...document.querySelectorAll('.mk-icon-btn[data-command="file.save"]')].some(button => button.title.endsWith('(Alt+S)') && button.dataset.shortcut === 'Alt+S'));
-    await saveBinding.fill("");
+    await control(saveBinding, 'fill', "");
     await saveBinding.press("Tab");
     await page.waitForFunction(() => [...document.querySelectorAll('.mk-icon-btn[data-command="file.save"]')].every(button => !button.dataset.shortcut && !button.title.includes('Ctrl+S') && !button.title.includes('Alt+S')));
-    await saveBinding.fill("Ctrl+S");
+    await control(saveBinding, 'fill', "Ctrl+S");
     await saveBinding.press("Tab");
-    await page.click(".wb-status-bar");
+    await control(page, 'click', ".wb-status-bar");
     await page.keyboard.press("Control+K");
     await page.waitForSelector(".mk-palette-input", { timeout: 5000 });
     await page.keyboard.press("Escape");

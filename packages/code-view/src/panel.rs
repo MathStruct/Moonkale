@@ -688,160 +688,164 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         None
     };
     rsx! {
-        moonkale_ext_api::Stylesheet { href: PANEL_CSS }
-        document::Script { src: backend::codemirror::BUNDLE, defer: true }
-        div {
-            class: "mk-editor",
-            "data-editor": "codemirror",
-            "data-selection-anchor": canonical_selection.map(|(anchor, _)| anchor.to_string()),
-            "data-selection-head": canonical_selection.map(|(_, head)| head.to_string()),
-            // Ctrl+S / Cmd+S anywhere in the panel, including inside CodeMirror.
-            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
-                let mods = e.modifiers();
-                if moonkale_ext_api::keys::primary(&mods) && e.key() == Key::Character("s".into()) {
-                    e.prevent_default();
-                    e.stop_propagation(); // the frame would dispatch Save again
-                    save_now.call(());
-                }
-            }),
-            div { class: "mk-editor-toolbar",
-                span { class: "mk-editor-path", "{title}" }
-                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "editor-unsaved"), "●" } }
-                span { class: "mk-editor-spacer" }
-                span { class: "mk-editor-meta", "{lang} · {version}" }
-                // Symbols, with their description on hover (ADR-0027).
-                moonkale_ext_api::icons::IconButton {
-                    icon: "wrap", command: "editor.toggleWrap".to_string(),
-                    label: t!(ws, L, "editor-wrap"),
-                    description: t!(ws, L, "editor-wrap-title"),
-                    pressed: Some(wrap_on),
-                    onclick: moonkale_ext_api::crash::event(move |_| toggle_wrap(ws)),
-                }
-                moonkale_ext_api::icons::IconButton {
-                    icon: "save",
-                    label: t!(ws, L, "editor-save"),
-                    command: "file.save".to_string(),
-                    disabled: !dirty,
-                    onclick: moonkale_ext_api::crash::event(save),
-                }
-                moonkale_ext_api::icons::IconButton {
-                    icon: "reload",
-                    label: t!(ws, L, "editor-reload"),
-                    description: t!(ws, L, "editor-reload-title"),
-                    onclick: moonkale_ext_api::crash::event(reload),
-                }
-                // Milestone 14: move this document to the Rust editor.
-                if ws.settings.resolved.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
+            moonkale_ext_api::Stylesheet { href: PANEL_CSS }
+            document::Script { src: backend::codemirror::BUNDLE, defer: true }
+            div {
+                class: "mk-editor",
+                "data-editor": "codemirror",
+                "data-selection-anchor": canonical_selection.map(|(anchor, _)| anchor.to_string()),
+                "data-selection-head": canonical_selection.map(|(_, head)| head.to_string()),
+                // Ctrl+S / Cmd+S anywhere in the panel, including inside CodeMirror.
+                onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
+                    let mods = e.modifiers();
+                    if moonkale_ext_api::keys::primary(&mods) && e.key() == Key::Character("s".into()) {
+                        e.prevent_default();
+                        e.stop_propagation(); // the frame would dispatch Save again
+                        save_now.call(());
+                    }
+                }),
+                div { class: "mk-editor-toolbar",
+                    span { class: "mk-editor-path", "{title}" }
+                    if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "editor-unsaved"), "●" } }
+                    span { class: "mk-editor-spacer" }
+                    span { class: "mk-editor-meta", "{lang} · {version}" }
+                    // Symbols, with their description on hover (ADR-0027).
+                    moonkale_ext_api::icons::ToolbarActions {
+                        primary: rsx! { moonkale_ext_api::icons::IconButton {
+                        icon: "save",
+                        label: t!(ws, L, "editor-save"),
+                        command: "file.save".to_string(),
+                        disabled: !dirty,
+                        onclick: moonkale_ext_api::crash::event(save),
+                    } },
+    moonkale_ext_api::icons::IconButton {
+                        icon: "wrap", command: "editor.toggleWrap".to_string(),
+                        label: t!(ws, L, "editor-wrap"),
+                        description: t!(ws, L, "editor-wrap-title"),
+                        pressed: Some(wrap_on),
+                        onclick: moonkale_ext_api::crash::event(move |_| toggle_wrap(ws)),
+                    }
+
                     moonkale_ext_api::icons::IconButton {
-                        icon: "swap",
-                        label: "Rust".to_string(),
-                        description: t!(ws, L, "editor-to-rust"),
-                        class: "mk-editor-switch".to_string(),
-                        onclick: moonkale_ext_api::crash::event(move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }),
+                        icon: "reload",
+                        label: t!(ws, L, "editor-reload"),
+                        description: t!(ws, L, "editor-reload-title"),
+                        onclick: moonkale_ext_api::crash::event(reload),
+                    }
+                    // Milestone 14: move this document to the Rust editor.
+                    if ws.settings.resolved.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
+                        moonkale_ext_api::icons::IconButton {
+                            icon: "swap",
+                            label: "Rust".to_string(),
+                            description: t!(ws, L, "editor-to-rust"),
+                            class: "mk-editor-switch".to_string(),
+                            onclick: moonkale_ext_api::crash::event(move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }),
+                        }
+                    }
+                    moonkale_ext_api::icons::PanelSettingsButton {}
+
                     }
                 }
-                moonkale_ext_api::icons::PanelSettingsButton {}
-            }
-            if let Some((_, _, word)) = rename_prompt() {
-                div { class: "mk-editor-bar mk-editor-rename", role: "dialog", aria_label: t!(ws, L, "editor-rename"),
-                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); rename_prompt.set(None); } }),
-                    span { {t!(ws, L, "editor-rename-prompt", word = word.clone())} }
-                    input { id: "{rename_id}", class: "mk-input", value: "{rename_value}",
-                        onmounted: moonkale_ext_api::crash::event({ let w = word.clone(); move |_| rename_value.set(w.clone()) }),
-                        oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| rename_value.set(e.value())),
-                        onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
-                            e.stop_propagation();
-                            if e.is_composing() { return; }
-                            match e.key() {
-                                Key::Enter => { e.prevent_default(); commit_rename.call(()); }
-                                Key::Escape => { e.prevent_default(); rename_prompt.set(None); }
-                                _ => {}
-                            }
-                        }),
-                    }
-                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| commit_rename.call(())), {t!(ws, L, "editor-rename")} }
-                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| rename_prompt.set(None)), {t!(ws, L, "editor-cancel")} }
-                }
-            }
-            if let Some(list) = actions() {
-                div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}", role: "dialog", aria_label: t!(ws, L, "editor-actions"),
-                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); actions.set(None); } }),
-                    if list.is_empty() { span { class: "mk-muted", {t!(ws, L, "editor-no-actions")} } } else { span { {t!(ws, L, "editor-actions")} } }
-                    for (i, a) in list.iter().enumerate() {
-                        button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: moonkale_ext_api::crash::event({
-                            let a = a.clone();
-                            move |_| {
-                                actions.set(None);
-                                let a = a.clone();
-                                if let Some((base,s)) = actions_base.peek().clone().filter(|(base,_)|*base==doc.peek().text) {
-                                    moonkale_ext_api::crash::spawn(async move {
-                                        match s.resolve_code_action(&a).await {
-                                            Ok(edit) => apply_edit.call((edit,base,s)),
-                                            Err(e) => { let mut ws = ws; ws.set_status(format!("code action: {e}")); }
-                                        }
-                                    });
-                                }
-                            }
-                        }), "{a.title}" }
-                    }
-                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| actions.set(None)), "✕" }
-                }
-            }
-            if let Some(list) = references() {
-                div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}", role: "dialog", aria_label: t!(ws, L, "editor-references", n = list.len()),
-                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); references.set(None); } }),
-                    span { {t!(ws, L, "editor-references", n = list.len())} }
-                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| references.set(None)), "✕" }
-                    ul {
-                        for (i, l) in list.iter().enumerate() {
-                            li { key: "{i}", class: "mk-editor-ref", onclick: moonkale_ext_api::crash::event({
-                                let l = l.clone();
-                                let root = root_for_refs.clone();
-                                move |_| {
-                                    let l = l.clone();
-                                    let root = root.clone();
-                                    moonkale_ext_api::crash::spawn(async move {
-                                        let Some(root) = root else { return };
-                                        if let Some(rel) = crate::uri::relative_file(&root,&l.uri) {
-                                            if let Ok(n) = ws.open_relative_path(&rel).await {
-                                                let _ = ws.reveal(n, l.line, l.col).await;
-                                            }
-                                        }
-                                    });
+                if let Some((_, _, word)) = rename_prompt() {
+                    div { class: "mk-editor-bar mk-editor-rename", role: "dialog", aria_label: t!(ws, L, "editor-rename"),
+                        onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); rename_prompt.set(None); } }),
+                        span { {t!(ws, L, "editor-rename-prompt", word = word.clone())} }
+                        input { id: "{rename_id}", class: "mk-input", value: "{rename_value}",
+                            onmounted: moonkale_ext_api::crash::event({ let w = word.clone(); move |_| rename_value.set(w.clone()) }),
+                            oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| rename_value.set(e.value())),
+                            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
+                                e.stop_propagation();
+                                if e.is_composing() { return; }
+                                match e.key() {
+                                    Key::Enter => { e.prevent_default(); commit_rename.call(()); }
+                                    Key::Escape => { e.prevent_default(); rename_prompt.set(None); }
+                                    _ => {}
                                 }
                             }),
-                                { root_for_refs.as_ref().and_then(|r| crate::uri::relative_file(r,&l.uri)).unwrap_or_else(||l.uri.clone()) }
-                                span { class: "mk-muted", ":{l.line + 1}:{l.col + 1}" }
+                        }
+                        button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| commit_rename.call(())), {t!(ws, L, "editor-rename")} }
+                        button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| rename_prompt.set(None)), {t!(ws, L, "editor-cancel")} }
+                    }
+                }
+                if let Some(list) = actions() {
+                    div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}", role: "dialog", aria_label: t!(ws, L, "editor-actions"),
+                        onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); actions.set(None); } }),
+                        if list.is_empty() { span { class: "mk-muted", {t!(ws, L, "editor-no-actions")} } } else { span { {t!(ws, L, "editor-actions")} } }
+                        for (i, a) in list.iter().enumerate() {
+                            button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: moonkale_ext_api::crash::event({
+                                let a = a.clone();
+                                move |_| {
+                                    actions.set(None);
+                                    let a = a.clone();
+                                    if let Some((base,s)) = actions_base.peek().clone().filter(|(base,_)|*base==doc.peek().text) {
+                                        moonkale_ext_api::crash::spawn(async move {
+                                            match s.resolve_code_action(&a).await {
+                                                Ok(edit) => apply_edit.call((edit,base,s)),
+                                                Err(e) => { let mut ws = ws; ws.set_status(format!("code action: {e}")); }
+                                            }
+                                        });
+                                    }
+                                }
+                            }), "{a.title}" }
+                        }
+                        button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| actions.set(None)), "✕" }
+                    }
+                }
+                if let Some(list) = references() {
+                    div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}", role: "dialog", aria_label: t!(ws, L, "editor-references", n = list.len()),
+                        onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); references.set(None); } }),
+                        span { {t!(ws, L, "editor-references", n = list.len())} }
+                        button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| references.set(None)), "✕" }
+                        ul {
+                            for (i, l) in list.iter().enumerate() {
+                                li { key: "{i}", class: "mk-editor-ref", onclick: moonkale_ext_api::crash::event({
+                                    let l = l.clone();
+                                    let root = root_for_refs.clone();
+                                    move |_| {
+                                        let l = l.clone();
+                                        let root = root.clone();
+                                        moonkale_ext_api::crash::spawn(async move {
+                                            let Some(root) = root else { return };
+                                            if let Some(rel) = crate::uri::relative_file(&root,&l.uri) {
+                                                if let Ok(n) = ws.open_relative_path(&rel).await {
+                                                    let _ = ws.reveal(n, l.line, l.col).await;
+                                                }
+                                            }
+                                        });
+                                    }
+                                }),
+                                    { root_for_refs.as_ref().and_then(|r| crate::uri::relative_file(r,&l.uri)).unwrap_or_else(||l.uri.clone()) }
+                                    span { class: "mk-muted", ":{l.line + 1}:{l.col + 1}" }
+                                }
                             }
                         }
                     }
                 }
-            }
-            if let Some(err) = last_error() {
-                div { class: "mk-editor-error",
-                    match err {
-                        SourceError::Conflict { .. } => t!(ws, L, "editor-conflict"),
-                        other => t!(ws, L, "editor-save-failed", error = other.to_string()),
+                if let Some(err) = last_error() {
+                    div { class: "mk-editor-error",
+                        match err {
+                            SourceError::Conflict { .. } => t!(ws, L, "editor-conflict"),
+                            other => t!(ws, L, "editor-save-failed", error = other.to_string()),
+                        }
                     }
                 }
-            }
-            div {
-                id: "{element_id}",
-                class: "mk-editor-host",
-                "data-selection-anchor": selection.map(|(anchor, _)| anchor.to_string()),
-                "data-selection-head": selection.map(|(_, head)| head.to_string()),
-                onmounted: moonkale_ext_api::crash::event(mount),
-                if let Some(err) = mount_error() {
-                    div { class: "mk-editor-failed",
-                        p { b { {t!(ws, L, "editor-failed")} } {t!(ws, L, "editor-failed-hint")} }
-                        pre { "{err}" }
+                div {
+                    id: "{element_id}",
+                    class: "mk-editor-host",
+                    "data-selection-anchor": selection.map(|(anchor, _)| anchor.to_string()),
+                    "data-selection-head": selection.map(|(_, head)| head.to_string()),
+                    onmounted: moonkale_ext_api::crash::event(mount),
+                    if let Some(err) = mount_error() {
+                        div { class: "mk-editor-failed",
+                            p { b { {t!(ws, L, "editor-failed")} } {t!(ws, L, "editor-failed-hint")} }
+                            pre { "{err}" }
+                        }
+                    } else if !ready() {
+                        div { class: "mk-editor-loading", {t!(ws, L, "editor-loading")} }
                     }
-                } else if !ready() {
-                    div { class: "mk-editor-loading", {t!(ws, L, "editor-loading")} }
                 }
             }
         }
-    }
 }
 
 /// Flip `editor.wrap` in the user settings (spec 014); every open editor

@@ -20,3 +20,6 @@ Mouse selection and copy, paste, search, Sixel/images, mouse reporting to the pr
 
 ## Milestone 14 (P-112)
 The panel re-measures every 600 ms (`sleep_ms` timer from `onmounted`) besides `onresize`, because the webview did not report a tile that changed size after mount, leaving the grid sized for the old height; and `.mk-tn-screen` is a bottom-anchored flex column, so an oversized grid loses its top rows, never the prompt.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

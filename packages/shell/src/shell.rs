@@ -476,10 +476,17 @@ pub fn Shell() -> Element {
     // Activity-bar entries (spec 009): every static panel that declares one,
     // closed or not — the bar is how a closed panel comes back.
     let mut activities: Vec<(String, moonkale_ext_api::Activity)> = Vec::new();
+    let mut offered_activities = Vec::new();
+    let detailed =
+        ws.settings.resolved.read().density == moonkale_ext_api::settings::Density::Detailed;
     for (i, c) in contributions(&exts, &ext_settings, ws, true) {
         {
             if let (None, Some(act)) = (&c.node, &c.activity) {
-                activities.push((c.id.clone(), act.clone()));
+                if moonkale_ext_api::icons::chrome_visible(ws, &exts[i].manifest()) {
+                    activities.push((c.id.clone(), act.clone()));
+                } else {
+                    offered_activities.push((c.id.clone(), act.clone()));
+                }
             }
             if c.node.is_none() && closed.contains(&c.id) {
                 continue;
@@ -703,7 +710,7 @@ pub fn Shell() -> Element {
     // Search) fill the bar up to five; secondary ones and the overflow go to
     // the More sheet.
     type BarEntry = (String, String, &'static str, bool, u32);
-    let (phone_main, phone_more): (Vec<BarEntry>, Vec<BarEntry>) = if is_narrow {
+    let (phone_main, mut phone_more): (Vec<BarEntry>, Vec<BarEntry>) = if is_narrow {
         let mut main = Vec::new();
         let mut more = Vec::new();
         let mut primary = 0;
@@ -736,6 +743,17 @@ pub fn Shell() -> Element {
     } else {
         (Vec::new(), Vec::new())
     };
+    if is_narrow {
+        phone_more.extend(offered_activities.iter().map(|(id, act)| {
+            (
+                id.clone(),
+                act.label.clone(),
+                act.icon,
+                front_of(id),
+                act.badge,
+            )
+        }));
+    }
     let mut more_open = use_signal(|| false);
     let rail: Vec<(String, String, &'static str, bool, u32, bool)> = if is_narrow {
         Vec::new()
@@ -754,6 +772,23 @@ pub fn Shell() -> Element {
             })
             .collect()
     };
+    let mut rail = rail;
+    let mut rail_more = Vec::new();
+    if !detailed {
+        // Reserve one place for More; presence moves into that sheet. Entries
+        // pinned to the bottom (Settings, Extensions) stay; the top ones are trimmed.
+        let (top, bottom): (Vec<_>, Vec<_>) = rail.into_iter().partition(|e| !e.5);
+        let room = 6usize.saturating_sub(bottom.len());
+        let mut top = top;
+        if top.len() > room {
+            rail_more = top.split_off(room);
+        }
+        rail = top.into_iter().chain(bottom).collect();
+        for (id, act) in offered_activities {
+            rail_more.push((id, act.label, act.icon, false, act.badge, false));
+        }
+    }
+    let mut rail_more_open = use_signal(|| false);
     let others_count = others.len() as u32;
     // Only "dark" has tokens so far (theme.css); spec 030 adds the others.
     let theme = ws.settings.resolved.read().theme.clone();
@@ -795,6 +830,14 @@ pub fn Shell() -> Element {
                                     },
                                 }
                             }
+                            if !detailed {
+                                ActivityButton {
+                                    id: "mk-rail-more".to_string(), label: t!(ws, L, "more"), title: t!(ws, L, "chrome-more"),
+                                    icon: rsx! { crate::icons::Icon { name: "more" } }, active: rail_more_open(), bottom: true,
+                                    onclick: move |_| rail_more_open.toggle(),
+                                }
+                            }
+                            if detailed {
                             // Presence: who else is here (spec 009).
                             ActivityButton {
                                 id: "mk-rail-presence".to_string(),
@@ -812,6 +855,20 @@ pub fn Shell() -> Element {
                                     let names = others_names.clone();
                                     move |_| ws.set_status(if names.is_empty() { t!(ws, L, "people-nobody-folder") } else { t!(ws, L, "people-here", names = names.clone()) })
                                 },
+                            }
+                            }
+                        }
+                        if rail_more_open() && !detailed {
+                            div { class: "mk-rail-overflow", role: "dialog", aria_label: t!(ws, L, "chrome-more"), tabindex: "-1",
+                                onmounted: move |e| { spawn(async move { let _ = e.set_focus(true).await; }); },
+                                onkeydown: move |e| { if e.key() == Key::Escape { e.stop_propagation(); rail_more_open.set(false); } },
+                                for (id, label, _, _, _, _) in rail_more.iter().cloned() {
+                                    button { id: "mk-rail-{id}", class: "mk-btn", key: "{id}", "data-panel": id.clone(),
+                                        onclick: move |_| { ws.show_panel(&id); rail_more_open.set(false); },
+                                        {moonkale_ext_api::command_hint(&format!("view.panel.{id}"), label).title}
+                                    }
+                                }
+                                button { class: "mk-btn", onclick: { let names = others_names.clone(); move |_| { ws.set_status(if names.is_empty() { t!(ws, L, "people-nobody") } else { t!(ws, L, "people-here", names = names.clone()) }); rail_more_open.set(false); } }, {t!(ws, L, "people")} }
                             }
                         }
                     }
@@ -833,16 +890,17 @@ pub fn Shell() -> Element {
                             if let Some((message, tooltip)) = cache_status.read().as_ref().filter(|(s, _)| !s.is_empty()) {
                                 StatusItem { title: tooltip.clone(), span { class: "mk-status-folder", "{message}" } }
                             }
-                            if let Some(url) = server {
+                            if let Some(url) = server.clone() {
                                 StatusItem { title: t!(ws, L, "status-server-client"),
                                     span { class: "mk-status-remote", "⇅ {url}" }
                                 }
                             }
-                            if let Some((label, phase)) = remote {
+                            if let Some((label, phase)) = remote.filter(|_| server.is_none() || detailed) {
                                 StatusItem { title: t!(ws, L, "status-remote", phase = phase.to_string()),
                                     span { class: "mk-status-remote", "⇅ {label} · {phase}" }
                                 }
                             }
+                            if detailed {
                             if let Some(l) = lsp {
                                 StatusItem { title: t!(ws, L, "status-lsp"), "{l}" }
                             }
@@ -858,6 +916,7 @@ pub fn Shell() -> Element {
                             }
                             StatusItem { title: t!(ws, L, "status-window-title", id = window_id.to_string()),
                                 {t!(ws, L, "status-windows", n = windows)}
+                            }
                             }
                             if let Some((path, dirty)) = active_doc {
                                 StatusItem { tone: if dirty { StatusTone::Caution } else { StatusTone::Neutral },
@@ -943,7 +1002,9 @@ pub fn Shell() -> Element {
 fn ExtensionPanel(ws: Workspace, index: usize, panel_id: String, title: String) -> Element {
     let exts = use_context::<Extensions_>().0;
     let ext = &exts[index];
-    let id = ext.manifest().id;
+    let manifest = ext.manifest();
+    use_context_provider(|| moonkale_ext_api::icons::ChromeOwner(manifest.clone()));
+    let id = manifest.id;
     let guard = use_context_provider(|| moonkale_ext_api::crash::ExtensionGuard::new(ws, id));
     let content = guard
         .run(|| ext.render(&panel_id, ws))

@@ -1,0 +1,13 @@
+.mk-toolbar-more { position: relative; flex: 0 0 auto; }
+.mk-toolbar-more > summary { list-style: none; cursor: pointer; }
+.mk-toolbar-more > summary::-webkit-details-marker { display: none; }
+.mk-toolbar-more-items { position: absolute; right: 0; top: 100%; z-index: 90; display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px; min-width: 220px; max-width: min(85vw, 480px); max-height: 65vh; overflow: auto; background: var(--wb-surface); color: var(--wb-ink); border: 1px solid var(--wb-line);  }
+.mk-toolbar-more:not([open]) > .mk-toolbar-more-items { display: none; }
+.mk-toolbar-more-items .mk-icon-btn { width: auto; justify-content: flex-start; }
+.mk-toolbar-more-items .mk-sr-only { position: static; width: auto; height: auto; clip-path: none; clip: auto; overflow: visible; white-space: normal; margin-left: 8px; }
+.mk-toolbar-more > .mk-toolbar-more-items { max-width: min(85vw, 480px); min-width: 220px; }
+.mk-graph-toolbar .mk-toolbar-more-items, .mk-agent-toolbar .mk-toolbar-more-items, .mk-table-query .mk-toolbar-more-items, .mk-git-head .mk-toolbar-more-items { left: 0; right: auto; }
+
+/* Detailed keeps every action in reach at narrow widths too. Session tabs and
+   long paths can wrap without pushing actions beyond their panel. */
+.mk-editor-toolbar, .mk-term-tabs, .mk-tn-tabs, .mk-git-head, .mk-history-head { flex-wrap: wrap; }

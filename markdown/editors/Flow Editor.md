@@ -55,3 +55,8 @@ Explicitly closed absolute `M…Z` symbol subpaths fill with the block colour
 token; other subpaths remain strokes. Fill follows turn, mirror, selection and
 zoom. Independent regions have no compound-hole rule. No library API field or
 new SVG element is required.
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Save is the Simple primary action; grid, generators, layout, Fit, Reload and settings are in ⋯. Detailed expands these actions. Extension chrome is a user choice; declining keeps every action in the menu.

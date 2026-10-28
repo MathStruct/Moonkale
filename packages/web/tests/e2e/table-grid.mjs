@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // The table editor's virtualised grid: a 50 000-row result (a recursive
 // query on the fixture's data.sqlite — the source is read-only, a CTE is
 // a read) keeps only its window in the DOM, scrolls to the end, sorts,
@@ -25,18 +26,18 @@ const firstRowCells = () => page.$$eval(".mk-table:visible .mk-table-row", (rows
   return r ? [...r.querySelectorAll(".mk-table-cell")].map((c) => c.textContent) : [];
 });
 const run = async (sql) => {
-  await page.fill(".mk-table:visible .mk-table-sql", sql);
-  await page.click(".mk-table:visible .mk-table-query button");
+  await control(page, 'fill', ".mk-table:visible .mk-table-sql", sql);
+  await control(page, 'click', ".mk-table:visible .mk-table-query button");
 };
 try {
   await step("open folder, data.sqlite, the users table", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".mk-tree-db >> text=data.sqlite");
+    await control(page, 'click', ".mk-tree-db >> text=data.sqlite");
     await page.waitForSelector(".mk-tree-db >> text=users", { timeout: 15000 });
-    await page.click(".mk-tree-db >> text=users");
+    await control(page, 'click', ".mk-tree-db >> text=users");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
   });
   await step("SQLite declared dates render as dates and ordinary text stays text", async () => {
@@ -73,8 +74,8 @@ try {
   });
   await step("a header click sorts descending on the second click; NULLs stay last", async () => {
     await page.$eval(".mk-table:visible .mk-table-grid", (g) => { g.scrollTop = 0; });
-    await page.click(".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('v'))");
-    await page.click(".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('v'))");
+    await control(page, 'click', ".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('v'))");
+    await control(page, 'click', ".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('v'))");
     await sleep(400);
     const cells = await firstRowCells();
     console.log(`\n  first row by v desc: ${cells.join(" | ")}`);
@@ -82,23 +83,23 @@ try {
     const sortAttr = await page.$eval(".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('v'))", (h) => h.getAttribute("aria-sort"));
     if (sortAttr !== "descending") throw new Error(`aria-sort ${sortAttr}`);
     // half descending: NULL rows (every tenth) at the end, not the start.
-    await page.click(".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('half'))");
-    await page.click(".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('half'))");
+    await control(page, 'click', ".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('half'))");
+    await control(page, 'click', ".mk-table:visible .mk-table-hcell:has(.mk-table-hname:text-is('half'))");
     await sleep(300);
     const top = await firstRowCells();
     if (top[3] !== "24999.5") throw new Error(`half desc starts at ${top[3]}`);
   });
   await step("the filter narrows the rows and the count says so", async () => {
-    await page.fill(".mk-table:visible .mk-table-filter", "row 4999");
+    await control(page, 'fill', ".mk-table:visible .mk-table-filter", "row 4999");
     await page.waitForFunction(() => +document.querySelector(".mk-table-grid").dataset.rows === 11, null, { timeout: 5000 });
     const meta = await page.$eval(".mk-table:visible .mk-table-meta", (m) => m.textContent);
     console.log(`\n  meta: ${meta.trim()}`);
     if (!/11 of 50[,. ]?000 rows/.test(meta)) throw new Error("the meta line does not count the filtered rows");
-    await page.fill(".mk-table:visible .mk-table-filter", "");
+    await control(page, 'fill', ".mk-table:visible .mk-table-filter", "");
     await page.waitForFunction((n) => +document.querySelector(".mk-table-grid").dataset.rows === n, N, { timeout: 5000 });
   });
   await step("the keyboard cursor: Ctrl+End jumps to the last cell and scrolls it into view", async () => {
-    await page.click(".mk-table:visible .mk-table-row >> nth=0 >> .mk-table-cell >> nth=0");
+    await control(page, 'click', ".mk-table:visible .mk-table-row >> nth=0 >> .mk-table-cell >> nth=0");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowRight");
     const at = await page.$eval(".mk-table:visible .mk-cell-cursor", (c) => [c.parentElement.getAttribute("aria-rowindex"), c.textContent]);
@@ -144,9 +145,9 @@ try {
     await page.screenshot({ path: `${S}/table-grid-wide.png` });
   });
   await step("DuckDB lists and arrays draw sparklines beside a timestamp", async () => {
-    await page.click(".mk-tree-db >> text=typed.duckdb");
+    await control(page, 'click', ".mk-tree-db >> text=typed.duckdb");
     await page.waitForSelector(".mk-tree-db >> text=dates", {timeout:15000});
-    await page.locator(".mk-explorer-source").filter({has:page.locator(".mk-explorer-source-name", {hasText:"typed.duckdb"})}).getByText("dates", {exact:true}).click();
+    await control(page.locator(".mk-explorer-source").filter({has:page.locator(".mk-explorer-source-name", {hasText:"typed.duckdb"})}).getByText("dates", {exact:true}), 'click');
     await page.waitForSelector(".mk-table:visible .mk-cell-vector", {timeout:15000});
     const lines = await page.locator(".mk-table:visible .mk-cell-vector polyline").evaluateAll(es => es.map(e => e.getAttribute("points")));
     if (lines.length !== 2 || lines.some(p => !p || p.includes("NaN"))) throw new Error("missing vector sparklines: " + lines);

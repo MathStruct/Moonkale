@@ -795,7 +795,8 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-agent", "data-session": "{session_id}",
             div { class: "mk-agent-toolbar",
-                select { class: "mk-agent-sessions", title: t!(ws, L, "agent-sessions-title"),
+                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! { select { class: "mk-agent-sessions", title: t!(ws, L, "agent-sessions-title"),
                     value: "{session_id}",
                     onchange: move |e| pick_session(e.value()),
                     for (id, title, b) in live.iter() {
@@ -808,7 +809,8 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                             }
                         }
                     }
-                }
+                } },
+
                 button { class: "mk-btn mk-agent-new", title: t!(ws, L, "agent-new-title"), onclick: move |_| { let profile = ws.settings.resolved.peek().agent.default.clone(); new_session(ws, chats, profile); }, {t!(ws, L, "agent-new")} }
                 select { class: "mk-agent-profile", title: t!(ws, L, "agent-profile-title"),
                     value: "{profile_now}",
@@ -832,6 +834,8 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                 button { class: "mk-btn", disabled: items().is_empty() || busy(), onclick: clear, {t!(ws, L, "agent-clear")} }
                 moonkale_ext_api::icons::PanelSettingsButton {}
                 button { class: "mk-btn mk-agent-close", disabled: busy() || live.len() <= 1, onclick: close_session, title: t!(ws, L, "agent-close-title"), "×" }
+
+                }
             }
             if show_activity() {
                 div { class: "mk-agent-activity",

@@ -112,7 +112,6 @@ editor-a11y-tab-indent = Tab 缩进。
 
 editor-group-history-blocked = 无法撤销或重做此重命名。请先撤销 { $file } 中较新的编辑，或协调历史记录已不可用。
 
-editor-more = 更多编辑器命令
 
 native-reload = Rust 编辑器：重新加载
 native-hover = Rust 编辑器：显示悬浮信息

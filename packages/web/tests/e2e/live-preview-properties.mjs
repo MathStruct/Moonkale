@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 import { clickNativeCommand } from "./native-toolbar.mjs";
 import {firefox} from 'playwright';
 import fs from 'node:fs';
@@ -26,16 +27,16 @@ const save = async () => {
 };
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8094}/`, {waitUntil: 'networkidle'});
-  await page.waitForSelector('.wb-workspace'); await page.click('.mk-explorer-open button[type=submit]');
+  await page.waitForSelector('.wb-workspace'); await control(page, 'click', '.mk-explorer-open button[type=submit]');
   await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
-  await page.locator('.mk-tree-file').filter({hasText: 'PropertiesPreview.md'}).click(); await input().waitFor();
+  await control(page.locator('.mk-tree-file').filter({hasText: 'PropertiesPreview.md'}), 'click'); await input().waitFor();
   await clickNativeCommand(panel().locator('.mk-native-preview'));
   await input().focus(); await page.keyboard.press('Control+End'); await ready();
   assert.equal(await panel().locator('.mk-editor-core-row[data-line="0"]').count(), 0);
   assert.match(await panel().locator('.mk-properties-summary').textContent(), /title: Properties.*tags: \[demo\].*aliases/);
-  await panel().locator('.mk-properties-head').click();
+  await control(panel().locator('.mk-properties-head'), 'click');
   const initialYaml = await yaml().inputValue();
-  await yaml().fill(initialYaml.replace('[demo]', '[demo, edited]'));
+  await control(yaml(), 'fill', initialYaml.replace('[demo]', '[demo, edited]'));
   assert.equal(fs.readFileSync(`${root}/PropertiesPreview.md`, 'utf8'), original);
   await yaml().focus(); await page.keyboard.press('Control+s');
   await yaml().waitFor({state: 'hidden'});
@@ -47,7 +48,7 @@ try {
   await page.keyboard.press('Control+Shift+z'); await save();
   assert.equal(fs.readFileSync(`${root}/PropertiesPreview.md`, 'utf8'), changed);
 
-  await panel().locator('.mk-properties-head').click(); await yaml().fill('title: Discarded');
+  await control(panel().locator('.mk-properties-head'), 'click'); await control(yaml(), 'fill', 'title: Discarded');
   await page.keyboard.press('Escape'); await save();
   assert.equal(fs.readFileSync(`${root}/PropertiesPreview.md`, 'utf8'), changed);
   await clickNativeCommand(panel().locator('.mk-native-preview'));
@@ -57,17 +58,17 @@ try {
   assert.equal(await panel().locator('.mk-editor-core-row[data-line="0"]').count(), 1);
   await clickNativeCommand(panel().locator('.mk-native-preview'));
 
-  await page.locator('.mk-tree-file').filter({hasText: 'PropertiesOther.md'}).click(); await input().waitFor();
+  await control(page.locator('.mk-tree-file').filter({hasText: 'PropertiesOther.md'}), 'click'); await input().waitFor();
   // The previous document's editor stays visible until the new one mounts;
   // give it a moment, then the assertion below reports what is shown.
   await page.waitForFunction(() => [...document.querySelectorAll('.mk-crust[data-editor="rust"]')].some(e => e.checkVisibility()
     && e.querySelector('.mk-properties-summary')?.textContent === 'none'), null, { timeout: 5000 }).catch(() => {});
   assert.equal(await panel().locator('.mk-properties-summary').textContent(), 'none');
-  await panel().locator('.mk-properties-head').click(); await yaml().fill('title: Other\naliases: [one, two]');
-  await panel().locator('.mk-properties-apply').click(); await save();
+  await control(panel().locator('.mk-properties-head'), 'click'); await control(yaml(), 'fill', 'title: Other\naliases: [one, two]');
+  await control(panel().locator('.mk-properties-apply'), 'click'); await save();
   assert.equal(fs.readFileSync(`${root}/PropertiesOther.md`, 'utf8'), '---\r\ntitle: Other\r\naliases: [one, two]\r\n---\r\n# Other\r\n');
-  await panel().locator('.mk-properties-head').click(); await yaml().fill('');
-  await panel().locator('.mk-properties-apply').click(); await save();
+  await control(panel().locator('.mk-properties-head'), 'click'); await control(yaml(), 'fill', '');
+  await control(panel().locator('.mk-properties-apply'), 'click'); await save();
   assert.equal(fs.readFileSync(`${root}/PropertiesOther.md`, 'utf8'), '# Other\r\n');
   assert.equal(fs.readFileSync(`${root}/PropertiesPreview.md`, 'utf8'), changed);
   assert.deepEqual(errors, []); console.log('LIVE PREVIEW PROPERTIES E2E: PASS');

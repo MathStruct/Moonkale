@@ -175,3 +175,7 @@
 .mk-cheatsheet-row { display: flex; justify-content: space-between; gap: 20px; padding: 5px 0; }
 .mk-cheatsheet-row kbd { color: var(--mk-ink-soft); white-space: nowrap; }
 .mk-shortcut-nudge { margin-left: auto; color: var(--mk-ink-soft); }
+
+.mk-rail-overflow { position: absolute; left: 48px; bottom: 28px; z-index: 95; display: flex; flex-direction: column; gap: 6px; padding: 12px; max-height: 75vh; overflow: auto; background: var(--wb-surface); border: 1px solid var(--wb-line); }
+.mk-chrome-offer { padding: 8px; color: var(--wb-muted); }
+.mk-chrome-offer .mk-btn { margin-left: 8px; }

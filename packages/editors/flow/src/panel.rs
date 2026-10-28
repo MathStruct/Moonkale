@@ -1464,187 +1464,193 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         .and_then(|b| find_kind(&libs, &b.kind).map(|(_, k)| k.clone()));
 
     rsx! {
-        moonkale_ext_api::Stylesheet { href: CSS }
-        div {
-            class: "mk-flow",
-            // Delete/Backspace remove the selection — never while a field
-            // has the focus (spec 001); Ctrl/Meta combos bubble (Ctrl+S).
-            // Undo (Ctrl+Z) and redo (Ctrl+Y, Ctrl+Shift+Z) restore the
-            // last snapshot; the field editor stops its own Z/Y (below).
-            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
-                if moonkale_ext_api::keys::primary(&e.modifiers())
-                    && e.key() == Key::Character("s".into())
-                {
-                    e.prevent_default();
-                    e.stop_propagation();
-                    save(());
-                } else if moonkale_ext_api::keys::primary(&e.modifiers()) {
-                    let shift = e.modifiers().shift();
-                    match e.key() {
-                        Key::Character(c) if c.eq_ignore_ascii_case("z") => {
-                            e.prevent_default();
-                            e.stop_propagation();
-                            if shift { redo(()) } else { undo(()) }
-                        }
-                        Key::Character(c) if c.eq_ignore_ascii_case("y") => {
-                            e.prevent_default();
-                            e.stop_propagation();
-                            redo(());
-                        }
-                        _ => {}
-                    }
-                } else if e.key() == Key::Escape {
-                    // The way out of a subflow, beside the empty-canvas
-                    // click (ADR-0021 §4).
-                    if !scope.read().is_empty() {
-                        scope.with_mut(|sc| {
-                            sc.pop();
-                        });
-                        selected.set((Vec::new(), Vec::new()));
-                    }
-                } else if matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("r") || c.eq_ignore_ascii_case("m"))
-                    && !e.modifiers().alt()
-                {
-                    // R turns, M mirrors the selected blocks (ADR-0024 §5).
-                    let mirror = matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("m"));
-                    let ids = selected.read().0.clone();
-                    if !ids.is_empty() {
+            moonkale_ext_api::Stylesheet { href: CSS }
+            div {
+                class: "mk-flow",
+                // Delete/Backspace remove the selection — never while a field
+                // has the focus (spec 001); Ctrl/Meta combos bubble (Ctrl+S).
+                // Undo (Ctrl+Z) and redo (Ctrl+Y, Ctrl+Shift+Z) restore the
+                // last snapshot; the field editor stops its own Z/Y (below).
+                onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
+                    if moonkale_ext_api::keys::primary(&e.modifiers())
+                        && e.key() == Key::Character("s".into())
+                    {
                         e.prevent_default();
-                        reorient((ids, mirror));
+                        e.stop_propagation();
+                        save(());
+                    } else if moonkale_ext_api::keys::primary(&e.modifiers()) {
+                        let shift = e.modifiers().shift();
+                        match e.key() {
+                            Key::Character(c) if c.eq_ignore_ascii_case("z") => {
+                                e.prevent_default();
+                                e.stop_propagation();
+                                if shift { redo(()) } else { undo(()) }
+                            }
+                            Key::Character(c) if c.eq_ignore_ascii_case("y") => {
+                                e.prevent_default();
+                                e.stop_propagation();
+                                redo(());
+                            }
+                            _ => {}
+                        }
+                    } else if e.key() == Key::Escape {
+                        // The way out of a subflow, beside the empty-canvas
+                        // click (ADR-0021 §4).
+                        if !scope.read().is_empty() {
+                            scope.with_mut(|sc| {
+                                sc.pop();
+                            });
+                            selected.set((Vec::new(), Vec::new()));
+                        }
+                    } else if matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("r") || c.eq_ignore_ascii_case("m"))
+                        && !e.modifiers().alt()
+                    {
+                        // R turns, M mirrors the selected blocks (ADR-0024 §5).
+                        let mirror = matches!(e.key(), Key::Character(ref c) if c.eq_ignore_ascii_case("m"));
+                        let ids = selected.read().0.clone();
+                        if !ids.is_empty() {
+                            e.prevent_default();
+                            reorient((ids, mirror));
+                        }
+                    } else if matches!(e.key(), Key::Delete | Key::Backspace) {
+                        // The editor stops its own keys (below), so a key
+                        // that reaches the root is aimed at the canvas.
+                        e.prevent_default();
+                        delete_selected(());
                     }
-                } else if matches!(e.key(), Key::Delete | Key::Backspace) {
-                    // The editor stops its own keys (below), so a key
-                    // that reaches the root is aimed at the canvas.
-                    e.prevent_default();
-                    delete_selected(());
-                }
-            }),
-            div { class: "mk-editor-toolbar",
-                span { class: "mk-editor-path",
-                    "{doc.read().node.native_key}",
-                    // The breadcrumb of an open scope stack
-                    // (ADR-0021 §4): parent / sub_1 / …
-                    for sid in scope.read().iter() {
-                        { if let Some(sub) = flow.read().subflow(sid) { format!(" / {}", sub.name) } else { String::new() } }
+                }),
+                div { class: "mk-editor-toolbar",
+                    span { class: "mk-editor-path",
+                        "{doc.read().node.native_key}",
+                        // The breadcrumb of an open scope stack
+                        // (ADR-0021 §4): parent / sub_1 / …
+                        for sid in scope.read().iter() {
+                            { if let Some(sub) = flow.read().subflow(sid) { format!(" / {}", sub.name) } else { String::new() } }
+                        }
+                    }
+                    if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "flow-unsaved"), "●" } }
+                    span { class: "mk-editor-spacer" }
+                    span { class: "mk-flow-status", "data-blocks": "{flow.read().scope(&scope.read()).map(|sc| sc.blocks.len()).unwrap_or(0)}", "data-wires": "{flow.read().scope(&scope.read()).map(|sc| sc.wires.len()).unwrap_or(0)}", "data-issues": "{issues_now.len()}",
+                        {t!(ws, L, "flow-counts", blocks = flow.read().blocks.len(), wires = flow.read().wires.len())}
+                        if !issues_now.is_empty() { span { class: "mk-flow-issues", title: "{issues_now.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues_now.len())} } }
+                    }
+                moonkale_ext_api::icons::ToolbarActions {
+                        primary: rsx! { moonkale_ext_api::icons::IconButton {
+                        icon: "save",
+                        label: t!(ws, L, "flow-save"),
+                        command: "file.save".to_string(),
+                        disabled: !dirty || broken.read().is_some(),
+                        onclick: moonkale_ext_api::crash::event(move |_| save(())),
+                    } },
+    label { title: t!(ws, L, "flow-grid-title"),
+                        {t!(ws, L, "flow-grid")}
+                        input { r#type: "number", min: "0", max: "128", step: "4",
+                            style: "width:4em",
+                            value: "{ws.settings.resolved.read().editor.flow_grid}",
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { if let Ok(n) = e.value().parse::<u16>() {
+                                ws.update_settings_in(moonkale_ext_api::SettingsTarget::User, move |f| f.editor.flow_grid = Some(n));
+                            } }
+                        )}
+                    }
+                    if let Some(n) = notice() { span { class: "mk-flow-notice", "{n}" } }
+
+                    for lib in generators {
+                        // The button names the library, not just the language —
+                        // two Julia libraries must not read as one button.
+                        button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: moonkale_ext_api::crash::event({ let lib = lib.clone(); move |_| generate(lib.clone()) }), title: t!(ws, L, "flow-generate-title", language = lib.name), {t!(ws, L, "flow-generate", language = lib.name)} }
+                    }
+                    // While broken there is nothing to arrange, fit or save —
+                    // only Reload leads out (the review's #3: the toolbar
+                    // must not offer edits the model refuses to write).
+                    // Symbols, with their description on hover (ADR-0027);
+                    // Generate keeps its words, the panel's primary action.
+                    moonkale_ext_api::icons::IconButton {
+                        icon: "layout",
+                        label: t!(ws, L, "flow-layout"),
+                        description: t!(ws, L, "flow-layout-title"),
+                        disabled: broken.read().is_some(),
+                        onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }),
+                    }
+                    moonkale_ext_api::icons::IconButton {
+                        icon: "fit",
+                        label: t!(ws, L, "flow-fit"),
+                        description: t!(ws, L, "flow-fit-title"),
+                        disabled: broken.read().is_some(),
+                        onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }),
+                    }
+
+                    moonkale_ext_api::icons::IconButton {
+                        icon: "reload",
+                        label: t!(ws, L, "flow-reload"),
+                        description: t!(ws, L, "flow-reload-title"),
+                        class: "mk-flow-reload".to_string(),
+                        onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); }),
+                    }
+                    moonkale_ext_api::icons::PanelSettingsButton {}
+
                     }
                 }
-                if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "flow-unsaved"), "●" } }
-                span { class: "mk-editor-spacer" }
-                label { title: t!(ws, L, "flow-grid-title"),
-                    {t!(ws, L, "flow-grid")}
-                    input { r#type: "number", min: "0", max: "128", step: "4",
-                        style: "width:4em",
-                        value: "{ws.settings.resolved.read().editor.flow_grid}",
-                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { if let Ok(n) = e.value().parse::<u16>() {
-                            ws.update_settings_in(moonkale_ext_api::SettingsTarget::User, move |f| f.editor.flow_grid = Some(n));
-                        } }
-                    )}
-                }
-                if let Some(n) = notice() { span { class: "mk-flow-notice", "{n}" } }
-                span { class: "mk-flow-status", "data-blocks": "{flow.read().scope(&scope.read()).map(|sc| sc.blocks.len()).unwrap_or(0)}", "data-wires": "{flow.read().scope(&scope.read()).map(|sc| sc.wires.len()).unwrap_or(0)}", "data-issues": "{issues_now.len()}",
-                    {t!(ws, L, "flow-counts", blocks = flow.read().blocks.len(), wires = flow.read().wires.len())}
-                    if !issues_now.is_empty() { span { class: "mk-flow-issues", title: "{issues_now.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(\"\\n\")}", {t!(ws, L, "flow-issues", n = issues_now.len())} } }
-                }
-                for lib in generators {
-                    // The button names the library, not just the language —
-                    // two Julia libraries must not read as one button.
-                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: moonkale_ext_api::crash::event({ let lib = lib.clone(); move |_| generate(lib.clone()) }), title: t!(ws, L, "flow-generate-title", language = lib.name), {t!(ws, L, "flow-generate", language = lib.name)} }
-                }
-                // While broken there is nothing to arrange, fit or save —
-                // only Reload leads out (the review's #3: the toolbar
-                // must not offer edits the model refuses to write).
-                // Symbols, with their description on hover (ADR-0027);
-                // Generate keeps its words, the panel's primary action.
-                moonkale_ext_api::icons::IconButton {
-                    icon: "layout",
-                    label: t!(ws, L, "flow-layout"),
-                    description: t!(ws, L, "flow-layout-title"),
-                    disabled: broken.read().is_some(),
-                    onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }),
-                }
-                moonkale_ext_api::icons::IconButton {
-                    icon: "fit",
-                    label: t!(ws, L, "flow-fit"),
-                    description: t!(ws, L, "flow-fit-title"),
-                    disabled: broken.read().is_some(),
-                    onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }),
-                }
-                moonkale_ext_api::icons::IconButton {
-                    icon: "save",
-                    label: t!(ws, L, "flow-save"),
-                    command: "file.save".to_string(),
-                    disabled: !dirty || broken.read().is_some(),
-                    onclick: moonkale_ext_api::crash::event(move |_| save(())),
-                }
-                moonkale_ext_api::icons::IconButton {
-                    icon: "reload",
-                    label: t!(ws, L, "flow-reload"),
-                    description: t!(ws, L, "flow-reload-title"),
-                    class: "mk-flow-reload".to_string(),
-                    onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); }),
-                }
-                moonkale_ext_api::icons::PanelSettingsButton {}
-            }
-            if let Some(e) = error() { div { class: "mk-editor-error", "{e}" } }
-            if let Some(why) = broken() {
-                div { class: "mk-editor-error mk-flow-broken", role: "alert", {t!(ws, L, "flow-broken", error = why)} }
-            } else {
-                div { class: "mk-flow-body",
-                    // Each palette button carries its own handler with
-                    // the kind captured in the closure — no DOM reading,
-                    // which on desktop and Android (native handlers,
-                    // outside wasm) crashed on `web_sys::window()` (the
-                    // review's #1). The buttons are keyed: the delegated
-                    // double fire of the stage 7b quirk (P-167)
-                    // came from unkeyed list items borrowing the first
-                    // item's listener.
-                    div {
-                        class: "mk-flow-palette",
-                        if libs.is_empty() {
-                            p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
-                        } else {
-                            {
-                                let current = chosen_lib()
-                                    .filter(|i| *i < libs.len())
-                                    .or_else(|| document_library(&flow.read(), &libs))
-                                    .unwrap_or(0);
-                                rsx! {
-                                    if libs.len() > 1 {
-                                        select { class: "mk-input", onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| chosen_lib.set(e.value().parse().ok())),
-                                            for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == current, "{l.name}" } }
+                if let Some(e) = error() { div { class: "mk-editor-error", "{e}" } }
+                if let Some(why) = broken() {
+                    div { class: "mk-editor-error mk-flow-broken", role: "alert", {t!(ws, L, "flow-broken", error = why)} }
+                } else {
+                    div { class: "mk-flow-body",
+                        // Each palette button carries its own handler with
+                        // the kind captured in the closure — no DOM reading,
+                        // which on desktop and Android (native handlers,
+                        // outside wasm) crashed on `web_sys::window()` (the
+                        // review's #1). The buttons are keyed: the delegated
+                        // double fire of the stage 7b quirk (P-167)
+                        // came from unkeyed list items borrowing the first
+                        // item's listener.
+                        div {
+                            class: "mk-flow-palette",
+                            if libs.is_empty() {
+                                p { class: "mk-muted", {t!(ws, L, "flow-no-libraries")} }
+                            } else {
+                                {
+                                    let current = chosen_lib()
+                                        .filter(|i| *i < libs.len())
+                                        .or_else(|| document_library(&flow.read(), &libs))
+                                        .unwrap_or(0);
+                                    rsx! {
+                                        if libs.len() > 1 {
+                                            select { class: "mk-input", onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| chosen_lib.set(e.value().parse().ok())),
+                                                for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == current, "{l.name}" } }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            {
-                                let current = chosen_lib()
-                                    .filter(|i| *i < libs.len())
-                                    .or_else(|| document_library(&flow.read(), &libs))
-                                    .unwrap_or(0);
-                                let lib = libs.get(current).or(libs.first()).cloned();
-                                rsx! {
-                                    if let Some(lib) = lib {
-                                        div { class: "mk-flow-palette-title", "{lib.name}" }
-                                        {
-                                            let mut cats: Vec<&str> = lib.blocks.iter().map(|b| b.category.as_str()).collect();
-                                            cats.dedup();
-                                            rsx! {
-                                                for cat in cats {
-                                                    div { key: "{cat}", class: "mk-flow-palette-cat", "{cat}" }
-                                                    for b in lib.blocks.iter().filter(|b| b.category == cat) {
-                                                        {
-                                                            let kind = format!("{}/{}", lib.id, b.id);
-                                                            rsx! {
-                                                                button { key: "{kind}",
-                                                                    "data-kind": "{kind}",
-                                                                    class: "mk-flow-palette-block",
-                                                                    title: "{b.description}",
-                                                                    onclick: moonkale_ext_api::crash::event({
-                                                                        let mut add_block = add_block;
-                                                                        let kind = kind.clone();
-                                                                        move |_| add_block(kind.clone())
-                                                                    }),
-                                                                    "{b.name}"
+                                {
+                                    let current = chosen_lib()
+                                        .filter(|i| *i < libs.len())
+                                        .or_else(|| document_library(&flow.read(), &libs))
+                                        .unwrap_or(0);
+                                    let lib = libs.get(current).or(libs.first()).cloned();
+                                    rsx! {
+                                        if let Some(lib) = lib {
+                                            div { class: "mk-flow-palette-title", "{lib.name}" }
+                                            {
+                                                let mut cats: Vec<&str> = lib.blocks.iter().map(|b| b.category.as_str()).collect();
+                                                cats.dedup();
+                                                rsx! {
+                                                    for cat in cats {
+                                                        div { key: "{cat}", class: "mk-flow-palette-cat", "{cat}" }
+                                                        for b in lib.blocks.iter().filter(|b| b.category == cat) {
+                                                            {
+                                                                let kind = format!("{}/{}", lib.id, b.id);
+                                                                rsx! {
+                                                                    button { key: "{kind}",
+                                                                        "data-kind": "{kind}",
+                                                                        class: "mk-flow-palette-block",
+                                                                        title: "{b.description}",
+                                                                        onclick: moonkale_ext_api::crash::event({
+                                                                            let mut add_block = add_block;
+                                                                            let kind = kind.clone();
+                                                                            move |_| add_block(kind.clone())
+                                                                        }),
+                                                                        "{b.name}"
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -1656,130 +1662,129 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 }
                             }
                         }
-                    }
-                    // The built-in palette entry: a subsystem,
-                    // whatever libraries are enabled (ADR-0021 B).
-                    button {
-                        class: "mk-flow-palette-block mk-flow-subsystem",
-                        title: t!(ws, L, "flow-subsystem-title"),
-                        onclick: moonkale_ext_api::crash::event({
-                            let mut create_subflow = create_subflow;
-                            move |_| create_subflow(())
-                        }),
-                        {t!(ws, L, "flow-subsystem")}
-                    }
-                    div {
-                        class: "mk-flow-canvas",
-                        onmounted: moonkale_ext_api::crash::event({ let mut mount = mount; move |e: dioxus::prelude::MountedEvent| mount(e) }),
-                        canvas { id: "{id}-gl", class: "mk-flow-gl" }
-                        // The overlay is where clicks land (it sits on
-                        // top) and takes the focus for the panel's keys.
-                        canvas { id: "{id}-ov", class: "mk-flow-ov", tabindex: "0" }
-                        CanvasLayer { camera: camera(),
-                        if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
-                            CanvasItem { camera: camera(), bounds: parameter_card_bounds(b, k.params.len()),
-                            div {
-                                class: "mk-flow-props",
-                                // Keys typed into a parameter field must not
-                                // reach the panel (Delete/Backspace remove the
-                                // selection); nor do the field's own Z/Y — a
-                                // field's Ctrl+Z is its text undo. Ctrl/Meta
-                                // combos (Ctrl+S) still bubble (spec 001).
-                                onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
-                                    let primary = moonkale_ext_api::keys::primary(&e.modifiers());
-                                    let field_undo = primary
-                                        && matches!(e.key(), Key::Character(ref c)
-                                            if c.eq_ignore_ascii_case("z") || c.eq_ignore_ascii_case("y"));
-                                    if !primary || field_undo {
-                                        e.stop_propagation();
-                                    }
-                                }),
-                                CanvasHeader { id: format!("{id}-card-header"), scale: camera().scale,
-                                    ondrag: moonkale_ext_api::crash::event({
-                                        let bid = b.id.clone();
-                                        move |event: CardDrag| {
-                                            if broken.peek().is_some() { return; }
-                                            let open = scope.peek().clone();
-                                            if card_drag.peek().is_none() {
-                                                let original = flow.peek().scope(&open).and_then(|sc| sc.blocks.iter().find(|b| b.id == bid).map(|b| [b.x,b.y]));
-                                                if let Some(original) = original {
-                                                    let before = flow.peek().to_json();
-                                                    card_drag.set(Some((before, original)));
-                                                }
-                                            }
-                                            let start = card_drag.peek().clone();
-                                            if let Some((before, original)) = start {
-                                                if event.cancelled {
-                                                    if let Ok(old) = Flow::parse(&before) { flow.set(old); }
-                                                } else {
-                                                    flow.with_mut(|f| { let _ = f.with_scope(&open, |blocks, _| {
-                                                        if let Some(b) = blocks.iter_mut().find(|b| b.id == bid) {
-                                                            let grid = if event.unsnapped { 0 } else { ws.settings.resolved.peek().editor.flow_grid };
-                                                            let snap = |v: f64| if grid > 0 { (v / grid as f64).round() * grid as f64 } else { v };
-                                                            b.x = snap(original[0] + event.delta[0] as f64);
-                                                            b.y = snap(original[1] + event.delta[1] as f64);
-                                                        }
-                                                    }); });
-                                                }
-                                                if event.finished {
-                                                    card_drag.set(None);
-                                                    if !event.cancelled && before != flow.peek().to_json() { push_undo(undo_stack, redo_stack, before); }
-                                                }
-                                                sync(&flow, &mut last_text, &mut doc, &broken);
-                                            }
+                        // The built-in palette entry: a subsystem,
+                        // whatever libraries are enabled (ADR-0021 B).
+                        button {
+                            class: "mk-flow-palette-block mk-flow-subsystem",
+                            title: t!(ws, L, "flow-subsystem-title"),
+                            onclick: moonkale_ext_api::crash::event({
+                                let mut create_subflow = create_subflow;
+                                move |_| create_subflow(())
+                            }),
+                            {t!(ws, L, "flow-subsystem")}
+                        }
+                        div {
+                            class: "mk-flow-canvas",
+                            onmounted: moonkale_ext_api::crash::event({ let mut mount = mount; move |e: dioxus::prelude::MountedEvent| mount(e) }),
+                            canvas { id: "{id}-gl", class: "mk-flow-gl" }
+                            // The overlay is where clicks land (it sits on
+                            // top) and takes the focus for the panel's keys.
+                            canvas { id: "{id}-ov", class: "mk-flow-ov", tabindex: "0" }
+                            CanvasLayer { camera: camera(),
+                            if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
+                                CanvasItem { camera: camera(), bounds: parameter_card_bounds(b, k.params.len()),
+                                div {
+                                    class: "mk-flow-props",
+                                    // Keys typed into a parameter field must not
+                                    // reach the panel (Delete/Backspace remove the
+                                    // selection); nor do the field's own Z/Y — a
+                                    // field's Ctrl+Z is its text undo. Ctrl/Meta
+                                    // combos (Ctrl+S) still bubble (spec 001).
+                                    onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
+                                        let primary = moonkale_ext_api::keys::primary(&e.modifiers());
+                                        let field_undo = primary
+                                            && matches!(e.key(), Key::Character(ref c)
+                                                if c.eq_ignore_ascii_case("z") || c.eq_ignore_ascii_case("y"));
+                                        if !primary || field_undo {
+                                            e.stop_propagation();
                                         }
                                     }),
-                                div { class: "mk-flow-props-title",
-                                    span { "{b.id}" }
-                                    {
-                                        let (r, m) = (b.id.clone(), b.id.clone());
-                                        let (mut turn, mut flip) = (reorient, reorient);
-                                        rsx! {
-                                            button { onpointerdown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| e.stop_propagation()), class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
-                                                onclick: moonkale_ext_api::crash::event(move |_| turn((vec![r.clone()], false))), {t!(ws, L, "flow-rotate")} }
-                                            button { onpointerdown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| e.stop_propagation()), class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
-                                                onclick: moonkale_ext_api::crash::event(move |_| flip((vec![m.clone()], true))), {t!(ws, L, "flow-mirror")} }
+                                    CanvasHeader { id: format!("{id}-card-header"), scale: camera().scale,
+                                        ondrag: moonkale_ext_api::crash::event({
+                                            let bid = b.id.clone();
+                                            move |event: CardDrag| {
+                                                if broken.peek().is_some() { return; }
+                                                let open = scope.peek().clone();
+                                                if card_drag.peek().is_none() {
+                                                    let original = flow.peek().scope(&open).and_then(|sc| sc.blocks.iter().find(|b| b.id == bid).map(|b| [b.x,b.y]));
+                                                    if let Some(original) = original {
+                                                        let before = flow.peek().to_json();
+                                                        card_drag.set(Some((before, original)));
+                                                    }
+                                                }
+                                                let start = card_drag.peek().clone();
+                                                if let Some((before, original)) = start {
+                                                    if event.cancelled {
+                                                        if let Ok(old) = Flow::parse(&before) { flow.set(old); }
+                                                    } else {
+                                                        flow.with_mut(|f| { let _ = f.with_scope(&open, |blocks, _| {
+                                                            if let Some(b) = blocks.iter_mut().find(|b| b.id == bid) {
+                                                                let grid = if event.unsnapped { 0 } else { ws.settings.resolved.peek().editor.flow_grid };
+                                                                let snap = |v: f64| if grid > 0 { (v / grid as f64).round() * grid as f64 } else { v };
+                                                                b.x = snap(original[0] + event.delta[0] as f64);
+                                                                b.y = snap(original[1] + event.delta[1] as f64);
+                                                            }
+                                                        }); });
+                                                    }
+                                                    if event.finished {
+                                                        card_drag.set(None);
+                                                        if !event.cancelled && before != flow.peek().to_json() { push_undo(undo_stack, redo_stack, before); }
+                                                    }
+                                                    sync(&flow, &mut last_text, &mut doc, &broken);
+                                                }
+                                            }
+                                        }),
+                                    div { class: "mk-flow-props-title",
+                                        span { "{b.id}" }
+                                        {
+                                            let (r, m) = (b.id.clone(), b.id.clone());
+                                            let (mut turn, mut flip) = (reorient, reorient);
+                                            rsx! {
+                                                button { onpointerdown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| e.stop_propagation()), class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
+                                                    onclick: moonkale_ext_api::crash::event(move |_| turn((vec![r.clone()], false))), {t!(ws, L, "flow-rotate")} }
+                                                button { onpointerdown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| e.stop_propagation()), class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
+                                                    onclick: moonkale_ext_api::crash::event(move |_| flip((vec![m.clone()], true))), {t!(ws, L, "flow-mirror")} }
+                                            }
                                         }
                                     }
-                                }
-                                }
-                                for p in k.params.iter() {
-                                    {
-                                        let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
-                                        let (bid, name) = (b.id.clone(), p.name.clone());
-                                        let mut set_param = set_param;
-                                        rsx! {
-                                            label { key: "{p.name}", class: "mk-flow-param",
-                                                span { "{p.name}" }
-                                                match &p.kind {
-                                                    ParamKind::Choice { options } => rsx! {
-                                                        select { value: "{value}",
-                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value()))),
-                                                            for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
-                                                        }
-                                                    },
-                                                    ParamKind::Bool => rsx! {
-                                                        input { r#type: "checkbox", checked: value == "true",
-                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.checked().to_string())) )}
-                                                    },
-                                                    _ => rsx! {
-                                                        input { value: "{value}", size: 6,
-                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value())) )}
-                                                    },
+                                    }
+                                    for p in k.params.iter() {
+                                        {
+                                            let value = b.params.get(&p.name).cloned().unwrap_or_else(|| p.default.clone());
+                                            let (bid, name) = (b.id.clone(), p.name.clone());
+                                            let mut set_param = set_param;
+                                            rsx! {
+                                                label { key: "{p.name}", class: "mk-flow-param",
+                                                    span { "{p.name}" }
+                                                    match &p.kind {
+                                                        ParamKind::Choice { options } => rsx! {
+                                                            select { value: "{value}",
+                                                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value()))),
+                                                                for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
+                                                            }
+                                                        },
+                                                        ParamKind::Bool => rsx! {
+                                                            input { r#type: "checkbox", checked: value == "true",
+                                                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.checked().to_string())) )}
+                                                        },
+                                                        _ => rsx! {
+                                                            input { value: "{value}", size: 6,
+                                                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value())) )}
+                                                        },
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                                }
                             }
                             }
-                        }
                         }
                     }
                 }
             }
         }
-    }
 }
 
 /// Bounds of the document-owned block centres in the open scope.

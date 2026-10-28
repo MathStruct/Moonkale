@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 16 (Prompt26): the graph's Local view lays its neighbourhood out on its own instead
 // of keeping the Whole layout's scattered positions, and switching back gives the Whole view
 // back exactly — camera and node positions — as it was. Chromium with software WebGL (the
@@ -21,9 +22,9 @@ try {
   await step("Whole view settles; the user zooms (the camera is theirs now)", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".wb-tab:has-text('Graph')");
+    await control(page, 'click', ".wb-tab:has-text('Graph')");
     await page.waitForFunction(() => +(document.querySelector(".mk-graph-info")?.dataset.nodes || 0) > 5, null, { timeout: 30000 });
     await settled();
     const box = await page.$eval(".mk-graph-overlay", (c) => { const r = c.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
@@ -37,11 +38,11 @@ try {
     await page.screenshot({ path: `${S}/m16-graph-whole.png` });
   });
   await step("Local around Home.md: a small graph, laid out from scratch", async () => {
-    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer"); // the rail entry toggles
-    await page.click(".mk-tree-file >> text=Home.md");
+    if (!(await page.isVisible(".mk-explorer"))) await control(page, 'click', "#mk-rail-explorer"); // the rail entry toggles
+    await control(page, 'click', ".mk-tree-file >> text=Home.md");
     await page.waitForSelector(".mk-md", { timeout: 15000 });
-    await page.click(".wb-tab:has-text('Graph')");
-    await page.click(".mk-graph button:text-is('Local')");
+    await control(page, 'click', ".wb-tab:has-text('Graph')");
+    await control(page, 'click', ".mk-graph button:text-is('Local')");
     await page.waitForFunction((n) => { const x = +(document.querySelector(".mk-graph-info")?.dataset.nodes || 0); return x > 0 && x < n; }, wholeCount, { timeout: 15000 });
     const l = await view("layout");
     console.log("\n  local:", await nodes(), "nodes, temperature", l[1].toFixed(2), "iterations", l[2]);
@@ -53,7 +54,7 @@ try {
     await page.screenshot({ path: `${S}/m16-graph-local.png` });
   });
   await step("back to Whole: the same camera and the same positions, still settled", async () => {
-    await page.click(".mk-graph button:text-is('Whole')");
+    await control(page, 'click', ".mk-graph button:text-is('Whole')");
     await page.waitForFunction((n) => +(document.querySelector(".mk-graph-info")?.dataset.nodes || 0) === n, wholeCount, { timeout: 15000 });
     await sleep(800);
     const cam = await view("camera");

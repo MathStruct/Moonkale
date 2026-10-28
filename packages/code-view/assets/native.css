@@ -16,7 +16,7 @@
 .mk-native-fold-toggle, .mk-native-fold-slot { display: inline-block; width: 1ch; padding: 0; border: 0; background: transparent; color: var(--mk-muted); font: inherit; line-height: inherit; cursor: pointer; }
 .mk-native-fold-placeholder { color: var(--mk-muted); cursor: pointer; }
 .mk-native-bracket-match { background: var(--mk-code-selection); outline: 1px solid currentColor; outline-offset: -1px; }
-.mk-crust .mk-editor-toolbar { flex-wrap: nowrap; position: relative; }
+.mk-crust .mk-editor-toolbar { flex-wrap: wrap; position: relative; }
 .mk-crust .mk-editor-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-crust .mk-editor-toolbar > .mk-icon-btn, .mk-native-more { flex-shrink: 0; }
 

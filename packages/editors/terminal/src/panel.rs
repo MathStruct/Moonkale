@@ -223,10 +223,12 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         }
                     }
                 }
-                button { class: "mk-term-tab mk-term-new", title: t!(ws, L, "terminal-new"), disabled: !available,
+                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! { button { class: "mk-term-tab mk-term-new", title: t!(ws, L, "terminal-new"), disabled: !available,
                     onclick: moonkale_ext_api::crash::event(move |_| { ws.processes.terminal_cwd.set(None); moonkale_ext_api::crash::spawn(start_session(ws, sessions, None)); }),
                     "+"
-                }
+                } },
+
                 if active.is_some() {
                     button { class: "mk-term-tab mk-term-trace", title: t!(ws, L, "terminal-trace-title"),
                         onclick: moonkale_ext_api::crash::event(move |_| { let mut t = sessions.trace_tick; t += 1; }),
@@ -235,6 +237,8 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                 }
                 span { class: "mk-term-spacer" }
                 moonkale_ext_api::icons::PanelSettingsButton {}
+
+                }
             }
             div { class: "mk-term-body",
                 if !available {

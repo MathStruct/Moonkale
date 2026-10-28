@@ -159,22 +159,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-table",
             div { class: "mk-table-query",
-                if dialects.len() > 1 {
-                    div { class: "mk-table-dialects", role: "group",
-                        for d in dialects.iter().copied() {
-                            button {
-                                key: "{d}",
-                                class: if dialect() == d { "mk-btn mk-btn-on" } else { "mk-btn" },
-                                title: t!(ws, L, "table-dialect-title", dialect = d),
-                                onclick: moonkale_ext_api::crash::event({
-                                    let mut pick = pick.clone();
-                                    move |_| pick(d)
-                                }),
-                                "{d}"
-                            }
-                        }
-                    }
-                }
+
                 textarea {
                     class: "mk-table-sql",
                     rows: 2,
@@ -192,11 +177,29 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                         }
                     }),
                 }
-                button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event({ let run = run.clone(); move |_| run() }),
+                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! {                 button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event({ let run = run.clone(); move |_| run() }),
                     if running() { {t!(ws, L, "table-running")} } else { {t!(ws, L, "table-run")} }
+                } },
+                if dialects.len() > 1 {
+                    div { class: "mk-table-dialects", role: "group",
+                        for d in dialects.iter().copied() {
+                            button {
+                                key: "{d}",
+                                class: if dialect() == d { "mk-btn mk-btn-on" } else { "mk-btn" },
+                                title: t!(ws, L, "table-dialect-title", dialect = d),
+                                onclick: moonkale_ext_api::crash::event({
+                                    let mut pick = pick.clone();
+                                    move |_| pick(d)
+                                }),
+                                "{d}"
+                            }
+                        }
+                    }
                 }
                 if matches!(result(), Some(Ok(ref r)) if !r.nodes.is_empty()) {
                     button { class: "mk-btn mk-table-graph", onclick: moonkale_ext_api::crash::event(show_in_graph), title: t!(ws, L, "table-graph-title"), {t!(ws, L, "table-graph")} }
+                }
                 }
             }
             div { class: "mk-table-grid-host",

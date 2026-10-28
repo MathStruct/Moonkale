@@ -218,6 +218,13 @@ fn SettingsPanel(ws: Workspace) -> Element {
 
                     // Spec 030: the UI language and the theme.
                     h3 { {t!(ws, L, "settings-appearance")} }
+                    label { {t!(ws, L, "density-label")}
+                        select { class: "mk-input mk-settings-density", value: if settings.density == moonkale_ext_api::settings::Density::Simple { "simple" } else { "detailed" },
+                            onchange: move |e: FormEvent| { let density = if e.value() == "detailed" { moonkale_ext_api::settings::Density::Detailed } else { moonkale_ext_api::settings::Density::Simple }; ws.update_settings_in(moonkale_ext_api::SettingsTarget::User, move |f| f.density = Some(density)); },
+                            option { value: "simple", {t!(ws, L, "density-simple")} }
+                            option { value: "detailed", {t!(ws, L, "density-detailed")} }
+                        }
+                    }
                     label { {t!(ws, L, "settings-language")}
                         select { class: "mk-input mk-settings-language", value: "{settings.language}",
                             onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.language = opt(v))); }),

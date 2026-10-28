@@ -373,3 +373,15 @@ input-test = 测试按键或鼠标按钮
 input-test-hint = 聚焦此处后按键或点击鼠标按钮
 input-split = 编辑器：向右拆分
 input-open-beside = 在旁边打开（转到文件中按 Alt+Enter）
+
+density-label = 界面密度
+density-simple = 简洁
+density-detailed = 详细
+density-simple-command = 视图：简洁界面
+density-detailed-command = 视图：详细界面
+density-menu = 显示菜单（Alt）
+chrome-more = 更多操作
+chrome-choice = 显示此扩展的控件
+chrome-offer = 显示 { $name } 的控件？命令始终可用。
+chrome-accept = 显示控件
+chrome-decline = 保留在菜单中

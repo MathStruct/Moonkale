@@ -52,3 +52,5 @@ moved-to-window = In Fenster { $window } verschoben
 dragging = { $name } wird gezogen – auf ein anderes Moonkale-Fenster ziehen, um es dorthin zu verschieben
 
 move-unsaved = Ungespeichertes Dokument bleibt hier — vor dem Verschieben in ein anderes Fenster speichern.
+
+chrome-more = Weitere Aktionen

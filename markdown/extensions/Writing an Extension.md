@@ -301,3 +301,8 @@ Do not bypass these helpers with raw Dioxus spawning or an unrelated executor
 and expect extension containment. On today's aborting web client, a real panic
 uses the independent reload overlay instead. See [[Crash Safety]] for startup
 safe mode, wasm retry limits and the boundaries of recovery.
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Commands always belong in the command registry. Rail entries and panel toolbar controls are offered through the user’s extension chrome choice. Use `icons::ToolbarActions` for one primary action plus flat overflow, and inherit `icons::ChromeOwner` from the shell. Detailed expands the actions; Simple retains them in ⋯ when chrome is declined. Extension enablement and permission grants are independent.

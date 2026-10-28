@@ -219,8 +219,12 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         }
                     }
                 }
-                button { class: "mk-tn-new", disabled: !available, title: t!(ws, L, "tn-new"),
-                    onclick: moonkale_ext_api::crash::event(move |_| { ws.processes.terminal_cwd.set(None); moonkale_ext_api::crash::spawn(start_session(ws, sessions, None)); }), "+" }
+                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! { button { class: "mk-tn-new", disabled: !available, title: t!(ws, L, "tn-new"),
+                    onclick: moonkale_ext_api::crash::event(move |_| { ws.processes.terminal_cwd.set(None); moonkale_ext_api::crash::spawn(start_session(ws, sessions, None)); }), "+" } },
+
+
+                }
             }
             if list.is_empty() {
                 p { class: "mk-muted mk-tn-empty", if available { {t!(ws, L, "tn-empty")} } else { {t!(ws, L, "terminal-unavailable")} } }

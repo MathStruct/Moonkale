@@ -117,6 +117,21 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                             if m.optional && !m.default_enabled { span { class: "mk-settings-scope", {t!(ws, L, "extensions-opt-in")} } }
                         }
                         div { class: "mk-settings-ext-desc", "{description}" }
+                        if m.optional {
+                            label { class: "mk-settings-check mk-chrome-choice",
+                                input { r#type: "checkbox", checked: moonkale_ext_api::icons::chrome_accepted(ws, id),
+                                    onchange: move |e: FormEvent| { let accepted = e.checked(); grant(Box::new(move |f| { f.chrome.insert(id.to_string(), accepted); })); },
+                                }
+                                {t!(ws, L, "chrome-choice")}
+                            }
+                            if on && moonkale_ext_api::icons::chrome_undecided(ws, id) {
+                                div { class: "mk-chrome-offer",
+                                    {t!(ws, L, "chrome-offer", name = name.clone())}
+                                    button { class: "mk-btn", onclick: move |_| grant(Box::new(move |f| { f.chrome.insert(id.to_string(), true); })), {t!(ws, L, "chrome-accept")} }
+                                    button { class: "mk-btn", onclick: move |_| grant(Box::new(move |f| { f.chrome.insert(id.to_string(), false); })), {t!(ws, L, "chrome-decline")} }
+                                }
+                            }
+                        }
                         // Milestone 13: the extension's own settings, with the extension.
                         if on {
                             ExtensionSettings { ws, index, target: ext_target }

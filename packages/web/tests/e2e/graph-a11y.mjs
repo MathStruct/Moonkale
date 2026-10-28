@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Spec 031, stage 10: the accessibility minimums on the real renderer —
 // Chromium with SwiftShader, the graph3d.mjs setup. A canvas graph is
 // invisible to keyboards and screen readers; the engine now takes a
@@ -22,9 +23,9 @@ try {
   await step("open folder; the renderer starts on a GL backend", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".wb-tab:has-text('Graph')");
+    await control(page, 'click', ".wb-tab:has-text('Graph')");
     await page.waitForFunction(() => /gl|gpu/i.test(document.querySelector(".mk-graph-info")?.dataset.backend || ""), null, { timeout: 30000 });
     await page.waitForFunction(() => Number(document.querySelector(".mk-graph-info")?.dataset.nodes) > 0 && Object.values(window.moonkale.graphViews)[0].node_count() === Number(document.querySelector(".mk-graph-info").dataset.nodes));
   });

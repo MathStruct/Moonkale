@@ -339,6 +339,25 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
     let mut palette = use_context::<crate::palette::PaletteState>();
     let mut seed = use_context::<crate::palette::SearchSeed>();
     let mut open: Signal<Option<String>> = use_signal(|| None);
+    let detailed =
+        ws.settings.resolved.read().density == moonkale_ext_api::settings::Density::Detailed;
+    let mut revealed = use_signal(|| false);
+    use_hook(move || {
+        let mut events = document::eval(
+            r#"
+            let alone = false;
+            document.addEventListener('keydown', e => { if (e.key === 'Alt') alone = true; else alone = false; });
+            document.addEventListener('keyup', e => {
+                if (e.key === 'Alt' && alone) { e.preventDefault(); dioxus.send(true); alone = false; }
+            });
+        "#,
+        );
+        spawn(async move {
+            while events.recv::<bool>().await.is_ok() {
+                revealed.set(true);
+            }
+        });
+    });
 
     let title = {
         let active = ws.active_document().map(|(_, d)| {
@@ -376,6 +395,8 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
         div {
             class: "mk-titlebar",
             role: "menubar",
+            "data-density": if detailed { "detailed" } else { "simple" },
+            onkeydown: move |e| { if e.key() == Key::Escape { open.set(None); revealed.set(false); } },
             // Empty areas drag the window; double-click toggles maximize.
             onmousedown: move |e| {
                 if e.data().trigger_button() == Some(dioxus::html::input_data::MouseButton::Primary) {
@@ -385,6 +406,13 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
             ondoubleclick: move |_| { if let Some(c) = controls { c.toggle_maximize.call(()) } },
             div { class: "mk-titlebar-left", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),
                 img { class: "mk-titlebar-logo", src: LOGO, alt: "Moonkale", width: "16", height: "16", draggable: false }
+                if !detailed {
+                    button { class: "mk-menu-button mk-main-menu", aria_label: crate::tl!(&ws.lang(), "density-menu"), title: crate::tl!(&ws.lang(), "density-menu"), aria_expanded: revealed().to_string(),
+                        onclick: move |_| { let next = !revealed(); revealed.set(next); open.set(None); },
+                        "☰"
+                    }
+                }
+                if detailed || revealed() {
                 for (name, items) in {
                     let reg = registry.read();
                     menus(
@@ -457,6 +485,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                             }
                         }
                     }
+                }
                 }
             }
             input { class: "mk-titlebar-search mk-input", id: "mk-titlebar-search",

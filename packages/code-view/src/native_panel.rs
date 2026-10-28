@@ -675,12 +675,14 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         )
                     }
                 }
-                moonkale_ext_api::icons::IconButton {
+                moonkale_ext_api::icons::ToolbarActions {
+                    primary: rsx! { moonkale_ext_api::icons::IconButton {
                     icon: "save", label: t!(ws, L, "editor-save"),
                     command: "file.save".to_string(),
                     disabled: !dirty && properties_draft.read().is_none(),
                     onclick: moonkale_ext_api::crash::event(move |_| save.call(())),
-                }
+                } },
+
                 moonkale_ext_api::icons::IconButton {
                     icon: "reload", command: "native.reload".to_string(), label: t!(ws, L, "editor-reload"),
                     description: t!(ws, L, "editor-reload-title"),
@@ -693,8 +695,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     class: "mk-native-wrap".to_string(),
                     onclick: moonkale_ext_api::crash::event(move |_| crate::panel::toggle_wrap(ws)),
                 }
-                NativeToolbarMenu { label: t!(ws, L, "editor-more"),
-                moonkale_ext_api::icons::PanelSettingsButton {}
+                                moonkale_ext_api::icons::PanelSettingsButton {}
                 if cfg!(feature = "markdown-preview") && language == Some(dioxus_code::Language::Markdown) {
                     button {
                         class: if preview_on { "mk-btn mk-btn-on mk-native-preview" } else { "mk-btn mk-native-preview" },
@@ -756,6 +757,8 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         "CodeMirror"
                     }
                 }
+
+
                 }
             }
             if preview_on {
@@ -884,40 +887,5 @@ mod tests {
         assert!(language_for_hint(Some("nix")).is_some());
         assert!(language_for_hint(Some("plain-unknown")).is_none());
         assert!(language_for_hint(None).is_none());
-    }
-}
-
-/// A disclosure with native Tab/Enter/touch activation and focus restoration.
-#[component]
-fn NativeToolbarMenu(label: String, children: Element) -> Element {
-    let mut open = use_signal(|| false);
-    let mut trigger = use_signal(|| None::<std::rc::Rc<MountedData>>);
-    rsx! {
-        details { class: "mk-native-more", open: open(),
-            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
-                if event.key() == Key::Escape {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    open.set(false);
-                    if let Some(target) = trigger.peek().clone() {
-                        moonkale_ext_api::crash::spawn(async move { let _ = target.set_focus(true).await; });
-                    }
-                }
-            }),
-            summary { class: "mk-btn mk-icon-btn", title: "{label}", aria_expanded: open().to_string(),
-                onmounted: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MountedEvent| trigger.set(Some(event.data()))),
-                onclick: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| { event.prevent_default(); open.toggle(); }),
-                moonkale_ext_api::icons::Icon { name: "more" }
-                span { class: "mk-sr-only", "{label}" }
-            }
-            div { class: "mk-native-more-items", onclick: moonkale_ext_api::crash::event(move |_| {
-                open.set(false);
-                // The activated command is now hidden. Keep the next Tab
-                // anchored to the toolbar; mounted dialogs can take focus next.
-                if let Some(target) = trigger.peek().clone() {
-                    moonkale_ext_api::crash::spawn(async move { let _ = target.set_focus(true).await; });
-                }
-            }), {children} }
-        }
     }
 }

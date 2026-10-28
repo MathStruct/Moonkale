@@ -13,3 +13,6 @@ WP-61's left-hand preset moves the focused grid cursor with WASD, pages
 with Q/E, focuses the local filter with F and advances cells with Tab/Shift+Tab.
 Filter/query fields retain letters. F19 reruns only the active table query.
 Middle-clicking a Ref opens its source-known target in a background tab.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

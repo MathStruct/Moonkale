@@ -53,6 +53,38 @@ Moonkale already grows chrome quickly: a menu bar, an activity rail with about t
 
 ## Built so far (2026-10-28)
 
+WP-63 implements the Simple (default) / Detailed user setting in Appearance and
+as two palette commands, independently of theme and keymap. Simple folds the
+menu bar behind ☰ (Alt reveals it), caps the rail at six entries plus More,
+and keeps source, message, cache, connection and active-document status within
+five items. Diagnostic status extras appear in Detailed. Graph/flow counts,
+live selection and image zoom remain visible content summaries. Unaccepted rail entries
+remain in More (also on phones) and all static panels remain in the palette.
+Settings and Extensions stay pinned at the bottom; the cap trims the entries
+above them. Moonkale's own Graph and Terminal start accepted (Claude,
+2026-10-28: a graph-native editor without Graph on its rail is not "simple");
+a decline still hides them. Agent, Links, Git and History are offered.
+
+Panel action strips share a flat, labelled ⋯ disclosure: Save for text/flow,
+Fit for images/graphs, sessions for agents and Run for queries are primary;
+other actions remain in the disclosure. Detailed lays them out inline, wrapping
+within the panel at narrow widths. The
+Rust editor uses that same disclosure. Escape returns to its trigger; buttons
+close it, while inputs and selectors stay usable. Terminal session tabs remain
+navigation, separate from their New/trace/settings actions.
+
+Core chrome always appears. Optional extensions have a user-scope chrome choice
+in Extensions and a quiet offer there until accepted or declined. Declining
+keeps actions in panel menus and rail More. Detailed shows their chrome without
+rewriting the saved choice. First startup snapshots enabled extensions for users
+with prior user settings or layouts; future extensions still need a
+choice. Choices do not enable extensions or grant permissions.
+
+`density.mjs` checks chrome counts, the command registry in both densities,
+keyboard and mouse disclosure access, the shared setting and persisted offers.
+Browser helpers activate real disclosures instead of changing density in setup.
+
+
 WP-64 first half: command surfaces resolve shortcuts through one ext-api helper
 fed by the shell's effective keymap. Empty tiles show Open Folder, Go to File,
 Command Palette and workspace Search with their current bindings. Holding
@@ -81,8 +113,8 @@ WP-60 owns the overview and its broader journey.
 - **Symbols, with their description on hover:**
   - `moonkale_ext_api::icons::IconButton` draws an icon; its tooltip is the description and shortcut ("Save (Ctrl+S)", "Wrap long lines (Alt+Z)"); its label is hidden text, so screen readers name it and tests find it by its words.
   - The icon set moved from the shell to `ext-api` (`icons::Icon`), so every extension can use it.
-  - Converted: the CodeMirror code editor, the Markdown rich editor, the flow editor (whose Generate keeps its words, the panel's primary action) and the image viewer.
-  - WP-69 (2026-10-17): the Rust editor shows Save, Reload, Wrap and ⋯. The gear is inside ⋯ to keep the complete toolbar within four controls; its popover contains shared user indentation/width and wrap settings. Less frequent commands remain in ⋯ and the palette. Escape closes ⋯ and returns focus to its trigger; Tab/Enter and touch work. The cursor word is inline and hidden below 700 px.
+  - Converted: the CodeMirror code editor, the Markdown rich editor, the flow editor (whose Generate keeps its words, an action in the panel menu) and the image viewer.
+  - WP-69 (2026-10-17) introduced Save, Reload, Wrap and ⋯. WP-63 now uses the shared Save/⋯ arrangement in Simple (all actions in ⋯ when optional chrome is declined). The gear is inside ⋯ to keep the complete toolbar within four controls; its popover contains shared user indentation/width and wrap settings. Less frequent commands remain in ⋯ and the palette. Escape closes ⋯ and returns focus to its trigger; Tab/Enter and touch work. The cursor word is inline and hidden below 700 px.
 - **An extension's settings next to its panel.** A gear (`icons::PanelSettingsButton`) in the toolbar opens the extension's own settings (the same view as under its row in the Extensions panel) in a popover beside the panel. The popover is titled with the extension's name, takes the focus, closes on Escape, and links to all its settings. The gear appears only for extensions that have settings: the code editor, Markdown, the agent panel and the terminal.
 - Test: `toolbar-icons.mjs`.
 

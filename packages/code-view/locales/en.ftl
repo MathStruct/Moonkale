@@ -120,7 +120,6 @@ editor-a11y-tab-indent = Tab indents.
 
 editor-group-history-blocked = Cannot undo or redo this rename. Undo newer edits in { $file } first, or the coordinated history is no longer available.
 
-editor-more = More editor commands
 
 native-reload = Rust editor: Reload
 native-hover = Rust editor: Show hover information

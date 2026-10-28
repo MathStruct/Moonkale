@@ -412,3 +412,11 @@ validate magnification/distance; host-created ids and numbers cross the adapter
 as serde-escaped JSON. Background opens use the existing Source reads, identity
 and guarded document paths, without new writes or connection authority. The
 new input paths add no dependency or server permission.
+
+
+WP-63 (2026-10-28): density and chrome choices carry UI preferences only;
+accepting chrome never enables an extension or grants permissions. The shell
+reads acceptance exclusively from user settings. The disclosure adapter sends
+only a boolean close event after a button/outside click, uses generated ids,
+and never reads content as HTML or commands. Existing Source, extension crash
+and permission boundaries stay in effect; no dependency or connection is added.

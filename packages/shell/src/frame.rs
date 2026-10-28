@@ -294,7 +294,32 @@ fn FrameContent(
         crate::touch_drag::install();
         crate::discovery::install(ws, sheet);
         let _ = document::eval(include_str!("../assets/focus.js"));
-        spawn(async move { ws.load_user_settings().await });
+        let chrome_exts = exts.clone();
+        spawn(async move {
+            ws.load_user_settings().await;
+            if ws.settings.user.peek().chrome_initialized.is_none() {
+                let legacy = {
+                    let user = ws.settings.user.peek();
+                    *user != moonkale_ext_api::SettingsFile::new()
+                        || ws.settings.workspace.peek().layout.is_some()
+                };
+                let ids: Vec<_> = chrome_exts
+                    .iter()
+                    .filter_map(|e| {
+                        let m = e.manifest();
+                        (legacy && ws.settings.resolved.peek().extensions.is_enabled(&m))
+                            .then_some(m.id)
+                    })
+                    .collect();
+                ws.update_user_settings(move |file| {
+                    for id in ids {
+                        file.chrome.entry(id.to_string()).or_insert(true);
+                    }
+                    file.chrome_initialized = Some(true);
+                })
+                .await;
+            }
+        });
         // Spec 030: the system's light/dark preference, followed live …
         spawn(async move {
             let mut ev = document::eval(

@@ -393,3 +393,15 @@ input-test = Test a key or button
 input-test-hint = Focus here, then press a key or mouse button
 input-split = Editor: Split right
 input-open-beside = Open beside (Alt+Enter in Go to File)
+
+density-label = Interface density
+density-simple = Simple
+density-detailed = Detailed
+density-simple-command = View: Simple density
+density-detailed-command = View: Detailed density
+density-menu = Show menus (Alt)
+chrome-more = More actions
+chrome-choice = Show this extension’s controls
+chrome-offer = Show controls for { $name }? Commands are always available.
+chrome-accept = Show controls
+chrome-decline = Keep in menus

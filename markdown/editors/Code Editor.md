@@ -47,3 +47,8 @@ Removed from `editors/code/src` as comment-only files in Milestone 18 phase 1:
 CodeMirror's find/replace controls use the shell theme tokens and the current
 English, German or Chinese locale (P-219, 2026-10-22). `codemirror-search` opens
 the real search panel in German, checks its styles, and selects a match.
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Text panels use shared density-aware actions: Save is primary in Simple, with wrap, reload, editor switching and settings in ⋯. Detailed expands the same actions. Optional Rust-editor chrome follows its extension choice.

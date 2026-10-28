@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Spec 030: languages and themes. The UI follows the browser's language until Settings → Appearance
 // picks one; the theme switches live between Dark, Light, Follow system and a theme file from the
 // server's config directory; the colours come from the --mk-* tokens on <html>.
@@ -9,7 +10,11 @@ const CFG = `${process.env.MOONKALE_CONFIG_DIR ?? process.env.M1_ROOT + "/../cfg
 const browser = await firefox.launch();
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 const token = (page, name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
-const menus = (page) => page.$$eval(".mk-menu-button", (b) => b.map((x) => x.textContent.trim()));
+const menus = async (page) => {
+  if (await page.locator('.mk-main-menu[aria-expanded="false"]').isVisible()) await page.locator('.mk-main-menu').click();
+  await page.locator('.mk-titlebar .mk-menu-button').nth(1).waitFor();
+  return page.$$eval('.mk-menu .mk-menu-button', b => b.map(x => x.textContent.trim()));
+};
 const open = async (ctx) => {
   const page = await ctx.newPage();
   await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
@@ -20,11 +25,11 @@ const setting = async (page, cls, value) => {
   // Panels that mount late at start-up (the graph) can come to the front
   // over Settings: show it again until the choice is made.
   for (let i = 0; i < 10; i++) {
-    await page.click(".wb-status-bar");
+    await control(page, 'click', ".wb-status-bar");
     await page.keyboard.press("Control+,");
     try {
       await page.waitForSelector(`.mk-settings-form select.${cls}`, { state: "visible", timeout: 1500 });
-      await page.selectOption(`.mk-settings-form select.${cls}`, value, { timeout: 1500 });
+      await control(page, 'selectOption', `.mk-settings-form select.${cls}`, value, { timeout: 1500 });
       return;
     } catch {}
   }
@@ -38,6 +43,7 @@ try {
   await step("a German browser gets German menus without any setting (the first render stays English for hydration)", async () => {
     const ctx = await browser.newContext({ locale: "de-DE", viewport: { width: 1300, height: 800 } });
     const p = await open(ctx);
+    await menus(p);
     await p.waitForFunction(() => [...document.querySelectorAll(".mk-menu-button")].some((b) => b.textContent.trim() === "Datei"), null, { timeout: 15000 });
     console.log("\n  menus:", (await menus(p)).join(" | "));
     await ctx.close();

@@ -3,7 +3,7 @@
 (() => {
   if (window.__mkFocus) return;
   window.__mkFocus = true;
-  const focusable = 'input:not([disabled]),textarea:not([disabled]),select:not([disabled]),button:not([disabled]),[contenteditable="true"],[tabindex="0"]';
+  const focusable = 'input:not([disabled]),textarea:not([disabled]),select:not([disabled]),button:not([disabled]),summary,[contenteditable="true"],[tabindex="0"]';
   const scopes = '.mk-palette,[role="dialog"],[role="alertdialog"]';
   const modal = scope => scope.matches('.mk-palette,.mk-panel-settings,[aria-modal="true"],[role="alertdialog"]');
   const visible = el => el?.isConnected && el.getClientRects().length > 0;
@@ -14,6 +14,8 @@
     // A menu item disappears when it runs; its persistent menu button is
     // the return target. Toolbar triggers remain their own return target.
     if (el?.matches?.('.mk-menu-item')) el = el.closest('.mk-menu')?.querySelector('.mk-menu-button') || el;
+    if (el?.closest?.('.mk-toolbar-more-items')) el = el.closest('.mk-toolbar-more')?.querySelector('summary') || el;
+    if (el?.closest?.('.mk-rail-overflow')) el = document.getElementById('mk-rail-more') || el;
     let panel = el?.closest?.('.wb-panel-content');
     let outer;
     while ((outer = panel?.parentElement?.closest('.wb-panel-content'))) panel = outer;

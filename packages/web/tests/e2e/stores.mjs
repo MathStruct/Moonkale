@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 17: the embedded stores from the Sources tree — a Turso file, a redb file, a RocksDB
 // directory and a HelixDB directory (fixture: stores/, seeded by seed_stores) open as sources,
 // list their tables/labels, and answer in the table editor in their own dialect (sql, kv, helix).
@@ -21,14 +22,14 @@ await page.addInitScript(() => {
 const logs = [];
 page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) logs.push(`[${m.type()}] ${t.slice(0, 300)}`); });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
-const showSources = async () => { if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer"); };
+const showSources = async () => { if (!(await page.isVisible(".mk-explorer"))) await control(page, 'click', "#mk-rail-explorer"); };
 const grid = async () => ({
   head: await page.$$eval(".mk-table:visible .mk-table-grid .mk-table-hname", (e) => e.map((x) => x.textContent.trim())),
   rows: await page.$$eval(".mk-table:visible .mk-table-grid .mk-table-row", (e) => e.map((r) => [...r.querySelectorAll(".mk-table-cell")].map((c) => c.textContent.trim()))),
 });
 const run = async (q, rows) => {
-  await page.fill(".mk-table:visible .mk-table-sql", q);
-  await page.click(".mk-table:visible button");
+  await control(page, 'fill', ".mk-table:visible .mk-table-sql", q);
+  await control(page, 'click', ".mk-table:visible button");
   await page.waitForFunction((n) => [...document.querySelectorAll(".mk-table")].some((t) => t.offsetParent && t.querySelectorAll(".mk-table-grid .mk-table-row").length === n), rows, { timeout: 10000 });
 };
 /** Click a store in the tree; wait for its source header and one child. */
@@ -53,7 +54,7 @@ const openStore = async (file, name, child) => {
     sample(); window.__storeTransition = {samples, sample, timer: setInterval(sample, 250)};
   }, file);
   try {
-    await page.click(`.mk-tree-row[title='stores/${file}']`);
+    await control(page, 'click', `.mk-tree-row[title='stores/${file}']`);
   } finally {
     if (trace) {
       const samples = await page.evaluate(() => {
@@ -72,9 +73,9 @@ try {
   await step("open the folder; the four stores are database rows, not folders", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".mk-tree-row[title='stores']");
+    await control(page, 'click', ".mk-tree-row[title='stores']");
     for (const f of ["shop.turso", "app.redb", "events.rocksdb", "people.helix"]) {
       await page.waitForSelector(`.mk-tree-row.mk-tree-db[title='stores/${f}']`, { timeout: 10000 });
     }
@@ -82,18 +83,18 @@ try {
   await step("Turso: tables and a view; users in the grid; SQL reads, a write is refused", async () => {
     await openStore("shop.turso", "shop.turso", "users");
     await page.waitForSelector(".mk-tree-db >> text=good (view)", { timeout: 10000 });
-    await page.click(".mk-tree-db >> text=users");
+    await control(page, 'click', ".mk-tree-db >> text=users");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     const g = await grid();
     if (g.head.join() !== "id,name,score" || g.rows.length !== 3) throw new Error(JSON.stringify(g));
     await run("SELECT name FROM users WHERE score > 3 ORDER BY name", 2);
-    await page.fill(".mk-table:visible .mk-table-sql", "DELETE FROM users");
-    await page.click(".mk-table:visible button");
+    await control(page, 'fill', ".mk-table:visible .mk-table-sql", "DELETE FROM users");
+    await control(page, 'click', ".mk-table:visible button");
     await page.waitForSelector(".mk-table:visible .mk-table-error", { timeout: 10000 });
   });
   await step("redb: typed tables with counts; kv scan and get", async () => {
     await openStore("app.redb", "app.redb", "settings · 2");
-    await page.click(".mk-tree-db >> text=settings · 2");
+    await control(page, 'click', ".mk-tree-db >> text=settings · 2");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     const q = await page.inputValue(".mk-table:visible .mk-table-sql");
     if (!/^scan settings limit 1000$/.test(q)) throw new Error("default query: " + q);
@@ -105,7 +106,7 @@ try {
   });
   await step("RocksDB: column families; prefix scan", async () => {
     await openStore("events.rocksdb", "events.rocksdb", "/^events · /");
-    await page.click(".mk-tree-db >> text=/^events · /");
+    await control(page, 'click', ".mk-tree-db >> text=/^events · /");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     if ((await grid()).rows.length !== 3) throw new Error(JSON.stringify(await grid()));
     await run("scan events prefix e:002", 1);
@@ -113,7 +114,7 @@ try {
   await step("HelixDB: node and edge labels; a label's vertices and an edge's properties", async () => {
     await openStore("people.helix", "people.helix", "Person · 2");
     await page.waitForSelector(".mk-tree-db >> text=KNOWS (edge) · 1", { timeout: 10000 });
-    await page.click(".mk-tree-db >> text=Person · 2");
+    await control(page, 'click', ".mk-tree-db >> text=Person · 2");
     await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     const g = await grid();
     if (g.head.join() !== "$id,$label,name" || g.rows.length !== 2) throw new Error(JSON.stringify(g));
@@ -130,7 +131,7 @@ try {
     await page.waitForSelector(".mk-tree-row[title='Outside.md']", { timeout: 15000 });
     // Explicitly refresh the last source too; its successful query must not
     // temporarily erase the other sources' children through a foreign NotFound.
-    await page.click(".mk-explorer-source-name:has-text('people.helix') .mk-source-refresh");
+    await control(page, 'click', ".mk-explorer-source-name:has-text('people.helix') .mk-source-refresh");
     await page.waitForFunction(() => /Refreshed people\.helix/.test(document.querySelector('.wb-status-bar').textContent));
     const detached = await databaseRows.evaluate(rows => rows.filter(el => !el.isConnected).map(el => el.title));
     await databaseRows.dispose();
@@ -144,7 +145,7 @@ try {
       window.__storeElements = [...document.querySelectorAll('.mk-explorer-source, .mk-explorer-source .mk-tree, .mk-explorer-source .mk-tree-row')];
     });
     const response = page.waitForResponse(r => r.url().endsWith('/api/sources/open_folder') && r.request().method() === 'POST');
-    await page.click('.mk-explorer-open button[type=submit]');
+    await control(page, 'click', '.mk-explorer-open button[type=submit]');
     await response;
     await page.waitForFunction(() => !document.querySelector('.mk-explorer-open button[type=submit]')?.disabled);
     const detached = await page.evaluate(() => window.__storeElements.filter(el => !el.isConnected)

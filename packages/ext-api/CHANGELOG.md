@@ -234,3 +234,11 @@ The first tagged state. Compared to the untagged code of Milestone 17:
 
 **moonkale-graph-render**
 - `scene::{Scene, Event}`: the renderer as a Rust library — graph in, events out, no browser; `Event` serializes to the wasm module's JSON. `examples/headless.rs`, `README.md`.
+
+## Unreleased — WP-63 (2026-10-28)
+
+`SettingsFile` gains optional `density`, `chrome` and `chrome_initialized` fields;
+`Settings` gains `density: Density`. Callers constructing these public structs
+literally need the new fields or `..Default::default()`. Persisted settings keep
+backward-compatible defaults. `icons::ToolbarActions`, `ToolbarMenu`,
+`ChromeOwner` and `chrome_visible` are new shared chrome helpers.

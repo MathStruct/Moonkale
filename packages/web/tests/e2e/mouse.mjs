@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // WP-61: real five-button events stay inside the app and share session visits.
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
@@ -12,14 +13,14 @@ const active = name => page.waitForFunction(name => [...document.querySelectorAl
 const camera = () => page.evaluate(() => [...window.moonkale.graphViews['mk-graph-panel'].camera_state()]);
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, {waitUntil: 'networkidle'});
-  await page.locator('.mk-explorer-open button[type=submit]').click();
+  await control(page.locator('.mk-explorer-open button[type=submit]'), 'click');
   await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'), null, {timeout: 30000});
-  await page.locator('.mk-tree-row[title="README.md"]').click();
+  await control(page.locator('.mk-tree-row[title="README.md"]'), 'click');
   await active('README.md');
-  await page.locator('.mk-tree-row[title="Alpha.md"]').click({button: 'middle'});
+  await control(page.locator('.mk-tree-row[title="Alpha.md"]'), 'click', {button: 'middle'});
   await page.waitForSelector('.wb-tab:has-text("Alpha.md")');
   await active('README.md');
-  await page.locator('.mk-tree-row[title="Alpha.md"]').click();
+  await control(page.locator('.mk-tree-row[title="Alpha.md"]'), 'click');
   await active('Alpha.md');
   const url = page.url();
   await thumb('back');
@@ -27,7 +28,7 @@ try {
   await thumb('forward');
   await active('Alpha.md');
   assert.equal(page.url(), url);
-  await page.locator('.wb-tab:has-text("Graph")').click();
+  await control(page.locator('.wb-tab:has-text("Graph")'), 'click');
   await page.waitForFunction(() => { const v = window.moonkale?.graphViews?.['mk-graph-panel']; return v && v.node_count() > 5 && v.layout_state()[0] === 0; }, null, {timeout: 60000});
   const overlay = page.locator('.mk-graph-overlay');
   const box = await overlay.boundingBox();
@@ -50,13 +51,13 @@ try {
   await page.mouse.up({button:'middle'});
   assert.equal(await page.evaluate(() => window.moonkale.graphViews['mk-graph-panel'].node_positions()), positions);
   assert.notDeepEqual(await camera(), after);
-  await page.locator('.wb-tab:has-text("Alpha.md")').click({button:'middle'});
+  await control(page.locator('.wb-tab:has-text("Alpha.md")'), 'click', {button:'middle'});
   await page.waitForSelector('.wb-tab:has-text("Alpha.md")', {state: 'detached'});
   // Mouse overrides use the same registry and survive a preset change.
   await page.locator('.mk-menu-button').first().focus();
   await page.keyboard.press('Control+,');
   const back = page.locator('select[data-mouse="back"]');
-  await back.selectOption('help.shortcuts');
+  await control(back, 'selectOption', 'help.shortcuts');
   await page.waitForFunction(() => window.moonkaleMouseBindings?.back === 'help.shortcuts');
   await thumb('back');
   await page.waitForSelector('#mk-cheatsheet-input');

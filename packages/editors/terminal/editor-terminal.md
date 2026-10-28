@@ -16,3 +16,6 @@ E2E: `packages/web/tests/e2e/terminal.mjs` (prompt appears, `echo` output, secon
 
 ## Milestone 11
 `TerminalPanel` adopts sessions pushed through `Workspace::adopt_terminals` (the `ssh` of a remote folder, a `TeeBackend`): they become tabs like any other and are activated, so `ssh`'s prompts are answered where they appear. The workspace also dispatches `ShowPanel("terminal")`, so a closed panel comes back first.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

@@ -7,6 +7,19 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Interface density (WP-63, 2026-10-28)
+
+Simple is the default; Appearance and the palette switch to Detailed. Simple
+folds the menu bar, limits the rail to seven entries and status to five items,
+and puts secondary panel actions in flat ⋯ menus. Optional extension chrome is
+a saved user choice in Extensions; its commands and menus remain available.
+Existing users keep their enabled extensions' chrome through one-time migration.
+Detailed shows the full surface without changing capabilities or keymaps.
+All AGENTS gates and the complete CI browser matrix pass, including targeted
+reruns after selector fixes. `density.mjs` checks 62 commands in both densities,
+legacy migration and the Detailed Rust toolbar at phone width. Both densities’
+screenshots were inspected; validation details are in `HANDOFF-from-codex.md`.
+
 ## Numbers
 40 crates · 46 900 lines of Rust · ~1 000 lines of TypeScript in four view bundles · 146 Rust tests · 47 browser suites (Playwright) · CI since 2026-10-01: fmt, layering rules, tests, clippy, wasm check, six browser suites (R-39) · releases `YYMMDD-proto` for Arch, Debian, Nix, tarball, Windows, macOS, Android ([[Install]]).
 

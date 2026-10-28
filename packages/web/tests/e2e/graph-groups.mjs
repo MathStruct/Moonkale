@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Spec 031, stage 4: groups and LOD on the real renderer — Chromium with
 // software WebGL (SwiftShader), the graph3d.mjs setup. Checks: nested and
 // overlapping groups tint as hue-distinct regions (pixel checks — a hull's
@@ -55,9 +56,9 @@ try {
   await step("open folder; the renderer starts on a GL backend", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".wb-tab:has-text('Graph')");
+    await control(page, 'click', ".wb-tab:has-text('Graph')");
     await page.waitForFunction(() => /gl|gpu/i.test(document.querySelector(".mk-graph-info")?.dataset.backend || ""), null, { timeout: 30000 });
     await page.waitForFunction(() => Number(document.querySelector(".mk-graph-info")?.dataset.nodes) > 0 && Object.values(window.moonkale.graphViews)[0].node_count() === Number(document.querySelector(".mk-graph-info").dataset.nodes));
   });
@@ -175,7 +176,7 @@ try {
       }
     }
     if (offE < 200) throw new Error(`e (${offE.toFixed(0)} px) is not outside the focus`);
-    await page.click("button:has-text('Fit')");
+    await control(page, 'click', "button:has-text('Fit')");
     await sleep(400);
   });
   await step("zoomed out, the hulls fade away (LOD §6)", async () => {
@@ -186,7 +187,7 @@ try {
     console.log(`\n  scale ${c[0].toFixed(3)}: green px ${green}, red px ${red}`);
     if (green > 10 || red > 10) throw new Error("a hull still tints below the pixel threshold");
     await page.screenshot({ path: `${S}/s4b-hulls-lod.png` });
-    await page.click("button:has-text('Fit')");
+    await control(page, 'click', "button:has-text('Fit')");
     await sleep(400);
     const png2 = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.w, height: box.h } });
     if (hues(png2, GREEN) < 500) throw new Error("the hull did not come back with the zoom");
@@ -204,7 +205,7 @@ try {
     const litFar = hues(png, YELLOW);
     console.log(`  port px at scale ${c[0].toFixed(2)}: ${litFar}`);
     if (litFar > 0) throw new Error("a port still draws below the pixel threshold");
-    await page.click("button:has-text('Fit')");
+    await control(page, 'click', "button:has-text('Fit')");
     await sleep(400);
     png = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.w, height: box.h } });
     if (hues(png, YELLOW) < 20) throw new Error("the ports did not come back with the zoom");

@@ -39,3 +39,6 @@ WP-64 (2026-10-28): Rich Save uses the shared file.save command binding for its 
 WP-61 adds the rebindable `markdown.toggleMode` command for the Obsidian
 preset's Ctrl+E, preserving the existing per-document Source/Rich choice.
 Links-panel file middle clicks use guarded background loading.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

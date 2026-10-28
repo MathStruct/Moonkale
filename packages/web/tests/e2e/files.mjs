@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 7: file operations in the Explorer — context menu, new file/folder, inline rename,
 // drag a file onto a folder, delete to .moonkale/trash; open documents follow renames.
 import { firefox } from "playwright";
@@ -14,15 +15,15 @@ const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); c
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const labels = () => page.$$eval(".mk-tree-row", (r) => r.map((x) => x.title));
 const ctxMenu = async (selector, item) => {
-  await page.click(selector, { button: "right" });
+  await control(page, 'click', selector, { button: "right" });
   await page.waitForSelector(".mk-ctx", { timeout: 5000 });
-  await page.click(`.mk-ctx-item:text-is('${item}')`);
+  await control(page, 'click', `.mk-ctx-item:text-is('${item}')`);
 };
 try {
   await step("open folder; right-click the root → New File… 'todo.md' → created, listed and opened", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
     await ctxMenu(".mk-explorer-source-name", "New File…");
     await page.waitForSelector("#mk-tree-edit", { timeout: 5000 });
@@ -46,12 +47,12 @@ try {
     if (!fs.statSync(`${ROOT}/notes/drafts`).isDirectory()) throw new Error("not a directory");
   });
   await step("type into todo.md, then Rename… → 'TODO.md': tree, tab and disk follow; the unsaved text survives", async () => {
-    await page.click(".cm-content");
+    await control(page, 'click', ".cm-content");
     await page.keyboard.type("hello");
     await page.waitForSelector(".mk-tab-dirty", { timeout: 5000 });
     await ctxMenu(".mk-tree-row[title='todo.md']", "Rename…");
     await page.waitForSelector("#mk-tree-edit");
-    await page.fill("#mk-tree-edit", "TODO.md");
+    await control(page, 'fill', "#mk-tree-edit", "TODO.md");
     await page.keyboard.press("Enter");
     await page.waitForSelector(".mk-tree-row[title='TODO.md']", { timeout: 10000 });
     await page.waitForSelector(".wb-tab:has-text('TODO.md')", { timeout: 10000 });
@@ -71,7 +72,7 @@ try {
   await step("Delete… notes/TODO.md → confirm → gone from tree and editor, kept in .moonkale/trash", async () => {
     await ctxMenu(".mk-tree-row[title='notes/TODO.md']", "Delete…");
     await page.waitForSelector(".mk-explorer-confirm", { timeout: 5000 });
-    await page.click(".mk-explorer-confirm .mk-btn-danger");
+    await control(page, 'click', ".mk-explorer-confirm .mk-btn-danger");
     await page.waitForSelector(".mk-tree-row[title='notes/TODO.md']", { state: "detached", timeout: 10000 });
     await page.waitForSelector(".wb-tab:has-text('TODO.md')", { state: "detached", timeout: 5000 });
     if (fs.existsSync(`${ROOT}/notes/TODO.md`)) throw new Error("still on disk");
@@ -82,15 +83,15 @@ try {
     console.log("  tree:", (await labels()).join(" "));
   });
   await step("Close Folder (spec 015): refused while a document is unsaved; then closes everything", async () => {
-    await page.click(".mk-tree-file >> text=README.md");
+    await control(page, 'click', ".mk-tree-file >> text=README.md");
     await page.waitForSelector(".cm-content", { timeout: 15000 });
-    await page.click(".cm-content");
+    await control(page, 'click', ".cm-content");
     await page.keyboard.type("x");
     await page.waitForSelector(".mk-tab-dirty", { timeout: 5000 });
     await ctxMenu(".mk-explorer-source-name", "Close Folder");
     await page.waitForFunction(() => /unsaved document/.test(document.querySelector(".wb-status-bar")?.textContent || ""), null, { timeout: 5000 });
     if (!(await page.$(".mk-explorer-source-name"))) throw new Error("folder closed despite an unsaved document");
-    await page.click(".mk-editor-toolbar button:has-text('Reload'):visible");
+    await control(page, 'click', ".mk-editor:visible .mk-editor-toolbar button:has-text('Reload')");
     await page.waitForFunction(() => !document.querySelector(".mk-tab-dirty"), null, { timeout: 5000 });
     await ctxMenu(".mk-explorer-source-name", "Close Folder");
     await page.waitForFunction(() => !document.querySelector(".mk-explorer-source-name"), null, { timeout: 10000 });

@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // ADR-0030: folder code graph defaults to Sophia, with a visible backend.
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -21,13 +22,13 @@ try {
   fs.writeFileSync(`${root}/Cache.jl`, "module Cache\nconst initial = 1\nend\n");
   await page.goto(`http://127.0.0.1:${process.env.PORT}/`,{waitUntil:"networkidle"});
   await page.waitForSelector(".wb-workspace");
-  await page.click(".mk-explorer-open button[type=submit]");
+  await control(page, 'click', ".mk-explorer-open button[type=submit]");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("index:"));
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Truth: files"));
   assert.equal(await page.locator(".mk-source-truth").first().textContent(), "Truth: files");
   assert(fs.statSync(`${root}/.moonkale/code.sophia`).size > 0);
-  await page.click(".wb-tab[id^='wb-tab-graph']");
+  await control(page, 'click', ".wb-tab[id^='wb-tab-graph']");
   await page.waitForSelector(".mk-graph-source option[value^='sophia:']",{state:"attached"});
   const source = await page.$eval(".mk-graph-source option[value^='sophia:']",e => e.value);
   // Default folder view must read the cache without manually picking it.
@@ -78,33 +79,33 @@ try {
   // graph reads immediately, including the visible status item.
   await page.keyboard.press("Control+,");
   await page.waitForSelector(".mk-settings-code-graph");
-  await page.selectOption(".mk-settings-code-graph", "in-memory");
+  await control(page, 'selectOption', ".mk-settings-code-graph", "in-memory");
   await page.waitForFunction(() => {
     const text = document.querySelector(".wb-status-bar")?.textContent || "";
     return text.includes("Code graph: in-memory index") && !text.includes("Code graph: Sophia cache");
   });
-  await page.click(".wb-tab[id^='wb-tab-graph']");
+  await control(page, 'click', ".wb-tab[id^='wb-tab-graph']");
   await page.waitForFunction(id => {
     const positions = JSON.parse(window.moonkale.graphViews["mk-graph-panel"].node_positions());
     return Object.keys(positions).length > 0 && !positions[id];
   }, initialId);
   await page.keyboard.press("Control+,");
   await page.waitForSelector(".mk-settings-code-graph");
-  await page.selectOption(".mk-settings-code-graph", "auto");
+  await control(page, 'selectOption', ".mk-settings-code-graph", "auto");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
-  await page.click(".wb-tab[id^='wb-tab-graph']");
+  await control(page, 'click', ".wb-tab[id^='wb-tab-graph']");
   fs.rmSync(`${root}/.moonkale/code.sophia`);
-  await page.click(".mk-graph-reload");
+  await control(page, 'click', ".mk-graph-reload");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: in-memory index (fallback:"));
   await page.keyboard.press("Control+Shift+P");
-  await page.fill(".mk-palette-input", "Check the cache");
-  await page.click(".mk-palette-item[data-key='codeGraph.checkCache']");
+  await control(page, 'fill', ".mk-palette-input", "Check the cache");
+  await control(page, 'click', ".mk-palette-item[data-key='codeGraph.checkCache']");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Cache problem; rebuilt:"));
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Code graph: Sophia cache"));
   await page.waitForFunction(id => !!JSON.parse(window.moonkale.graphViews["mk-graph-panel"].node_positions())[id], initialId);
   await page.keyboard.press("Control+Shift+P");
-  await page.fill(".mk-palette-input", "Check the cache");
-  await page.click(".mk-palette-item[data-key='codeGraph.checkCache']");
+  await control(page, 'fill', ".mk-palette-input", "Check the cache");
+  await control(page, 'click', ".mk-palette-item[data-key='codeGraph.checkCache']");
   await page.waitForFunction(() => document.querySelector(".wb-status-bar")?.textContent.includes("Cache check: same"));
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder.png`});
   // A separate marked folder opens without touching its unreadable store.
@@ -113,9 +114,9 @@ try {
   const authored = "unreadable authored store: preserve these bytes";
   fs.writeFileSync(`${storeRoot}/.moonkale/code.sophia`, authored);
   fs.writeFileSync(`${storeRoot}/owned.py`, "def owned():\n    return 42\n");
-  await page.fill(".mk-explorer-open input", storeRoot);
-  await page.click(".mk-explorer-open button[type=submit]");
-  await page.locator(".mk-explorer-source-name").filter({hasText:"store-truth-fixture"}).click();
+  await control(page, 'fill', ".mk-explorer-open input", storeRoot);
+  await control(page, 'click', ".mk-explorer-open button[type=submit]");
+  await control(page.locator(".mk-explorer-source-name").filter({hasText:"store-truth-fixture"}), 'click');
   await page.waitForFunction(() => {
     const text = document.querySelector(".wb-status-bar")?.textContent || "";
     return text.includes("Truth: Sophia store") && text.includes("Code graph read-only: store editing is not available yet");
@@ -130,15 +131,15 @@ try {
   assert(tooltip.includes("store-truth-fixture: Truth: Sophia store"));
   assert(tooltip.includes("Truth: files · Code graph: Sophia cache"));
   assert(tooltip.includes("Code graph read-only: store editing is not available yet"));
-  await page.locator(".mk-explorer-source-name").first().click();
+  await control(page.locator(".mk-explorer-source-name").first(), 'click');
   await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent === "Truth: files · Code graph: Sophia cache");
-  await page.locator(".mk-explorer-source").first().locator(".mk-tree-file").filter({hasText:"Cache.jl"}).click();
+  await control(page.locator(".mk-explorer-source").first().locator(".mk-tree-file").filter({hasText:"Cache.jl"}), 'click');
   await page.locator(".wb-tab").filter({hasText:"Cache.jl"}).waitFor();
-  await marked.locator(".mk-tree-file").filter({hasText:"owned.py"}).click();
+  await control(marked.locator(".mk-tree-file").filter({hasText:"owned.py"}), 'click');
   await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent.includes("Truth: Sophia store"));
-  await page.locator(".wb-tab").filter({hasText:"Cache.jl"}).click();
+  await control(page.locator(".wb-tab").filter({hasText:"Cache.jl"}), 'click');
   await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent === "Truth: files · Code graph: Sophia cache");
-  await page.locator(".wb-tab").filter({hasText:"owned.py"}).click();
+  await control(page.locator(".wb-tab").filter({hasText:"owned.py"}), 'click');
   await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent.includes("Truth: Sophia store"));
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder-truth.png`});
   console.log("SOPHIA FOLDER E2E: PASS");

@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // WP-05: production Dioxus layer, actual camera gestures, mount LOD and undo.
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -13,15 +14,15 @@ const screen = id => page.evaluate(id=>Array.from(Object.values(window.moonkale.
 const selection = () => view(()=>JSON.parse(Object.values(window.moonkale.flowViews)[0].selection_state()));
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT||8196}/`,{waitUntil:'networkidle'});
-  await page.click('.mk-explorer-open button[type=submit]');
+  await control(page, 'click', '.mk-explorer-open button[type=submit]');
   await page.waitForFunction(()=>document.querySelector('.wb-status-bar').textContent.includes('index:'));
-  await page.click('#mk-rail-extensions');
-  for(const name of ['Flow editor','Lux.jl library']) await page.click(`.mk-settings-ext:has(.mk-settings-ext-name:text-is('${name}')) > label input`);
+  await control(page, 'click', '#mk-rail-extensions');
+  for(const name of ['Flow editor','Lux.jl library']) await control(page, 'click', `.mk-settings-ext:has(.mk-settings-ext-name:text-is('${name}')) > label input`);
   fs.writeFileSync(`${process.env.M1_ROOT}/canvas.flow.json`,JSON.stringify({version:1,blocks:[
     {id:'dense',kind:'lux/dense',x:100,y:150,params:{out:'16'}},
     {id:'under',kind:'lux/dense',x:350,y:170,params:{out:'8'}},
     {id:'far',kind:'lux/dense',x:1000,y:750,params:{out:'4'}}],wires:[]}));
-  await page.click(".mk-tree-row[title='canvas.flow.json']");
+  await control(page, 'click', ".mk-tree-row[title='canvas.flow.json']");
   await page.waitForFunction(()=>Object.values(window.moonkale?.flowViews||{})[0]?.node_positions().includes('dense'));
   await page.waitForTimeout(500);
   const b = await box(), p=await screen('dense');
@@ -45,7 +46,7 @@ try {
   assert.ok(Math.abs(fieldBox.x+fieldBox.width/2-(b.x+under[0])) < 46*scale,
     'click-isolation fixture has no underlying node at the input');
   assert.ok(Math.abs(fieldBox.y+fieldBox.height/2-(b.y+under[1])) < 22*scale);
-  await field.click();
+  await control(field, 'click');
   assert.deepEqual(await selection(),sel);
   await page.screenshot({path:`${process.env.M1_SHOTS}/canvas-layer.png`});
   // Header capture survives a move outside its initial bounds; one undo step.

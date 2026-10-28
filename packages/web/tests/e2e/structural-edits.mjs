@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Experimental graph operations through the real renderer, remote planner and editor.
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -24,8 +25,8 @@ const api = async (path, data) => {
 };
 let index;
 async function selectNode(name) {
-  await page.locator(".wb-tab[id^='wb-tab-graph']").click();
-  if (await test('discard').isVisible()) await test('discard').click();
+  await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
+  if (await test('discard').isVisible()) await control(test('discard'), 'click');
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const result = await api('sources/query', { source: index.id, q: { Text: {
@@ -67,17 +68,17 @@ async function selectNode(name) {
 }
 async function begin(name) {
   await selectNode(name);
-  await page.getByRole('button', { name: 'Edit Rust function (experimental)', exact: true }).click();
+  await control(page.getByRole('button', { name: 'Edit Rust function (experimental)', exact: true }), 'click');
   await page.waitForFunction(() => document.querySelector('[data-testid="structural-function"]')?.options.length > 1);
   await test('preview').waitFor({ state: 'visible' });
 }
 async function previewName(name) {
-  await test('name').fill(name);
-  await test('preview').click();
+  await control(test('name'), 'fill', name);
+  await control(test('preview'), 'click');
   await test('proposed').waitFor();
 }
 async function openSource() {
-  await page.locator('.wb-tab').filter({ hasText: 'graph-edit.rs' }).click();
+  await control(page.locator('.wb-tab').filter({ hasText: 'graph-edit.rs' }), 'click');
   await input().waitFor();
 }
 async function save(expected) {
@@ -112,11 +113,11 @@ try {
   await step('experimental build, real source and graph ready', async () => {
     await page.goto(base, { waitUntil: 'networkidle' });
     await page.waitForSelector('.wb-workspace');
-    await page.click('.mk-explorer-open button[type=submit]');
+    await control(page, 'click', '.mk-explorer-open button[type=submit]');
     await page.waitForFunction(() => document.querySelector('.wb-status-bar').textContent.includes('index:'));
     index = (await api('sources/list', {})).find(source => source.family === 'Index');
     if (!index) throw Error('missing index');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     await page.waitForFunction(() => /gl|gpu/i.test(document.querySelector('.mk-graph-info')?.dataset.backend || ''));
   });
   await step('preview and discard do not mutate or execute source', async () => {
@@ -127,7 +128,7 @@ try {
     if (!(await test('proposed').textContent()).includes('fn 新名()')) throw Error('missing preview');
     if (await test('proposed').locator('script').count()) throw Error('source interpreted as HTML');
     if (fs.readFileSync(file, 'utf8') !== original) throw Error('preview saved');
-    await test('discard').click();
+    await control(test('discard'), 'click');
     if (fs.readFileSync(file, 'utf8') !== original) throw Error('discard changed source');
   });
   await step('dismissal ignores a late planner response', async () => {
@@ -138,15 +139,15 @@ try {
     await page.route('**/api/structural/plan', async route => {
       const response = await route.fetch(); seen(); await gate; await route.fulfill({ response });
     });
-    await test('name').fill('late'); await test('preview').click(); await captured;
-    await test('discard').click(); release();
+    await control(test('name'), 'fill', 'late'); await control(test('preview'), 'click'); await captured;
+    await control(test('discard'), 'click'); release();
     await page.waitForTimeout(300); await page.unroute('**/api/structural/plan');
     if (await test('proposed').count()) throw Error('late response restored discarded preview');
     if (fs.readFileSync(file, 'utf8') !== original) throw Error('late response changed source');
   });
   const renamed = original.replace('fn 𐐀()', 'fn 𐐁()');
   await step('apply is unsaved and shares editor undo/redo and save', async () => {
-    await begin('𐐀'); await previewName('𐐁'); await test('apply').click();
+    await begin('𐐀'); await previewName('𐐁'); await control(test('apply'), 'click');
     if (fs.readFileSync(file, 'utf8') !== original) throw Error('apply autosaved');
     await openSource(); await save(renamed);
     await page.keyboard.press('Control+z'); await save(original);
@@ -154,24 +155,24 @@ try {
   });
   await step('move preview remains recoverable after concurrent unsaved editing', async () => {
     await begin('second');
-    await test('operation').selectOption('move');
-    await test('before').selectOption('0');
-    await test('preview').click(); await test('proposed').waitFor();
+    await control(test('operation'), 'selectOption', 'move');
+    await control(test('before'), 'selectOption', '0');
+    await control(test('preview'), 'click'); await test('proposed').waitFor();
     const proposed = await test('proposed').textContent();
     if (proposed.indexOf('fn second()') > proposed.indexOf('fn 𐐁()')) throw Error('move preview order wrong');
     await openSource(); await input().focus(); await page.keyboard.press('Control+Home'); await page.keyboard.press('Enter'); await page.keyboard.press('ArrowUp'); await page.keyboard.type('// unsaved');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     if (!await test('apply').isDisabled()) throw Error('stale preview can apply');
     await test('current').waitFor();
     if (!(await test('current').textContent()).startsWith('// unsaved')) throw Error('current text missing');
     if ((await test('proposed').textContent()) !== proposed) throw Error('conflict discarded preview');
-    await test('recompute').click();
+    await control(test('recompute'), 'click');
     await page.waitForFunction(() => document.querySelector('[data-testid="structural-function"]')?.value === '');
-    await test('function').selectOption('1');
-    await test('before').selectOption('0');
-    await test('preview').click(); await test('proposed').waitFor();
+    await control(test('function'), 'selectOption', '1');
+    await control(test('before'), 'selectOption', '0');
+    await control(test('preview'), 'click'); await test('proposed').waitFor();
     const moved = await test('proposed').textContent();
-    await test('apply').click();
+    await control(test('apply'), 'click');
     if (fs.readFileSync(file, 'utf8') !== renamed) throw Error('move autosaved');
     await openSource(); await save(moved);
     await page.keyboard.press('Control+z'); await save('// unsaved\r\n' + renamed);

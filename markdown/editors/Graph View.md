@@ -148,3 +148,8 @@ million-node source; native core tests separately project a fully generated
 million-node snapshot. Source-native cached cuts/layouts remain open; the
 default fallback enumerates a bounded complete snapshot (or folder metadata
 walk) for each uncached region query. See [[Case Selector]].
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Simple uses a flat ⋯ menu for graph modes, source/filter/tier controls, trace/e-graph loading and 3D; Fit is primary when graph chrome is accepted. Detailed exposes the same controls inline. Graph counts and live selection text remain visible beside the actions.

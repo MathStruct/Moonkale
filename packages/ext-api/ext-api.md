@@ -110,3 +110,8 @@ async wrappers, keeping task/resource/event wrapper size independent of the
 input future. Guards still cover factory construction and every poll; disabled
 owners cancel on their next poll. Native large-future/poll/drop regressions live
 in `shell/tests/extension_crash.rs`.
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+WP-63 adds serde `Density`, optional density/chrome migration fields on SettingsFile, resolved density on Settings, `icons::ChromeOwner`, `chrome_visible`, `ToolbarActions` and `ToolbarMenu`. The latter retain action handlers in Rust and use a content-free DOM click adapter only to dismiss a disclosure after a button/outside click.

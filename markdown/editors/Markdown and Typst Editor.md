@@ -46,3 +46,8 @@ Missing, escaping and external destinations receive no display URL. Each mount
 requests at most 128 images with destinations no longer than 4096 bytes.
 `rich-images` covers a percent-encoded subfolder image, refusal of outside and
 remote paths, and saving without embedding display URLs.
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Rich/source panel actions follow the shared Simple/Detailed density. Save is primary when Markdown chrome is accepted; reload and the settings gear remain in ⋯. The document and Properties are content and retain their existing interaction.

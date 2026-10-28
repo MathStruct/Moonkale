@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 5: Rich (Milkdown) markdown mode — toggle, edit, markdown round trip on save, wiki-link click.
 import { firefox } from "playwright";
 import fs from "node:fs";
@@ -65,24 +66,24 @@ try {
   await step("open folder and Home.md in Source mode", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".mk-tree-file >> text=Home.md");
+    await control(page, 'click', ".mk-tree-file >> text=Home.md");
     await sourcePanel("Home.md", "# Home");
   });
   await step("Rich mode renders the heading as an <h1>", async () => {
     const home = await documentPanel("Home.md");
-    await home.locator(".mk-md-modes button:has-text('Rich')").click();
+    await control(home.locator(".mk-md-modes button:has-text('Rich')"), 'click');
     await page.waitForSelector(".mk-rich-host .ProseMirror h1", { timeout: 30000 });
     console.log("\n  h1:", await page.$eval(".mk-rich-host .ProseMirror h1", (e) => e.textContent));
     await page.screenshot({ path: `${S}/m5-rich.png` });
   });
   await step("typing in rich mode dirties the document; Save writes markdown", async () => {
-    await page.click(".mk-rich-host .ProseMirror h1");
+    await control(page, 'click', ".mk-rich-host .ProseMirror h1");
     await page.keyboard.press("End");
     await page.keyboard.type(" Rich");
     await page.waitForSelector(".mk-rich .mk-editor-dirty", { timeout: 10000 });
-    await page.click(".mk-rich button:has-text('Save')");
+    await control(page, 'click', ".mk-rich button:has-text('Save')");
     await page.waitForFunction(() => !document.querySelector(".mk-rich .mk-editor-dirty"), null, { timeout: 15000 });
     const text = fs.readFileSync(`${ROOT}/Home.md`, "utf8");
     console.log("\n  file:", JSON.stringify(text.split("\n")[0]));
@@ -91,24 +92,24 @@ try {
   });
   await step("click on the [[Alpha]] link opens Alpha.md (spec 012: decorated, plain click follows)", async () => {
     await page.waitForSelector(".mk-rich-host .mk-wikilink[data-target='Alpha']:not(.mk-wiki-bracket)", { timeout: 15000 });
-    await page.click(".mk-rich-host .mk-wikilink[data-target='Alpha']:not(.mk-wiki-bracket)");
+    await control(page, 'click', ".mk-rich-host .mk-wikilink[data-target='Alpha']:not(.mk-wiki-bracket)");
     await page.waitForFunction(() => document.querySelector(".mk-titlebar-title")?.textContent.startsWith("Alpha.md"), null, { timeout: 15000 });
   });
   await step("back to Source: CodeMirror shows the saved markdown", async () => {
-    await page.click(".wb-tab:has-text('Home.md')");
+    await control(page, 'click', ".wb-tab:has-text('Home.md')");
     const home = await documentPanel("Home.md");
-    await home.locator(".mk-md-modes button:has-text('Source')").click();
+    await control(home.locator(".mk-md-modes button:has-text('Source')"), 'click');
     await sourcePanel("Home.md", "# Home Rich");
   });
   await step("formulas: $\\alpha$ and $$…$$ render with KaTeX, fonts load, markdown keeps the source (spec 013)", async () => {
     fs.writeFileSync(`${ROOT}/Math.md`, "# Math\n\nInline $\\alpha + \\beta^2$ here, and a macro $\\R$.\n\n$$\n\\int_0^1 x^2 \\, dx = \\frac{1}{3}\n$$\n");
     fs.mkdirSync(`${ROOT}/.moonkale`, { recursive: true });
     fs.writeFileSync(`${ROOT}/.moonkale/katex.json`, JSON.stringify({ macros: { "\\R": "\\mathbb{R}" } }));
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForSelector(".mk-tree-file >> text=Math.md", { timeout: 15000 });
-    await page.click(".mk-tree-file >> text=Math.md");
+    await control(page, 'click', ".mk-tree-file >> text=Math.md");
     const math = await sourcePanel("Math.md", "# Math");
-    await math.locator(".mk-md-modes button:has-text('Rich')").click();
+    await control(math.locator(".mk-md-modes button:has-text('Rich')"), 'click');
     await page.waitForSelector(".mk-rich-host:visible .ProseMirror .katex", { timeout: 30000 });
     const n = await page.$$eval(".mk-rich-host:visible .ProseMirror .katex", (els) => els.length);
     const css = await page.evaluate(() => [...document.querySelectorAll("link[rel=stylesheet]")].some((l) => /katex\.min\.css/.test(l.href)));
@@ -125,15 +126,15 @@ try {
   });
   await step("front matter (spec 019): hidden from the rich view, shown as Properties, editable, saved intact", async () => {
     fs.writeFileSync(`${ROOT}/Front.md`, "---\ntitle: \"Front\"\ntags: [demo]\n---\n# Front\n\nBody text.\n");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForSelector(".mk-tree-file >> text=Front.md", { timeout: 15000 });
     const stopTrace = await traceTransition("Front.md");
     let front;
     const started = Date.now();
     try {
-      await page.click(".mk-tree-file >> text=Front.md");
+      await control(page, 'click', ".mk-tree-file >> text=Front.md");
       front = await sourcePanel("Front.md", 'title: "Front"');
-      await front.locator(".mk-md-modes button:has-text('Rich')").click();
+      await control(front.locator(".mk-md-modes button:has-text('Rich')"), 'click');
       await front.locator(".mk-rich-host .ProseMirror h1").filter({ hasText: /^Front$/ }).waitFor({ timeout: 30000 });
     } finally { await stopTrace(); }
     console.log(`\n  Front.md open → Rich: ${Date.now() - started} ms`);
@@ -142,15 +143,15 @@ try {
     const summary = await front.locator(".mk-props-summary").evaluate((e) => e.textContent);
     console.log("\n  properties:", summary);
     if (!/title: Front/.test(summary)) throw new Error("summary wrong");
-    await front.locator(".mk-props-head").click();
+    await control(front.locator(".mk-props-head"), 'click');
     await front.locator(".mk-props-yaml").waitFor({ timeout: 5000 });
-    await front.locator(".mk-props-yaml").fill('title: "Front"\ntags: [demo, edited]');
-    await front.locator(".mk-rich-host .ProseMirror p").click();
+    await control(front.locator(".mk-props-yaml"), 'fill', 'title: "Front"\ntags: [demo, edited]');
+    await control(front.locator(".mk-rich-host .ProseMirror p"), 'click');
     await page.keyboard.press("End");
     await page.keyboard.type(" More.");
     await front.locator(".ProseMirror p").filter({ hasText: "More." }).waitFor({ timeout: 5000 });
     await page.waitForTimeout(400);
-    await front.locator("button:has-text('Save')").click();
+    await control(front.locator("button:has-text('Save')"), 'click');
     await front.locator(".mk-editor-dirty").waitFor({ state: "hidden", timeout: 15000 });
     const saved = fs.readFileSync(`${ROOT}/Front.md`, "utf8");
     console.log("  saved:", JSON.stringify(saved));
@@ -161,32 +162,32 @@ try {
     const front = await documentPanel("Front.md");
     const id = await front.getAttribute("data-document-id");
     const saved = fs.readFileSync(`${ROOT}/Front.md`, "utf8");
-    await front.locator(".ProseMirror p").click();
+    await control(front.locator(".ProseMirror p"), 'click');
     await page.keyboard.press("End");
     await page.keyboard.type(" Pending.");
     await front.locator(".mk-editor-dirty").waitFor({ timeout: 10000 });
     for (let i = 0; i < 3; i++) {
-      await front.locator(".mk-md-modes button:has-text('Source')").click();
+      await control(front.locator(".mk-md-modes button:has-text('Source')"), 'click');
       await sourcePanel("Front.md", "Body text. More. Pending.");
-      await page.click(".wb-tab:has-text('Math.md')");
+      await control(page, 'click', ".wb-tab:has-text('Math.md')");
       const math = await documentPanel("Math.md");
       if (!(await math.locator(".mk-md-modes button:has-text('Rich')").getAttribute("class")).includes("mk-btn-on")) throw Error("Math mode was changed by Front");
-      await math.locator(".mk-md-modes button:has-text('Source')").click();
+      await control(math.locator(".mk-md-modes button:has-text('Source')"), 'click');
       await sourcePanel("Math.md", "# Math");
-      await math.locator(".mk-md-modes button:has-text('Rich')").click();
+      await control(math.locator(".mk-md-modes button:has-text('Rich')"), 'click');
       await math.locator(".ProseMirror .katex").first().waitFor({ timeout: 30000 });
-      await page.click(".wb-tab:has-text('Front.md')");
+      await control(page, 'click', ".wb-tab:has-text('Front.md')");
       const active = await sourcePanel("Front.md", "Body text. More. Pending.");
       if (await active.getAttribute("data-document-id") !== id) throw Error("Front identity changed");
-      await active.locator(".mk-md-modes button:has-text('Rich')").click();
+      await control(active.locator(".mk-md-modes button:has-text('Rich')"), 'click');
       await active.locator(".ProseMirror p").filter({ hasText: "Body text. More. Pending." }).waitFor({ timeout: 30000 });
     }
     if (fs.readFileSync(`${ROOT}/Front.md`, "utf8") !== saved) throw Error("unsaved edit reached disk");
     if (/Pending|Body text/.test(fs.readFileSync(`${ROOT}/Math.md`, "utf8"))) throw Error("Front edit reached Math");
     // Restore the saved text so the following reload does not discard an edit.
-    await front.locator(".mk-md-modes button:has-text('Source')").click();
+    await control(front.locator(".mk-md-modes button:has-text('Source')"), 'click');
     const source = await sourcePanel("Front.md", "Pending.");
-    await source.locator(".cm-content").click();
+    await control(source.locator(".cm-content"), 'click');
     await page.keyboard.press("Control+a");
     await page.keyboard.insertText(saved);
     await source.locator(".mk-editor-dirty").waitFor({ state: "hidden", timeout: 15000 });
@@ -197,9 +198,9 @@ try {
     fs.writeFileSync(`${ROOT}/Norm.md`, "Title\n=====\n\n* one\n* two\n\n\nDone.\n");
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await page.click(".mk-tree-file >> text=Norm.md");
+    await control(page, 'click', ".mk-tree-file >> text=Norm.md");
     const norm = await documentPanel("Norm.md");
     await norm.locator(".ProseMirror h1").filter({ hasText: /^Title$/ }).waitFor({ timeout: 30000 });
     const on = await norm.locator(".mk-md-modes button:has-text('Rich')").evaluate((b) => b.classList.contains("mk-btn-on"));
@@ -207,7 +208,7 @@ try {
     await page.waitForTimeout(800);
     if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("opening in Rich mode marked the file dirty");
     if (fs.readFileSync(`${ROOT}/Norm.md`, "utf8") !== "Title\n=====\n\n* one\n* two\n\n\nDone.\n") throw new Error("file changed on open");
-    await page.click(".mk-rich-host:visible .ProseMirror h1");
+    await control(page, 'click', ".mk-rich-host:visible .ProseMirror h1");
     await page.keyboard.press("End");
     await page.keyboard.type(" X");
     await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { timeout: 10000 });
@@ -221,9 +222,9 @@ try {
     const p2 = await ctx2.newPage();
     await p2.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await p2.waitForSelector(".wb-workspace");
-    await p2.click(".mk-explorer-open button[type=submit]");
+    await control(p2, 'click', ".mk-explorer-open button[type=submit]");
     await p2.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
-    await p2.click(".mk-tree-file >> text=Norm.md");
+    await control(p2, 'click', ".mk-tree-file >> text=Norm.md");
     const norm = await documentPanel("Norm.md", p2);
     await norm.locator(".ProseMirror").waitFor({ timeout: 30000 });
     const style = await norm.locator(".ProseMirror").evaluate((e) => { const c = getComputedStyle(e); return { size: c.fontSize, family: c.fontFamily }; });
@@ -234,22 +235,22 @@ try {
   await step("Prompt26: no <br /> — old ones are dropped on the next save, blank lines typed become one", async () => {
     // Written behind the app's back: the tree picks it up by itself (Milestone 16).
     fs.writeFileSync(`${ROOT}/Gaps.md`, "# Gaps\n\nfirst\n\n<br />\n\n<br />\n\nsecond\n");
-    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer"); // the rail entry toggles
+    if (!(await page.isVisible(".mk-explorer"))) await control(page, 'click', "#mk-rail-explorer"); // the rail entry toggles
     await page.waitForSelector(".mk-tree-file >> text=Gaps.md", { timeout: 15000 });
-    await page.click(".mk-tree-file >> text=Gaps.md");
+    await control(page, 'click', ".mk-tree-file >> text=Gaps.md");
     const gaps = await documentPanel("Gaps.md");
-    await gaps.locator(".mk-md-modes button:has-text('Rich')").click();
+    await control(gaps.locator(".mk-md-modes button:has-text('Rich')"), 'click');
     await gaps.locator(".ProseMirror h1").filter({ hasText: /^Gaps$/ }).waitFor({ timeout: 30000 });
     await new Promise((r) => setTimeout(r, 500));
     if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("opening a file with <br /> lines marked it dirty");
-    await page.click(".mk-rich-host:visible .ProseMirror p:has-text('second')");
+    await control(page, 'click', ".mk-rich-host:visible .ProseMirror p:has-text('second')");
     await page.keyboard.press("End");
     await page.keyboard.press("Enter");
     await page.keyboard.press("Enter");
     await page.keyboard.press("Enter");
     await page.keyboard.type("third");
     await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { timeout: 10000 });
-    await page.click(".mk-rich:visible button:has-text('Save')");
+    await control(page, 'click', ".mk-rich:visible button:has-text('Save')");
     await page.waitForSelector(".mk-rich:visible .mk-editor-dirty", { state: "hidden", timeout: 15000 });
     const text = fs.readFileSync(`${ROOT}/Gaps.md`, "utf8");
     console.log("\n  file:", JSON.stringify(text));
@@ -261,17 +262,17 @@ try {
     // `-` bullets serialise as `*`: before the fix the view took the raw text as its baseline,
     // so the normalised form counted as an edit — on open and after Reload.
     fs.writeFileSync(`${ROOT}/Reload.md`, "# Reload\n\n- one\n- two\n");
-    if (!(await page.isVisible(".mk-explorer"))) await page.click("#mk-rail-explorer");
+    if (!(await page.isVisible(".mk-explorer"))) await control(page, 'click', "#mk-rail-explorer");
     await page.waitForSelector(".mk-tree-file >> text=Reload.md", { timeout: 15000 });
-    await page.click(".mk-tree-file >> text=Reload.md");
+    await control(page, 'click', ".mk-tree-file >> text=Reload.md");
     const reload = await documentPanel("Reload.md");
-    await reload.locator(".mk-md-modes button:has-text('Rich')").click();
+    await control(reload.locator(".mk-md-modes button:has-text('Rich')"), 'click');
     await reload.locator(".ProseMirror li").first().waitFor({ timeout: 30000 });
     await page.waitForTimeout(1000);
     if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("opening Reload.md marked it dirty");
     fs.writeFileSync(`${ROOT}/Reload.md`, "# Reload\n\n- one\n- two\n- three\n");
     await page.waitForTimeout(500);
-    await page.click(".mk-rich:visible button:has-text('Reload')");
+    await control(page, 'click', ".mk-rich:visible button:has-text('Reload')");
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-rich-host .ProseMirror")].some((e) => e.offsetParent && /three/.test(e.textContent)), null, { timeout: 15000 });
     await page.waitForTimeout(1000);
     if (await page.$(".mk-rich:visible .mk-editor-dirty")) throw new Error("Reload left the document dirty");

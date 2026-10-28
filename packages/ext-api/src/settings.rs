@@ -21,6 +21,17 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// The two designed UI densities (ADR-0027).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Density {
+    /// A small toolbar, folded menus and a bounded rail/status bar.
+    #[default]
+    Simple,
+    /// More visible chrome; the same capabilities.
+    Detailed,
+}
+
 /// The settings file format this build writes.
 pub const SETTINGS_VERSION: u32 = 1;
 /// Workspace settings path, relative to the folder root.
@@ -77,6 +88,15 @@ pub struct SettingsFile {
     /// Show each command’s mouse shortcut hint once (default true).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shortcut_nudges: Option<bool>,
+    /// User UI density, independent of keymap and theme. Folder values are ignored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub density: Option<Density>,
+    /// Accepted (true) or declined (false) extension chrome offers; user scope.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub chrome: BTreeMap<String, bool>,
+    /// This user has passed the one-time chrome migration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chrome_initialized: Option<bool>,
     /// The UI language (spec 030): a tag such as `en`, `de`, `zh-CN`; unset =
     /// the system's language.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -462,6 +482,7 @@ impl SettingsFile {
         self.mouse.extend(other.mouse.clone());
         self.keymap = other.keymap.clone().or(self.keymap.take());
         self.shortcut_nudges = other.shortcut_nudges.or(self.shortcut_nudges);
+        self.density = other.density.or(self.density);
         self.theme = other.theme.clone().or(self.theme.take());
         self.language = other.language.clone().or(self.language.take());
         self.user_name = other.user_name.clone().or(self.user_name.take());
@@ -541,6 +562,8 @@ pub struct Settings {
     /// Quiet, once-per-command shortcut hints after mouse use.
     #[serde(default = "nudges_enabled")]
     pub shortcut_nudges: bool,
+    /// Amount of UI chrome; commands remain available at either density.
+    pub density: Density,
     /// The UI language the user chose (a tag); empty = the system's
     /// ([`crate::Workspace::lang`] resolves it).
     pub language: String,
@@ -723,6 +746,7 @@ impl Default for Settings {
             extensions: ExtensionsSettings::default(),
             theme: "dark".into(),
             shortcut_nudges: true,
+            density: Density::Simple,
             language: String::new(),
             recent_folders: Vec::new(),
             layout: None,
@@ -896,6 +920,7 @@ impl Settings {
             },
             theme: merged.theme.unwrap_or(d.theme),
             shortcut_nudges: merged.shortcut_nudges.unwrap_or(true),
+            density: user.density.unwrap_or_default(),
             language: merged.language.unwrap_or_default().trim().to_string(),
             recent_folders: user.recent_folders.clone(),
             layout: workspace.layout.clone(),
@@ -1468,5 +1493,45 @@ mod input_layout_tests {
             .keymap,
             "moonkale"
         );
+    }
+}
+
+#[cfg(test)]
+mod density_tests {
+    use super::*;
+
+    #[test]
+    fn density_is_simple_by_default_and_survives_scope_resolution() {
+        let mut user = SettingsFile::new();
+        let folder = SettingsFile::new();
+        let env = SettingsFile::new();
+        assert_eq!(
+            Settings::resolve(&user, &folder, &env).density,
+            Density::Simple
+        );
+        let mut folder = folder;
+        folder.density = Some(Density::Detailed);
+        assert_eq!(
+            Settings::resolve(&user, &folder, &env).density,
+            Density::Simple
+        );
+        user.density = Some(Density::Detailed);
+        let decoded = SettingsFile::parse(&serde_json::to_string(&user).unwrap()).unwrap();
+        assert_eq!(
+            Settings::resolve(&decoded, &folder, &env).density,
+            Density::Detailed
+        );
+    }
+
+    #[test]
+    fn chrome_choices_roundtrip_without_becoming_extension_enablement() {
+        let mut user = SettingsFile::new();
+        user.chrome.insert("example.ext".into(), false);
+        user.chrome.insert("example.other".into(), true);
+        user.chrome_initialized = Some(true);
+        let decoded = SettingsFile::parse(&serde_json::to_string(&user).unwrap()).unwrap();
+        assert_eq!(decoded.chrome, user.chrome);
+        assert_eq!(decoded.chrome_initialized, Some(true));
+        assert!(decoded.extensions.enabled.is_empty());
     }
 }

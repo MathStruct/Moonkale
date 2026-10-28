@@ -51,3 +51,6 @@ flow's R/M orientation actions. Middle dragging always pans, including over
 ports/nodes. The host ignores the engine's background-open event for flow
 blocks. F19 (`RunDocument`) generates with the first applicable library, using
 the active document only; the normal generator validation/save path still runs.
+
+
+WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].

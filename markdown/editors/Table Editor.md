@@ -47,3 +47,8 @@ in current theme text colour, with numeric samples as its accessible label.
 Empty/constant/extreme vectors keep finite coordinates. Sorting vectors uses
 length; filter uses their numeric text. Existing Value wire encodings remain
 unchanged; the new variants have explicit serde names.
+
+
+## Density and chrome (WP-63, 2026-10-28)
+
+Query text remains visible in both densities. Run is primary when table chrome is accepted; dialect choices and Show in Graph are in ⋯ in Simple, inline in Detailed.

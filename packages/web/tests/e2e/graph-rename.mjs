@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Experimental graph operations through the real renderer, remote planner and editor.
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -27,8 +28,8 @@ const api = async (path, data) => {
 };
 let index;
 async function selectNode(name) {
-  await page.locator(".wb-tab[id^='wb-tab-graph']").click();
-  if (await test('discard').isVisible()) await test('discard').click();
+  await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
+  if (await test('discard').isVisible()) await control(test('discard'), 'click');
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const result = await api('sources/query', { source: index.id, q: { Text: {
@@ -70,17 +71,17 @@ async function selectNode(name) {
 }
 async function begin(name) {
   await selectNode(name);
-  await page.getByRole('button', { name: 'Edit Rust function (experimental)', exact: true }).click();
+  await control(page.getByRole('button', { name: 'Edit Rust function (experimental)', exact: true }), 'click');
   await page.waitForFunction(() => document.querySelector('[data-testid="structural-function"]')?.options.length > 1);
   await test('preview').waitFor({ state: 'visible' });
 }
 async function previewName(name) {
-  await test('name').fill(name);
-  await test('preview').click();
+  await control(test('name'), 'fill', name);
+  await control(test('preview'), 'click');
   await test('proposed').waitFor();
 }
 async function openSource() {
-  await page.locator('.wb-tab').filter({ hasText: 'graph-edit.rs' }).click();
+  await control(page.locator('.wb-tab').filter({ hasText: 'graph-edit.rs' }), 'click');
   await input().waitFor();
 }
 async function save(expected) {
@@ -118,27 +119,27 @@ await page.routeWebSocket(/\/api\/lsp/, socket => {
   });
 });
 async function semanticPreview(name, index = '0') {
-  await test('function').selectOption(index);
-  await test('operation').selectOption('rename');
+  await control(test('function'), 'selectOption', index);
+  await control(test('operation'), 'selectOption', 'rename');
   await previewName(name);
 }
 try {
   await step('real Rust crate, graph and rust-analyzer ready', async () => {
     await page.goto(base, { waitUntil: 'networkidle' });
     await page.waitForSelector('.wb-workspace');
-    await page.click('.mk-explorer-open button[type=submit]');
+    await control(page, 'click', '.mk-explorer-open button[type=submit]');
     await page.waitForFunction(() => document.querySelector('.wb-status-bar').textContent.includes('index:'));
     index = (await api('sources/list', {})).find(source => source.family === 'Index');
     await begin('𐐀'); await openSource();
     await page.locator(engine === 'native' ? '.mk-native-diagnostic-error' : '.cm-lint-marker-error').first().waitFor({ timeout: 120000 });
   });
   await step('dismissal ignores a delayed semantic rename response', async () => {
-    await begin('𐐀'); await test('function').selectOption('0');
-    await test('operation').selectOption('rename'); await test('name').fill('discarded');
+    await begin('𐐀'); await control(test('function'), 'selectOption', '0');
+    await control(test('operation'), 'selectOption', 'rename'); await control(test('name'), 'fill', 'discarded');
     const captured = new Promise(resolve => { onHeld = resolve; });
-    holdRename = true; await test('preview').click();
+    holdRename = true; await control(test('preview'), 'click');
     await Promise.race([captured, new Promise((_, reject) => setTimeout(() => reject(Error('no held rename reply')), 15000))]);
-    await test('discard').click(); holdRename = false; heldReply();
+    await control(test('discard'), 'click'); holdRename = false; heldReply();
     await page.waitForTimeout(250);
     if (await test('proposed').count() || fs.readFileSync(file, 'utf8') !== original) throw Error('delayed rename restored dismissed state');
   });
@@ -154,20 +155,20 @@ try {
     if (request?.position.line !== 1 || request.position.character !== 16) throw Error(`wrong declaration position: ${JSON.stringify(request)}`);
     // A different open buffer participates in resolution. Even editing and
     // restoring equal text must invalidate the retained resolver guard.
-    await page.locator('.mk-tree-file').filter({ hasText: 'graph-consumer.rs' }).click();
+    await control(page.locator('.mk-tree-file').filter({ hasText: 'graph-consumer.rs' }), 'click');
     await input().waitFor(); await input().focus(); await page.keyboard.press('Control+Home'); await page.keyboard.type('// changed ');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     if (!await test('apply').isDisabled()) throw Error('other-buffer change left rename applicable');
     if (await test('proposed').textContent() !== changed) throw Error('other-buffer conflict lost preview');
-    await page.locator('.wb-tab').filter({ hasText: 'graph-consumer.rs' }).click();
+    await control(page.locator('.wb-tab').filter({ hasText: 'graph-consumer.rs' }), 'click');
     await input().focus(); await page.keyboard.press('Control+a'); await page.keyboard.type('pub fn caller() { crate::second(); }'); await page.keyboard.press('Enter');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     if (!await test('apply').isDisabled()) throw Error('other-buffer equal-text ABA passed the guard');
-    await test('recompute').click();
+    await control(test('recompute'), 'click');
     await page.waitForFunction(() => document.querySelector('[data-testid="structural-function"]')?.value === '');
     await semanticPreview('新名');
     if (await test('proposed').textContent() !== changed) throw Error('fresh plan differs after resolver conflict');
-    await test('apply').click(); await openSource(); await save(changed);
+    await control(test('apply'), 'click'); await openSource(); await save(changed);
     await page.keyboard.press('Control+z'); await save(original + extra);
     await page.keyboard.press('Control+y'); await save(changed);
   });
@@ -176,9 +177,9 @@ try {
       [2, pathToFileURL(`${root}/graph-consumer.rs`).href, 'set of affected files changed'],
       [1, 'file:///outside-moonkale/consumer.rs', 'inside the current folder'],
     ]) {
-      await begin('新名'); await test('function').selectOption('0'); await test('operation').selectOption('rename');
+      await begin('新名'); await control(test('function'), 'selectOption', '0'); await control(test('operation'), 'selectOption', 'rename');
       injectAt = sent.length + offset; injectTarget = target;
-      await test('name').fill('not_applied'); await test('preview').click();
+      await control(test('name'), 'fill', 'not_applied'); await control(test('preview'), 'click');
       await test('rename-error').waitFor();
       if (!(await test('rename-error').textContent()).includes(expected)) throw Error('wrong target preflight refusal');
       if (await test('proposed').count() || !await test('apply').isDisabled()) throw Error('incomplete plan retained an applicable subset');
@@ -187,55 +188,55 @@ try {
   });
   await step('multi-file preview, grouped keyboard/button history and separate saving', async () => {
     await begin('second');
-    await test('function').selectOption('1'); await test('operation').selectOption('rename');
-    await test('name').fill('other'); await test('preview').click();
+    await control(test('function'), 'selectOption', '1'); await control(test('operation'), 'selectOption', 'rename');
+    await control(test('name'), 'fill', 'other'); await control(test('preview'), 'click');
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="structural-file"]').length === 2);
     const previews = await test('proposed').allTextContents();
     if (!previews.some(text => text.includes('pub fn other()')) || !previews.some(text => text.includes('crate::other()'))) throw Error('missing complete multi-file preview');
     const consumer = `${root}/graph-consumer.rs`;
     const caller = 'pub fn caller() { crate::second(); }\n';
     if (fs.readFileSync(file,'utf8') !== changed || fs.readFileSync(consumer,'utf8') !== caller) throw Error('preview saved source');
-    await test('apply').click();
-    await test('save-all').waitFor(); await test('save-all').click();
+    await control(test('apply'), 'click');
+    await test('save-all').waitFor(); await control(test('save-all'), 'click');
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="structural-save-result"]').length === 2);
     const both = changed.replace('pub fn second()', 'pub fn other()');
     if (fs.readFileSync(file,'utf8') !== both || fs.readFileSync(consumer,'utf8') !== caller.replace('second','other')) throw Error('Save affected files did not save both');
     // A newer edit in either file blocks the entire operation.
     await openSource(); await input().focus(); await page.keyboard.press('Control+End'); await page.keyboard.type(' ');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click(); await test('undo').click(); await test('group-error').waitFor();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click'); await control(test('undo'), 'click'); await test('group-error').waitFor();
     if (fs.readFileSync(consumer,'utf8') !== caller.replace('second','other')) throw Error('blocked undo wrote another file');
     await openSource(); await input().focus(); await page.keyboard.press('Control+z'); // only newer space
     await page.keyboard.press('Control+z'); // whole rename
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     await page.waitForFunction(() => !document.querySelector('[data-testid="structural-redo"]')?.disabled);
     if (fs.readFileSync(file,'utf8') !== both) throw Error('Undo rename wrote disk');
-    await test('redo').click();
+    await control(test('redo'), 'click');
     await page.waitForFunction(() => !document.querySelector('[data-testid="structural-undo"]')?.disabled);
     // Undo from the other document must also restore both files.
-    await page.locator('.wb-tab').filter({hasText:'graph-consumer.rs'}).click();
+    await control(page.locator('.wb-tab').filter({hasText:'graph-consumer.rs'}), 'click');
     await input().focus(); await page.keyboard.press('Control+z');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     await page.waitForFunction(() => !document.querySelector('[data-testid="structural-redo"]')?.disabled);
     await openSource(); await save(changed);
-    await page.locator('.wb-tab').filter({hasText:'graph-consumer.rs'}).click();
+    await control(page.locator('.wb-tab').filter({hasText:'graph-consumer.rs'}), 'click');
     await input().focus(); await page.keyboard.press('Control+s');
     await page.waitForFunction(() => ![...document.querySelectorAll('.mk-editor-dirty')].some(e => e.offsetParent !== null));
     if (fs.readFileSync(consumer,'utf8') !== caller) throw Error('group undo did not restore caller');
   });
   await step('semantic preview survives conflict and requires recomputation', async () => {
-    await begin('新名'); await test('function').selectOption('0'); await semanticPreview('final_name');
+    await begin('新名'); await control(test('function'), 'selectOption', '0'); await semanticPreview('final_name');
     const preview = await test('proposed').textContent();
     await openSource(); await input().focus(); await page.keyboard.press('Control+Home'); await page.keyboard.type('// newer ');
-    await page.locator(".wb-tab[id^='wb-tab-graph']").click();
+    await control(page.locator(".wb-tab[id^='wb-tab-graph']"), 'click');
     if (!await test('apply').isDisabled()) throw Error('stale rename can apply');
     await test('current').waitFor();
     if (await test('proposed').textContent() !== preview) throw Error('conflict lost preview');
-    await test('recompute').click();
+    await control(test('recompute'), 'click');
     await page.waitForFunction(() => document.querySelector('[data-testid="structural-function"]')?.value === '');
     await semanticPreview('final_name');
     const recomputed = await test('proposed').textContent();
     if (!recomputed.startsWith('// newer ')) throw Error('recompute dropped newer text');
-    await test('discard').click();
+    await control(test('discard'), 'click');
     if (fs.readFileSync(file, 'utf8') !== changed) throw Error('discard wrote source');
   });
   console.log(`GRAPH RENAME E2E: PASS (${engine})`);
