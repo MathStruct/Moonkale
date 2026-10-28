@@ -25,6 +25,16 @@ See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
 older whole-product inventory date above is unchanged; this paragraph checks only
 WP-47, not every area below.
 
+## Shortcut discovery (WP-64, checked 2026-10-28)
+
+Command tooltips, menu entries, palette rows and empty-tile hints now share the
+resolved keymap, including rebinding and unbinding. Holding Ctrl/Cmd alone for
+500 ms shows shortcut badges on visible command buttons; text inputs
+and editors suppress them. The web's Open Folder command focuses the Sources
+path field. The keyboard journey covers folder/file open, edit/save, tabs,
+Graph and closing editors. Cheat sheet, mouse nudges, type-to-search-anywhere
+and the mouse journey remain open. See [[ADR-0027 Simple by default]].
+
 ## Crash safety (WP-57, checked 2026-10-28)
 
 Native built-in extension callbacks, tasks, effects and resources now have

@@ -41,3 +41,6 @@ engine's id-preserving graph replacement and keeping header-drag undo usable.
 P-227: Generate replacements use the fetched text/version pair, preserving source conflict checks. The MTK browser suite covers creating the RC model and overwriting it with the mixed model.
 
 If LOD removes a captured header before pointer-up, the host closes that gesture at its last world position. Its snapshot stays one undo step and a remounted header starts a new gesture. Header dragging does not auto-fit the camera under the pointer.
+
+
+WP-64 (2026-10-28): Save uses the shared file.save command binding for its tooltip and hold-Ctrl badge.

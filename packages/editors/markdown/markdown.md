@@ -31,3 +31,6 @@ Only the index-backed part exists so far: `LinksExtension` contributes a **Links
 ## Milestone 18 phase 4.3
 - `server.rs` — Markdown's server half (feature `server`): `compile_typst` (`POST /api/typst/compile`, was `moonkale_server::compile_typst`) compiles inside the jail on a blocking thread; `remote_typst` is the client's `CompileTypst` over it (the web client; the desktop while connected to a server). The desktop compiles in-process otherwise.
 - Depends on `moonkale-code-view` (the CodeMirror component) instead of the Code extension (4.1).
+
+
+WP-64 (2026-10-28): Rich Save uses the shared file.save command binding for its tooltip and hold-Ctrl badge.

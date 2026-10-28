@@ -17,3 +17,6 @@ Not yet: push/pull/fetch, branch creation, per-hunk staging, merge-view diffs, b
 - `types.rs` — the request/response types and the parsers, moved here from `ext-api/src/git.rs` (4.2b): `ext-api` knows no git.
 - `GitRunner` — the platform's git as a **service** (`WorkspaceConfig::services`, `ws.service::<GitRunner>()`); the desktop provides the local `cli` runner (or `remote` while connected to a server), the web and the phone `remote`.
 - `server.rs` — the server half (feature `server`, 4.3): `git_run` (`POST /api/git`) runs the CLI inside the jail (`moonkale_server_host::jail_dir`); `remote` is the client-side `GitRunner` over it. Was `moonkale_server::git_run`.
+
+
+WP-64 (2026-10-28): Refresh and history command buttons expose current keybindings through command_hint and data-shortcut. Commit-staged remains a distinct parameterized operation from git.commit, which focuses the commit message field.

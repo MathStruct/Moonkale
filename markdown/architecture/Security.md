@@ -373,3 +373,9 @@ module. Existing parser/fuel/memory/permission boundaries remain enforced.
 No new network authority or package version is added; `js-sys` is reused by the
 shell for its early wasm panic hook. Foreign compiled-in extensions must adopt
 the guard helpers, and abort/OOM/stack overflow are outside unwind containment.
+
+
+WP-64 (2026-10-28): key tips read shortcut attributes produced by the Rust
+command registry and create text-only badge nodes. No content becomes HTML,
+script, a URL or a command. The adapter adds no parser, dependency, persistence,
+network connection or authority. Empty-tile hints use escaped localized text.

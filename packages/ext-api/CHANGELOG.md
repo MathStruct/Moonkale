@@ -12,6 +12,13 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — 2026-10-28 (WP-64)
+
+- Additive: shell-provided `CommandBindings`, `CommandHint`, `command_hint` and
+  `IconButton.command` share effective platform-formatted shortcuts across UI
+  surfaces. Existing explicit `shortcut` props remain supported.
+- Export `workspace::is_derived_cache` for consistent cache refresh visibility.
+
 ## Unreleased — 2026-10-28 (WP-57)
 
 - Add `Workspace::crashes` and the `crash` helpers: `ExtensionGuard`, guarded

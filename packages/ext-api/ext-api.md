@@ -96,3 +96,11 @@ also propagate it to callbacks/services created directly. Use these helpers for
 native unwinding containment; `event` handles synchronous and asynchronous callbacks, preserving Dioxus
 inline first-poll semantics for browser event cancellation. `StartupCounter` is saturating; `StartupTracker` persists a content-free
 marker in the existing state store. See the CHANGELOG and [[Crash Safety]].
+
+
+WP-64 adds shell-provided `CommandBindings` and `command_hint(id, label)` for
+reactive shortcut presentation. `IconButton.command` resolves its tooltip and
+`data-shortcut` from that context, overriding the legacy explicit shortcut;
+without shell context it has no binding. The explicit shortcut prop remains
+available for actions outside the command registry. `workspace::is_derived_cache`
+is shared by source following and Explorer refresh visibility.

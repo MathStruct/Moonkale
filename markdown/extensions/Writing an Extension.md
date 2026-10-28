@@ -285,7 +285,7 @@ Declare `platforms = ["desktop", "web"]` if you depend on a capability that isn'
 
 ## Toolbars and settings (2026-10-14)
 
-- **Toolbar buttons are symbols:** use `moonkale_ext_api::icons::IconButton { icon, label, description, shortcut, … }`. The label is hidden text (screen readers and tests), the tooltip is the description plus the shortcut. One primary action per panel may keep its words ([[ADR-0027 Simple by default]]).
+- **Toolbar buttons are symbols:** use `moonkale_ext_api::icons::IconButton { icon, label, description, command, … }`. The label is hidden text (screen readers and tests). Supply the command id in `command` so its tooltip and hold-Ctrl badge follow rebinding. For plain buttons and menu entries, use `command_hint(id, localized_label)` for the title and shortcut text, and expose `data-shortcut` for badges. The legacy `shortcut` prop is for actions outside the command registry. One primary action per panel may keep its words ([[ADR-0027 Simple by default]]).
 - **Settings beside the panel:** put `moonkale_ext_api::icons::PanelSettingsButton {}` at the end of your toolbar. It shows a gear when your extension's `settings()` returns something, and the shell opens those settings next to your panel. Nothing else to wire.
 
 

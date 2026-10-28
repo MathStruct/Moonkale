@@ -111,3 +111,22 @@ controls after abort; labels come from the crate's locales and copying is local.
 A `crash-test` extension exists only with the feature and debug assertions.
 
 The crash-test fixture additionally requires `?crash-test` (native: `MOONKALE_CRASH_TEST`) so enabling the test feature does not change ordinary startup panels.
+
+
+## Shortcut presentation (WP-64, 2026-10-28)
+
+The frame publishes `CommandBindings` from the same rebuilt registry used by
+keyboard dispatch. `command_hint` in ext-api supplies platform-formatted labels
+for menus, the palette, panel buttons and empty-tile hints. Command-backed
+`IconButton`s name a command id instead of a default binding. Plain command
+buttons expose the same shortcut through `data-shortcut`; rail icons carry it
+inside their workbench button. Unbound commands keep just their action name.
+
+`assets/key-tips.js` is a DOM presentation adapter: primary-modifier hold for
+500 ms, cancellation on chords/release/blur/focus/scroll/resize, no text-field or
+editor tips. It positions theme-coloured text badges over visible
+buttons, including rail children; it reads no document text or application
+state. No new persistent setting or chrome is added. Web Open Folder focuses
+the Sources path field when no native picker exists. The keyboard journey
+covers opening, editing, saving, tab navigation, Graph, closing documents,
+rebinding and key tips. Remaining WP-64 work lives in the Work Packages row.

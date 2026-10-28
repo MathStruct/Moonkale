@@ -664,3 +664,15 @@ The crash-test fixture additionally requires `?crash-test` (native: `MOONKALE_CR
 `serve.sh` includes `crash-test` in its default test feature set. Explicitly
 reduced feature builds should omit the crash-safety suite. The normal URLs used
 by other suites do not construct the synthetic extension.
+
+
+## Keyboard journey (WP-64)
+
+`journey-keyboard.mjs` uses keyboard events only: Ctrl+O focuses the web folder
+path, Enter opens it, quick open selects files, typing and Save persist text,
+Tab/arrow keys switch document tabs, the palette opens Graph and closes editors.
+It checks empty-tile hints; modifier delay, editor suppression, chord cancellation
+and release cover key tips. The palette suite additionally checks Settings
+rebinding and unbinding in palette rows and editor-button tooltips. `journey-keyboard-hold-ctrl.png` in `M1_SHOTS` records
+the badges. Run it with `run-all.sh journey-keyboard`; Firefox and the normal
+fixture suffice. The mouse journey is the next half of WP-64.

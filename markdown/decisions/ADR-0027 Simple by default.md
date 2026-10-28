@@ -51,7 +51,18 @@ Moonkale already grows chrome quickly: a menu bar, an activity rail with about t
    - **Checked in tests:** a keyboard-only journey (`journey-keyboard.mjs`: open a folder, find a note, follow a link, open with context, run a query, switch tabs in the overview, all without the mouse) and a mouse-only journey (`journey-mouse.mjs`, the same with five buttons and menus).
 6. **Defaults over options:** a setting is added only when a reasonable default can't be found. Settings are searchable and grouped, so a new option doesn't make the Settings panel the new spaceship.
 
-## Built so far (2026-10-17)
+## Built so far (2026-10-28)
+
+WP-64 first half: command surfaces resolve shortcuts through one ext-api helper
+fed by the shell's effective keymap. Empty tiles show Open Folder, Go to File,
+Command Palette and workspace Search with their current bindings. Holding
+Ctrl/Cmd alone for 500 ms adds temporary badges to visible command
+buttons, suppressed in text inputs/editors and cancelled by chords or release.
+The keyboard journey covers opening a folder/file, edit/save, tab switching,
+Graph and closing editors, plus rebinding and the hold screenshot. The cheat
+sheet, once-per-command nudges, type-to-search-anywhere and mouse journey remain
+in WP-64; the general focus audit remains open.
+
 
 - **Symbols, with their description on hover:**
   - `moonkale_ext_api::icons::IconButton` draws an icon; its tooltip is the description and shortcut ("Save (Ctrl+S)", "Wrap long lines (Alt+Z)"); its label is hidden text, so screen readers name it and tests find it by its words.

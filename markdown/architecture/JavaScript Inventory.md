@@ -64,3 +64,9 @@ WP-57 (2026-10-28): `shell/assets/crash.js` is a small standalone recovery
 overlay and startup marker, outside the failed wasm runtime. Its labels come
 from shell locales; it uses fixed diagnostics and never reads panic payloads.
 The existing wasm-host bundle adds bounded retries, timeout and worker cleanup.
+
+
+WP-64 (2026-10-28): `packages/shell/assets/key-tips.js` is a fixed DOM-only
+presentation adapter for delayed Ctrl/Cmd shortcut badges. Rust supplies the
+resolved shortcut attributes. It owns only a timer and temporary badge geometry;
+no editor state, command execution, dependencies or bundle build is added.
