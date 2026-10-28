@@ -197,7 +197,7 @@ pub(crate) fn use_follow(ws: Workspace, node: NodeId) -> Callback<Target> {
             }
             return;
         }
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let origin_current = || {
                 doc.try_peek()
                     .is_ok_and(|doc| doc.node == from && doc.text == text)

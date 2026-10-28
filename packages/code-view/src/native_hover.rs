@@ -32,7 +32,7 @@ pub(crate) fn use_hover(
             &document.node.native_key,
         ))
     });
-    let result = use_resource(move || {
+    let result = moonkale_ext_api::crash::use_resource(move || {
         let position = target();
         let revision = revision();
         let uri = uri.clone();

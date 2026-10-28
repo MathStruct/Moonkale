@@ -114,6 +114,8 @@ mod tests {
 }
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    moonkale_shell::crash::install_web();
     // The server adds the MCP endpoint next to the app's own routes.
     #[cfg(feature = "server")]
     {
@@ -392,10 +394,16 @@ fn new_window() {
 
 #[component]
 fn App() -> Element {
+    #[cfg(target_arch = "wasm32")]
+    use_hook(moonkale_shell::crash::install_web);
+    // Safe mode is client-local. Match the server's first tree, then choose
+    // the extension catalogue before constructing it in the mounted client.
+    let mut mounted = use_signal(|| false);
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "apple-touch-icon", href: ICON_PNG }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
+        if mounted() {
         Frame {
             config: ShellConfig {
                 extensions: moonkale_distribution::default_extensions,
@@ -404,6 +412,9 @@ fn App() -> Element {
                 new_window: Some(new_window),
             },
             Shell {}
+        }
+        } else {
+            div { onmounted: move |_| mounted.set(true) }
         }
     }
 }

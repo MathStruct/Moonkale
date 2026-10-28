@@ -34,7 +34,7 @@ pub(crate) fn use_diagnostics(
         identity.map(|(language, root, _)| (language, root, uri.clone().unwrap())),
     );
     let update_uri = uri.clone();
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let document = doc.read();
         let _ = attached.read();
         if let Some(uri) = &update_uri {

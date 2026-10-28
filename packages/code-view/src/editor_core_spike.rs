@@ -75,25 +75,25 @@ pub fn EditorCoreSpike() -> Element {
             "data-first-row": "{first_row}",
             "data-hover-position": "{hovered_position_text}",
             tabindex: 0,
-            onmousedown: move |_| {
+            onmousedown: moonkale_ext_api::crash::event(move |_| {
                 if let Some(element) = focus_input_on_down.borrow().as_ref().cloned() {
-                    spawn(async move { let _ = element.set_focus(true).await; });
+                    moonkale_ext_api::crash::spawn(async move { let _ = element.set_focus(true).await; });
                 }
-            },
-            oncopy: move |event| {
+            }),
+            oncopy: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| {
                 if copy_selected_text.is_empty() || !write_clipboard_event(&event, &copy_selected_text) {
                     return;
                 }
                 event.prevent_default();
-            },
-            oncut: move |event| {
+            }),
+            oncut: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| {
                 if cut_selected_text.is_empty() || !write_clipboard_event(&event, &cut_selected_text) {
                     return;
                 }
                 event.prevent_default();
                 let _ = model.with_mut(|editor| editor.execute(Command::Edit(EditCommand::Backspace)));
-            },
-            onkeydown: move |event| {
+            }),
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 if composing() { return; }
                 let key = event.key();
                 let modifiers = event.modifiers();
@@ -199,15 +199,15 @@ pub fn EditorCoreSpike() -> Element {
                         first_row.set(next_start);
                         if let Some(element) = viewport_on_key.borrow().as_ref().cloned() {
                             let top = next_start as f64 * 22.0;
-                            spawn(async move {
+                            moonkale_ext_api::crash::spawn(async move {
                                 let target = dioxus::html::geometry::PixelsVector2D::new(0.0, top);
                                 let _ = element.scroll(target, ScrollBehavior::Instant).await;
                             });
                         }
                     }
                 }
-            },
-            onmouseup: move |_| dragging.set(false),
+            }),
+            onmouseup: moonkale_ext_api::crash::event(move |_| dragging.set(false)),
             div { class: "mk-editor-core-toolbar",
                 span { "Rows {first_row}–{first_row() + visible_rows} of {total_rows}" }
                 span { "Cursor {cursor.position.line + 1}:{cursor.position.column + 1}" }
@@ -218,13 +218,13 @@ pub fn EditorCoreSpike() -> Element {
                 aria_label: "Editor core spike",
                 aria_multiline: "true",
                 style: "height: 600px; overflow: auto; background: #1a1b26; color: #c0caf5; font: 14px/22px monospace; white-space: pre; user-select: none;",
-                onmounted: move |event: MountedEvent| {
+                onmounted: moonkale_ext_api::crash::event(move |event: MountedEvent| {
                     *viewport_on_mount.borrow_mut() = Some(event.data.clone());
-                },
-                onmouseleave: move |_| hovered_position.set(None),
-                onscroll: move |event| {
+                }),
+                onmouseleave: moonkale_ext_api::crash::event(move |_| hovered_position.set(None)),
+                onscroll: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ScrollEvent| {
                     first_row.set((event.data().scroll_top().max(0.0) / 22.0).floor() as usize);
-                },
+                }),
                 div {
                     style: "height: {total_rows * 22}px; position: relative;",
                     div {
@@ -269,7 +269,7 @@ pub fn EditorCoreSpike() -> Element {
                                 span {
                                     class: "mk-editor-core-row-trailing-space",
                                     style: "position: absolute; left: {(line.logical_line_index + 1).to_string().len().max(4) + 1 + line.cells.iter().map(|cell| char_width(cell.ch)).sum::<usize>()}ch; right: 0; top: 0; height: 22px;",
-                                    onmousedown: move |_| {
+                                    onmousedown: moonkale_ext_api::crash::event(move |_| {
                                         dragging.set(true);
                                         model.with_mut(|editor| {
                                             place_caret_at(
@@ -280,7 +280,7 @@ pub fn EditorCoreSpike() -> Element {
                                                 ),
                                             )
                                         });
-                                    },
+                                    }),
                                 }
                             }
                         }
@@ -293,15 +293,15 @@ pub fn EditorCoreSpike() -> Element {
                 tabindex: -1,
                 value: "{input_value}",
                 style: "position: fixed; left: -10000px; top: 0; width: 1px; height: 1px; opacity: 0;",
-                onmounted: move |event: MountedEvent| {
+                onmounted: moonkale_ext_api::crash::event(move |event: MountedEvent| {
                     *mount_on_mount_input.borrow_mut() = Some(event.data.clone());
-                },
-                oncompositionstart: move |_| {
+                }),
+                oncompositionstart: moonkale_ext_api::crash::event(move |_| {
                     composing.set(true);
                     composition_preview.set(String::new());
-                },
-                oncompositionupdate: move |event| composition_preview.set(event.data().data()),
-                oncompositionend: move |event| {
+                }),
+                oncompositionupdate: moonkale_ext_api::crash::event(move |event: dioxus::prelude::CompositionEvent| composition_preview.set(event.data().data())),
+                oncompositionend: moonkale_ext_api::crash::event(move |event: dioxus::prelude::CompositionEvent| {
                     let text = event.data().data();
                     if !text.is_empty() {
                         let _ = model.with_mut(|editor| editor.execute(Command::Edit(EditCommand::InsertText { text: text.clone() })));
@@ -310,8 +310,8 @@ pub fn EditorCoreSpike() -> Element {
                     composition_preview.set(String::new());
                     composing.set(false);
                     input_value.set(String::new());
-                },
-                oninput: move |event| {
+                }),
+                oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| {
                     let text = event.value();
                     if text.is_empty() || composing() { return; }
                     if text == last_composition_commit() {
@@ -322,7 +322,7 @@ pub fn EditorCoreSpike() -> Element {
                     let _ = model.with_mut(|editor| editor.execute(Command::Edit(EditCommand::InsertText { text })));
                     last_composition_commit.set(String::new());
                     input_value.set(String::new());
-                },
+                }),
             }
             p { class: "mk-editor-core-status", "Editor state, cursor and selection are Rust-owned. Keyboard and composition input use Dioxus events; the offscreen input sink is never queried for selection. No eval is used." }
         }
@@ -385,12 +385,12 @@ fn SpikeCell(
             class: if selected { "mk-editor-core-cell mk-editor-core-selected" } else { "mk-editor-core-cell" },
             style: "display: inline-block; width: {char_width(ch)}ch;",
             background_color: if selected { "rgba(122, 162, 247, 0.38)" } else { "transparent" },
-            onmousedown: move |event| {
+            onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                 dragging.set(true);
                 let target_column = hit_test_column(column, ch, event.element_coordinates().x);
                 model.with_mut(|editor| place_caret_at(editor, Position::new(line, target_column)));
-            },
-            onmousemove: move |event| {
+            }),
+            onmousemove: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                 let target_column = hit_test_column(column, ch, event.element_coordinates().x);
                 if hovered_position() != Some((line, target_column)) {
                     hovered_position.set(Some((line, target_column)));
@@ -402,7 +402,7 @@ fn SpikeCell(
                         dragging.set(false);
                     }
                 }
-            },
+            }),
             "{ch}"
         }
     }

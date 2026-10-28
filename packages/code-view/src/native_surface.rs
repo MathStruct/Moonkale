@@ -360,7 +360,7 @@ pub(crate) fn RustEditorSurface(
     }));
     // Preserve source position only across view changes. Text revisions and
     // explicit row changes establish a new anchor instead.
-    use_effect(use_reactive!(|model, first_row, source_anchor| {
+    moonkale_ext_api::crash::use_effect(use_reactive!(|model, first_row, source_anchor| {
         let mut first_row = first_row;
         let mut source_anchor = source_anchor;
         let state = model.read();
@@ -423,7 +423,7 @@ pub(crate) fn RustEditorSurface(
             requests.set(request);
             let requests = requests.clone();
             let mounted = mounted.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let Ok(rect) = element.get_client_rect().await else {
                     return;
                 };
@@ -474,7 +474,7 @@ pub(crate) fn RustEditorSurface(
         })
     };
     #[cfg(feature = "markdown-preview")]
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if let Some(value) = fixture {
             let _ = value();
         }
@@ -496,7 +496,7 @@ pub(crate) fn RustEditorSurface(
                 return;
             };
             let probe = probe.borrow().clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let Ok(rect) = element.get_client_rect().await else {
                     return;
                 };
@@ -572,12 +572,12 @@ pub(crate) fn RustEditorSurface(
         })
     };
     let focus_on_request = input_mounted.clone();
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if focus_request() == 0 {
             return;
         }
         if let Some(element) = focus_on_request.borrow().as_ref().cloned() {
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let _ = element.set_focus(true).await;
             });
         }
@@ -590,7 +590,7 @@ pub(crate) fn RustEditorSurface(
     // document. The browser clamps scrollTop without necessarily firing scroll;
     // keep the virtual window aligned too. Wait for measurement on remount so
     // the initial row estimate cannot discard a retained large-file viewport.
-    use_effect(use_reactive!(|first_row, scroll_displacement| {
+    moonkale_ext_api::crash::use_effect(use_reactive!(|first_row, scroll_displacement| {
         let mut first_row = first_row;
         let mut scroll_displacement = scroll_displacement;
         if !viewport_ready() {
@@ -603,13 +603,13 @@ pub(crate) fn RustEditorSurface(
         }
     }));
     let scroll_on_change = viewport_mounted.clone();
-    use_effect(use_reactive!(
+    moonkale_ext_api::crash::use_effect(use_reactive!(
         |first_row, first_column, scroll_displacement, horizontal_displacement| {
             let top = heights.read().row_top(first_row()) + scroll_displacement();
             let left = UniformLayout::new(row_pixels(), cell_pixels()).column_x(first_column())
                 + horizontal_displacement();
             if let Some(element) = scroll_on_change.borrow().as_ref().cloned() {
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     let _ = element
                         .scroll(
                             dioxus::html::geometry::PixelsVector2D::new(left, top),
@@ -621,7 +621,7 @@ pub(crate) fn RustEditorSurface(
         }
     ));
 
-    use_effect(use_reactive!(
+    moonkale_ext_api::crash::use_effect(use_reactive!(
         |model, first_column, horizontal_displacement| {
             let mut first_column = first_column;
             let mut horizontal_displacement = horizontal_displacement;
@@ -842,7 +842,7 @@ pub(crate) fn RustEditorSurface(
                 }
                 let pending = pending.clone();
                 let scheduled = scheduled.clone();
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     // Measurement replies share an animation frame. Coalesce them
                     // before invalidating the viewport's height and row indexes.
                     futures_timer::Delay::new(std::time::Duration::ZERO).await;
@@ -944,29 +944,29 @@ pub(crate) fn RustEditorSurface(
             tabindex: -1,
             role: "group",
             aria_label: label.clone(),
-            onfocusin: move |_| accessibility_focused.set(true),
-            onfocusout: move |_| accessibility_focused.set(false),
-            onmouseleave: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave();}},
-            onmousedown: move |_| {
+            onfocusin: moonkale_ext_api::crash::event(move |_| accessibility_focused.set(true)),
+            onfocusout: moonkale_ext_api::crash::event(move |_| accessibility_focused.set(false)),
+            onmouseleave: moonkale_ext_api::crash::event(move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave();}}),
+            onmousedown: moonkale_ext_api::crash::event(move |_| {
                 if let Some(hover)=wiki_hover {hover.dismiss();}
                 #[cfg(feature = "markdown-preview")]
                 if !font_loading() { vertical_intent.set(None); caret_affinity.set(None); }
                 hovered_position.set(None);
                 if let Some(element) = focus_input_on_down.borrow().as_ref().cloned() {
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         let _ = element.set_focus(true).await;
                     });
                 }
-            },
-            oncopy: move |event| {
+            }),
+            oncopy: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| {
                 if copy_selected_text.is_empty()
                     || !write_clipboard_event(&event, &copy_selected_text)
                 {
                     return;
                 }
                 event.prevent_default();
-            },
-            oncut: move |event| {
+            }),
+            oncut: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| {
                 if cut_selected_text.is_empty()
                     || !write_clipboard_event(&event, &cut_selected_text)
                 {
@@ -978,8 +978,8 @@ pub(crate) fn RustEditorSurface(
                     onchange,
                     |editor| editor.execute(Command::Edit(EditCommand::Backspace)),
                 );
-            },
-            onkeydown: move |event| {
+            }),
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 if let Some(hover)=wiki_hover {hover.dismiss();}
                 onprepare.call(());
                 if composing() {
@@ -1024,7 +1024,7 @@ pub(crate) fn RustEditorSurface(
                             let next = if key == Key::ArrowDown { (selected + 1) % length } else { (selected + length - 1) % length };
                             completion_selected.set(next);
                             if let Some(element) = completion_keys.borrow().get(&next).cloned() {
-                                spawn(async move {
+                                moonkale_ext_api::crash::spawn(async move {
                                     let _ = element.scroll_to_with_options(ScrollToOptions { behavior: ScrollBehavior::Instant, vertical: ScrollLogicalPosition::Nearest, horizontal: ScrollLogicalPosition::Nearest }).await;
                                 });
                             }
@@ -1287,15 +1287,15 @@ pub(crate) fn RustEditorSurface(
 
                     }
                 }
-            },
-            onmouseup: move |_| dragging.set(false),
+            }),
+            onmouseup: moonkale_ext_api::crash::event(move |_| dragging.set(false)),
             span {
                 class: "mk-native-cell-measure",
                 aria_hidden: "true",
-                onmounted: move |event: MountedEvent| {
+                onmounted: moonkale_ext_api::crash::event(move |event: MountedEvent| {
                     *probe_mounted.borrow_mut() = Some(event.data.clone());
                     measure.call(());
-                },
+                }),
             }
             div {
                 class: "mk-editor-core-viewport",
@@ -1303,12 +1303,12 @@ pub(crate) fn RustEditorSurface(
                 role: "region",
                 aria_label: label.clone(),
 
-                onmounted: move |event: MountedEvent| {
+                onmounted: moonkale_ext_api::crash::event(move |event: MountedEvent| {
                     *viewport_on_mount.borrow_mut() = Some(event.data.clone());
                     #[cfg(feature = "markdown-preview")]
                     {
                         let id=viewport_id.clone();
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             crate::native_browser_geometry::watch_fonts(&id,Callback::new(move |notice: crate::native_browser_geometry::FontNotice| {
                                 if font_epoch.try_peek().is_err() || font_loading.try_peek().is_err() { return; }
                                 if *font_epoch.peek()!=notice.epoch { font_epoch.set(notice.epoch); }
@@ -1318,15 +1318,15 @@ pub(crate) fn RustEditorSurface(
                     }
                     measure.call(());
                     // P-112: WebViews can miss resize events when a dock tile grows.
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         loop {
                             futures_timer::Delay::new(std::time::Duration::from_millis(600)).await;
                             measure.call(());
                         }
                     });
-                },
-                onresize: move |_| measure.call(()),
-                onscroll: move |event| {
+                }),
+                onresize: moonkale_ext_api::crash::event(move |_| measure.call(())),
+                onscroll: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ScrollEvent| {
                     if let Some(hover)=wiki_hover {hover.dismiss();}
                     oncompletion_close.call(());
                     hovered_position.set(None);
@@ -1344,7 +1344,7 @@ pub(crate) fn RustEditorSurface(
                         horizontal_displacement.set(left-layout.column_x(column));
                         first_column.set(column);
                     }
-                },
+                }),
                 div { style: "height: {heights.read().total_height()}px; width: {canvas_width}; position: relative;",
                     div { style: "position: absolute; top: {heights.read().row_top(first_row())}px; left: 0; right: 0;",
                         for (row_index, line) in grid.lines.iter().enumerate() {
@@ -1415,18 +1415,18 @@ pub(crate) fn RustEditorSurface(
                                             "data-source-anchor": "{line.char_offset_start}",
                                             contenteditable: "false",
                                             style: if interactive_widget { format!("min-height: {block_css_height}px; white-space: normal;") } else { format!("height: {block_css_height}px; overflow: hidden; background: #345; color: white;") },
-                                            onmounted: move |_event: MountedEvent| {
+                                            onmounted: moonkale_ext_api::crash::event(move |_event: MountedEvent| {
                                                 #[cfg(feature = "markdown-preview")]
                                                 { *block_on_mount.borrow_mut() = Some(_event.data.clone()); block_measure.call(()); }
-                                            },
-                                            onresize: move |_| {
+                                            }),
+                                            onresize: moonkale_ext_api::crash::event(move |_| {
                                                 #[cfg(feature = "markdown-preview")]
                                                 block_measure.call(());
-                                            },
-                                            onmousedown: move |event| {
+                                            }),
+                                            onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                                                 event.prevent_default();
                                                 mutate(model, onchange, |editor| place_caret_at(editor, Position::new(logical_line, 0)));
-                                            },
+                                            }),
                                             {
                                                 #[cfg(feature = "markdown-preview")]
                                                 {
@@ -1473,19 +1473,19 @@ pub(crate) fn RustEditorSurface(
                                                     aria_expanded: (!region.is_collapsed).to_string(),
                                                     // Let native button Enter/Space/Tab behavior run without
                                                     // routing its keystrokes into document editing.
-                                                    onkeydown: move |event| event.stop_propagation(),
-                                                    onmousedown: move |event| { event.prevent_default(); event.stop_propagation(); },
-                                                    onclick: {
+                                                    onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| event.stop_propagation()),
+                                                    onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| { event.prevent_default(); event.stop_propagation(); }),
+                                                    onclick: moonkale_ext_api::crash::event({
                                                         let collapsed = region.is_collapsed;
-                                                        move |event| { event.stop_propagation(); onfold.call((logical_line, !collapsed)); }
-                                                    },
+                                                        move |event: dioxus::prelude::MouseEvent| { event.stop_propagation(); onfold.call((logical_line, !collapsed)); }
+                                                    }),
                                                     if region.is_collapsed { "▸" } else { "▾" }
                                                 }
                                             } else { span { class: "mk-native-fold-slot", " " } }
                                         } else { span { class: "mk-native-fold-slot", " " } }
                                         span {
                                             class: "mk-editor-core-gutter",
-                                            onmousemove: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave_text();}},
+                                            onmousemove: moonkale_ext_api::crash::event(move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave_text();}}),
                                             title: decorations.line_diagnostics(logical_line).map(|d| d.message.as_str()).collect::<Vec<_>>().join("\n"),
                                             if decorations.line_diagnostics(logical_line).next().is_some() {
                                                 span { class: "mk-native-diagnostic-marker", "●" }
@@ -1608,7 +1608,7 @@ pub(crate) fn RustEditorSurface(
                                             if cell.styles.contains(&editor_core::FOLD_PLACEHOLDER_STYLE_ID) {
                                                 span {
                                                     class: "mk-native-fold-placeholder",
-                                                    onmousedown: move |event| { event.prevent_default(); event.stop_propagation(); onfold.call((logical_line, false)); },
+                                                    onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| { event.prevent_default(); event.stop_propagation(); onfold.call((logical_line, false)); }),
                                                     "{cell.ch}"
                                                 }
                                             } else {
@@ -1679,9 +1679,9 @@ pub(crate) fn RustEditorSurface(
                                         }
                                         span {
                                             class: "mk-editor-core-row-trailing-space",
-                                            onmousemove: move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave_text();}},
+                                            onmousemove: moonkale_ext_api::crash::event(move |_| {hovered_position.set(None);if let Some(hover)=wiki_hover {hover.leave_text();}}),
                                             style: "position: absolute; left: {(line.logical_line_index + 1).to_string().len().max(4) + 5 + line.segment_x_start_cells + line.cells.iter().map(|cell| cell.width).sum::<usize>()}ch; right: 0; top: 0; height: {layout.row_height()}px;",
-                                            onmousedown: move |_| {
+                                            onmousedown: moonkale_ext_api::crash::event(move |_| {
                                                 dragging.set(true);
                                                 mutate(
                                                     model,
@@ -1700,7 +1700,7 @@ pub(crate) fn RustEditorSurface(
                                                         )
                                                     },
                                                 );
-                                            },
+                                            }),
                                         }
                                         }
                                     }
@@ -1714,18 +1714,18 @@ pub(crate) fn RustEditorSurface(
             }
             if !completion_items.is_empty() {
                 div { class: "mk-native-completions", id: "{completion_id}", role: "listbox", aria_label: completion_label,
-                    onmousedown: move |event| { event.prevent_default(); event.stop_propagation(); },
+                    onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| { event.prevent_default(); event.stop_propagation(); }),
                     for (index, item) in completion_items.iter().enumerate() {
                         button {
                             class: if completion_selected() == index { "mk-native-completion mk-native-completion-selected" } else { "mk-native-completion" },
                             id: "{completion_id}-{index}",
-                            onmounted: {
+                            onmounted: moonkale_ext_api::crash::event({
                                 let nodes = completion_nodes.clone();
-                                move |event| { nodes.borrow_mut().insert(index, event.data()); }
-                            },
+                                move |event: dioxus::prelude::MountedEvent| { nodes.borrow_mut().insert(index, event.data()); }
+                            }),
                             role: "option", aria_selected: (completion_selected() == index).to_string(),
                             tabindex: -1,
-                            onclick: move |event| { event.stop_propagation(); oncompletion_accept.call(index); },
+                            onclick: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| { event.stop_propagation(); oncompletion_accept.call(index); }),
                             span { class: "mk-native-completion-label", "{item.label}" }
                             span { class: "mk-native-completion-kind", "{item.kind}" }
                             if let Some(detail) = &item.detail { span { class: "mk-native-completion-detail", "{detail}" } }
@@ -1737,17 +1737,17 @@ pub(crate) fn RustEditorSurface(
             if wiki_hover.is_none_or(|control|(control.popup)().is_none()) {
             if let Some(text) = hover_text {
                 { let input_mounted = input_mounted.clone(); rsx! { div { class: "mk-native-hover mk-hover", role: "tooltip", aria_label: hover_label,
-                    onmousedown: move |event| event.stop_propagation(),
-                    oncopy: move |event| event.stop_propagation(),
-                    oncut: move |event| event.stop_propagation(),
-                    onpaste: move |event| event.stop_propagation(),
-                    onkeydown: move |event| {
+                    onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| event.stop_propagation()),
+                    oncopy: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
+                    oncut: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
+                    onpaste: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
+                    onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                         event.stop_propagation();
                         if event.key() == Key::Escape {
                             event.prevent_default(); hover_target.set(None);
-                            if let Some(element) = input_mounted.borrow().as_ref().cloned() { spawn(async move { let _ = element.set_focus(true).await; }); }
+                            if let Some(element) = input_mounted.borrow().as_ref().cloned() { moonkale_ext_api::crash::spawn(async move { let _ = element.set_focus(true).await; }); }
                         }
-                    },
+                    }),
                     tabindex: 0,
                     "{text}"
                 } } }
@@ -1777,27 +1777,27 @@ pub(crate) fn RustEditorSurface(
                     key: "{epoch}",
                     value: "",
                     style: "position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none;",
-                    onmounted: {
+                    onmounted: moonkale_ext_api::crash::event({
                         let mounted = mount_on_mount_input.clone();
                         move |event: MountedEvent| {
                             *mounted.borrow_mut() = Some(event.data.clone());
                             if *refocus_input.peek() {
                                 refocus_input.set(false);
                                 let element = event.data.clone();
-                                spawn(async move {
+                                moonkale_ext_api::crash::spawn(async move {
                                     let _ = element.set_focus(true).await;
                                 });
                             }
                         }
-                    },
-                    oncompositionstart: move |_| {
+                    }),
+                    oncompositionstart: moonkale_ext_api::crash::event(move |_| {
                         if let Some(hover)=wiki_hover {hover.dismiss();}
                         onprepare.call(());
                         composing.set(true);
                         composition_preview.set(String::new());
-                    },
-                    oncompositionupdate: move |event| composition_preview.set(event.data().data()),
-                    oncompositionend: move |event| {
+                    }),
+                    oncompositionupdate: moonkale_ext_api::crash::event(move |event: dioxus::prelude::CompositionEvent| composition_preview.set(event.data().data())),
+                    oncompositionend: moonkale_ext_api::crash::event(move |event: dioxus::prelude::CompositionEvent| {
                         // Native WebKit can send input before compositionend
                         // without compositionstart. The input already consumed
                         // this sink; its trailing end event must not insert twice.
@@ -1825,9 +1825,9 @@ pub(crate) fn RustEditorSurface(
                         if wiki_enabled { oncompletion.call(()); }
                         refocus_input.set(true);
                         input_epoch += 1;
-                    },
+                    }),
                     spellcheck: false,
-                    oninput: move |event| {
+                    oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| {
                         onprepare.call(());
                         let text = event.value();
                         if text.is_empty() || composing() {
@@ -1844,7 +1844,7 @@ pub(crate) fn RustEditorSurface(
                         if wiki_enabled { oncompletion.call(()); }
                         refocus_input.set(true);
                         input_epoch += 1;
-                    },
+                    }),
                 }
             }
 
@@ -1882,7 +1882,7 @@ fn NativeCell(
             class: format!("mk-editor-core-cell {} {} {tag} {mark_classes}", if selected { "mk-editor-core-selected" } else { "" }, if matched { "mk-native-bracket-match" } else { "" }),
             style: "display: inline-block; width: {width}ch; font-variant-ligatures: none;",
 
-            onmousedown: move |event| {
+            onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                 if event.trigger_button() == Some(MouseButton::Primary) && moonkale_ext_api::keys::primary(&event.modifiers()) {
                     if let Some(hover)=wiki_hover {hover.dismiss();}
                     if let Some(mark) = &wiki { event.prevent_default(); event.stop_propagation(); onwiki.call(mark.target.clone()); return; }
@@ -1894,9 +1894,9 @@ fn NativeCell(
                     onchange,
                     |editor| place_caret_at(editor, Position::new(line, target_column)),
                 );
-            },
-            onmouseleave:move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}},
-            onmousemove: move |event| {
+            }),
+            onmouseleave:moonkale_ext_api::crash::event(move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}}),
+            onmousemove: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                 let hover_column=column+layout.column_at_x(event.element_coordinates().x.max(0.0)).min(characters.saturating_sub(1));
                 if let Some(hover)=wiki_hover {hover.pointer(None,(event.client_coordinates().x,event.client_coordinates().y),(!dragging()&&!event.held_buttons().contains(MouseButton::Primary)).then_some((line,hover_column)));}
                 let target_column = layout.hit_run_column(column, characters, width, event.element_coordinates().x);
@@ -1921,7 +1921,7 @@ fn NativeCell(
                         dragging.set(false);
                     }
                 }
-            },
+            }),
             "{text}"
         }
     }

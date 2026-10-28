@@ -85,7 +85,7 @@ pub(crate) fn use_rename(
                     == revision.unwrap_or_default()
         })
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if !valid() && request.peek().is_some() {
             request.set(None);
         }
@@ -184,7 +184,7 @@ pub(crate) fn use_rename(
         request.set(Some(pending));
         focus.with_mut(|value| *value += 1);
     });
-    let _result = use_resource(move || {
+    let _result = moonkale_ext_api::crash::use_resource(move || {
         let pending = request();
         let valid_now = valid();
         let origin = origin.clone();
@@ -328,19 +328,19 @@ pub(crate) fn RenamePrompt(ws: Workspace, mut rename: Rename) -> Element {
     let label = t!(ws, L, "editor-rename-prompt", word = pending.word);
     rsx! {
         div { class: "mk-editor-bar mk-editor-rename mk-native-rename-prompt", role: "dialog", aria_label: "{label}", aria_busy: "{busy}",
-            onkeydown: move |event| {
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 event.stop_propagation();
                 if event.is_composing() { return; }
                 if event.key() == Key::Escape { event.prevent_default(); rename.cancel.call(()); }
                 if event.key() == Key::Enter { event.prevent_default(); rename.commit.call(()); }
-            },
+            }),
             span { "{label}" }
             input { class: "mk-input", aria_label: "{label}", value: "{rename.value}", disabled: busy,
-                onmounted: move |event| { spawn(async move { let _ = event.data().set_focus(true).await; }); },
-                oninput: move |event| rename.value.set(event.value()),
+                onmounted: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = event.data().set_focus(true).await; }); }),
+                oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| rename.value.set(event.value())),
             }
-            button { class: "mk-btn mk-native-rename-confirm", disabled: busy || rename.value.read().trim().is_empty(), onclick: move |_| rename.commit.call(()), {t!(ws, L, "editor-rename")} }
-            button { class: "mk-btn", onclick: move |_| rename.cancel.call(()), {t!(ws, L, "editor-cancel")} }
+            button { class: "mk-btn mk-native-rename-confirm", disabled: busy || rename.value.read().trim().is_empty(), onclick: moonkale_ext_api::crash::event(move |_| rename.commit.call(())), {t!(ws, L, "editor-rename")} }
+            button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| rename.cancel.call(())), {t!(ws, L, "editor-cancel")} }
         }
     }
 }

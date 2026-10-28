@@ -334,3 +334,17 @@ cache-check-rebuilt = 缓存问题；已重建：{ $differences }
 status-truth-files = 权威来源：文件
 status-truth-store = 权威来源：Sophia 存储
 status-store-read-only = 代码图只读：存储编辑尚不可用
+
+crash-safe-active = 安全模式：扩展已关闭，保存的设置保持不变。
+crash-startup = Moonkale 在启动时多次停止。
+crash-safe-start = 以安全模式启动
+crash-dismiss = 关闭
+crash-disabled = { $name } 已停止，并在此会话中禁用。
+
+crash-test-event = 触发测试事件崩溃
+crash-test-task = 触发测试任务崩溃
+crash-test-disable = 禁用测试扩展
+
+crash-web-stopped = Moonkale 已停止。重新加载以恢复已保存的会话。
+crash-web-reload = 重新加载
+crash-web-copy = 复制详情

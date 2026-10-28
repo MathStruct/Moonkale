@@ -350,3 +350,17 @@ cache-check-rebuilt = Cache-Problem; neu aufgebaut: { $differences }
 status-truth-files = Quelle: Dateien
 status-truth-store = Quelle: Sophia-Speicher
 status-store-read-only = Codegraph schreibgeschützt: Speicherbearbeitung noch nicht verfügbar
+
+crash-safe-active = Abgesicherter Modus: Erweiterungen sind aus; gespeicherte Einstellungen bleiben erhalten.
+crash-startup = Moonkale wurde beim Start wiederholt angehalten.
+crash-safe-start = Im abgesicherten Modus starten
+crash-dismiss = Schließen
+crash-disabled = { $name } wurde angehalten und für diese Sitzung deaktiviert.
+
+crash-test-event = Testereignis abstürzen lassen
+crash-test-task = Testaufgabe abstürzen lassen
+crash-test-disable = Testerweiterung deaktivieren
+
+crash-web-stopped = Moonkale wurde angehalten. Neu laden stellt die gespeicherte Sitzung wieder her.
+crash-web-reload = Neu laden
+crash-web-copy = Details kopieren

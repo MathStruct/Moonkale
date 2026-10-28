@@ -90,11 +90,11 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                     .map(str::to_string)
             })
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let Some(f) = folder() else {
             return;
         };
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             if let Ok(list) = (api.list)(f).await {
                 // A turn still running when we arrive: show it.
                 if session.peek().is_none() {
@@ -108,7 +108,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
     });
 
     // Poll the open session while it runs (and once when it is opened).
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = restart();
         let Some(id) = session() else {
             return;
@@ -117,7 +117,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         poll_gen.set(gen);
         items.set(Vec::new());
         pending.set(None);
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let mut since = 0usize;
             loop {
                 if *poll_gen.peek() != gen {
@@ -180,7 +180,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         let current = session.peek().clone();
         items.with_mut(|v| v.push(SessionItem::User { text: text.clone() }));
         running.set(true);
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match (api.send)(current.clone(), f.clone(), text, settings).await {
                 Ok(id) => {
                     session.set(Some(id));
@@ -201,7 +201,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         let (Some(id), Some(p)) = (session.peek().clone(), pending.peek().clone()) else {
             return;
         };
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             if let Err(e) = (api.approve)(id, p.call_id, allow).await {
                 ws.set_status(t!(ws, L, "agent-approval-error", error = e.to_string()));
             }
@@ -227,16 +227,16 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                 span { class: "mk-agent-spacer" }
                 select { class: "mk-agent-sessions", title: t!(ws, L, "agent-server-sessions"),
                     value: "{current.clone().unwrap_or_default()}",
-                    onchange: move |e| { let v = e.value(); if v.is_empty() { session.set(None); items.set(Vec::new()); pending.set(None); running.set(false); } else { session.set(Some(v)); } },
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); if v.is_empty() { session.set(None); items.set(Vec::new()); pending.set(None); running.set(false); } else { session.set(Some(v)); } }),
                     option { value: "", selected: current.is_none(), {t!(ws, L, "agent-new-session")} }
                     for s in list.iter() {
                         option { key: "{s.id}", value: "{s.id}", selected: current.as_deref() == Some(s.id.as_str()), if s.running { "● " } "{s.title}" }
                     }
                 }
-                button { class: "mk-btn", disabled: running(), onclick: move |_| { session.set(None); items.set(Vec::new()); pending.set(None); }, {t!(ws, L, "agent-new")} }
+                button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event(move |_| { session.set(None); items.set(Vec::new()); pending.set(None); }), {t!(ws, L, "agent-new")} }
                 select { class: "mk-agent-profile", title: t!(ws, L, "agent-profile-next"),
                     value: "{profile_now}",
-                    onchange: move |e| profile.set(e.value()),
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| profile.set(e.value())),
                     for name in agents.iter() {
                         option { key: "{name}", value: "{name}", selected: *name == profile_now, "{name}" }
                     }
@@ -284,8 +284,8 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                         }
                         code { class: "mk-agent-tool-input", "{p.input}" }
                         div { class: "mk-agent-approval-actions",
-                            button { class: "mk-btn mk-btn-on", onclick: move |_| answer(true), {t!(ws, L, "agent-allow")} }
-                            button { class: "mk-btn", onclick: move |_| answer(false), {t!(ws, L, "agent-deny")} }
+                            button { class: "mk-btn mk-btn-on", onclick: moonkale_ext_api::crash::event(move |_| answer(true)), {t!(ws, L, "agent-allow")} }
+                            button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| answer(false)), {t!(ws, L, "agent-deny")} }
                         }
                     }
                 }
@@ -300,16 +300,16 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                     rows: 2,
                     placeholder: t!(ws, L, "agent-ask-server"),
                     value: "{input}",
-                    oninput: move |e| input.set(e.value()),
-                    onkeydown: move |e: KeyboardEvent| {
+                    oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| input.set(e.value())),
+                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| {
                         // Not while an input method composes (#19).
                         if e.key() == Key::Enter && !e.modifiers().shift() && !e.is_composing() {
                             e.prevent_default();
                             send(());
                         }
-                    },
+                    }),
                 }
-                button { class: "mk-btn", disabled: running(), onclick: move |_| send(()), if running() { "…" } else { {t!(ws, L, "agent-send")} } }
+                button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event(move |_| send(())), if running() { "…" } else { {t!(ws, L, "agent-send")} } }
             }
         }
     }

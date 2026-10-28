@@ -134,21 +134,21 @@ impl Extension for LinksExtension {
         Some(rsx! {
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: rich,
-                    onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.markdown_rich = Some(v)); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.checked(); ws.update_settings_in(target, move |f| f.editor.markdown_rich = Some(v)); } )}
                 {t!(ws, L, "md-open-rich")}
             }
             // Typography of the rich editor (Prompt23).
             label { class: "mk-settings-field", {t!(ws, L, "md-font-size")}
                 input { class: "mk-input mk-settings-rich-size", r#type: "number", min: "8", max: "48", value: "{size}",
-                    onchange: move |e| { if let Ok(v) = e.value().parse::<u32>() { ws.update_settings_in(target, move |f| f.editor.rich_font_size = Some(v)); } } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { if let Ok(v) = e.value().parse::<u32>() { ws.update_settings_in(target, move |f| f.editor.rich_font_size = Some(v)); } } )}
             }
             label { class: "mk-settings-field", {t!(ws, L, "md-font")}
                 input { class: "mk-input mk-settings-rich-font", value: "{font}", placeholder: t!(ws, L, "md-font-placeholder"),
-                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_font = if v.trim().is_empty() { None } else { Some(v) }); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_font = if v.trim().is_empty() { None } else { Some(v) }); } )}
             }
             label { class: "mk-settings-field", {t!(ws, L, "md-code-font")}
                 input { class: "mk-input mk-settings-rich-code-font", value: "{code_font}", placeholder: t!(ws, L, "md-code-font-placeholder"),
-                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_code_font = if v.trim().is_empty() { None } else { Some(v) }); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); ws.update_settings_in(target, move |f| f.editor.rich_code_font = if v.trim().is_empty() { None } else { Some(v) }); } )}
             }
         })
     }
@@ -171,8 +171,8 @@ fn MarkdownPanel(
     rsx! {
         div { class: "mk-md", "data-document-id": "{node}",
             div { class: "mk-md-modes",
-                button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, false); }); }, title: t!(ws, L, "md-source-title"), {t!(ws, L, "md-source")} }
-                button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| { rich.with_mut(|r| { r.insert(node, true); }); }, title: t!(ws, L, "md-rich-title"), {t!(ws, L, "md-rich")} }
+                button { class: if !is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| { rich.with_mut(|r| { r.insert(node, false); }); }), title: t!(ws, L, "md-source-title"), {t!(ws, L, "md-source")} }
+                button { class: if is_rich { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| { rich.with_mut(|r| { r.insert(node, true); }); }), title: t!(ws, L, "md-rich-title"), {t!(ws, L, "md-rich")} }
             }
             div { class: "mk-md-body",
                 if is_rich {

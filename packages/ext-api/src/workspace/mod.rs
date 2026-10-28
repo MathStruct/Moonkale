@@ -53,14 +53,21 @@ thread_local! {
 /// effect which must not re-run when settings change (P-147, P-151).
 pub fn untracked<R>(f: impl FnOnce() -> R) -> R {
     UNTRACKED.with(|d| d.set(d.get() + 1));
-    let out = f();
-    UNTRACKED.with(|d| d.set(d.get() - 1));
-    out
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            UNTRACKED.with(|d| d.set(d.get() - 1));
+        }
+    }
+    let _reset = Reset;
+    f()
 }
 
 /// The workspace: every open source, document and setting, and the platform's services. `Copy` (signals inside); handed to every extension call. Its state is grouped by area; the methods are on this facade.
 #[derive(Clone, Copy)]
 pub struct Workspace {
+    /// Session-only failure state; never written to extension preferences.
+    pub crashes: crate::crash::CrashState,
     /// Open sources and their change epochs.
     pub sources: SourcesState,
     /// Open documents, views, the active one, the cursor.
@@ -96,6 +103,7 @@ impl Workspace {
     /// signals live for the app's lifetime.
     pub fn new(config: WorkspaceConfig) -> Self {
         Self {
+            crashes: crate::crash::CrashState::new(),
             sources: SourcesState::new(),
             docs: DocsState::new(),
             history: HistoryState::new(),
@@ -336,5 +344,15 @@ impl ShellState {
             unique: Signal::new_in_scope(0, ScopeId::ROOT),
             theme_light: Signal::new_in_scope(false, ScopeId::ROOT),
         }
+    }
+}
+
+#[cfg(test)]
+mod unwind_tracking_tests {
+    #[test]
+    fn a_guarded_contribution_panic_restores_language_tracking() {
+        let result = std::panic::catch_unwind(|| super::untracked(|| panic!("contribution")));
+        assert!(result.is_err());
+        super::UNTRACKED.with(|depth| assert_eq!(depth.get(), 0));
     }
 }

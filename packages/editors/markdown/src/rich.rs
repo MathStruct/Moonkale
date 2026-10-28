@@ -162,7 +162,7 @@ impl MilkdownBackend {
             katex_macros,
         });
         let mut rx = eval;
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             loop {
                 match rx.recv::<FromJs>().await {
                     Ok(FromJs::Image { id, path }) => on_event.call(RichEvent::Image { id, path }),
@@ -229,13 +229,13 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     // links resolve (debounced) and pushes the status into the view.
     let mut wiki_epoch = use_signal(|| 0u64);
     {
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let epoch = wiki_epoch();
             let _ = ws.sources.graph_epoch.read();
             if epoch == 0 {
                 return;
             }
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 futures_timer::Delay::new(std::time::Duration::from_millis(300)).await;
                 if *wiki_epoch.peek() != epoch {
                     return; // superseded by a newer change
@@ -272,7 +272,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 RichEvent::Image { id, path } => {
                     let from = doc.peek().node.clone();
                     let mounted = backend.peek().clone();
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         let url = moonkale_code_view::source_image_url(ws, &from, &path).await;
                         if let (Some(mounted), Some(current)) = (mounted, backend.peek().as_ref()) {
                             if std::rc::Rc::ptr_eq(&mounted, current) {
@@ -297,12 +297,12 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 }
                 RichEvent::WikiLink(target) => {
                     let from = doc.peek().node.clone();
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         let _ = ws.follow_wiki(&from, &target, true).await;
                     });
                 }
                 RichEvent::WikiQuery { id, query } => {
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         let items = ws.wiki_candidates(&query, 12).await;
                         if let Some(b) = backend.peek().as_ref() {
                             b.wiki_candidates(id, &items);
@@ -312,7 +312,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             });
             let element_id = element_id.clone();
             let source = doc.peek().node.source.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let macros = katex_macros(ws, &source).await;
                 backend.set(Some(std::rc::Rc::new(MilkdownBackend::mount(
                     element_id, initial, macros, on_event,
@@ -327,7 +327,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
         // Ready made the view adopt the raw text as its baseline, and its
         // normalised serialisation then counted as an edit (P-165).
         let mut last_seen = use_signal(|| split_frontmatter(&doc.peek().text).1.to_string());
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let (text, version) = {
                 let d = doc.read();
                 (d.text.clone(), d.version)
@@ -362,7 +362,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     };
     let dirty = doc.read().dirty();
     let save = move |_: ()| {
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             if let Err(e) = ws.save(node).await {
                 error.set(Some(e.to_string()));
             } else {
@@ -371,7 +371,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
         });
     };
     let reload = move |_| {
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let _ = ws.reload(node).await;
         });
     };
@@ -383,13 +383,13 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
         document::Script { src: BUNDLE, defer: true }
         div {
             class: "mk-rich",
-            onkeydown: move |e| {
+            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                 if moonkale_ext_api::keys::primary(&e.modifiers()) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
                     e.stop_propagation(); // the frame would dispatch Save again
                     save(());
                 }
-            },
+            }),
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{doc.read().node.native_key}" }
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "unsaved-changes"), "●" } }
@@ -400,13 +400,13 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                     label: t!(ws, L, "save"),
                     shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
                     disabled: !dirty,
-                    onclick: move |_| save(()),
+                    onclick: moonkale_ext_api::crash::event(move |_| save(())),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "reload",
                     label: t!(ws, L, "reload"),
                     description: t!(ws, L, "reload-title"),
-                    onclick: reload,
+                    onclick: moonkale_ext_api::crash::event(reload),
                 }
                 moonkale_ext_api::icons::PanelSettingsButton {}
             }
@@ -424,7 +424,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                 rsx! {
                     div { class: if props_open() { "mk-props mk-props-open" } else { "mk-props" },
                         button { class: "mk-props-head", r#type: "button", title: if has { "Front matter (YAML) — click to edit" } else { "Add front matter" },
-                            onclick: move |_| props_open.toggle(),
+                            onclick: moonkale_ext_api::crash::event(move |_| props_open.toggle()),
                             span { class: "mk-props-caret", if props_open() { "▾" } else { "▸" } }
                             span { class: "mk-props-label", {t!(ws, L, "md-properties")} }
                             span { class: "mk-props-summary", if has { "{summary}" } else { {t!(ws, L, "md-properties-none")} } }
@@ -433,14 +433,14 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
                             textarea { class: "mk-props-yaml", rows: "{yaml.lines().count().max(2) + 1}", spellcheck: "false",
                                 placeholder: "title: …\ntags: [a, b]",
                                 value: "{yaml}",
-                                oninput: move |e| {
+                                oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                                     let v = e.value();
                                     doc.with_mut(|d| {
                                         let (_, body) = split_frontmatter(&d.text);
                                         let body = body.to_string();
                                         d.text = join_frontmatter(&v, &body);
                                     });
-                                },
+                                }),
                             }
                         }
                     }
@@ -449,18 +449,18 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
             if let Some(why) = failed() {
                 div { class: "mk-rich-loading mk-rich-failed", role: "alert",
                     span { {t!(ws, L, "md-rich-failed", error = why.to_string())} }
-                    button { class: "mk-btn", onclick: move |_| {
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| {
                         failed.set(None);
                         backend.set(None); // dropping it tells the old script to stop
                         mount.call(());
-                    }, {t!(ws, L, "retry")} }
+                    }), {t!(ws, L, "retry")} }
                 }
             } else if !ready() {
                 div { class: "mk-rich-loading", "Loading rich editor…" }
             }
             // Typography from the settings (Prompt23): CSS variables the
             // stylesheet applies to the ProseMirror content and code blocks.
-            div { id: "{element_id}", class: "mk-rich-host", style: "{typography}", onmounted: move |_| mount.call(()) }
+            div { id: "{element_id}", class: "mk-rich-host", style: "{typography}", onmounted: moonkale_ext_api::crash::event(move |_| mount.call(()) )}
         }
     }
 }

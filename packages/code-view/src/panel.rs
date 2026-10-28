@@ -149,7 +149,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.clone())
                     {
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             let text = s.hover(&uri, line, col).await.ok().flatten();
                             if let Some(b) = backend.peek().as_ref() {
                                 b.hover_result(id, text.as_deref());
@@ -171,7 +171,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 }
                 // Spec 012: `[[` completion and Ctrl+click in markdown sources.
                 BackendEvent::WikiQuery { id, query } => {
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         let items: Vec<moonkale_lsp::CompletionItem> = ws
                             .wiki_candidates(&query, 12)
                             .await
@@ -194,7 +194,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 }
                 BackendEvent::WikiLink { target } => {
                     let from = doc.peek().node.clone();
-                    spawn(async move {
+                    moonkale_ext_api::crash::spawn(async move {
                         let _ = ws.follow_wiki(&from, &target, true).await;
                     });
                 }
@@ -202,7 +202,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.clone())
                     {
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             let items = match s.completion(&uri, line, col).await {
                                 Ok(items) => Some(items),
                                 Err(e) => {
@@ -248,7 +248,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                             .get(&uri)
                             .cloned()
                             .unwrap_or_default();
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             match s
                                 .code_actions_with_diagnostics(
                                     &uri,
@@ -282,7 +282,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     if let (Some(s), Some((_, _, uri))) =
                         (lsp_session.peek().clone(), ident.clone())
                     {
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             match s.references(&uri, line, col).await {
                                 Ok(list) => references.set(Some(list)),
                                 Err(e) => {
@@ -297,7 +297,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     if let (Some(s), Some((_, root, uri))) =
                         (lsp_session.peek().clone(), ident.clone())
                     {
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             match s.definition(&uri, line, col).await {
                                 Ok(Some(loc)) if loc.uri == uri => {
                                     if let Some(b) = backend.peek().as_ref() {
@@ -347,7 +347,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         }
     };
 
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _language = ws.lang();
         if !ready() {
             return;
@@ -381,7 +381,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // Text changed outside the view (an agent edit, a reload): push it. The
     // mirror is *not* updated here — the view answers with the splice it
     // applied, and that brings the mirror up to date (spec 018).
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let text = doc.read().text.clone();
         if !ready() || *view_text.peek() == text {
             return;
@@ -395,7 +395,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
 
     {
         let uri = lsp_ident.as_ref().map(|(_, _, uri)| uri.clone());
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let document = doc.read();
             // The attachment signal makes this run again after an async open.
             if lsp_session.read().is_some() {
@@ -411,7 +411,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     {
         let node_id = node;
         let mut applied = use_signal(|| 0u64);
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let Some(r) = *ws.docs.reveal.read() else {
                 return;
             };
@@ -426,7 +426,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     }
     // Word wrap follows the user setting (spec 014).
     {
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let editor = ws.settings.resolved.read().editor.clone();
             if !ready() {
                 return;
@@ -450,7 +450,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // Other people's cursors in this document (Milestone 9).
     {
         let key = doc.peek().node.native_key.clone();
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let _ = ws.session.presence.read();
             let marks: Vec<(u32, String)> = ws
                 .others()
@@ -471,7 +471,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // 300 ms after the last edit and when the index changes.
     if doc.peek().node.language_hint() == Some("markdown") {
         let mut wiki_epoch = use_signal(|| 0u64);
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let _ = doc.read().text.len();
             let _ = ws.sources.graph_epoch.read();
             if !ready() {
@@ -479,7 +479,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
             let epoch = wiki_epoch.peek().wrapping_add(1);
             wiki_epoch.set(epoch);
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 futures_timer::Delay::new(std::time::Duration::from_millis(300)).await;
                 if *wiki_epoch.peek() != epoch {
                     return;
@@ -509,7 +509,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // Diagnostics from the language server → decorations in the view.
     {
         let uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let Some(uri) = uri.clone() else { return };
             let items = lsp
                 .diagnostics
@@ -531,7 +531,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         let uri = lsp_ident.as_ref().map(|(_, _, u)| u.clone());
         Callback::new(move |_: ()| {
             let uri = uri.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 match ws.save(node).await {
                     Ok(()) => {
                         last_error.set(None);
@@ -549,7 +549,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     // Application commands aimed at the active editor (menus, keybindings).
     // Ignore commands sent before this view mounted, including remounts.
     let mut seen_command = use_signal(|| ws.shell.commands.peek().0);
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let (seq, cmd) = *ws.shell.commands.read();
         if seq <= *seen_command.peek() {
             return;
@@ -591,7 +591,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             moonkale_lsp::LspSession,
         )| {
             let origin = doc.peek().node.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let uri = origin
                     .source
                     .as_str()
@@ -642,7 +642,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 ws.set_status(t!(ws, L, "editor-rename-stale"));
                 return;
             }
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 match s.rename(&uri, line, col, &new_name).await {
                     Ok(edit) if edit.changes.is_empty() => {
                         let mut ws = ws;
@@ -696,14 +696,14 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             "data-selection-anchor": canonical_selection.map(|(anchor, _)| anchor.to_string()),
             "data-selection-head": canonical_selection.map(|(_, head)| head.to_string()),
             // Ctrl+S / Cmd+S anywhere in the panel, including inside CodeMirror.
-            onkeydown: move |e| {
+            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                 let mods = e.modifiers();
                 if moonkale_ext_api::keys::primary(&mods) && e.key() == Key::Character("s".into()) {
                     e.prevent_default();
                     e.stop_propagation(); // the frame would dispatch Save again
                     save_now.call(());
                 }
-            },
+            }),
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path", "{title}" }
                 if dirty { span { class: "mk-editor-dirty", title: t!(ws, L, "editor-unsaved"), "●" } }
@@ -715,20 +715,20 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     label: t!(ws, L, "editor-wrap"),
                     description: t!(ws, L, "editor-wrap-title"),
                     pressed: Some(wrap_on),
-                    onclick: move |_| toggle_wrap(ws),
+                    onclick: moonkale_ext_api::crash::event(move |_| toggle_wrap(ws)),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "save",
                     label: t!(ws, L, "editor-save"),
                     shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
                     disabled: !dirty,
-                    onclick: save,
+                    onclick: moonkale_ext_api::crash::event(save),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "reload",
                     label: t!(ws, L, "editor-reload"),
                     description: t!(ws, L, "editor-reload-title"),
-                    onclick: reload,
+                    onclick: moonkale_ext_api::crash::event(reload),
                 }
                 // Milestone 14: move this document to the Rust editor.
                 if ws.settings.resolved.read().extensions.is_enabled_id("dev.moonkale.editor-code-native", false) {
@@ -737,7 +737,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                         label: "Rust".to_string(),
                         description: t!(ws, L, "editor-to-rust"),
                         class: "mk-editor-switch".to_string(),
-                        onclick: move |_| { let mut ws = ws; ws.choose_editor(node, "native"); },
+                        onclick: moonkale_ext_api::crash::event(move |_| { let mut ws = ws; ws.choose_editor(node, "native"); }),
                     }
                 }
                 moonkale_ext_api::icons::PanelSettingsButton {}
@@ -746,9 +746,9 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 div { class: "mk-editor-bar mk-editor-rename",
                     span { {t!(ws, L, "editor-rename-prompt", word = word.clone())} }
                     input { id: "{rename_id}", class: "mk-input", value: "{rename_value}",
-                        onmounted: { let w = word.clone(); move |_| rename_value.set(w.clone()) },
-                        oninput: move |e| rename_value.set(e.value()),
-                        onkeydown: move |e| {
+                        onmounted: moonkale_ext_api::crash::event({ let w = word.clone(); move |_| rename_value.set(w.clone()) }),
+                        oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| rename_value.set(e.value())),
+                        onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                             e.stop_propagation();
                             if e.is_composing() { return; }
                             match e.key() {
@@ -756,23 +756,23 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                                 Key::Escape => { e.prevent_default(); rename_prompt.set(None); }
                                 _ => {}
                             }
-                        },
+                        }),
                     }
-                    button { class: "mk-btn", onclick: move |_| commit_rename.call(()), {t!(ws, L, "editor-rename")} }
-                    button { class: "mk-btn", onclick: move |_| rename_prompt.set(None), {t!(ws, L, "editor-cancel")} }
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| commit_rename.call(())), {t!(ws, L, "editor-rename")} }
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| rename_prompt.set(None)), {t!(ws, L, "editor-cancel")} }
                 }
             }
             if let Some(list) = actions() {
                 div { class: "mk-editor-bar mk-editor-actions", "data-count": "{list.len()}",
                     if list.is_empty() { span { class: "mk-muted", {t!(ws, L, "editor-no-actions")} } } else { span { {t!(ws, L, "editor-actions")} } }
                     for (i, a) in list.iter().enumerate() {
-                        button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: {
+                        button { key: "{i}", class: "mk-btn", title: "{a.kind}", onclick: moonkale_ext_api::crash::event({
                             let a = a.clone();
                             move |_| {
                                 actions.set(None);
                                 let a = a.clone();
                                 if let Some((base,s)) = actions_base.peek().clone().filter(|(base,_)|*base==doc.peek().text) {
-                                    spawn(async move {
+                                    moonkale_ext_api::crash::spawn(async move {
                                         match s.resolve_code_action(&a).await {
                                             Ok(edit) => apply_edit.call((edit,base,s)),
                                             Err(e) => { let mut ws = ws; ws.set_status(format!("code action: {e}")); }
@@ -780,24 +780,24 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                                     });
                                 }
                             }
-                        }, "{a.title}" }
+                        }), "{a.title}" }
                     }
-                    button { class: "mk-btn", onclick: move |_| actions.set(None), "✕" }
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| actions.set(None)), "✕" }
                 }
             }
             if let Some(list) = references() {
                 div { class: "mk-editor-bar mk-editor-refs", "data-count": "{list.len()}",
                     span { {t!(ws, L, "editor-references", n = list.len())} }
-                    button { class: "mk-btn", onclick: move |_| references.set(None), "✕" }
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| references.set(None)), "✕" }
                     ul {
                         for (i, l) in list.iter().enumerate() {
-                            li { key: "{i}", class: "mk-editor-ref", onclick: {
+                            li { key: "{i}", class: "mk-editor-ref", onclick: moonkale_ext_api::crash::event({
                                 let l = l.clone();
                                 let root = root_for_refs.clone();
                                 move |_| {
                                     let l = l.clone();
                                     let root = root.clone();
-                                    spawn(async move {
+                                    moonkale_ext_api::crash::spawn(async move {
                                         let Some(root) = root else { return };
                                         if let Some(rel) = crate::uri::relative_file(&root,&l.uri) {
                                             if let Ok(n) = ws.open_relative_path(&rel).await {
@@ -806,7 +806,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                                         }
                                     });
                                 }
-                            },
+                            }),
                                 { root_for_refs.as_ref().and_then(|r| crate::uri::relative_file(r,&l.uri)).unwrap_or_else(||l.uri.clone()) }
                                 span { class: "mk-muted", ":{l.line + 1}:{l.col + 1}" }
                             }
@@ -827,7 +827,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                 class: "mk-editor-host",
                 "data-selection-anchor": selection.map(|(anchor, _)| anchor.to_string()),
                 "data-selection-head": selection.map(|(_, head)| head.to_string()),
-                onmounted: mount,
+                onmounted: moonkale_ext_api::crash::event(mount),
                 if let Some(err) = mount_error() {
                     div { class: "mk-editor-failed",
                         p { b { {t!(ws, L, "editor-failed")} } {t!(ws, L, "editor-failed-hint")} }
@@ -845,7 +845,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
 /// follows through its settings effect.
 pub fn toggle_wrap(ws: Workspace) {
     let next = !ws.settings.resolved.peek().editor.wrap;
-    dioxus::core::spawn_forever(async move {
+    moonkale_ext_api::crash::spawn_forever(async move {
         ws.update_user_settings(|f| f.editor.wrap = Some(next))
             .await;
     });

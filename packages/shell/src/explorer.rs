@@ -201,7 +201,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
 
     // Sources that arrived from elsewhere (another window of the session, a
     // reconnect) have no tree yet: load and expand their root once.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let pending: Vec<_> = ws
             .sources
             .open
@@ -211,7 +211,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             .map(|s| (s.descriptor.id.clone(), s.descriptor.root))
             .collect();
         for (id, root) in pending {
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 if let Ok(res) = ws.query(&id, Query::Children(root)).await {
                     state.children.with_mut(|c| {
                         c.insert(root, res.nodes);
@@ -227,7 +227,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     // After a file operation, reload every directory whose children are
     // shown (Milestone 7).
     let mut seen_epoch = use_signal(|| 0u64);
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let epoch = *ws.sources.fs_epoch.read();
         if epoch == *seen_epoch.peek() {
             return;
@@ -247,7 +247,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
             ws.sources.open.peek().iter().map(|s| s.descriptor.clone()),
             &state.children.peek(),
         );
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             for dir in loaded {
                 let Some(sid) = owners.get(&dir) else {
                     continue;
@@ -276,35 +276,35 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
     rsx! {
         moonkale_ext_api::Stylesheet { href: EXPLORER_CSS }
         div { class: "mk-explorer",
-            onclick: move |_| { if state.menu.peek().is_some() { state.menu.set(None); } },
+            onclick: moonkale_ext_api::crash::event(move |_| { if state.menu.peek().is_some() { state.menu.set(None); } }),
             if let Some(m) = menu {
                 ContextMenu { ws, state, menu: m }
             }
             if let Some(n) = confirm {
                 div { class: "mk-explorer-confirm", role: "alertdialog",
                     // Escape cancels; the focus starts on Cancel (#19).
-                    onkeydown: move |e| { if e.key() == Key::Escape { e.stop_propagation(); state.confirm.set(None); } },
+                    onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); state.confirm.set(None); } }),
                     span { {t!(ws, L, "explorer-delete-confirm", name = n.native_key.clone())} }
-                    button { class: "mk-btn mk-btn-danger", onclick: move |_| {
+                    button { class: "mk-btn mk-btn-danger", onclick: moonkale_ext_api::crash::event(move |_| {
                         let n = n.clone();
                         state.confirm.set(None);
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             if let Err(e) = ws.delete_node(&n).await { state.error.set(Some(e.to_string())); }
                         });
-                    }, {t!(ws, L, "explorer-delete")} }
+                    }), {t!(ws, L, "explorer-delete")} }
                     button { class: "mk-btn", autofocus: true,
-                        onmounted: move |e| { spawn(async move { let _ = e.set_focus(true).await; }); },
-                        onclick: move |_| state.confirm.set(None), {t!(ws, L, "cancel")} }
+                        onmounted: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = e.set_focus(true).await; }); }),
+                        onclick: moonkale_ext_api::crash::event(move |_| state.confirm.set(None)), {t!(ws, L, "cancel")} }
                 }
             }
             if has_dialog {
                 div { class: "mk-explorer-open",
-                    button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: move |_| ws.dispatch(Command::OpenFolder), {t!(ws, L, "menu-open-folder")} }
+                    button { class: "mk-btn mk-btn-wide", r#type: "button", onclick: moonkale_ext_api::crash::event(move |_| ws.dispatch(Command::OpenFolder)), {t!(ws, L, "menu-open-folder")} }
                 }
             }
             form { class: "mk-explorer-open",
                 class: if has_dialog { "mk-explorer-open-secondary" },
-                onsubmit: move |e| { e.prevent_default(); spawn(open(())); },
+                onsubmit: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { e.prevent_default(); moonkale_ext_api::crash::spawn(open(())); }),
                 input {
                     class: "mk-input",
                     // No cfg!() here: fullstack renders this on the server first and
@@ -312,7 +312,7 @@ fn ExplorerPanel(ws: Workspace, state: TreeState) -> Element {
                     // on every platform.
                     placeholder: t!(ws, L, "explorer-path-placeholder"),
                     value: "{path}",
-                    oninput: move |e| path.set(e.value()),
+                    oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| path.set(e.value())),
                 }
                 button { class: "mk-btn", r#type: "submit", disabled: opening(), if opening() { {t!(ws, L, "explorer-opening")} } else { {t!(ws, L, "explorer-open")} } }
             }
@@ -353,19 +353,19 @@ fn ExplorerSource(
     rsx! {
         div { class: "mk-explorer-source", style: "--mk-source-color: {color};", "data-kind": "{kind}",
             div { class: "mk-explorer-source-name",
-                onclick: move |_| status_folder.set(Some(selected_source.clone())),
+                onclick: moonkale_ext_api::crash::event(move |_| status_folder.set(Some(selected_source.clone()))),
                 title: if read_only { format!("{kind} · {}", t!(ws, L, "explorer-read-only")) } else { kind.to_string() },
-                oncontextmenu: {
+                oncontextmenu: moonkale_ext_api::crash::event({
                     let root_id = descriptor.root;
                     let sid = descriptor.id.clone();
                     let name = descriptor.display_name.clone();
-                    move |e| {
+                    move |e: dioxus::prelude::MouseEvent| {
                         e.prevent_default();
                         let root = Node { id: root_id, source: sid.clone(), kind: NodeKind::Directory, label: name.clone(), native_key: String::new(), content: None, version: Default::default(), props: Default::default() };
                         let c = e.client_coordinates();
                         state.menu.set(Some(Menu { node: root, is_dir: true, x: c.x, y: c.y }));
                     }
-                },
+                }),
                 span { class: "mk-source-icon", crate::icons::Icon { name: icon } }
                 span { class: "mk-source-label", "{descriptor.display_name}" }
                 if descriptor.family == moonkale_core::SourceFamily::Folder {
@@ -384,16 +384,16 @@ fn ExplorerSource(
                     button { class: "mk-source-refresh", r#type: "button",
                         title: t!(ws, L, "explorer-not-watched"),
                         "aria-label": t!(ws, L, "explorer-refresh-source", name = descriptor.display_name.clone()),
-                        onclick: {
+                        onclick: moonkale_ext_api::crash::event({
                             let id = descriptor.id.clone();
                             move |e: MouseEvent| {
                                 e.stop_propagation();
                                 let id = id.clone();
-                                dioxus::core::spawn_forever(async move {
+                                moonkale_ext_api::crash::spawn_forever(async move {
                                     ws.refresh_source(&id).await;
                                 });
                             }
-                        },
+                        }),
                         "↻"
                     }
                 }
@@ -477,16 +477,16 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                     class: if !vcs_class.is_empty() { "{vcs_class}" },
                     title: "{node.native_key}",
                     draggable: !is_db,
-                    oncontextmenu: move |e| {
+                    oncontextmenu: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                         e.prevent_default();
                         e.stop_propagation();
                         let c = e.client_coordinates();
                         state.menu.set(Some(Menu { node: n_menu.clone(), is_dir, x: c.x, y: c.y }));
-                    },
-                    ondragstart: move |_| state.dragging.set(Some(n_drag.clone())),
-                    ondragend: move |_| state.dragging.set(None),
-                    ondragover: move |e| { if drop_target { e.prevent_default(); } },
-                    ondrop: move |e| {
+                    }),
+                    ondragstart: moonkale_ext_api::crash::event(move |_| state.dragging.set(Some(n_drag.clone()))),
+                    ondragend: moonkale_ext_api::crash::event(move |_| state.dragging.set(None)),
+                    ondragover: moonkale_ext_api::crash::event(move |e: dioxus::prelude::DragEvent| { if drop_target { e.prevent_default(); } }),
+                    ondrop: moonkale_ext_api::crash::event(move |e: dioxus::prelude::DragEvent| {
                         e.prevent_default();
                         e.stop_propagation();
                         let Some(dragged) = state.dragging.take() else { return };
@@ -494,20 +494,20 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                         let name = dragged.native_key.rsplit('/').next().unwrap_or("").to_string();
                         let to = if n_drop.native_key.is_empty() { name } else { format!("{}/{name}", n_drop.native_key) };
                         if to == dragged.native_key { return; }
-                        spawn(async move {
+                        moonkale_ext_api::crash::spawn(async move {
                             if let Err(e) = ws.rename_node(&dragged, &to).await { state.error.set(Some(e.to_string())); }
                         });
-                    },
-                    onclick: move |_| {
+                    }),
+                    onclick: moonkale_ext_api::crash::event(move |_| {
                         if renaming { return; }
                         let mut status_folder = ws_status_folder;
                         status_folder.set(Some(n.source.clone()));
                         let n = n.clone();
                         if is_dir {
-                            spawn(toggle(ws, state, n));
+                            moonkale_ext_api::crash::spawn(toggle(ws, state, n));
                         } else if n.kind == NodeKind::Table {
                             // Database tables open in the table editor.
-                            spawn(async move {
+                            moonkale_ext_api::crash::spawn(async move {
                                 if let Err(e) = ws.open_node(n).await {
                                     ws2.set_status(e.to_string());
                                 }
@@ -518,13 +518,13 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                                 Some(root) => format!("{root}/{}", n.native_key),
                                 None => n.native_key.clone(),
                             };
-                            spawn(async move {
+                            moonkale_ext_api::crash::spawn(async move {
                                 if let Err(e) = ws.open_folder(path).await {
                                     ws2.set_status(t!(ws2, L, "explorer-db-failed", error = e.to_string()));
                                 }
                             });
                         } else if is_text || is_viewable {
-                            spawn(async move {
+                            moonkale_ext_api::crash::spawn(async move {
                                 if let Err(e) = ws.open_node(n).await {
                                     ws2.set_status(match e { SourceError::Unsupported(m) => m, other => other.to_string() });
                                 }
@@ -532,7 +532,7 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                         } else {
                             ws2.set_status(t!(ws2, L, "explorer-binary", name = n.native_key.clone()));
                         }
-                    },
+                    }),
                     span { class: "mk-tree-caret", if is_dir { if open { "▾" } else { "▸" } } else { "" } }
                     if renaming {
                         InlineEdit { ws, state, edit: Edit::Rename { node: node.clone() }, depth }
@@ -547,11 +547,11 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
                             let n2 = node.clone();
                             rsx! {
                                 span { class: "mk-tree-action", title: t!(ws, L, "explorer-terminal-here"),
-                                    onclick: move |e| {
+                                    onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                         e.stop_propagation();
                                         ws2.processes.terminal_cwd.set(ws2.folder_path(&n2));
                                         ws2.dispatch(Command::NewTerminal);
-                                    },
+                                    }),
                                     ">_"
                                 }
                             }
@@ -575,11 +575,11 @@ fn TreeLevel(ws: Workspace, state: TreeState, parent: NodeId, depth: usize) -> E
         rows.push(rsx! {
             li { key: "more-{parent}",
                 div { class: "mk-tree-row mk-tree-more",
-                    onclick: move |_| {
+                    onclick: moonkale_ext_api::crash::event(move |_| {
                         shown.with_mut(|s| {
                             s.insert(parent, limit + PAGE);
                         });
-                    },
+                    }),
                     span { class: "mk-tree-caret" }
                     span { class: "mk-tree-label", {t!(ws, L, "explorer-more", more = more, total = total)} }
                 }
@@ -608,46 +608,46 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
     );
     let can_terminal = menu.is_dir && ws.spawn_terminal().is_some();
     rsx! {
-        div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: |e| e.stop_propagation(),
+        div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: moonkale_ext_api::crash::event(|e: dioxus::prelude::MouseEvent| e.stop_propagation()),
             if menu.is_dir {
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewFile { parent: n1.clone() })); state.expanded.with_mut(|e| { e.insert(n1.id); }); }, {t!(ws, L, "menu-new-file")} }
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewDir { parent: n2.clone() })); state.expanded.with_mut(|e| { e.insert(n2.id); }); }, {t!(ws, L, "explorer-new-folder")} }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewFile { parent: n1.clone() })); state.expanded.with_mut(|e| { e.insert(n1.id); }); }), {t!(ws, L, "menu-new-file")} }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| { state.menu.set(None); state.edit.set(Some(Edit::NewDir { parent: n2.clone() })); state.expanded.with_mut(|e| { e.insert(n2.id); }); }), {t!(ws, L, "explorer-new-folder")} }
             }
             if !is_root {
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.edit.set(Some(Edit::Rename { node: n3.clone() })); }, {t!(ws, L, "explorer-rename")} }
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| { state.menu.set(None); state.confirm.set(Some(n4.clone())); }, {t!(ws, L, "explorer-delete-dots")} }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| { state.menu.set(None); state.edit.set(Some(Edit::Rename { node: n3.clone() })); }), {t!(ws, L, "explorer-rename")} }
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| { state.menu.set(None); state.confirm.set(Some(n4.clone())); }), {t!(ws, L, "explorer-delete-dots")} }
             }
             if can_terminal {
-                button { class: "mk-ctx-item", role: "menuitem", onclick: move |_| {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| {
                     state.menu.set(None);
                     ws.processes.terminal_cwd.set(ws.folder_path(&n5));
                     ws.dispatch(Command::NewTerminal);
-                }, {t!(ws, L, "explorer-open-terminal")} }
+                }), {t!(ws, L, "explorer-open-terminal")} }
             }
             if is_root {
                 // Milestone 16: re-read by hand — for every source, watched
                 // or not (a watcher can miss what a network share does).
-                button { class: "mk-ctx-item", role: "menuitem", onclick: {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event({
                     let id = node.source.clone();
                     move |_| {
                         state.menu.set(None);
                         let id = id.clone();
-                        dioxus::core::spawn_forever(async move {
+                        moonkale_ext_api::crash::spawn_forever(async move {
                             ws.refresh_source(&id).await;
                         });
                     }
-                }, {t!(ws, L, "explorer-refresh")} }
+                }), {t!(ws, L, "explorer-refresh")} }
                 // Spec 015: a source can be closed again.
-                button { class: "mk-ctx-item", role: "menuitem", onclick: {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event({
                     let id = node.source.clone();
                     move |_| {
                         state.menu.set(None);
                         let id = id.clone();
-                        dioxus::core::spawn_forever(async move {
+                        moonkale_ext_api::crash::spawn_forever(async move {
                             let _ = ws.close_source(&id).await;
                         });
                     }
-                }, {t!(ws, L, "menu-close-folder")} }
+                }), {t!(ws, L, "menu-close-folder")} }
             }
         }
     }
@@ -679,13 +679,13 @@ fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Elem
             let edit = edit.clone();
             // This component unmounts with `edit = None`; a task spawned in
             // its scope would be dropped with it.
-            dioxus::core::spawn_forever(async move {
+            moonkale_ext_api::crash::spawn_forever(async move {
                 let result = match edit {
                     Edit::NewFile { parent } => ws
                         .create_text(&parent.source, parent.id, &name, "")
                         .await
                         .map(|n| {
-                            spawn(async move {
+                            moonkale_ext_api::crash::spawn(async move {
                                 let _ = ws.open_node(n).await;
                             });
                         }),
@@ -715,11 +715,11 @@ fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Elem
             placeholder,
             value: "{value}",
             autofocus: true,
-            onmounted: move |e| { spawn(async move { let _ = e.set_focus(true).await; }); },
-            onclick: |e| e.stop_propagation(),
-            onmousedown: |e| e.stop_propagation(),
-            oninput: move |e| value.set(e.value()),
-            onkeydown: move |e| {
+            onmounted: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = e.set_focus(true).await; }); }),
+            onclick: moonkale_ext_api::crash::event(|e: dioxus::prelude::MouseEvent| e.stop_propagation()),
+            onmousedown: moonkale_ext_api::crash::event(|e: dioxus::prelude::MouseEvent| e.stop_propagation()),
+            oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| value.set(e.value())),
+            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                 e.stop_propagation();
                 // Enter/Escape inside an IME composition belong to it (#19).
                 if e.is_composing() { return; }
@@ -728,8 +728,8 @@ fn InlineEdit(ws: Workspace, state: TreeState, edit: Edit, depth: usize) -> Elem
                     Key::Escape => { e.prevent_default(); state.edit.set(None); }
                     _ => {}
                 }
-            },
-            onblur: move |_| { if state.edit.peek().is_some() { state.edit.set(None); } },
+            }),
+            onblur: moonkale_ext_api::crash::event(move |_| { if state.edit.peek().is_some() { state.edit.set(None); } }),
         }
     }
 }

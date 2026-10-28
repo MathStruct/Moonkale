@@ -170,7 +170,7 @@ pub(crate) fn use_hover(
             target: token.target.clone(),
         })
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if let Some(request) = wanted() {
             if desired.peek().as_ref() != Some(&request) {
                 anchor.set(*point.peek());
@@ -178,7 +178,7 @@ pub(crate) fn use_hover(
             }
         } else if !inside() {
             let previous = desired.peek().clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 futures_timer::Delay::new(Duration::from_millis(200)).await;
                 if wanted.peek().is_none() && !*inside.peek() && *desired.peek() == previous {
                     desired.set(None);
@@ -187,7 +187,7 @@ pub(crate) fn use_hover(
         }
     });
     let mut loading = use_signal(|| None::<(Request, u64)>);
-    let result = use_resource(move || {
+    let result = moonkale_ext_api::crash::use_resource(move || {
         let request = desired();
         if request.is_some() {
             let _ = ws.docs.open.read();
@@ -276,7 +276,7 @@ pub(crate) fn use_hover(
         source,
     };
     let seen = use_hook(move || std::rc::Rc::new(std::cell::Cell::new(*revision.peek())));
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let next = revision();
         if seen.replace(next) != next {
             control.dismiss();
@@ -538,10 +538,10 @@ pub(crate) fn WikiPopup(control: Control, ws: Workspace, onclose: Callback<()>) 
         class:"mk-native-wiki-hover mk-hover",role:"tooltip",tabindex:0,aria_label:t!(ws,crate::L,"editor-wiki-preview"),
         "data-preview-status":format!("{:?}",popup.status).to_ascii_lowercase(),
         style:format!("left:clamp(8px,{}px,calc(100vw - min(420px,100vw - 16px) - 8px));top:clamp(8px,{}px,calc(100vh - 276px));",popup.point.0,popup.point.1+12.0),
-        onmouseenter:move |_|control.inside.set(true),onmouseleave:move |_|control.leave(),
-        onmousedown:move |event|event.stop_propagation(),oncopy:move |event|event.stop_propagation(),oncut:move |event|{event.prevent_default();event.stop_propagation();},onpaste:move |event|{event.prevent_default();event.stop_propagation();},
-        onwheel:move |event|event.stop_propagation(),onscroll:move |event|event.stop_propagation(),
-        onkeydown:move |event|{event.stop_propagation();if event.key()==Key::Escape {event.prevent_default();control.dismiss();onclose.call(());}},
+        onmouseenter:moonkale_ext_api::crash::event(move |_|control.inside.set(true)),onmouseleave:moonkale_ext_api::crash::event(move |_|control.leave()),
+        onmousedown:moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent|event.stop_propagation()),oncopy:moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent|event.stop_propagation()),oncut:moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent|{event.prevent_default();event.stop_propagation();}),onpaste:moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent|{event.prevent_default();event.stop_propagation();}),
+        onwheel:moonkale_ext_api::crash::event(move |event: dioxus::prelude::WheelEvent|event.stop_propagation()),onscroll:moonkale_ext_api::crash::event(move |event: dioxus::prelude::ScrollEvent|event.stop_propagation()),
+        onkeydown:moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent|{event.stop_propagation();if event.key()==Key::Escape {event.prevent_default();control.dismiss();onclose.call(());}}),
         div {class:"mk-wiki-hover-title","{popup.title}"}
         div {class:"mk-wiki-hover-body","{message}"}
     }}

@@ -197,9 +197,9 @@ pub(crate) fn Properties(
 ) -> Element {
     let open = draft.read().is_some();
     rsx! {
-        div { class: "mk-native-properties", onmousedown: move |event| event.stop_propagation(),
+        div { class: "mk-native-properties", onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| event.stop_propagation()),
             button { class: "mk-properties-head", r#type: "button", aria_expanded: open.to_string(),
-                onclick: move |_| if open { oncancel.call(()) } else { onopen.call(()) },
+                onclick: moonkale_ext_api::crash::event(move |_| if open { oncancel.call(()) } else { onopen.call(()) }),
                 span { if open { "▾" } else { "▸" } }
                 span { {t!(ws, crate::L, "editor-properties")} }
                 span { class: "mk-properties-summary", if has { "{summary(&yaml)}" } else { {t!(ws, crate::L, "editor-properties-none")} } }
@@ -207,21 +207,21 @@ pub(crate) fn Properties(
             if open {
                 div { class: "mk-properties-edit",
                     textarea { class: "mk-properties-yaml", aria_label: t!(ws, crate::L, "editor-properties-yaml"), rows: "6", spellcheck: "false",
-                        onmounted: move |event| { spawn(async move { let _ = event.data().set_focus(true).await; }); },
+                        onmounted: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = event.data().set_focus(true).await; }); }),
                         value: draft.read().as_ref().map(|draft| draft.yaml.clone()).unwrap_or_default(),
-                        oninput: move |event| { if let Some(draft) = draft.write().as_mut() { draft.yaml = event.value(); } },
-                        onkeydown: move |event| {
+                        oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { if let Some(draft) = draft.write().as_mut() { draft.yaml = event.value(); } }),
+                        onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                             event.stop_propagation();
                             if composing() { return; }
                             if event.key() == Key::Escape { event.prevent_default(); oncancel.call(()); }
                             else if moonkale_ext_api::keys::primary(&event.modifiers()) && matches!(event.key(), Key::Character(key) if key.eq_ignore_ascii_case("s")) { event.prevent_default(); onsave.call(()); }
-                        },
-                        oncopy: move |event| event.stop_propagation(), oncut: move |event| event.stop_propagation(), onpaste: move |event| event.stop_propagation(),
-                        oncompositionstart: move |event| {event.stop_propagation();composing.set(true);}, oncompositionend: move |event| {event.stop_propagation();composing.set(false);},
+                        }),
+                        oncopy: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()), oncut: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()), onpaste: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
+                        oncompositionstart: moonkale_ext_api::crash::event(move |event: dioxus::prelude::CompositionEvent| {event.stop_propagation();composing.set(true);}), oncompositionend: moonkale_ext_api::crash::event(move |event: dioxus::prelude::CompositionEvent| {event.stop_propagation();composing.set(false);}),
                     }
                     if let Some(error) = error { div { class: "mk-editor-error", role: "alert", "{error}" } }
-                    button { class: "mk-btn mk-properties-apply", r#type: "button", disabled: composing(), onclick: move |_| onapply.call(()), {t!(ws, crate::L, "editor-properties-apply")} }
-                    button { class: "mk-btn mk-properties-cancel", r#type: "button", onclick: move |_| oncancel.call(()), {t!(ws, crate::L, "editor-properties-cancel")} }
+                    button { class: "mk-btn mk-properties-apply", r#type: "button", disabled: composing(), onclick: moonkale_ext_api::crash::event(move |_| onapply.call(())), {t!(ws, crate::L, "editor-properties-apply")} }
+                    button { class: "mk-btn mk-properties-cancel", r#type: "button", onclick: moonkale_ext_api::crash::event(move |_| oncancel.call(())), {t!(ws, crate::L, "editor-properties-cancel")} }
                 }
             }
         }

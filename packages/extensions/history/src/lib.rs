@@ -228,11 +228,11 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
                 span { class: "mk-history-spacer" }
                 if foldable > 0 {
                     button { class: "mk-btn mk-btn-mini", title: t!(ws, L, "history-compact-title", keep = KEEP),
-                        onclick: move |_| { let n = ws.compact_history(KEEP); ws.set_status(t!(ws, L, "history-folded", n = n)); },
+                        onclick: moonkale_ext_api::crash::event(move |_| { let n = ws.compact_history(KEEP); ws.set_status(t!(ws, L, "history-folded", n = n)); }),
                         {t!(ws, L, "history-compact", n = foldable)} }
                 }
                 label { class: "mk-history-check", title: t!(ws, L, "history-active-title"),
-                    input { r#type: "checkbox", checked: only_active(), onchange: move |e| only_active.set(e.checked()) }
+                    input { r#type: "checkbox", checked: only_active(), onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| only_active.set(e.checked()) )}
                     {t!(ws, L, "history-active")}
                 }
             }
@@ -265,13 +265,13 @@ fn HistoryPanel(ws: Workspace, state: HistoryState) -> Element {
                                     div { class: "mk-history-key",
                                         span { class: "mk-muted", "{key}" }
                                         if has_text {
-                                            button { class: "mk-btn mk-btn-mini", title: "Open the text as it was after this event", onclick: move |_| {
+                                            button { class: "mk-btn mk-btn-mini", title: "Open the text as it was after this event", onclick: moonkale_ext_api::crash::event(move |_| {
                                                 let Some(n) = node else { return };
                                                 if !state.views.peek().iter().any(|(x, _, _)| *x == ev_id) {
                                                     state.views.with_mut(|v| v.push((ev_id, n, key2.clone())));
                                                 }
                                                 ws.dispatch(Command::ShowPanel(Box::leak(format!("{VIEW_PREFIX}{ev_id}").into_boxed_str())));
-                                            }, {t!(ws, L, "history-text")} }
+                                            }), {t!(ws, L, "history-text")} }
                                         }
                                     }
                                 }
@@ -309,11 +309,11 @@ fn TextAtPanel(ws: Workspace, state: HistoryState, event: String) -> Element {
                 if same { span { class: "mk-muted", {t!(ws, L, "history-identical")} } }
                 span { class: "mk-history-spacer" }
                 if text.is_some() && !same {
-                    button { class: "mk-btn mk-btn-mini", title: t!(ws, L, "history-restore-title"), onclick: move |_| {
-                        spawn(async move {
+                    button { class: "mk-btn mk-btn-mini", title: t!(ws, L, "history-restore-title"), onclick: moonkale_ext_api::crash::event(move |_| {
+                        moonkale_ext_api::crash::spawn(async move {
                             if let Err(e) = ws.restore_text_at(node, ev).await { ws.set_status(t!(ws, L, "history-restore-failed", error = e.to_string())); }
                         });
-                    }, {t!(ws, L, "history-restore")} }
+                    }), {t!(ws, L, "history-restore")} }
                 }
             }
             match text {

@@ -170,7 +170,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             }
         }
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let settings = ws.settings.resolved.read();
         let preferences = Preferences {
             wrap: settings.editor.wrap
@@ -215,7 +215,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             .map(|fm| (true, base.snapshot().text[fm.yaml].replace("\r\n", "\n")))
             .unwrap_or_default()
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if !ws.settings.resolved.read().editor.markdown_preview {
             properties_draft.set(None);
             properties_composing.set(false);
@@ -225,7 +225,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
 
     // External changes invalidate local history. The view also follows session
     // changes originating in another mounted panel, without replacing on every render.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let document = doc.read();
         if session.peek().snapshot().text != document.text {
             let canonical = document.text.clone();
@@ -235,7 +235,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             ws.clear_selection(node);
         }
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let revision = session.read().snapshot().revision;
         if model.peek().revision != revision {
             let snapshot = session.peek().snapshot().clone();
@@ -254,7 +254,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     });
 
     let text_revision = use_memo(move || session.read().snapshot().revision);
-    use_resource(move || {
+    moonkale_ext_api::crash::use_resource(move || {
         let revision = text_revision();
         async move {
             futures_timer::Delay::new(std::time::Duration::from_millis(200)).await;
@@ -280,7 +280,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     });
     // Returning to a retained tab must restore the workspace caret/word even
     // when the engine has not moved and no new input event will arrive.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if *ws.docs.active.read() == Some(node) {
             prepare_input.call(());
             publish_selection(ws, node, model, session);
@@ -354,7 +354,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     let rename = crate::native_rename::use_rename(ws, node, manager, model, focus_request);
     let tools = crate::native_lsp_tools::use_tools(ws, node, manager, model, focus_request);
     let mut completion_selected = use_signal(|| 0usize);
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = completion_menu.read();
         completion_selected.set(0);
     });
@@ -441,7 +441,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         if !commit_properties.call(()) {
             return;
         }
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match ws.save(node).await {
                 Ok(()) => last_error.set(None),
                 Err(error) => last_error.set(Some(error.to_string())),
@@ -452,7 +452,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         properties_draft.set(None);
         properties_composing.set(false);
         properties_error.set(None);
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match ws.reload(node).await {
                 Ok(()) => last_error.set(None),
                 Err(error) => last_error.set(Some(error.to_string())),
@@ -460,7 +460,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         });
     });
     use_hook(move || seen_command.set(ws.shell.commands.peek().0));
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let (sequence, command) = *ws.shell.commands.read();
         if sequence <= *seen_command.peek() {
             return;
@@ -515,7 +515,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     && model.peek().language == Some(dioxus_code::Language::Markdown) =>
             {
                 let next = !ws.settings.resolved.peek().editor.markdown_preview;
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     ws.update_user_settings(|file| file.editor.markdown_preview = Some(next))
                         .await;
                 });
@@ -528,7 +528,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     ) =>
             {
                 let next = !ws.settings.resolved.peek().editor.doc_comment_preview;
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next))
                         .await;
                 });
@@ -551,7 +551,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             _ => {}
         }
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let Some(reveal) = *ws.docs.reveal.read() else {
             return;
         };
@@ -636,7 +636,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             "data-editor": "rust",
             "data-selection-anchor": selection.map(|(anchor, _)| anchor.to_string()),
             "data-selection-head": selection.map(|(_, head)| head.to_string()),
-            onkeydown: move |event| {
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 if moonkale_ext_api::keys::primary(&event.modifiers()) {
                     if let Key::Character(key) = event.key() {
                         if key.eq_ignore_ascii_case("f") || key.eq_ignore_ascii_case("h") {
@@ -651,7 +651,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         }
                     }
                 }
-            },
+            }),
             document::Stylesheet { href: PANEL_CSS }
             document::Stylesheet { href: NATIVE_CSS }
             CodeThemeStyles { theme }
@@ -680,19 +680,19 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                     icon: "save", label: t!(ws, L, "editor-save"),
                     shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
                     disabled: !dirty && properties_draft.read().is_none(),
-                    onclick: move |_| save.call(()),
+                    onclick: moonkale_ext_api::crash::event(move |_| save.call(())),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "reload", label: t!(ws, L, "editor-reload"),
                     description: t!(ws, L, "editor-reload-title"),
-                    onclick: move |_| reload.call(()),
+                    onclick: moonkale_ext_api::crash::event(move |_| reload.call(())),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "wrap", label: t!(ws, L, "editor-wrap"),
                     description: t!(ws, L, "editor-wrap-title"),
                     pressed: Some(wrap_on), disabled: preview_on,
                     class: "mk-native-wrap".to_string(),
-                    onclick: move |_| crate::panel::toggle_wrap(ws),
+                    onclick: moonkale_ext_api::crash::event(move |_| crate::panel::toggle_wrap(ws)),
                 }
                 NativeToolbarMenu { label: t!(ws, L, "editor-more"),
                 moonkale_ext_api::icons::PanelSettingsButton {}
@@ -701,59 +701,59 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                         class: if preview_on { "mk-btn mk-btn-on mk-native-preview" } else { "mk-btn mk-native-preview" },
                         aria_pressed: preview_on.to_string(),
                         title: t!(ws, L, "editor-preview-title"),
-                        onclick: move |_| {
+                        onclick: moonkale_ext_api::crash::event(move |_| {
                             let next = !ws.settings.resolved.peek().editor.markdown_preview;
-                            dioxus::core::spawn_forever(async move {
+                            moonkale_ext_api::crash::spawn_forever(async move {
                                 ws.update_user_settings(|file| file.editor.markdown_preview = Some(next)).await;
                             });
                             focus_request.with_mut(|value| *value += 1);
-                        },
+                        }),
                         {t!(ws, L, "editor-preview")}
                     }
                 }
                 if cfg!(feature = "markdown-preview") && matches!(language.map(|language| language.slug()), Some("rust" | "python" | "julia")) {
                     button { class: if editor_settings.doc_comment_preview { "mk-btn mk-btn-on mk-native-doc-preview" } else { "mk-btn mk-native-doc-preview" },
                         aria_pressed: editor_settings.doc_comment_preview.to_string(), title: t!(ws, L, "editor-doc-preview-title"),
-                        onclick: move |_| {
+                        onclick: moonkale_ext_api::crash::event(move |_| {
                             let next = !ws.settings.resolved.peek().editor.doc_comment_preview;
-                            spawn(async move { ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next)).await; });
+                            moonkale_ext_api::crash::spawn(async move { ws.update_user_settings(|file| file.editor.doc_comment_preview = Some(next)).await; });
                             focus_request.with_mut(|value| *value += 1);
-                        }, {t!(ws, L, "editor-doc-preview")}
+                        }), {t!(ws, L, "editor-doc-preview")}
                     }
                 }
                 button {
                     class: "mk-btn mk-native-show-hover",
                     title: t!(ws, L, "editor-hover"),
-                    onclick: move |_| {
+                    onclick: moonkale_ext_api::crash::event(move |_| {
                         let caret = model.peek().engine.get_cursor_state().position;
                         hover_target.set(Some((caret.line, caret.column)));
-                    },
+                    }),
                     {t!(ws, L, "editor-hover")}
                 }
-                button { class: "mk-btn mk-native-complete", title: format!("{} ({}+Space)", t!(ws, L, "editor-completion"), moonkale_ext_api::keys::primary_name()), onclick: move |_| { hover_target.set(None); complete.call(()); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-completion")} " (" {moonkale_ext_api::keys::primary_name()} "+Space)" }
-                button { class: "mk-btn mk-native-definition", title: t!(ws, L, "editor-definition"), onclick: move |_| { hover_target.set(None); close_completion.call(()); tools.dismiss.call(()); rename.dismiss.call(()); definition.call(()); }, {t!(ws, L, "editor-definition")} }
-                button { class: "mk-btn mk-native-rename", title: t!(ws, L, "editor-rename-shortcut"), onclick: move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); tools.dismiss.call(()); rename.invoke.call(()); }, {t!(ws, L, "editor-rename-shortcut")} }
-                button { class:"mk-btn mk-native-code-actions", title:actions_label.clone(), onclick:move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.actions.call(()); }, "{actions_label}" }
-                button { class:"mk-btn mk-native-find-references", title:t!(ws,L,"editor-references-shortcut"), onclick:move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.references.call(()); }, {t!(ws,L,"editor-references-shortcut")} }
+                button { class: "mk-btn mk-native-complete", title: format!("{} ({}+Space)", t!(ws, L, "editor-completion"), moonkale_ext_api::keys::primary_name()), onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); complete.call(()); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-completion")} " (" {moonkale_ext_api::keys::primary_name()} "+Space)" }
+                button { class: "mk-btn mk-native-definition", title: t!(ws, L, "editor-definition"), onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); tools.dismiss.call(()); rename.dismiss.call(()); definition.call(()); }), {t!(ws, L, "editor-definition")} }
+                button { class: "mk-btn mk-native-rename", title: t!(ws, L, "editor-rename-shortcut"), onclick: moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); tools.dismiss.call(()); rename.invoke.call(()); }), {t!(ws, L, "editor-rename-shortcut")} }
+                button { class:"mk-btn mk-native-code-actions", title:actions_label.clone(), onclick:moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.actions.call(()); }), "{actions_label}" }
+                button { class:"mk-btn mk-native-find-references", title:t!(ws,L,"editor-references-shortcut"), onclick:moonkale_ext_api::crash::event(move |_| { hover_target.set(None); close_completion.call(()); cancel_definition.call(()); rename.dismiss.call(()); tools.references.call(()); }), {t!(ws,L,"editor-references-shortcut")} }
                 if comments(model.read().language).is_some() {
                     button { class: "mk-btn mk-native-comment",
                         title: format!("{} ({}+/)", t!(ws, L, "editor-toggle-comment"), moonkale_ext_api::keys::primary_name()),
-                        onclick: move |_| { toggle_comment.call(()); focus_request.with_mut(|value| *value += 1); },
+                        onclick: moonkale_ext_api::crash::event(move |_| { toggle_comment.call(()); focus_request.with_mut(|value| *value += 1); }),
                         {t!(ws, L, "editor-toggle-comment")} " (" {moonkale_ext_api::keys::primary_name()} "+/)"
                     }
                 }
                 if !model.read().structure.folds.is_empty() {
-                    button { class: "mk-btn mk-native-fold-all", onclick: move |_| { fold.call((None, true)); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-fold-all")} }
-                    button { class: "mk-btn mk-native-unfold-all", onclick: move |_| { fold.call((None, false)); focus_request.with_mut(|value| *value += 1); }, {t!(ws, L, "editor-unfold-all")} }
+                    button { class: "mk-btn mk-native-fold-all", onclick: moonkale_ext_api::crash::event(move |_| { fold.call((None, true)); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-fold-all")} }
+                    button { class: "mk-btn mk-native-unfold-all", onclick: moonkale_ext_api::crash::event(move |_| { fold.call((None, false)); focus_request.with_mut(|value| *value += 1); }), {t!(ws, L, "editor-unfold-all")} }
                 }
                 if codemirror_on {
                     button {
                         class: "mk-btn mk-editor-switch",
                         title: t!(ws, L, "editor-to-codemirror"),
-                        onclick: move |_| {
+                        onclick: moonkale_ext_api::crash::event(move |_| {
                             let mut ws = ws;
                             ws.choose_editor(node, "codemirror");
-                        },
+                        }),
                         "CodeMirror"
                     }
                 }
@@ -781,22 +781,22 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 div { class: "mk-editor-bar mk-editor-error", "{error}" }
             }
             if let Some(replacing) = search_mode() {
-                crate::native_search::NativeSearch { ws, model, first_row, highlights, onchange: changed, replacing, onclose: move |_| { search_mode.set(None); focus_request.with_mut(|value| *value += 1); } }
+                crate::native_search::NativeSearch { ws, model, first_row, highlights, onchange: moonkale_ext_api::crash::event(move |value| changed.call(value)), replacing, onclose: move |_| { search_mode.set(None); focus_request.with_mut(|value| *value += 1); } }
             }
             if !diagnostics.read().is_empty() {
                 div { class: "mk-native-diagnostics", role: "region", aria_label: t!(ws, L, "editor-diagnostics"),
                     for diagnostic in diagnostics.read().iter() {
                         button {
                             class: "mk-native-diagnostic-message mk-native-diagnostic-{diagnostic.severity}",
-                            onclick: {
+                            onclick: moonkale_ext_api::crash::event({
                                 let line = diagnostic.line;
                                 let col = diagnostic.col;
                                 move |_| {
                                     let target = doc.peek().node.clone();
                                     focus_request.with_mut(|value| *value += 1);
-                                    spawn(async move { let _ = ws.reveal(target, line, col).await; });
+                                    moonkale_ext_api::crash::spawn(async move { let _ = ws.reveal(target, line, col).await; });
                                 }
-                            },
+                            }),
                             "{diagnostic.line + 1}:{diagnostic.col + 1} — {diagnostic.message}"
                         }
                     }
@@ -837,7 +837,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 horizontal_displacement,
                 source_anchor,
                 run_heights,
-                onchange: changed,
+                onchange: moonkale_ext_api::crash::event(move |value| changed.call(value)),
                 onprepare: prepare_input,
                 onhistory: history,
                 focus_request,
@@ -895,30 +895,30 @@ fn NativeToolbarMenu(label: String, children: Element) -> Element {
     let mut trigger = use_signal(|| None::<std::rc::Rc<MountedData>>);
     rsx! {
         details { class: "mk-native-more", open: open(),
-            onkeydown: move |event| {
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 if event.key() == Key::Escape {
                     event.prevent_default();
                     event.stop_propagation();
                     open.set(false);
                     if let Some(target) = trigger.peek().clone() {
-                        spawn(async move { let _ = target.set_focus(true).await; });
+                        moonkale_ext_api::crash::spawn(async move { let _ = target.set_focus(true).await; });
                     }
                 }
-            },
+            }),
             summary { class: "mk-btn mk-icon-btn", title: "{label}", aria_expanded: open().to_string(),
-                onmounted: move |event| trigger.set(Some(event.data())),
-                onclick: move |event| { event.prevent_default(); open.toggle(); },
+                onmounted: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MountedEvent| trigger.set(Some(event.data()))),
+                onclick: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| { event.prevent_default(); open.toggle(); }),
                 moonkale_ext_api::icons::Icon { name: "more" }
                 span { class: "mk-sr-only", "{label}" }
             }
-            div { class: "mk-native-more-items", onclick: move |_| {
+            div { class: "mk-native-more-items", onclick: moonkale_ext_api::crash::event(move |_| {
                 open.set(false);
                 // The activated command is now hidden. Keep the next Tab
                 // anchored to the toolbar; mounted dialogs can take focus next.
                 if let Some(target) = trigger.peek().clone() {
-                    spawn(async move { let _ = target.set_focus(true).await; });
+                    moonkale_ext_api::crash::spawn(async move { let _ = target.set_focus(true).await; });
                 }
-            }, {children} }
+            }), {children} }
         }
     }
 }

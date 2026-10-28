@@ -51,13 +51,13 @@ pub fn LinksPanel(ws: Workspace) -> Element {
     let mut links: Signal<Option<Links>> = use_signal(|| None);
     let mut for_node: Signal<Option<NodeId>> = use_signal(|| None);
 
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let active = *ws.docs.active.read();
         let _epoch = *ws.sources.graph_epoch.read();
         let _sources = ws.sources.open.read().len();
         match active {
             Some(node) => {
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     let l = load(ws, node).await;
                     for_node.set(Some(node));
                     links.set(l);
@@ -106,33 +106,33 @@ fn LinkSection(ws: Workspace, heading: String, nodes: Vec<Node>, empty: String) 
                             li { key: "{node.id}",
                                 class: if phantom { "mk-links-item mk-links-phantom" } else { "mk-links-item" },
                                 title: if phantom { t!(ws, L, "links-unresolved") } else { node.native_key.clone() },
-                                onclick: move |_| {
+                                onclick: moonkale_ext_api::crash::event(move |_| {
                                     let n = n.clone();
                                     if n.kind == NodeKind::File {
-                                        spawn(async move {
+                                        moonkale_ext_api::crash::spawn(async move {
                                             if let Err(e) = ws.open_node(n).await { ws2.set_status(e.to_string()); }
                                         });
                                     } else {
                                         ws2.set_status(t!(ws2, L, "links-missing", name = n.label.clone()));
                                     }
-                                },
+                                }),
                                 span { class: "mk-links-label", "{node.label}" }
                                 if !phantom { span { class: "mk-links-path", "{node.native_key}" } }
                                 if phantom {
                                     // Spec 012: an unresolved link becomes a page next to the linking document.
                                     button { class: "mk-btn mk-links-create", title: t!(ws, L, "links-create-title"),
-                                        onclick: {
+                                        onclick: moonkale_ext_api::crash::event({
                                             let target = node.label.clone();
                                             move |e: MouseEvent| {
                                                 e.stop_propagation();
                                                 let target = target.clone();
-                                                spawn(async move {
+                                                moonkale_ext_api::crash::spawn(async move {
                                                     let Some((_, d)) = ws.active_document() else { return };
                                                     let from = d.peek().node.clone();
                                                     let _ = ws.follow_wiki(&from, &target, true).await;
                                                 });
                                             }
-                                        },
+                                        }),
                                         {t!(ws, L, "links-create")}
                                     }
                                 }

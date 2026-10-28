@@ -7538,6 +7538,7 @@ dependencies = [
  "dioxus-core",
  "dioxus-html",
  "dioxus-workbench",
+ "js-sys",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-lsp",

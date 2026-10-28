@@ -67,7 +67,7 @@ impl Extension for TerminalExtension {
         Some(rsx! {
             label { class: "mk-settings-field", "Shell"
                 input { class: "mk-input", value: "{shell}", placeholder: "$SHELL",
-                    onchange: move |e| { let v = e.value(); ws.update_settings_in(target, move |f| f.terminal.shell = if v.trim().is_empty() { None } else { Some(v) }); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); ws.update_settings_in(target, move |f| f.terminal.shell = if v.trim().is_empty() { None } else { Some(v) }); } )}
             }
         })
     }

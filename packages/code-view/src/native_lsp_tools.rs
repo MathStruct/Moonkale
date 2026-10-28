@@ -157,7 +157,7 @@ pub(crate) fn use_tools(
         }
         current(ws, node, session, &valid_origin, operation, pending)
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if !valid() && operation.peek().is_some() {
             operation.set(None);
             list.set(None);
@@ -270,7 +270,7 @@ pub(crate) fn use_tools(
         }
     });
     let request_origin = origin.clone();
-    let _result = use_resource(move || {
+    let _result = moonkale_ext_api::crash::use_resource(move || {
         let pending = operation();
         let valid_now = valid();
         let origin = request_origin.clone();
@@ -465,7 +465,7 @@ pub(crate) fn ToolsMenu(ws: Workspace, node: NodeId, mut tools: Tools) -> Elemen
         .unwrap_or_default();
     let nodes = use_hook(|| Rc::new(RefCell::new(HashMap::<usize, Rc<MountedData>>::new())));
     let focus_nodes = nodes.clone();
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let active = tools.operation.read().is_some();
         let selected = (tools.selected)();
         let ready = tools.list.read().is_some();
@@ -474,7 +474,7 @@ pub(crate) fn ToolsMenu(ws: Workspace, node: NodeId, mut tools: Tools) -> Elemen
             return;
         }
         if let Some(element) = focus_nodes.borrow().get(&selected).cloned() {
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let _ = element.set_focus(true).await;
                 let _ = element
                     .scroll_to_with_options(ScrollToOptions {
@@ -534,7 +534,7 @@ pub(crate) fn ToolsMenu(ws: Workspace, node: NodeId, mut tools: Tools) -> Elemen
     let serial = operation.request.serial;
     rsx! {
         div { class: if references {"mk-editor-bar mk-native-tools mk-native-references"} else {"mk-editor-bar mk-native-tools mk-native-actions"}, role:"region", aria_label:"{label}", aria_busy: "{list.is_none()}", "data-count":"{row_count}",
-            onkeydown: move |event| {
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 event.stop_propagation();
                 match event.key() {
                     Key::Escape => { event.prevent_default(); tools.cancel.call(()); }
@@ -546,14 +546,14 @@ pub(crate) fn ToolsMenu(ws: Workspace, node: NodeId, mut tools: Tools) -> Elemen
                     }
                     _ => {}
                 }
-            },
-            div { class:"mk-native-tools-header", span { "{label}" } button { class:"mk-btn", onclick:move |_| tools.cancel.call(()), {t!(ws,L,"editor-cancel")} } }
+            }),
+            div { class:"mk-native-tools-header", span { "{label}" } button { class:"mk-btn", onclick:moonkale_ext_api::crash::event(move |_| tools.cancel.call(())), {t!(ws,L,"editor-cancel")} } }
             if list.is_none() { span { {t!(ws,L,"editor-tools-loading")} } }
             else if row_count == 0 { span { if references { {t!(ws,L,"editor-references",n=0)} } else { {t!(ws,L,"editor-no-actions")} } } }
             for (index,(label,detail,disabled)) in rows.into_iter().enumerate() {
                 button { key:"{serial}-{index}", class:if index==(tools.selected)() {"mk-native-tool-item mk-native-tool-selected"} else {"mk-native-tool-item"}, title:"{detail}", disabled, tabindex:if index==(tools.selected)() {"0"} else {"-1"},
-                    onmounted:{let nodes=nodes.clone(); move |event| { let element=event.data(); nodes.borrow_mut().insert(index,element.clone()); if index==(tools.selected)() && !disabled { spawn(async move {let _=element.set_focus(true).await;});} }},
-                    onclick:move |_| tools.choose.call((serial,index)), "{label}"
+                    onmounted:moonkale_ext_api::crash::event({let nodes=nodes.clone(); move |event: dioxus::prelude::MountedEvent| { let element=event.data(); nodes.borrow_mut().insert(index,element.clone()); if index==(tools.selected)() && !disabled { moonkale_ext_api::crash::spawn(async move {let _=element.set_focus(true).await;});} }}),
+                    onclick:moonkale_ext_api::crash::event(move |_| tools.choose.call((serial,index))), "{label}"
                     if disabled { span { class:"mk-muted", " · {detail}" } }
                 }
             }

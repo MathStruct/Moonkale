@@ -33,7 +33,7 @@ pub fn TypstPreviewPanel(ws: Workspace) -> Element {
     let mut pending: Signal<Option<(String, String, String)>> = use_signal(|| None);
 
     // Read the active Typst document's text reactively and request a compile.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let Some(compile) = ws.compile_typst() else {
             return;
         };
@@ -60,7 +60,7 @@ pub fn TypstPreviewPanel(ws: Workspace) -> Element {
             return;
         }
         busy.set(true);
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let mut job = (root, rel, text);
             loop {
                 let out = compile(job.0.clone(), job.1.clone(), job.2.clone()).await;

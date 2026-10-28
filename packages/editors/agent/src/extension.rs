@@ -70,16 +70,16 @@ impl Extension for AgentExtension {
             label { class: "mk-settings-check",
                 title: if target == SettingsTarget::Workspace { t!(ws, L, "agent-allow-writes-folder") } else { String::new() },
                 input { r#type: "checkbox", checked: allow_writes, disabled: target == SettingsTarget::Workspace,
-                    onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.policy.allow_writes = Some(v)); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.checked(); ws.update_settings_in(target, move |f| f.policy.allow_writes = Some(v)); } )}
                 {t!(ws, L, "agent-allow-writes")}
             }
             label { class: "mk-settings-field", "Denied tools"
                 input { class: "mk-input", value: "{denied}", placeholder: "comma-separated tool names",
-                    onchange: move |e| { let v: Vec<String> = e.value().split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(); ws.update_settings_in(target, move |f| f.policy.denied_tools = Some(v)); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v: Vec<String> = e.value().split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(); ws.update_settings_in(target, move |f| f.policy.denied_tools = Some(v)); } )}
             }
             label { class: "mk-settings-check",
                 input { r#type: "checkbox", checked: on_server,
-                    onchange: move |e| { let v = e.checked(); ws.update_settings_in(target, move |f| f.agent.on_server = Some(v)); } }
+                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.checked(); ws.update_settings_in(target, move |f| f.agent.on_server = Some(v)); } )}
                 {t!(ws, L, "agent-on-server")}
             }
             p { class: "mk-muted", "The saved agents (language models, keys) are under Settings → Agents; each session picks one." }

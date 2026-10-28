@@ -22,6 +22,17 @@ use std::sync::{Arc, OnceLock};
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
+    let startup_store = moonkale_llm::secrets::config_dir()
+        .and_then(|dir| {
+            std::fs::create_dir_all(&dir).ok()?;
+            moonkale_state_stores::SqliteStore::open_with(
+                &dir.join("state.sqlite"),
+                moonkale_state::Durability::Relaxed,
+            )
+            .ok()
+        })
+        .map(|store| Arc::new(store) as moonkale_shell::crash::StartupStore);
+    moonkale_shell::crash::native_startup(startup_store);
     #[cfg(all(feature = "desktop", target_os = "linux"))]
     webkit_graphics_env();
     // Milestone 11: server functions always go to a loopback relay of our

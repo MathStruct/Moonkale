@@ -121,7 +121,7 @@ async fn config(ws: Workspace, source: SourceId, epoch: u64, cache: Shared) -> R
             state.config_pending.insert(key.clone(), slot.clone());
             let result = slot.clone();
             let cache = cache.clone();
-            dioxus::core::spawn_forever(async move {
+            moonkale_ext_api::crash::spawn_forever(async move {
                 let text=async {
                     let source=handle?;
                     let node=source.query(Query::Text{dialect:"path".into(),text:".moonkale/katex.json".into()}).await.ok()?.nodes.into_iter().next()?;
@@ -163,7 +163,7 @@ async fn render(key: Key, config: Rc<Config>, cache: Shared) -> Rc<Rendered> {
             state.pending.insert(key.clone(), slot.clone());
             let result = slot.clone();
             let cache = cache.clone();
-            dioxus::core::spawn_forever(async move {
+            moonkale_ext_api::crash::spawn_forever(async move {
                 let mut eval = document::eval(include_str!("native_math_render.js"));
                 let request = serde_json::json!({"url":KATEX_RENDERER.to_string(),"tex":key.math.tex,"display":key.math.display,"macros":config.macros});
                 let reply = if eval.send(request).is_ok() {
@@ -215,7 +215,7 @@ pub(crate) fn MathView(
             .map(|doc| doc.read().node.source.clone())
     });
     let config_cache = cache.clone();
-    let settings = use_resource(move || {
+    let settings = moonkale_ext_api::crash::use_resource(move || {
         let source = origin();
         let visible = visible();
         let epoch = context.map_or(0, |context| *context.ws.sources.graph_epoch.read());
@@ -229,7 +229,7 @@ pub(crate) fn MathView(
         }
     });
     let configuration = use_memo(move || settings.read().as_ref().and_then(Clone::clone));
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if configuration().is_some_and(|config| config.error) {
             if let Some(context) = context {
                 let mut ws = context.ws;
@@ -244,7 +244,7 @@ pub(crate) fn MathView(
             macros: configuration()?.fingerprint.clone(),
         })
     });
-    let rendering = use_resource(move || {
+    let rendering = moonkale_ext_api::crash::use_resource(move || {
         let key = wanted();
         let config = configuration();
         let cache = cache.clone();
@@ -262,7 +262,7 @@ pub(crate) fn MathView(
             .filter(|(key, _)| Some(key) == wanted.as_ref())
             .cloned()
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = wanted();
         let _ = output();
         onlayout.call(());
@@ -279,10 +279,10 @@ pub(crate) fn MathView(
     rsx! {
         moonkale_ext_api::StylesheetUrl {href:format!("{KATEX_DIR}/katex.min.css")}
         span {class:"mk-math-owner",class:if math().display {"mk-math-display"},class:if error {"mk-math-error"},"data-math-owner":identity(),title,
-            onmounted:move|event|{spawn(async move {if event.data().get_client_rect().await.is_ok_and(|rect|rect.size.width>0.0&&rect.size.height>0.0){visible.set(true);}});},
-            onresize:move|event|{if let Ok(size)=event.data().get_border_box_size(){visible.set(size.width>0.0&&size.height>0.0);}},
-            onscroll:move|event|{event.stop_propagation();onlayout.call(());},
-            onmousedown:move|event|{if math().display {event.stop_propagation();onpointer.call((identity(),event));}},
+            onmounted:moonkale_ext_api::crash::event(move|event: dioxus::prelude::MountedEvent|{moonkale_ext_api::crash::spawn(async move {if event.data().get_client_rect().await.is_ok_and(|rect|rect.size.width>0.0&&rect.size.height>0.0){visible.set(true);}});}),
+            onresize:moonkale_ext_api::crash::event(move|event: dioxus::prelude::ResizeEvent|{if let Ok(size)=event.data().get_border_box_size(){visible.set(size.width>0.0&&size.height>0.0);}}),
+            onscroll:moonkale_ext_api::crash::event(move|event: dioxus::prelude::ScrollEvent|{event.stop_propagation();onlayout.call(());}),
+            onmousedown:moonkale_ext_api::crash::event(move|event: dioxus::prelude::MouseEvent|{if math().display {event.stop_propagation();onpointer.call((identity(),event));}}),
             if let Some(html)=rendered.and_then(|value|value.html.clone()) {span {class:"mk-math-rendered",dangerous_inner_html:html.to_string()}}
             else {"{label}"}
         }

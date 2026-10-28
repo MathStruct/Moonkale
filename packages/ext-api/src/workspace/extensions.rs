@@ -40,6 +40,9 @@ impl Workspace {
         command: &str,
         args: serde_json::Value,
     ) -> Result<String, String> {
+        if *self.crashes.safe.peek() || self.crashes.disabled.peek().contains(ext_id) {
+            return Err("extensions are disabled for this session".into());
+        }
         let w = self
             .config
             .runtimes

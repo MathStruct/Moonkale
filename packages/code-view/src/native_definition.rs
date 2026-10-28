@@ -40,7 +40,7 @@ pub(crate) fn use_definition(
             *ws.docs.active.read(),
         )
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let now = current();
         if request
             .peek()
@@ -84,7 +84,7 @@ pub(crate) fn use_definition(
         }));
     });
     // The resource's dependency changes cancel both protocol and file-loading work.
-    let _result = use_resource(move || {
+    let _result = moonkale_ext_api::crash::use_resource(move || {
         let pending = request();
         let now = current();
         let origin = origin.clone();

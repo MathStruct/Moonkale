@@ -197,11 +197,11 @@ pub(crate) fn NativeSearch(
             },
         }
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = revision();
         current.set(None);
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let found = matches.read();
         let active = current().filter(|range| found.matches.iter().any(|hit| hit.range == *range));
         let next = SearchHighlights {
@@ -308,24 +308,24 @@ pub(crate) fn NativeSearch(
     drop(found);
     rsx! {
         div { class: "mk-editor-bar mk-native-search", role: "search",
-            onkeydown: move |event| { if event.key() == Key::Escape { event.prevent_default(); event.stop_propagation(); onclose.call(()); } },
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| { if event.key() == Key::Escape { event.prevent_default(); event.stop_propagation(); onclose.call(()); } }),
             input { class: "mk-search-query", value: query, aria_label: t!(ws, L, "editor-find"), placeholder: t!(ws, L, "editor-find"), aria_invalid: error.is_some().to_string(),
-                onmounted: move |event| { spawn(async move { let _ = event.data().set_focus(true).await; }); },
-                oninput: move |event| { query.set(event.value()); current.set(None); },
-                onkeydown: move |event| { if event.key() == Key::Enter { event.prevent_default(); navigate.call(event.modifiers().shift()); } },
+                onmounted: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = event.data().set_focus(true).await; }); }),
+                oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { query.set(event.value()); current.set(None); }),
+                onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| { if event.key() == Key::Enter { event.prevent_default(); navigate.call(event.modifiers().shift()); } }),
             }
-            label { input { r#type: "checkbox", checked: options().case_sensitive, onchange: move |event| { options.with_mut(|options| options.case_sensitive = event.checked()); current.set(None); } } {t!(ws, L, "editor-match-case")} }
-            label { input { r#type: "checkbox", checked: options().whole_word, onchange: move |event| { options.with_mut(|options| options.whole_word = event.checked()); current.set(None); } } {t!(ws, L, "editor-whole-word")} }
-            label { input { class: "mk-search-regex", r#type: "checkbox", checked: options().regex, onchange: move |event| { options.with_mut(|options| options.regex = event.checked()); current.set(None); } } {t!(ws, L, "editor-search-regex")} }
+            label { input { r#type: "checkbox", checked: options().case_sensitive, onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { options.with_mut(|options| options.case_sensitive = event.checked()); current.set(None); } )} {t!(ws, L, "editor-match-case")} }
+            label { input { r#type: "checkbox", checked: options().whole_word, onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { options.with_mut(|options| options.whole_word = event.checked()); current.set(None); } )} {t!(ws, L, "editor-whole-word")} }
+            label { input { class: "mk-search-regex", r#type: "checkbox", checked: options().regex, onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { options.with_mut(|options| options.regex = event.checked()); current.set(None); } )} {t!(ws, L, "editor-search-regex")} }
             span { class: "mk-search-count", aria_live: "polite", "data-current": "{index}", "data-total": "{total}", {t!(ws, L, "editor-search-count", current = index.to_string(), total = total.to_string())} }
-            button { class: "mk-btn", disabled: total == 0, onclick: move |_| navigate.call(true), {t!(ws, L, "editor-find-previous")} }
-            button { class: "mk-btn", disabled: total == 0, onclick: move |_| navigate.call(false), {t!(ws, L, "editor-find-next")} }
+            button { class: "mk-btn", disabled: total == 0, onclick: moonkale_ext_api::crash::event(move |_| navigate.call(true)), {t!(ws, L, "editor-find-previous")} }
+            button { class: "mk-btn", disabled: total == 0, onclick: moonkale_ext_api::crash::event(move |_| navigate.call(false)), {t!(ws, L, "editor-find-next")} }
             if replacing {
-                input { class: "mk-search-replacement", value: inserted, aria_label: t!(ws, L, "editor-replace"), placeholder: t!(ws, L, "editor-replace"), title: if options().regex { t!(ws, L, "editor-search-captures-help") } else { String::new() }, oninput: move |event| inserted.set(event.value()) }
-                button { class: "mk-btn", disabled: total == 0, onclick: move |_| replace.call(false), {t!(ws, L, "editor-replace")} }
-                button { class: "mk-btn", disabled: total == 0, onclick: move |_| replace.call(true), {t!(ws, L, "editor-replace-all")} }
+                input { class: "mk-search-replacement", value: inserted, aria_label: t!(ws, L, "editor-replace"), placeholder: t!(ws, L, "editor-replace"), title: if options().regex { t!(ws, L, "editor-search-captures-help") } else { String::new() }, oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| inserted.set(event.value()) )}
+                button { class: "mk-btn", disabled: total == 0, onclick: moonkale_ext_api::crash::event(move |_| replace.call(false)), {t!(ws, L, "editor-replace")} }
+                button { class: "mk-btn", disabled: total == 0, onclick: moonkale_ext_api::crash::event(move |_| replace.call(true)), {t!(ws, L, "editor-replace-all")} }
             }
-            button { class: "mk-btn", onclick: move |_| onclose.call(()), {t!(ws, L, "editor-cancel")} }
+            button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| onclose.call(())), {t!(ws, L, "editor-cancel")} }
             if let Some(ref error) = error { div { class: "mk-search-error", role: "alert", {t!(ws, L, "editor-search-invalid", error = error.clone())} } }
         }
     }

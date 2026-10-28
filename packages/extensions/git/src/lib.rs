@@ -142,7 +142,7 @@ impl Extension for GitExtension {
             }
             "git.history" => {
                 let state = self.state;
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     panel::show_history(ws, state).await;
                 });
             }

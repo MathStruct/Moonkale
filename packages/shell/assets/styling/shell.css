@@ -151,3 +151,6 @@
 .mk-panel-settings-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
 .mk-panel-settings-all { align-self: flex-start; }
 .mk-panel-settings:focus { outline: none; }
+
+.mk-crash-notice { padding: 8px; background: var(--wb-surface); color: var(--wb-ink); }
+.mk-crash-overlay { position: fixed; inset: 0; z-index: 100000; padding: 10vh 10vw; background: var(--wb-surface); color: var(--wb-ink); }

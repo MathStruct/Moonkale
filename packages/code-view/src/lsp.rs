@@ -148,7 +148,7 @@ impl LspManager {
 
     fn listen_commands(self, mut ws: Workspace) {
         let mut last = ws.shell.commands.peek().0;
-        dioxus::core::spawn_forever(async move {
+        moonkale_ext_api::crash::spawn_forever(async move {
             let (context, mut changed) = dioxus::core::ReactiveContext::new();
             loop {
                 let command = context.reset_and_run_in(|| *ws.shell.commands.read());
@@ -233,7 +233,7 @@ impl LspManager {
     fn schedule_health(mut self, key: String, generation: u64, session: LspSession) {
         let delay = self.healthy_after;
         let health_key = key.clone();
-        let task = dioxus::core::spawn_forever(async move {
+        let task = moonkale_ext_api::crash::spawn_forever(async move {
             futures_timer::Delay::new(delay).await;
             if self.current_generation(&health_key, generation)
                 && self
@@ -297,7 +297,7 @@ impl LspManager {
         }
         let language = language.to_string();
         let root = root.to_string();
-        dioxus::core::spawn_forever(async move {
+        moonkale_ext_api::crash::spawn_forever(async move {
             if let Some(session) = session {
                 session.shutdown(self.shutdown_grace).await;
             }
@@ -506,7 +506,7 @@ impl LspManager {
         });
         let source = node.source.clone();
         let node = node.id;
-        dioxus::core::spawn_forever(async move {
+        moonkale_ext_api::crash::spawn_forever(async move {
             let (context, mut changed) = dioxus::core::ReactiveContext::new();
             loop {
                 let keep = context.reset_and_run_in(|| {
@@ -638,7 +638,7 @@ impl LspManager {
         self.recovery
             .with_mut(|values| values.get_mut(&key).unwrap().waiting = true);
         let retry_key = key.clone();
-        let task = dioxus::core::spawn_forever(async move {
+        let task = moonkale_ext_api::crash::spawn_forever(async move {
             futures_timer::Delay::new(delay).await;
             if !self.current_generation(&retry_key, state.generation) {
                 return;
@@ -713,7 +713,7 @@ impl LspManager {
             // A pane unmount must not cancel shared startup or lose recovery.
             let generation = self.recovery.peek()[&key].generation;
             let startup_key = key.clone();
-            let task = dioxus::core::spawn_forever(async move {
+            let task = moonkale_ext_api::crash::spawn_forever(async move {
                 let result = self.start_attempt(ws, &language, &root, generation).await;
                 if self.current_generation(&startup_key, generation) {
                     self.recovery.with_mut(|states| {
@@ -793,74 +793,78 @@ impl LspManager {
         let closed = Rc::new(std::cell::Cell::new(false));
         let pump_closed = closed.clone();
         let pump_session = session.clone();
-        startup.tasks.push(dioxus::core::spawn_forever(async move {
-            pump_session.pump().await;
-            // EOF can arrive in the same poll as the initialize response,
-            // before the event handler or startup continuation runs.
-            pump_closed.set(true);
-        }));
+        startup
+            .tasks
+            .push(moonkale_ext_api::crash::spawn_forever(async move {
+                pump_session.pump().await;
+                // EOF can arrive in the same poll as the initialize response,
+                // before the event handler or startup continuation runs.
+                pump_closed.set(true);
+            }));
         let lang = language.to_string();
         let event_key = key.clone();
         let event_session = session.clone();
         let root_for_events = root.to_string();
         let event_closed = closed.clone();
-        startup.tasks.push(dioxus::core::spawn_forever(async move {
-            while let Some(ev) = events.next().await {
-                if !this.current_generation(&event_key, generation) {
-                    break;
-                }
-                if this
-                    .sessions
-                    .peek()
-                    .get(&event_key)
-                    .is_some_and(|current| !current.same_connection(&event_session))
-                {
-                    continue;
-                }
-                match ev {
-                    LspEvent::Initialized { server } => ws.processes.lsp_status.set(Some(t!(
-                        ws,
-                        L,
-                        "lsp-ready",
-                        server = server.clone()
-                    ))),
-                    LspEvent::Status(s) => {
-                        ws.processes.lsp_status.set(Some(format!("{lang}: {s}")))
-                    }
-                    LspEvent::Diagnostics {
-                        uri,
-                        version,
-                        diagnostics,
-                    } => {
-                        this.publish_diagnostics(&uri, version, diagnostics);
-                    }
-                    LspEvent::Closed => {
-                        event_closed.set(true);
-                        this.remember_retained(ws, &event_key);
-                        let health = this.recovery.peek()[&event_key].health;
-                        if let Some(task) = health {
-                            task.cancel();
-                        }
-                        this.recovery.with_mut(|states| {
-                            let state = states.get_mut(&event_key).unwrap();
-                            state.health = None;
-                            state.pumps.clear();
-                        });
-                        let initialized = this.close_session(&event_key, &event_session);
-                        if initialized {
-                            this.schedule_retry(ws, lang.clone(), root_for_events.clone());
-                        }
-                        ws.processes.lsp_status.set(Some(t!(
-                            ws,
-                            L,
-                            "lsp-exited",
-                            language = lang.clone()
-                        )));
+        startup
+            .tasks
+            .push(moonkale_ext_api::crash::spawn_forever(async move {
+                while let Some(ev) = events.next().await {
+                    if !this.current_generation(&event_key, generation) {
                         break;
                     }
+                    if this
+                        .sessions
+                        .peek()
+                        .get(&event_key)
+                        .is_some_and(|current| !current.same_connection(&event_session))
+                    {
+                        continue;
+                    }
+                    match ev {
+                        LspEvent::Initialized { server } => ws.processes.lsp_status.set(Some(t!(
+                            ws,
+                            L,
+                            "lsp-ready",
+                            server = server.clone()
+                        ))),
+                        LspEvent::Status(s) => {
+                            ws.processes.lsp_status.set(Some(format!("{lang}: {s}")))
+                        }
+                        LspEvent::Diagnostics {
+                            uri,
+                            version,
+                            diagnostics,
+                        } => {
+                            this.publish_diagnostics(&uri, version, diagnostics);
+                        }
+                        LspEvent::Closed => {
+                            event_closed.set(true);
+                            this.remember_retained(ws, &event_key);
+                            let health = this.recovery.peek()[&event_key].health;
+                            if let Some(task) = health {
+                                task.cancel();
+                            }
+                            this.recovery.with_mut(|states| {
+                                let state = states.get_mut(&event_key).unwrap();
+                                state.health = None;
+                                state.pumps.clear();
+                            });
+                            let initialized = this.close_session(&event_key, &event_session);
+                            if initialized {
+                                this.schedule_retry(ws, lang.clone(), root_for_events.clone());
+                            }
+                            ws.processes.lsp_status.set(Some(t!(
+                                ws,
+                                L,
+                                "lsp-exited",
+                                language = lang.clone()
+                            )));
+                            break;
+                        }
+                    }
                 }
-            }
-        }));
+            }));
         match startup_timeout(session.initialize(root)).await {
             Some(Ok(_))
                 if session.is_initialized()
@@ -937,7 +941,7 @@ pub(crate) fn use_document(
             manager.close_connection(&uri, &session);
         }
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = retry();
         let Some((language, root, uri)) = identity.clone() else {
             return;
@@ -963,7 +967,7 @@ pub(crate) fn use_document(
         let lease = lease.clone();
         let pending = pending.clone();
         let alive = alive.clone();
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let session = manager.ensure(ws, &language, &root).await;
             pending.set(false);
             if !alive.get() {
@@ -1413,7 +1417,7 @@ mod ownership_tests {
             (h.manager.unwrap(), h.ws.unwrap())
         });
         dom.in_scope(ScopeId::ROOT, || {
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 manager.ensure(ws, "rust", "/other").await;
             });
         });
@@ -1644,7 +1648,7 @@ mod ownership_tests {
             dom.in_scope(ScopeId::ROOT, || {
                 show.set(true);
                 pulse += 1;
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     assert!(manager.ensure(ws, "markdown", "/project").await.is_none());
                 });
             });

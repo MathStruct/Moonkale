@@ -129,7 +129,7 @@ pub(crate) fn ProportionalRun(
             measurement_status.set("measuring".to_string());
             let id = id.clone();
             let requests = requests.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let result =
                     native_browser_geometry::measure_presented(&id, &source, &replacements).await;
                 if delay > 0 {
@@ -174,7 +174,7 @@ pub(crate) fn ProportionalRun(
             });
         })
     };
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = current();
         measure.call(());
     });
@@ -305,7 +305,7 @@ pub(crate) fn ProportionalRun(
             })
             .unwrap_or_default()
     });
-    use_effect(use_reactive!(|stamp, caret| {
+    moonkale_ext_api::crash::use_effect(use_reactive!(|stamp, caret| {
         if let Some((_, y, height)) = caret {
             oncaret.call((stamp, y, height));
         }
@@ -330,12 +330,12 @@ pub(crate) fn ProportionalRun(
             div {
                 id, class: "mk-proportional-text",
                 style: if stamp.presentation.provider==3 {format!("font:14px/22px var(--mk-code-font, monospace); white-space:{}; overflow-wrap:{}; tab-size:4; min-height:22px; direction:ltr; user-select:none;",if stamp.model.peek().preferences.wrap {"pre-wrap"}else{"pre"},if stamp.model.peek().preferences.wrap {"anywhere"}else{"normal"})} else {"font:24px/32px serif; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:4; min-height:32px; direction:ltr; user-select:none;".to_string()},
-                onmounted: move |_| {
+                onmounted: moonkale_ext_api::crash::event(move |_| {
                     measure.call(());
                     let id = resize_id.clone();
-                    spawn(async move { native_browser_geometry::watch_resize(&id,resized).await; });
-                },
-                onmousedown: move |event| {
+                    moonkale_ext_api::crash::spawn(async move { native_browser_geometry::watch_resize(&id,resized).await; });
+                }),
+                onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                     if let Some(hover)=wiki_hover {hover.dismiss();}
                     if geometry.as_ref().and_then(|value|value.link_at(event.element_coordinates().x,event.element_coordinates().y)).is_some_and(|id|id.starts_with("math-scroll:")) {return;}
                     event.prevent_default();
@@ -365,9 +365,9 @@ pub(crate) fn ProportionalRun(
                             });
                         }
                     }
-                },
-                onmouseleave:move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}},
-                onmousemove: move |event| {
+                }),
+                onmouseleave:moonkale_ext_api::crash::event(move |_|{if let Some(hover)=wiki_hover {hover.leave_text();}}),
+                onmousemove: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                     if let Some(hover)=wiki_hover {
                         let request=if ready && stamp.model.peek().revision==stamp.revision && !dragging() {
                             move_geometry.as_ref().and_then(|value|value.link_at(event.element_coordinates().x,event.element_coordinates().y)).and_then(|id|preview_targets(&hover_replacements).into_iter().find(|(key,target)|key==id&&matches!(target,crate::native_links::Target::Wiki{..}))).map(|(id,target)|crate::native_wiki_hover::Request{revision:stamp.revision,identity:format!("preview:{}:{id}",stamp.start),target})
@@ -385,7 +385,7 @@ pub(crate) fn ProportionalRun(
                             }
                         }
                     }
-                },
+                }),
                 for (index, ch) in text.chars().enumerate() {
                     if let Some(replacement) = replacements.iter().find(|value| value.start==index) {
                         span {
@@ -688,7 +688,7 @@ fn CalloutView(
 ) -> Element {
     let mut open = use_signal(|| callout.fold.unwrap_or(true));
     let expanded = callout.fold.is_none() || open();
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = open();
         onlayout.call(());
     });
@@ -697,10 +697,10 @@ fn CalloutView(
             div {class:"mk-callout-title",
                 if callout.fold.is_some() {
                     button {class:"mk-callout-toggle", r#type:"button", "aria-expanded":expanded.to_string(), "aria-label":callout.fragments[callout.title.clone()].iter().map(|f|f.text.as_str()).collect::<String>(),
-                        onmousedown:move |event|{event.prevent_default();event.stop_propagation();},
-                        onkeydown:move |event|{if !moonkale_ext_api::keys::primary(&event.modifiers()) {event.stop_propagation();}},
-                        onkeyup:move |event|event.stop_propagation(),
-                        onclick:move |event|{event.prevent_default();event.stop_propagation();open.toggle();},
+                        onmousedown:moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent|{event.prevent_default();event.stop_propagation();}),
+                        onkeydown:moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent|{if !moonkale_ext_api::keys::primary(&event.modifiers()) {event.stop_propagation();}}),
+                        onkeyup:moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent|event.stop_propagation()),
+                        onclick:moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent|{event.prevent_default();event.stop_propagation();open.toggle();}),
                     }
                 }
                 for index in callout.title.clone() {

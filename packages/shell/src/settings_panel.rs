@@ -100,7 +100,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
     // Apply a change to the chosen scope's file.
     let apply = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
         let t = *target.peek();
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match t {
                 Target::User => ws.update_user_settings(|file| f(file)).await,
                 Target::Workspace => ws.update_workspace_settings(|file| f(file)).await,
@@ -119,13 +119,13 @@ fn SettingsPanel(ws: Workspace) -> Element {
         div { class: "mk-settings",
             div { class: "mk-settings-toolbar",
                 span { class: "mk-settings-tabs",
-                    button { class: if tab() == "form" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| tab.set("form"), {t!(ws, L, "settings-form")} }
-                    button { class: if tab() == "json" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| tab.set("json"), "JSON" }
+                    button { class: if tab() == "form" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| tab.set("form")), {t!(ws, L, "settings-form")} }
+                    button { class: if tab() == "json" { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| tab.set("json")), "JSON" }
                 }
                 span { class: "mk-settings-spacer" }
                 span { class: "mk-muted", {t!(ws, L, "settings-changes-go-to")} }
-                button { class: if target() == Target::User { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| target.set(Target::User), title: t!(ws, L, "settings-user-title"), {t!(ws, L, "settings-user")} }
-                button { class: if target() == Target::Workspace { "mk-btn mk-btn-on" } else { "mk-btn" }, disabled: !has_workspace, onclick: move |_| target.set(Target::Workspace), title: t!(ws, L, "settings-workspace-title"), {t!(ws, L, "settings-workspace")} }
+                button { class: if target() == Target::User { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| target.set(Target::User)), title: t!(ws, L, "settings-user-title"), {t!(ws, L, "settings-user")} }
+                button { class: if target() == Target::Workspace { "mk-btn mk-btn-on" } else { "mk-btn" }, disabled: !has_workspace, onclick: moonkale_ext_api::crash::event(move |_| target.set(Target::Workspace)), title: t!(ws, L, "settings-workspace-title"), {t!(ws, L, "settings-workspace")} }
             }
             if !store_available {
                 p { class: "mk-settings-note", {t!(ws, L, "settings-not-persisted")} }
@@ -144,23 +144,23 @@ fn SettingsPanel(ws: Workspace) -> Element {
                         AgentProfileCard { key: "{profile.name}", ws, target: target(), profile: profile.clone(), is_default: profile.name == default_agent, only_one: agents.len() == 1 }
                     }
                     div { class: "mk-settings-actions",
-                        button { class: "mk-btn mk-settings-add-agent", onclick: move |_| { let name = next_name.clone(); apply(Box::new(move |f| f.agents.push(AgentProfileFile { name, llm: LlmFile { provider: Some("mock".into()), ..Default::default() } }))); }, {t!(ws, L, "settings-add-agent")} }
+                        button { class: "mk-btn mk-settings-add-agent", onclick: moonkale_ext_api::crash::event(move |_| { let name = next_name.clone(); apply(Box::new(move |f| f.agents.push(AgentProfileFile { name, llm: LlmFile { provider: Some("mock".into()), ..Default::default() } }))); }), {t!(ws, L, "settings-add-agent")} }
                     }
                     if ws.secret_store().is_some() {
                         div { class: "mk-settings-secret",
-                            input { class: "mk-input", placeholder: t!(ws, L, "settings-secret-name"), value: "{secret_name}", oninput: move |e| secret_name.set(e.value()) }
-                            input { class: "mk-input", r#type: "password", placeholder: t!(ws, L, "settings-api-key"), value: "{secret_value}", oninput: move |e| secret_value.set(e.value()) }
-                            button { class: "mk-btn", disabled: secret_name().trim().is_empty(), onclick: move |_| {
+                            input { class: "mk-input", placeholder: t!(ws, L, "settings-secret-name"), value: "{secret_name}", oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| secret_name.set(e.value()) )}
+                            input { class: "mk-input", r#type: "password", placeholder: t!(ws, L, "settings-api-key"), value: "{secret_value}", oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| secret_value.set(e.value()) )}
+                            button { class: "mk-btn", disabled: secret_name().trim().is_empty(), onclick: moonkale_ext_api::crash::event(move |_| {
                                 let name = secret_name.peek().trim().to_string();
                                 let value = secret_value.peek().clone();
                                 let store = ws.secret_store().unwrap();
-                                spawn(async move {
+                                moonkale_ext_api::crash::spawn(async move {
                                     match store(name.clone(), value).await {
                                         Ok(()) => { secret_status.set(t!(ws, L, "settings-secret-stored", name = format!("{name:?}"))); secret_value.set(String::new()); }
                                         Err(e) => secret_status.set(t!(ws, L, "settings-secret-not-stored", error = e)),
                                     }
                                 });
-                            }, {t!(ws, L, "settings-store-secret")} }
+                            }), {t!(ws, L, "settings-store-secret")} }
                             span { class: "mk-muted", "{secret_status}" }
                         }
                     }
@@ -168,21 +168,21 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     h3 { {t!(ws, L, "search-title")} }
                     label { {t!(ws, L, "settings-embedding-model")}
                         input { class: "mk-input", value: "{embed_model}", placeholder: t!(ws, L, "settings-embedding-none"), title: t!(ws, L, "settings-embedding-title"),
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.llm.embed_model = opt(v))); } }
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.llm.embed_model = opt(v))); } )}
                     }
                     label { class: "mk-settings-check",
                         input { r#type: "checkbox", checked: settings.search.embeddings,
-                            onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.search.embeddings = Some(v))); } }
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.checked(); apply(Box::new(move |f| f.search.embeddings = Some(v))); } )}
                         {t!(ws, L, "settings-use-embeddings")}
                     }
 
                     label { {t!(ws, L, "settings-code-graph")}
                         select { class: "mk-input mk-settings-code-graph",
                             value: if settings.code_graph == moonkale_ext_api::settings::CodeGraphSource::InMemory { "in-memory" } else { "auto" },
-                            onchange: move |e| {
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                                 let source = if e.value() == "in-memory" { moonkale_ext_api::settings::CodeGraphSource::InMemory } else { moonkale_ext_api::settings::CodeGraphSource::Auto };
                                 apply(Box::new(move |f| f.code_graph.source = Some(source)));
-                            },
+                            }),
                             option { value: "auto", selected: settings.code_graph == moonkale_ext_api::settings::CodeGraphSource::Auto, {t!(ws, L, "settings-code-auto")} }
                             option { value: "in-memory", selected: settings.code_graph == moonkale_ext_api::settings::CodeGraphSource::InMemory, {t!(ws, L, "status-code-memory")} }
                         }
@@ -194,14 +194,14 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     h3 { {t!(ws, L, "settings-which-extension")} }
                     label { {t!(ws, L, "settings-code-editor")}
                         select { class: "mk-input mk-settings-editor-impl", value: "{editor_impl}",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.editor.implementation = Some(v))); },
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.editor.implementation = Some(v))); }),
                             option { value: "codemirror", selected: editor_impl == "codemirror", {t!(ws, L, "settings-editor-codemirror")} }
                             option { value: "native", selected: editor_impl == "native", {t!(ws, L, "settings-editor-native")} }
                         }
                     }
                     label { {t!(ws, L, "settings-terminal")}
                         select { class: "mk-input mk-settings-terminal-impl", value: "{terminal_impl}",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.terminal.implementation = Some(v))); },
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.terminal.implementation = Some(v))); }),
                             option { value: "ask", selected: terminal_impl == "ask", {t!(ws, L, "settings-terminal-ask")} }
                             option { value: "xterm", selected: terminal_impl == "xterm", {t!(ws, L, "settings-terminal-xterm")} }
                             option { value: "native", selected: terminal_impl == "native", {t!(ws, L, "settings-terminal-native")} }
@@ -212,14 +212,14 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     h3 { {t!(ws, L, "settings-you")} }
                     label { {t!(ws, L, "settings-name")}
                         input { class: "mk-input", value: "{settings.user_name}", placeholder: t!(ws, L, "settings-name-placeholder"),
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.user_name = opt(v))); } }
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.user_name = opt(v))); } )}
                     }
 
                     // Spec 030: the UI language and the theme.
                     h3 { {t!(ws, L, "settings-appearance")} }
                     label { {t!(ws, L, "settings-language")}
                         select { class: "mk-input mk-settings-language", value: "{settings.language}",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.language = opt(v))); },
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.language = opt(v))); }),
                             option { value: "", selected: settings.language.is_empty(), {t!(ws, L, "settings-language-system", lang = ws.settings.system_language.read().clone())} }
                             for (tag, name) in moonkale_ext_api::i18n::LANGUAGES {
                                 option { value: "{tag}", selected: settings.language == *tag, "{name}" }
@@ -228,7 +228,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
                     }
                     label { {t!(ws, L, "settings-theme")}
                         select { class: "mk-input mk-settings-theme", value: "{settings.theme}",
-                            onchange: move |e| { let v = e.value(); apply(Box::new(move |f| f.theme = opt(v))); },
+                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.value(); apply(Box::new(move |f| f.theme = opt(v))); }),
                             option { value: "dark", selected: settings.theme == "dark", {t!(ws, L, "settings-theme-dark")} }
                             option { value: "light", selected: settings.theme == "light", {t!(ws, L, "settings-theme-light")} }
                             option { value: "system", selected: settings.theme == "system", {t!(ws, L, "settings-theme-system")} }
@@ -249,9 +249,9 @@ fn SettingsPanel(ws: Workspace) -> Element {
                                 label { key: "{id}", class: "mk-settings-key",
                                     span { "{entry.title}" if overridden { span { class: "mk-settings-scope", {t!(ws, L, "settings-custom")} } } }
                                     input { class: "mk-input", value: "{bound}", placeholder: t!(ws, L, "settings-unbound"), "data-command": "{id}",
-                                        onchange: {
+                                        onchange: moonkale_ext_api::crash::event({
                                             let id = id.clone();
-                                            move |e| {
+                                            move |e: dioxus::prelude::FormEvent| {
                                                 let v = e.value().trim().to_string();
                                                 let id = id.clone();
                                                 if !v.is_empty() && moonkale_ext_api::Keybinding::parse(&v).is_none() {
@@ -260,7 +260,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
                                                 }
                                                 apply(Box::new(move |f| { f.keybindings.insert(id, v); }));
                                             }
-                                        } }
+                                        } )}
                                 }
                             }
                         }
@@ -320,7 +320,7 @@ fn AgentProfileCard(
     let provider = llm.provider.clone();
     let is_default_profile = name == DEFAULT_AGENT;
     let apply = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match target {
                 Target::User => ws.update_user_settings(|file| f(file)).await,
                 Target::Workspace => ws.update_workspace_settings(|file| f(file)).await,
@@ -354,7 +354,7 @@ fn AgentProfileCard(
                     span { class: "mk-settings-agent-name", "{name}" }
                 } else {
                     input { class: "mk-input mk-settings-agent-name", value: "{name}", title: t!(ws, L, "settings-rename-agent"),
-                        onchange: move |e| {
+                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                             let new = e.value().trim().to_string();
                             let old = n1.clone();
                             if new.is_empty() || new == old || new == DEFAULT_AGENT { return; }
@@ -365,22 +365,22 @@ fn AgentProfileCard(
                                 }
                                 if f.agent.default.as_deref() == Some(old.as_str()) { f.agent.default = Some(new); }
                             }));
-                        } }
+                        } )}
                 }
                 label { class: "mk-settings-check mk-settings-agent-runs",
                     input { r#type: "radio", name: "mk-default-agent", checked: is_default,
-                        onchange: move |_| { let n = n2.clone(); apply(Box::new(move |f| f.agent.default = if n == DEFAULT_AGENT { None } else { Some(n) })); } }
+                        onchange: moonkale_ext_api::crash::event(move |_| { let n = n2.clone(); apply(Box::new(move |f| f.agent.default = if n == DEFAULT_AGENT { None } else { Some(n) })); } )}
                     {t!(ws, L, "settings-runs-by-default")}
                 }
                 span { class: "mk-settings-spacer" }
                 if !is_default_profile {
                     button { class: "mk-btn mk-settings-agent-remove", disabled: only_one, title: t!(ws, L, "settings-forget-agent"),
-                        onclick: move |_| { let n = n3.clone(); apply(Box::new(move |f| { f.agents.retain(|a| a.name != n); if f.agent.default.as_deref() == Some(n.as_str()) { f.agent.default = None; } })); }, {t!(ws, L, "settings-remove")} }
+                        onclick: moonkale_ext_api::crash::event(move |_| { let n = n3.clone(); apply(Box::new(move |f| { f.agents.retain(|a| a.name != n); if f.agent.default.as_deref() == Some(n.as_str()) { f.agent.default = None; } })); }), {t!(ws, L, "settings-remove")} }
                 }
             }
             label { {t!(ws, L, "settings-provider")}
                 select { class: "mk-input mk-settings-agent-provider", value: "{provider}",
-                    onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.provider = Some(v))); } },
+                    onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| l.provider = Some(v))); } }),
                     for k in PROVIDERS {
                         option { value: "{k}", selected: provider == k, {provider_label(ws, k)} }
                     }
@@ -388,17 +388,17 @@ fn AgentProfileCard(
             }
             label { {t!(ws, L, "settings-model")}
                 input { class: "mk-input mk-settings-agent-model", value: "{llm.model}", placeholder: if provider == "claude-code" { t!(ws, L, "settings-model-claude") } else { t!(ws, L, "settings-model-default") },
-                    onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.model = opt(v))); } } }
+                    onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| l.model = opt(v))); } } )}
             }
             if provider == "claude-code" {
                 // Milestone 12: the CLI runs its own tools in the open folder; these are its knobs.
                 label { {t!(ws, L, "settings-command")}
                     input { class: "mk-input", value: "{llm.base_url}", placeholder: t!(ws, L, "settings-command-placeholder"),
-                        onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.base_url = opt(v))); } } }
+                        onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| l.base_url = opt(v))); } } )}
                 }
                 label { {t!(ws, L, "settings-permissions")}
                     select { class: "mk-input", value: "{permission_mode}",
-                        onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| { l.options.insert("permission_mode".into(), v); })); } },
+                        onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| { l.options.insert("permission_mode".into(), v); })); } }),
                         for (k, label) in [("plan", t!(ws, L, "settings-mode-plan")), ("default", t!(ws, L, "settings-mode-default")), ("acceptEdits", t!(ws, L, "settings-mode-accept")), ("bypassPermissions", t!(ws, L, "settings-mode-bypass"))] {
                             option { value: "{k}", selected: permission_mode == k, "{label}" }
                         }
@@ -406,17 +406,17 @@ fn AgentProfileCard(
                 }
                 label { {t!(ws, L, "settings-allowed-tools")}
                     input { class: "mk-input", value: "{allowed_tools}", placeholder: t!(ws, L, "settings-allowed-tools-placeholder"),
-                        onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| { l.options.insert("allowed_tools".into(), v); })); } } }
+                        onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| { l.options.insert("allowed_tools".into(), v); })); } } )}
                 }
                 ClaudeStatus { ws, llm: llm.clone() }
             } else {
                 label { {t!(ws, L, "settings-endpoint")}
                     input { class: "mk-input", value: "{llm.base_url}", placeholder: "https://api.openai.com/v1 · https://api.mistral.ai/v1 · http://127.0.0.1:11434",
-                        onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.base_url = opt(v))); } } }
+                        onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| l.base_url = opt(v))); } } )}
                 }
                 label { {t!(ws, L, "settings-secret")}
                     input { class: "mk-input", value: "{llm.secret}", placeholder: t!(ws, L, "settings-secret-placeholder"),
-                        onchange: { let edit = edit.clone(); move |e| { let v = e.value(); edit(Box::new(move |l| l.secret = opt(v))); } } }
+                        onchange: moonkale_ext_api::crash::event({ let edit = edit.clone(); move |e: dioxus::prelude::FormEvent| { let v = e.value(); edit(Box::new(move |l| l.secret = opt(v))); } } )}
                 }
             }
         }
@@ -433,7 +433,7 @@ fn ClaudeStatus(
     llm: ReadSignal<moonkale_ext_api::settings::LlmSettings>,
 ) -> Element {
     let mut generation = use_signal(|| 0u32);
-    let status = use_resource(move || {
+    let status = moonkale_ext_api::crash::use_resource(move || {
         let _ = generation();
         let llm = llm();
         async move {
@@ -453,7 +453,7 @@ fn ClaudeStatus(
     let can_run = ws.can_run_program();
     let login = move |_| {
         let command = command.clone();
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             ws.run_in_terminal(
                 "claude login",
                 &command,
@@ -473,11 +473,11 @@ fn ClaudeStatus(
                     span { class: if st.ok { "mk-settings-claude-status mk-settings-ok" } else { "mk-settings-claude-status mk-settings-bad" }, "{st.summary}" }
                     if let Some(h) = st.hint.clone() { span { class: "mk-muted", " {h}" } }
                     if st.can_login && can_run {
-                        button { class: "mk-btn mk-settings-claude-login", onclick: login, title: t!(ws, L, "claude-login-title"), if st.ok { {t!(ws, L, "claude-login-again")} } else { {t!(ws, L, "claude-login")} } }
+                        button { class: "mk-btn mk-settings-claude-login", onclick: moonkale_ext_api::crash::event(login), title: t!(ws, L, "claude-login-title"), if st.ok { {t!(ws, L, "claude-login-again")} } else { {t!(ws, L, "claude-login")} } }
                     }
                 },
             }
-            button { class: "mk-btn", onclick: move |_| generation += 1, {t!(ws, L, "claude-check-again")} }
+            button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| generation += 1), {t!(ws, L, "claude-check-again")} }
             p { class: "mk-muted", {t!(ws, L, "claude-hint")} }
         }
     }

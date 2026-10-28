@@ -200,7 +200,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
     // Refresh when the folder changes, when files or documents change, and
     // when asked (`epoch`).
     let mut seen: Signal<(u64, u64, u64, usize)> = use_signal(|| (u64::MAX, 0, 0, 0));
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let key = (
             *state.epoch.read(),
             *ws.sources.fs_epoch.read(),
@@ -212,12 +212,12 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         }
         seen.set(key);
         if available {
-            spawn(async move { refresh(ws, state).await });
+            moonkale_ext_api::crash::spawn(async move { refresh(ws, state).await });
         }
     });
 
     let act = move |req: GitRequest| {
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             state.busy.set(true);
             let is_commit = matches!(req, GitRequest::Commit { .. });
             let message = match &req {
@@ -262,7 +262,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         ws.dispatch(Command::ShowPanel(Box::leak(
             format!("git-diff:{key}").into_boxed_str(),
         )));
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let res = match run(ws, GitRequest::Diff { path, staged }).await {
                 Ok(GitResponse::Diff(t)) => Ok(t),
                 Ok(GitResponse::Unavailable(m)) | Err(m) => Err(m),
@@ -300,30 +300,30 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                 if st.ahead > 0 { span { class: "mk-muted", " ↑{st.ahead}" } }
                                 if st.behind > 0 { span { class: "mk-muted", " ↓{st.behind}" } }
                                 span { class: "mk-git-spacer" }
-                                button { class: "mk-btn", disabled: busy, onclick: move |_| state.bump(), title: t!(ws, L, "git-refresh"), "↻" }
-                                button { class: "mk-btn", disabled: busy || log.is_empty(), onclick: move |_| { spawn(async move { show_history(ws, state).await; }); }, title: t!(ws, L, "git-graph-title"), {t!(ws, L, "git-graph")} }
+                                button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| state.bump()), title: t!(ws, L, "git-refresh"), "↻" }
+                                button { class: "mk-btn", disabled: busy || log.is_empty(), onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(async move { show_history(ws, state).await; }); }), title: t!(ws, L, "git-graph-title"), {t!(ws, L, "git-graph")} }
                             }
                             div { class: "mk-git-commit",
                                 textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: t!(ws, L, "git-message"), value: "{message}",
-                                    oninput: move |e| message.set(e.value()),
-                                    onkeydown: move |e| {
+                                    oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| message.set(e.value())),
+                                    onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                                         if e.key() == Key::Enter && moonkale_ext_api::keys::primary(&e.modifiers()) {
                                             e.prevent_default();
                                             let m = message.peek().clone();
                                             if !m.trim().is_empty() && !staged_paths.is_empty() { message.set(String::new()); act(GitRequest::Commit { message: m }); }
                                         }
                                         e.stop_propagation();
-                                    },
+                                    }),
                                 }
                                 button { class: "mk-btn mk-btn-on", disabled: busy || staged.is_empty() || message.read().trim().is_empty(),
-                                    onclick: move |_| { let m = message.peek().clone(); message.set(String::new()); act(GitRequest::Commit { message: m }); },
+                                    onclick: moonkale_ext_api::crash::event(move |_| { let m = message.peek().clone(); message.set(String::new()); act(GitRequest::Commit { message: m }); }),
                                     {t!(ws, L, "git-commit-staged", n = staged.len())}
                                 }
                             }
                             div { class: "mk-git-group",
                                 div { class: "mk-git-group-head",
                                     span { {t!(ws, L, "git-staged", n = staged.len())} }
-                                    if !staged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: { let p = staged_paths.clone(); move |_| act(GitRequest::Unstage { paths: p.clone() }) }, {t!(ws, L, "git-unstage-all")} } }
+                                    if !staged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: moonkale_ext_api::crash::event({ let p = staged_paths.clone(); move |_| act(GitRequest::Unstage { paths: p.clone() }) }), {t!(ws, L, "git-unstage-all")} } }
                                 }
                                 for e in staged.iter() {
                                     {
@@ -331,11 +331,11 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                         let letter = e.index;
                                         rsx! {
                                             div { key: "s:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: status_label(ws, letter),
-                                                onclick: move |_| open_diff(p1.clone(), true),
+                                                onclick: moonkale_ext_api::crash::event(move |_| open_diff(p1.clone(), true)),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
                                                 span { class: "mk-git-path", "{e.path}" }
                                                 span { class: "mk-git-actions",
-                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-unstage"), onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Unstage { paths: vec![p2.clone()] }) }, "−" }
+                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-unstage"), onclick: moonkale_ext_api::crash::event(move |ev: dioxus::prelude::MouseEvent| { ev.stop_propagation(); act(GitRequest::Unstage { paths: vec![p2.clone()] }) }), "−" }
                                                 }
                                             }
                                         }
@@ -345,7 +345,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                             div { class: "mk-git-group",
                                 div { class: "mk-git-group-head",
                                     span { {t!(ws, L, "git-changes-n", n = unstaged.len())} }
-                                    if !unstaged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: { let p = unstaged_paths.clone(); move |_| act(GitRequest::Stage { paths: p.clone() }) }, {t!(ws, L, "git-stage-all")} } }
+                                    if !unstaged.is_empty() { button { class: "mk-btn mk-btn-mini", disabled: busy, onclick: moonkale_ext_api::crash::event({ let p = unstaged_paths.clone(); move |_| act(GitRequest::Stage { paths: p.clone() }) }), {t!(ws, L, "git-stage-all")} } }
                                 }
                                 for e in unstaged.iter() {
                                     {
@@ -353,12 +353,12 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                         let letter = if e.index == '?' { '?' } else { e.worktree };
                                         rsx! {
                                             div { key: "w:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: status_label(ws, letter),
-                                                onclick: move |_| open_diff(p1.clone(), false),
+                                                onclick: moonkale_ext_api::crash::event(move |_| open_diff(p1.clone(), false)),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
                                                 span { class: "mk-git-path", "{e.path}" }
                                                 span { class: "mk-git-actions",
-                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-stage"), onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Stage { paths: vec![p2.clone()] }) }, "+" }
-                                                    button { class: "mk-btn mk-btn-mini mk-btn-danger", disabled: busy, title: t!(ws, L, "git-discard"), onclick: move |ev| { ev.stop_propagation(); act(GitRequest::Discard { path: p3.clone() }) }, "✕" }
+                                                    button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-stage"), onclick: moonkale_ext_api::crash::event(move |ev: dioxus::prelude::MouseEvent| { ev.stop_propagation(); act(GitRequest::Stage { paths: vec![p2.clone()] }) }), "+" }
+                                                    button { class: "mk-btn mk-btn-mini mk-btn-danger", disabled: busy, title: t!(ws, L, "git-discard"), onclick: moonkale_ext_api::crash::event(move |ev: dioxus::prelude::MouseEvent| { ev.stop_propagation(); act(GitRequest::Discard { path: p3.clone() }) }), "✕" }
                                                 }
                                             }
                                         }
@@ -402,10 +402,10 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
                 span { class: "mk-git-path", "{view.path}" }
                 span { class: "mk-muted", if view.staged { {t!(ws, L, "git-staged-vs-head")} } else { {t!(ws, L, "git-worktree-vs-index")} } }
                 span { class: "mk-git-spacer" }
-                button { class: "mk-btn", onclick: move |_| {
+                button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| {
                     let p = path.clone();
-                    spawn(async move { if let Ok(n) = ws.open_relative_path(&p).await { let _ = ws.reveal(n, 0, 0).await; } });
-                }, {t!(ws, L, "git-open-file")} }
+                    moonkale_ext_api::crash::spawn(async move { if let Ok(n) = ws.open_relative_path(&p).await { let _ = ws.reveal(n, 0, 0).await; } });
+                }), {t!(ws, L, "git-open-file")} }
             }
             match &view.text {
                 None => rsx! { p { class: "mk-muted", {t!(ws, L, "git-loading")} } },

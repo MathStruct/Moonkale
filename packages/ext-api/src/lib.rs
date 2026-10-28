@@ -94,3 +94,5 @@ pub mod prelude {
         Node, NodeId, NodeKind, Query, Source, SourceError, SourceId, Version,
     };
 }
+
+pub mod crash;

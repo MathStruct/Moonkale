@@ -243,7 +243,7 @@ impl CodeMirrorBackend {
         });
 
         let mut rx = eval;
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             loop {
                 match rx.recv::<FromJs>().await {
                     Ok(FromJs::Ready) => on_event.call(BackendEvent::Ready),

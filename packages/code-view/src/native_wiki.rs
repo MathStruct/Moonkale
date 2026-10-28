@@ -44,7 +44,7 @@ pub(crate) fn use_wiki(ws: Workspace, node: NodeId) -> (Memo<Vec<Mark>>, Callbac
         values.dedup();
         Some(values)
     });
-    let resolved = use_resource(move || {
+    let resolved = moonkale_ext_api::crash::use_resource(move || {
         let epoch = *ws.sources.graph_epoch.read();
         let from = from();
         let targets = targets();
@@ -104,7 +104,7 @@ pub(crate) fn use_wiki(ws: Workspace, node: NodeId) -> (Memo<Vec<Mark>>, Callbac
         let session = ws.editor_session(node).expect("open session");
         let revision = session.peek().snapshot().revision;
         let selection = session.peek().snapshot().selection;
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let current = || {
                 doc.try_peek()
                     .is_ok_and(|doc| doc.node == from && doc.text == text)

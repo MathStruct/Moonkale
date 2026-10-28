@@ -505,7 +505,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // settings load right after a folder opens, and a reload then would
     // replace the graph the user (or a test) is already looking at.
     let code_graph = use_memo(move || ws.settings.resolved.read().code_graph);
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _source = code_graph();
         tier_cache.write().clear();
     });
@@ -536,7 +536,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 );
             let ev = document::eval(&script);
             let mut rx = ev;
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
                         Ok(FromJs::LoadProfile {
@@ -581,7 +581,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                         let generation = *load_gen.peek();
                                         region_expanded.set(true);
                                         error.set(None);
-                                        spawn(async move {
+                                        moonkale_ext_api::crash::spawn(async move {
                                             let result = source
                                                 .query(Query::Coarse {
                                                     level: 1,
@@ -612,7 +612,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                         });
                                     }
                                 } else if !expandable {
-                                    spawn(open_node(ws, node));
+                                    moonkale_ext_api::crash::spawn(open_node(ws, node));
                                 }
                             }
                         }
@@ -642,7 +642,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut cache_health: Signal<HashMap<SourceId, String>> = use_signal(HashMap::new);
     let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
     let mut pending_db: Signal<Option<PendingDatabaseLoad>> = use_signal(|| None);
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let graph_ids: Vec<SourceId> = ws
             .sources
             .open
@@ -670,7 +670,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     });
 
     // A new "Show in Graph" request switches the picker to that query.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let req = ws.docs.graph_request.read().clone();
         if req.is_some() && req != *seen_request.peek() {
             seen_request.set(req.clone());
@@ -680,7 +680,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     });
 
     // (Re)load the graph whenever its inputs change.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         if egraph_mode() {
             return;
         }
@@ -766,7 +766,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 generation: gen,
                 query: query.clone(),
             }));
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let profile_start = sent_ms();
                 let whole = matches!(query, Query::All { .. });
                 let choice = choices.get(&pid).copied().unwrap_or(Choice::Auto);
@@ -872,7 +872,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         if center != previous {
             local_center.set(center);
         }
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let mut kinds = Vec::new();
             if f.files {
                 kinds.push(NodeKind::File);
@@ -1165,28 +1165,28 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             div { class: if egraph_mode() { "mk-graph-toolbar mk-graph-toolbar-egraph" } else { "mk-graph-toolbar" },
                 if egraph_mode() {
                     select { class: "mk-graph-source mk-eclass", value: "{eclass}", aria_label: t!(ws, L, "graph-eclass"),
-                        onchange: move |e| eclass.set(e.value()),
+                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| eclass.set(e.value())),
                         for (id, label) in eclasses() { option { key: "{id}", value: "{id}", "{label}" } }
                     }
                     for (label, all, collapsed) in [(t!(ws, L, "graph-collapse-class"), false, true), (t!(ws, L, "graph-expand-class"), false, false), (t!(ws, L, "graph-collapse-all"), true, true), (t!(ws, L, "graph-expand-all"), true, false)] {
-                        button { key: "{label}", class: "mk-btn", onclick: move |_| {
+                        button { key: "{label}", class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| {
                             if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(serde_json::json!({"kind":"collapseEclass", "id":if all { String::new() } else { eclass() }, "collapsed":collapsed})); }
-                        }, {label} }
+                        }), {label} }
                     }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: provenance(), onchange: move |e| {
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: provenance(), onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                         provenance.set(e.checked());
                         if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(serde_json::json!({"kind":"provenance", "visible":e.checked()})); }
-                    } } {t!(ws, L, "graph-provenance")} }
-                    button { class: "mk-btn", onclick: move |_| { error.set(None); egraph_mode.set(false); }, {t!(ws, L, "graph-exit-egraph")} }
+                    } )} {t!(ws, L, "graph-provenance")} }
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| { error.set(None); egraph_mode.set(false); }), {t!(ws, L, "graph-exit-egraph")} }
                 }
                 if !egraph_mode() && !databases.is_empty() {
                     select { class: "mk-graph-source", title: t!(ws, L, "graph-source-title"),
                         value: "{picked_str}",
-                        onchange: move |e| {
+                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                             let v = e.value();
                             picked.set(if v.is_empty() { None } else { Some(SourceId::new(v)) });
                             if db_mode() == DbMode::Query { db_mode.set(DbMode::Data); }
-                        },
+                        }),
                         option { value: "", selected: picked().is_none(), if index_count > 1 { {t!(ws, L, "graph-all-folders")} } else { {t!(ws, L, "graph-index")} } }
                         for (sid, name) in databases.iter() {
                             option { key: "{sid}", value: "{sid}", selected: picked().as_ref() == Some(sid), "{name}" }
@@ -1198,15 +1198,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     span { class: "mk-graph-modes", span { class: "mk-muted", {t!(ws, L, "graph-trace-modes")} } }
                 } else if is_index {
                     span { class: "mk-graph-modes",
-                        button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Whole), {t!(ws, L, "graph-whole")} }
-                        button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| mode.set(Mode::Local), title: t!(ws, L, "graph-local-title"), {t!(ws, L, "graph-local")} }
+                        button { class: if mode() == Mode::Whole { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| mode.set(Mode::Whole)), {t!(ws, L, "graph-whole")} }
+                        button { class: if mode() == Mode::Local { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| mode.set(Mode::Local)), title: t!(ws, L, "graph-local-title"), {t!(ws, L, "graph-local")} }
                     }
                 } else {
                     span { class: "mk-graph-modes",
-                        button { class: if db_mode() == DbMode::Data { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Data), title: t!(ws, L, "graph-data-title"), {t!(ws, L, "graph-data")} }
-                        button { class: if db_mode() == DbMode::Schema { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Schema), title: t!(ws, L, "graph-schema-title"), {t!(ws, L, "graph-schema")} }
+                        button { class: if db_mode() == DbMode::Data { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| db_mode.set(DbMode::Data)), title: t!(ws, L, "graph-data-title"), {t!(ws, L, "graph-data")} }
+                        button { class: if db_mode() == DbMode::Schema { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| db_mode.set(DbMode::Schema)), title: t!(ws, L, "graph-schema-title"), {t!(ws, L, "graph-schema")} }
                         if has_request {
-                            button { class: if db_mode() == DbMode::Query { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| db_mode.set(DbMode::Query), title: t!(ws, L, "graph-query-title"), {t!(ws, L, "graph-query")} }
+                            button { class: if db_mode() == DbMode::Query { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| db_mode.set(DbMode::Query)), title: t!(ws, L, "graph-query-title"), {t!(ws, L, "graph-query")} }
                         }
                     }
                     if db_mode() != DbMode::Schema {
@@ -1226,10 +1226,10 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     }
                 }
                 if !egraph_mode() && is_index {
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: move |e| filters.with_mut(|f| f.files = e.checked()) } {t!(ws, L, "graph-files")} }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: move |e| filters.with_mut(|f| f.symbols = e.checked()) } {t!(ws, L, "graph-symbols")} }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: move |e| filters.with_mut(|f| f.folders = e.checked()) } {t!(ws, L, "graph-folders")} }
-                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: move |e| filters.with_mut(|f| f.phantoms = e.checked()) } {t!(ws, L, "graph-unresolved")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().files, onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| filters.with_mut(|f| f.files = e.checked()) )} {t!(ws, L, "graph-files")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().symbols, onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| filters.with_mut(|f| f.symbols = e.checked()) )} {t!(ws, L, "graph-symbols")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().folders, onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| filters.with_mut(|f| f.folders = e.checked()) )} {t!(ws, L, "graph-folders")} }
+                    label { class: "mk-graph-check", input { r#type: "checkbox", checked: filters().phantoms, onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| filters.with_mut(|f| f.phantoms = e.checked()) )} {t!(ws, L, "graph-unresolved")} }
                 }
                 if !egraph_mode() {
                     if let Some(info) = tier_info() {
@@ -1239,14 +1239,14 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                         }
                     }
                     if region_expanded() {
-                        button { class: "mk-btn mk-graph-coarse-collapse", onclick: move |_| {
+                        button { class: "mk-btn mk-graph-coarse-collapse", onclick: moonkale_ext_api::crash::event(move |_| {
                             if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(serde_json::json!({"kind":"coarseCollapse"})); }
                             region_expanded.set(false);
-                        }, {t!(ws, L, "graph-coarse-collapse")} }
+                        }), {t!(ws, L, "graph-coarse-collapse")} }
                     }
                     select { class: "mk-graph-tier-choice", aria_label: t!(ws, L, "graph-tier-choice"),
                         value: choice_source.clone().and_then(|id| tier_choices.read().get(&id).copied()).unwrap_or(Choice::Auto).name(),
-                        onchange: move |e| {
+                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                             pending_db.set(None);
                             if let Some(id) = picked() {
                                 tier_cache.write().remove(&id);
@@ -1256,16 +1256,16 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                 tier_cache.write().clear();
                                 tier_choices.with_mut(|choices| { for id in ids { choices.insert(id, Choice::parse(&e.value())); } });
                             }
-                        },
+                        }),
                         option { value: "auto", {t!(ws, L, "graph-tier-auto")} }
                         option { value: "detailed", {t!(ws, L, "graph-tier-detailed")} }
                         option { value: "coarse", {t!(ws, L, "graph-tier-coarse")} }
                     }
-                    button { class: "mk-btn mk-graph-reload", onclick: move |_| {
+                    button { class: "mk-btn mk-graph-reload", onclick: moonkale_ext_api::crash::event(move |_| {
                         pending_db.set(None);
                         tier_cache.write().clear();
                         tier_reload.with_mut(|n| *n += 1);
-                    }, {t!(ws, L, "graph-tier-reload")} }
+                    }), {t!(ws, L, "graph-tier-reload")} }
                 }
                 span { class: "mk-graph-spacer" }
                 span {
@@ -1287,24 +1287,24 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                     if truncated { {t!(ws, L, "graph-truncated")} }
                     if let Some(b) = backend() { " · {b}" }
                 }
-                button { class: if paste_open() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: move |_| paste_open.toggle(), title: t!(ws, L, "graph-trace-title"), {t!(ws, L, "graph-trace")} }
-                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }, {t!(ws, L, "graph-fit")} }
-                button { class: "mk-btn", onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Relayout); } }, {t!(ws, L, "graph-relayout")} }
+                button { class: if paste_open() { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| paste_open.toggle()), title: t!(ws, L, "graph-trace-title"), {t!(ws, L, "graph-trace")} }
+                button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }), {t!(ws, L, "graph-fit")} }
+                button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Relayout); } }), {t!(ws, L, "graph-relayout")} }
                 button { class: if three_d() { "mk-btn mk-btn-on" } else { "mk-btn" }, title: t!(ws, L, "graph-3d-title"),
-                    onclick: move |_| {
+                    onclick: moonkale_ext_api::crash::event(move |_| {
                         let next = !three_d();
                         three_d.set(next);
                         if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::SetMode { mode: if next { "3d" } else { "2d" } }); }
-                    },
+                    }),
                     "3D"
                 }
             }
             if paste_open() {
                 div { class: "mk-graph-paste",
                     textarea { class: "mk-graph-paste-text", rows: 6, placeholder: t!(ws, L, "graph-paste-placeholder"),
-                        value: "{paste_text}", oninput: move |e| paste_text.set(e.value()) }
+                        value: "{paste_text}", oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| paste_text.set(e.value()) )}
                     div { class: "mk-graph-paste-actions",
-                        button { class: "mk-btn mk-egraph-load", onclick: move |_| {
+                        button { class: "mk-btn mk-egraph-load", onclick: moonkale_ext_api::crash::event(move |_| {
                             if let Some(ev) = eval.peek().as_ref() {
                                 let gen = *load_gen.peek() + 1;
                                 load_gen.set(gen);
@@ -1315,9 +1315,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                 let _ = ev.send(serde_json::json!({"kind":"setEgraph", "graph":paste_text.peek().as_str(), "error":t!(ws, L, "graph-egraph-invalid")}));
                                 paste_open.set(false);
                             }
-                        }, {t!(ws, L, "graph-egraph-load")} }
+                        }), {t!(ws, L, "graph-egraph-load")} }
 
-                        button { class: "mk-btn mk-btn-on", onclick: move |_| {
+                        button { class: "mk-btn mk-btn-on", onclick: moonkale_ext_api::crash::event(move |_| {
                             let mut ws = ws;
                             let traces = moonkale_trace::parse(&paste_text.peek());
                             if traces.is_empty() {
@@ -1329,8 +1329,8 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                 }
                                 paste_open.set(false);
                             }
-                        }, {t!(ws, L, "graph-draw")} }
-                        button { class: "mk-btn", onclick: move |_| paste_open.set(false), {t!(ws, L, "cancel")} }
+                        }), {t!(ws, L, "graph-draw")} }
+                        button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| paste_open.set(false)), {t!(ws, L, "cancel")} }
                     }
                 }
             }
@@ -1343,7 +1343,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                 #[cfg(not(feature = "structural-edits"))]
                 { rsx! {} }
             }
-            div { class: "mk-graph-host", onmounted: mount,
+            div { class: "mk-graph-host", onmounted: moonkale_ext_api::crash::event(mount),
                 canvas { id: "{id}-gl", class: "mk-graph-canvas" }
                 canvas { id: "{id}-ov", class: "mk-graph-canvas mk-graph-overlay" }
                 if !has_any && !egraph_mode() {

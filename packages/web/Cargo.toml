@@ -36,6 +36,7 @@ tracing = "0.1"
 web-sys = { version = "0.3", features = ["Window", "Storage"] }
 
 [features]
+crash-test = ["moonkale-shell/crash-test"]
 unison = ["moonkale-distribution/unison", "moonkale-server/unison"]
 sophia = ["moonkale-distribution/sophia", "moonkale-server/sophia"]
 # Experimental Rust structural edit previews; off by default.

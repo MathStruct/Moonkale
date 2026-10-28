@@ -48,7 +48,7 @@ fn ExtensionsPanel(ws: Workspace) -> Element {
                     {t!(ws, L, "extensions-changes-go-to")}
                     select {
                         value: if target() == Target::User { "user" } else { "workspace" },
-                        onchange: move |e| target.set(if e.value() == "workspace" { Target::Workspace } else { Target::User }),
+                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| target.set(if e.value() == "workspace" { Target::Workspace } else { Target::User })),
                         option { value: "user", {t!(ws, L, "extensions-user-settings")} }
                         option { value: "workspace", {t!(ws, L, "extensions-this-folder")} }
                     }
@@ -76,7 +76,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
         Target::Workspace => moonkale_ext_api::SettingsTarget::Workspace,
     };
     let apply = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match target {
                 Target::User => ws.update_user_settings(|file| f(file)).await,
                 Target::Workspace => ws.update_workspace_settings(|file| f(file)).await,
@@ -87,11 +87,13 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
     // folder's settings may not grant, so a change here always goes to the
     // user scope, whichever file the switch above names.
     let grant = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
-        spawn(async move { ws.update_user_settings(|file| f(file)).await });
+        moonkale_ext_api::crash::spawn(
+            async move { ws.update_user_settings(|file| f(file)).await },
+        );
     };
     rsx! {
         p { class: "mk-muted", {t!(ws, L, "extensions-hint")} }
-        for ext in catalog.iter() {
+        for (index, ext) in catalog.iter().enumerate() {
             {
                 let m = ext.manifest();
                 let id = m.id;
@@ -109,7 +111,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                     div { key: "{id}", class: "mk-settings-ext",
                         label { class: "mk-settings-check",
                             input { r#type: "checkbox", checked: on, disabled: !m.optional,
-                                onchange: move |e| { let v = e.checked(); apply(Box::new(move |f| f.extensions.set_enabled(id, v))); } }
+                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.checked(); apply(Box::new(move |f| f.extensions.set_enabled(id, v))); } )}
                             span { class: "mk-settings-ext-name", "{name}" }
                             if !m.optional { span { class: "mk-settings-scope", {t!(ws, L, "extensions-core")} } }
                             if m.optional && !m.default_enabled { span { class: "mk-settings-scope", {t!(ws, L, "extensions-opt-in")} } }
@@ -117,9 +119,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                         div { class: "mk-settings-ext-desc", "{description}" }
                         // Milestone 13: the extension's own settings, with the extension.
                         if on {
-                            if let Some(section) = ext.settings(ws, ext_target) {
-                                div { class: "mk-settings-ext-settings", {section} }
-                            }
+                            ExtensionSettings { ws, index, target: ext_target }
                         }
                         if !perms.is_empty() {
                             div { class: "mk-settings-ext-perms",
@@ -130,7 +130,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                         rsx! {
                                             label { key: "{p}", class: "mk-settings-perm",
                                                 input { r#type: "checkbox", checked: has,
-                                                    onchange: move |e| {
+                                                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                                                         let v = e.checked();
                                                         let all = all.clone();
                                                         grant(Box::new(move |f| {
@@ -139,7 +139,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                                             if v { next.push(p.to_string()); }
                                                             f.extensions.permissions.insert(id.to_string(), next);
                                                         }));
-                                                    } }
+                                                    } )}
                                                 "{p}"
                                             }
                                         }
@@ -170,7 +170,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                             div { key: "{id}", class: "mk-settings-ext",
                                 label { class: "mk-settings-check",
                                     input { r#type: "checkbox", checked: on,
-                                        onchange: move |e| { let v = e.checked(); let id = id_toggle.clone(); apply(Box::new(move |f| f.extensions.set_enabled(&id, v))); } }
+                                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { let v = e.checked(); let id = id_toggle.clone(); apply(Box::new(move |f| f.extensions.set_enabled(&id, v))); } )}
                                     span { class: "mk-settings-ext-name", "{m.name}" }
                                     span { class: "mk-settings-scope", "wasm" }
                                 }
@@ -184,7 +184,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                                 rsx! {
                                                     label { key: "{p}", class: "mk-settings-perm",
                                                         input { r#type: "checkbox", checked: has,
-                                                            onchange: move |e| {
+                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                                                                 let v = e.checked();
                                                                 let (id, p) = (id2.clone(), p2.clone());
                                                                 grant(Box::new(move |f| {
@@ -193,7 +193,7 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
                                                                     if v { next.push(p); }
                                                                     f.extensions.permissions.insert(id, next);
                                                                 }));
-                                                            } }
+                                                            } )}
                                                         "{p}"
                                                     }
                                                 }
@@ -208,5 +208,24 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
             }
         }
 
+    }
+}
+
+#[component]
+fn ExtensionSettings(
+    ws: Workspace,
+    index: usize,
+    target: moonkale_ext_api::SettingsTarget,
+) -> Element {
+    let catalog = use_context::<Extensions_>().0;
+    let ext = &catalog[index];
+    let id = ext.manifest().id;
+    use_context_provider(|| moonkale_ext_api::crash::ExtensionGuard::new(ws, id));
+    if !ws.crashes.allows(&ext.manifest()) {
+        return VNode::empty();
+    }
+    match ext.settings(ws, target) {
+        Some(section) => rsx! { div { class: "mk-settings-ext-settings", {section} } },
+        None => VNode::empty(),
     }
 }

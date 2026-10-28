@@ -111,3 +111,95 @@ fn a_panicking_panel_shows_a_notice_and_the_rest_renders() {
         "the cause is shown: {all}"
     );
 }
+
+fn empty_app() -> Element {
+    VNode::empty()
+}
+
+#[test]
+fn a_panicking_event_disables_only_its_owner_and_suppresses_later_callbacks() {
+    use moonkale_ext_api::crash::{event, ExtensionGuard};
+    let dom = VirtualDom::new(empty_app);
+    dom.in_scope(ScopeId::ROOT, || {
+        let ws = Workspace::new(config());
+        let broken = ExtensionGuard::new(ws, "broken");
+        let healthy = ExtensionGuard::new(ws, "healthy");
+        let mut calls = 0;
+        assert!(broken
+            .run::<()>(|| panic!("private payload must not be retained"))
+            .is_none());
+        broken.run(|| calls += 1);
+        assert_eq!(calls, 0);
+        assert_eq!(healthy.run(|| 42), Some(42));
+        assert_eq!(ws.crashes.notice.peek().as_deref(), Some("broken"));
+        assert_eq!(ws.crashes.disabled.peek().len(), 1);
+        // A callback created by an extension entry point inherits ownership,
+        // even when it is invoked later outside that entry point.
+        let mut callback = healthy
+            .run(|| event(|_: ()| -> () { panic!("event panic") }))
+            .unwrap();
+        callback(());
+        assert!(!healthy.enabled());
+    });
+}
+
+#[test]
+fn a_panicking_task_after_an_await_disables_only_its_owner() {
+    use moonkale_ext_api::crash::ExtensionGuard;
+    let dom = VirtualDom::new(empty_app);
+    dom.in_scope(ScopeId::ROOT, || {
+        let ws = Workspace::new(config());
+        let broken = ExtensionGuard::new(ws, "broken");
+        let healthy = ExtensionGuard::new(ws, "healthy");
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(broken.task(async {
+            tokio::task::yield_now().await;
+            panic!("task panic after pending");
+        }));
+        assert!(!broken.enabled());
+        assert!(healthy.enabled());
+        let mut ran = false;
+        rt.block_on(broken.task(async {
+            ran = true;
+        }));
+        assert!(!ran, "sibling work must stop polling");
+        assert_eq!(ws.crashes.notice.peek().as_deref(), Some("broken"));
+    });
+}
+
+#[test]
+fn safe_mode_ignores_saved_enablement_without_mutating_preferences() {
+    let dom = VirtualDom::new(empty_app);
+    dom.in_scope(ScopeId::ROOT, || {
+        let mut ws = Workspace::new(config());
+        let before = ws.settings.resolved.peek().extensions.clone();
+        ws.crashes.safe.set(true);
+        assert!(!ws
+            .crashes
+            .allows(&moonkale_ext_api::Manifest::core("core", "Core", "")));
+        assert_eq!(ws.settings.resolved.peek().extensions, before);
+    });
+}
+
+#[test]
+fn async_event_callbacks_are_polled_and_guarded_instead_of_dropped() {
+    use moonkale_ext_api::crash::{event, ExtensionGuard};
+    let dom = VirtualDom::new(empty_app);
+    dom.in_scope(ScopeId::ROOT, || {
+        let ws = Workspace::new(config());
+        let guard = ExtensionGuard::new(ws, "async-event");
+        let mut callback = guard
+            .run(|| {
+                event(|_: ()| async {
+                    panic!("async event panic");
+                })
+            })
+            .unwrap();
+        callback(());
+        assert!(!guard.enabled());
+        assert_eq!(ws.crashes.notice.peek().as_deref(), Some("async-event"));
+    });
+}

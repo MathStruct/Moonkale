@@ -17,19 +17,19 @@ pub(crate) fn PreviewBlock(
         div {
             class: "mk-preview-widget",
             "data-widget-id": identity,
-            onmousedown: move |event| event.stop_propagation(),
-            onmousemove: move |event| event.stop_propagation(),
-            onclick: move |event| event.stop_propagation(),
-            onkeydown: move |event| {
+            onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| event.stop_propagation()),
+            onmousemove: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| event.stop_propagation()),
+            onclick: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| event.stop_propagation()),
+            onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                 event.stop_propagation();
                 if event.key() == Key::Escape && !event.is_composing() {
                     event.prevent_default();
                     onsource.call(());
                 }
-            },
-            oncopy: move |event| event.stop_propagation(),
-            oncut: move |event| event.stop_propagation(),
-            onpaste: move |event| event.stop_propagation(),
+            }),
+            oncopy: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
+            oncut: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
+            onpaste: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ClipboardEvent| event.stop_propagation()),
             div { class: "mk-preview-widget-header",
                 span { "{title}" }
                 button {
@@ -37,13 +37,13 @@ pub(crate) fn PreviewBlock(
                     class: "mk-btn mk-preview-widget-toggle",
                     aria_expanded: expanded().to_string(),
                     aria_controls: body_id.clone(),
-                    onclick: move |_| expanded.toggle(),
+                    onclick: moonkale_ext_api::crash::event(move |_| expanded.toggle()),
                     if expanded() { "{hide_label}" } else { "{show_label}" }
                 }
                 button {
                     r#type: "button",
                     class: "mk-btn mk-preview-widget-source",
-                    onclick: move |_| onsource.call(()),
+                    onclick: moonkale_ext_api::crash::event(move |_| onsource.call(())),
                     "{source_label}"
                 }
             }
@@ -64,7 +64,7 @@ pub(crate) fn FixtureWidgetBody() -> Element {
                 class: "mk-preview-widget-note",
                 // Native input owns its value; delayed Rust renders must not overwrite newer keystrokes.
                 initial_value: "",
-                oninput: move |event| note.set(event.value()),
+                oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| note.set(event.value())),
             }
         }
         p { class: "mk-preview-widget-note-value", "{note}" }

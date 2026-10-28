@@ -811,7 +811,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let mut fitted_scope: Signal<Vec<String>> = use_signal(Vec::new);
     // LOD can remove a captured header before pointerup. Commit the last
     // visible position as one gesture, so a later header starts fresh.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let mapping = camera();
         let current = flow.read();
         let open = scope.read();
@@ -863,7 +863,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 );
             let ev = document::eval(&script);
             let mut rx = ev;
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
                         Ok(FromJs::Loaded) => loaded.set(true),
@@ -988,7 +988,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // under the user.
     let eval_for_scene = eval;
     let loaded_for_scene = loaded;
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let open = scope();
         if loaded_for_scene() {
             let libs = ws.contrib.flow_libraries.read().clone();
@@ -1027,7 +1027,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // Document replaced from outside (reload): rebuild the flow. The
     // snapshots describe the previous document — both stacks empty.
     {
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let text = doc.read().text.clone();
             if text == *last_text.peek() {
                 return;
@@ -1056,7 +1056,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // blank (the review's #5). Tear the eval down on the way into
     // broken; the fresh div then mounts a fresh renderer.
     {
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             if broken().is_some() {
                 if let Some(ev) = eval.peek().as_ref() {
                     let _ = ev.send(ToJs::Destroy);
@@ -1071,7 +1071,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     let issues_now = validate(&flow.read(), &libs);
     let dirty = doc.read().dirty();
     let save = move |_| {
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             match ws.save(node).await {
                 Ok(()) => error.set(None),
                 Err(e) => error.set(Some(e.to_string())),
@@ -1095,7 +1095,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         .collect();
     let generate = move |lib: FlowLibrary| {
         let flow = flow.read().clone();
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let Some(gen) = lib.codegen else { return };
             match gen(&flow, &lib) {
                 Ok(out) => {
@@ -1456,7 +1456,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             // has the focus (spec 001); Ctrl/Meta combos bubble (Ctrl+S).
             // Undo (Ctrl+Z) and redo (Ctrl+Y, Ctrl+Shift+Z) restore the
             // last snapshot; the field editor stops its own Z/Y (below).
-            onkeydown: move |e| {
+            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                 if moonkale_ext_api::keys::primary(&e.modifiers())
                     && e.key() == Key::Character("s".into())
                 {
@@ -1503,7 +1503,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     e.prevent_default();
                     delete_selected(());
                 }
-            },
+            }),
             div { class: "mk-editor-toolbar",
                 span { class: "mk-editor-path",
                     "{doc.read().node.native_key}",
@@ -1520,10 +1520,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     input { r#type: "number", min: "0", max: "128", step: "4",
                         style: "width:4em",
                         value: "{ws.settings.resolved.read().editor.flow_grid}",
-                        onchange: move |e| { if let Ok(n) = e.value().parse::<u16>() {
+                        onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { if let Ok(n) = e.value().parse::<u16>() {
                             ws.update_settings_in(moonkale_ext_api::SettingsTarget::User, move |f| f.editor.flow_grid = Some(n));
                         } }
-                    }
+                    )}
                 }
                 if let Some(n) = notice() { span { class: "mk-flow-notice", "{n}" } }
                 span { class: "mk-flow-status", "data-blocks": "{flow.read().scope(&scope.read()).map(|sc| sc.blocks.len()).unwrap_or(0)}", "data-wires": "{flow.read().scope(&scope.read()).map(|sc| sc.wires.len()).unwrap_or(0)}", "data-issues": "{issues_now.len()}",
@@ -1533,7 +1533,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                 for lib in generators {
                     // The button names the library, not just the language —
                     // two Julia libraries must not read as one button.
-                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: { let lib = lib.clone(); move |_| generate(lib.clone()) }, title: t!(ws, L, "flow-generate-title", language = lib.name), {t!(ws, L, "flow-generate", language = lib.name)} }
+                    button { key: "{lib.id}", class: "mk-btn mk-flow-generate", onclick: moonkale_ext_api::crash::event({ let lib = lib.clone(); move |_| generate(lib.clone()) }), title: t!(ws, L, "flow-generate-title", language = lib.name), {t!(ws, L, "flow-generate", language = lib.name)} }
                 }
                 // While broken there is nothing to arrange, fit or save —
                 // only Reload leads out (the review's #3: the toolbar
@@ -1545,28 +1545,28 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     label: t!(ws, L, "flow-layout"),
                     description: t!(ws, L, "flow-layout-title"),
                     disabled: broken.read().is_some(),
-                    onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } },
+                    onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::HierLayout); } }),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "fit",
                     label: t!(ws, L, "flow-fit"),
                     description: t!(ws, L, "flow-fit-title"),
                     disabled: broken.read().is_some(),
-                    onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } },
+                    onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Fit); } }),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "save",
                     label: t!(ws, L, "flow-save"),
                     shortcut: format!("{}+S", moonkale_ext_api::keys::primary_name()),
                     disabled: !dirty || broken.read().is_some(),
-                    onclick: move |_| save(()),
+                    onclick: moonkale_ext_api::crash::event(move |_| save(())),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "reload",
                     label: t!(ws, L, "flow-reload"),
                     description: t!(ws, L, "flow-reload-title"),
                     class: "mk-flow-reload".to_string(),
-                    onclick: move |_| { spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); },
+                    onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(async move { if let Err(e) = ws.reload(node).await { error.set(Some(e.to_string())); } }); }),
                 }
                 moonkale_ext_api::icons::PanelSettingsButton {}
             }
@@ -1595,7 +1595,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     .unwrap_or(0);
                                 rsx! {
                                     if libs.len() > 1 {
-                                        select { class: "mk-input", onchange: move |e| chosen_lib.set(e.value().parse().ok()),
+                                        select { class: "mk-input", onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| chosen_lib.set(e.value().parse().ok())),
                                             for (i, l) in libs.iter().enumerate() { option { value: "{i}", selected: i == current, "{l.name}" } }
                                         }
                                     }
@@ -1624,11 +1624,11 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                                                     "data-kind": "{kind}",
                                                                     class: "mk-flow-palette-block",
                                                                     title: "{b.description}",
-                                                                    onclick: {
+                                                                    onclick: moonkale_ext_api::crash::event({
                                                                         let mut add_block = add_block;
                                                                         let kind = kind.clone();
                                                                         move |_| add_block(kind.clone())
-                                                                    },
+                                                                    }),
                                                                     "{b.name}"
                                                                 }
                                                             }
@@ -1647,15 +1647,15 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     button {
                         class: "mk-flow-palette-block mk-flow-subsystem",
                         title: t!(ws, L, "flow-subsystem-title"),
-                        onclick: {
+                        onclick: moonkale_ext_api::crash::event({
                             let mut create_subflow = create_subflow;
                             move |_| create_subflow(())
-                        },
+                        }),
                         {t!(ws, L, "flow-subsystem")}
                     }
                     div {
                         class: "mk-flow-canvas",
-                        onmounted: { let mut mount = mount; move |e| mount(e) },
+                        onmounted: moonkale_ext_api::crash::event({ let mut mount = mount; move |e: dioxus::prelude::MountedEvent| mount(e) }),
                         canvas { id: "{id}-gl", class: "mk-flow-gl" }
                         // The overlay is where clicks land (it sits on
                         // top) and takes the focus for the panel's keys.
@@ -1670,7 +1670,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                 // selection); nor do the field's own Z/Y — a
                                 // field's Ctrl+Z is its text undo. Ctrl/Meta
                                 // combos (Ctrl+S) still bubble (spec 001).
-                                onkeydown: move |e| {
+                                onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                                     let primary = moonkale_ext_api::keys::primary(&e.modifiers());
                                     let field_undo = primary
                                         && matches!(e.key(), Key::Character(ref c)
@@ -1678,9 +1678,9 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                     if !primary || field_undo {
                                         e.stop_propagation();
                                     }
-                                },
+                                }),
                                 CanvasHeader { id: format!("{id}-card-header"), scale: camera().scale,
-                                    ondrag: {
+                                    ondrag: moonkale_ext_api::crash::event({
                                         let bid = b.id.clone();
                                         move |event: CardDrag| {
                                             if broken.peek().is_some() { return; }
@@ -1713,17 +1713,17 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                                 sync(&flow, &mut last_text, &mut doc, &broken);
                                             }
                                         }
-                                    },
+                                    }),
                                 div { class: "mk-flow-props-title",
                                     span { "{b.id}" }
                                     {
                                         let (r, m) = (b.id.clone(), b.id.clone());
                                         let (mut turn, mut flip) = (reorient, reorient);
                                         rsx! {
-                                            button { onpointerdown: move |e| e.stop_propagation(), class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
-                                                onclick: move |_| turn((vec![r.clone()], false)), {t!(ws, L, "flow-rotate")} }
-                                            button { onpointerdown: move |e| e.stop_propagation(), class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
-                                                onclick: move |_| flip((vec![m.clone()], true)), {t!(ws, L, "flow-mirror")} }
+                                            button { onpointerdown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| e.stop_propagation()), class: "mk-btn mk-flow-rotate", title: t!(ws, L, "flow-rotate-title"),
+                                                onclick: moonkale_ext_api::crash::event(move |_| turn((vec![r.clone()], false))), {t!(ws, L, "flow-rotate")} }
+                                            button { onpointerdown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| e.stop_propagation()), class: "mk-btn mk-flow-mirror", title: t!(ws, L, "flow-mirror-title"),
+                                                onclick: moonkale_ext_api::crash::event(move |_| flip((vec![m.clone()], true))), {t!(ws, L, "flow-mirror")} }
                                         }
                                     }
                                 }
@@ -1739,17 +1739,17 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                                 match &p.kind {
                                                     ParamKind::Choice { options } => rsx! {
                                                         select { value: "{value}",
-                                                            onchange: move |e| set_param((bid.clone(), name.clone(), e.value())),
+                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value()))),
                                                             for o in options.iter() { option { value: "{o}", selected: *o == value, "{o}" } }
                                                         }
                                                     },
                                                     ParamKind::Bool => rsx! {
                                                         input { r#type: "checkbox", checked: value == "true",
-                                                            onchange: move |e| set_param((bid.clone(), name.clone(), e.checked().to_string())) }
+                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.checked().to_string())) )}
                                                     },
                                                     _ => rsx! {
                                                         input { value: "{value}", size: 6,
-                                                            onchange: move |e| set_param((bid.clone(), name.clone(), e.value())) }
+                                                            onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value())) )}
                                                     },
                                                 }
                                             }

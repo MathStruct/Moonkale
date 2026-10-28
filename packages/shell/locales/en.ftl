@@ -354,3 +354,17 @@ cache-check-rebuilt = Cache problem; rebuilt: { $differences }
 status-truth-files = Truth: files
 status-truth-store = Truth: Sophia store
 status-store-read-only = Code graph read-only: store editing is not available yet
+
+crash-safe-active = Safe mode: extensions are off; saved settings are unchanged.
+crash-startup = Moonkale stopped repeatedly during startup.
+crash-safe-start = Start in safe mode
+crash-dismiss = Dismiss
+crash-disabled = { $name } stopped and was disabled for this session.
+
+crash-test-event = Crash test event
+crash-test-task = Crash test task
+crash-test-disable = Disable test extension
+
+crash-web-stopped = Moonkale stopped. Reload to restore your saved session.
+crash-web-reload = Reload
+crash-web-copy = Copy details

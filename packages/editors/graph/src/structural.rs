@@ -388,7 +388,7 @@ async fn preview(ws: Workspace, mut state: Signal<Review>) {
 pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Element {
     let mut state = store(ws);
     let selection = selected.clone();
-    let mapped = use_resource(use_reactive!(|(selection)| async move {
+    let mapped = moonkale_ext_api::crash::use_resource(use_reactive!(|(selection)| async move {
         match selection {
             Some(node) => (Some(node.id), ws.index_node(&node).await),
             None => (None, None),
@@ -402,7 +402,7 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
         .and_then(|(_, node)| node.clone());
     // Changing graph selection invalidates in-flight work but retains a completed review.
     let selection_key = selected.as_ref().map(|node| node.id);
-    use_effect(use_reactive!(|(selection_key)| {
+    moonkale_ext_api::crash::use_effect(use_reactive!(|(selection_key)| {
         let _ = selection_key;
         state.with_mut(|state| {
             state.generation = state.generation.wrapping_add(1);
@@ -447,7 +447,7 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
     rsx! {
         div { class: "mk-structural", "data-testid": "structural-controls", "data-selected-node": selected.as_ref().map(|node| node.id.to_string()).unwrap_or_default(),
             button { class: "mk-btn", disabled: !eligible || review.busy,
-                onclick: move |_| { if let Some(node) = selected.clone() { spawn(begin(ws, node, state)); } },
+                onclick: moonkale_ext_api::crash::event(move |_| { if let Some(node) = selected.clone() { moonkale_ext_api::crash::spawn(begin(ws, node, state)); } }),
                 {t!(ws, L, "structural-edit")}
             }
             if review.open {
@@ -479,10 +479,10 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     }
                     label { {t!(ws, L, "structural-function")}
                         select { "data-testid": "structural-function", value: review.target.map(|index| index.to_string()).unwrap_or_default(), disabled: review.busy,
-                            onchange: move |event| { let target = event.value().parse::<usize>().ok(); state.with_mut(|state| {
+                            onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { let target = event.value().parse::<usize>().ok(); state.with_mut(|state| {
                                 state.target = target; if state.before == target { state.before = None; } state.name = target.and_then(|index| state.functions.get(index)).map(|function| function.name.clone()).unwrap_or_default();
                                 state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false;
-                            }); },
+                            }); }),
                             option { value: "", selected: review.target.is_none(), {t!(ws, L, "structural-choose")} }
                             for (index, function) in review.functions.iter().enumerate() {
                                 option { value: "{index}", selected: review.target == Some(index), "{function.name} · {function.line}" }
@@ -491,7 +491,7 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     }
                     label { {t!(ws, L, "structural-operation")}
                         select { "data-testid": "structural-operation", value: if review.moving { "move" } else if review.renaming { "rename" } else { "name" }, disabled: review.busy,
-                            onchange: move |event| state.with_mut(|state| { state.moving = event.value() == "move"; state.renaming = event.value() == "rename"; state.rename_error = None; state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }),
+                            onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| state.with_mut(|state| { state.moving = event.value() == "move"; state.renaming = event.value() == "rename"; state.rename_error = None; state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; })),
                             option { value: "name", {t!(ws, L, "structural-name")} }
                             option { value: "move", {t!(ws, L, "structural-move")} }
                             option { value: "rename", {t!(ws, L, "structural-rename")} }
@@ -500,7 +500,7 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     if review.moving {
                         label { {t!(ws, L, "structural-before")}
                             select { "data-testid": "structural-before", value: review.before.map(|index| index.to_string()).unwrap_or_default(), disabled: review.busy,
-                                onchange: move |event| state.with_mut(|state| { state.before = event.value().parse().ok(); state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }),
+                                onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| state.with_mut(|state| { state.before = event.value().parse().ok(); state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; })),
                                 option { value: "", {t!(ws, L, "structural-end")} }
                                 for (index, function) in review.functions.iter().enumerate() {
                                     if Some(index) != review.target { option { value: "{index}", "{function.name} · {function.line}" } }
@@ -510,21 +510,21 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                     } else {
                         label { {if review.renaming { t!(ws, L, "structural-rename") } else { t!(ws, L, "structural-name") }}
                             input { "data-testid": "structural-name", value: "{review.name}", disabled: review.busy,
-                                oninput: move |event| state.with_mut(|state| { state.name = event.value(); state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }) }
+                                oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| state.with_mut(|state| { state.name = event.value(); state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false; }) )}
                         }
                     }
                     if conflict { p { role: "alert", {t!(ws, L, "structural-conflict")} } }
                     if review.applied { p { role: "status", {t!(ws, L, "structural-applied")} } }
                     button { class: "mk-btn", "data-testid": "structural-preview", disabled: review.busy || review.target.is_none() || conflict || review.applied,
-                        onclick: move |_| { spawn(preview(ws, state)); }, {t!(ws, L, "structural-preview")} }
+                        onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(preview(ws, state)); }), {t!(ws, L, "structural-preview")} }
                     button { class: "mk-btn", "data-testid": "structural-apply", disabled: review.busy || (review.proposal.is_none() && review.multi.is_none()) || conflict || review.applied,
-                        onclick: move |_| {
+                        onclick: moonkale_ext_api::crash::event(move |_| {
                             let multi = state.peek().multi.clone();
                             if let Some(multi) = multi {
                                 let guard = state.peek().rename_guard.clone();
                                 let generation = state.peek().generation;
                                 state.with_mut(|state| { state.busy = true; state.group_error = false; });
-                                dioxus::core::spawn_forever(async move {
+                                moonkale_ext_api::crash::spawn_forever(async move {
                                     let result = multi.apply_guarded(ws, || current(state, generation) && guard.as_ref().is_none_or(|guard| guard.validate(ws).is_ok())).await;
                                     if !state.peek().open || !state.peek().multi.as_ref().is_some_and(|live| Rc::ptr_eq(live, &multi)) { return; }
                                     state.with_mut(|state| { state.busy = false; match result {
@@ -544,24 +544,24 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                                     Err(e) => state.with_mut(|state| { state.conflict = true; state.error = Some(proposal_error(e)); }),
                                 }
                             }
-                        }, {t!(ws, L, "structural-apply")} }
+                        }), {t!(ws, L, "structural-apply")} }
                     if review.group_error { p { role: "alert", "data-testid": "structural-group-error", {t!(ws, L, "structural-group-blocked")} } }
                     if let Some(group) = review.group {
                         button { class: "mk-btn", "data-testid": "structural-undo", disabled: review.busy || group_applied != Some(true),
-                            onclick: move |_| { state.with_mut(|s| { s.busy=true; s.group_error=false; }); dioxus::core::spawn_forever(async move {
+                            onclick: moonkale_ext_api::crash::event(move |_| { state.with_mut(|s| { s.busy=true; s.group_error=false; }); moonkale_ext_api::crash::spawn_forever(async move {
                                 let result = grouped_edits::restore(ws,group,false).await;
                                 if state.peek().open && state.peek().group == Some(group) { state.with_mut(|s| {s.busy=false;s.group_error=result.is_err();}); }
-                            }); }, {t!(ws,L,"structural-undo")} }
+                            }); }), {t!(ws,L,"structural-undo")} }
                         button { class: "mk-btn", "data-testid": "structural-redo", disabled: review.busy || group_applied != Some(false),
-                            onclick: move |_| { state.with_mut(|s| { s.busy=true; s.group_error=false; }); dioxus::core::spawn_forever(async move {
+                            onclick: moonkale_ext_api::crash::event(move |_| { state.with_mut(|s| { s.busy=true; s.group_error=false; }); moonkale_ext_api::crash::spawn_forever(async move {
                                 let result = grouped_edits::restore(ws,group,true).await;
                                 if state.peek().open && state.peek().group == Some(group) { state.with_mut(|s| {s.busy=false;s.group_error=result.is_err();}); }
-                            }); }, {t!(ws,L,"structural-redo")} }
+                            }); }), {t!(ws,L,"structural-redo")} }
                         button { class: "mk-btn", "data-testid": "structural-save-all", disabled: review.busy || group_applied != Some(true),
-                            onclick: move |_| { state.with_mut(|s| s.busy=true); dioxus::core::spawn_forever(async move {
+                            onclick: moonkale_ext_api::crash::event(move |_| { state.with_mut(|s| s.busy=true); moonkale_ext_api::crash::spawn_forever(async move {
                                 let results = grouped_edits::save(ws,group).await;
                                 if state.peek().open && state.peek().group == Some(group) { state.with_mut(|s| {s.busy=false;s.saves=results;}); }
-                            }); }, {t!(ws,L,"structural-save-all")} }
+                            }); }), {t!(ws,L,"structural-save-all")} }
                     }
                     for result in &review.saves {
                         p { "data-testid": "structural-save-result", "{ws.document(result.node).map(|doc| doc.read().node.native_key.clone()).unwrap_or_else(||result.node.to_string())}: ",
@@ -577,9 +577,9 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                         }
                     }
                     button { class: "mk-btn", "data-testid": "structural-recompute", disabled: review.busy || review.file.is_none(),
-                        onclick: move |_| { spawn(recompute(ws, state)); }, {t!(ws, L, "structural-recompute")} }
+                        onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(recompute(ws, state)); }), {t!(ws, L, "structural-recompute")} }
                     button { class: "mk-btn", "data-testid": "structural-discard",
-                        onclick: move |_| { let generation = state.peek().generation.wrapping_add(1); state.set(Review { generation, ..Default::default() }); }, {t!(ws, L, "structural-discard")} }
+                        onclick: moonkale_ext_api::crash::event(move |_| { let generation = state.peek().generation.wrapping_add(1); state.set(Review { generation, ..Default::default() }); }), {t!(ws, L, "structural-discard")} }
                     if let Some(multi) = &review.multi {
                         for (index, file) in multi.files().iter().enumerate() {
                             section { key: "{file.base().node}", "data-testid": "structural-file", "data-node": "{file.base().node}",

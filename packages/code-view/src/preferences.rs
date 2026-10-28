@@ -53,15 +53,15 @@ pub fn editor_settings(ws: Workspace, target: SettingsTarget, wrap_label: String
         document::Stylesheet { href: PANEL_CSS }
         label { class: "mk-settings-check",
             input { r#type: "checkbox", checked: settings.wrap,
-                onchange: move |event| { let value = event.checked(); ws.update_settings_in(target, move |file| file.editor.wrap = Some(value)); } }
+                onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { let value = event.checked(); ws.update_settings_in(target, move |file| file.editor.wrap = Some(value)); } )}
             "{wrap_label}"
         }
         label { class: "mk-native-indent-control", {t!(ws, L, "native-indent-style")}
             select { class: "mk-native-indent-style", aria_label: t!(ws, L, "native-indent-style"), value: spaces_value,
-                onchange: move |event| {
+                onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| {
                     let value = match event.value().as_str() { "spaces" => Some(true), "tabs" => Some(false), _ => None };
                     ws.update_settings_in(target, move |file| file.editor.insert_spaces = value);
-                },
+                }),
                 option { value: "default", selected: spaces_value == "default", {t!(ws, L, "native-default")} }
                 option { value: "spaces", selected: spaces_value == "spaces", {t!(ws, L, "native-spaces")} }
                 option { value: "tabs", selected: spaces_value == "tabs", {t!(ws, L, "native-tabs")} }
@@ -70,7 +70,7 @@ pub fn editor_settings(ws: Workspace, target: SettingsTarget, wrap_label: String
         label { class: "mk-native-indent-control", {t!(ws, L, "native-indent-width")}
             select { class: "mk-native-indent-width", aria_label: t!(ws, L, "native-indent-width"),
                 value: settings.indent_width.map(|width| width.to_string()).unwrap_or_default(),
-                onchange: move |event| { let value = event.value().parse::<u8>().ok(); ws.update_settings_in(target, move |file| file.editor.indent_width = value); },
+                onchange: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { let value = event.value().parse::<u8>().ok(); ws.update_settings_in(target, move |file| file.editor.indent_width = value); }),
                 option { value: "", selected: settings.indent_width.is_none(), {t!(ws, L, "native-default")} }
                 for width in 1..=8 { option { value: "{width}", selected: settings.indent_width == Some(width), "{width}" } }
             }

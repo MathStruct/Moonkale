@@ -57,7 +57,7 @@ impl NativeSession {
         let output = session.borrow_mut().backend.take_output();
         if let Some(mut output) = output {
             let weak = Rc::downgrade(&session);
-            dioxus::core::spawn_forever(async move {
+            moonkale_ext_api::crash::spawn_forever(async move {
                 use futures_util::StreamExt;
                 let feed = |bytes: &[u8]| {
                     let Some(s) = weak.upgrade() else {
@@ -180,7 +180,7 @@ async fn start_session(mut ws: Workspace, mut sessions: Sessions, cwd: Option<St
 pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let mut sessions = sessions;
     // View → New Terminal, routed to this implementation (Milestone 12).
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let (seq, cmd) = *ws.shell.commands.read();
         let mut handled = sessions.handled;
         if seq <= *handled.peek() {
@@ -189,7 +189,7 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
         handled.set(seq);
         if cmd == Some(Command::NewTerminalIn("native")) {
             let cwd = ws.processes.terminal_cwd.peek().clone();
-            spawn(start_session(ws, sessions, cwd));
+            moonkale_ext_api::crash::spawn(start_session(ws, sessions, cwd));
         }
     });
     let list = sessions.list.read().clone();
@@ -205,22 +205,22 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         let title = s.borrow().title.clone();
                         rsx! {
                             span { key: "{id.0}", class: if active == Some(id) { "mk-tn-tab mk-tn-tab-active" } else { "mk-tn-tab" },
-                                onclick: move |_| sessions.active.set(Some(id)),
+                                onclick: moonkale_ext_api::crash::event(move |_| sessions.active.set(Some(id))),
                                 "{title}"
-                                button { class: "mk-tn-close", title: t!(ws, L, "terminal-close"), onclick: move |e| {
+                                button { class: "mk-tn-close", title: t!(ws, L, "terminal-close"), onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                     e.stop_propagation();
                                     sessions.list.with_mut(|l| l.retain(|s| s.borrow().id != id));
                                     if sessions.active.peek().as_ref() == Some(&id) {
                                         let next = sessions.list.peek().last().map(|s| s.borrow().id);
                                         sessions.active.set(next);
                                     }
-                                }, "×" }
+                                }), "×" }
                             }
                         }
                     }
                 }
                 button { class: "mk-tn-new", disabled: !available, title: t!(ws, L, "tn-new"),
-                    onclick: move |_| { ws.processes.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); }, "+" }
+                    onclick: moonkale_ext_api::crash::event(move |_| { ws.processes.terminal_cwd.set(None); moonkale_ext_api::crash::spawn(start_session(ws, sessions, None)); }), "+" }
             }
             if list.is_empty() {
                 p { class: "mk-muted mk-tn-empty", if available { {t!(ws, L, "tn-empty")} } else { {t!(ws, L, "terminal-unavailable")} } }
@@ -372,7 +372,7 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                 return;
             };
             let session = session.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let (Ok(rect), Ok(pr)) = (m.get_client_rect().await, p.get_client_rect().await)
                 else {
                     return;
@@ -421,23 +421,23 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
             class: if visible { "mk-tn-screen" } else { "mk-tn-screen mk-tn-hidden" },
             class: if focused() { "mk-tn-focused" },
             tabindex: 0,
-            onmounted: move |e| {
+            onmounted: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MountedEvent| {
                 mounted.set(Some(e.data()));
                 measure_mount();
                 // The webview does not always deliver `onresize` for a tile
                 // that grows or shrinks later (P-112): measure on a timer too.
                 let measure_tick = measure_tick.clone();
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     loop {
                         crate::sleep_ms(600).await;
                         measure_tick();
                     }
                 });
-            },
-            onresize: move |_| measure_resize(),
-            onfocus: move |_| focused.set(true),
-            onblur: move |_| focused.set(false),
-            onkeydown: move |e: KeyboardEvent| {
+            }),
+            onresize: moonkale_ext_api::crash::event(move |_| measure_resize()),
+            onfocus: moonkale_ext_api::crash::event(move |_| focused.set(true)),
+            onblur: moonkale_ext_api::crash::event(move |_| focused.set(false)),
+            onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| {
                 let m = e.modifiers();
                 let key = e.key().to_string();
                 // Leave the browser's own copy/paste and the app's palette alone.
@@ -459,8 +459,8 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                         s_key.borrow_mut().parser.screen_mut().set_scrollback(0);
                     }
                 }
-            },
-            onwheel: move |e: WheelEvent| {
+            }),
+            onwheel: moonkale_ext_api::crash::event(move |e: WheelEvent| {
                 let dy = match e.delta() {
                     WheelDelta::Pixels(v) => v.y / ch,
                     WheelDelta::Lines(v) => v.y,
@@ -476,14 +476,14 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                 let mut f = s.frame;
                 drop(s);
                 f += 1;
-            },
+            }),
             // Ten `M`s: the cell size is one tenth of this span's box.
-            span { class: "mk-tn-probe", onmounted: move |e| { probe.set(Some(e.data())); measure_probe(); }, "MMMMMMMMMM" }
+            span { class: "mk-tn-probe", onmounted: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MountedEvent| { probe.set(Some(e.data())); measure_probe(); }), "MMMMMMMMMM" }
             div { class: "mk-tn-grid", style: "--mk-tn-cw: {cw}px; --mk-tn-ch: {ch}px;",
                 for (r, runs) in rows.iter().enumerate() {
                     div { key: "{r}", class: "mk-tn-row",
                         // Ctrl+click on a row: open the first file link in it.
-                        onclick: {
+                        onclick: moonkale_ext_api::crash::event({
                             let s_click = s_click.clone();
                             move |e: MouseEvent| {
                                 if !moonkale_ext_api::keys::primary(&e.modifiers()) { return; }
@@ -494,10 +494,10 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
                                     screen.contents_between(r as u16, 0, r as u16, cols)
                                 };
                                 if let Some(link) = links::find(&text).into_iter().next() {
-                                    spawn(async move { let _ = ws.open_relative_path(&link.path).await; });
+                                    moonkale_ext_api::crash::spawn(async move { let _ = ws.open_relative_path(&link.path).await; });
                                 }
                             }
-                        },
+                        }),
                         for (i, run) in runs.iter().enumerate() {
                             span { key: "{i}", class: "mk-tn-run{run.class}", style: "{run.style}", "{run.text}" }
                         }

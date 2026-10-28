@@ -255,7 +255,7 @@ fn connect(ws: Workspace, s: Session) {
         "agent-connecting-to",
         provider = llm.provider.clone()
     ));
-    dioxus::core::spawn_forever(async move {
+    moonkale_ext_api::crash::spawn_forever(async move {
         match make(llm).await {
             Ok(p) => {
                 let p: Arc<dyn Provider> = p;
@@ -299,7 +299,7 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
     }
     items.with_mut(|v| v.push(Item::User(text.clone())));
     busy.set(true);
-    dioxus::core::spawn_forever(async move {
+    moonkale_ext_api::crash::spawn_forever(async move {
         // The system prompt, the policy and the tool list follow the workspace.
         {
             let mut g = a.borrow_mut();
@@ -570,7 +570,7 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
     // Connect, then put the saved messages into the agent once it exists.
     connect(ws, s.clone());
     let agent = s.agent;
-    dioxus::core::spawn_forever(async move {
+    moonkale_ext_api::crash::spawn_forever(async move {
         for _ in 0..12_000 {
             // A turn sent right after restoring holds the agent across its
             // await (#13: `borrow_mut` here panicked); wait for it.
@@ -606,25 +606,25 @@ pub fn AgentPanel(ws: Workspace) -> Element {
             .find(|s| s.descriptor.family == SourceFamily::Folder)
             .map(|f| f.descriptor.id.clone())
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let f = folder();
         if *saved_for.peek() == f {
             return;
         }
         match f {
-            Some(f) => spawn(load_saved(ws, chats, f)),
+            Some(f) => moonkale_ext_api::crash::spawn(load_saved(ws, chats, f)),
             None => {
                 saved_for.set(None);
                 let mut chats = chats;
                 chats.saved.set(Vec::new());
-                spawn(async {})
+                moonkale_ext_api::crash::spawn(async {})
             }
         };
     });
 
     // One session at least; reconnect the current one when the settings
     // its profile resolves to change (a model edited in Settings).
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = ws.settings.resolved.read().agents.len();
         let _ = ws.settings.resolved.read().llm.clone();
         let _ = ws.settings.resolved.read().agents.clone();
@@ -677,7 +677,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         let Some(a) = agent.peek().clone() else {
             return;
         };
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let Some(folder) = folder_of(ws) else {
                 let mut ws = ws;
                 ws.set_status(t!(ws, L, "agent-save-needs-folder"));
@@ -770,7 +770,7 @@ pub fn AgentPanel(ws: Workspace) -> Element {
         if let Some(rest) = v.strip_prefix("saved:") {
             let id = rest.to_string();
             if let Some(f) = folder_of(ws) {
-                spawn(restore(ws, chats, f.descriptor.id.clone(), id));
+                moonkale_ext_api::crash::spawn(restore(ws, chats, f.descriptor.id.clone(), id));
             }
         } else if chats.session(&v).is_some() {
             current.set(Some(v));
@@ -900,8 +900,8 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                             code { class: "mk-agent-tool-input", "{p.call.input}" }
                         }
                         div { class: "mk-agent-approval-actions",
-                            button { class: "mk-btn mk-btn-on", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(true); } } }, {t!(ws, L, "agent-allow")} }
-                            button { class: "mk-btn", onclick: { let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(false); } } }, {t!(ws, L, "agent-deny")} }
+                            button { class: "mk-btn mk-btn-on", onclick: moonkale_ext_api::crash::event({ let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(true); } } }), {t!(ws, L, "agent-allow")} }
+                            button { class: "mk-btn", onclick: moonkale_ext_api::crash::event({ let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(false); } } }), {t!(ws, L, "agent-deny")} }
                         }
                     }
                 }
@@ -914,17 +914,17 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                     placeholder: if busy() { t!(ws, L, "agent-busy") } else if agent().is_some() { t!(ws, L, "agent-ask") } else { t!(ws, L, "agent-connecting-provider") },
                     disabled: agent().is_none(),
                     value: "{input}",
-                    oninput: move |e| input.set(e.value()),
-                    onkeydown: move |e: KeyboardEvent| {
+                    oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| input.set(e.value())),
+                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| {
                         // Enter while an input method composes (Chinese, Japanese)
                         // picks a candidate; it does not send (#19).
                         if e.key() == Key::Enter && !e.modifiers().shift() && !e.is_composing() {
                             e.prevent_default();
                             send.call(());
                         }
-                    },
+                    }),
                 }
-                button { class: "mk-btn", disabled: busy() || agent().is_none(), onclick: move |_| send.call(()), if busy() { "…" } else { {t!(ws, L, "agent-send")} } }
+                button { class: "mk-btn", disabled: busy() || agent().is_none(), onclick: moonkale_ext_api::crash::event(move |_| send.call(())), if busy() { "…" } else { {t!(ws, L, "agent-send")} } }
             }
         }
     }

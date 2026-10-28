@@ -48,7 +48,7 @@ pub fn ProportionalGeometryProbe() -> Element {
             let delay = *delayed.peek();
             let id = id.clone();
             let requests = requests.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let result = native_browser_geometry::measure(&id, &source).await;
                 if delay {
                     futures_timer::Delay::new(std::time::Duration::from_millis(300)).await;
@@ -73,7 +73,7 @@ pub fn ProportionalGeometryProbe() -> Element {
             });
         })
     };
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = text();
         let _ = narrow();
         let _ = delayed();
@@ -120,31 +120,31 @@ pub fn ProportionalGeometryProbe() -> Element {
             "data-cursor": cursor.to_string(),
             "data-width": layout.as_ref().map(|value| value.width.to_string()).unwrap_or_default(),
             "data-height": layout.as_ref().map(|value| value.height.to_string()).unwrap_or_default(),
-            button { id: "proportional-width", onclick: move |_| narrow.toggle(), "Resize proportional probe" }
-            button { id: "proportional-delay", onclick: move |_| delayed.toggle(), "Delay geometry" }
-            button { id: "proportional-reset", onclick: move |_| { engine.set(EditorStateManager::new("Wi 😀 e\u{301} 中\tTabs", 80)); }, "Reset probe" }
+            button { id: "proportional-width", onclick: moonkale_ext_api::crash::event(move |_| narrow.toggle()), "Resize proportional probe" }
+            button { id: "proportional-delay", onclick: moonkale_ext_api::crash::event(move |_| delayed.toggle()), "Delay geometry" }
+            button { id: "proportional-reset", onclick: moonkale_ext_api::crash::event(move |_| { engine.set(EditorStateManager::new("Wi 😀 e\u{301} 中\tTabs", 80)); }), "Reset probe" }
             div {
                 style: if narrow() { "position:relative; width:230px;" } else { "position:relative; width:600px;" },
                 div {
                     id: id.clone(), class: "proportional-source",
                     style: "font: 24px/32px serif; white-space:pre-wrap; overflow-wrap:anywhere; tab-size:4; direction:ltr; user-select:none;",
-                    onmounted: {
+                    onmounted: moonkale_ext_api::crash::event({
                         let id=id.clone();
                         move |_| {
                             let id=id.clone();
-                            spawn(async move { native_browser_geometry::watch_fonts(&id,Callback::new(move |notice:native_browser_geometry::FontNotice| {
+                            moonkale_ext_api::crash::spawn(async move { native_browser_geometry::watch_fonts(&id,Callback::new(move |notice:native_browser_geometry::FontNotice| {
                                 if font_epoch.try_peek().is_err() || font_loading.try_peek().is_err() { return; }
                                 if *font_epoch.peek()!=notice.epoch { font_epoch.set(notice.epoch); }
                                 if *font_loading.peek()!=notice.loading { font_loading.set(notice.loading); }
                             })).await; });
                             measure.call(());
                         }
-                    },
-                    onresize: move |event| {
+                    }),
+                    onresize: moonkale_ext_api::crash::event(move |event: dioxus::prelude::ResizeEvent| {
                         let unchanged=event.data().get_border_box_size().ok().is_some_and(|size| geometry.peek().as_ref().is_some_and(|(_,layout,_)| (layout.width-size.width).abs()<0.000001 && (layout.height-size.height).abs()<0.000001));
                         if !unchanged { geometry.set(None);measure.call(()); }
-                    },
-                    onmousedown: move |event| {
+                    }),
+                    onmousedown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                         event.prevent_default();
                         if !can_hit { return; }
                         dragging.set(true);
@@ -153,10 +153,10 @@ pub fn ProportionalGeometryProbe() -> Element {
                                 let (line, column) = editor.editor().line_index().char_offset_to_position(offset);
                                 place_caret_at(editor, Position::new(line, column));
                             });
-                            if let Some(input) = key_input.borrow().clone() { spawn(async move { let _ = input.set_focus(true).await; }); }
+                            if let Some(input) = key_input.borrow().clone() { moonkale_ext_api::crash::spawn(async move { let _ = input.set_focus(true).await; }); }
                         }
-                    },
-                    onmousemove: move |event| {
+                    }),
+                    onmousemove: moonkale_ext_api::crash::event(move |event: dioxus::prelude::MouseEvent| {
                         if !dragging() || !can_hit || !event.held_buttons().contains(dioxus::html::input_data::MouseButton::Primary) { return; }
                         if let Some(offset) = drag_layout.as_ref().and_then(|value| value.hit(event.element_coordinates().x, event.element_coordinates().y)) {
                             engine.with_mut(|editor| {
@@ -164,9 +164,9 @@ pub fn ProportionalGeometryProbe() -> Element {
                                 let _ = editor.execute(Command::Cursor(CursorCommand::ExtendSelection { to: Position::new(line, column) }));
                             });
                         }
-                    },
-                    onmouseup: move |_| dragging.set(false),
-                    onmouseleave: move |_| dragging.set(false),
+                    }),
+                    onmouseup: moonkale_ext_api::crash::event(move |_| dragging.set(false)),
+                    onmouseleave: moonkale_ext_api::crash::event(move |_| dragging.set(false)),
                     "{text}"
                 }
                 for rect in selection_boxes {
@@ -182,18 +182,18 @@ pub fn ProportionalGeometryProbe() -> Element {
                 class: "proportional-input", aria_label: "Proportional geometry test input",
                 style: "position:absolute; width:1px; height:1px; opacity:0;",
                 value: "",
-                onmounted: {
+                onmounted: moonkale_ext_api::crash::event({
                     let input_node = input_node.clone();
                     move |event: MountedEvent| {
                         *input_node.borrow_mut() = Some(event.data.clone());
-                        if input_epoch() > 0 { spawn(async move { let _ = event.data.set_focus(true).await; }); }
+                        if input_epoch() > 0 { moonkale_ext_api::crash::spawn(async move { let _ = event.data.set_focus(true).await; }); }
                     }
-                },
-                oninput: move |event| { let value = event.value(); if !value.is_empty() {
+                }),
+                oninput: moonkale_ext_api::crash::event(move |event: dioxus::prelude::FormEvent| { let value = event.value(); if !value.is_empty() {
                     if text.peek().chars().count() + value.chars().count() > 4096 { limit_reached.set(true); input_epoch.with_mut(|value| *value += 1); return; }
                     limit_reached.set(false);
-                    engine.with_mut(|editor| { let _ = editor.execute(Command::Edit(EditCommand::InsertText { text: value })); }); input_epoch.with_mut(|value| *value += 1); } },
-                onkeydown: move |event| {
+                    engine.with_mut(|editor| { let _ = editor.execute(Command::Edit(EditCommand::InsertText { text: value })); }); input_epoch.with_mut(|value| *value += 1); } }),
+                onkeydown: moonkale_ext_api::crash::event(move |event: dioxus::prelude::KeyboardEvent| {
                     let primary = moonkale_ext_api::keys::primary(&event.modifiers());
                     let handled = engine.with_mut(|editor| {
                         if primary && event.key() == Key::Character("z".into()) {
@@ -210,7 +210,7 @@ pub fn ProportionalGeometryProbe() -> Element {
                         false
                     });
                     if handled { event.prevent_default(); }
-                },
+                }),
             }
             }
             if limit_reached() { p { role: "status", "This geometry probe is limited to 4096 source characters." } }

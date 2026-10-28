@@ -87,7 +87,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
             let source_id = source_id.clone();
             let text = text.peek().clone();
             let dialect = dialect.peek().to_string();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 running.set(true);
                 let out = match ws.source(&source_id) {
                     Some(s) => s.query(Query::Text { dialect, text }).await.and_then(|r| {
@@ -154,10 +154,10 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                                 key: "{d}",
                                 class: if dialect() == d { "mk-btn mk-btn-on" } else { "mk-btn" },
                                 title: t!(ws, L, "table-dialect-title", dialect = d),
-                                onclick: {
+                                onclick: moonkale_ext_api::crash::event({
                                     let mut pick = pick.clone();
                                     move |_| pick(d)
-                                },
+                                }),
                                 "{d}"
                             }
                         }
@@ -169,8 +169,8 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                     spellcheck: false,
                     placeholder: "{dialect}",
                     value: "{text}",
-                    oninput: move |e| text.set(e.value()),
-                    onkeydown: {
+                    oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| text.set(e.value())),
+                    onkeydown: moonkale_ext_api::crash::event({
                         let run = run.clone();
                         move |e: KeyboardEvent| {
                             if e.modifiers().ctrl() && e.key() == Key::Enter {
@@ -178,13 +178,13 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                                 run();
                             }
                         }
-                    },
+                    }),
                 }
-                button { class: "mk-btn", disabled: running(), onclick: { let run = run.clone(); move |_| run() },
+                button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event({ let run = run.clone(); move |_| run() }),
                     if running() { {t!(ws, L, "table-running")} } else { {t!(ws, L, "table-run")} }
                 }
                 if matches!(result(), Some(Ok(ref r)) if !r.nodes.is_empty()) {
-                    button { class: "mk-btn mk-table-graph", onclick: show_in_graph, title: t!(ws, L, "table-graph-title"), {t!(ws, L, "table-graph")} }
+                    button { class: "mk-btn mk-table-graph", onclick: moonkale_ext_api::crash::event(show_in_graph), title: t!(ws, L, "table-graph-title"), {t!(ws, L, "table-graph")} }
                 }
             }
             div { class: "mk-table-grid-host",
@@ -289,7 +289,7 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
         let l = grid::lefts(&widths.peek());
         if let Some((x, y)) = grid::reveal(*scroll.peek(), to, &l, *view.peek()) {
             if let Some(el) = grid_el.peek().clone() {
-                spawn(async move {
+                moonkale_ext_api::crash::spawn(async move {
                     let _ = el
                         .scroll(
                             dioxus::html::geometry::PixelsVector2D::new(x, y),
@@ -315,10 +315,10 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                 r#type: "search",
                 placeholder: t!(ws, L, "table-filter"),
                 value: "{filter}",
-                oninput: move |e| {
+                oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
                     filter.set(e.value());
                     cursor.set(None);
-                },
+                }),
             }
         }
         div {
@@ -332,20 +332,20 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
             "data-first": "{rows.start}",
             "data-drawn": "{rows.len()}",
             "data-cols-drawn": "{cols.len()}",
-            onmounted: move |e| grid_el.set(Some(e.data())),
-            onresize: move |e| {
+            onmounted: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MountedEvent| grid_el.set(Some(e.data()))),
+            onresize: moonkale_ext_api::crash::event(move |e: dioxus::prelude::ResizeEvent| {
                 if let Ok(size) = e.data().get_content_box_size() {
                     view.set((size.width, size.height));
                 }
-            },
-            onscroll: move |e| {
+            }),
+            onscroll: moonkale_ext_api::crash::event(move |e: dioxus::prelude::ScrollEvent| {
                 let d = e.data();
                 scroll.set((d.scroll_left(), d.scroll_top()));
                 if d.client_width() > 0 {
                     view.set((d.client_width() as f64, d.client_height() as f64));
                 }
-            },
-            onkeydown: move |e| {
+            }),
+            onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                 let primary = moonkale_ext_api::keys::primary(&e.modifiers());
                 let mv = match e.key() {
                     Key::ArrowUp => Move::Up,
@@ -362,17 +362,17 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                 };
                 e.prevent_default();
                 go(mv);
-            },
-            onmousemove: move |e| {
+            }),
+            onmousemove: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                 if let Some((c, x0, w0)) = drag() {
                     let x = e.client_coordinates().x;
                     if let Some(w) = widths.write().get_mut(c) {
                         *w = (w0 + x - x0).max(grid::MIN_W);
                     }
                 }
-            },
-            onmouseup: move |_| drag.set(None),
-            onmouseleave: move |_| drag.set(None),
+            }),
+            onmouseup: moonkale_ext_api::crash::event(move |_| drag.set(None)),
+            onmouseleave: moonkale_ext_api::crash::event(move |_| drag.set(None)),
             div {
                 class: "mk-table-sizer",
                 style: "height: {HEAD_H + shown as f64 * ROW_H}px; width: {NUM_W + full_w}px;",
@@ -387,20 +387,20 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                             aria_sort: match sorted { Some((s, true)) if s == c => "ascending", Some((s, false)) if s == c => "descending", _ => "none" },
                             style: "width: {widths.read()[c]}px;",
                             title: "{table.columns[c]}",
-                            onclick: move |_| { let next = grid::next_sort(*sort.peek(), c); sort.set(next); },
+                            onclick: moonkale_ext_api::crash::event(move |_| { let next = grid::next_sort(*sort.peek(), c); sort.set(next); }),
                             span { class: "mk-table-hname", "{table.columns[c]}" }
                             span { class: "mk-table-arrow",
                                 match sorted { Some((s, true)) if s == c => "▲", Some((s, false)) if s == c => "▼", _ => "" }
                             }
                             div {
                                 class: "mk-table-resize",
-                                onclick: move |e| e.stop_propagation(),
-                                onmousedown: move |e| {
+                                onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| e.stop_propagation()),
+                                onmousedown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                     e.stop_propagation();
                                     e.prevent_default();
                                     let w = widths.peek().get(c).copied().unwrap_or(grid::MIN_W);
                                     drag.set(Some((c, e.client_coordinates().x, w)));
-                                },
+                                }),
                             }
                         }
                     }
@@ -429,13 +429,13 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                                                     role: "gridcell",
                                                     style: "width: {widths.read()[c]}px;",
                                                     title: if matches!(v, Value::Text(_)) { "{text}" } else { "" },
-                                                    onclick: move |_| cursor.set(Some((pos, c))),
+                                                    onclick: moonkale_ext_api::crash::event(move |_| cursor.set(Some((pos, c)))),
                                                     if let Some(target) = target {
-                                                        button { class: "mk-cell-ref", role: "link", onclick: move |e| {
+                                                        button { class: "mk-cell-ref", role: "link", onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                                             e.stop_propagation();
                                                             let known = known.clone();
-                                                            spawn(async move { open_reference(ws, target, known).await; });
-                                                        }, "{text}" }
+                                                            moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, known).await; });
+                                                        }), "{text}" }
                                                     } else if let Some(points) = points {
                                                         svg { class: "mk-cell-vector", view_box: "0 0 100 20", width: "100", height: "20",
                                                             role: "img", "aria-label": "{text}",

@@ -60,7 +60,7 @@ impl Sessions {
         if let Some(mut out) = output {
             let relay = relay.clone();
             // Ends when the session is closed: dropping the backend closes the stream.
-            dioxus::core::spawn_forever(async move {
+            moonkale_ext_api::crash::spawn_forever(async move {
                 while let Some(chunk) = out.next().await {
                     relay.borrow_mut().push(&chunk);
                 }
@@ -164,7 +164,7 @@ async fn start_session(mut ws: Workspace, sessions: Sessions, cwd: Option<String
 pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let mut sessions = sessions;
     // View → New Terminal / "New terminal here".
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let (seq, cmd) = *ws.shell.commands.read();
         let mut handled = sessions.handled;
         if seq <= *handled.peek() {
@@ -174,12 +174,12 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
         // The frame resolves `NewTerminal` to an implementation (Milestone 12).
         if cmd == Some(Command::NewTerminalIn("xterm")) {
             let cwd = ws.processes.terminal_cwd.peek().clone();
-            spawn(start_session(ws, sessions, cwd));
+            moonkale_ext_api::crash::spawn(start_session(ws, sessions, cwd));
         }
     });
     // Sessions started elsewhere — the `ssh` of a remote folder (Milestone
     // 11) — become tabs here, so their prompts can be answered.
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let mut ws = ws;
         let pending: Vec<Session> = ws
             .processes
@@ -213,23 +213,23 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                             button { key: "{id.0}",
                                 class: if active == Some(id) { "mk-term-tab mk-term-tab-active" } else { "mk-term-tab" },
                                 title: cwd.unwrap_or_default(),
-                                onclick: move |_| sessions.active.set(Some(id)),
+                                onclick: moonkale_ext_api::crash::event(move |_| sessions.active.set(Some(id))),
                                 "{title}"
-                                span { class: "mk-term-close", title: t!(ws, L, "terminal-close"), onclick: move |e| {
+                                span { class: "mk-term-close", title: t!(ws, L, "terminal-close"), onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                     e.stop_propagation();
                                     sessions.close(id);
-                                }, "✕" }
+                                }), "✕" }
                             }
                         }
                     }
                 }
                 button { class: "mk-term-tab mk-term-new", title: t!(ws, L, "terminal-new"), disabled: !available,
-                    onclick: move |_| { ws.processes.terminal_cwd.set(None); spawn(start_session(ws, sessions, None)); },
+                    onclick: moonkale_ext_api::crash::event(move |_| { ws.processes.terminal_cwd.set(None); moonkale_ext_api::crash::spawn(start_session(ws, sessions, None)); }),
                     "+"
                 }
                 if active.is_some() {
                     button { class: "mk-term-tab mk-term-trace", title: t!(ws, L, "terminal-trace-title"),
-                        onclick: move |_| { let mut t = sessions.trace_tick; t += 1; },
+                        onclick: moonkale_ext_api::crash::event(move |_| { let mut t = sessions.trace_tick; t += 1; }),
                         {t!(ws, L, "terminal-trace")}
                     }
                 }
@@ -300,7 +300,7 @@ fn SessionView(props: SessionViewProps) -> Element {
             let (replay, mut live) = relay.borrow_mut().subscribe();
             let session_in = session.clone();
             // JS → Rust: keystrokes, resizes, links.
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
                         Ok(FromJs::Ready { cols, rows }) | Ok(FromJs::Resize { cols, rows }) => {
@@ -316,7 +316,7 @@ fn SessionView(props: SessionViewProps) -> Element {
                         Ok(FromJs::Link { lines }) => {
                             // The clicked row first, then its neighbours.
                             if let Some(link) = lines.iter().flat_map(|l| links::find(l)).next() {
-                                spawn(open_link(ws, link.path));
+                                moonkale_ext_api::crash::spawn(open_link(ws, link.path));
                             }
                         }
                         Ok(FromJs::Text { text }) => {
@@ -343,7 +343,7 @@ fn SessionView(props: SessionViewProps) -> Element {
             });
             // Backend → JS: process output, base64.
             let ev_out = ev;
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let send = |chunk: &[u8]| {
                     let data = base64::engine::general_purpose::STANDARD.encode(chunk);
                     ev_out.send(ToJs::Output { data: &data }).is_ok()
@@ -365,7 +365,7 @@ fn SessionView(props: SessionViewProps) -> Element {
     // "Trace → Graph" pressed: the visible session answers.
     {
         let mut seen = use_signal(|| 0u64);
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let tick = *trace_tick.read();
             if tick == *seen.peek() || !visible {
                 return;
@@ -388,8 +388,8 @@ fn SessionView(props: SessionViewProps) -> Element {
             id: "{element_id}",
             class: "mk-term-session",
             class: if !visible { "mk-term-hidden" },
-            onmounted: mount,
-            onclick: move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Focus); } },
+            onmounted: moonkale_ext_api::crash::event(mount),
+            onclick: moonkale_ext_api::crash::event(move |_| { if let Some(ev) = eval.peek().as_ref() { let _ = ev.send(ToJs::Focus); } }),
         }
     }
 }

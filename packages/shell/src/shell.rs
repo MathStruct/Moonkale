@@ -133,6 +133,11 @@ pub fn Shell() -> Element {
     let exts: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     // Controlled layout so "View → Reset Layout" can put it back.
     let mut layout = use_signal(default_layout);
+    use_effect(move || {
+        if *ws.crashes.safe.read() {
+            layout.set(default_layout());
+        }
+    });
     // Phone-sized shell: one tile, a bottom bar, nothing persisted. The
     // media query decides; both platforms start wide so hydration matches.
     let mut narrow = use_signal(|| false);
@@ -167,7 +172,7 @@ pub fn Shell() -> Element {
     let mut restored_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
     use_effect(move || {
         let folder = ws.settings.folder.read().clone();
-        if folder.is_none() || *restored_for.peek() == folder {
+        if *ws.crashes.safe.read() || folder.is_none() || *restored_for.peek() == folder {
             return;
         }
         restored_for.set(folder);
@@ -182,7 +187,7 @@ pub fn Shell() -> Element {
         }
     });
     let on_layout_change = move |next: PanelLayout| {
-        if ws.settings.folder.peek().is_none() || *narrow.peek() {
+        if *ws.crashes.safe.peek() || ws.settings.folder.peek().is_none() || *narrow.peek() {
             return;
         }
         let encoded = next.encode();
@@ -211,7 +216,7 @@ pub fn Shell() -> Element {
         match cmd {
             Some(Command::ResetLayout) => {
                 layout.set(default_layout());
-                if ws.settings.folder.peek().is_some() {
+                if !*ws.crashes.safe.peek() && ws.settings.folder.peek().is_some() {
                     spawn(async move {
                         ws.update_workspace_settings(|f| f.layout = None).await;
                     });
@@ -409,7 +414,7 @@ pub fn Shell() -> Element {
     {
         let libs: Vec<moonkale_ext_api::flow::FlowLibrary> = exts
             .iter()
-            .filter(|e| ext_settings.is_enabled(&e.manifest()))
+            .filter(|e| ext_settings.is_enabled(&e.manifest()) && ws.crashes.allows(&e.manifest()))
             .flat_map(|e| e.flow_libraries())
             .collect();
         if *ws.contrib.flow_libraries.peek() != libs {
@@ -435,7 +440,6 @@ pub fn Shell() -> Element {
     // closed or not — the bar is how a closed panel comes back.
     let mut activities: Vec<(String, moonkale_ext_api::Activity)> = Vec::new();
     for (i, c) in contributions(&exts, &ext_settings, ws, true) {
-        let ext = &exts[i];
         {
             if let (None, Some(act)) = (&c.node, &c.activity) {
                 activities.push((c.id.clone(), act.clone()));
@@ -456,26 +460,9 @@ pub fn Shell() -> Element {
                 editor_panel = Some(c.id.clone());
             }
             let home = home_tile(is_narrow, c.home);
-            // The extension's settings, offered beside its panel (2026-10-14).
-            let settings = ext.settings(ws, moonkale_ext_api::SettingsTarget::User);
-            // The popover names the extension, not the document.
-            let ext_name = {
-                let m = ext.manifest();
-                let own =
-                    moonkale_ext_api::i18n::tr(ext.locales(), &ws.lang(), "extension-name", None);
-                if own == "extension-name" {
-                    m.name.to_string()
-                } else {
-                    own
-                }
-            };
-            let content = guarded(
-                ws,
-                c.title.clone(),
-                ext.render(&c.id, ws),
-                settings,
-                ext_name,
-            );
+            let content = rsx! { ExtensionPanel {
+                ws, index: i, panel_id: c.id.clone(), title: c.title.clone()
+            } };
             let mut panel = Panel::new(c.id.as_str(), c.title.as_str(), home, content)
                 .with_closable(c.closable)
                 .with_home_zone(home_zone(&current_layout, home));
@@ -868,6 +855,29 @@ pub fn Shell() -> Element {
     }
 }
 
+/// Mount beneath the owning extension's guard, so callbacks and tasks
+/// created by descendants inherit the same identity.
+#[component]
+fn ExtensionPanel(ws: Workspace, index: usize, panel_id: String, title: String) -> Element {
+    let exts = use_context::<Extensions_>().0;
+    let ext = &exts[index];
+    let id = ext.manifest().id;
+    let guard = use_context_provider(|| moonkale_ext_api::crash::ExtensionGuard::new(ws, id));
+    let content = guard
+        .run(|| ext.render(&panel_id, ws))
+        .unwrap_or_else(VNode::empty);
+    let settings = guard
+        .run(|| ext.settings(ws, moonkale_ext_api::SettingsTarget::User))
+        .flatten();
+    guarded(
+        ws,
+        title,
+        content,
+        settings,
+        ext.manifest().name.to_string(),
+    )
+}
+
 /// Where a panel first appears: its declared home, or the single tile of
 /// the phone-sized shell.
 /// How a panel joins its home when that tile is gone from the layout (all
@@ -933,7 +943,9 @@ pub(crate) fn contributions(
     tracked: bool,
 ) -> Vec<(usize, moonkale_ext_api::PanelContribution)> {
     let active: Vec<usize> = (0..exts.len())
-        .filter(|&i| enabled.is_enabled(&exts[i].manifest()))
+        .filter(|&i| {
+            enabled.is_enabled(&exts[i].manifest()) && ws.crashes.allows(&exts[i].manifest())
+        })
         .collect();
     // node → (the extensions that claim it, the winner)
     let mut claims: HashMap<moonkale_core::NodeId, (Vec<usize>, Option<usize>)> = HashMap::new();
@@ -941,11 +953,16 @@ pub(crate) fn contributions(
     for &i in &active {
         // P-151: an untracked caller must not subscribe to the language
         // through the panels' translated titles.
-        let panels = if tracked {
-            exts[i].panels(ws)
-        } else {
-            moonkale_ext_api::workspace::untracked(|| exts[i].panels(ws))
-        };
+        let guard = moonkale_ext_api::crash::ExtensionGuard::new(ws, exts[i].manifest().id);
+        let panels = guard
+            .run(|| {
+                if tracked {
+                    exts[i].panels(ws)
+                } else {
+                    moonkale_ext_api::workspace::untracked(|| exts[i].panels(ws))
+                }
+            })
+            .unwrap_or_default();
         for c in panels {
             if let Some(node) = c.node {
                 let (claimants, won) = claims
@@ -1027,7 +1044,7 @@ fn workbench_strings(ws: Workspace) -> dioxus_workbench::WorkbenchStrings {
 /// instead of blanking the window. Native builds catch render panics
 /// (Dioxus turns them into errors); the web client is built with
 /// `panic = "abort"`, where only a page reload recovers. The session's
-/// state is in the store (ADR-0025, ADR-0026), so a reload loses no work.
+/// saved state is in the store; unsaved recovery remains WP-56 (ADR-0026).
 pub fn guarded(
     ws: Workspace,
     title: String,
@@ -1035,6 +1052,7 @@ pub fn guarded(
     settings: Option<Element>,
     extension: String,
 ) -> Element {
+    #[cfg(not(target_arch = "wasm32"))]
     remember_panics();
     rsx! { PanelFrame { ws, title, content, settings, extension } }
 }
@@ -1108,10 +1126,7 @@ fn boundary(ws: Workspace, title: String, content: Element) -> Element {
             handle_error: move |errors: ErrorContext| {
                 // Dioxus keeps a render panic's payload private; the hook
                 // below kept its message.
-                let detail = LAST_PANIC
-                    .lock()
-                    .ok()
-                    .and_then(|mut p| p.take())
+                let detail = LAST_PANIC.with(|last| last.borrow_mut().take())
                     .or_else(|| errors.error().map(|e| e.to_string()))
                     .unwrap_or_default();
                 rsx! {
@@ -1129,16 +1144,22 @@ fn boundary(ws: Workspace, title: String, content: Element) -> Element {
     }
 }
 
-/// The last panic's message and location, for the panel's notice.
-static LAST_PANIC: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+// The last render panic's message and location, local to this UI thread.
+thread_local! {
+    static LAST_PANIC: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
 
 /// Once per process: a panic hook that keeps the message for [`guarded`],
 /// then runs the hook that was there before (the default prints it).
-fn remember_panics() {
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn remember_panics() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
         let previous = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
+            if moonkale_ext_api::crash::is_guarded() {
+                return;
+            }
             let msg = info
                 .payload()
                 .downcast_ref::<&str>()
@@ -1149,9 +1170,11 @@ fn remember_panics() {
                 .location()
                 .map(|l| format!(" at {}:{}", l.file(), l.line()))
                 .unwrap_or_default();
-            if let Ok(mut last) = LAST_PANIC.lock() {
-                *last = Some(format!("{msg}{at}"));
-            }
+            let _ = LAST_PANIC.try_with(|last| {
+                if let Ok(mut last) = last.try_borrow_mut() {
+                    *last = Some(format!("{msg}{at}"));
+                }
+            });
             previous(info);
         }));
     });

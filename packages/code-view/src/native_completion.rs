@@ -57,7 +57,7 @@ pub(crate) fn use_completion(
         let session = session.read();
         (session.snapshot().revision, session.snapshot().selection)
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let now = current();
         let stale = request
             .peek()
@@ -108,7 +108,7 @@ pub(crate) fn use_completion(
             wiki,
         }));
     });
-    let result = use_resource(move || {
+    let result = moonkale_ext_api::crash::use_resource(move || {
         let request = request();
         let _ = ws.sources.graph_epoch.read();
         let current = current();

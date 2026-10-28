@@ -13,6 +13,7 @@
 //! See `ui.md` next to this crate for the implementation notes.
 
 pub mod commands;
+pub mod crash;
 mod explorer;
 mod extensions_panel;
 mod frame;

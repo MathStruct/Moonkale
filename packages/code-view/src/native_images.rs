@@ -256,7 +256,7 @@ async fn load(ws: Workspace, node: Node, epoch: u64, images: Images) -> Result<R
             let images = images.clone();
             let key = key.clone();
             let completed = slot.clone();
-            dioxus::core::spawn_forever(async move {
+            moonkale_ext_api::crash::spawn_forever(async move {
                 loop {
                     let acquired = {
                         let mut cache = images.0.borrow_mut();
@@ -326,7 +326,7 @@ pub(crate) fn ImageBlock(image: Image, identity: String, onlayout: Callback<()>)
                 (node.id, node.source.clone(), node.native_key.clone())
             })
     });
-    let loaded = use_resource(move || {
+    let loaded = moonkale_ext_api::crash::use_resource(move || {
         let destination = destination();
         let origin = origin();
         let visible = visible();
@@ -358,7 +358,7 @@ pub(crate) fn ImageBlock(image: Image, identity: String, onlayout: Callback<()>)
                     .map_err(Clone::clone)
             })
     });
-    use_effect(move || {
+    moonkale_ext_api::crash::use_effect(move || {
         let _ = status();
         failed.set(false);
         onlayout.call(());
@@ -384,13 +384,13 @@ pub(crate) fn ImageBlock(image: Image, identity: String, onlayout: Callback<()>)
     };
     rsx! { div {
         class:"mk-image-block", "data-image-owner":identity.clone(), title:image.title.clone(),
-        onmounted:move |event| {spawn(async move {if event.data().get_client_rect().await.is_ok_and(|rect|rect.size.width>0.0&&rect.size.height>0.0) {visible.set(true);}});},
-        onresize:move |event| {if let Ok(size)=event.data().get_border_box_size() {visible.set(size.width>0.0&&size.height>0.0);}},
+        onmounted:moonkale_ext_api::crash::event(move |event: dioxus::prelude::MountedEvent| {moonkale_ext_api::crash::spawn(async move {if event.data().get_client_rect().await.is_ok_and(|rect|rect.size.width>0.0&&rect.size.height>0.0) {visible.set(true);}});}),
+        onresize:moonkale_ext_api::crash::event(move |event: dioxus::prelude::ResizeEvent| {if let Ok(size)=event.data().get_border_box_size() {visible.set(size.width>0.0&&size.height>0.0);}}),
         if let Some((_,_,url))=ready {
             img {class:"mk-preview-image", "data-preview-image":identity.clone(), src:url.to_string(),alt:image.label(),
-                onload:move |_|onlayout.call(()),
-                onerror:move |_|{failed.set(true);onlayout.call(());}
-            }
+                onload:moonkale_ext_api::crash::event(move |_|onlayout.call(())),
+                onerror:moonkale_ext_api::crash::event(move |_|{failed.set(true);onlayout.call(());}
+            )}
         } else {div {class:"mk-image-placeholder", "data-preview-image":identity.clone(),role:"img","aria-label":image.label(),"{message}"}}
     }}
 }
@@ -412,7 +412,7 @@ pub(crate) fn use_follow(context: ImageContext) -> Callback<Image> {
             (state.snapshot().revision, state.snapshot().selection)
         };
         let cache = ws.shared_state(Images::default);
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let current = || {
                 *ws.docs.active.peek() == Some(context.node)
                     && doc

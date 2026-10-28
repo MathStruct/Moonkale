@@ -110,7 +110,7 @@ pub(crate) fn install(ws: Workspace, node: NodeId) -> Binding {
 }
 
 pub(crate) fn restore(ws: Workspace, group: u64, redo: bool) {
-    dioxus::core::spawn_forever(async move {
+    moonkale_ext_api::crash::spawn_forever(async move {
         if let Err(error) = grouped_edits::restore(ws, group, redo).await {
             let mut ws = ws;
             let file = error

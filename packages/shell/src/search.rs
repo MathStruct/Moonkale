@@ -64,7 +64,7 @@ fn SearchPanel(ws: Workspace) -> Element {
             hits.set(Some(Err(t!(ws, L, "search-no-folder"))));
             return;
         };
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             running.set(true);
             let out = index
                 .source
@@ -121,7 +121,7 @@ fn SearchPanel(ws: Workspace) -> Element {
     let do_preview = move || {
         let needle = query.peek().clone();
         let nodes = hit_nodes();
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             let mut out = Vec::new();
             for n in nodes {
                 if let Ok(c) = ws.count_occurrences(&n, &needle).await {
@@ -139,7 +139,7 @@ fn SearchPanel(ws: Workspace) -> Element {
         let Some(files) = preview.peek().clone() else {
             return;
         };
-        spawn(async move {
+        moonkale_ext_api::crash::spawn(async move {
             replacing.set(true);
             let mut total = 0;
             let mut failed = 0;
@@ -181,15 +181,15 @@ fn SearchPanel(ws: Workspace) -> Element {
                     class: "mk-input",
                     placeholder: t!(ws, L, "search-placeholder"),
                     value: "{query}",
-                    oninput: move |e| query.set(e.value()),
-                    onkeydown: move |e: KeyboardEvent| {
+                    oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| query.set(e.value())),
+                    onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| {
                         if e.key() == Key::Enter && !e.is_composing() {
                             e.prevent_default();
                             run();
                         }
-                    },
+                    }),
                 }
-                button { class: "mk-btn", disabled: running(), onclick: move |_| run(), {t!(ws, L, "search-go")} }
+                button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event(move |_| run()), {t!(ws, L, "search-go")} }
             }
             if matches!(hits(), Some(Ok(ref l)) if !l.is_empty()) {
                 div { class: "mk-search-box mk-search-replace",
@@ -197,10 +197,10 @@ fn SearchPanel(ws: Workspace) -> Element {
                         class: "mk-input",
                         placeholder: t!(ws, L, "search-replace-with"),
                         value: "{replacement}",
-                        oninput: move |e| { replacement.set(e.value()); preview.set(None); },
-                        onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Enter && !e.is_composing() { e.prevent_default(); do_preview(); } },
+                        oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| { replacement.set(e.value()); preview.set(None); }),
+                        onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| { if e.key() == Key::Enter && !e.is_composing() { e.prevent_default(); do_preview(); } }),
                     }
-                    button { class: "mk-btn", disabled: replacing(), onclick: move |_| do_preview(), {t!(ws, L, "search-preview")} }
+                    button { class: "mk-btn", disabled: replacing(), onclick: moonkale_ext_api::crash::event(move |_| do_preview()), {t!(ws, L, "search-preview")} }
                 }
                 if let Some(files) = preview_now {
                     div { class: "mk-search-preview", "data-files": "{files.len()}", "data-total": "{preview_total}",
@@ -213,7 +213,7 @@ fn SearchPanel(ws: Workspace) -> Element {
                                     li { key: "{n.id}", "{n.native_key} " span { class: "mk-muted", "({c})" } if ws.document(n.id).is_some() { span { class: "mk-muted", {t!(ws, L, "search-open-unsaved")} } } }
                                 }
                             }
-                            button { class: "mk-btn mk-btn-on", disabled: replacing(), onclick: do_replace, {t!(ws, L, "search-replace-all")} }
+                            button { class: "mk-btn mk-btn-on", disabled: replacing(), onclick: moonkale_ext_api::crash::event(do_replace), {t!(ws, L, "search-replace-all")} }
                         }
                     }
                 }
@@ -226,9 +226,9 @@ fn SearchPanel(ws: Workspace) -> Element {
                     Some(Ok(list)) => rsx! {
                         for (i, h) in list.into_iter().enumerate() {
                             div { key: "{i}", class: "mk-search-hit", title: "{h.path}:{h.line}",
-                                onclick: move |_| {
+                                onclick: moonkale_ext_api::crash::event(move |_| {
                                     let h = h.clone();
-                                    spawn(async move {
+                                    moonkale_ext_api::crash::spawn(async move {
                                         let node = match h.node.clone() {
                                             Some(n) => Some(n),
                                             None => ws.open_relative_path(&h.path).await.ok(),
@@ -237,7 +237,7 @@ fn SearchPanel(ws: Workspace) -> Element {
                                             let _ = ws.reveal(n, h.line.saturating_sub(1), 0).await;
                                         }
                                     });
-                                },
+                                }),
                                 div { class: "mk-search-hit-path", "{h.path}" span { class: "mk-search-hit-line", ":{h.line}" } }
                                 div { class: "mk-search-hit-snippet", "{h.snippet}" }
                             }

@@ -31,9 +31,9 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
     // Fetch once per node (the panel remounts for another node).
     {
         let node = node.clone();
-        use_effect(move || {
+        moonkale_ext_api::crash::use_effect(move || {
             let node = node.clone();
-            spawn(async move {
+            moonkale_ext_api::crash::spawn(async move {
                 let too_big = match &node.content {
                     Some(moonkale_core::ContentRef::Blob { len, .. }) => *len > MAX_BYTES,
                     _ => false,
@@ -130,40 +130,40 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                 moonkale_ext_api::icons::IconButton {
                     icon: "zoom-out",
                     label: t!(ws, L, "image-zoom-out"),
-                    onclick: move |_| step(-1),
+                    onclick: moonkale_ext_api::crash::event(move |_| step(-1)),
                 }
                 span { class: "mk-image-zoom", "{zoom_label}" }
                 moonkale_ext_api::icons::IconButton {
                     icon: "zoom-in",
                     label: t!(ws, L, "image-zoom-in"),
-                    onclick: move |_| step(1),
+                    onclick: moonkale_ext_api::crash::event(move |_| step(1)),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "fit",
                     label: t!(ws, L, "image-fit"),
                     description: t!(ws, L, "image-fit-title"),
                     pressed: Some(zoom().is_none()),
-                    onclick: move |_| zoom.set(None),
+                    onclick: moonkale_ext_api::crash::event(move |_| zoom.set(None)),
                 }
                 moonkale_ext_api::icons::IconButton {
                     icon: "actual-size",
                     label: "100%".to_string(),
                     description: t!(ws, L, "image-actual-title"),
                     pressed: Some(zoom() == Some(1.0)),
-                    onclick: move |_| zoom.set(Some(1.0)),
+                    onclick: moonkale_ext_api::crash::event(move |_| zoom.set(Some(1.0))),
                 }
                 if node.native_key.to_ascii_lowercase().ends_with(".svg") {
                     moonkale_ext_api::icons::IconButton {
                         icon: "code",
                         label: t!(ws, L, "image-source"),
                         description: t!(ws, L, "image-svg-title"),
-                        onclick: {
+                        onclick: moonkale_ext_api::crash::event({
                             let n = node.clone();
                             move |_| {
                                 let n = n.clone();
-                                spawn(async move { let _ = ws.open_as_text(n).await; });
+                                moonkale_ext_api::crash::spawn(async move { let _ = ws.open_as_text(n).await; });
                             }
-                        },
+                        }),
                     }
                 }
             }
@@ -171,14 +171,14 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                 id: "{stage_id}",
                 class: if zoom().is_none() { "mk-image-stage mk-image-fit" } else { "mk-image-stage" },
                 tabindex: "0",
-                onwheel: move |e| {
+                onwheel: moonkale_ext_api::crash::event(move |e: dioxus::prelude::WheelEvent| {
                     if moonkale_ext_api::keys::primary(&e.modifiers()) {
                         e.prevent_default();
                         let dy = e.delta().strip_units().y;
                         step(if dy < 0.0 { 1 } else { -1 });
                     }
-                },
-                onkeydown: move |e| {
+                }),
+                onkeydown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::KeyboardEvent| {
                     match e.key() {
                         Key::Character(c) if c == "+" || c == "=" => step(1),
                         Key::Character(c) if c == "-" => step(-1),
@@ -186,18 +186,18 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                         Key::Character(c) if c == "1" => zoom.set(Some(1.0)),
                         _ => {}
                     }
-                },
-                onmousedown: move |e| {
+                }),
+                onmousedown: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                     if zoom().is_some() {
                         let c = e.client_coordinates();
                         drag.set(Some((c.x, c.y)));
                     }
-                },
-                onmouseup: move |_| drag.set(None),
-                onmouseleave: move |_| drag.set(None),
-                onmousemove: {
+                }),
+                onmouseup: moonkale_ext_api::crash::event(move |_| drag.set(None)),
+                onmouseleave: moonkale_ext_api::crash::event(move |_| drag.set(None)),
+                onmousemove: moonkale_ext_api::crash::event({
                     let stage_id = stage_id_for_move.clone();
-                    move |e| {
+                    move |e: dioxus::prelude::MouseEvent| {
                         if let Some((x0, y0)) = drag() {
                             let c = e.client_coordinates();
                             let (dx, dy) = (c.x - x0, c.y - y0);
@@ -209,7 +209,7 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                             let _ = dioxus::document::eval(&js);
                         }
                     }
-                },
+                }),
                 match state() {
                     Loaded::Loading => rsx! { p { class: "mk-image-note", "Loading…" } },
                     Loaded::Failed(e) => rsx! { p { class: "mk-image-note mk-image-error", "{e}" } },
@@ -223,10 +223,10 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                             // `load` does not bubble, so it never reaches the
                             // delegated listener (P-094); ask after mount and
                             // wait for the decode instead.
-                            onmounted: move |_| {
+                            onmounted: moonkale_ext_api::crash::event(move |_| {
                                 // Natural size for the 100 % / zoom modes.
                                 let stage = stage_id_for_load.clone();
-                                spawn(async move {
+                                moonkale_ext_api::crash::spawn(async move {
                                     // An eval is a function body: `return` the value.
                                     let js = format!(
                                         "const i = document.querySelector('#' + CSS.escape({id:?}) + ' img'); if (!i) return [0, 0]; try {{ await i.decode(); }} catch (_) {{}} return [i.naturalWidth, i.naturalHeight];",
@@ -242,7 +242,7 @@ pub fn ImagePanel(ws: Workspace, node: Node) -> Element {
                                         }
                                     }
                                 });
-                            },
+                            }),
                         }
                     },
                 }

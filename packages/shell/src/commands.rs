@@ -235,7 +235,9 @@ impl Registry {
             push(c, Run::Builtin(cmd));
         }
         for (i, ext) in exts.iter().enumerate() {
-            if !settings.extensions.is_enabled(&ext.manifest()) {
+            if !settings.extensions.is_enabled(&ext.manifest())
+                || !ws.crashes.allows(&ext.manifest())
+            {
                 continue;
             }
             for c in ext.commands(ws) {
@@ -304,7 +306,8 @@ pub fn run(id: &str, mut ws: Workspace) -> bool {
         Run::Extension(i) => {
             let exts = use_context::<Extensions_>().0;
             if let Some(ext) = exts.get(*i) {
-                ext.run_command(id, ws);
+                moonkale_ext_api::crash::ExtensionGuard::new(ws, ext.manifest().id)
+                    .run(|| ext.run_command(id, ws));
             }
         }
     }

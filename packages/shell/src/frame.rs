@@ -77,8 +77,73 @@ pub fn Frame(
     #[props(default)] controls: Option<WindowControls>,
     children: Element,
 ) -> Element {
+    let mut mode = use_signal(|| {
+        #[cfg(not(target_arch = "wasm32"))]
+        let (safe, offer) = (
+            std::env::var_os("MOONKALE_SAFE").is_some(),
+            crate::crash::offer_safe(),
+        );
+        #[cfg(target_arch = "wasm32")]
+        let (safe, offer) = (crate::crash::web_safe(), crate::crash::web_offer());
+        if offer && !safe {
+            None
+        } else {
+            Some(safe)
+        }
+    });
+    let lang = moonkale_ext_api::i18n::system_language();
+    if let Some(safe) = mode() {
+        rsx! { FrameContent { config, controls, safe, children } }
+    } else {
+        // Choose recovery before any extension factory can run again.
+        rsx! {
+            document::Style { {crate::theme::builtin_css()} }
+            document::Link { rel: "stylesheet", href: asset!("/assets/styling/shell.css") }
+            div { class: "mk-frame",
+                div { class: "mk-crash-notice", role: "alert",
+                    {crate::tl!(&lang, "crash-startup")}
+                    button { class: "mk-btn", onclick: move |_| mode.set(Some(true)),
+                        onmounted: move |event| { spawn(async move { let _ = event.set_focus(true).await; }); },
+                        {crate::tl!(&lang, "crash-safe-start")}
+                    }
+                    button { class: "mk-btn", onclick: move |_| mode.set(Some(false)), {crate::tl!(&lang, "crash-dismiss")} }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn FrameContent(
+    config: ShellConfig,
+    controls: Option<WindowControls>,
+    safe: bool,
+    children: Element,
+) -> Element {
+    #[cfg(not(target_arch = "wasm32"))]
+    use_hook(crate::shell::remember_panics);
     let mut ws = use_context_provider(|| Workspace::new(config.workspace));
-    let exts = use_context_provider(|| Extensions_(Rc::new((config.extensions)()))).0;
+    use_hook(move || ws.crashes.safe.set(safe));
+    let exts = use_context_provider(|| {
+        Extensions_(Rc::new({
+            #[allow(unused_mut)]
+            let mut list = if *ws.crashes.safe.peek() {
+                Vec::new()
+            } else {
+                (config.extensions)()
+            };
+            #[cfg(all(feature = "crash-test", debug_assertions))]
+            if !*ws.crashes.safe.peek() && crate::crash::test_requested() {
+                list.push(Box::new(crate::crash::TestExtension));
+            }
+            list.into_iter()
+                .map(|ext| crate::crash::GuardedExtension::wrap(ext, ws))
+                .collect()
+        }))
+    })
+    .0;
+    #[cfg(target_arch = "wasm32")]
+    use_effect(move || crate::crash::web_labels(&ws.lang()));
     // The command registry (Milestone 7): rebuilt when settings (keybindings,
     // enabled extensions) change, read by menus, keys and the palette.
     let mut registry: crate::commands::CommandRegistry =
@@ -195,6 +260,17 @@ pub fn Frame(
             return;
         }
         settings_started.set(true);
+        spawn(async move {
+            let mut settled = document::eval("setTimeout(() => dioxus.send(true), 30000);");
+            if settled.recv::<bool>().await.is_ok() {
+                #[cfg(not(target_arch = "wasm32"))]
+                if ws.crashes.disabled.peek().is_empty() {
+                    crate::crash::healthy();
+                }
+                let _ = document::eval("globalThis.moonkaleStartup?.healthy();");
+            }
+        });
+
         // The webview is up: stylesheets inserted during the first render
         // may have been lost (Android, P-087) — ask them to re-assert.
         ws.docs.assets_epoch.with_mut(|e| *e += 1);
@@ -268,7 +344,7 @@ pub fn Frame(
             let s = ws.settings.resolved.peek();
             (s.open_documents.clone(), s.active_document.clone())
         };
-        if keys.is_empty() {
+        if *ws.crashes.safe.peek() || keys.is_empty() {
             return;
         }
         tracing::info!("settings: restoring {} documents", keys.len());
@@ -277,6 +353,9 @@ pub fn Frame(
         });
     });
     use_effect(move || {
+        if *ws.crashes.safe.read() {
+            return;
+        }
         let docs = ws.docs.open.read();
         let active = *ws.docs.active.read();
         let Some(folder) = ws.settings.folder.peek().clone() else {
@@ -496,6 +575,14 @@ pub fn Frame(
             // The browser wasm runtime (Milestone 8); harmless where unused.
             document::Script { src: WASM_HOST_JS, defer: true }
             TitleBar { controls }
+            if *ws.crashes.safe.read() {
+                div { class: "mk-crash-notice", role: "status", {t!(ws, L, "crash-safe-active")} }
+            } else if let Some(id) = ws.crashes.notice.read().clone() {
+                div { class: "mk-crash-notice", role: "alert",
+                    {t!(ws, L, "crash-disabled", name = id)}
+                    button { class: "mk-btn", onclick: move |_| ws.crashes.notice.set(None), {t!(ws, L, "crash-dismiss")} }
+                }
+            }
             div { class: "mk-frame-body", {children} }
             crate::palette::Palette {}
             if remote_dialog() {
