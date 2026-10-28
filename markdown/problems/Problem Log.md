@@ -226,6 +226,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 | [[P-232 Sophia capped graph reads scan namespace metadata]] | All(1000) spends seconds in Sophia namespace discovery: discarded Contains edges trigger repeated metadata scans; debug/release profile and upstream request prepared | resolved (Sophia v0.1.2) | — |
 | [[P-233 Structural edits need index nodes in the graph]] | Sophia selections resolve to unique index targets by native key or file/span/input; structural edits and rename pass on the default cache graph with both editors | resolved | 2026-10-28 |
 
+| [[P-234 Guarded futures overflow the wasm stack]] | WP-57 inline future wrappers crash Chromium on structural Preview. Shared heap pinning bounds task/resource/event wrappers; a large-future regression fails the old guards. | resolved | WP-57 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

@@ -658,6 +658,10 @@ startup failures, and `?safe` without changing extension preferences. Native
 `extension_crash` tests cover panic containment after an await and later event
 callbacks; the wasm build currently aborts, so its real panics use the overlay.
 Run `run-all.sh crash-safety shell menubar appearance extensions panels files rich stores palette wiki`.
+The crash suite defaults to Firefox; `CRASH_BROWSER=chromium run-all.sh crash-safety`
+checks the same real event/task panics and usable overlay in Chromium (P-234).
+Native guard tests also use a 64 KiB future to check bounded wrapper size,
+Pending/Ready polling, owner restoration, cancellation and drops.
 
 The crash-test fixture additionally requires `?crash-test` (native: `MOONKALE_CRASH_TEST`) so enabling the test feature does not change ordinary startup panels.
 
@@ -676,3 +680,10 @@ and release cover key tips. The palette suite additionally checks Settings
 rebinding and unbinding in palette rows and editor-button tooltips. `journey-keyboard-hold-ctrl.png` in `M1_SHOTS` records
 the badges. Run it with `run-all.sh journey-keyboard`; Firefox and the normal
 fixture suffice. The mouse journey is the next half of WP-64.
+
+Graph renderer fixtures that replace the scene must first wait for the host's
+initial node count to be positive and match the engine's `node_count()`.
+A live GL backend alone means the canvas is ready, while the folder graph may
+still be in flight and overwrite the fixture. `graph-edit`, `graph-layers`,
+`graph-pulse` and `graph-flow` now use the same readiness check as the other
+injected-scene suites (NEXT-28, 2026-10-28); their scene assertions are unchanged.

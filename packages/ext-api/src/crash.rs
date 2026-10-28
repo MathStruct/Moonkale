@@ -112,52 +112,61 @@ impl ExtensionGuard {
 
     /// Guard every poll, including polls after an await, and cancel siblings
     /// on their next poll. Dropping the panel cancels its scoped tasks too.
-    pub async fn task(&self, future: impl Future<Output = ()>) {
-        self.future(future).await;
+    pub fn task(&self, future: impl Future<Output = ()>) -> impl Future<Output = ()> {
+        let future = self.future(future);
+        async move {
+            future.await;
+        }
     }
 
     /// Poll a future under the guard, returning no value after failure.
-    pub async fn future<T>(&self, future: impl Future<Output = T>) -> Option<T> {
-        let mut future = std::pin::pin!(future);
-        std::future::poll_fn(|cx| {
-            if !self.enabled() {
-                return std::task::Poll::Ready(None);
-            }
-            let _active = Active::enter(self.clone());
-            match std::panic::catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(cx))) {
-                Ok(poll) => poll.map(Some),
-                Err(_) => {
-                    self.failed();
-                    std::task::Poll::Ready(None)
-                }
-            }
-        })
-        .await
+    /// Heap-pin before constructing wrappers so their size is independent of
+    /// the input future, including on the web client's limited wasm stack.
+    pub fn future<T>(&self, future: impl Future<Output = T>) -> impl Future<Output = Option<T>> {
+        guarded_future(Some(self.clone()), future)
     }
+}
+
+// Pin at the synchronous entry point, before any async state machine captures
+// the input. Otherwise nested wrappers carry multiple inline copies of a large
+// future and can exhaust the wasm stack while constructing a task (P-234).
+fn guarded_future<T>(
+    guard: Option<ExtensionGuard>,
+    future: impl Future<Output = T>,
+) -> impl Future<Output = Option<T>> {
+    let mut future = Box::pin(future);
+    std::future::poll_fn(move |cx| {
+        let Some(guard) = &guard else {
+            return future.as_mut().poll(cx).map(Some);
+        };
+        if !guard.enabled() {
+            return std::task::Poll::Ready(None);
+        }
+        let _active = Active::enter(guard.clone());
+        match std::panic::catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(cx))) {
+            Ok(poll) => poll.map(Some),
+            Err(_) => {
+                guard.failed();
+                std::task::Poll::Ready(None)
+            }
+        }
+    })
 }
 
 /// Use instead of Dioxus `spawn` in extension components. The shell supplies
 /// the guard through context; outside an extension this behaves like Dioxus.
 pub fn spawn(future: impl Future<Output = ()> + 'static) -> dioxus::core::Task {
-    let guard = current();
+    let future = guarded_future(current(), future);
     dioxus::prelude::spawn(async move {
-        if let Some(guard) = guard {
-            guard.task(future).await;
-        } else {
-            future.await;
-        }
+        future.await;
     })
 }
 
 /// A session service that survives panel unmounts, with the same failure guard.
 pub fn spawn_forever(future: impl Future<Output = ()> + 'static) -> dioxus::core::Task {
-    let guard = current();
+    let future = guarded_future(current(), future);
     dioxus::core::spawn_forever(async move {
-        if let Some(guard) = guard {
-            guard.task(future).await;
-        } else {
-            future.await;
-        }
+        future.await;
     })
 }
 
@@ -185,16 +194,11 @@ pub fn use_resource<T: 'static, F: Future<Output = T> + 'static>(
         } else {
             Some(factory())
         };
-        let guard = guard.clone();
+        let future = future.map(|future| guarded_future(guard.clone(), future));
         async move {
             if let Some(future) = future {
-                match guard {
-                    Some(guard) => {
-                        if let Some(value) = guard.future(future).await {
-                            return value;
-                        }
-                    }
-                    None => return future.await,
+                if let Some(value) = future.await {
+                    return value;
                 }
             }
             std::future::pending().await
@@ -213,14 +217,10 @@ pub fn use_future<F: Future<Output = ()> + 'static>(
         } else {
             Some(factory())
         };
-        let guard = guard.clone();
+        let future = future.map(|future| guarded_future(guard.clone(), future));
         async move {
             if let Some(future) = future {
-                if let Some(guard) = guard {
-                    guard.task(future).await;
-                } else {
-                    future.await;
-                }
+                future.await;
             }
         }
     })
@@ -244,12 +244,9 @@ pub enum AsyncEvent {}
 impl<F: Future<Output = ()> + 'static> EventReturn<AsyncEvent> for F {
     fn dispatch(self, guard: Option<ExtensionGuard>) {
         use futures_util::FutureExt;
+        let future = guarded_future(guard, self);
         let mut future = Box::pin(async move {
-            if let Some(guard) = guard {
-                guard.task(self).await;
-            } else {
-                self.await;
-            }
+            future.await;
         });
         // Match Dioxus: poll once inline so prevent_default works before the
         // browser completes its event, then schedule subsequent polls.

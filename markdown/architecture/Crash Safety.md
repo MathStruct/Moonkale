@@ -22,6 +22,12 @@ a hard crash can still lose edits since the last save.
 The shell wraps extension trait entry points and provides an `ExtensionGuard`
 context beneath each panel and extension settings subtree. Built-in callbacks,
 spawned services, effects and resources use the helpers in `ext-api::crash`.
+Inputs are heap-pinned before the helpers construct async wrappers (P-234).
+This keeps wrapper size independent of large extension futures; pinning inside
+an async body is too late and previously crashed Chromium's renderer on
+structural Preview. A 64 KiB future regression checks size, polls, cancellation
+and ownership restoration. The crash suite supports Firefox and Chromium.
+
 Compiled-in extensions supplied by other repositories must also use those helpers
 for their callbacks and tasks. Raw Dioxus spawning, custom executors, foreign
 threads, aborts, stack overflow and memory exhaustion cannot be contained by a

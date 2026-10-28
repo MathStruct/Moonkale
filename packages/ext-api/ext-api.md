@@ -104,3 +104,9 @@ reactive shortcut presentation. `IconButton.command` resolves its tooltip and
 without shell context it has no binding. The explicit shortcut prop remains
 available for actions outside the command registry. `workspace::is_derived_cache`
 is shared by source following and Explorer refresh visibility.
+
+P-234 (2026-10-28): the helpers heap-pin inputs synchronously before constructing
+async wrappers, keeping task/resource/event wrapper size independent of the
+input future. Guards still cover factory construction and every poll; disabled
+owners cancel on their next poll. Native large-future/poll/drop regressions live
+in `shell/tests/extension_crash.rs`.

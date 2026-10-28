@@ -203,3 +203,88 @@ fn async_event_callbacks_are_polled_and_guarded_instead_of_dropped() {
         assert_eq!(ws.crashes.notice.peek().as_deref(), Some("async-event"));
     });
 }
+
+#[test]
+fn large_guarded_futures_stay_small_and_poll_once_per_wake() {
+    use moonkale_ext_api::crash::{is_guarded, ExtensionGuard};
+    use std::{
+        cell::Cell,
+        future::Future,
+        pin::Pin,
+        rc::Rc,
+        task::{Context, Poll, Waker},
+    };
+    struct Large {
+        data: [u8; 64 * 1024],
+        polls: Rc<Cell<usize>>,
+        drops: Rc<Cell<usize>>,
+    }
+    impl Future for Large {
+        type Output = u8;
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<u8> {
+            assert!(is_guarded(), "ownership must cover every poll");
+            let poll = self.polls.get();
+            self.polls.set(poll + 1);
+            match poll {
+                0 => {
+                    self.data[0] = 42;
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                }
+                1 => Poll::Ready(self.data[0]),
+                _ => panic!("finished future polled again"),
+            }
+        }
+    }
+    impl Drop for Large {
+        fn drop(&mut self) {
+            self.drops.set(self.drops.get() + 1);
+        }
+    }
+    let dom = VirtualDom::new(empty_app);
+    dom.in_scope(ScopeId::ROOT, || {
+        let ws = Workspace::new(config());
+        let guard = ExtensionGuard::new(ws, "large-task");
+        let data = [0u8; 64 * 1024];
+        let task = guard.task(async move {
+            std::hint::black_box(data);
+        });
+        assert!(std::mem::size_of_val(&task) < 1024);
+        drop(task);
+        let polls = Rc::new(Cell::new(0));
+        let drops = Rc::new(Cell::new(0));
+        let mut cx = Context::from_waker(Waker::noop());
+        {
+            let future = guard.future(Large {
+                data: [0; 64 * 1024],
+                polls: polls.clone(),
+                drops: drops.clone(),
+            });
+            assert!(
+                std::mem::size_of_val(&future) < 1024,
+                "guard must heap-pin before constructing its returned future"
+            );
+            assert_eq!(polls.get(), 0, "construction must not execute the task");
+            let mut future = std::pin::pin!(future);
+            assert_eq!(future.as_mut().poll(&mut cx), Poll::Pending);
+            assert!(!is_guarded(), "ownership must be restored between polls");
+            assert_eq!(polls.get(), 1);
+            assert_eq!(future.as_mut().poll(&mut cx), Poll::Ready(Some(42)));
+            assert_eq!(polls.get(), 2);
+            assert!(!is_guarded());
+        }
+        assert_eq!(drops.get(), 1);
+        {
+            let future = guard.future(Large {
+                data: [0; 64 * 1024],
+                polls: polls.clone(),
+                drops: drops.clone(),
+            });
+            let mut future = std::pin::pin!(future);
+            guard.failed();
+            assert_eq!(future.as_mut().poll(&mut cx), Poll::Ready(None));
+            assert_eq!(polls.get(), 2, "disabled siblings must not poll");
+        }
+        assert_eq!(drops.get(), 2);
+    });
+}

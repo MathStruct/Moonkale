@@ -379,3 +379,8 @@ WP-64 (2026-10-28): key tips read shortcut attributes produced by the Rust
 command registry and create text-only badge nodes. No content becomes HTML,
 script, a URL or a command. The adapter adds no parser, dependency, persistence,
 network connection or authority. Empty-tile hints use escaped localized text.
+
+P-234 (2026-10-28): crash helpers heap-pin task inputs before constructing their
+async wrappers, preventing inline future amplification on the wasm stack.
+Owner checks, per-poll native unwind containment and payload-free web panic
+handling remain in place. No parser, source write or network authority is added.

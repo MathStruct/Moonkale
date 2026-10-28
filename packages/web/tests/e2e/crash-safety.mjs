@@ -1,7 +1,8 @@
 // WP-57: requires --features crash-test (test extension also requires debug assertions).
-import { firefox } from 'playwright';
+import { chromium, firefox } from 'playwright';
 import assert from 'node:assert/strict';
-const browser = await firefox.launch();
+const engine = process.env.CRASH_BROWSER ?? 'firefox';
+const browser = await ({ chromium, firefox }[engine]).launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 let leakedPayload = false;
 page.on('request', request => { if (request.postData()?.includes('test-only')) leakedPayload = true; });
@@ -88,7 +89,7 @@ try {
   assert.equal(await page.locator('#mk-rail-explorer').count(), 0);
   assert.equal(await page.evaluate(() => localStorage.getItem('moonkale.settings')), saved);
   assert.equal(await page.locator('#mk-crash-test').count(), 0);
-  console.log('CRASH SAFETY E2E: PASS');
+  console.log(`CRASH SAFETY E2E: PASS (${engine})`);
 } catch (error) {
   console.error('CRASH SAFETY E2E: FAIL', error);
   await page.screenshot({path: `${process.env.M1_SHOTS ?? '.'}/crash-safety-fail.png`});

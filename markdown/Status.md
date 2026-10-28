@@ -45,7 +45,9 @@ desktop `--safe` and web `?safe` ignore extensions and saved layout without
 changing preferences. Both wasm runtimes already created fresh instances and
 now bound retries to three after the initial failed invocation. Unsaved-buffer
 snapshots and compiled service hot reload remain unbuilt. External compiled-in
-extensions must adopt the new callback/task helpers. See [[Crash Safety]].
+extensions must adopt the new callback/task helpers. P-234 fixes a Chromium
+structural-preview crash by heap-pinning futures before constructing async
+guard wrappers. See [[Crash Safety]].
 
 ## Cross-file code dependencies (WP-22, checked 2026-10-28)
 

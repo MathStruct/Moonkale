@@ -21,6 +21,10 @@ Rules:
 
 ## Unreleased — 2026-10-28 (WP-57)
 
+- Fix P-234: heap-pin input futures before constructing crash-guard wrappers.
+  Large structural-preview tasks no longer exhaust the wasm stack. Public
+  helper calls and awaited results remain the same.
+
 - Add `Workspace::crashes` and the `crash` helpers: `ExtensionGuard`, guarded
   `event`, `spawn`, `spawn_forever`, `use_effect`, `use_future`, `use_resource`,
   startup counter and state-store tracker. The shell guards extension entry
