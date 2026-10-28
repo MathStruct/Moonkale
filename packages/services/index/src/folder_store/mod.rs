@@ -327,34 +327,60 @@ impl FolderStore {
             store.set_derived().map_err(error)?;
             report.rebuilt = true;
         }
-        let inputs: BTreeMap<_, _> = files
-            .iter()
-            .map(|f| (f.node.native_key.clone(), f))
-            .collect();
-        let old = store.files().map_err(error)?;
-        let mut changed = BTreeSet::new();
-        for (path, file) in &inputs {
-            let same = store
-                .file_manifest(path)
-                .map_err(error)?
-                .is_some_and(|m| m.source == Some(source_record(path, &file.text).id));
-            if same {
-                report.skipped_files += 1;
-            }
-            if !same && (report.rebuilt || selected.is_none_or(|s| s.contains(path))) {
-                changed.insert(path.clone());
-            }
-        }
-        for p in old {
-            if !inputs.contains_key(&p) && selected.is_none_or(|s| s.contains(&p)) {
-                changed.insert(p);
-            }
-        }
+        let changed = changed_paths(&store, files, selected, &mut report)?;
         if changed.is_empty() {
             drop(store);
             self.enforce_byte_budget(moonkale_state::recovery::Budgets::platform().folder)?;
             return Ok(report);
         }
+        let report = self.write_changed(&store, files, changed, selected, report, |s, v| {
+            s.replace_files(v)
+        })?;
+        drop(store);
+        self.enforce_byte_budget(moonkale_state::recovery::Budgets::platform().folder)?;
+        Ok(report)
+    }
+
+    /// A store-truth replay step (SPEC-010 §2, acceptance 2): the selected
+    /// files' current text is appended to an authored store as checked
+    /// replacements, so every earlier version stays as history. The store
+    /// at `path()` must already hold the truth (`Store::take_truth`).
+    pub fn append_selected(
+        &self,
+        files: &[CodeFile],
+        selected: &BTreeSet<String>,
+    ) -> Result<FolderReport, SourceError> {
+        self.check_path()?;
+        self.validate_files(files)?;
+        let store = Store::new(Sqlite::open(self.path()).map_err(error)?);
+        if store.is_derived().map_err(error)? {
+            return Err(error(StoreError::Derived));
+        }
+        let mut report = FolderReport::default();
+        let changed = changed_paths(&store, files, Some(selected), &mut report)?;
+        if changed.is_empty() {
+            return Ok(report);
+        }
+        self.write_changed(&store, files, changed, Some(selected), report, |s, v| {
+            let checked = v
+                .iter()
+                .map(|f| Ok((f.clone(), s.file_token(&f.path)?)))
+                .collect::<Result<Vec<_>, StoreError>>()?;
+            s.replace_files_checked(&checked)
+        })
+    }
+
+    /// Produces the changed files and writes them with `write`, retrying
+    /// with the owner of a claimed name.
+    fn write_changed(
+        &self,
+        store: &Store<Sqlite>,
+        files: &[CodeFile],
+        mut changed: BTreeSet<String>,
+        selected: Option<&BTreeSet<String>>,
+        mut report: FolderReport,
+        write: impl Fn(&Store<Sqlite>, &[FileIngest]) -> Result<FileReport, StoreError>,
+    ) -> Result<FolderReport, SourceError> {
         // Julia's unit is a module spread over includes. Recompute its
         // dependants together; the producer compares manifests before write.
         let julia_changed = changed.iter().any(|p| p.ends_with(".jl"));
@@ -373,7 +399,7 @@ impl FolderStore {
             }
         }
         import_edges::reconcile(
-            &store,
+            store,
             files,
             &mut produced,
             &mut changed,
@@ -385,11 +411,9 @@ impl FolderStore {
             .collect();
         loop {
             let values: Vec<_> = batch.values().cloned().collect();
-            match store.replace_files(&values) {
+            match write(store, &values) {
                 Ok(r) => {
                     report.written = r;
-                    drop(store);
-                    self.enforce_byte_budget(moonkale_state::recovery::Budgets::platform().folder)?;
                     return Ok(report);
                 }
                 Err(StoreError::NameClaimed { name, owner }) => {
@@ -412,7 +436,7 @@ impl FolderStore {
                     extra.extend(batch.clone());
                     let mut more = more;
                     import_edges::reconcile(
-                        &store,
+                        store,
                         files,
                         &mut extra,
                         &mut more,
@@ -427,6 +451,40 @@ impl FolderStore {
             }
         }
     }
+}
+
+/// The selected files whose text differs from their manifest, and deleted
+/// files; all differing files after a rebuild or without a selection.
+fn changed_paths(
+    store: &Store<Sqlite>,
+    files: &[CodeFile],
+    selected: Option<&BTreeSet<String>>,
+    report: &mut FolderReport,
+) -> Result<BTreeSet<String>, SourceError> {
+    let inputs: BTreeMap<_, _> = files
+        .iter()
+        .map(|f| (f.node.native_key.clone(), f))
+        .collect();
+    let old = store.files().map_err(error)?;
+    let mut changed = BTreeSet::new();
+    for (path, file) in &inputs {
+        let same = store
+            .file_manifest(path)
+            .map_err(error)?
+            .is_some_and(|m| m.source == Some(source_record(path, &file.text).id));
+        if same {
+            report.skipped_files += 1;
+        }
+        if !same && (report.rebuilt || selected.is_none_or(|s| s.contains(path))) {
+            changed.insert(path.clone());
+        }
+    }
+    for p in old {
+        if !inputs.contains_key(&p) && selected.is_none_or(|s| s.contains(&p)) {
+            changed.insert(p);
+        }
+    }
+    Ok(changed)
 }
 
 fn manifest(f: &FileIngest) -> sophia_store::FileManifest {

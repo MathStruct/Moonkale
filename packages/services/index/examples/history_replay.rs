@@ -9,11 +9,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() != 4 {
         return Err("usage: history_replay REPO RANGE SCRATCH_DIRECTORY".into());
     }
-    let result = replay_support::replay(
+    // SPEC-010 acceptance 2: MOONKALE_REPLAY_TRUTH_AT=<commits>|half moves
+    // the truth into the store after that many commits.
+    let truth_at = match std::env::var("MOONKALE_REPLAY_TRUTH_AT").ok().as_deref() {
+        None => None,
+        Some("half") => {
+            let listed = replay_support::git(
+                std::path::Path::new(&args[1]),
+                &["rev-list", "--count", &args[2], "--"],
+            )?;
+            Some(
+                String::from_utf8(listed)?
+                    .trim()
+                    .parse::<usize>()?
+                    .div_ceil(2),
+            )
+        }
+        Some(n) => Some(n.parse()?),
+    };
+    let result = replay_support::replay_with(
         std::path::Path::new(&args[1]),
         &args[2],
         std::path::Path::new(&args[3]),
         50,
+        truth_at,
         &mut std::io::stdout(),
     )
     .await?;

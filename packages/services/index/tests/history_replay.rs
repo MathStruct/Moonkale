@@ -78,6 +78,20 @@ async fn five_commit_history_matches_fresh_stores() {
         .await
         .unwrap();
     assert_eq!((result.commits, result.findings, result.errors), (2, 0, 0));
+    // SPEC-010 acceptance 2: the truth moves into the store after the
+    // rename; the last two commits are appended as history.
+    let mut output = Vec::new();
+    let result = replay_support::replay_with(root, "HEAD", scratch.path(), 1, Some(3), &mut output)
+        .await
+        .unwrap();
+    let text = String::from_utf8_lossy(&output);
+    assert_eq!(
+        (result.commits, result.findings, result.errors),
+        (5, 0, 0),
+        "{text}"
+    );
+    assert!(text.contains(r#""type":"switch""#) && text.contains(r#""type":"give_back""#));
+    assert!(text.contains(r#""twin_compared":true"#), "{text}");
 }
 
 /// P-231: Sophia v0.1.0 subtracted duplicate old generic member ids twice

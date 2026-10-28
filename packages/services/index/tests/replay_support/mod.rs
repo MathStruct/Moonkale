@@ -264,6 +264,118 @@ async fn queries(root: &Path, s: &Store<Sqlite>) -> Result<serde_json::Value> {
     )
 }
 
+/// Full-digest differences of `s` against `expected`, each with the paths
+/// whose manifests mention it.
+fn compare(s: &Store<Sqlite>, expected: &Store<Sqlite>) -> Result<Vec<String>> {
+    let actual = state(s)?;
+    let wanted = state(expected)?;
+    let mut diff = differences(&actual, &wanted);
+    let owners: Vec<_> = s
+        .files()?
+        .into_iter()
+        .chain(expected.files()?)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    for finding in &mut diff {
+        let key = finding.split_once(' ').unwrap().1;
+        let token = key.split_once(':').unwrap().1;
+        let paths: Vec<_> = owners
+            .iter()
+            .filter(|p| {
+                [
+                    actual.get(&format!("manifest:{p}")),
+                    wanted.get(&format!("manifest:{p}")),
+                ]
+                .into_iter()
+                .flatten()
+                .any(|m| {
+                    m.contains(token)
+                        || (key.starts_with("membership:")
+                            && token
+                                .split(|c: char| !c.is_alphanumeric() && c != '.' && c != '_')
+                                .filter(|t| t.len() >= 8)
+                                .any(|t| m.contains(t)))
+                }) || key == format!("manifest:{p}")
+            })
+            .collect();
+        finding.push_str(&format!(" paths={paths:?}"));
+    }
+    Ok(diff)
+}
+
+/// The switch: the replay and the fresh build at the same commit both take
+/// the truth (nothing stale, so no files), then must still agree.
+async fn switch(
+    s: &Store<Sqlite>,
+    fresh: tempfile::TempDir,
+    tree: BTreeMap<String, String>,
+    outcome: &mut Outcome,
+    commit: &str,
+    index: usize,
+    output: &mut impl Write,
+) -> Result<(tempfile::TempDir, FolderStore, BTreeMap<String, String>)> {
+    s.take_truth(&[])?;
+    let t = store(fresh.path())?;
+    t.take_truth(&[])?;
+    let diff = compare(s, &t)?;
+    outcome.findings += diff.len();
+    let since = |s: &Store<Sqlite>| -> Result<Option<String>> {
+        Ok(s.meta(sophia_store::folder::TRUTH_SINCE_KEY)?
+            .map(|v| String::from_utf8_lossy(&v).into_owned()))
+    };
+    writeln!(
+        output,
+        "{}",
+        serde_json::json!({"type":"switch","commit":commit,"index":index,"derived":[s.is_derived()?, t.is_derived()?],"truth_since":[since(s)?, since(&t)?],"differences":diff})
+    )?;
+    let writer = FolderStore::open(fresh.path())?;
+    Ok((fresh, writer, tree))
+}
+
+/// The end: the replay hands the truth back with every current file as
+/// exported text and must then equal a fresh derived build, records too.
+async fn give_back(
+    s: &Store<Sqlite>,
+    root: &Path,
+    (repo, commit, scratch, blobs): (&Path, &str, &Path, &mut Blobs),
+    outcome: &mut Outcome,
+    output: &mut impl Write,
+) -> Result<()> {
+    let records_before = s.read(|tx| tx.record_count())?;
+    let mut exported = Vec::new();
+    for path in s.files()? {
+        let text = std::fs::read_to_string(root.join(&path))?;
+        exported.push((
+            path.clone(),
+            sophia_store::folder::source_record(&path, &text).id,
+        ));
+    }
+    let removed = s.give_truth(&exported)?;
+    let fresh = tempfile::Builder::new()
+        .prefix("given-")
+        .tempdir_in(scratch)?;
+    checkout(repo, commit, fresh.path(), &mut BTreeMap::new(), blobs)?;
+    FolderStore::open(fresh.path())?.sync(&inputs(fresh.path()).await?)?;
+    let t = store(fresh.path())?;
+    let diff = compare(s, &t)?;
+    let records = (
+        s.read(|tx| tx.record_count())?,
+        t.read(|tx| tx.record_count())?,
+    );
+    let mut findings = diff.len();
+    if records.0 != records.1 {
+        findings += 1;
+    }
+    outcome.findings += findings;
+    writeln!(
+        output,
+        "{}",
+        serde_json::json!({"type":"give_back","records_before":records_before,"records_removed":removed,"records":[records.0, records.1],"derived":s.is_derived()?,"differences":diff})
+    )?;
+    Ok(())
+}
+
 pub struct Outcome {
     pub commits: usize,
     pub findings: usize,
@@ -271,11 +383,29 @@ pub struct Outcome {
 }
 /// A range is Git rev-list syntax. Adjacent topologically ordered trees are
 /// diffed, so merges/side branches are replayed without silently dropping paths.
+#[allow(dead_code)] // the example calls replay_with
 pub async fn replay(
     repo: &Path,
     range: &str,
     scratch: &Path,
     interval: usize,
+    output: &mut impl Write,
+) -> Result<Outcome> {
+    replay_with(repo, range, scratch, interval, None, output).await
+}
+
+/// `truth_at` (SPEC-010 acceptance 2): after that many commits the replayed
+/// store takes the truth, and so does a twin built fresh at the same commit.
+/// Later commits are appended to both as checked replacements (history), and
+/// each later checkpoint compares the replay with the twin and with a fresh
+/// derived build. At the end the replay gives the truth back to the files
+/// and must equal a fresh build, records included.
+pub async fn replay_with(
+    repo: &Path,
+    range: &str,
+    scratch: &Path,
+    interval: usize,
+    truth_at: Option<usize>,
     output: &mut impl Write,
 ) -> Result<Outcome> {
     // Canonicalize before creating anything. Scratch must already exist and
@@ -294,6 +424,9 @@ pub async fn replay(
     let commits: Vec<_> = commits.lines().collect();
     if commits.is_empty() || interval == 0 {
         return Err("empty range or zero checkpoint interval".into());
+    }
+    if truth_at.is_some_and(|k| k == 0 || k > commits.len()) {
+        return Err("the truth switch must fall inside the range".into());
     }
     let dir = tempfile::Builder::new()
         .prefix("history-")
@@ -319,7 +452,7 @@ pub async fn replay(
     writeln!(
         output,
         "{}",
-        serde_json::json!({"type":"run", "checker":"full-digest-v1", "repo":repo, "range":range, "commits":commits.len(), "first":commits[0], "last":commits.last(), "checkpoint_interval":interval, "normaliser":moonkale_index::folder_store::normaliser(), "sophia":sophia_pin(), "build":"debug", "order":"reverse topo; adjacent tree transitions", "sample_seed":"4d6f6f6e6b616c65"})
+        serde_json::json!({"type":"run", "checker":"full-digest-v1", "repo":repo, "range":range, "commits":commits.len(), "first":commits[0], "last":commits.last(), "checkpoint_interval":interval, "normaliser":moonkale_index::folder_store::normaliser(), "sophia":sophia_pin(), "build":"debug", "order":"reverse topo; adjacent tree transitions", "sample_seed":"4d6f6f6e6b616c65", "truth_at":truth_at})
     )?;
     let mut last_fresh = None;
     let mut outcome = Outcome {
@@ -327,11 +460,28 @@ pub async fn replay(
         findings: 0,
         errors: 0,
     };
+    // The store-truth twin: its directory, writer and checked-out tree.
+    let mut twin: Option<(tempfile::TempDir, FolderStore, BTreeMap<String, String>)> = None;
     for (i, commit) in commits.iter().enumerate() {
         let changed = checkout(repo, commit, root, &mut tree, &mut blobs)?;
         let files = inputs(root).await?;
         let start = Instant::now();
-        let report = writer.sync_selected(&files, Some(&changed));
+        let report = if twin.is_some() {
+            writer.append_selected(&files, &changed)
+        } else {
+            writer.sync_selected(&files, Some(&changed))
+        };
+        if let Some((dir, w, t)) = &mut twin {
+            let changed = checkout(repo, commit, dir.path(), t, &mut blobs)?;
+            if let Err(e) = w.append_selected(&inputs(dir.path()).await?, &changed) {
+                outcome.errors += 1;
+                writeln!(
+                    output,
+                    "{}",
+                    serde_json::json!({"type":"twin","index":i+1,"commit":commit,"error":e.to_string()})
+                )?;
+            }
+        }
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
         let (batch_files, retries, error) = match report {
             Ok(r) => (Some(r.written.files), Some(r.retries), None),
@@ -348,7 +498,7 @@ pub async fn replay(
             serde_json::json!({"type":"batch","index":i+1,"commit":commit,"changed_paths":changed.len(),"files":batch_files,"retries":retries,"batch_ms":elapsed,"store_bytes":std::fs::metadata(writer.path())?.len(),"records":records,"facts":facts,"error":error})
         )?;
         output.flush()?;
-        if (i + 1) % interval == 0 || i + 1 == commits.len() {
+        if (i + 1) % interval == 0 || i + 1 == commits.len() || truth_at == Some(i + 1) {
             eprintln!("checkpoint {} {commit}: fresh build and equivalence", i + 1);
             let fresh = tempfile::Builder::new()
                 .prefix("fresh-")
@@ -358,42 +508,12 @@ pub async fn replay(
             let clean = FolderStore::open(fresh.path())?.sync(&inputs(fresh.path()).await?);
             match clean {
                 Ok(_) => {
-                    let expected = state(&store(fresh.path())?)?;
-                    let actual = state(&s)?;
-                    let mut diff = differences(&actual, &expected);
-                    let owners: Vec<_> = s
-                        .files()?
-                        .into_iter()
-                        .chain(store(fresh.path())?.files()?)
-                        .collect::<BTreeSet<_>>()
-                        .into_iter()
-                        .collect();
-                    for finding in &mut diff {
-                        let key = finding.split_once(' ').unwrap().1;
-                        let token = key.split_once(':').unwrap().1;
-                        let paths: Vec<_> = owners
-                            .iter()
-                            .filter(|p| {
-                                [
-                                    actual.get(&format!("manifest:{p}")),
-                                    expected.get(&format!("manifest:{p}")),
-                                ]
-                                .into_iter()
-                                .flatten()
-                                .any(|m| {
-                                    m.contains(token)
-                                        || (key.starts_with("membership:")
-                                            && token
-                                                .split(|c: char| {
-                                                    !c.is_alphanumeric() && c != '.' && c != '_'
-                                                })
-                                                .filter(|t| t.len() >= 8)
-                                                .any(|t| m.contains(t)))
-                                }) || key == format!("manifest:{p}")
-                            })
-                            .collect();
-                        finding.push_str(&format!(" paths={paths:?}"));
-                    }
+                    let mut diff = compare(&s, &store(fresh.path())?)?;
+                    let twin_diff = match &twin {
+                        Some((dir, _, _)) => Some(compare(&s, &store(dir.path())?)?),
+                        None => None,
+                    };
+                    diff.extend(twin_diff.iter().flatten().map(|d| format!("twin: {d}")));
                     outcome.findings += diff.len();
                     eprintln!(
                         "checkpoint {} {commit}: {} differences; query timings",
@@ -403,7 +523,7 @@ pub async fn replay(
                     writeln!(
                         output,
                         "{}",
-                        serde_json::json!({"type":"checkpoint","commit":commit,"index":i+1,"differences":diff,"queries":queries(root,&s).await?})
+                        serde_json::json!({"type":"checkpoint","commit":commit,"index":i+1,"truth":if twin.is_some() {"store"} else {"files"},"twin_compared":twin_diff.is_some(),"differences":diff,"queries":queries(root,&s).await?})
                     )?;
                 }
                 Err(e) => {
@@ -416,11 +536,35 @@ pub async fn replay(
                 }
             }
             output.flush()?;
-            if i + 1 == commits.len() {
+            if truth_at == Some(i + 1) {
+                twin = Some(
+                    switch(
+                        &s,
+                        fresh,
+                        std::mem::take(&mut empty),
+                        &mut outcome,
+                        commit,
+                        i + 1,
+                        output,
+                    )
+                    .await?,
+                );
+            } else if i + 1 == commits.len() {
                 last_fresh = Some(fresh);
             }
         }
         outcome.commits += 1;
+    }
+    if twin.is_some() {
+        let last = commits.last().unwrap();
+        give_back(
+            &store(root)?,
+            root,
+            (repo, last, scratch, &mut blobs),
+            &mut outcome,
+            output,
+        )
+        .await?;
     }
     writeln!(
         output,

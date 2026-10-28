@@ -162,6 +162,28 @@ Verification: all 18 mandatory/feature gate commands passed in
 `sophia-folder`, `graph`, `watch` and `search-trace` pass with the feature enabled
 on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
+## SPEC-010 acceptance 2: the truth moves into the store halfway (2026-10-28)
+
+Sophia `08e6ffb` (SPEC-010, untagged). `MOONKALE_REPLAY_TRUTH_AT=half
+history_replay REPO RANGE SCRATCH` replays the first half as a derived cache.
+Then the replayed store and a twin built fresh at the same commit both call
+`take_truth`. The later commits are appended to both through
+`FolderStore::append_selected`, which writes with `replace_files_checked` and
+the tokens from `file_token`, so every version stays. Each later checkpoint
+compares the replay with the twin and with a fresh derived build (full-digest-v1).
+At the end the replay calls `give_truth` with every current file, and must then
+equal a fresh build, record count included.
+
+| repository | commits | switch | checkpoints | differences | errors / retries | records before → after give_truth (fresh) |
+|---|---:|---:|---:|---:|---:|---|
+| lenticulum (→ `488ce636`) | 130 | 65 | 4 | 0 | 0 / 0 | 2,473 → 1,770 (1,770) |
+| moonkale (→ `44c40663`) | 471 | 236 | 11 | 0 | 0 / 0 | 7,840 → 5,940 (5,940) |
+
+The store-truth Moonkale store grows to 64,995,328 bytes with its history (it is
+41.4 MB derived). The raw reports are
+`packages/services/index/measurements/history-2026-10-28-{lenticulum,moonkale}-spec010.jsonl`.
+The hermetic five-commit test also switches after commit 3.
+
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
 **Current: Sophia v0.1.4** (`919d723`, 2026-10-26): `replace_files` refuses
