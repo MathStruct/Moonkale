@@ -106,7 +106,7 @@ async fn local_sessions_live_in_the_host_store() {
     settle(&mut dom).await;
     assert_eq!(listed.borrow().len(), 2);
     let stored = Typed::new(&*store)
-        .scan::<SavedSession>(&sessions_key(&folder))
+        .scan::<SavedSession>(&sessions_key(&folder).str("$session").str("default"))
         .unwrap();
     assert_eq!(
         stored

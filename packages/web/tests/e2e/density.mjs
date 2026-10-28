@@ -96,7 +96,8 @@ try {
   await page.locator('#mk-rail-more').click();
   await page.locator('.mk-rail-overflow #mk-rail-git').click();
   await page.locator('.mk-git').waitFor();
-  await page.reload({waitUntil: 'networkidle'});
+  await page.reload({waitUntil: 'domcontentloaded'});
+  await page.waitForSelector('.wb-workspace');
   await command('view.panel.extensions', 'Show Extensions');
   assert.equal(await offered.locator('.mk-chrome-offer').count(), 0, 'offer repeated after declining');
   assert.equal(await choice.isChecked(), false);

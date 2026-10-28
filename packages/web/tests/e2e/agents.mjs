@@ -4,6 +4,7 @@
 import { firefox } from "playwright";
 import fs from "node:fs";
 import { rows } from "./state.mjs";
+import { control, revealControl } from "./chrome-controls.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
@@ -27,6 +28,7 @@ const openFolder = async () => {
 try {
   await step("open folder; the Agent panel has a session select, a profile select and New", async () => {
     await openFolder();
+    await revealControl(page.locator(".mk-agent-sessions"));
     await page.waitForSelector(".mk-agent-sessions");
     await page.waitForSelector(".mk-agent-profile");
     const profiles = await page.$$eval(".mk-agent-profile option", (o) => o.map((x) => x.value));
@@ -61,7 +63,8 @@ try {
   await step("the session's profile select now offers Second; picking it reconnects the session", async () => {
     await page.waitForFunction(() => document.querySelectorAll(".mk-agent-profile option").length === 2, null, { timeout: 5000 });
     first = await sessionId();
-    await page.selectOption(".mk-agent-profile", "Second");
+    await control(page.locator(".mk-agent-profile"), "selectOption", "Second");
+    await page.keyboard.press("Escape");
     await page.waitForFunction(() => document.querySelector(".mk-agent-profile").value === "Second", null, { timeout: 5000 });
     await page.waitForFunction(() => /mock/.test(document.querySelector(".mk-agent-provider")?.textContent || ""), null, { timeout: 10000 });
   });
@@ -70,7 +73,8 @@ try {
     await ask(`/tool terminal.run {"command":"echo from_A"}`);
     await page.waitForSelector(".mk-agent-approval", { timeout: 20000 });
     if (!(await page.$(".mk-agent-compose button[disabled]"))) throw new Error("A should be busy");
-    await page.click(".mk-agent-new");
+    await control(page.locator(".mk-agent-new"), "click");
+    await page.keyboard.press("Escape");
     await page.waitForFunction((a) => document.querySelector(".mk-agent")?.getAttribute("data-session") !== a, first, { timeout: 5000 });
     second = await sessionId();
     await page.waitForFunction(() => /mock/.test(document.querySelector(".mk-agent-provider")?.textContent || ""), null, { timeout: 10000 });
@@ -83,25 +87,27 @@ try {
     await page.screenshot({ path: `${S}/m15-two-sessions.png` });
   });
   await step("back to A: its approval is still pending; Allow → the command ran; both sessions are stored in the folder host's store (no files)", async () => {
-    await page.selectOption(".mk-agent-sessions", first);
+    await control(page.locator(".mk-agent-sessions"), "selectOption", first);
+    await page.keyboard.press("Escape");
     await page.waitForSelector(".mk-agent-approval", { timeout: 5000 });
     await page.click(".mk-agent-approval button:has-text('Allow')");
     await idle();
     const text = await page.$$eval(".mk-agent-assistant", (e) => e.map((x) => x.textContent).join("\n"));
     if (!/from_A/.test(text)) throw new Error("no output from A: " + text.slice(0, 200));
-    const local = () => rows("agent_sessions").filter((r) => r.parts[1] === "local");
+    const local = () => rows("agent_sessions").filter((r) => r.parts[1] === "local" && r.parts[2] === "$session" && r.parts[3] === "default");
     let ids = [];
-    for (let i = 0; i < 30; i++) { ids = local().map((r) => r.parts[2]); if (ids.length >= 2) break; await new Promise((r) => setTimeout(r, 300)); }
+    for (let i = 0; i < 30; i++) { ids = local().map((r) => r.parts[4]); if (ids.length >= 2) break; await new Promise((r) => setTimeout(r, 300)); }
     console.log("\n  stored:", ids.join(", "));
     if (!ids.includes(first) || !ids.includes(second)) throw new Error("sessions not stored");
     if (fs.existsSync(`${ROOT}/.moonkale/agent-sessions/local`)) throw new Error("session files still written");
-    const saved = local().find((r) => r.parts[2] === first).data;
+    const saved = local().find((r) => r.parts[4] === first).data;
     if (saved.profile !== "Second" || !saved.messages?.length) throw new Error("bad snapshot " + JSON.stringify(saved).slice(0, 200));
   });
   await step("reload: the saved sessions are listed under 'saved in this folder'; picking one restores its transcript and profile", async () => {
     await openFolder();
     await page.waitForFunction(() => document.querySelectorAll(".mk-agent-sessions optgroup option").length === 2, null, { timeout: 15000 });
-    await page.selectOption(".mk-agent-sessions", `saved:${first}`);
+    await control(page.locator(".mk-agent-sessions"), "selectOption", `saved:${first}`);
+    await page.keyboard.press("Escape");
     await page.waitForFunction((a) => document.querySelector(".mk-agent")?.getAttribute("data-session") === a, first, { timeout: 10000 });
     await page.waitForFunction(() => /from_A/.test(document.querySelector(".mk-agent-log")?.textContent || ""), null, { timeout: 5000 });
     await page.waitForFunction(() => document.querySelector(".mk-agent-profile").value === "Second", null, { timeout: 5000 });

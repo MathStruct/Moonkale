@@ -352,3 +352,15 @@ Run `cargo +nightly fuzz run egraph -- -max_total_time=60 -max_len=65536
 root, with a worktree-local `CARGO_TARGET_DIR`. It exercises the production
 bounded parser, incoming rewrite walk and aggregate collapse/expand delta path.
 It is not yet part of the two-target nightly matrix.
+
+
+### Session exchange parser (WP-46)
+
+`cargo +nightly fuzz run session_bundle -- -max_total_time=15 -max_len=65536 -rss_limit_mb=2048 -timeout=10`
+exercises the production version/byte/nesting boundary in `moonkale-state`.
+Use a worktree-local target and the heavy slot helper. The parser caps actual
+imports at 4 MiB and retains serde's recursion limit; unit tests cover oversized
+and deeply nested inputs. The versioned seed is intentionally tracked. The
+2026-10-28 run completed 3,712,726 inputs without a crash. This is parser coverage,
+not a claim that arbitrary document or conversation text can be exported safely;
+session exchange carries metadata and secret references only.

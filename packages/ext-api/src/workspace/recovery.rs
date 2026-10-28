@@ -2,7 +2,7 @@
 use super::*;
 use moonkale_state::{
     recovery::{Budgets, Snapshot},
-    Batch, Key, Record,
+    Batch, Record,
 };
 
 impl Workspace {
@@ -15,12 +15,20 @@ impl Workspace {
 
     /// Remove every recovery version of a document after saving or discarding.
     pub async fn forget_recovery(self, source: &str, path: &str) {
+        let session = self.saved_sessions.active.peek().clone();
+        self.forget_recovery_in(&session, source, path).await;
+    }
+
+    pub(super) async fn forget_recovery_in(self, session: &str, source: &str, path: &str) {
         let Some(store) = self.config.persistence.state else {
             return;
         };
         let gate = self.recovery_gate();
         let _guard = gate.lock().await;
-        let prefix = Key::new().str(source).str(path);
+        let prefix = moonkale_state::Key::new()
+            .str(session)
+            .str(source)
+            .str(path);
         if let Ok(rows) = (store.scan)(Snapshot::TABLE.into(), prefix.into_bytes()).await {
             let batch = rows
                 .into_iter()
@@ -35,7 +43,8 @@ impl Workspace {
             return Vec::new();
         };
         let budget = Budgets::platform();
-        let Ok(rows) = (store.scan)(Snapshot::TABLE.into(), Vec::new()).await else {
+        let Ok(rows) = (store.scan)(Snapshot::TABLE.into(), self.session_key().into_bytes()).await
+        else {
             return Vec::new();
         };
         rows.into_iter()
@@ -55,13 +64,26 @@ impl Workspace {
         let Some(store) = self.config.persistence.state else {
             return;
         };
+        if !*self.saved_sessions.ready.peek() || *self.saved_sessions.switching.peek() {
+            return;
+        }
+        let scope = self.session_key().into_bytes();
         let gate = self.recovery_gate();
         let _guard = gate.lock().await;
+        // A queued periodic tick must not sample a new working set into its
+        // previous session's namespace after waiting for an explicit switch.
+        if self.session_key().as_bytes() != scope || *self.saved_sessions.switching.peek() {
+            return;
+        }
         let docs: Vec<_> = self.docs.open.peek().iter().map(|(_, doc)| *doc).collect();
         for doc in docs {
-            let Ok(rows) = (store.scan)(Snapshot::TABLE.into(), Vec::new()).await else {
+            let Ok(rows) = (store.scan)(Snapshot::TABLE.into(), scope.clone()).await else {
                 continue;
             };
+            let rows: Vec<_> = rows
+                .into_iter()
+                .map(|(k, v)| (k[scope.len()..].to_vec(), v))
+                .collect();
             let record = {
                 let d = doc.peek();
                 if pending
@@ -113,7 +135,7 @@ impl Workspace {
                         .filter(|(k, _)| k.starts_with(prefix.as_bytes()))
                         .fold(Batch::new(), |b, (k, _)| b.delete(Snapshot::TABLE, k));
                     if !batch.is_empty() {
-                        let _ = (store.write)(batch).await;
+                        let _ = (store.write)(self.scope_recovery_batch(batch, &scope)).await;
                     }
                     continue;
                 }
@@ -128,9 +150,27 @@ impl Workspace {
                 continue;
             }
             let batch = moonkale_state::recovery::replace(rows, &record, Budgets::platform());
-            if !batch.is_empty() && (store.write)(batch).await.is_err() {
+            if !batch.is_empty()
+                && (store.write)(self.scope_recovery_batch(batch, &scope))
+                    .await
+                    .is_err()
+            {
                 tracing::warn!("recovery: snapshot write failed");
             }
         }
+    }
+}
+
+impl Workspace {
+    fn scope_recovery_batch(self, mut batch: Batch, scope: &[u8]) -> Batch {
+        for op in &mut batch.ops {
+            let key = match op {
+                moonkale_state::Op::Put { key, .. } | moonkale_state::Op::Delete { key, .. } => key,
+            };
+            let mut scoped = scope.to_vec();
+            scoped.append(key);
+            *key = scoped;
+        }
+        batch
     }
 }

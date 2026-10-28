@@ -53,6 +53,8 @@ mod server {
     /// What a session's head row holds; its items are rows of their own.
     #[derive(serde::Serialize, serde::Deserialize)]
     struct Head {
+        #[serde(default = "moonkale_llm::sessions::default_outer_session")]
+        outer_session: String,
         title: String,
         started: u64,
     }
@@ -232,7 +234,15 @@ mod server {
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
-            out.push((id, Head { title, started }, items));
+            out.push((
+                id,
+                Head {
+                    title,
+                    started,
+                    outer_session: "default".into(),
+                },
+                items,
+            ));
         }
         out
     }
@@ -256,6 +266,7 @@ mod server {
                 id.clone(),
                 Arc::new(Mutex::new(Record {
                     summary: SessionSummary {
+                        outer_session: head.outer_session,
                         id,
                         folder: folder.to_string(),
                         title: head.title,
@@ -290,10 +301,15 @@ mod server {
         out
     }
 
-    pub fn new_record(folder: &str, first: &str) -> (String, Arc<Mutex<Record>>) {
+    pub fn new_record(
+        folder: &str,
+        first: &str,
+        outer_session: &str,
+    ) -> (String, Arc<Mutex<Record>>) {
         let id = uuid::Uuid::new_v4().simple().to_string();
         let rec = Arc::new(Mutex::new(Record {
             summary: SessionSummary {
+                outer_session: outer_session.into(),
                 id: id.clone(),
                 folder: folder.to_string(),
                 title: first.chars().take(60).collect(),
@@ -310,6 +326,7 @@ mod server {
             folder,
             &id,
             &Head {
+                outer_session: outer_session.into(),
                 title: first.chars().take(60).collect(),
                 started: now(),
             },
@@ -619,6 +636,10 @@ pub async fn agent_send(
     // Before a first new session: the folder's old files are imported only
     // into an empty store.
     server::load_folder(&folder);
+    let outer_session = settings.outer_session.as_deref().unwrap_or("default");
+    if outer_session.is_empty() || outer_session.len() > 128 {
+        return Err(ServerFnError::new("invalid outer session"));
+    }
     let (id, rec) = match session.filter(|s| !s.is_empty()) {
         Some(id) => {
             let rec = server::store()
@@ -627,12 +648,17 @@ pub async fn agent_send(
                 .get(&id)
                 .cloned()
                 .ok_or_else(|| ServerFnError::new(format!("no session {id}")))?;
+            if rec.lock().unwrap().summary.outer_session != outer_session {
+                return Err(ServerFnError::new(
+                    "conversation belongs to another session",
+                ));
+            }
             if rec.lock().unwrap().summary.running {
                 return Err(ServerFnError::new("this session is still running a turn"));
             }
             (id, rec)
         }
-        None => server::new_record(&folder, &text),
+        None => server::new_record(&folder, &text, outer_session),
     };
     tracing::info!(target: "moonkale::audit", "agent session {id}: turn started ({} chars)", text.len());
     server::start_turn(rec, text, settings);

@@ -47,3 +47,52 @@ date: 2026-10-14
   - whether run records belong to the session or to the source they ran on (proposed: the session, with a link to the source).
 
 Work package: WP-46 in [[Work Packages]].
+
+## WP-46 implementation notes (2026-10-28)
+
+The existing state-store abstraction now has `sessions`, `session_sources` and
+`session_state` tables. Named metadata owns source membership, source/path tab
+identities, active document, layout and session settings. Layout and recovery
+keys are prefixed by session identity. Local conversations retain their
+folder/local authorization prefix, followed by the session identity; server
+conversation heads carry the owning outer-session id. Entity events remain
+per source. Legacy layout/recovery rows move atomically into Default once;
+local conversation rows migrate once per folder on their host. Originals are
+removed in the same transaction that inserts their replacements.
+
+Live switches retain source handles and document signals, including dirty text,
+and snapshot eligible folder buffers before switching. Metadata and the selected
+session id commit together before changing the working set. Session settings
+resolve between user and folder settings without extending moonkale-core.
+The title bar names the session and opens its switcher; the palette/shortcut
+opens the same dialog. New/rename and confirmed soft deletion operate only on
+state. Default is retained. Archived rows remain recoverable in the database;
+a trash restoration UI is still future work.
+
+Explicit versioned JSON export/import carries source/tab/layout/settings metadata,
+with secret references only; document bodies, recovery text and conversations
+stay private in their stores. Imported settings cannot grant permissions or
+automatic tool writes. Import does not open sources until an explicit switch.
+The parser caps UTF-8 input at 4 MiB and retains serde's recursion bound; the
+standalone `session_bundle` fuzz target exercises the production boundary.
+Full work-history exchange, templates/duplication/archive controls, CLI session
+selection, kernels/run records and cross-machine synchronization remain later
+ADR operations; this implementation does not claim them.
+
+Default retains the platform's startup policy: desktop can reopen its saved
+members; browser Default starts blank without overwriting the saved working set
+or session settings. Explicit switching still restores it. Live document models
+and non-text views are isolated and retained with their owning session. An
+unanswered recovery offer on a clean restored tab survives switching.
+
+Validation is complete: all AGENTS gates, the full smoke/structural/Sophia/default
+graph browser matrix and focused reruns pass. `sessions.mjs` checks two different
+folders with dirty buffers, rename, metadata exchange and confirmed deletion;
+the migration regression also checks scope ownership, non-text views and recovery
+offers. A private desktop repeats keyboard/mouse switching with independent
+SQLite snapshots and unchanged source files. The bounded exchange parser passed
+3,712,726 fuzz inputs. Cross-window transfer and source history regressions pass;
+the latter verifies that entity events remain source-owned. Later full panel
+query/camera persistence and connection-specific reattachment continue through
+their existing platform services; the named working-set store does not implement
+new connection protocols.

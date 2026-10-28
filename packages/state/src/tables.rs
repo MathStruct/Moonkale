@@ -7,15 +7,22 @@
 //! | table | key | value | today in |
 //! |---|---|---|---|
 //! | [`SETTINGS`] | `str(scope)` — `"user"`, `"folder"` + `str(folder id)`, later `"project"` + `str(id)` | the settings file of that scope | the user scope here since phase 5.18 on desktop and phone (`settings.json` imported once); the web keeps `localStorage["moonkale.settings"]`; the folder scope stays in `.moonkale/settings.json` (it travels with the folder) |
-//! | [`LAYOUT`] | `str(folder or project id)` | layout, open and active documents | `.moonkale/settings.json` |
-//! | [`AGENT_SESSIONS`] | `str(folder id) · str("local") · str(session id)`: the Agent panel's session, whole; `str(folder id) · str("server") · str(session id)`: a server session's head (title, started), `· u64(n)` its `n`th transcript item | agent sessions, in the store of the folder's host | here since phase 5.15 (was `.moonkale/agent-sessions/`, imported once) |
+//! | [`SESSIONS`] | `str(session id)` | named workspace metadata and settings | client state store |
+//! | [`SESSION_SOURCES`] | `str(session id)` | member source descriptors | client state store |
+//! | [`SESSION_STATE`] | `str("active")` | last selected session id | client state store |
+//! | [`LAYOUT`] | `str(session id) · str(folder id)` | layout, open and active documents | client state store |
+//! | [`AGENT_SESSIONS`] | `str(folder id) · str("local") · str(session id)`: legacy local key (migrated to `folder · local · $session · outer id · conversation id`); `str(folder id) · str("server") · str(session id)`: a server conversation head (title, started, owning outer_session), `· u64(n)` its `n`th transcript item | agent sessions, in the store of the folder's host | here since phase 5.15 (was `.moonkale/agent-sessions/`, imported once) |
 //! | [`EVENTS`] | `str(folder id) · u128(event id)` | one entity-log event, compaction snapshots included (they are events) — in the store of the machine that hosts the folder | here since phase 5.10 (was `.moonkale/history.jsonl`, imported once) |
 //! | [`SNAPSHOTS`] | — | reserved: snapshots turned out to be events ([`EVENTS`]) | — |
-//! | [`RECOVERY`] | `str(source) · str(document) · str(base version)` | bounded unsaved buffer and base text | client-local store since WP-56 |
+//! | [`RECOVERY`] | `str(session id) · str(source) · str(document) · str(base version)` | bounded unsaved buffer and base text | client-local store since WP-56 |
 //! | [`PROJECTS`] | `str(project id)` | a project ([[Projects and Sources]]) | — (not built) |
 //! | [`INDEX`] | `str(source id) · str(content hash) · str(model)` | derived data (symbols, chunks, embeddings) | memory only |
 //!
 //! Secrets are never stored here.
+
+pub const SESSIONS: &str = "sessions";
+pub const SESSION_SOURCES: &str = "session_sources";
+pub const SESSION_STATE: &str = "session_state";
 
 pub const SETTINGS: &str = "settings";
 pub const LAYOUT: &str = "layout";
@@ -28,6 +35,9 @@ pub const INDEX: &str = "index";
 
 /// Every table, for tools that list or export the store.
 pub const ALL: &[&str] = &[
+    SESSIONS,
+    SESSION_SOURCES,
+    SESSION_STATE,
     SETTINGS,
     LAYOUT,
     AGENT_SESSIONS,

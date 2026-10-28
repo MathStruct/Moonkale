@@ -44,6 +44,7 @@ impl Extension for SettingsExtension {
 /// Which file a change goes to.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Target {
+    Session,
     User,
     Workspace,
 }
@@ -103,6 +104,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
         let t = *target.peek();
         moonkale_ext_api::crash::spawn(async move {
             match t {
+                Target::Session => ws.update_session_settings(|file| f(file)).await,
                 Target::User => ws.update_user_settings(|file| f(file)).await,
                 Target::Workspace => ws.update_workspace_settings(|file| f(file)).await,
             }
@@ -126,6 +128,7 @@ fn SettingsPanel(ws: Workspace) -> Element {
                 span { class: "mk-settings-spacer" }
                 span { class: "mk-muted", {t!(ws, L, "settings-changes-go-to")} }
                 button { class: if target() == Target::User { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| target.set(Target::User)), title: t!(ws, L, "settings-user-title"), {t!(ws, L, "settings-user")} }
+                button { class: if target() == Target::Session { "mk-btn mk-btn-on" } else { "mk-btn" }, onclick: moonkale_ext_api::crash::event(move |_| target.set(Target::Session)), {t!(ws, L, "settings-session")} }
                 button { class: if target() == Target::Workspace { "mk-btn mk-btn-on" } else { "mk-btn" }, disabled: !has_workspace, onclick: moonkale_ext_api::crash::event(move |_| target.set(Target::Workspace)), title: t!(ws, L, "settings-workspace-title"), {t!(ws, L, "settings-workspace")} }
             }
             if !store_available {
@@ -381,6 +384,7 @@ fn AgentProfileCard(
     let apply = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
         moonkale_ext_api::crash::spawn(async move {
             match target {
+                Target::Session => ws.update_session_settings(|file| f(file)).await,
                 Target::User => ws.update_user_settings(|file| f(file)).await,
                 Target::Workspace => ws.update_workspace_settings(|file| f(file)).await,
             }

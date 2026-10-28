@@ -27,6 +27,7 @@ mod key;
 mod memory;
 mod record;
 pub mod recovery;
+pub mod session_bundle;
 pub mod tables;
 pub mod testing;
 

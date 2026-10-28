@@ -378,6 +378,10 @@ fn FrameContent(
     // settings load, save the list (and the active one) whenever it changes.
     let mut restored_docs_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
     use_effect(move || {
+        let _generation = *ws.saved_sessions.generation.read();
+        if *ws.saved_sessions.switching.read() {
+            return;
+        }
         let folder = ws.settings.folder.read().clone();
         let Some(folder) = folder else { return };
         if restored_docs_for.peek().as_ref() == Some(&folder) {
@@ -397,7 +401,7 @@ fn FrameContent(
         });
     });
     use_effect(move || {
-        if *ws.crashes.safe.read() {
+        if *ws.crashes.safe.read() || *ws.saved_sessions.switching.read() {
             return;
         }
         let docs = ws.docs.open.read();
@@ -620,7 +624,8 @@ fn FrameContent(
             // The browser wasm runtime (Milestone 8); harmless where unused.
             document::Script { src: WASM_HOST_JS, defer: true }
             TitleBar { controls }
-            crate::recovery::Recovery { ws }
+            crate::recovery::Recovery { key: "{(ws.saved_sessions.ready)()}:{(ws.saved_sessions.generation)()}", ws }
+            crate::sessions::Sessions { ws }
             if *ws.crashes.safe.read() {
                 div { class: "mk-crash-notice", role: "status", {t!(ws, L, "crash-safe-active")} }
             } else if let Some(id) = ws.crashes.notice.read().clone() {
@@ -629,7 +634,7 @@ fn FrameContent(
                     button { class: "mk-btn", onclick: move |_| ws.crashes.notice.set(None), {t!(ws, L, "crash-dismiss")} }
                 }
             }
-            div { class: "mk-frame-body", {children} }
+            div { class: "mk-frame-body", key: "{(ws.saved_sessions.generation)()}", {children} }
             crate::palette::Palette {}
             crate::discovery::CheatSheet {}
             if remote_dialog() {

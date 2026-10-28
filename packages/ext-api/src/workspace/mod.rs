@@ -32,7 +32,9 @@ mod processes;
 pub mod proposals;
 mod recovery;
 mod remote;
+mod saved_sessions;
 mod session;
+pub use saved_sessions::{SavedSessions, SavedWorkspace, DEFAULT_SESSION};
 mod settings;
 mod sources;
 
@@ -87,6 +89,8 @@ pub struct Workspace {
     pub contrib: ContribState,
     /// This window, other windows, presence.
     pub session: SessionState,
+    /// Named outer workspaces and their retained working sets.
+    pub saved_sessions: SavedSessions,
     /// SSH remotes and the server connection.
     pub remote: RemoteLinks,
     /// LSP status and terminal requests.
@@ -117,6 +121,7 @@ impl Workspace {
             shell: ShellState::new(),
             contrib: ContribState::new(),
             session: SessionState::new(),
+            saved_sessions: SavedSessions::new(),
             remote: RemoteLinks::new(),
             processes: ProcessesState::new(),
             config,
@@ -205,6 +210,7 @@ impl Workspace {
 /// One-line description for the session log (no document bodies).
 fn summary(msg: &SessionMessage) -> String {
     match msg {
+        SessionMessage::Scoped { message, .. } => summary(message),
         SessionMessage::Hello { from } => format!("Hello from {from}"),
         SessionMessage::Welcome { from } => format!("Welcome from {from}"),
         SessionMessage::SourceOpened { from, descriptor } => {

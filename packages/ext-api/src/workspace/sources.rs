@@ -280,8 +280,15 @@ impl Workspace {
                     .then(|| s.llm.clone()),
             }
         };
+        let session = self.saved_sessions.active.peek().clone();
         tracing::info!("open_folder: {path}");
         let sources = (self.config.folders.open)(path, options).await?;
+        if *self.saved_sessions.active.peek() != session {
+            return Err(SourceError::Invalid(
+                "session changed while opening source".into(),
+            ));
+        }
+        self.activate_session();
         tracing::info!("open_folder: {} sources", sources.len());
         let mut first: Option<SourceDescriptor> = None;
         let mut opened: Vec<SourceId> = Vec::new();

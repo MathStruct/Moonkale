@@ -12,6 +12,17 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — 2026-10-28 (WP-46)
+
+- `Command::Sessions`, `SettingsTarget::Session` and `SessionMessage::Scoped`
+  extend public enums; exhaustive matches must handle the new variants.
+  Workspace gains named-session metadata and switching APIs. Window transports
+  must carry Scoped messages unchanged; unscoped legacy messages are accepted
+  only in Default. Local conversation host keys retain the folder/local prefix.
+- `SessionSummary` gains `outer_session` (legacy records default to `default`);
+  `TurnSettings` gains optional `outer_session`. Full Rust literals need the new
+  field; old serialized clients remain readable. Source write APIs are unchanged.
+
 ## Unreleased — 2026-10-28 (WP-56)
 
 - Additive workspace recovery methods use the existing platform state callbacks.

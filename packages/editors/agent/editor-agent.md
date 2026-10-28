@@ -33,3 +33,8 @@ E2E: `packages/web/tests/e2e/agent.mjs` (mock provider through the relay: echo, 
 
 
 WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].
+
+WP-46: local Chats state is retained per named outer session. Host records keep
+the authorized folder/local prefix, then session identity; legacy rows migrate
+to Default once. Server conversation heads/summaries carry outer_session, and
+sending to a conversation belonging to another outer session is refused.

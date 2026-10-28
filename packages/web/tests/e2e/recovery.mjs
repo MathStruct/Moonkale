@@ -25,7 +25,7 @@ const edit = async text => {
   await waitSnapshot(text);
 };
 const reload = async () => {
-  await page.reload({waitUntil:'networkidle'});
+  await page.reload({waitUntil:'domcontentloaded'});
   // Several deliberate reloads within startup's 30-second health window
   // exercise the existing repeated-start notice too. Continue normally.
   await page.waitForFunction(() => document.querySelector('.wb-workspace') || [...document.querySelectorAll('button')].some(b => b.textContent === 'Dismiss'));

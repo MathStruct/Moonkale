@@ -52,6 +52,8 @@ pub enum Item {
 /// outlives the panel.
 #[derive(Clone)]
 pub struct Session {
+    /// Owning outer workspace, captured before any background turn.
+    pub outer_session: String,
     pub id: String,
     pub created: u64,
     pub title: Signal<String>,
@@ -124,17 +126,27 @@ pub struct Chats {
 }
 
 impl Chats {
-    fn get() -> Self {
-        use_hook(|| match try_consume_context::<Chats>() {
-            Some(c) => c,
-            None => dioxus::core::provide_root_context(Chats {
-                sessions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
-                current: Signal::new_in_scope(None, ScopeId::ROOT),
-                saved: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
-                saved_for: Signal::new_in_scope(None, ScopeId::ROOT),
-                show_activity: Signal::new_in_scope(false, ScopeId::ROOT),
-            }),
-        })
+    fn get(ws: Workspace) -> Self {
+        #[derive(Clone)]
+        struct SessionChats(Signal<std::collections::BTreeMap<String, Chats>>);
+        let mut chats = ws
+            .shared_state(|| SessionChats(Signal::new_in_scope(Default::default(), ScopeId::ROOT)))
+            .0;
+        let id = ws.saved_sessions.active.read().clone();
+        if let Some(chat) = chats.peek().get(&id).copied() {
+            return chat;
+        }
+        let chat = Chats {
+            sessions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            current: Signal::new_in_scope(None, ScopeId::ROOT),
+            saved: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            saved_for: Signal::new_in_scope(None, ScopeId::ROOT),
+            show_activity: Signal::new_in_scope(false, ScopeId::ROOT),
+        };
+        chats.with_mut(|all| {
+            all.insert(id, chat);
+        });
+        chat
     }
 
     pub fn current_session(&self) -> Option<Session> {
@@ -199,6 +211,7 @@ fn system_prompt(ws: Workspace) -> String {
 /// A fresh session running the saved agent `profile`.
 fn new_session(ws: Workspace, mut chats: Chats, profile: String) -> Session {
     let s = Session {
+        outer_session: ws.saved_sessions.active.peek().clone(),
         id: uuid::Uuid::new_v4().simple().to_string(),
         created: moonkale_ext_api::workspace::now_ms(),
         title: Signal::new_in_scope("new session".into(), ScopeId::ROOT),
@@ -431,11 +444,10 @@ async fn persist(ws: Workspace, s: Session) {
     };
     let result = if ws.has_host_state() {
         let key = sessions_key(&folder).str(&s.id);
-        ws.host_write(moonkale_state::put_in(
-            moonkale_state::Batch::new(),
-            &key,
-            &file,
-        ))
+        ws.host_write_in_session(
+            &s.outer_session,
+            moonkale_state::put_in(moonkale_state::Batch::new(), &key, &file),
+        )
         .await
     } else {
         let Ok(text) = serde_json::to_string_pretty(&file) else {
@@ -549,6 +561,7 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
         }
     };
     let s = Session {
+        outer_session: ws.saved_sessions.active.peek().clone(),
         id: f.id,
         created: f.created,
         title: Signal::new_in_scope(f.title, ScopeId::ROOT),
@@ -587,7 +600,7 @@ async fn restore(ws: Workspace, chats: Chats, folder: SourceId, id: String) {
 
 #[component]
 pub fn AgentPanel(ws: Workspace) -> Element {
-    let chats = Chats::get();
+    let chats = Chats::get(ws);
     let Chats {
         mut sessions,
         mut current,

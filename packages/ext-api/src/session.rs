@@ -32,6 +32,13 @@ impl fmt::Display for WindowId {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SessionMessage {
+    /// Message confined to a named outer session. One envelope maximum.
+    Scoped {
+        /// Opaque outer-session identity.
+        session: String,
+        /// Existing window protocol.
+        message: Box<SessionMessage>,
+    },
     /// A window came up and wants to know the session state.
     Hello {
         /// The window that sent it.
@@ -80,6 +87,7 @@ impl SessionMessage {
     /// messages). For `Moved` that is the destination, not `from`.
     pub fn sender(&self) -> &WindowId {
         match self {
+            SessionMessage::Scoped { message, .. } => message.sender(),
             SessionMessage::Hello { from }
             | SessionMessage::Welcome { from }
             | SessionMessage::SourceOpened { from, .. }

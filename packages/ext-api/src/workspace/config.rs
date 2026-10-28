@@ -353,6 +353,8 @@ pub struct ForeignDrag {
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Show the named workspace switcher.
+    Sessions,
     /// Toggle the graph panel between whole and local scope.
     ToggleGraphScope,
     /// Split the active editor group to the right.

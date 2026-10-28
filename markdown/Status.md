@@ -7,6 +7,21 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Sessions (WP-46, checked 2026-10-28)
+
+Named sessions live in the state store and own source/tab/layout metadata,
+recovery, conversations and settings between user and folder scope. Existing
+rows migrate to Default once. The title bar and palette open a keyboard/mouse
+switcher with new/rename, confirmed state-only deletion and versioned JSON
+metadata export/import. Secret references travel by name; buffer/conversation
+bodies stay private. Live switches retain dirty documents, editor models and
+non-text tabs. Default preserves each platform's startup behavior.
+
+All AGENTS gates, the complete CI feature matrix, sessions/recovery and extra
+conversation/settings/window/history regressions pass. A private desktop check
+switches two different dirty folders without changing their files. The import
+parser completed 3,712,726 fuzz inputs without a crash. See [[ADR-0025 Sessions are the outermost state]] for shipped scope and later ADR operations.
+
 ## Buffer recovery and cache limits (WP-56, 2026-10-28)
 
 Unsaved folder buffers are sampled into the existing client state store every

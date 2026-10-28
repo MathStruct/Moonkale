@@ -413,3 +413,19 @@ recovery-buffer = Wiederhergestellter Puffer
 recovery-close = Schließen
 recovery-budget = Cachegrenzen: { $buffer } KiB pro Puffer, { $recovery } KiB Wiederherstellung, { $derived } KiB abgeleiteter Index (älteste Einträge werden entfernt). Mathematik { $math }, Bilder { $images }, Ordnergraph { $folder } KiB.
 recovery-open-source = Öffne die Quelle dieses Puffers und wähle dann erneut Wiederherstellen.
+
+# Named outer sessions (ADR-0025)
+sessions-title = Sitzungen
+sessions-name = Name der Sitzung
+sessions-new = Neue Sitzung
+sessions-rename = Umbenennen
+sessions-delete = Löschen…
+sessions-delete-confirm = Diese Sitzung löschen? Dateien bleiben erhalten. Der Sitzungszustand bleibt im Papierkorb.
+sessions-delete-confirm-button = Sitzung löschen
+sessions-export = Sitzung exportieren
+sessions-import = Sitzung importieren…
+sessions-bundle = Sitzungs-JSON
+sessions-import-confirm = Importieren
+sessions-invalid = Ungültige Sitzungsdatei oder Größenlimit überschritten.
+settings-session = Sitzung
+sessions-detail = { $sources } Quellen · vor { $minutes } Min.

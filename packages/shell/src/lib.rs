@@ -25,6 +25,7 @@ mod recovery;
 mod remote_dialog;
 mod search;
 mod server_dialog;
+mod sessions;
 mod settings_panel;
 mod shell;
 mod terminal_chooser;

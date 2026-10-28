@@ -96,6 +96,10 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         };
         moonkale_ext_api::crash::spawn(async move {
             if let Ok(list) = (api.list)(f).await {
+                let list: Vec<_> = list
+                    .into_iter()
+                    .filter(|s| s.outer_session == *ws.saved_sessions.active.peek())
+                    .collect();
                 // A turn still running when we arrive: show it.
                 if session.peek().is_none() {
                     if let Some(live) = list.iter().find(|s| s.running) {
@@ -172,6 +176,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         let settings = {
             let s = ws.settings.resolved.peek();
             TurnSettings {
+                outer_session: Some(ws.saved_sessions.active.peek().clone()),
                 llm: s.agent(&profile.peek()).llm.clone(),
                 allow_writes: s.policy.allow_writes,
                 denied_tools: s.policy.denied_tools.clone(),
@@ -186,6 +191,10 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                     session.set(Some(id));
                     restart += 1;
                     if let Ok(list) = (api.list)(f).await {
+                        let list: Vec<_> = list
+                            .into_iter()
+                            .filter(|s| s.outer_session == *ws.saved_sessions.active.peek())
+                            .collect();
                         sessions.set(list);
                     }
                 }

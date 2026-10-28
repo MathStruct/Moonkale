@@ -423,6 +423,7 @@ dependencies = [
  "libfuzzer-sys",
  "moonkale-core",
  "moonkale-graph-render",
+ "moonkale-state",
  "pulldown-cmark",
  "serde",
  "serde_json",
@@ -441,6 +442,15 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+]
+
+[[package]]
+name = "moonkale-state"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

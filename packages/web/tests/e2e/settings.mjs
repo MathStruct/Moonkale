@@ -2,6 +2,7 @@
 // open documents + layout restored on reopen, recent folders, policy override reaches the agent.
 import { firefox } from "playwright";
 import fs from "node:fs";
+import { control } from "./chrome-controls.mjs";
 const S = process.env.M1_SHOTS ?? ".";
 const PORT = process.env.PORT ?? 8080;
 const ROOT = process.env.M1_ROOT;
@@ -57,7 +58,7 @@ try {
   });
   await step("Milestone 18 phase 4.5: a folder's 'allow writes' is saved but ignored — the agent still asks, and Settings says so", async () => {
     // The switch is not offered for the folder scope …
-    await page.click("#mk-rail-extensions");
+    await control(page.locator("#mk-rail-extensions"), "click");
     await page.waitForSelector(".mk-extensions", { timeout: 10000 });
     await page.selectOption(".mk-extensions .mk-settings-target select", "workspace");
     const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
@@ -77,7 +78,7 @@ try {
     await page.waitForFunction(() => /policy\.allow_writes/.test(document.querySelector(".mk-settings-ignored")?.textContent || ""), null, { timeout: 10000 });
   });
   await step("the same switch in the user scope → the agent runs a write without asking", async () => {
-    await page.click("#mk-rail-extensions");
+    await control(page.locator("#mk-rail-extensions"), "click");
     await page.waitForSelector(".mk-extensions", { timeout: 10000 });
     await page.selectOption(".mk-extensions .mk-settings-target select", "user");
     const row = page.locator(".mk-extensions .mk-settings-ext:has(.mk-settings-ext-name:text-is('Agent'))").first();
@@ -91,13 +92,13 @@ try {
     if (await page.$(".mk-agent-approval")) throw new Error("approval box shown despite the user's allow_writes");
   });
   await step("reload + reopen: README.md is open again, Links tab active, recent folder listed", async () => {
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector(".wb-workspace");
     await openFolder();
     await page.waitForSelector(".cm-content", { timeout: 20000 });
     await page.waitForFunction(() => /README\.md/.test(document.querySelector(".mk-titlebar-title")?.textContent || ""), null, { timeout: 15000 });
     await page.waitForFunction(() => [...document.querySelectorAll(".wb-tab[aria-selected=true]")].some((t) => t.textContent.includes("Links")), null, { timeout: 15000 });
-    await page.click(".mk-menu-button:has-text('File')");
+    await control(page.locator(".mk-menu-button:has-text('File')").first(), "click");
     await page.waitForSelector(".mk-menu-recent", { timeout: 5000 });
     console.log("\n  recent:", await page.$eval(".mk-menu-recent", (e) => e.getAttribute("title")));
     await page.keyboard.press("Escape");

@@ -1,6 +1,7 @@
 // Two tabs of one session: sources propagate, "New Window" opens a peer,
 // and a document dragged from tab A drops into tab B (drag simulated by
 // dispatching the HTML5 events — the OS-level drag itself can't be scripted).
+import { control } from "./chrome-controls.mjs";
 import { firefox } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
 const browser = await firefox.launch();
@@ -16,15 +17,15 @@ try {
   await step("tab A opens folder + README.md", async () => {
     await a.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await a.waitForSelector(".wb-workspace");
-    await a.click(".mk-explorer-open button[type=submit]");
-    await a.click(".mk-tree-file >> text=README.md");
+    await control(a, "click", ".mk-explorer-open button[type=submit]");
+    await control(a, "click", ".mk-tree-file >> text=README.md");
     await a.waitForSelector(".cm-content");
   });
   let b;
   await step("View → New Window opens tab B, which learns the source", async () => {
     const [page] = await Promise.all([
       ctx.waitForEvent("page"),
-      (async () => { await a.click(".mk-menu-button:has-text('View')"); await a.click(".mk-menu-item:has-text('New Window')"); })(),
+      (async () => { await control(a, "click", ".mk-menu-button:has-text('View')"); await control(a, "click", ".mk-menu-item:has-text('New Window')"); })(),
     ]);
     b = page;
     b.on("console", (m) => logs.push(`[B ${m.type()}] ${m.text()}`));
@@ -33,7 +34,12 @@ try {
     const editorsB = await b.$$eval(".cm-content", (e) => e.length);
     if (editorsB !== 0) throw new Error("B should have no editors yet");
   });
-  await step("status bar counts both windows", async () => {
+  await step("Detailed status bar counts both windows", async () => {
+    for (const page of [a, b]) {
+      await page.keyboard.press("Control+Shift+P");
+      await page.locator("#mk-palette-input").fill("Detailed");
+      await page.locator('.mk-palette-item[data-key="view.density.detailed"]').click();
+    }
     await a.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("2 windows"), null, { timeout: 10000 });
     await b.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("2 windows"), null, { timeout: 10000 });
   });
@@ -78,7 +84,7 @@ try {
     await a.screenshot({ path: `${S}/session-banner.png` });
   });
   await step("'Move it here' in A moves the document back", async () => {
-    await a.click(".mk-drop-banner button:has-text('Move it here')");
+    await control(a, "click", ".mk-drop-banner button:has-text('Move it here')");
     await a.waitForFunction(() => document.querySelectorAll(".cm-content").length === 1, null, { timeout: 15000 });
     await b.waitForFunction(() => document.querySelectorAll(".cm-content").length === 0, null, { timeout: 15000 });
     await a.waitForSelector(".mk-drop-banner", { state: "detached", timeout: 5000 });
@@ -98,7 +104,7 @@ try {
     await a.dispatchEvent(".wb-tab[id^='wb-tab-editor-']", "dragstart");
     await a.dispatchEvent(".wb-tab[id^='wb-tab-editor-']", "dragend");
     await b.waitForSelector(".mk-drop-banner", { timeout: 10000 });
-    await b.click(".mk-drop-banner button[title=Dismiss]");
+    await control(b, "click", ".mk-drop-banner button[title=Dismiss]");
     await b.waitForSelector(".mk-drop-banner", { state: "detached", timeout: 5000 });
   });
   console.log("\nSESSION E2E: PASS");

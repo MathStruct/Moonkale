@@ -117,3 +117,10 @@ in `shell/tests/extension_crash.rs`.
 WP-63 adds serde `Density`, optional density/chrome migration fields on SettingsFile, resolved density on Settings, `icons::ChromeOwner`, `chrome_visible`, `ToolbarActions` and `ToolbarMenu`. The latter retain action handlers in Rust and use a content-free DOM click adapter only to dismiss a disclosure after a button/outside click.
 
 WP-56 adds `Workspace::{snapshot_documents,recovery_snapshots,forget_recovery}` and a per-workspace async gate. Save/reload/close delete recovery versions. Installed native state callbacks now run I/O on workers; browser callbacks retain their existing browser storage behavior.
+
+WP-46: Workspace.saved_sessions owns named outer workspaces, independently of
+the window bus in Workspace.session. Live switches retain document signals;
+state saves commit metadata and active-session selection together. Settings
+resolve user < session < folder < environment. Recovery/layout and local
+conversation keys are session-scoped. The window bus sends a Scoped envelope.
+Public enum additions and wire fields are listed in CHANGELOG.md.

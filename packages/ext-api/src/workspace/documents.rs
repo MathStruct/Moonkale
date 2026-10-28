@@ -490,6 +490,8 @@ impl Workspace {
         current: impl Fn() -> bool,
         activate: bool,
     ) -> Result<bool, SourceError> {
+        let session = self.saved_sessions.active.peek().clone();
+        let current = || current() && *self.saved_sessions.active.peek() == session;
         if !current() {
             return Ok(false);
         }
@@ -532,6 +534,7 @@ impl Workspace {
                 self.docs.open.with_mut(|v| v.push((node.id, doc)));
             }
         }
+        self.activate_session();
         if activate {
             self.set_active_document(Some(node.id));
             self.set_status(t!(self, L, "opened", name = node.native_key.clone()));
@@ -564,8 +567,9 @@ impl Workspace {
                 let d = doc.peek();
                 (d.node.source.0.clone(), d.node.native_key.clone())
             };
+            let session = self.saved_sessions.active.peek().clone();
             spawn(async move {
-                self.forget_recovery(&source, &path).await;
+                self.forget_recovery_in(&session, &source, &path).await;
             });
         }
         super::grouped_edits::forget_document(self, node);
@@ -601,6 +605,7 @@ impl Workspace {
     /// record the new version. Conflicts surface as `SourceError::Conflict`
     /// and leave the document dirty.
     pub async fn save(mut self, node: NodeId) -> Result<(), SourceError> {
+        let session = self.saved_sessions.active.peek().clone();
         let mut doc = self.document(node).ok_or(SourceError::NotFound)?;
         let (source_id, version, patch, key, before, submitted) = {
             let d = doc.read();
@@ -643,7 +648,7 @@ impl Workspace {
                         }
                     }
                 }
-                self.forget_recovery(&source_id.0, &key).await;
+                self.forget_recovery_in(&session, &source_id.0, &key).await;
                 self.set_status(t!(self, L, "saved", name = key.clone()));
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).

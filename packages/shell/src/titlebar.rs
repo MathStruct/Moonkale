@@ -497,6 +497,12 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
                 onclick: move |_| { seed.0.set(String::new()); palette.set(Some(crate::palette::PaletteMode::Search)); },
                 oninput: move |e| { seed.0.set(e.value()); palette.set(Some(crate::palette::PaletteMode::Search)); },
             }
+            button { class: "mk-menu-button mk-session-switch",
+                "data-command": "session.switch",
+                title: moonkale_ext_api::command_hint("session.switch", moonkale_ext_api::t!(ws, crate::L, "sessions-title")).title,
+                onclick: move |_| ws.dispatch(Command::Sessions),
+                "{ws.session_name()}"
+            }
             div { class: "mk-titlebar-title", "{title}" }
             if let Some(c) = controls {
                 div { class: "mk-window-controls", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),

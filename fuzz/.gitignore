@@ -20,3 +20,5 @@
 !/corpus/typed_cells/date
 !/corpus/typed_cells/ref
 !/corpus/symbol_paths/closed
+
+!/corpus/session_bundle/version.json

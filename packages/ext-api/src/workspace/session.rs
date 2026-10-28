@@ -7,10 +7,10 @@ use crate::{t, L};
 impl Workspace {
     /// Install the platform's session transport and announce this window.
     pub fn connect_bus(&mut self, bus: Rc<dyn SessionBus>) {
-        bus.send(SessionMessage::Hello {
+        self.session.bus.set(Some(bus));
+        self.send(SessionMessage::Hello {
             from: self.session.window.peek().clone(),
         });
-        self.session.bus.set(Some(bus));
     }
 
     pub(super) fn send(&self, msg: SessionMessage) {
@@ -20,7 +20,10 @@ impl Workspace {
             summary(&msg)
         );
         if let Some(bus) = self.session.bus.peek().as_ref() {
-            bus.send(msg);
+            bus.send(SessionMessage::Scoped {
+                session: self.saved_sessions.active.peek().clone(),
+                message: Box::new(msg),
+            });
         }
     }
 
@@ -46,6 +49,16 @@ impl Workspace {
 
     /// React to a message from another window of this session.
     pub async fn handle_message(mut self, msg: SessionMessage) {
+        let msg = match msg {
+            SessionMessage::Scoped { session, message }
+                if session == *self.saved_sessions.active.peek() =>
+            {
+                *message
+            }
+            SessionMessage::Scoped { .. } => return,
+            msg if *self.saved_sessions.active.peek() == super::DEFAULT_SESSION => msg,
+            _ => return,
+        };
         let me = self.session.window.peek().clone();
         if msg.sender() == &me {
             return;
@@ -56,6 +69,7 @@ impl Workspace {
             self.session.peers.with_mut(|p| p.push(sender));
         }
         match msg {
+            SessionMessage::Scoped { .. } => (),
             SessionMessage::Welcome { .. } => {}
             SessionMessage::Hello { .. } => {
                 self.send(SessionMessage::Welcome { from: me.clone() });

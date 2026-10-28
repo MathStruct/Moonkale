@@ -436,3 +436,12 @@ of secrets pasted into eligible files is outside the path exclusion rule.
 The Sophia byte cap rechecks file truth, symlink boundaries and the derived
 flag before whole-cache eviction; authored stores remain protected. No new
 package version, connection, execution or server authority is introduced.
+
+WP-46 (validated 2026-10-28): session exchange is versioned JSON data capped
+at 4 MiB with serde's nesting bound; no code is evaluated. Imported settings lose
+authority fields before use, and import opens no sources. Exports contain
+metadata and secret references, excluding buffer/conversation bodies. Session
+soft deletion only writes state; it never calls Source writes. Recovery retains
+WP-56 path/ignore/symlink checks and is namespaced per session. Local conversation
+keys preserve the host's authorized folder/local prefix. Window messages are
+confined by outer-session id; the session id is organization, not authentication.

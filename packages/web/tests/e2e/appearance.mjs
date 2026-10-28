@@ -83,7 +83,7 @@ try {
     await page.waitForFunction(() => getComputedStyle(document.documentElement).getPropertyValue("--mk-canvas").trim() === "#0f1116", null, { timeout: 10000 });
   });
   await step("a theme file from the server's config directory: listed, selected, applied over its base", async () => {
-    await page.reload({ waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector(".wb-workspace");
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-settings-theme option")].some((o) => o.value === "Paper"), null, { timeout: 15000 });
     await setting(page, "mk-settings-theme", "Paper");

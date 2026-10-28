@@ -1,0 +1,47 @@
+// ADR-0025: two outer sessions, independent sources and dirty buffers.
+import {firefox} from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const browser = await firefox.launch();
+const page = await browser.newPage({viewport:{width:1500,height:1000}, acceptDownloads:true});
+page.setDefaultTimeout(30000);
+const root=process.env.M1_ROOT;
+await page.addInitScript(()=>localStorage.setItem('moonkale.settings',JSON.stringify({language:'en',editor:{implementation:'codemirror',markdown_rich:false}})));
+const switcher=()=>page.getByRole('dialog',{name:'Sessions',exact:true});
+const openSwitch=async()=>{await page.locator('.mk-session-switch').click(); await switcher().waitFor();};
+const switchTo=async name=>{await openSwitch(); await switcher().getByRole('button',{name:new RegExp(name)}).first().click(); await switcher().waitFor({state:'hidden'});};
+const folder=async path=>{await page.keyboard.press('Control+O');await page.locator('#mk-explorer-path').fill(path);await page.locator('#mk-explorer-path').press('Enter');await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));};
+const file=async name=>{await page.keyboard.press('Control+P');await page.locator('#mk-palette-input').fill(name);await page.locator(`.mk-palette-item[data-key="${name}"]`).click();await page.locator('.cm-content:visible').waitFor();};
+const edit=async text=>{await page.locator('.cm-content:visible').click();await page.keyboard.press('Control+End');await page.keyboard.type(text);};
+const contains=async text=>page.waitForFunction(text=>document.querySelector('.cm-content')?.textContent.includes(text),text);
+try {
+ await page.goto(`http://127.0.0.1:${process.env.PORT??8080}/`,{waitUntil:'networkidle'});
+ await folder(root); await file('README.md'); await edit('\nDefault dirty session.');
+ await openSwitch(); await page.locator('#mk-session-name').fill('Research'); await switcher().getByRole('button',{name:'New session',exact:true}).click();
+ await switcher().waitFor({state:'hidden'});
+ assert.equal(await page.locator('.cm-content').count(),0);
+ await folder(`${root}/notes`); await file('Beta.md'); await edit('\nResearch dirty session.');
+ await switchTo('Default'); await contains('Default dirty session.');
+ assert(!(await page.locator('.cm-content').textContent()).includes('Research dirty session.'));
+ await switchTo('Research'); await contains('Research dirty session.');
+ assert(!(await page.locator('.cm-content').textContent()).includes('Default dirty session.'));
+ assert(!fs.readFileSync(`${root}/README.md`,'utf8').includes('Default dirty session.'));
+ assert(!fs.readFileSync(`${root}/notes/Beta.md`,'utf8').includes('Research dirty session.'));
+ await openSwitch(); await page.locator('#mk-session-name').fill('Renamed research'); await switcher().getByRole('button',{name:'Rename',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('.mk-session-switch')?.textContent==='Renamed research');
+ const downloadPromise=page.waitForEvent('download'); await switcher().getByRole('button',{name:'Export session',exact:true}).click();
+ const download=await downloadPromise; const bundle=fs.readFileSync(await download.path(),'utf8');
+ assert(!bundle.includes('Research dirty session.')); assert.equal(JSON.parse(bundle).name,'Renamed research'); assert.equal(JSON.parse(bundle).bundle_version,1);
+ await switcher().getByRole('button',{name:'Import session…',exact:true}).click();
+ await switcher().getByRole('textbox',{name:'Session JSON',exact:true}).fill(bundle);
+ await switcher().getByRole('button',{name:'Import',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelectorAll('.mk-sessions [data-session]').length===3);
+ await switcher().getByRole('button',{name:'Delete…',exact:true}).click();
+ await switcher().getByRole('button',{name:'Delete session',exact:true}).click();
+ await switcher().waitFor({state:'hidden'}); await contains('Default dirty session.');
+ assert(fs.existsSync(`${root}/notes/Beta.md`));
+ await page.locator('.cm-content:visible').click();await page.keyboard.press('Control+S');
+ await page.waitForFunction(()=>!document.querySelector('.mk-titlebar-title')?.textContent.includes('●'));
+ assert(fs.readFileSync(`${root}/README.md`,'utf8').includes('Default dirty session.'));
+ console.log('PASS: named sessions preserve independent sources and dirty text; rename, export/import and confirmed deletion');
+} catch (error) { console.log(await switcher().textContent().catch(()=>'')); await page.screenshot({path:`${process.env.M1_SHOTS}/sessions-failure.png`}); throw error; } finally {await browser.close();}

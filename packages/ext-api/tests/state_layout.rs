@@ -87,7 +87,7 @@ async fn layouts_live_in_the_store_and_the_folder_file_keeps_what_it_shares() {
     dom.rebuild_in_place();
     settle(&mut dom).await;
     let (ws, store, path, folder) = SETUP.with(|s| s.borrow_mut().take()).unwrap();
-    let key = Key::new().str(folder.as_str());
+    let key = Key::new().str("default").str(folder.as_str());
     let record = |store: &MemoryStore| Typed::new(store).get::<LayoutRecord>(&key).unwrap();
 
     // Load: the old file's layout is handed to the store.

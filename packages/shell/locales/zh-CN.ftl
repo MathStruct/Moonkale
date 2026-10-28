@@ -397,3 +397,19 @@ recovery-buffer = 恢复的缓冲区
 recovery-close = 关闭
 recovery-budget = 缓存限制：每个缓冲区 { $buffer } KiB，恢复 { $recovery } KiB，派生索引 { $derived } KiB（淘汰最旧的条目）。 公式 { $math }、图像 { $images }、文件夹图谱 { $folder } KiB。
 recovery-open-source = 请打开此缓冲区的源，然后再次选择恢复。
+
+# Named outer sessions (ADR-0025)
+sessions-title = 会话
+sessions-name = 会话名称
+sessions-new = 新建会话
+sessions-rename = 重命名
+sessions-delete = 删除…
+sessions-delete-confirm = 删除此会话？文件将保留，会话状态将移至回收站。
+sessions-delete-confirm-button = 删除会话
+sessions-export = 导出会话
+sessions-import = 导入会话…
+sessions-bundle = 会话 JSON
+sessions-import-confirm = 导入
+sessions-invalid = 会话文件无效或超过大小限制。
+settings-session = 会话
+sessions-detail = { $sources } 个来源 · { $minutes } 分钟前

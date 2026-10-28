@@ -75,3 +75,8 @@
 
 .mk-titlebar .mk-titlebar-search { flex: 0 1 380px; width: clamp(140px, 25vw, 380px); min-width: 100px; height: 26px; box-sizing: border-box; font-size: 12px; border-color: var(--mk-line); background: var(--mk-sunken); color: var(--mk-ink); -webkit-app-region: no-drag; }
 @media (max-width: 700px) { .mk-titlebar-search { width: 140px; } }
+
+.mk-session-switch {
+  -webkit-app-region: no-drag; max-width: 12rem; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+}

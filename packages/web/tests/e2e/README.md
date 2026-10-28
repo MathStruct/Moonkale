@@ -717,3 +717,15 @@ platform checks.
 ## Unsaved-buffer recovery (WP-56)
 
 `recovery.mjs` is registered in run-all and CI smoke. It reloads with a dirty CodeMirror buffer, restores explicitly, saves and verifies cleanup, changes the file outside the app to exercise stale-base comparison, then discards and verifies a second reload is quiet. It uses a disposable fixture and reads browser state only to await durability.
+
+## Named outer sessions (WP-46)
+
+`sessions.mjs` is registered in run-all and CI smoke. It switches between two
+sessions with different folders and dirty buffers, verifies each buffer on
+return and unchanged files, then checks rename, JSON metadata download/import,
+confirmed soft deletion and saving the surviving buffer. The old `session.mjs`
+covers cross-window transport, rather than named workspace switching.
+
+Named-session startup can immediately reopen folders and start their watcher
+long polls. Reload checks therefore wait for DOM content and the relevant UI
+state, rather than `networkidle`, which an open watched folder cannot guarantee.

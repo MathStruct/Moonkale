@@ -61,11 +61,12 @@ try {
   await menu('View', 'view.toggleBottom');
   await page.waitForTimeout(250);
   assert.equal(await page.locator('.mk-shortcut-nudge').count(), 0);
-  await page.reload({waitUntil: 'networkidle'});
+  await page.reload({waitUntil: 'domcontentloaded'});
+  await page.waitForSelector('.wb-workspace');
   for (let i = 0; i < 3; i++) await menu('View', 'view.toggleBottom');
   await page.waitForTimeout(250);
   assert.equal(await page.locator('.mk-shortcut-nudge').count(), 0);
-  // Web startup does not automatically reopen folders after reload.
+  // Named-session startup restores sources; Open remains idempotent.
   await control(page.locator('.mk-explorer-open button[type=submit]'), 'click');
   await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'), null, {timeout: 30000});
   await control(page.locator('.mk-tree-row[title="README.md"]'), 'dblclick');

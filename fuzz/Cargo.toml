@@ -12,6 +12,7 @@ cargo-fuzz = true
 [workspace]
 
 [dependencies]
+moonkale-state = { path = "../packages/state" }
 moonkale-core = { path = "../packages/core" }
 moonkale-graph-render = { path = "../packages/graph-render" }
 libfuzzer-sys = "=0.4.13"
@@ -54,6 +55,13 @@ bench = false
 [[bin]]
 name = "symbol_paths"
 path = "fuzz_targets/symbol_paths.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "session_bundle"
+path = "fuzz_targets/session_bundle.rs"
 test = false
 doc = false
 bench = false

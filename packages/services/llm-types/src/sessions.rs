@@ -41,6 +41,9 @@ pub struct PendingApproval {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionSummary {
+    /// Owning outer workspace; old conversations belong to Default.
+    #[serde(default = "default_outer_session")]
+    pub outer_session: String,
     pub id: String,
     pub folder: String,
     pub title: String,
@@ -66,9 +69,17 @@ pub struct SessionState {
 /// policy it would apply locally.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TurnSettings {
+    /// Owning outer workspace (missing on old clients means Default).
+    #[serde(default)]
+    pub outer_session: Option<String>,
     pub llm: LlmSettings,
     #[serde(default)]
     pub allow_writes: bool,
     #[serde(default)]
     pub denied_tools: Vec<String>,
+}
+
+/// Stable migration identity for legacy conversations.
+pub fn default_outer_session() -> String {
+    "default".into()
 }

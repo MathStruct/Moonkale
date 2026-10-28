@@ -72,12 +72,14 @@ pub fn ExtensionsList(ws: Workspace, target: Target) -> Element {
     let catalog: Rc<Vec<Box<dyn Extension>>> = use_context::<Extensions_>().0;
     let settings = ws.settings.resolved.read().clone();
     let ext_target = match target {
+        Target::Session => moonkale_ext_api::SettingsTarget::Session,
         Target::User => moonkale_ext_api::SettingsTarget::User,
         Target::Workspace => moonkale_ext_api::SettingsTarget::Workspace,
     };
     let apply = move |f: Box<dyn FnOnce(&mut SettingsFile)>| {
         moonkale_ext_api::crash::spawn(async move {
             match target {
+                Target::Session => ws.update_session_settings(|file| f(file)).await,
                 Target::User => ws.update_user_settings(|file| f(file)).await,
                 Target::Workspace => ws.update_workspace_settings(|file| f(file)).await,
             }

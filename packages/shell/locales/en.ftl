@@ -417,3 +417,19 @@ recovery-buffer = Recovered buffer
 recovery-close = Close
 recovery-budget = Cache limits: { $buffer } KiB per buffer, { $recovery } KiB recovery, { $derived } KiB derived index (oldest evicted). Math { $math }, images { $images }, folder graph { $folder } KiB.
 recovery-open-source = Open this buffer’s source, then choose Restore again.
+
+# Named outer sessions (ADR-0025)
+sessions-title = Sessions
+sessions-name = Session name
+sessions-new = New session
+sessions-rename = Rename
+sessions-delete = Delete…
+sessions-delete-confirm = Delete this session? Files are kept. Session state remains in the trash.
+sessions-delete-confirm-button = Delete session
+sessions-export = Export session
+sessions-import = Import session…
+sessions-bundle = Session JSON
+sessions-import-confirm = Import
+sessions-invalid = Invalid session file or size limit exceeded.
+settings-session = Session
+sessions-detail = { $sources } sources · { $minutes } min ago

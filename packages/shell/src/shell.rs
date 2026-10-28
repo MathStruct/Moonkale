@@ -172,7 +172,11 @@ pub fn Shell() -> Element {
     let mut restored_for: Signal<Option<moonkale_core::SourceId>> = use_signal(|| None);
     use_effect(move || {
         let folder = ws.settings.folder.read().clone();
-        if *ws.crashes.safe.read() || folder.is_none() || *restored_for.peek() == folder {
+        if *ws.saved_sessions.switching.read()
+            || *ws.crashes.safe.read()
+            || folder.is_none()
+            || *restored_for.peek() == folder
+        {
             return;
         }
         restored_for.set(folder);
@@ -187,7 +191,11 @@ pub fn Shell() -> Element {
         }
     });
     let on_layout_change = move |next: PanelLayout| {
-        if *ws.crashes.safe.peek() || ws.settings.folder.peek().is_none() || *narrow.peek() {
+        if *ws.saved_sessions.switching.peek()
+            || *ws.crashes.safe.peek()
+            || ws.settings.folder.peek().is_none()
+            || *narrow.peek()
+        {
             return;
         }
         let encoded = next.encode();

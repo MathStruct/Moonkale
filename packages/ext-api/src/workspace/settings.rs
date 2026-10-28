@@ -44,6 +44,50 @@ impl Workspace {
         self.config.persistence.host.is_some()
     }
 
+    async fn migrate_host_sessions(&self, h: StateAccess, key: &[u8]) -> Result<(), String> {
+        let mut parts = moonkale_state::Key::reader(key);
+        let folder = parts.str().ok_or("missing conversation folder")?;
+        let kind = parts.str().ok_or("missing conversation kind")?;
+        let prefix = moonkale_state::Key::new().str(&folder).str(&kind);
+        let marker = prefix.clone().str("$sessions-v1").into_bytes();
+        let table = moonkale_state::tables::AGENT_SESSIONS;
+        if (h.get)(table.into(), marker.clone()).await?.is_some() {
+            return Ok(());
+        }
+        let mut batch = moonkale_state::Batch::new();
+        for (k, v) in (h.scan)(table.into(), prefix.as_bytes().to_vec()).await? {
+            let mut tail = moonkale_state::Key::reader(&k[prefix.as_bytes().len()..]);
+            if tail.str().as_deref() == Some("$session") {
+                continue;
+            }
+            let mut scoped = prefix
+                .clone()
+                .str("$session")
+                .str(super::DEFAULT_SESSION)
+                .into_bytes();
+            scoped.extend(&k[prefix.as_bytes().len()..]);
+            batch = batch.put(table, scoped, v).delete(table, k);
+        }
+        (h.write)(batch.put(table, marker, b"1".to_vec())).await
+    }
+
+    fn host_session_key_in(&self, table: &str, key: &[u8], session: &str) -> Vec<u8> {
+        if table == moonkale_state::tables::AGENT_SESSIONS {
+            let mut parts = moonkale_state::Key::reader(key);
+            if let (Some(folder), Some(kind)) = (parts.str(), parts.str()) {
+                let prefix = moonkale_state::Key::new().str(&folder).str(&kind);
+                let mut scoped = prefix.clone().str("$session").str(session).into_bytes();
+                scoped.extend(&key[prefix.as_bytes().len()..]);
+                return scoped;
+            }
+        }
+        key.to_vec()
+    }
+
+    fn host_session_key(&self, table: &str, key: &[u8]) -> Vec<u8> {
+        self.host_session_key_in(table, key, &self.saved_sessions.active.peek())
+    }
+
     /// A record from the folder host's store (`None`: absent, no store, or
     /// unreadable — logged).
     pub async fn host_get<R: moonkale_state::Record>(
@@ -51,7 +95,15 @@ impl Workspace {
         key: &moonkale_state::Key,
     ) -> Option<R> {
         let h = self.config.persistence.host?;
-        match (h.get)(R::TABLE.to_string(), key.as_bytes().to_vec()).await {
+        if R::TABLE == moonkale_state::tables::AGENT_SESSIONS {
+            self.migrate_host_sessions(h, key.as_bytes()).await.ok()?;
+        }
+        match (h.get)(
+            R::TABLE.to_string(),
+            self.host_session_key(R::TABLE, key.as_bytes()),
+        )
+        .await
+        {
             Ok(Some(bytes)) => moonkale_state::decode(&bytes)
                 .map_err(|e| tracing::warn!("host state: {} ignored: {e}", R::TABLE))
                 .ok(),
@@ -74,7 +126,14 @@ impl Workspace {
             .persistence
             .host
             .ok_or_else(|| "no host store".to_string())?;
-        let rows = (h.scan)(R::TABLE.to_string(), prefix.as_bytes().to_vec()).await?;
+        if R::TABLE == moonkale_state::tables::AGENT_SESSIONS {
+            self.migrate_host_sessions(h, prefix.as_bytes()).await?;
+        }
+        let rows = (h.scan)(
+            R::TABLE.to_string(),
+            self.host_session_key(R::TABLE, prefix.as_bytes()),
+        )
+        .await?;
         Ok(rows
             .into_iter()
             .filter_map(|(k, v)| match moonkale_state::decode(&v) {
@@ -89,11 +148,41 @@ impl Workspace {
 
     /// Apply a batch to the folder host's store. `Err`: no store, or it failed.
     pub async fn host_write(&self, batch: moonkale_state::Batch) -> Result<(), String> {
+        let session = self.saved_sessions.active.peek().clone();
+        self.host_write_in_session(&session, batch).await
+    }
+
+    /// Persist a background conversation to its captured owning session.
+    pub async fn host_write_in_session(
+        &self,
+        session: &str,
+        batch: moonkale_state::Batch,
+    ) -> Result<(), String> {
         let h = self
             .config
             .persistence
             .host
             .ok_or_else(|| "no host store".to_string())?;
+        let mut batch = batch;
+        for op in &batch.ops {
+            match op {
+                moonkale_state::Op::Put { table, key, .. }
+                | moonkale_state::Op::Delete { table, key }
+                    if table == moonkale_state::tables::AGENT_SESSIONS =>
+                {
+                    self.migrate_host_sessions(h, key).await?
+                }
+                _ => {}
+            }
+        }
+        for op in &mut batch.ops {
+            match op {
+                moonkale_state::Op::Put { table, key, .. }
+                | moonkale_state::Op::Delete { table, key } => {
+                    *key = self.host_session_key_in(table, key, session);
+                }
+            }
+        }
         (h.write)(batch).await
     }
 
@@ -132,7 +221,11 @@ impl Workspace {
     /// Recompute the resolved settings from the two scopes + environment.
     pub(super) fn resolve_settings(&mut self) {
         let resolved = crate::settings::Settings::resolve(
-            &self.settings.user.peek(),
+            &{
+                let mut user = self.settings.user.peek().clone();
+                user.overlay(&self.saved_sessions.settings.peek());
+                user
+            },
             &self.settings.workspace.peek(),
             &crate::settings::Settings::env_overrides(),
         );
@@ -205,6 +298,9 @@ impl Workspace {
             Err(e) => self.set_status(t!(self, L, "settings-not-loaded", error = e)),
         }
         self.refresh_wasm_extensions().await;
+        if let Err(e) = self.load_sessions().await {
+            self.set_status(e);
+        }
         // Desktop: a remote folder asked for on the command line wins
         // (Milestone 11) …
         if let Some((host, path)) = self.config.network.remote.and_then(|r| (r.at_start)()) {
@@ -241,10 +337,25 @@ impl Workspace {
     ) {
         spawn(async move {
             match target {
+                crate::SettingsTarget::Session => self.update_session_settings(f).await,
                 crate::SettingsTarget::User => self.update_user_settings(f).await,
                 crate::SettingsTarget::Workspace => self.update_workspace_settings(f).await,
             }
         });
+    }
+
+    /// Change this session's overrides and write them to the state store.
+    pub async fn update_session_settings(
+        mut self,
+        f: impl FnOnce(&mut crate::settings::SettingsFile),
+    ) {
+        let mut file = self.saved_sessions.settings.peek().clone();
+        f(&mut file);
+        self.saved_sessions.settings.set(file);
+        self.resolve_settings();
+        if let Err(e) = self.persist_session().await {
+            self.set_status(e);
+        }
     }
 
     /// Change the user scope and persist it.
@@ -303,7 +414,7 @@ impl Workspace {
         // from before that carries it once, which moves it over.
         let mut file = file;
         if self.config.persistence.state.is_some() {
-            let key = moonkale_state::Key::new().str(folder.as_str());
+            let key = self.session_key().str(folder.as_str());
             match self.state_get::<crate::settings::LayoutRecord>(&key).await {
                 Some(rec) => rec.apply_to(&mut file),
                 None => {
@@ -347,7 +458,7 @@ impl Workspace {
             use crate::settings::LayoutRecord;
             let layout = LayoutRecord::of(&file);
             if layout != LayoutRecord::of(&before) {
-                let key = moonkale_state::Key::new().str(folder.as_str());
+                let key = self.session_key().str(folder.as_str());
                 self.state_put(&key, &layout).await;
             }
             if LayoutRecord::strip(&file) == LayoutRecord::strip(&before)

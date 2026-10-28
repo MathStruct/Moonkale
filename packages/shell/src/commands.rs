@@ -44,6 +44,10 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
     let c = |id: &str, title: String| CommandContribution::new(id, title);
     vec![
         (
+            c("session.switch", t!(ws, L, "sessions-title")).key("Ctrl+Alt+P"),
+            Command::Sessions,
+        ),
+        (
             c("codeGraph.checkCache", t!(ws, L, "cmd-check-cache")),
             Command::CheckCodeCache,
         ),

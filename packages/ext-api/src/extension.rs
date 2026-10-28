@@ -77,6 +77,8 @@ pub trait Extension: 'static {
 /// Which settings file a change goes to (the Extensions panel's switch).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsTarget {
+    /// Overrides for this named session.
+    Session,
     /// The user's settings (this machine, every folder).
     User,
     /// The open folder's `.moonkale/settings.json` (data, not authority: see `SettingsFile::without_authority`).
