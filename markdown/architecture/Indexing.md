@@ -164,7 +164,7 @@ on owned port 8117; the renderer suites use Chromium/SwiftShader.
 
 ## SPEC-010 acceptance 2: the truth moves into the store halfway (2026-10-28)
 
-Sophia `08e6ffb` (SPEC-010, untagged). `MOONKALE_REPLAY_TRUTH_AT=half
+Sophia v0.1.5 (`686f8e0`; the runs used `08e6ffb`, the same code). `MOONKALE_REPLAY_TRUTH_AT=half
 history_replay REPO RANGE SCRATCH` replays the first half as a derived cache.
 Then the replayed store and a twin built fresh at the same commit both call
 `take_truth`. The later commits are appended to both through
