@@ -288,3 +288,16 @@ Declare `platforms = ["desktop", "web"]` if you depend on a capability that isn'
 - **Toolbar buttons are symbols:** use `moonkale_ext_api::icons::IconButton { icon, label, description, shortcut, … }`. The label is hidden text (screen readers and tests), the tooltip is the description plus the shortcut. One primary action per panel may keep its words ([[ADR-0027 Simple by default]]).
 - **Settings beside the panel:** put `moonkale_ext_api::icons::PanelSettingsButton {}` at the end of your toolbar. It shows a gear when your extension's `settings()` returns something, and the shell opens those settings next to your panel. Nothing else to wire.
 
+
+## Containing failures (WP-57)
+
+The shell guards calls into an extension and provides its identity to panel and
+settings components. Use `moonkale_ext_api::crash::event` for event callbacks,
+`crash::spawn` / `spawn_forever` for tasks, and the guarded `use_effect`,
+`use_future` and `use_resource` helpers. `event` supports both synchronous and
+asynchronous callbacks; it preserves Dioxus's immediate first poll and guards
+every later poll. A panic disables only the owning extension on unwind builds.
+Do not bypass these helpers with raw Dioxus spawning or an unrelated executor
+and expect extension containment. On today's aborting web client, a real panic
+uses the independent reload overlay instead. See [[Crash Safety]] for startup
+safe mode, wasm retry limits and the boundaries of recovery.

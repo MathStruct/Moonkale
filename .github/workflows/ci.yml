@@ -242,9 +242,9 @@ jobs:
         include:
           - name: default
             check_name: browser smoke suites
-            features: julia,rocksdb,helix
+            features: julia,rocksdb,helix,crash-test
             browser: firefox
-            suites: files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
+            suites: crash-safety files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
           - name: structural
             check_name: browser structural edits
             features: julia,structural-edits

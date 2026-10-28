@@ -59,3 +59,8 @@ Practical stance: **keep npm** because Playwright and Quartz need Node regardles
 `editors/code-native` keeps source, edits, selection, history, highlighting and presentation ownership in Rust (`packages/code-view` and editor-core). Small DOM adapters still supply browser-only geometry, focus, scrolling, font notifications and input/composition transport; no CodeMirror bundle is needed. The proportional-run resize adapter shares one `ResizeObserver`, skips redundant initial notifications and sends only actual dimension changes asynchronously. A removal observer releases detached/replaced nodes and disconnects both observers when the final watcher leaves. Rust validates finite dimensions and rejects stale measurements; JavaScript owns no document or editor state. Atomic preview ranges send one representative grapheme to the geometry adapter instead of redundant segment records. See [[Rust Code Editor Implementation]] and [[JS Interop Boundary]].
 
 Native math uses `packages/js/katex` → `ext-api/assets/katex-renderer.js` (262 KB): a stateless, replaceable TeX presentation function with Rust-owned Markdown, source ranges, macro lookup and bounded caching. Its stylesheet/fonts are shared with Rich mode.
+
+WP-57 (2026-10-28): `shell/assets/crash.js` is a small standalone recovery
+overlay and startup marker, outside the failed wasm runtime. Its labels come
+from shell locales; it uses fixed diagnostics and never reads panic payloads.
+The existing wasm-host bundle adds bounded retries, timeout and worker cleanup.

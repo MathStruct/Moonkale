@@ -359,3 +359,17 @@ forward through bounded multiplex commands before the token is sent. Failed
 forwards retry fresh ports up to three attempts with a log for each retry and a
 ten-second command deadline. Unwinding handshake panics publish a generic Failed
 phase and terminate the master; panic payloads are not copied into UI messages.
+
+WP-57 (2026-10-28): guarded extension failures retain only the extension id in
+session state; the native panic hook suppresses guarded panic payloads before
+logging or retaining local render details; the web panic hook replaces Dioxus's dev panic reporting and
+passes no payload or error text to the overlay or server. Copy details writes a
+fixed diagnostic locally. Safe mode neither grants permissions nor changes
+persisted enablement/layout. Native startup health uses the existing local
+state store; parsing its counter is capped at 128 bytes. Browser storage holds
+only a pending flag and saturating count. Wasm invocation retries are bounded,
+never automatic; browser Workers time out after 30 seconds and serialize per
+module. Existing parser/fuel/memory/permission boundaries remain enforced.
+No new network authority or package version is added; `js-sys` is reused by the
+shell for its early wasm panic hook. Foreign compiled-in extensions must adopt
+the guard helpers, and abort/OOM/stack overflow are outside unwind containment.

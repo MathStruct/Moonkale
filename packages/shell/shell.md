@@ -100,3 +100,14 @@ Notes for `ui` (Milestone 1). Design: [[Project Structure]], [[ADR-0010 dioxus-w
 - `theme.rs`: the token table, theme files (`ThemeFile::parse`, `ThemeFiles` service), `builtin_css` / `extra_css`, `is_light`. `frame.rs` renders the built-in sheet statically (`dangerous_inner_html`, P-152), fills `#mk-theme-extra`, sets `data-theme` on `<html>`, watches `prefers-color-scheme` for *Follow system* and keeps `ws.shell.theme_light` current.
 - Panels are collected under `workspace::untracked` on the command path (P-151).
 - Details: [[Languages and Themes]].
+
+## WP-57 (2026-10-28)
+
+`crash.rs` wraps extension trait entry points; panel/settings subtrees provide
+the guard context. The frame shows one failure or startup-recovery notice. Safe
+mode overrides contributions and layout/session restoration without persisting
+those overrides. The web panic hook uses `assets/crash.js` for independent DOM
+controls after abort; labels come from the crate's locales and copying is local.
+A `crash-test` extension exists only with the feature and debug assertions.
+
+The crash-test fixture additionally requires `?crash-test` (native: `MOONKALE_CRASH_TEST`) so enabling the test feature does not change ordinary startup panels.

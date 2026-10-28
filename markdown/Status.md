@@ -25,6 +25,18 @@ See [[Security]] and [[How to Write Tests]] for scope and commands. The page's
 older whole-product inventory date above is unchanged; this paragraph checks only
 WP-47, not every area below.
 
+## Crash safety (WP-57, checked 2026-10-28)
+
+Native built-in extension callbacks, tasks, effects and resources now have
+per-extension panic guards; a failure removes that extension's contributions
+and shows one notice. The web's aborting wasm client has an independent reload /
+local-copy / safe-mode overlay. Repeated incomplete startups offer safe mode;
+desktop `--safe` and web `?safe` ignore extensions and saved layout without
+changing preferences. Both wasm runtimes already created fresh instances and
+now bound retries to three after the initial failed invocation. Unsaved-buffer
+snapshots and compiled service hot reload remain unbuilt. External compiled-in
+extensions must adopt the new callback/task helpers. See [[Crash Safety]].
+
 ## Cross-file code dependencies (WP-22, checked 2026-10-28)
 
 Rust, Python and Julia Calls/References now resolve explicit folder imports to

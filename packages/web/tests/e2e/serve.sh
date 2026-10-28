@@ -5,7 +5,7 @@
 #   packages/web/tests/e2e/serve.sh stop
 #   PORT=8091 MOONKALE_TOKEN=e2e-secret-token packages/web/tests/e2e/serve.sh start   # token mode (auth.mjs)
 # Each PORT has its own pid/log file, so a token-mode server can run next to the normal one.
-# SERVE_FEATURES: the web crate's features for the build (default `julia,rocksdb,helix`: flow.mjs
+# SERVE_FEATURES: the web crate's features for the build (default `julia,rocksdb,helix,crash-test`: flow.mjs
 # drives the Lux blocks, which come from MathStruct/moonkale-julia since Milestone 18 phase 6.4;
 # stores.mjs opens a RocksDB and a HelixDB store, opt-in features since 2026-10-19).
 # Set SERVE_FEATURES= (explicitly empty) to test platform defaults only.
@@ -18,7 +18,7 @@
 set -uo pipefail
 E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 PORT="${PORT:-8090}"
-SERVE_FEATURES="${SERVE_FEATURES-julia,rocksdb,helix}"
+SERVE_FEATURES="${SERVE_FEATURES-julia,rocksdb,helix,crash-test}"
 REPO="$(cd "$(dirname "$0")/../../../.." && pwd)"
 # A relative CARGO_TARGET_DIR would be resolved from packages/web below (it put
 # 15 GB of build output under packages/web/target once — P-148): anchor it.

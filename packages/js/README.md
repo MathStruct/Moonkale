@@ -39,3 +39,8 @@ Not a UI package: the browser runtime for JSON-ABI wasm extensions. `npm run bui
 ## `katex`: stateless TeX presentation
 
 `packages/js/katex` pins KaTeX 0.18.7 and builds the shared `ext-api/assets/katex-renderer.js`. Its pure `render` request/reply protocol returns HTML/MathML; it owns no Markdown, editor state, macro configuration or DOM. Rich and native math use the shared `ext-api/assets/katex/` CSS/fonts. See `katex/PROTOCOL.md` for bounds, error behavior and replacement requirements.
+
+WP-57: the wasm-host runtime limits a module to one active invocation and a
+30-second Worker lifetime. After failure it discards cached bytes; the initial
+failed call permits at most three explicit fresh-instance retries. It never
+automatically replays a command. Worker/object-URL/timer cleanup is bounded.

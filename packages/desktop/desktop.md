@@ -38,3 +38,8 @@ WebKitGTK's web process crashes inside the NVIDIA EGL driver while tearing down 
 
 ## Milestone 12
 `server_client()` → `moonkale_shell::ServerClient` over `moonkale_server::client` (*File → Connect to Server…*); `moonkale-llm` with `claude-code`; `llm_provider` needs no key for `claude-code`; `WorkspaceConfig::agent_sessions` with `moonkale_server::client::agent_available` (server sessions while connected, when `agent.on_server` is set).
+
+WP-57: `--safe` disables extension contributions and saved layout/document
+restoration for the session. Before launch, a content-free startup marker is
+written to the existing local state store; repeated incomplete startups offer
+safe mode. A healthy frame checkpoint clears it after 30 seconds.

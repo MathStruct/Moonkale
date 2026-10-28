@@ -100,3 +100,10 @@ What is good: the boundaries that exist are real — JS behind traits with a pro
 - 2026-10-01 — vault refactor: line counts and Milestone 16/17 state updated; Turso/redb/RocksDB/HelixDB (embedded) built as sources inside the driver crates, not as extensions; the proposed steps are scheduled in [[Milestone 18 - Library Refactor]].
 - 2026-10-19 — HelixDB and RocksDB out of the default desktop/server build: opt-in features `helix` and `rocksdb` (desktop, server, web); the release packages no longer open them (Daniel).
 - 2026-10-20 — `sources/sophia` (WP-68): Sophia code stores as a default-off source driver, feature `sophia`.
+
+WP-57 test fixture (2026-10-28): the shell's synthetic crash-test extension is
+compiled only with `crash-test` plus debug assertions. It contributes no release
+functionality; it exercises the guards and web panic overlay. Production built-in
+extensions now use guarded callback/task helpers (see [[Crash Safety]]).
+
+The crash-test fixture additionally requires `?crash-test` (native: `MOONKALE_CRASH_TEST`) so enabling the test feature does not change ordinary startup panels.

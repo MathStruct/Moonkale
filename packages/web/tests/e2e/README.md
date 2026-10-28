@@ -646,3 +646,21 @@ It asserts the default graph draws cache names despite file truth, observes a
 new definition through the watcher without Reload, and checks backend status
 text while changing the persisted source setting.
 Run with `graph watch search-trace` to cover the existing folder/index paths.
+
+## Crash safety (WP-57)
+
+`crash-safety.mjs` runs against a debug web build with
+`SERVE_FEATURES=julia,rocksdb,helix,crash-test`. The `crash-test` feature adds a
+synthetic extension only when debug assertions are enabled; release builds
+contain no failure injection. It checks per-extension disablement, real wasm
+panics in both an event and a task, the independent reload overlay, repeated
+startup failures, and `?safe` without changing extension preferences. Native
+`extension_crash` tests cover panic containment after an await and later event
+callbacks; the wasm build currently aborts, so its real panics use the overlay.
+Run `run-all.sh crash-safety shell menubar appearance extensions panels files rich stores palette wiki`.
+
+The crash-test fixture additionally requires `?crash-test` (native: `MOONKALE_CRASH_TEST`) so enabling the test feature does not change ordinary startup panels.
+
+`serve.sh` includes `crash-test` in its default test feature set. Explicitly
+reduced feature builds should omit the crash-safety suite. The normal URLs used
+by other suites do not construct the synthetic extension.

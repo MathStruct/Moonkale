@@ -87,3 +87,12 @@ Notes for `moonkale-ext-api` (Milestone 1). Design: [[Extension System]], [[Host
 - Phase 5.18: `Persistence::user_settings_in_state` — the user scope as `settings::UserSettingsRecord` (table `settings`, key `"user"`) in `Persistence::state`; `load_user_settings` imports what `Persistence::settings` loads when the store has no record, `update_user_settings` then writes only the store; `has_settings_store` counts it. Desktop and phone: on; web: off. Test: `tests/state_user_settings.rs`.
 - Phase 4.4: `i18n.rs` — `Locales` (`(language tag, Fluent source)` pairs), `lookup(locales, lang, key)` with region → language → English fallback; `Extension::locales()` (default none). Prep for spec 030.
 - Phase 4.2b: `WorkspaceConfig::services` (`Services = &'static [&'static (dyn Any + Sync)]`) and `Workspace::service::<T>()`; `Processes::git`, `GitRun` and `git.rs` are gone (git's types live in `moonkale-ext-git`).
+
+## WP-57 (2026-10-28)
+
+`crash` owns session-only disablement and guarded callbacks/tasks/resources. The
+shell supplies each extension's identity through context; extension entry points
+also propagate it to callbacks/services created directly. Use these helpers for
+native unwinding containment; `event` handles synchronous and asynchronous callbacks, preserving Dioxus
+inline first-poll semantics for browser event cancellation. `StartupCounter` is saturating; `StartupTracker` persists a content-free
+marker in the existing state store. See the CHANGELOG and [[Crash Safety]].

@@ -12,6 +12,19 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — 2026-10-28 (WP-57)
+
+- Add `Workspace::crashes` and the `crash` helpers: `ExtensionGuard`, guarded
+  `event`, `spawn`, `spawn_forever`, `use_effect`, `use_future`, `use_resource`,
+  startup counter and state-store tracker. The shell guards extension entry
+  points and supplies ownership context. Compiled-in consumers should replace
+  raw Dioxus callbacks/spawning with these helpers to contain native panics;
+  `event` supports both synchronous and asynchronous callbacks; returned futures
+  are polled under the same owner.
+- A guarded panic disables the owning extension for the session. This is
+  containment, without rollback or unloading; aborting wasm uses a page overlay.
+  Safe mode refuses workspace wasm command execution without changing settings.
+
 ## Unreleased — ADR-0030 (2026-10-26)
 
 - Additive: `Workspace::index_node` resolves a graph selection to a unique
