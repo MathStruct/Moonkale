@@ -547,6 +547,94 @@ impl Source for SophiaSource {
     async fn query(&self, query: Query) -> Result<QueryResult, SourceError> {
         match query {
             Query::Text { dialect, text }
+                if dialect == "definition-locations" && self.derived_path.is_some() =>
+            {
+                if text.len() > 8192 {
+                    return Err(SourceError::Invalid("location query limit".into()));
+                }
+                let Key::Content(id) = parse_native_key(&text)? else {
+                    return Ok(QueryResult::default());
+                };
+                let rows = self
+                    .call(move |i| {
+                        let mut ids = i.store().methods(&id).map_err(store_error)?;
+                        if ids.is_empty() {
+                            ids.push(id);
+                        }
+                        if ids.len() > 1 {
+                            return Ok(Vec::new());
+                        }
+                        let files = i.store().files().map_err(store_error)?;
+                        if files.len() > 5000 {
+                            return Err(SourceError::Invalid("location file limit".into()));
+                        }
+                        let mut rows = Vec::new();
+                        let mut work = 0usize;
+                        for path in files {
+                            let Some(m) = i.store().file_manifest(&path).map_err(store_error)?
+                            else {
+                                continue;
+                            };
+                            work = work.saturating_add(m.spans.len());
+                            if work > NEIGHBOUR_LIMIT {
+                                return Err(SourceError::Invalid("location span limit".into()));
+                            }
+                            let mut input = None;
+                            for (record, start, end) in m.spans {
+                                if ids.contains(&record) {
+                                    if input.is_none() {
+                                        let Some(source) = m.source else { continue };
+                                        let Some(source) =
+                                            i.store().record(&source).map_err(store_error)?
+                                        else {
+                                            continue;
+                                        };
+                                        if source.bytes.len() > 512 * 1024 {
+                                            return Err(SourceError::Invalid(
+                                                "location source limit".into(),
+                                            ));
+                                        }
+                                        let text =
+                                            std::str::from_utf8(&source.bytes).map_err(|_| {
+                                                SourceError::Invalid(
+                                                    "invalid location source".into(),
+                                                )
+                                            })?;
+                                        input = Some(Value::Text(
+                                            NodeId::derive(&SourceId::new("index-input-v1"), text)
+                                                .to_string(),
+                                        ));
+                                    }
+                                    rows.push(vec![
+                                        Value::Text(path.clone()),
+                                        Value::Int(start as i64),
+                                        Value::Int(end as i64),
+                                        input.clone().unwrap(),
+                                    ]);
+                                    if rows.len() == 2 {
+                                        return Ok(rows);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(rows)
+                    })
+                    .await?;
+                Ok(QueryResult {
+                    table: Some(Table {
+                        columns: vec![
+                            "file".into(),
+                            "start_byte".into(),
+                            "end_byte".into(),
+                            "input".into(),
+                        ],
+                        rows,
+                        truncated: false,
+                    }),
+                    ..Default::default()
+                })
+            }
+            Query::Text { dialect, text }
                 if dialect == "folder-neighbours" && self.derived_path.is_some() =>
             {
                 if text.len() > 8192 {

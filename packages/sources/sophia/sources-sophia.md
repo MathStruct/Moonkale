@@ -152,3 +152,8 @@ folder's bounded naming metadata. It compares the replay's shared full digest,
 reports `same` or differing keys, rebuilds a mismatch and records the problem
 in the runtime log/status notification. No Sophia types cross into the shell,
 graph editor or platform wiring. See [[Indexing]].
+
+P-233 adds the derived-only `definition-locations` read dialect: a content
+native key yields file/start/end/input-digest rows from current file manifests. It visits at
+most 5,000 files and 10,000 spans and rejects overflow rather than returning a
+partial mapping. It does not choose one location for a shared content body.

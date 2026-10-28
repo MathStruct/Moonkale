@@ -387,6 +387,19 @@ async fn preview(ws: Workspace, mut state: Signal<Review>) {
 #[component]
 pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Element {
     let mut state = store(ws);
+    let selection = selected.clone();
+    let mapped = use_resource(use_reactive!(|(selection)| async move {
+        match selection {
+            Some(node) => (Some(node.id), ws.index_node(&node).await),
+            None => (None, None),
+        }
+    }));
+    let selected_id = selected.as_ref().map(|node| node.id);
+    let selected = mapped
+        .read()
+        .as_ref()
+        .filter(|(id, _)| *id == selected_id)
+        .and_then(|(_, node)| node.clone());
     // Changing graph selection invalidates in-flight work but retains a completed review.
     let selection_key = selected.as_ref().map(|node| node.id);
     use_effect(use_reactive!(|(selection_key)| {
@@ -470,9 +483,9 @@ pub(crate) fn StructuralControls(ws: Workspace, selected: Option<Node>) -> Eleme
                                 state.target = target; if state.before == target { state.before = None; } state.name = target.and_then(|index| state.functions.get(index)).map(|function| function.name.clone()).unwrap_or_default();
                                 state.proposal = None; state.multi = None; state.group = None; state.saves.clear(); state.group_error = false; state.rename_guard = None; state.rename_error = None; state.applied = false;
                             }); },
-                            option { value: "", {t!(ws, L, "structural-choose")} }
+                            option { value: "", selected: review.target.is_none(), {t!(ws, L, "structural-choose")} }
                             for (index, function) in review.functions.iter().enumerate() {
-                                option { value: "{index}", "{function.name} · {function.line}" }
+                                option { value: "{index}", selected: review.target == Some(index), "{function.name} · {function.line}" }
                             }
                         }
                     }

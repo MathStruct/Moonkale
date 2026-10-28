@@ -877,6 +877,64 @@ impl Source for IndexSource {
             if dialect == "check-code-cache" {
                 return self.check_cache().await;
             }
+            if dialect == "index-node" {
+                if text.len() > 8192 {
+                    return Err(SourceError::Invalid("selection query limit".into()));
+                }
+                let selected: Node = serde_json::from_str(text)
+                    .map_err(|_| SourceError::Invalid("invalid selection".into()))?;
+                if selected.source == self.id {
+                    return self.query(Query::Node(selected.id)).await;
+                }
+                #[cfg(not(feature = "sophia"))]
+                return Ok(QueryResult::default());
+                #[cfg(feature = "sophia")]
+                {
+                    let reader = self.cache_reader.r().clone();
+                    let Some(reader) = reader.filter(|r| r.id() == selected.source) else {
+                        return Ok(QueryResult::default());
+                    };
+                    if !selected.kind.is_definition() {
+                        return Ok(QueryResult::default());
+                    }
+                    {
+                        let graph = self.graph.r();
+                        if graph
+                            .nodes
+                            .values()
+                            .any(|n| n.kind.is_definition() && n.native_key == selected.native_key)
+                        {
+                            let nodes: Vec<_> = graph.nodes.values().cloned().collect();
+                            return Ok(crate::selection::index_node(&selected, &nodes, &[], &[])
+                                .cloned()
+                                .map(QueryResult::single)
+                                .unwrap_or_default());
+                        }
+                    }
+                    let locations = reader
+                        .query(Query::Text {
+                            dialect: "definition-locations".into(),
+                            text: selected.native_key.clone(),
+                        })
+                        .await?;
+                    let graph = self.graph.r();
+                    let nodes: Vec<_> = graph.nodes.values().cloned().collect();
+                    let edges: Vec<_> = graph.edges().cloned().collect();
+                    return Ok(crate::selection::index_node(
+                        &selected,
+                        &nodes,
+                        &edges,
+                        locations
+                            .table
+                            .as_ref()
+                            .map(|t| t.rows.as_slice())
+                            .unwrap_or_default(),
+                    )
+                    .cloned()
+                    .map(QueryResult::single)
+                    .unwrap_or_default());
+                }
+            }
             if dialect == "code-graph" {
                 // The envelope is a bounded host protocol, not arbitrary nested queries.
                 if text.len() > 8192 {

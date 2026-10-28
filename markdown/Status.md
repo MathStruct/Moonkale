@@ -247,3 +247,12 @@ SR-146) ([[P-232 Sophia capped graph reads scan namespace metadata]]).
 See [[Indexing]] for measurements. ADR-0029's four default gates are met (2026-10-26;
 gate 3 by the server fallback, checked in CI). The in-memory index stays the
 default until Daniel decides.
+
+## Graph selection compatibility (P-233, checked 2026-10-28)
+
+Experimental structural edits and rename resolve Sophia cache selections to
+unique index edit targets while retaining the default Sophia graph. Resolution
+uses a native key or exact file/span/input provenance; overloaded or shared
+bodies are not chosen automatically. Both editor browser suites exercise real
+Sophia ids. See [[P-233 Structural edits need index nodes in the graph]] for the
+consumer audit and validation results.

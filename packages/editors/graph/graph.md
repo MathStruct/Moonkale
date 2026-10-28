@@ -90,3 +90,11 @@ It uses existing node positions, `apply_delta` and visual groups, pins context,
 and restores representatives and proxy boundaries on collapse. Only one region
 is open. Contents remain serialized channel data, never executable source.
 `graph-coarse.mjs` uses a separate test fixture crate to exercise this panel.
+
+P-233: experimental structural controls resolve the visible selection through
+`Workspace::index_node` before enabling edits. The renderer retains Sophia IDs;
+reviews retain index provenance and the existing revision checks. Async mapping
+results are keyed to the current selection. Shared content bodies with several
+file locations have no automatic target.
+The review dropdown marks its selected option explicitly when asynchronous
+function options arrive, so the visible choice matches the review target.

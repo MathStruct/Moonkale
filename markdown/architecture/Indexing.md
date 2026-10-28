@@ -419,3 +419,14 @@ the Local regression normalizes node/edge order before comparing the graphs.
 Neighbourhood order is unspecified; production traversal order is unchanged.
 The shared full-digest check detects a changed record's canonical bytes in a
 copy, reports the stale record key, repairs it and then reports `same`.
+
+## Graph selections and file edits (P-233, 2026-10-28)
+
+The visible legacy code graph retains Sophia ids. Consumers requiring an index
+node call `Workspace::index_node`: unique native key first, otherwise the
+cache's file and exact byte span with a matching input digest. Structural edit
+and rename controls use this path; search and explicit query views keep their
+existing source routes. A single-member nominal function can resolve to its
+body. Overloads, shared bodies, stale inputs, unrelated stores and bounded-read
+overflow leave the controls without an automatic edit target. The existing
+revision-aware proposal and LSP guards still apply. See [[P-233 Structural edits need index nodes in the graph]].

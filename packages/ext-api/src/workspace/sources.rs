@@ -367,6 +367,39 @@ impl Workspace {
             .cloned()
     }
 
+    /// Resolve a graph selection to its owning index definition. Ambiguous
+    /// cache bodies and authored stores have no index target.
+    pub async fn index_node(&self, selected: &Node) -> Option<Node> {
+        let indices: Vec<_> = self
+            .sources
+            .open
+            .peek()
+            .iter()
+            .filter(|s| s.descriptor.family == moonkale_core::SourceFamily::Index)
+            .cloned()
+            .collect();
+        // The mapping reads ids, kind and key only; content and props could exceed the 8 KiB cap.
+        let mut selected = selected.clone();
+        selected.content = None;
+        selected.props = Default::default();
+        let text = serde_json::to_string(&selected).ok()?;
+        for index in indices {
+            if let Ok(result) = index
+                .source
+                .query(Query::Text {
+                    dialect: "index-node".into(),
+                    text: text.clone(),
+                })
+                .await
+            {
+                if let Some(node) = result.nodes.into_iter().next() {
+                    return Some(node);
+                }
+            }
+        }
+        None
+    }
+
     /// Run a query against an open source.
     pub async fn query(&self, source: &SourceId, query: Query) -> Result<QueryResult, SourceError> {
         let s = self.source(source).ok_or(SourceError::NotFound)?;

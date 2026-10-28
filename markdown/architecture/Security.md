@@ -335,3 +335,10 @@ stop before SQLite open or database/sidecar deletion, including unreadable
 stores. The temporary read-only code-graph mode leaves plain file editing
 available without feeding those edits into the authoritative store. No migration
 or marker-creation command is supplied yet.
+
+P-233 selection mapping adds read-only host protocols bounded to 8 KiB input.
+Only an index’s attached cache can supply locations; authored and unrelated
+stores cannot become file-edit targets. Manifest traversal caps at 5,000 files
+and 10,000 spans, refusing overflow and ambiguous bodies. Locations select an
+index node, never grant writes; existing input provenance, document revision,
+proposal and rename guards still decide whether an edit can apply.

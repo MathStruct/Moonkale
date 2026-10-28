@@ -42,3 +42,6 @@ pub mod lossless;
 /// Derived per-folder Sophia writer (ADR-0029), disabled by default.
 #[cfg(all(feature = "sophia", not(target_arch = "wasm32")))]
 pub mod folder_store;
+
+#[cfg(all(feature = "sophia", not(target_arch = "wasm32")))]
+mod selection;

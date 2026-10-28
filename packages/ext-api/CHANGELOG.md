@@ -14,6 +14,10 @@ Rules:
 
 ## Unreleased — ADR-0030 (2026-10-26)
 
+- Additive: `Workspace::index_node` resolves a graph selection to a unique
+  current index node (P-233), returning `None` for unsupported or ambiguous
+  store selections. No caller migration is required.
+
 - `SettingsFile.code_graph` and `Settings.code_graph` expose the persisted
   `auto | in-memory` graph backend preference. Add the fields to explicit
   struct literals or finish them with `Default`.

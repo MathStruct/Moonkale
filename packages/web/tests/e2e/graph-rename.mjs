@@ -12,8 +12,7 @@ fs.writeFileSync(file, original);
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 const context = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
 const engine = process.env.STRUCTURAL_EDITOR ?? 'native';
-// Structural edits work on index nodes; the Sophia cache graph has its own ids (P-233).
-await context.addInitScript(engine => localStorage.setItem('moonkale.settings', JSON.stringify({ editor: { implementation: engine, markdown_rich: false }, code_graph: { source: 'in-memory' } })), engine);
+await context.addInitScript(engine => localStorage.setItem('moonkale.settings', JSON.stringify({ editor: { implementation: engine, markdown_rich: false } })), engine);
 const page = await context.newPage();
 const base = `http://127.0.0.1:${process.env.PORT ?? 8080}`;
 const test = id => page.getByTestId(`structural-${id}`);
@@ -27,26 +26,47 @@ const api = async (path, data) => {
   return value.Ok ?? value;
 };
 let index;
-async function definitions() {
-  const result = await api('sources/query', { source: index.id, q: { All: { limit: 3000, kinds: null } } });
-  return result.nodes.filter(node => node.native_key.startsWith('graph-edit.rs#fn:'));
-}
 async function selectNode(name) {
   await page.locator(".wb-tab[id^='wb-tab-graph']").click();
   if (await test('discard').isVisible()) await test('discard').click();
-  const nodes = await definitions();
-  const node = nodes.find(node => node.native_key === `graph-edit.rs#fn:${name}`);
-  if (!node) throw Error(`missing definition ${name}`);
-  // Pin real index IDs to make pointer targeting deterministic, as graph-a11y does.
-  await page.evaluate(nodes => Object.values(window.moonkale.graphViews)[0].set_graph(JSON.stringify({
-    nodes: nodes.map((node, i) => ({ id: node.id, label: node.label, kind: 'symbol', pos: [i * 100, 0], pinned: true })), edges: [],
-  })), nodes);
-  await page.waitForTimeout(350);
-  const point = await page.evaluate(id => Array.from(Object.values(window.moonkale.graphViews)[0].node_screen_position(id)), node.id);
-  const box = await page.locator('.mk-graph-overlay').boundingBox();
-  await page.mouse.click(box.x + point[0], box.y + point[1]);
-  await page.waitForFunction(id => document.querySelector('[data-testid="structural-controls"]')?.dataset.selectedNode === id, node.id);
-  return node;
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const result = await api('sources/query', { source: index.id, q: { Text: {
+      dialect: 'code-graph', text: JSON.stringify([false, { All: { limit: 3000, kinds: null } }]),
+    } } });
+    const nodes = result.nodes.filter(n => n.kind?.Custom === 'Definition' && n.source.startsWith('sophia:'));
+    // Resolve through the same host protocol as the controls; click the cache id.
+    let node, mapped;
+    for (const candidate of nodes) {
+      const match = await api('sources/query', { source: index.id, q: { Text: {
+        dialect: 'index-node', text: JSON.stringify(candidate),
+      } } });
+      if (match.nodes[0]?.native_key === `graph-edit.rs#fn:${name}`) {
+        node = candidate; mapped = match.nodes[0]; break;
+      }
+    }
+    if (!node) { await page.waitForTimeout(100); continue; }
+    if (node.id === mapped.id) throw Error('expected distinct cache and index ids');
+    await page.evaluate(async nodes => {
+      Object.values(window.moonkale.graphViews)[0].set_graph(JSON.stringify({
+        nodes: nodes.map((node, i) => ({ id: node.id, label: node.label, kind: 'symbol', pos: [i * 100, 0], pinned: true })), edges: [],
+      }));
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }, nodes);
+    const point = await page.evaluate(id => Array.from(Object.values(window.moonkale.graphViews)[0].node_screen_position(id) ?? []), node.id);
+    const box = await page.locator('.mk-graph-overlay').boundingBox();
+    if (box && point.length === 2) {
+      // Separate successive selections from the renderer’s 350 ms double-click gesture.
+      await page.waitForTimeout(400);
+      await page.mouse.click(box.x + point[0], box.y + point[1]);
+      try {
+        await page.waitForFunction(id => document.querySelector('[data-testid="structural-controls"]')?.dataset.selectedNode === id, mapped.id,
+          { timeout: Math.max(1, Math.min(1000, deadline - Date.now())) });
+        return mapped;
+      } catch (error) { if (error.name !== 'TimeoutError') throw error; }
+    }
+  }
+  throw Error(`cache definition ${name} did not map to the selected index node`);
 }
 async function begin(name) {
   await selectNode(name);

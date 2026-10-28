@@ -773,3 +773,72 @@ async fn store_truth_stopgap_leaves_readable_and_missing_stores_untouched() {
     assert!(!missing.path().join(STORE_PATH).exists());
     assert!(!missing.path().join(".moonkale/.gitignore").exists());
 }
+
+#[tokio::test]
+async fn cache_selection_resolves_to_index_and_refuses_shared_bodies() {
+    let dir = fixture();
+    let (_, index) = open(&dir).await;
+    index.set_cache_reader(Ok(Arc::new(
+        SophiaSource::open(index.folder_store_path().unwrap())
+            .await
+            .unwrap(),
+    )));
+    let visible = index.query(cache_query(false)).await.unwrap();
+    let selected = visible
+        .nodes
+        .iter()
+        .find(|n| n.kind.is_definition() && n.label == "add")
+        .unwrap();
+    let resolve = |node: &moonkale_core::Node| Query::Text {
+        dialect: "index-node".into(),
+        text: serde_json::to_string(node).unwrap(),
+    };
+    let mapped = index.query(resolve(selected)).await.unwrap();
+    assert_eq!(mapped.nodes.len(), 1);
+    assert_eq!(mapped.nodes[0].native_key, "src/lib.rs#fn:add");
+    assert_ne!(mapped.nodes[0].id, selected.id);
+    let mut native = selected.clone();
+    native.native_key = mapped.nodes[0].native_key.clone();
+    assert_eq!(
+        index.query(resolve(&native)).await.unwrap().nodes,
+        mapped.nodes
+    );
+    assert_eq!(
+        index.query(resolve(&mapped.nodes[0])).await.unwrap().nodes,
+        mapped.nodes
+    );
+    let mut foreign = selected.clone();
+    foreign.source = moonkale_core::SourceId::new("sophia:other-folder");
+    assert!(index
+        .query(resolve(&foreign))
+        .await
+        .unwrap()
+        .nodes
+        .is_empty());
+
+    fs::write(
+        dir.path().join("copy.rs"),
+        "pub fn copy(x: i32) -> i32 { x + 1 }\n",
+    )
+    .unwrap();
+    let (_, index) = open(&dir).await;
+    index.set_cache_reader(Ok(Arc::new(
+        SophiaSource::open(index.folder_store_path().unwrap())
+            .await
+            .unwrap(),
+    )));
+    let selected = index
+        .query(cache_query(false))
+        .await
+        .unwrap()
+        .nodes
+        .into_iter()
+        .find(|n| n.kind.is_definition() && n.label == "add")
+        .unwrap();
+    assert!(index
+        .query(resolve(&selected))
+        .await
+        .unwrap()
+        .nodes
+        .is_empty());
+}

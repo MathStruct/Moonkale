@@ -193,3 +193,9 @@ snapshot in a temporary directory under `.moonkale`, compares the shared
 `same` or differing keys and logs the problem without source bodies. The shell
 owns translated status items, the persisted `code_graph.source` setting and the
 **Check the cache** palette command.
+
+P-233: the bounded read protocol `index-node` accepts a serialized selected Node.
+It returns a current index node directly, or resolves an attached Sophia cache
+definition by native key, then a unique file and exact byte span. Other caches,
+authored stores, missing locations and ambiguous bodies yield no target.
+The pure matching rule lives in `selection.rs`. Search remains on the index.
