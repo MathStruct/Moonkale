@@ -45,6 +45,7 @@ pub struct LoadedExtension {
     pub path: PathBuf,
     pub manifest: WasmManifest,
     module: Module,
+    // Runs stop at 4, so the counter never nears overflow.
     crashes: Arc<AtomicU8>,
     run_lock: Arc<Mutex<()>>,
 }
@@ -247,11 +248,7 @@ impl Runtime {
             )
             .map_err(|e| e.to_string())?;
         let instance = linker.instantiate(&mut store, &ext.module).map_err(|_| {
-            let _ = ext
-                .crashes
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
-                    Some(n.saturating_add(1))
-                });
+            ext.crashes.fetch_add(1, Ordering::Relaxed);
             "extension instantiation failed".to_string()
         })?;
         let memory = instance
@@ -266,11 +263,7 @@ impl Runtime {
             .get_typed_func(&mut store, "alloc")
             .map_err(|e| format!("alloc export: {e}"))?;
         let ptr = alloc.call(&mut store, request.len() as i32).map_err(|_| {
-            let _ = ext
-                .crashes
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
-                    Some(n.saturating_add(1))
-                });
+            ext.crashes.fetch_add(1, Ordering::Relaxed);
             "extension allocation failed".to_string()
         })?;
         memory
@@ -282,7 +275,7 @@ impl Runtime {
         let packed = run
             .call(&mut store, (ptr, request.len() as i32))
             .map_err(|_e| {
-                let _ = ext.crashes.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_add(1)));
+                ext.crashes.fetch_add(1, Ordering::Relaxed);
                 "extension trapped (fuel or runtime failure); a fresh instance will be used next time (at most three retries)".to_string()
             })?;
         let json = read_packed(&memory, &store, packed)?;
