@@ -1,4 +1,4 @@
-"use strict";(()=>{var x=`
+"use strict";(()=>{var S=`
 let mailbox, flag, data;
 const dec = new TextDecoder(), enc = new TextEncoder();
 function hostCall(memory, ptr, len, instance) {
@@ -32,8 +32,8 @@ onmessage = async (e) => {
     const packed = instance.exports.run(p, req.length);
     const rp = Number(packed >> 32n), rl = Number(packed & 0xffffffffn);
     postMessage({ kind: "done", reply: dec.decode(new Uint8Array(memory.buffer, rp, rl)) });
-  } catch (err) {
-    postMessage({ kind: "error", error: String(err && err.message || err) });
+  } catch {
+    postMessage({ kind: "error" });
   }
 };
-`,p=new Map;function B(r){let n=p.get(r);return n||(n=fetch(r,{credentials:"same-origin"}).then(t=>{if(!t.ok)throw new Error(`module ${r}: ${t.status}`);return t.arrayBuffer()}),p.set(r,n)),n}function u(){return typeof SharedArrayBuffer<"u"&&globalThis.crossOriginIsolated===!0&&typeof Worker<"u"}async function q(r,n,t,w,b){if(!u())throw new Error("browser wasm runtime unavailable (not cross-origin isolated)");let h=await B(r),i=new SharedArrayBuffer(8388608),s=new Int32Array(i,0,2),f=new Uint8Array(i,8),a=new Worker(URL.createObjectURL(new Blob([x],{type:"text/javascript"}))),k=new TextEncoder;return new Promise((A,g)=>{let c=o=>{a.terminate(),o()};a.onerror=o=>c(()=>g(new Error(o.message))),a.onmessage=async o=>{let e=o.data;if(e.kind==="log")b?.(e.text);else if(e.kind==="done")c(()=>A(e.reply));else if(e.kind==="error")c(()=>g(new Error(e.error)));else if(e.kind==="call"){let l;try{l=await w(e.json)}catch(y){l=JSON.stringify({ok:!1,error:String(y?.message??y)})}let m=k.encode(l);m.length>f.length?Atomics.store(s,1,-1):(f.set(m),Atomics.store(s,1,m.length)),Atomics.store(s,0,1),Atomics.notify(s,0)}},a.postMessage({bytes:h,request:JSON.stringify({command:n,args:t}),sab:i})})}var d=window;d.moonkale=d.moonkale??{};d.moonkale.wasmHost={available:u,run:q};})();
+`,f=new Map,m=new Set,g=new Map;function O(e){let n=g.get(e);return n||(n=fetch(e,{credentials:"same-origin"}).then(r=>{if(!r.ok)throw new Error(`module ${e}: ${r.status}`);return r.arrayBuffer()}),g.set(e,n)),n}function k(){return typeof SharedArrayBuffer<"u"&&globalThis.crossOriginIsolated===!0&&typeof Worker<"u"}async function R(e,n,r,A,x){if(!k())throw new Error("browser wasm runtime unavailable (not cross-origin isolated)");if((f.get(e)??0)>=4)throw new Error("extension disabled after repeated crashes");if(m.has(e))throw new Error("extension already running");m.add(e);try{let B=await O(e),a=new SharedArrayBuffer(8388608),o=new Int32Array(a,0,2),p=new Uint8Array(a,8),w=URL.createObjectURL(new Blob([S],{type:"text/javascript"})),s=new Worker(w);URL.revokeObjectURL(w);let U=new TextEncoder;return await new Promise((q,E)=>{let u=!1,h=c=>{u||(u=!0,clearTimeout(M),s.terminate(),c())},i=()=>h(()=>{f.set(e,(f.get(e)??0)+1),g.delete(e),E(new Error("extension stopped; retry is limited to three fresh instances"))}),M=setTimeout(i,3e4);s.onerror=i,s.onmessage=async c=>{let t=c.data;if(t.kind==="log")x?.(t.text);else if(t.kind==="done")h(()=>q(t.reply));else if(t.kind==="error")i();else if(t.kind==="call"){let l;try{l=await A(t.json)}catch(b){l=JSON.stringify({ok:!1,error:String(b?.message??b)})}let d=U.encode(l);d.length>p.length?Atomics.store(o,1,-1):(p.set(d),Atomics.store(o,1,d.length)),Atomics.store(o,0,1),Atomics.notify(o,0)}},s.postMessage({bytes:B,request:JSON.stringify({command:n,args:r}),sab:a})})}finally{m.delete(e)}}var y=window;y.moonkale=y.moonkale??{};y.moonkale.wasmHost={available:k,run:R};})();

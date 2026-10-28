@@ -21,3 +21,12 @@ The same ABI runs in the page: `packages/js/wasm-host` (built into `shell/assets
 
 ## Milestone 18 phase 4.5
 - `Runtime::load` refuses a second file with an id that is already loaded from another file (audit #4: a folder's module cannot squat a user-installed module's id and grants); reloading the same file is fine. Test `an_id_belongs_to_the_file_that_loaded_it_first`.
+
+## WP-57 (2026-10-28)
+
+Fresh per-call instances already provided isolation. A loaded id now keeps a
+saturating trap count across rescans: initial failure plus three explicit
+re-instantiations, then disabled until the runtime restarts. Application-level
+error replies do not count as traps. No automatic replay occurs. Browser runs
+also have a 30-second timeout and one active invocation per module; failed runs
+invalidate the cached bytes. The test covers retry exhaustion across reloads.

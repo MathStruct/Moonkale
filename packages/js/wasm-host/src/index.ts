@@ -45,12 +45,14 @@ onmessage = async (e) => {
     const packed = instance.exports.run(p, req.length);
     const rp = Number(packed >> 32n), rl = Number(packed & 0xffffffffn);
     postMessage({ kind: "done", reply: dec.decode(new Uint8Array(memory.buffer, rp, rl)) });
-  } catch (err) {
-    postMessage({ kind: "error", error: String(err && err.message || err) });
+  } catch {
+    postMessage({ kind: "error" });
   }
 };
 `
 
+const failures = new Map<string, number>()
+const running = new Set<string>()
 const moduleCache = new Map<string, Promise<ArrayBuffer>>()
 
 function moduleBytes(url: string): Promise<ArrayBuffer> {
@@ -71,20 +73,33 @@ function available(): boolean {
  *  (a JSON `HostCall` in, a JSON `HostReply` out). Resolves with the guest's `RunReply` JSON. */
 async function run(url: string, command: string, args: unknown, hostCall: HostCall, onLog?: (t: string) => void): Promise<string> {
   if (!available()) throw new Error("browser wasm runtime unavailable (not cross-origin isolated)")
+  if ((failures.get(url) ?? 0) >= 4) throw new Error("extension disabled after repeated crashes")
+  if (running.has(url)) throw new Error("extension already running")
+  running.add(url)
+  try {
   const bytes = await moduleBytes(url)
   const sab = new SharedArrayBuffer(MAILBOX_BYTES)
   const flag = new Int32Array(sab, 0, 2)
   const data = new Uint8Array(sab, 8)
-  const worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })))
+  const workerUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" }))
+  const worker = new Worker(workerUrl)
+  URL.revokeObjectURL(workerUrl)
   const enc = new TextEncoder()
-  return new Promise<string>((resolve, reject) => {
-    const finish = (f: () => void) => { worker.terminate(); f() }
-    worker.onerror = (e) => finish(() => reject(new Error(e.message)))
+  return await new Promise<string>((resolve, reject) => {
+    let finished = false
+    const finish = (f: () => void) => { if (finished) return; finished = true; clearTimeout(timer); worker.terminate(); f() }
+    const failed = () => finish(() => {
+      failures.set(url, (failures.get(url) ?? 0) + 1)
+      moduleCache.delete(url) // A subsequent explicit call fetches updated bytes.
+      reject(new Error("extension stopped; retry is limited to three fresh instances"))
+    })
+    const timer = setTimeout(failed, 30000)
+    worker.onerror = failed
     worker.onmessage = async (e) => {
       const m = e.data
       if (m.kind === "log") onLog?.(m.text)
       else if (m.kind === "done") finish(() => resolve(m.reply))
-      else if (m.kind === "error") finish(() => reject(new Error(m.error)))
+      else if (m.kind === "error") failed()
       else if (m.kind === "call") {
         let reply: string
         try { reply = await hostCall(m.json) } catch (err) { reply = JSON.stringify({ ok: false, error: String((err as Error)?.message ?? err) }) }
@@ -96,6 +111,7 @@ async function run(url: string, command: string, args: unknown, hostCall: HostCa
     }
     worker.postMessage({ bytes, request: JSON.stringify({ command, args }), sab })
   })
+  } finally { running.delete(url) }
 }
 
 const w = window as unknown as { moonkale?: Record<string, unknown> }

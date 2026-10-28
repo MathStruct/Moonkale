@@ -168,3 +168,80 @@ fn grants_never_exceed_the_manifest() {
         .unwrap_err();
     assert!(err.contains("not granted"), "{err}");
 }
+
+#[test]
+fn crashed_modules_get_at_most_three_fresh_instance_retries() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = module(
+        dir.path(),
+        "crash",
+        &manifest("org.example.crash", &[]),
+        None,
+        "",
+        "unreachable",
+    );
+    let mut rt = Runtime::new().unwrap();
+    rt.load(&path).unwrap();
+    let tokio = tokio::runtime::Runtime::new().unwrap();
+    for attempt in 0..5 {
+        let err = rt
+            .run(
+                "org.example.crash",
+                "t.go",
+                serde_json::json!({}),
+                vec![],
+                Arc::new(NoSources),
+                tokio.handle().clone(),
+            )
+            .unwrap_err();
+        assert_eq!(err.contains("disabled"), attempt == 4, "{attempt}: {err}");
+        // Scanning the same file must not reset its session budget.
+        rt.load(&path).unwrap();
+    }
+}
+
+#[test]
+fn concurrent_calls_cannot_exceed_the_crash_retry_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = module(
+        dir.path(),
+        "concurrent-crash",
+        &manifest("org.example.concurrent-crash", &[]),
+        None,
+        "",
+        "unreachable",
+    );
+    let mut rt = Runtime::new().unwrap();
+    rt.load(&path).unwrap();
+    let tokio = tokio::runtime::Runtime::new().unwrap();
+    let errors = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..16)
+            .map(|_| {
+                let rt = &rt;
+                let handle = tokio.handle().clone();
+                scope.spawn(move || {
+                    rt.run(
+                        "org.example.concurrent-crash",
+                        "t.go",
+                        serde_json::json!({}),
+                        vec![],
+                        Arc::new(NoSources),
+                        handle,
+                    )
+                    .unwrap_err()
+                })
+            })
+            .collect();
+        threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|error| error.contains("disabled"))
+            .count(),
+        12
+    );
+}

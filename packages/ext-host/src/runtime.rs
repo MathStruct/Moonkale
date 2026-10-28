@@ -3,7 +3,10 @@
 use crate::abi::{HostCall, HostReply, RunReply, RunRequest, WasmManifest, ABI_VERSION};
 use moonkale_core::{NodeId, Query, Source, SourceDescriptor, SourceId};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU8, Ordering},
+    Arc, Mutex,
+};
 use wasmtime::{
     Caller, Config, Engine, Extern, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
     TypedFunc,
@@ -42,6 +45,8 @@ pub struct LoadedExtension {
     pub path: PathBuf,
     pub manifest: WasmManifest,
     module: Module,
+    crashes: Arc<AtomicU8>,
+    run_lock: Arc<Mutex<()>>,
 }
 
 pub struct Runtime {
@@ -107,11 +112,19 @@ impl Runtime {
                 other.path.display()
             ));
         }
+        let (crashes, run_lock) = self
+            .extensions
+            .iter()
+            .find(|e| e.manifest.id == manifest.id)
+            .map(|e| (e.crashes.clone(), e.run_lock.clone()))
+            .unwrap_or_default();
         self.extensions.retain(|e| e.manifest.id != manifest.id);
         self.extensions.push(LoadedExtension {
             path: path.to_path_buf(),
             manifest,
             module,
+            crashes,
+            run_lock,
         });
         Ok(self.extensions.last().unwrap())
     }
@@ -166,6 +179,16 @@ impl Runtime {
             .iter()
             .find(|e| e.manifest.id == ext_id)
             .ok_or_else(|| format!("unknown extension {ext_id}"))?;
+        // Serialize per module so concurrent callers cannot bypass the retry budget.
+        let _invocation = ext
+            .run_lock
+            .lock()
+            .map_err(|_| "extension unavailable".to_string())?;
+        // Initial failure plus at most three fresh-instance attempts. Never
+        // replay a command automatically: it may have performed host calls.
+        if ext.crashes.load(Ordering::Relaxed) >= 4 {
+            return Err("extension disabled after repeated crashes".into());
+        }
         if !ext.manifest.commands.iter().any(|c| c.id == command) {
             return Err(format!("{ext_id} has no command {command}"));
         }
@@ -223,9 +246,14 @@ impl Runtime {
                 },
             )
             .map_err(|e| e.to_string())?;
-        let instance = linker
-            .instantiate(&mut store, &ext.module)
-            .map_err(|e| e.to_string())?;
+        let instance = linker.instantiate(&mut store, &ext.module).map_err(|_| {
+            let _ = ext
+                .crashes
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                    Some(n.saturating_add(1))
+                });
+            "extension instantiation failed".to_string()
+        })?;
         let memory = instance
             .get_memory(&mut store, "memory")
             .ok_or("module exports no memory")?;
@@ -237,9 +265,14 @@ impl Runtime {
         let alloc: TypedFunc<i32, i32> = instance
             .get_typed_func(&mut store, "alloc")
             .map_err(|e| format!("alloc export: {e}"))?;
-        let ptr = alloc
-            .call(&mut store, request.len() as i32)
-            .map_err(|e| e.to_string())?;
+        let ptr = alloc.call(&mut store, request.len() as i32).map_err(|_| {
+            let _ = ext
+                .crashes
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| {
+                    Some(n.saturating_add(1))
+                });
+            "extension allocation failed".to_string()
+        })?;
         memory
             .write(&mut store, ptr as usize, request.as_bytes())
             .map_err(|e| e.to_string())?;
@@ -248,7 +281,10 @@ impl Runtime {
             .map_err(|e| format!("run export: {e}"))?;
         let packed = run
             .call(&mut store, (ptr, request.len() as i32))
-            .map_err(|e| format!("extension trapped: {}", trapped(e)))?;
+            .map_err(|_e| {
+                let _ = ext.crashes.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_add(1)));
+                "extension trapped (fuel or runtime failure); a fresh instance will be used next time (at most three retries)".to_string()
+            })?;
         let json = read_packed(&memory, &store, packed)?;
         let reply: RunReply =
             serde_json::from_str(&json).map_err(|e| format!("reply JSON: {e}: {json}"))?;
