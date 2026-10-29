@@ -41,7 +41,6 @@ ignore = [
     { id = "RUSTSEC-2026-0404", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: double free in DCtx::try_clone; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
     { id = "RUSTSEC-2026-0405", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: out-of-bounds read with an out-of-range InBuffer::pos; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
     { id = "RUSTSEC-2026-0406", reason = "2026-10-27: zstd-safe 7.3.0 via tantivy (turso), unsound: use-after-free changing a multithreaded context mid-frame; fix needs zstd-safe 8.2.0, held back by tantivy; ignored until upstream (Daniel)." },
-    { id = "RUSTSEC-2026-0418", reason = "2026-10-29: libz-sys 1.1.29's build script prints the build environment to target/ only when built with cc >= 1.6.0; Cargo.lock pins cc 1.5.1 and the Android release build doesn't use libz-sys, so nothing leaks; the fix is libz-sys 1.1.31, an upgrade for Daniel to approve." },
 ]
 
 [licenses]
