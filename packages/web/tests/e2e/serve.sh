@@ -16,6 +16,8 @@
 #   build fails early instead of using up SERVE_WAIT (CI, 2026-10-09: 80 minutes for nothing).
 #   Progress is the dx log growing *or* a new file in the target dir: without a terminal dx
 #   prints nothing while cargo compiles, so a cold CI build looked hung after 20 min (P-175).
+#   CPU time used by the launched session counts too: a cold C++ build (RocksDB) can
+#   run silently for more than 20 minutes, while a hung build uses none (CI on e59e9c6d).
 set -uo pipefail
 E="${MOONKALE_E2E:-$HOME/.cache/moonkale-e2e}"
 PORT="${PORT:-8090}"
@@ -74,7 +76,7 @@ case "${1:-start}" in
       MOONKALE_CONFIG_DIR="$E/cfg" MOONKALE_LLM="${MOONKALE_LLM:-mock}" MOONKALE_ROOT="$root" MOONKALE_CLAUDE_BIN="$REPO/packages/services/llm/tests/mock-claude.sh" \
         nohup python3 "$PROCESSES" launch "$owner" dx serve --port "$PORT" "${features[@]}" "${flags[@]}" > "$log" 2>&1 &
       pid=$!; echo "$pid" > "$E/dx-$PORT.pid"
-      last_size=0; last_change=$(date +%s); touch "$mark"
+      last_size=0; last_change=$(date +%s); last_cpu=0; touch "$mark"
       reason=deadline; backend_started=0
       while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 5
@@ -96,6 +98,13 @@ case "${1:-start}" in
         fi
         size=$(sed '/Backend not ready, retrying/d' "$log" | wc -c)
         if [ "$size" != "$last_size" ]; then last_size=$size; last_change=$(date +%s); fi
+        # The launcher starts dx in a new session; sum the CPU seconds used in it.
+        sid=$(ps -o sid= --ppid "$pid" 2>/dev/null | head -n1 | tr -d ' ')
+        if [ -n "$sid" ]; then
+          cpu=$(ps -e -o sid=,times= 2>/dev/null | awk -v s="$sid" '$1 == s {t += $2} END {print t + 0}')
+          if [ "$cpu" -ge $(( last_cpu + 5 )) ]; then last_change=$(date +%s); fi
+          if [ "$cpu" -ge $(( last_cpu + 5 )) ] || [ "$cpu" -lt "$last_cpu" ]; then last_cpu=$cpu; fi
+        fi
         if [ $(( $(date +%s) - last_change )) -ge 60 ]; then
           if [ -n "$(find "$target" -newer "$mark" -type f -print -quit 2>/dev/null)" ]; then last_change=$(date +%s); fi
           touch "$mark"

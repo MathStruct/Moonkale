@@ -257,8 +257,9 @@ jobs:
             browser: chromium
             suites: sophia-folder
     env:
-      # Both attempts share 30 minutes; launched backends get only two minutes.
-      SERVE_WAIT: 1800
+      # Both attempts share one hour, so a retry after a stall still has time for a
+      # cold build; a launched backend gets two minutes to answer.
+      SERVE_WAIT: 3600
       SERVE_BACKEND_WAIT: 120
       SERVE_ATTEMPTS: 2
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
@@ -301,9 +302,9 @@ jobs:
         # A cold cache (after a Cargo.lock change) rebuilds the bundled C++
         # stores (DuckDB, RocksDB, LadybugDB) and takes longer than serve.sh's
         # 20-minute default; launched apps have a separate two-minute budget.
-        # A build stall is still caught by SERVE_STALL (no
-        # change in the dx log or the target dir for 20 minutes).
-        timeout-minutes: 35
+        # A build stall is still caught by SERVE_STALL: no change in the dx log
+        # or the target dir, and no CPU used, for 20 minutes. Above SERVE_WAIT.
+        timeout-minutes: 65
         run: packages/web/tests/e2e/serve.sh start
       - name: Suites
         run: packages/web/tests/e2e/run-all.sh $SUITES
