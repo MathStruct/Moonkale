@@ -10,6 +10,8 @@ page.on('pageerror',e=>errors.push(e.message));
 await page.addInitScript(()=>localStorage.setItem('moonkale.settings',JSON.stringify({language:'en',editor:{implementation:'codemirror',markdown_rich:false}})));
 const tab=id=>page.locator(`#wb-tab-${id.replaceAll(':','-')}`);
 const groupTabs=()=>page.locator('.wb-tab[data-link-group]');
+// Marks are reapplied one animation frame after the workbench re-renders.
+const marked=n=>page.waitForFunction(n=>document.querySelectorAll('.wb-tab[data-link-group]').length===n,n,{timeout:5000}).catch(()=>{});
 const groups=()=>page.locator('.wb-tab[id^="wb-tab-graph-"]').evaluateAll(tabs=>tabs.map(t=>({panel:t.id.replace('wb-tab-graph-','graph:'),group:t.dataset.linkGroup,number:t.textContent.match(/[①②③④⑤⑥⑦⑧]/)?.[0]})));
 const lead=group=>page.locator(`.wb-tab[id^="wb-tab-lead-"][data-link-group="${group}"]`);
 const panel=group=>page.locator(`#wb-panel-lead-${group}`);
@@ -62,7 +64,7 @@ try {
  assert((await lead(one.group).textContent()).includes('Beta.md'));assert((await lead(two.group).textContent()).includes('Alpha.md'));
  await page.screenshot({path:`${process.env.M1_SHOTS}/linked-panels.png`});
  console.log('PASS: groups survive a session switch and reload');
- await lead(one.group).locator('..').locator('.wb-tab-close').click();await tab(one.panel).waitFor({state:'detached'});assert.equal(await groupTabs().count(),2);
+ await lead(one.group).locator('..').locator('.wb-tab-close').click();await tab(one.panel).waitFor({state:'detached'});await marked(2);assert.equal(await groupTabs().count(),2);
  // Keyboard-only tab menu -> Link to -> pin inside its current group.
  await tab(two.panel).focus();await page.keyboard.press('Shift+F10');
  const linkDialog=page.getByRole('dialog',{name:'Link to…',exact:true});
@@ -71,7 +73,7 @@ try {
  await linkDialog.getByRole('button',{name:/② Alpha.md/}).click();
  await lead(two.group).locator('..').locator('.wb-tab-close').click();
  await lead(two.group).waitFor({state:'detached'});await tab(two.panel).waitFor();
- assert.equal(await groupTabs().count(),1,'pinned graph keeps its marking after lead closure');
+ await marked(1);assert.equal(await groupTabs().count(),1,'pinned graph keeps its marking after lead closure');
  // Mouse-only unlink retains the graph as an independent view.
  await tab(two.panel).click({button:'right'});await linkDialog.getByRole('button',{name:'Unlink',exact:true}).click();
  await page.waitForFunction(id=>!document.getElementById('wb-tab-'+id.replaceAll(':','-'))?.dataset.linkGroup,two.panel);
