@@ -22,6 +22,7 @@ pub type PaletteState = Signal<Option<PaletteMode>>;
 pub struct SearchSeed(pub Signal<String>);
 
 pub const INPUT_ID: &str = "mk-palette-input";
+const CONFIRM_CLOSE_ID: &str = "mk-overview-confirm-close";
 
 #[derive(Clone, PartialEq)]
 struct Item {
@@ -285,7 +286,16 @@ pub fn Palette(
                                 if let Some(next) = (sel+1..count).find(|&i| groups[i] != groups[sel]) { e.prevent_default(); selected.set(next); }
                             }
                             Key::Enter => { e.prevent_default(); choose.call((sel, if sel < tab_count { e.modifiers().shift() } else { e.modifiers().alt() })); }
-                            Key::Escape => { e.prevent_default(); state.set(None); }
+                            Key::Escape => {
+                                e.prevent_default();
+                                let was_confirming = confirming.peek().is_some();
+                                if was_confirming {
+                                    confirming.set(None);
+                                    dioxus_workbench::focus_after_render(INPUT_ID);
+                                } else {
+                                    state.set(None);
+                                }
+                            }
                             _ => {}
                         }
                         // Keep Ctrl+P / Ctrl+Shift+P from re-opening underneath.
@@ -296,8 +306,8 @@ pub fn Palette(
                     div { class: "mk-overview-confirm", role: "alertdialog", "aria-label": t!(ws, L, "overview-discard"),
                         onkeydown: move |e| { if e.key() == Key::Escape { e.prevent_default(); e.stop_propagation(); confirming.set(None); dioxus_workbench::focus_after_render(INPUT_ID); } },
                         p { {t!(ws, L, "overview-discard")} }
-                        button { class: "mk-btn", autofocus: true, onclick: move |_| { on_close.call(id.clone()); confirming.set(None); }, {t!(ws, L, "overview-close")} }
-                        button { class: "mk-btn", onclick: move |_| confirming.set(None), {t!(ws, L, "link-cancel")} }
+                        button { id: CONFIRM_CLOSE_ID, class: "mk-btn", autofocus: true, onmounted: move |_| dioxus_workbench::focus_after_render(CONFIRM_CLOSE_ID), onclick: move |_| { on_close.call(id.clone()); confirming.set(None); }, {t!(ws, L, "overview-close")} }
+                        button { class: "mk-btn", onclick: move |_| { confirming.set(None); dioxus_workbench::focus_after_render(INPUT_ID); }, {t!(ws, L, "link-cancel")} }
                     }
                 }
                 if matches!(mode, PaletteMode::Overview | PaletteMode::Search) { h2 { {t!(ws, L, "overview-window")} } }

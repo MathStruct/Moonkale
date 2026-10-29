@@ -8,6 +8,14 @@ const menu = async (group, id) => {
   await control(page.locator(`.mk-menu-item[data-command="${id}"]`), 'click');
 };
 const focused = selector => page.waitForFunction(s => document.activeElement?.matches(s), selector);
+const openFolder = async () => {
+  // Folder opening includes server indexing. Wait for its actual response
+  // before checking the client status, with a separate bounded I/O budget.
+  const opened = page.waitForResponse(response => response.url().endsWith('/api/sources/open_folder') && response.request().method() === 'POST', {timeout: 60000});
+  await control(page.locator('.mk-explorer-open button[type=submit]'), 'click');
+  assert.equal((await opened).status(), 200);
+  await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'), null, {timeout: 30000});
+};
 try {
   await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, {waitUntil: 'networkidle'});
   await page.waitForSelector('.wb-workspace');
@@ -40,8 +48,7 @@ try {
   await page.keyboard.type('x');
   assert.equal(await page.locator('#mk-palette-input').count(), 0);
   await page.keyboard.press('Backspace');
-  await control(page.locator('.mk-explorer-open button[type=submit]'), 'click');
-  await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'), null, {timeout: 30000});
+  await openFolder();
   await control(page.locator('#mk-titlebar-search'), 'click');
   await focused('#mk-palette-input');
   await control(page.locator('#mk-palette-input'), 'fill', 'README');
@@ -67,8 +74,7 @@ try {
   await page.waitForTimeout(250);
   assert.equal(await page.locator('.mk-shortcut-nudge').count(), 0);
   // Named-session startup restores sources; Open remains idempotent.
-  await control(page.locator('.mk-explorer-open button[type=submit]'), 'click');
-  await page.waitForFunction(() => document.querySelector('.wb-status-bar')?.textContent.includes('index:'), null, {timeout: 30000});
+  await openFolder();
   await control(page.locator('.mk-tree-row[title="README.md"]'), 'dblclick');
   await page.waitForSelector('.cm-content');
   await menu('File', 'view.settings');

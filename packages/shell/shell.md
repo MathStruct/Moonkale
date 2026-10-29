@@ -197,3 +197,9 @@ identity. Raw pointer focus is not a shell subscription: using it to rerender
 the workbench replaced renderer views during selection (the graph suites catch
 this). Group steering and Back explicitly activate their lead; ordinary quick
 open can activate an existing lead in another group.
+
+
+P-236 (2026-10-29): the dirty-close confirmation explicitly focuses its mounted
+button. Escape in the search field cancels a pending confirmation first; both
+cancellation routes return to search. The browser regression waits for actual
+confirmation focus, then checks that Escape retains the overview and dirty tab.

@@ -66,7 +66,14 @@ try {
  // Dirty deletion asks before losing text, with keyboard cancellation.
  await open('Overview09.md');await page.locator('.cm-content:visible').first().click();await page.keyboard.type('dirty');
  await overview();await input().fill('Overview09');await input().press('Delete');
- await page.getByRole('alertdialog').waitFor();await page.keyboard.press('Escape');assert.equal(await page.getByRole('alertdialog').count(),0);assert.equal(await cards().count(),1);
+ await page.getByRole('alertdialog').waitFor();
+ // The dialog's focus transfer completes after its DOM is mounted. Sending
+ // Escape to the still-focused search input would close the whole overview.
+ await page.waitForFunction(()=>document.activeElement?.closest('[role="alertdialog"]'));
+ await page.keyboard.press('Escape');
+ await page.getByRole('alertdialog').waitFor({state:'detached'});
+ await page.waitForFunction(()=>document.querySelectorAll('.mk-overview-card').length===1);
+ assert.equal(await cards().count(),1);
  await cards().locator('.mk-overview-close').click();await page.getByRole('alertdialog').getByRole('button',{name:'Close tab',exact:true}).click();await page.waitForFunction(()=>![...document.querySelectorAll('.wb-tab')].some(t=>t.textContent.includes('Overview09.md')));await input().press('Escape');
  console.log('PASS: dirty close confirmation, keyboard cancellation and mouse completion');
  // Same command is discoverable from the title bar and command palette.

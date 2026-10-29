@@ -9,7 +9,8 @@
 # drives the Lux blocks, which come from MathStruct/moonkale-julia since Milestone 18 phase 6.4;
 # stores.mjs opens a RocksDB and a HelixDB store, opt-in features since 2026-10-19).
 # Set SERVE_FEATURES= (explicitly empty) to test platform defaults only.
-# SERVE_WAIT: total startup seconds across all attempts (default 1200; CI sets more).
+# SERVE_WAIT: total startup seconds across all attempts (default 1200).
+# SERVE_BACKEND_WAIT: seconds after dx launches the app to answer HTTP (default 120).
 # SERVE_ATTEMPTS: maximum attempts (default 1; CI uses 2); only inactivity retries.
 # SERVE_STALL: give up after this many seconds without progress (default 1200): a hung
 #   build fails early instead of using up SERVE_WAIT (CI, 2026-10-09: 80 minutes for nothing).
@@ -42,7 +43,12 @@ diagnose() {
     echo "target=$target"
     python3 "$PROCESSES" diagnose "$owner"
     df -h "$REPO" "$E"
+    echo "dx/server log head ($log):"
+    head -n 60 "$log"
+    echo "dx/server log tail ($log):"
+    tail -n 100 "$log"
   } > "$E/dx-$PORT.attempt-$attempt.diagnostics.log" 2>&1
+  cat "$E/dx-$PORT.attempt-$attempt.diagnostics.log"
 }
 case "${1:-start}" in
   start)
@@ -69,7 +75,7 @@ case "${1:-start}" in
         nohup python3 "$PROCESSES" launch "$owner" dx serve --port "$PORT" "${features[@]}" "${flags[@]}" > "$log" 2>&1 &
       pid=$!; echo "$pid" > "$E/dx-$PORT.pid"
       last_size=0; last_change=$(date +%s); touch "$mark"
-      reason=deadline
+      reason=deadline; backend_started=0
       while [ "$(date +%s)" -lt "$deadline" ]; do
         sleep 5
         if [ "$(date +%s)" -ge "$deadline" ]; then break; fi
@@ -80,7 +86,15 @@ case "${1:-start}" in
         if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "404" ]; then
           echo "serving $root on :$PORT (pid $pid; attempt $attempt)"; exit 0
         fi
-        size=$(wc -c < "$log")
+        # Backend retry chatter is not evidence that the launched app is healthy.
+        # Keep cold compilation separate from the much shorter runtime budget.
+        if [ "$backend_started" = 0 ] && grep -q "launching app" "$log"; then
+          backend_started=$(date +%s)
+        fi
+        if [ "$backend_started" != 0 ] && [ $(( $(date +%s) - backend_started )) -ge "${SERVE_BACKEND_WAIT:-120}" ]; then
+          reason=backend; break
+        fi
+        size=$(sed '/Backend not ready, retrying/d' "$log" | wc -c)
         if [ "$size" != "$last_size" ]; then last_size=$size; last_change=$(date +%s); fi
         if [ $(( $(date +%s) - last_change )) -ge 60 ]; then
           if [ -n "$(find "$target" -newer "$mark" -type f -print -quit 2>/dev/null)" ]; then last_change=$(date +%s); fi

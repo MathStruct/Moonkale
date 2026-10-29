@@ -32,6 +32,10 @@ print((Path(os.environ["TEST_ROOT"]) / "clock").read_text())
 import os, time
 p = Path(os.environ["TEST_ROOT"]) / "clock"
 p.write_text(str(int(p.read_text()) + 5))
+if os.environ["TEST_CASE"] == "chatter":
+    for log in p.parent.glob("dx-*.attempt-*.log"):
+        with log.open("a") as output:
+            output.write("Backend not ready, retrying in 100ms...\\n")
 time.sleep(0.15)
 ''')
         self.stub("curl", '''from pathlib import Path
@@ -41,6 +45,7 @@ n = int(p.read_text()) if p.exists() else 0
 case = os.environ["TEST_CASE"]
 print("200" if case in ("ready", "build") or (case == "recover" and n == 2) else "000")
 ''')
+        self.stub("gdb", 'print("#0 test_thread_wait ()")\n')
         self.stub("dx", '''from pathlib import Path
 import json, os, subprocess, sys, time
 root = Path(os.environ["TEST_ROOT"])
@@ -52,6 +57,8 @@ child = subprocess.Popen([sys.executable, "-c", "import signal,time;signal.signa
 with (root / "children").open("a") as f: f.write(str(child.pid) + "\\n")
 if os.environ["TEST_CASE"] == "exit": sys.exit(3)
 if os.environ["TEST_CASE"] == "build": print("Build failed", flush=True)
+elif os.environ["TEST_CASE"] == "backend":
+    print("Build completed successfully, launching app!", flush=True)
 else: print("tooling ready", flush=True)
 time.sleep(120)
 ''')
@@ -127,6 +134,38 @@ time.sleep(120)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.attempts(), 2)
         self.assertLessEqual(int((self.root / "clock").read_text()), 1020)
+        self.assert_stopped()
+
+    def test_backend_retry_chatter_is_not_build_progress(self):
+        self.env.update(TEST_CASE="chatter")
+        result = self.run_server()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.attempts(), 2)
+        self.assertIn("reason=stall", result.stdout)
+        self.assertLess(int((self.root / "clock").read_text()), 1100)
+        self.assert_stopped()
+
+    def test_launched_backend_has_a_short_separate_deadline(self):
+        self.env.update(TEST_CASE="backend", SERVE_BACKEND_WAIT="10", SERVE_STALL="100")
+        result = self.run_server()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.attempts(), 1)
+        self.assertIn("reason=backend", result.stdout)
+        self.assertIn("launching app!", result.stdout)
+        self.assertIn("#0 test_thread_wait", result.stdout)
+        self.assertIn("fd 1:", result.stdout)
+        self.assertLess(int((self.root / "clock").read_text()), 1100)
+        self.assert_stopped()
+
+    def test_failed_gdb_keeps_proc_evidence_and_log(self):
+        self.env.update(TEST_CASE="backend", SERVE_BACKEND_WAIT="10", SERVE_STALL="100")
+        self.stub("gdb", 'import sys; print("ptrace denied", file=sys.stderr); sys.exit(1)\n')
+        result = self.run_server()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ptrace denied", result.stdout)
+        self.assertIn("/wchan:", result.stdout)
+        self.assertIn("dx/server log head", result.stdout)
+        self.assertIn("dx/server log tail", result.stdout)
         self.assert_stopped()
 
     def test_default_is_one_attempt(self):

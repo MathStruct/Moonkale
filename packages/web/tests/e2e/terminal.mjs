@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 import { firefox } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
 const browser = await firefox.launch();
@@ -10,19 +11,19 @@ try {
   await step("open folder, Terminal panel present (bottom tile)", async () => {
     await page.goto(`http://127.0.0.1:${process.env.PORT ?? 8080}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
     await page.waitForSelector(".mk-term");
   });
   await step("View → New Terminal starts a remote shell (server PTY over websocket)", async () => {
-    await page.click(".mk-menu-button:has-text('View')");
-    await page.click(".mk-menu-item:has-text('New Terminal')");
+    await control(page, 'click', ".mk-menu-button:has-text('View')");
+    await control(page, 'click', ".mk-menu-item:has-text('New Terminal')");
     await page.waitForSelector(".mk-term-tab-active", { timeout: 15000 });
     await page.waitForSelector(".xterm-rows", { timeout: 15000 });
     await page.waitForFunction(() => document.querySelector(".xterm-rows")?.textContent.trim().length > 0, null, { timeout: 15000 }); // prompt
   });
   await step("typing a command produces output", async () => {
-    await page.click(".mk-term-session");
+    await control(page, 'click', ".mk-term-session");
     await page.keyboard.type("echo moon_$((20+3)) && pwd\n");
     await page.waitForFunction(() => /moon_23/.test(document.querySelector(".xterm-rows")?.textContent || ""), null, { timeout: 15000 });
     const t = await text();
@@ -36,18 +37,18 @@ try {
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.waitForSelector(".xterm-rows", { timeout: 15000 });
     await page.waitForFunction(() => /moon_23/.test(document.querySelector(".xterm-rows")?.textContent || ""), null, { timeout: 15000 });
-    await page.click(".mk-term-session");
+    await control(page, 'click', ".mk-term-session");
     await page.keyboard.type("echo again_$((40+2))\n");
     await page.waitForFunction(() => /again_42/.test(document.querySelector(".xterm-rows")?.textContent || ""), null, { timeout: 15000 });
   });
   await step("second terminal via +, tabs switch, close works", async () => {
-    await page.click(".mk-term-new");
+    await control(page, 'click', ".mk-term-new");
     await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new):not(.mk-term-trace)").length === 2, null, { timeout: 15000 });
-    await page.click(".mk-term-tab-active .mk-term-close");
+    await control(page, 'click', ".mk-term-tab-active .mk-term-close");
     await page.waitForFunction(() => document.querySelectorAll(".mk-term-tab:not(.mk-term-new):not(.mk-term-trace)").length === 1, null, { timeout: 5000 });
   });
   await step("Ctrl+click on a path:line in the output opens the file", async () => {
-    await page.click(".mk-term-session");
+    await control(page, 'click', ".mk-term-session");
     await page.keyboard.type("printf 'error at src/main.rs:1:4\\n'\n");
     await page.waitForFunction(() => /src\/main\.rs:1:4/.test(document.querySelector(".xterm-rows")?.textContent || ""), null, { timeout: 15000 });
     const row = await page.evaluateHandle(() => [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes("src/main.rs:1:4")));

@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
@@ -58,6 +59,30 @@ def stop(record):
                 time.sleep(0.05)
 
 
+def dump_threads(pid):
+    """Only called for identity-checked members of this server's process group."""
+    if shutil.which("gdb"):
+        try:
+            result = subprocess.run(
+                ["gdb", "-nx", "-batch", "-iex", "set auto-load off",
+                 "-ex", "set pagination off", "-ex", "set print frame-arguments none",
+                 "-ex", "thread apply all bt 24", "-p", str(pid)],
+                capture_output=True, text=True, check=False, timeout=10)
+            print(result.stdout)
+            print(result.stderr)
+            if result.returncode == 0 and "#0" in result.stdout:
+                return
+        except subprocess.TimeoutExpired:
+            print("gdb timed out after 10 seconds")
+    # ptrace may be unavailable (including in containers). Keep the actual error.
+    for task in sorted(Path(f"/proc/{pid}/task").glob("*"))[:64]:
+        for name in ("stack", "wchan"):
+            try:
+                print(f"{task.name}/{name}: {task.joinpath(name).read_text().strip()}")
+            except OSError as error:
+                print(f"{task.name}/{name}: {error}")
+
+
 def main():
     action, filename, *command = sys.argv[1:]
     path = Path(filename)
@@ -81,10 +106,30 @@ def main():
             result = subprocess.run(["ps", "-eo", "pid,ppid,pgid,sid,stat,etime,pcpu,rss,wchan,comm"],
                                     capture_output=True, text=True, check=False)
             print(result.stdout.splitlines()[0] if result.stdout else "Process snapshot unavailable")
+            members = []
             for line in result.stdout.splitlines()[1:]:
                 fields = line.split()
                 if len(fields) >= 4 and fields[2] == str(record["pid"]):
                     print(line)
+                    members.append(int(fields[0]))
+            if not owned(record):
+                print("Ownership changed; skipping thread dumps")
+                return
+            for pid in members[:8]:
+                try:
+                    if os.getpgid(pid) != record["pid"]:
+                        continue
+                    print(f"Thread dump pid={pid}; executable={os.readlink(f'/proc/{pid}/exe')}")
+                    # dx normally merges the server's stdout/stderr into its log.
+                    # Report actual destinations without ever reading a pipe.
+                    for fd in (1, 2):
+                        try:
+                            print(f"fd {fd}: {os.readlink(f'/proc/{pid}/fd/{fd}')}")
+                        except OSError as error:
+                            print(error)
+                    dump_threads(pid)
+                except OSError as error:
+                    print(error)
         else:
             raise ValueError("unknown process action")
 

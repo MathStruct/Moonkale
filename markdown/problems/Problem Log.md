@@ -230,6 +230,8 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-235 Focus restoration needs the retained panel]] | Closing Graph can reveal Settings while its editor opener remains hidden. Restoration activates the saved panel through the workbench and then focuses its control, after pending command focus. | resolved | WP-64 |
 
+| [[P-236 Overview confirmation can lose focus]] | Repeated smoke runs expose an overview dirty-close dialog without focus; Escape can close the whole overview. Explicit mounted-button focus and input-side Escape cancellation fix it; five overview repetitions, three full smoke sweeps and all gates pass. | resolved | WP-26/60 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

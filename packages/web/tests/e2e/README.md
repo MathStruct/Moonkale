@@ -522,8 +522,11 @@ the group, so orphaned compiler/server children are included without matching
 other sessions by name. A legacy PID file without an ownership record, or a
 mismatched birth identity, is refused and preserved for manual inspection. Do not remove the `dx-PORT.owner` file while it is running.
 
-`SERVE_WAIT` is one total startup budget (local default 1200 seconds; CI 3600).
-`SERVE_STALL` remains 1200 seconds without log or target progress.
+`SERVE_WAIT` is one total startup budget (local default 1200 seconds; CI 1800).
+`SERVE_STALL` remains 1200 seconds without log or target progress; repeated
+"Backend not ready" lines do not count as progress.
+After dx reports "launching app", `SERVE_BACKEND_WAIT` gives the backend 120
+seconds to answer HTTP, independently of build progress or retry chatter.
 `SERVE_ATTEMPTS` defaults to 1; CI sets 2. Only inactivity can retry; a build error,
 process exit or exhausted total deadline fails immediately. A retry keeps compiled
 artifacts and downloaded tools. CI passes `--interactive false --open false
@@ -531,8 +534,11 @@ artifacts and downloaded tools. CI passes `--interactive false --open false
 
 Each attempt has `dx-PORT.attempt-N.log`; `dx-PORT.log` points to the current log.
 Failures also write `dx-PORT.attempt-N.diagnostics.log` with owned executable names,
-process state, disk availability and progress timestamps, never an environment or
-argument dump. CI uploads logs and screenshots with seven-day retention, including
+process state, disk availability and progress timestamps. They also print the
+dx/server log head/tail and owned processes' output destinations. Bounded gdb
+thread backtraces omit frame arguments; unavailable/denied ptrace falls back to
+Linux task stacks/wait channels with the actual error. No environment or process
+argument dump is collected. Diagnostics are printed to the failing CI step too. CI uploads logs and screenshots with seven-day retention, including
 successful runs that recovered on the second attempt.
 
 Run `python3 packages/web/tests/e2e/test-serve.py` for deterministic recovery and

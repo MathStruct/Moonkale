@@ -257,8 +257,9 @@ jobs:
             browser: chromium
             suites: sophia-folder
     env:
-      # Both attempts share one hour; only 20 minutes of inactivity triggers a retry.
-      SERVE_WAIT: 3600
+      # Both attempts share 30 minutes; launched backends get only two minutes.
+      SERVE_WAIT: 1800
+      SERVE_BACKEND_WAIT: 120
       SERVE_ATTEMPTS: 2
       # Keep the list short: each suite drives the real app; the full set is run-all.sh without arguments.
       SUITES: ${{ matrix.suites }}
@@ -299,9 +300,10 @@ jobs:
       - name: Start the web build (dx serve)
         # A cold cache (after a Cargo.lock change) rebuilds the bundled C++
         # stores (DuckDB, RocksDB, LadybugDB) and takes longer than serve.sh's
-        # 20-minute default; a real stall is still caught by SERVE_STALL (no
+        # 20-minute default; launched apps have a separate two-minute budget.
+        # A build stall is still caught by SERVE_STALL (no
         # change in the dx log or the target dir for 20 minutes).
-        timeout-minutes: 70
+        timeout-minutes: 35
         run: packages/web/tests/e2e/serve.sh start
       - name: Suites
         run: packages/web/tests/e2e/run-all.sh $SUITES
