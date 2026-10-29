@@ -221,15 +221,19 @@ impl Workspace {
         create: bool,
         current: impl Fn() -> bool,
     ) -> Result<Option<Node>, SourceError> {
+        let group = self.link_origin(from.id);
         let page = self.resolve_wiki(from, target).await;
         if !current() {
             return Ok(None);
         }
         if let Some(page) = page {
-            return self
-                .open_node_when(page.clone(), &current)
-                .await
-                .map(|opened| opened.then_some(page));
+            let opened = self.open_node_when(page.clone(), &current).await?;
+            if opened {
+                if let Some(group) = &group {
+                    self.move_group_lead(group, page.id);
+                }
+            }
+            return Ok(opened.then_some(page));
         }
         if !create {
             self.set_status(t!(self, L, "wiki-unresolved", target = target.to_string()));
@@ -270,6 +274,9 @@ impl Workspace {
             .await?;
         if !self.open_node_when(node.clone(), &current).await? {
             return Ok(None);
+        }
+        if let Some(group) = &group {
+            self.move_group_lead(group, node.id);
         }
         self.set_status(t!(self, L, "created", name = rel.clone()));
         Ok(Some(node))

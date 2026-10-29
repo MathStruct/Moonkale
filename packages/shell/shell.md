@@ -186,3 +186,14 @@ WP-46 adds a quiet named-session button beside the title-bar search and the
 confirmed soft deletion and explicit metadata export/import. Settings offers
 a session target. Periodic metadata persistence runs outside the input path;
 the workspace awaits an immediate save before switching dirty working sets.
+
+
+WP-59 resolves stable group lead aliases through editor contributions, marks tabs with numbered theme colours, and provides palette/context-menu/Alt-drag routes without adding rail or toolbar controls. Browser and desktop validation are in progress.
+
+Linked-pair placement saves the final settled layout through the same state
+path as workbench gestures. Restoring older group metadata without a layout
+reconstructs its pairs. Editor roots are keyed by both panel and document
+identity. Raw pointer focus is not a shell subscription: using it to rerender
+the workbench replaced renderer views during selection (the graph suites catch
+this). Group steering and Back explicitly activate their lead; ordinary quick
+open can activate an existing lead in another group.

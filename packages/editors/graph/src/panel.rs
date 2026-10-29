@@ -306,6 +306,8 @@ enum FromJs {
     },
     Dblclick {
         id: String,
+        #[serde(default)]
+        new_group: bool,
     },
     /// The engine's selection (spec 031, stage 10) — announced through
     /// the aria-live line.
@@ -381,11 +383,25 @@ if (!probeGl && !navigator.gpu) {
 // Don't keep a second GL context alive just for the probe.
 try { probeGl && probeGl.getExtension("WEBGL_lose_context")?.loseContext(); } catch (_) {}
 let view;
+let newGroup = false;
+let keyboardSteer = false;
+let focusedNode = null;
+overlay.addEventListener("pointerdown", e => { keyboardSteer = false; newGroup = e.altKey || e.ctrlKey || e.metaKey; }, true);
+overlay.addEventListener("keydown", e => {
+    if (e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey) return;
+    newGroup = e.altKey; keyboardSteer = true;
+    if (e.altKey && focusedNode) { e.preventDefault(); e.stopImmediatePropagation(); dioxus.send({kind:"dblclick", id:focusedNode, new_group:true}); keyboardSteer = false; }
+}, true);
 try {
     const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("renderer did not start within 15s")), 15000));
     // Android WebViews advertise WebGPU but hang on device creation: ask for WebGL2 there (P-089).
     const prefer = /\bAndroid\b/.test(navigator.userAgent) && /\bwv\b/.test(navigator.userAgent) ? "gl" : null;
-    view = await Promise.race([mod.create(canvas, overlay, (ev) => dioxus.send(ev), prefer), timeout]);
+    view = await Promise.race([mod.create(canvas, overlay, (ev) => {
+        if (ev.kind === "focus") focusedNode = ev.id;
+        if (ev.kind === "click" && keyboardSteer) { ev.kind = "dblclick"; keyboardSteer = false; }
+        if (ev.kind === "dblclick") ev.new_group = newGroup;
+        dioxus.send(ev);
+    }, prefer), timeout]);
 } catch (e) {
     return failed(String(e && e.message ? e.message : e));
 }
@@ -441,6 +457,8 @@ const unload = () => {
 window.addEventListener("pagehide", unload, { once: true });
 COARSE_SCRIPT
 let loadSerial = 0;
+let pendingCamera = null;
+let linkedSelection = [];
 for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "setGraph") {
@@ -453,8 +471,12 @@ for (;;) {
         const stringify_ms = performance.now() - start;
         const handoff_ms = msg.sent_ms ? received - msg.sent_ms : 0;
         if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g);
+        view.select_nodes(JSON.stringify(linkedSelection));
+        if (pendingCamera && view.node_count() > 0) { view.restore_camera(new Float32Array(pendingCamera)); pendingCamera = null; }
         requestAnimationFrame(() => requestAnimationFrame(() => { if (serial === loadSerial) dioxus.send({kind:"loadProfile", stringify_ms, handoff_ms, engine: Array.from(view.load_stats())}); }));
     }
+    else if (msg.kind === "restoreCamera") { pendingCamera = msg.state; if (view.node_count() > 0) { view.restore_camera(new Float32Array(pendingCamera)); pendingCamera = null; } }
+    else if (msg.kind === "selectLinked") { linkedSelection = msg.nodes; view.select_nodes(JSON.stringify(linkedSelection)); }
     else if (msg.kind === "coarseBase") { coarseGraph = JSON.parse(msg.graph); }
     else if (msg.kind === "coarseExpand") {
         try { coarseExpand(msg.id, JSON.parse(msg.graph)); } catch (_) { dioxus.send({kind:"error",message:msg.error}); }
@@ -479,16 +501,27 @@ for (;;) {
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "relayout") view.relayout();
     else if (msg.kind === "setMode") view.set_mode(msg.mode);
-    else if (msg.kind === "destroy") { clearTimeout(cameraTimer); ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme); scheme && scheme.removeEventListener && scheme.removeEventListener("change", retheme); view.destroy(); delete window.moonkale.graphViews[ID]; break; }
+    else if (msg.kind === "destroy") { clearTimeout(cameraTimer); ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme); scheme && scheme.removeEventListener && scheme.removeEventListener("change", retheme); view.destroy(); if (window.moonkale.graphViews[ID] === view) delete window.moonkale.graphViews[ID]; break; }
 }
 "#;
 
 #[component]
-pub fn GraphPanel(ws: Workspace) -> Element {
+pub fn GraphPanel(ws: Workspace, panel_id: String) -> Element {
+    let grouped = panel_id != "graph";
+    let panel = use_hook(|| panel_id.clone());
     // Deterministic: the page is server-rendered first and hydration keeps the
     // server's element ids, so anything random here would never match (P-034).
     // One graph panel per window/tab, so a constant is enough.
-    let id = use_hook(|| "mk-graph-panel".to_string());
+    let id = use_hook(|| {
+        if grouped {
+            format!(
+                "mk-graph-panel-{}",
+                panel_id.strip_prefix("graph:").unwrap_or(&panel_id)
+            )
+        } else {
+            "mk-graph-panel".to_string()
+        }
+    });
     let mut eval: Signal<Option<Eval>> = use_signal(|| None);
     let mut egraph_mode = use_signal(|| false);
     let mut eclasses: Signal<Vec<(String, String)>> = use_signal(Vec::new);
@@ -497,7 +530,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut backend = use_signal(|| None::<String>);
     let mut loaded = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut mode = use_signal(|| Mode::Whole);
+    let mut mode = use_signal(|| if grouped { Mode::Local } else { Mode::Whole });
     moonkale_ext_api::crash::use_effect(move || {
         if matches!(
             ws.shell.commands.read().1,
@@ -559,6 +592,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     // handler, not an effect: nothing here re-runs or drops the eval later).
     let mount = {
         let id = id.clone();
+        let panel = panel.clone();
         move |_| {
             if eval.peek().is_some() {
                 return;
@@ -577,6 +611,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             let ev = document::eval(&script);
             let mut rx = ev;
             let id = id.clone();
+            let panel = panel.clone();
             moonkale_ext_api::crash::spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
@@ -605,7 +640,15 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                             eclasses.set(classes);
                             error.set(None);
                         }
-                        Ok(FromJs::CameraVisit { state }) => ws.visit_camera(&id, state),
+                        Ok(FromJs::CameraVisit { state }) => {
+                            ws.visit_camera(&id, state);
+                            let mut ws = ws;
+                            ws.links.views.with_mut(|views| {
+                                if let Some(view) = views.get_mut(&panel) {
+                                    view.camera = Some(state);
+                                }
+                            });
+                        }
                         Ok(FromJs::ToggleLocal) => {
                             let next = if mode() == Mode::Whole {
                                 Mode::Local
@@ -620,15 +663,61 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                             }
                         }
                         Ok(FromJs::Loaded) => loaded.set(true),
-                        Ok(FromJs::Ready { backend: b }) => backend.set(Some(b)),
+                        Ok(FromJs::Ready { backend: b }) => {
+                            backend.set(Some(b));
+                            if let Some(state) =
+                                ws.links.views.peek().get(&panel).and_then(|v| v.camera)
+                            {
+                                let _ = ev.send(
+                                    serde_json::json!({"kind":"restoreCamera", "state":state}),
+                                );
+                            }
+                        }
                         Ok(FromJs::Error { message }) => {
                             region_expanded.set(false);
                             error.set(Some(message));
                         }
                         Ok(h @ FromJs::Hover { .. }) => hover.set(Some(h)),
-                        Ok(FromJs::Dblclick { id }) => {
+                        Ok(FromJs::Dblclick { id, new_group }) => {
                             let node = shown.peek().get(&id).cloned();
+                            if node.is_none() && grouped {
+                                if let Some(subject) = ws.link_subject(&panel) {
+                                    if new_group {
+                                        if let Some(owner) = ws.open_node_by_id(subject.node) {
+                                            let id = id.clone();
+                                            moonkale_ext_api::crash::spawn(async move {
+                                                if let Ok(group) = ws.open_with_context(owner).await
+                                                {
+                                                    ws.steer_linked_selection(
+                                                        &format!("graph:{group}"),
+                                                        vec![id],
+                                                    );
+                                                }
+                                            });
+                                        }
+                                    } else {
+                                        ws.steer_linked_selection(&panel, vec![id.clone()]);
+                                        if let Some(lead) = ws.panel_group(&panel).and_then(|g| {
+                                            g.members
+                                                .into_iter()
+                                                .find(|(_, r, _)| {
+                                                    *r == moonkale_ext_api::links::Role::Lead
+                                                })
+                                                .map(|(p, _, _)| p)
+                                        }) {
+                                            let mut ws = ws;
+                                            ws.show_panel(&lead);
+                                        }
+                                    }
+                                }
+                            }
                             if let Some(node) = node {
+                                if new_group {
+                                    moonkale_ext_api::crash::spawn(async move {
+                                        let _ = ws.open_with_context(node).await;
+                                    });
+                                    continue;
+                                }
                                 let expandable = matches!(node.props.get("coarse.members"), Some(moonkale_core::Value::Int(n)) if *n > 0);
                                 if expandable && !region_expanded() {
                                     let source = region_sources.peek().get(&id).cloned();
@@ -667,11 +756,21 @@ pub fn GraphPanel(ws: Workspace) -> Element {
                                         });
                                     }
                                 } else if !expandable {
-                                    moonkale_ext_api::crash::spawn(open_node(ws, node));
+                                    let panel = panel.clone();
+                                    moonkale_ext_api::crash::spawn(async move {
+                                        if grouped {
+                                            let _ = ws.steer_linked(&panel, node).await;
+                                        } else {
+                                            open_node(ws, node).await;
+                                        }
+                                    });
                                 }
                             }
                         }
-                        Ok(FromJs::Select { nodes, edges }) => selected.set((nodes, edges)),
+                        Ok(FromJs::Select { nodes, edges }) => {
+                            ws.select_linked(&panel, nodes.clone());
+                            selected.set((nodes, edges));
+                        }
                         Ok(FromJs::Focus { id }) => focused.set(Some(id)),
                         Ok(FromJs::Click { .. }) | Ok(FromJs::Settled) => {}
                         Err(dioxus::document::EvalError::Serialization(_)) => continue,
@@ -684,6 +783,17 @@ pub fn GraphPanel(ws: Workspace) -> Element {
             eval.set(Some(ev));
         }
     };
+
+    moonkale_ext_api::crash::use_effect({
+        let panel = panel.clone();
+        move || {
+            let subject = ws.link_subject(&panel);
+            if let (Some(ev), Some(subject)) = (*eval.read(), subject) {
+                let _ =
+                    ev.send(serde_json::json!({"kind":"selectLinked","nodes":subject.selection}));
+            }
+        }
+    });
 
     // Tear the renderer down when the panel unmounts (dock/undock remounts it).
     use_drop(move || {
@@ -698,6 +808,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
     let mut seen_graph_sources: Signal<Vec<SourceId>> = use_signal(Vec::new);
     let mut pending_db: Signal<Option<PendingDatabaseLoad>> = use_signal(|| None);
     moonkale_ext_api::crash::use_effect(move || {
+        if grouped {
+            return;
+        }
         let graph_ids: Vec<SourceId> = ws
             .sources
             .open
@@ -726,6 +839,9 @@ pub fn GraphPanel(ws: Workspace) -> Element {
 
     // A new "Show in Graph" request switches the picker to that query.
     moonkale_ext_api::crash::use_effect(move || {
+        if grouped {
+            return;
+        }
         let req = ws.docs.graph_request.read().clone();
         if req.is_some() && req != *seen_request.peek() {
             seen_request.set(req.clone());
@@ -734,6 +850,11 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         }
     });
 
+    // Selection belongs to the view; only a subject-node change reloads topology.
+    let subject_node = use_memo({
+        let panel = panel.clone();
+        move || ws.link_subject(&panel).map(|subject| subject.node)
+    });
     // (Re)load the graph whenever its inputs change.
     moonkale_ext_api::crash::use_effect(move || {
         if egraph_mode() {
@@ -752,7 +873,7 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         let force_memory = code_graph() == moonkale_ext_api::settings::CodeGraphSource::InMemory;
         let m = mode();
         let f = filters();
-        let active = *ws.docs.active.read();
+        let active = subject_node();
         let epoch = *ws.sources.graph_epoch.read();
         let _reload = tier_reload();
         let choices = tier_choices.read().clone();
@@ -763,9 +884,57 @@ pub fn GraphPanel(ws: Workspace) -> Element {
         } else {
             None
         };
-        let Some(ev) = *eval.peek() else {
+        let Some(ev) = *eval.read() else {
             return;
         };
+        if grouped {
+            if let Some(subject) = active {
+                if let Some(result) = ws.links.results.read().get(&subject) {
+                    let (graph, _) = database_graph(result);
+                    counts.set((graph.nodes.len(), graph.edges.len(), false));
+                    shown.set(
+                        result
+                            .nodes
+                            .iter()
+                            .map(|n| (n.id.to_string(), n.clone()))
+                            .collect(),
+                    );
+                    let _ = ev.send(ToJs::SetGraph {
+                        graph,
+                        fresh: *local_center.peek() != Some(subject),
+                        sent_ms: sent_ms(),
+                    });
+                    local_center.set(Some(subject));
+                    return;
+                }
+                if let Some(doc) = ws.document(subject) {
+                    let doc = doc.read();
+                    if doc
+                        .node
+                        .native_key
+                        .ends_with(moonkale_ext_api::flow::Flow::EXTENSION)
+                    {
+                        if let Ok(flow) = moonkale_ext_api::flow::Flow::parse(&doc.text) {
+                            let nodes = flow.blocks.iter().map(|b| serde_json::json!({"id":b.id,"label":b.kind,"kind":"block"})).collect::<Vec<_>>();
+                            let slots: HashMap<_, _> = flow
+                                .blocks
+                                .iter()
+                                .enumerate()
+                                .map(|(i, b)| (b.id.as_str(), i))
+                                .collect();
+                            let edges = flow.wires.iter().filter_map(|w| Some(serde_json::json!({"a":slots.get(w.from_block.as_str())?,"b":slots.get(w.to_block.as_str())?,"kind":"wire"}))).collect::<Vec<_>>();
+                            counts.set((nodes.len(), edges.len(), false));
+                            let graph =
+                                serde_json::json!({"nodes":nodes,"edges":edges}).to_string();
+                            let _ = ev.send(
+                                serde_json::json!({"kind":"setGraph","graph":graph,"fresh":false}),
+                            );
+                            return;
+                        }
+                    }
+                }
+            }
+        }
         // Loads are async and may finish out of order (a remote index reply
         // after a local trace); only the newest load may publish.
         let gen = *load_gen.peek() + 1;

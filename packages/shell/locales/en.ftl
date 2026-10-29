@@ -433,3 +433,12 @@ sessions-import-confirm = Import
 sessions-invalid = Invalid session file or size limit exceeded.
 settings-session = Session
 sessions-detail = { $sources } sources · { $minutes } min ago
+
+# Linked panels (WP-59)
+link-open-context = Open with context
+link-to = Link to…
+link-unlink = Unlink
+link-pin = Keep this subject (pin)
+link-cancel = Cancel
+link-active = Follows the active editor
+link-description = linked with { $names } (group { $number })

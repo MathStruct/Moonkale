@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // ADR-0021 stage A: a subflow block in the browser. A fixture flow holds
 // one subflow (an in, an out and an electrical pin) and six blocks — the
 // subflow block, three ModelingToolkit components and two Lux layers —
@@ -70,20 +71,20 @@ try {
   await step("open folder", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
   });
   await step("Extensions panel: enable Flow editor, ModelingToolkit and Lux", async () => {
-    await page.click("#mk-rail-extensions");
+    await control(page, 'click', "#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Flow editor')) > label input");
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Lux.jl library')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('Flow editor')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('Lux.jl library')) > label input");
     await page.waitForFunction(() => /editor-flow/.test(localStorage.getItem("moonkale.settings") || "") && /ext-mtk/.test(localStorage.getItem("moonkale.settings") || "") && /ext-lux/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
   });
   await step("the fixture flow opens from the tree: six blocks, the subflow block among them", async () => {
     fs.writeFileSync(`${ROOT}/sub.flow.json`, FIXTURE);
-    await page.click(".mk-tree-row[title='sub.flow.json']");
+    await control(page, 'click', ".mk-tree-row[title='sub.flow.json']");
     await page.waitForSelector(".mk-flow", { timeout: 15000 });
     await page.waitForFunction(() => {
       const v = Object.values(window.moonkale.flowViews || {})[0];
@@ -141,7 +142,7 @@ try {
     await page.screenshot({ path: `${S}/s-subflow-wired.png` });
   });
   await step("Save keeps the boundary wiring and the subflow declaration", async () => {
-    await page.click(".mk-flow button:has-text('Save')");
+    await control(page, 'click', ".mk-flow button:has-text('Save')");
     await page.waitForFunction(() => !document.querySelector(".mk-flow .mk-editor-dirty"), null, { timeout: 15000 });
     const flow = JSON.parse(fs.readFileSync(`${ROOT}/sub.flow.json`, "utf8"));
     if (flow.subflows?.length !== 1 || flow.subflows[0].id !== "amp") throw new Error("the subflow declaration was lost on save");
@@ -172,7 +173,7 @@ try {
     await page.screenshot({ path: `${S}/s-subflow-inside.png` });
   });
   await step("stage B: fill it — a palette add lands inside; the boundary wires up", async () => {
-    await page.click(".mk-flow-palette-block:text-is('Dense')");
+    await control(page, 'click', ".mk-flow-palette-block:text-is('Dense')");
     await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "1", null, { timeout: 10000 });
     const dense = await idOfKind("dense");
     await dragWire("boundary/x", "x", dense, "in");
@@ -217,7 +218,7 @@ try {
     }, null, { timeout: 15000 });
   });
   await step("stage B: the palette creates a subsystem you enter and fill", async () => {
-    await page.click(".mk-flow-subsystem");
+    await control(page, 'click', ".mk-flow-subsystem");
     await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "7", null, { timeout: 10000 });
     const sub = await idOfKind("subsystem");
     // The palette add grows the scene, so a refit may move the camera
@@ -236,7 +237,7 @@ try {
     // the ADR leaves it open).
     let s = await status();
     if (s.blocks !== 0) throw new Error("a fresh subsystem is not empty: " + JSON.stringify(s));
-    await page.click(".mk-flow-palette-block:text-is('Input')");
+    await control(page, 'click', ".mk-flow-palette-block:text-is('Input')");
     await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "1", null, { timeout: 10000 });
     await page.keyboard.press("Escape");
     await sleep(400);
@@ -244,7 +245,7 @@ try {
     if (s.blocks !== 7) throw new Error("Escape did not return to the parent: " + JSON.stringify(s));
   });
   await step("stage B: Save keeps the inside — both subflows' contents", async () => {
-    await page.click(".mk-flow button:has-text('Save')");
+    await control(page, 'click', ".mk-flow button:has-text('Save')");
     await page.waitForFunction(() => !document.querySelector(".mk-flow .mk-editor-dirty"), null, { timeout: 15000 });
     const flow = JSON.parse(fs.readFileSync(`${ROOT}/sub.flow.json`, "utf8"));
     if (flow.subflows?.length !== 2) throw new Error("the created subsystem's subflow was lost: " + JSON.stringify(flow.subflows?.map((x) => x.id)));

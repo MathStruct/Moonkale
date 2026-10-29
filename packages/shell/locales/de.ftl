@@ -429,3 +429,12 @@ sessions-import-confirm = Importieren
 sessions-invalid = Ungültige Sitzungsdatei oder Größenlimit überschritten.
 settings-session = Sitzung
 sessions-detail = { $sources } Quellen · vor { $minutes } Min.
+
+# Linked panels (WP-59)
+link-open-context = Mit Kontext öffnen
+link-to = Verknüpfen mit…
+link-unlink = Verknüpfung lösen
+link-pin = Dieses Thema beibehalten (anheften)
+link-cancel = Abbrechen
+link-active = Folgt dem aktiven Editor
+link-description = verknüpft mit { $names } (Gruppe { $number })

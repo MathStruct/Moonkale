@@ -445,3 +445,15 @@ soft deletion only writes state; it never calls Source writes. Recovery retains
 WP-56 path/ignore/symlink checks and is namespaced per session. Local conversation
 keys preserve the host's authorized folder/local prefix. Window messages are
 confined by outer-session id; the session id is organization, not authentication.
+
+
+WP-59 (validated 2026-10-29): link groups contain panel/node
+identities and view metadata, never document text or secret values. Tab input
+adapters check outer workbench tab elements and the current contributed panel
+registry; payloads cannot directly execute a command or open a new source.
+Labels use escaped text/DOM attributes. Graph selection inputs are capped at
+1 MiB, 4,096 ids and 256 bytes per id, and admit only existing instances without
+emitting an event back into the host. Session exchange retains its 4 MiB parser
+bound. CodeMirror imports only its bundled asset URL; transient mount ownership
+tokens prevent a retiring panel from destroying its replacement. No dependency,
+Source write or network authority is added.

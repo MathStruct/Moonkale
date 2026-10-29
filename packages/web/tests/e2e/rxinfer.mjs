@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // ADR-0022: the RxInfer library — a coin's bias as a factor graph built in
 // the panel. The graph is θ ~ Beta(2, 7), with ten flips y ~ Bernoulli(θ)
 // observed as data. The test checks:
@@ -47,7 +48,7 @@ const idsOfKind = async (prefix) => Object.keys(await positions()).filter((k) =>
 // Place a palette block and return the id of the block it created.
 const place = async (name) => {
   const before = new Set(Object.keys(await positions().catch(() => ({}))));
-  await page.click(`.mk-flow-palette-block:text-is('${name}')`);
+  await control(page, 'click', `.mk-flow-palette-block:text-is('${name}')`);
   for (let i = 0; i < 40; i++) {
     const added = Object.keys(await positions()).filter((k) => !before.has(k));
     if (added.length === 1) return added[0];
@@ -97,19 +98,19 @@ try {
   await step("open folder", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
   });
   await step("Extensions panel: enable Flow editor and the RxInfer library", async () => {
-    await page.click("#mk-rail-extensions");
+    await control(page, 'click', "#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Flow editor')) > label input");
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('RxInfer library')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('Flow editor')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('RxInfer library')) > label input");
     await page.waitForFunction(() => /editor-flow/.test(localStorage.getItem("moonkale.settings") || "") && /ext-rxinfer/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
   });
   await step("File → New Flow…; the palette offers variables and factors", async () => {
-    await page.click(".mk-menu-button:has-text('File')");
-    await page.click(".mk-menu-item:has-text('New Flow')");
+    await control(page, 'click', ".mk-menu-button:has-text('File')");
+    await control(page, 'click', ".mk-menu-item:has-text('New Flow')");
     await page.waitForSelector(".mk-flow", { timeout: 15000 });
     await page.waitForSelector(".mk-flow-palette-block", { timeout: 10000 });
     const names = await page.$$eval(".mk-flow-palette-block", (els) => els.map((e) => e.textContent));
@@ -156,7 +157,7 @@ try {
     if (btn.length !== 1) throw new Error(`expected one generator, found ${btn.length}`);
     const label = await btn[0].textContent();
     if (!/RxInfer/.test(label)) throw new Error(`the button does not name the library: ${label}`);
-    await btn[0].click();
+    await control(page, 'click', ".mk-flow-generate");
     await page.waitForFunction(() => /inference\.jl/.test(document.querySelector(".mk-titlebar-title")?.textContent || ""), null, { timeout: 15000 });
     const generated = fs.readFileSync(`${ROOT}/inference.jl`, "utf8");
     if (generated !== GOLDEN) {
@@ -179,10 +180,10 @@ try {
     if (Math.abs(v - 9 / 19) > 1e-9) throw new Error(`the posterior mean is not 9/19 (got ${v})`);
   });
   await step("with ModelingToolkit enabled too, the palette still opens on the document's library", async () => {
-    await page.click("#mk-rail-extensions");
+    await control(page, 'click', "#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
-    await page.click(".wb-tab:has-text('untitled.flow.json')");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
+    await control(page, 'click', ".wb-tab:has-text('untitled.flow.json')");
     await page.waitForSelector(".mk-flow-palette select:visible", { timeout: 10000 });
     const title = await page.$eval(".mk-flow-palette-title:visible", (e) => e.textContent);
     const h = await page.$eval(".mk-flow-palette select:visible", (e) => e.getBoundingClientRect().height);

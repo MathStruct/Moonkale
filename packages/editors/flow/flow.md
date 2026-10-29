@@ -54,3 +54,6 @@ the active document only; the normal generator validation/save path still runs.
 
 
 WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].
+
+
+WP-59 synchronizes block selections with its group context graph. The graph extension projects the flow blocks/wires from the canonical document; no generated-code follower is added.

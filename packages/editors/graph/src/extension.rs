@@ -22,14 +22,22 @@ impl Extension for GraphExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        vec![
-            PanelContribution::new(PANEL_ID, t!(ws, L, "graph-title"), PanelHome::Main)
-                .closable(true)
-                .activity(Activity::new("graph", 80, t!(ws, L, "graph-title"))),
-        ]
+        let mut panels =
+            vec![
+                PanelContribution::new(PANEL_ID, t!(ws, L, "graph-title"), PanelHome::Main)
+                    .closable(true)
+                    .activity(Activity::new("graph", 80, t!(ws, L, "graph-title"))),
+            ];
+        for id in ws.links.views.read().keys() {
+            panels.push(
+                PanelContribution::new(id.clone(), t!(ws, L, "graph-title"), PanelHome::Right)
+                    .closable(true),
+            );
+        }
+        panels
     }
 
-    fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
-        rsx! { GraphPanel { ws } }
+    fn render(&self, panel_id: &str, ws: Workspace) -> Element {
+        rsx! { GraphPanel { ws, panel_id: panel_id.to_string() } }
     }
 }

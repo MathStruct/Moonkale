@@ -96,3 +96,14 @@ the latter verifies that entity events remain source-owned. Later full panel
 query/camera persistence and connection-specific reattachment continue through
 their existing platform services; the named working-set store does not implement
 new connection protocols.
+
+
+WP-59 (validated 2026-10-29): `SavedWorkspace` writes record version
+2 with defaulted `link_groups`, `link_views` and `link_contents`: groups,
+per-instance graph cameras/subjects and lead-to-document identities. Version-1
+rows migrate on read without deleting or rewriting the old record first. Group
+subjects, pins, colours, member roles and bounded navigation belong to the outer
+session; table query graphs remain derived client state. Group navigation
+retains node and row/block selections; side-by-side placements use the saved
+workbench layout. Metadata exchange uses
+the same fields and retains the existing bundle version and size boundary.

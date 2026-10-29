@@ -85,3 +85,9 @@ references remain visible. The LSP2 browser journey checks focus on rename,
 references and actions and return to the editor after applying an action.
 
 WP-56: existing math-markup and image-URL LRUs use platform limits from `moonkale-state::recovery::Budgets`; input/epoch/freshness keys and cache ownership are unchanged.
+
+WP-59 (2026-10-29): linked content views namespace CodeMirror host ids by their
+concrete panel identity while retaining the shared Rust document and history.
+The backend owns one document-wide bundle import; replacing a restored panel
+cannot cancel a head-script load and strand its successor at Loading. Bundle
+and host waits are bounded, with failures using the existing retry surface.

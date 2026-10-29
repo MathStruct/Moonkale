@@ -413,3 +413,12 @@ sessions-import-confirm = 导入
 sessions-invalid = 会话文件无效或超过大小限制。
 settings-session = 会话
 sessions-detail = { $sources } 个来源 · { $minutes } 分钟前
+
+# Linked panels (WP-59)
+link-open-context = 连同上下文打开
+link-to = 链接到…
+link-unlink = 取消链接
+link-pin = 固定此主题
+link-cancel = 取消
+link-active = 跟随当前编辑器
+link-description = 与 { $names } 链接（第 { $number } 组）

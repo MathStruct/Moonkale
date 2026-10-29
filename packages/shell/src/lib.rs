@@ -20,6 +20,7 @@ mod extensions_panel;
 mod frame;
 pub mod icons;
 mod input_layouts;
+mod linked_panels;
 mod palette;
 mod recovery;
 mod remote_dialog;

@@ -83,6 +83,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
 
     let run = {
         let source_id = source_id.clone();
+        let owner = node.id;
         move || {
             let source_id = source_id.clone();
             let text = text.peek().clone();
@@ -99,7 +100,14 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                     }),
                     None => Err(SourceError::NotFound),
                 };
-                result.set(Some(out.map(Rc::new)));
+                let out = out.map(Rc::new);
+                if let Ok(rows) = &out {
+                    let mut ws = ws;
+                    ws.links.results.with_mut(|all| {
+                        all.insert(owner, rows.clone());
+                    });
+                }
+                result.set(Some(out));
                 runs += 1;
                 running.set(false);
             });
@@ -207,7 +215,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                     None => rsx! { p { class: "mk-table-msg", {t!(ws, L, "table-loading")} } },
                     Some(Err(e)) => rsx! { p { class: "mk-table-msg mk-table-error", "{e}" } },
                     Some(Ok(r)) => rsx! {
-                        ResultGrid { key: "{runs}", ws, result: SharedResult(r) }
+                        ResultGrid { key: "{runs}", ws, owner: node.id, result: SharedResult(r) }
                     },
                 }
             }
@@ -253,7 +261,8 @@ fn cell_class(v: &Value) -> &'static str {
 /// (arrows, Page Up/Down, Home/End, Ctrl+Home/End). Sort and filter apply
 /// to the rows loaded — the meta line says so when the source truncated.
 #[component]
-fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
+fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult) -> Element {
+    let instance = use_signal(|| moonkale_ext_api::links::panel_instance(ws.content_panel(owner)));
     let table = result.table();
     let total = table.rows.len();
     let n_cols = table.columns.len();
@@ -275,6 +284,49 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
         move || grid::order(&r.table().rows, sort(), &filter.read())
     });
 
+    moonkale_ext_api::crash::use_effect({
+        let result = result.clone();
+        move || {
+            let subject = ws.link_subject(&instance.read());
+            if let Some(subject) = subject {
+                if let Some(id) = subject.selection.first() {
+                    let row = result.table().rows.iter().position(|row| {
+                        row.iter().any(
+                            |v| matches!(v, Value::Ref { node, .. } if node.to_string() == *id),
+                        )
+                    });
+                    if let Some(row) = row {
+                        if let Some(pos) = order.peek().iter().position(|i| *i == row) {
+                            if cursor.peek().is_none_or(|(current, _)| current != pos) {
+                                cursor.set(Some((pos, 0)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    moonkale_ext_api::crash::use_effect({
+        let result = result.clone();
+        move || {
+            if let Some((pos, _)) = *cursor.read() {
+                if let Some(row) = order
+                    .peek()
+                    .get(pos)
+                    .and_then(|i| result.table().rows.get(*i))
+                {
+                    let selection = row
+                        .iter()
+                        .filter_map(|v| match v {
+                            Value::Ref { node, .. } => Some(node.to_string()),
+                            _ => None,
+                        })
+                        .collect();
+                    ws.select_linked(&instance.peek(), selection);
+                }
+            }
+        }
+    });
     let shown = order.read().len();
     let lefts = grid::lefts(&widths.read());
     let full_w = lefts[n_cols];
@@ -285,6 +337,7 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
     let cur = cursor();
     let sorted = sort();
 
+    let key_result = result.clone();
     let mut go = move |mv: Move| {
         let n = order.peek().len();
         let to = match *cursor.peek() {
@@ -364,6 +417,13 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                 let primary = moonkale_ext_api::keys::primary(&e.modifiers());
                 let left_hand = ws.settings.resolved.peek().keymap == "left-hand" && !primary && !e.modifiers().alt();
                 if e.is_composing() { return; }
+                if e.key() == Key::Enter {
+                    if let Some((row,col)) = *cursor.peek() {
+                        let target = order.peek().get(row).and_then(|i| key_result.table().rows.get(*i)).and_then(|r| r.get(col)).and_then(|v| match v { Value::Ref {node,..} => Some(*node), _ => None });
+                        if let Some(target) = target { e.prevent_default(); e.stop_propagation(); let new_group = e.modifiers().alt(); moonkale_ext_api::crash::spawn(async move { open_reference(ws,target,None,false,new_group).await; }); }
+                    }
+                    return;
+                }
                 let mv = match e.key() {
                     Key::Tab if left_hand && e.modifiers().shift() => Move::Previous,
                     Key::Tab if left_hand => Move::Next,
@@ -447,6 +507,7 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                                             let text = match v { Value::DateTime(d) => d.display(&ws.lang()), _ => grid::cell_text(v) };
                                             let target = match v { Value::Ref { node, .. } => Some(*node), _ => None };
                                             let known = target.and_then(|id| result.0.nodes.iter().find(|n| n.id == id).cloned().or_else(|| ws.open_node_by_id(id)));
+                                            let double_known = known.clone();
                                             let points = match v { Value::Vector(v) => Some(grid::sparkline(v)), _ => None };
                                             let at = cur == Some((pos, c));
                                             rsx! {
@@ -457,13 +518,19 @@ fn ResultGrid(ws: Workspace, result: SharedResult) -> Element {
                                                     style: "width: {widths.read()[c]}px;",
                                                     title: if matches!(v, Value::Text(_)) { "{text}" } else { "" },
                                                     onclick: moonkale_ext_api::crash::event(move |_| cursor.set(Some((pos, c)))),
+                                                    ondoubleclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
+                                                        if let Some(target) = target { let known = double_known.clone(); let new_group = e.modifiers().alt(); moonkale_ext_api::crash::spawn(async move { open_reference(ws,target,known,false,new_group).await; }); }
+                                                    }),
                                                     if let Some(target) = target {
                                                         { let beside = known.clone(); rsx! { button { class: "mk-cell-ref", role: "link", onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                                             e.stop_propagation();
                                                             let known = known.clone();
-                                                            moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, known, false).await; });
+                                                            if ws.link_origin(owner).is_some() {
+                                                                let panel = ws.links.focused.peek().clone().unwrap_or_else(|| ws.content_panel(owner));
+                                                                ws.select_linked(&panel, vec![target.to_string()]);
+                                                            } else { moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, known, false, false).await; }); }
                                                         }), onauxclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::PointerEvent| {
-                                                            if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { e.prevent_default(); e.stop_propagation(); let node = beside.clone(); moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, node, true).await; }); }
+                                                            if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { e.prevent_default(); e.stop_propagation(); let node = beside.clone(); moonkale_ext_api::crash::spawn(async move { open_reference(ws, target, node, true, false).await; }); }
                                                         }), "{text}" } } }
                                                     } else if let Some(points) = points {
                                                         svg { class: "mk-cell-vector", view_box: "0 0 100 20", width: "100", height: "20",
@@ -492,12 +559,20 @@ async fn open_reference(
     target: moonkale_core::NodeId,
     known: Option<Node>,
     background: bool,
+    new_group: bool,
 ) {
+    let origin = ws.links.focused.peek().clone();
     if let Some(node) = known {
         if background {
             let _ = ws.load_node_guarded(node, || true).await;
         } else {
-            let _ = ws.open_node(node).await;
+            if new_group {
+                let _ = ws.open_with_context(node).await;
+            } else if let Some(panel) = &origin {
+                let _ = ws.steer_linked(panel, node).await;
+            } else {
+                let _ = ws.open_node(node).await;
+            }
         }
         return;
     }
@@ -515,7 +590,13 @@ async fn open_reference(
                     if background {
                         let _ = ws.load_node_guarded(node, || true).await;
                     } else {
-                        let _ = ws.open_node(node).await;
+                        if new_group {
+                            let _ = ws.open_with_context(node).await;
+                        } else if let Some(panel) = &origin {
+                            let _ = ws.steer_linked(panel, node).await;
+                        } else {
+                            let _ = ws.open_node(node).await;
+                        }
                     }
                     return;
                 }

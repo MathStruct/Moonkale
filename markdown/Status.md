@@ -7,6 +7,16 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Linked panels (WP-59, checked 2026-10-29)
+
+✅ Session-owned groups, marked tabs, independent local graph instances and
+Open with context are built and validated on the contributor branch. Keyboard
+and mouse routes, group steering/Back, selection sync, pin/unlink and close
+rules are included. Model/migration and session tests, browser acceptance,
+private desktop inspection, all AGENTS gates and the full CI browser feature
+matrix pass; see [[Linked Panels]]. Step 6 (other kinds of follower pairs)
+remains later work.
+
 ## Sessions (WP-46, checked 2026-10-28)
 
 Named sessions live in the state store and own source/tab/layout metadata,

@@ -100,6 +100,9 @@ async fn migration_and_two_dirty_sessions_keep_work_and_scope() {
     })
     .await;
     run(&mut dom, ws.open_node(node.clone())).await.unwrap();
+    let link_a = run(&mut dom, ws.open_with_context(node.clone()))
+        .await
+        .unwrap();
     let mut doc_a = ws.document(node.id).unwrap();
     doc_a.write().text = "dirty A".into();
     run(
@@ -163,6 +166,7 @@ async fn migration_and_two_dirty_sessions_keep_work_and_scope() {
         .unwrap()
         .is_none());
     assert!(ws.docs.open.peek().is_empty());
+    assert!(ws.links.groups.peek().is_empty());
     assert!(!ws.settings.resolved.peek().editor.wrap);
     let source = run(&mut dom, ws.open_folder(b.path().display().to_string()))
         .await
@@ -218,6 +222,8 @@ async fn migration_and_two_dirty_sessions_keep_work_and_scope() {
         .await
         .unwrap();
     assert_eq!(*ws.saved_sessions.active.peek(), "default");
+    assert_eq!(ws.links.groups.peek()[0].id, link_a);
+    assert_eq!(ws.links.views.peek().len(), 1);
     assert_eq!(
         std::fs::read_to_string(a.path().join("buffer.txt")).unwrap(),
         "base"

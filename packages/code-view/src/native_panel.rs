@@ -547,7 +547,6 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             Some(Command::Save) => save.call(()),
             Some(Command::Undo) => history.call(true),
             Some(Command::Redo) => history.call(false),
-            Some(Command::CloseEditor) => ws.close_node(node),
             _ => {}
         }
     });

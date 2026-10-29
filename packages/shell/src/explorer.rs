@@ -622,10 +622,15 @@ fn ContextMenu(ws: Workspace, state: TreeState, menu: Menu) -> Element {
         .find(|source| source.descriptor.id == node.source)
         .is_some_and(|source| moonkale_ext_api::workspace::is_derived_cache(&source.descriptor));
     let beside = node.clone();
+    let context_node = node.clone();
     let can_terminal = menu.is_dir && ws.spawn_terminal().is_some();
     rsx! {
         div { class: "mk-ctx", role: "menu", style: "left: {menu.x}px; top: {menu.y}px;", onclick: moonkale_ext_api::crash::event(|e: dioxus::prelude::MouseEvent| e.stop_propagation()),
             if !menu.is_dir {
+                button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| {
+                    state.menu.set(None); let node = context_node.clone();
+                    moonkale_ext_api::crash::spawn(async move { let _ = ws.open_with_context(node).await; });
+                }), {moonkale_ext_api::command_hint("panels.openWithContext", t!(ws, L, "link-open-context")).title} }
                 button { class: "mk-ctx-item", role: "menuitem", onclick: moonkale_ext_api::crash::event(move |_| {
                     state.menu.set(None); let node = beside.clone();
                     moonkale_ext_api::crash::spawn(async move { let _ = ws.load_node_guarded(node, || true).await; });

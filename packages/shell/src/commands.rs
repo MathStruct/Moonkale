@@ -44,6 +44,15 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
     let c = |id: &str, title: String| CommandContribution::new(id, title);
     vec![
         (
+            c("panels.openWithContext", t!(ws, L, "link-open-context")).key("Ctrl+Alt+Enter"),
+            Command::OpenWithContext,
+        ),
+        (c("panels.link", t!(ws, L, "link-to")), Command::LinkPanel),
+        (
+            c("panels.unlink", t!(ws, L, "link-unlink")),
+            Command::UnlinkPanel,
+        ),
+        (
             c("session.switch", t!(ws, L, "sessions-title")).key("Ctrl+Alt+P"),
             Command::Sessions,
         ),

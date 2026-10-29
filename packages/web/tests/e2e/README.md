@@ -729,3 +729,7 @@ covers cross-window transport, rather than named workspace switching.
 Named-session startup can immediately reopen folders and start their watcher
 long polls. Reload checks therefore wait for DOM content and the relevant UI
 state, rather than `networkidle`, which an open watched folder cannot guarantee.
+
+`linked-panels.mjs` (Chromium/SwiftShader) checks two independent local graphs,
+tab stripes and accessible group names, wiki navigation, group Back, lead close
+rules, reload and named-session switching (WP-59). Included in the CI smoke build.

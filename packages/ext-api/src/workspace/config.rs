@@ -353,6 +353,12 @@ pub struct ForeignDrag {
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Open the active content together with an independent local graph.
+    OpenWithContext,
+    /// Choose a link target for the focused tab.
+    LinkPanel,
+    /// Detach the focused tab.
+    UnlinkPanel,
     /// Show the named workspace switcher.
     Sessions,
     /// Toggle the graph panel between whole and local scope.

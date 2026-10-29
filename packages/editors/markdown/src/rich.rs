@@ -220,7 +220,7 @@ pub fn RichPanel(ws: Workspace, node: moonkale_core::NodeId) -> Element {
     let Some(mut doc) = ws.document(node) else {
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
-    let element_id = format!("mk-rich-{node}");
+    let element_id = moonkale_ext_api::links::panel_element_id("mk-rich", node);
     let mut backend: Signal<Option<std::rc::Rc<MilkdownBackend>>> = use_signal(|| None);
     let mut ready = use_signal(|| false);
     let mut error: Signal<Option<String>> = use_signal(|| None);

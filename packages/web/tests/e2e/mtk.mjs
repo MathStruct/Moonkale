@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // ADR-0020's first consumer: the ModelingToolkit library — an RC low-pass
 // built in the panel from acausal pins (the capacitor's negative pin carries
 // two wires: the return and the ground, a bus), generated as circuit.jl and
@@ -189,19 +190,19 @@ try {
   await step("open folder; the ModelingToolkit library is off by default", async () => {
     await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
     await page.waitForSelector(".wb-workspace");
-    await page.click(".mk-explorer-open button[type=submit]");
+    await control(page, 'click', ".mk-explorer-open button[type=submit]");
     await page.waitForFunction(() => document.querySelector(".wb-status-bar").textContent.includes("index:"), null, { timeout: 30000 });
   });
   await step("Extensions panel: enable Flow editor and the ModelingToolkit library (Lux stays off — one library per flow)", async () => {
-    await page.click("#mk-rail-extensions");
+    await control(page, 'click', "#mk-rail-extensions");
     await page.waitForSelector(".mk-settings-ext", { timeout: 10000 });
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('Flow editor')) > label input");
-    await page.click(".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('Flow editor')) > label input");
+    await control(page, 'click', ".mk-settings-ext:has(.mk-settings-ext-name:text-is('ModelingToolkit library')) > label input");
     await page.waitForFunction(() => /editor-flow/.test(localStorage.getItem("moonkale.settings") || "") && /ext-mtk/.test(localStorage.getItem("moonkale.settings") || ""), null, { timeout: 10000 });
   });
   await step("File → New Flow…; the palette offers the acausal components", async () => {
-    await page.click(".mk-menu-button:has-text('File')");
-    await page.click(".mk-menu-item:has-text('New Flow')");
+    await control(page, 'click', ".mk-menu-button:has-text('File')");
+    await control(page, 'click', ".mk-menu-item:has-text('New Flow')");
     await page.waitForSelector(".mk-flow", { timeout: 15000 });
     await page.waitForSelector(".mk-flow-palette-block", { timeout: 10000 });
     const names = await page.$$eval(".mk-flow-palette-block", (els) => els.map((e) => e.textContent));
@@ -210,7 +211,7 @@ try {
   });
   await step("place Voltage, Resistor, Capacitor, Ground; the unwired pins are issues", async () => {
     for (const b of ["Voltage", "Resistor", "Capacitor", "Ground"]) {
-      await page.click(`.mk-flow-palette-block:text-is('${b}')`);
+      await control(page, 'click', `.mk-flow-palette-block:text-is('${b}')`);
     }
     await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "4", null, { timeout: 10000 });
     const s = await status();
@@ -243,7 +244,7 @@ try {
     await page.screenshot({ path: `${S}/mtk-rc.png` });
   });
   await step("a wire between domains is refused (an electrical pin onto a mechanical flange)", async () => {
-    await page.click(".mk-flow-palette-block:text-is('Mass')");
+    await control(page, 'click', ".mk-flow-palette-block:text-is('Mass')");
     await sleep(300);
     const m = await idOfKind("Mass"), r = await idOfKind("Resistor");
     await dragPin(r, "p", m, "flange");
@@ -268,7 +269,7 @@ try {
     if (btn.length !== 1) throw new Error(`expected one generator, found ${btn.length}`);
     const label = await btn[0].textContent();
     if (!/ModelingToolkit/.test(label)) throw new Error(`the button does not name the library: ${label}`);
-    await btn[0].click();
+    await control(page, 'click', ".mk-flow-generate");
     await page.waitForFunction(() => /circuit\.jl/.test(document.querySelector(".mk-titlebar-title")?.textContent || ""), null, { timeout: 15000 });
     const generated = fs.readFileSync(`${ROOT}/circuit.jl`, "utf8");
     if (generated !== GOLDEN_RC) {
@@ -278,12 +279,12 @@ try {
       throw new Error("the generated circuit.jl differs from the golden");
     }
     // circuit.jl's tab is on top now — the flow's palette lives behind it.
-    await page.click(".wb-tab:has-text('untitled.flow.json')");
+    await control(page, 'click', ".wb-tab:has-text('untitled.flow.json')");
     await sleep(300);
   });
   await step("the mechanical half: a spring-mass released from s0 = 0.1 m beside the RC", async () => {
     for (const b of ["Fixed", "Spring", "Mass"]) {
-      await page.click(`.mk-flow-palette-block:text-is('${b}')`);
+      await control(page, 'click', `.mk-flow-palette-block:text-is('${b}')`);
     }
     await page.waitForFunction(() => document.querySelector(".mk-flow-status")?.dataset.blocks === "7", null, { timeout: 10000 });
     // The scene grew: the panel refits past the fitted box — let the
@@ -328,7 +329,7 @@ try {
   });
   await step("Generate again — the mixed circuit, byte-exact against its golden", async () => {
     const btn = await page.$$(".mk-flow-generate");
-    await btn[0].click();
+    await control(page, 'click', ".mk-flow-generate");
     await page.waitForTimeout(600); // circuit.jl is already open; the write is the event
     const generated = fs.readFileSync(`${ROOT}/circuit.jl`, "utf8");
     if (generated !== GOLDEN_MIXED) {
@@ -354,7 +355,7 @@ try {
   });
   await step("stage C: an RC filter inside a subsystem — the flatten merges the nets", async () => {
     fs.writeFileSync(`${ROOT}/sub-rc.flow.json`, SUBSYSTEM_RC);
-    await page.click(".mk-tree-row[title='sub-rc.flow.json']");
+    await control(page, 'click', ".mk-tree-row[title='sub-rc.flow.json']");
     await page.waitForSelector(".mk-flow:visible", { timeout: 15000 });
     // The boundary is wired on both sides, so the document is clean.
     await page.waitForFunction(() => {
@@ -367,7 +368,7 @@ try {
     await page.screenshot({ path: `${S}/mtk-subsystem.png` });
     // Generate: the subsystem flattens — the golden holds the
     // per-instance names and the boundary-free connect lines.
-    await page.click(".mk-flow:visible .mk-flow-generate");
+    await control(page, 'click', ".mk-flow:visible .mk-flow-generate");
     await page.waitForFunction(() => {
       const t = document.querySelector(".mk-titlebar-title")?.textContent || "";
       return /circuit\.jl/.test(t);
@@ -394,7 +395,7 @@ try {
   });
   await step("ADR-0024 §5: R stands a resistor upright, the mirror button flips it, the file keeps both", async () => {
     fs.writeFileSync(`${ROOT}/turn.flow.json`, JSON.stringify({ version: 1, blocks: [{ id: "r1", kind: "mtk/resistor", x: 0, y: 0, params: { R: "1.0" } }], wires: [] }));
-    await page.click(".mk-tree-row[title='turn.flow.json']");
+    await control(page, 'click', ".mk-tree-row[title='turn.flow.json']");
     await page.waitForFunction(() => [...document.querySelectorAll(".mk-flow-status")].some((e) => e.offsetParent !== null && e.dataset.blocks === "1"), null, { timeout: 15000 });
     await sleep(800);
     // Several flow tabs are open by now: ask the visible one's view.
@@ -417,7 +418,7 @@ try {
     const down = await portOf("r1", "n");
     console.log(`\n  turned: p ${up.map((n) => n.toFixed(0))}, n ${down.map((n) => n.toFixed(0))}, centre ${c.map((n) => n.toFixed(0))}`);
     if (!(up[1] < c[1] - 5 && down[1] > c[1] + 5)) throw new Error("R did not stand the resistor upright");
-    await page.click(".mk-flow-props .mk-flow-mirror");
+    await control(page, 'click', ".mk-flow-props .mk-flow-mirror");
     await sleep(400);
     await page.keyboard.press("Control+s");
     let saved = "";

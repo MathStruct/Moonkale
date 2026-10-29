@@ -1191,6 +1191,38 @@ impl GraphView {
         true
     }
 
+    /// Set a host-linked selection by existing instance ids, without emitting
+    /// an event back to the host. Bounded input prevents feedback loops and
+    /// keeps unrelated or stale identities out of the selection.
+    pub fn select_nodes(&self, json: &str) -> bool {
+        if json.len() > 1024 * 1024 {
+            return false;
+        }
+        let Ok(ids) = serde_json::from_str::<Vec<String>>(json) else {
+            return false;
+        };
+        if ids.len() > 4096 || ids.iter().any(|id| id.len() > 256) {
+            return false;
+        }
+        let mut s = self.state.borrow_mut();
+        let available: std::collections::HashSet<_> =
+            s.graph.nodes.iter().map(|n| n.id.as_str()).collect();
+        let nodes = ids
+            .into_iter()
+            .filter(|id| available.contains(id.as_str()))
+            .collect();
+        let selection = frame::Selection {
+            nodes,
+            edges: Default::default(),
+        };
+        if selection != s.selected {
+            s.selected = selection;
+            s.sel_rev += 1;
+            s.dirty = true;
+        }
+        true
+    }
+
     /// The current selection as `{"nodes":[…],"edges":[…]}` — for tests
     /// (spec 031 §5).
     pub fn selection_state(&self) -> String {

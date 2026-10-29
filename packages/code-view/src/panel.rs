@@ -18,7 +18,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     let Some(mut doc) = ws.document(node) else {
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
-    let element_id = format!("mk-editor-{node}");
+    let element_id = moonkale_ext_api::links::panel_element_id("mk-editor", node);
     let mut backend: Signal<Option<Box<dyn CodeEditorBackend>>> = use_signal(|| None);
     // LSP identity: language + folder root + file URI, when the file lives in a folder.
     let lsp_ident: Option<(String, String, String)> = {
@@ -573,7 +573,6 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
                     b.redo();
                 }
             }
-            Some(Command::CloseEditor) => ws.close_node(node),
             Some(Command::Editor(action)) => {
                 if let Some(b) = backend.peek().as_ref() {
                     b.run(action);
@@ -689,7 +688,6 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     };
     rsx! {
             moonkale_ext_api::Stylesheet { href: PANEL_CSS }
-            document::Script { src: backend::codemirror::BUNDLE, defer: true }
             div {
                 class: "mk-editor",
                 "data-editor": "codemirror",

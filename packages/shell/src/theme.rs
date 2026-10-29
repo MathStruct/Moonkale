@@ -23,6 +23,14 @@ use std::collections::BTreeMap;
 
 /// `(token, dark, light)`: the whole palette.
 pub const TOKENS: &[(&str, &str, &str)] = &[
+    ("link-1", "#b7a1f3", "#7356af"),
+    ("link-2", "#83cbd0", "#327d83"),
+    ("link-3", "#dcade1", "#98579f"),
+    ("link-4", "#a6bdee", "#526fac"),
+    ("link-5", "#d7c58d", "#8c7734"),
+    ("link-6", "#a7c7ad", "#587e60"),
+    ("link-7", "#d5adb7", "#956573"),
+    ("link-8", "#b7c3cf", "#667888"),
     ("canvas", "#0f1116", "#f3f4f6"),   // the app's backdrop
     ("surface", "#161922", "#ffffff"),  // panels, popups
     ("sunken", "#0b0d12", "#eceef2"),   // inputs, the title bar, terminals

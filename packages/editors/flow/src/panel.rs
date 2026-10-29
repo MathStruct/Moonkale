@@ -750,6 +750,7 @@ themeObserver.observe(document.documentElement, { attributes: true, attributeFil
 window.addEventListener("moonkale-theme", retheme);
 for (;;) {
     const msg = await dioxus.recv();
+    if (msg.kind === "selectLinked") { view.select_nodes(JSON.stringify(msg.nodes)); continue; }
     if (msg.kind === "setGraph") view.set_graph(JSON.stringify(msg.scene));
     else if (msg.kind === "fit") view.fit();
     else if (msg.kind === "grid") view.set_grid(msg.spacing);
@@ -760,7 +761,7 @@ for (;;) {
     }
     else if (msg.kind === "destroy") {
         ro.disconnect(); themeObserver.disconnect(); window.removeEventListener("moonkale-theme", retheme);
-        view.destroy(); delete window.moonkale.flowViews[ID]; break;
+        view.destroy(); if (window.moonkale.flowViews[ID] === view) delete window.moonkale.flowViews[ID]; break;
     }
 }
 "#;
@@ -805,7 +806,21 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
     // One DOM id per panel: two split views show two flows at once, and
     // the canvas ids and `flowViews` key derive from it — a fixed id
     // made the second view draw into the first's canvas (the review's #6).
-    let id = use_hook(|| format!("mk-flow-{node}"));
+    let instance = use_signal(|| moonkale_ext_api::links::panel_instance(ws.content_panel(node)));
+    let id = use_hook(|| moonkale_ext_api::links::panel_element_id("mk-flow", node));
+
+    moonkale_ext_api::crash::use_effect(move || {
+        let subject = ws.link_subject(&instance.read());
+        if let Some(subject) = subject {
+            if selected.peek().0 != subject.selection {
+                selected.set((subject.selection.clone(), Vec::new()));
+                if let Some(ev) = *eval.read() {
+                    let _ = ev
+                        .send(serde_json::json!({"kind":"selectLinked","nodes":subject.selection}));
+                }
+            }
+        }
+    });
 
     let mut fitted: Signal<Option<[f64; 4]>> = use_signal(|| None);
     let mut fitted_scope: Signal<Vec<String>> = use_signal(Vec::new);
@@ -870,6 +885,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                         Ok(FromJs::Ready) => {}
                         Ok(FromJs::Error { message }) => error.set(Some(message)),
                         Ok(FromJs::Select { nodes, edges }) => {
+                            ws.select_linked(&instance.peek(), nodes.clone());
                             // An empty-canvas click pops a scope open
                             // (ADR-0021 §4) — the way out beside Escape.
                             if nodes.is_empty() && !scope.read().is_empty() {

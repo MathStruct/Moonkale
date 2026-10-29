@@ -52,6 +52,9 @@ impl Workspace {
 
     /// Move through visits without changing the browser's page history.
     pub fn navigate(mut self, forward: bool) {
+        if self.navigate_linked(forward) {
+            return;
+        }
         let target = self.navigation.0.with_mut(|history| {
             let next = if forward {
                 history.cursor.checked_add(1)

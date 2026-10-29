@@ -1,15 +1,11 @@
 ---
 title: "Linked panels — a node's content and its context, together and marked as belonging together"
 description: Panels that belong together (a node's content and the local graph around it, its backlinks, its rows, its plot) form a link group. They follow one subject, stay in sync, and are visibly marked (a shared tab colour plus a marker, never colour alone). Requested 2026-10-14; the plan, decided defaults, and the implementation steps.
-tags: [editors, workbench, graph, spec, planned]
+tags: [editors, workbench, graph, spec, implementation]
 ---
 **From Daniel (2026-10-14):** certain panels should be linked, for example the context graph of a node (the graph locally around it) and the node's content. Tabs that belong together share a colour, or are otherwise visibly marked.
 
-**Today:**
-- The graph panel's **Local** mode centres on the **active document**: one global, implicit link ("follow the editor"), with the Whole view stashed and restored (Milestone 16).
-- The Links panel follows the active document the same way.
-- There is only one graph panel, so two documents can't each show their own neighbourhood.
-- Nothing marks which panels follow what.
+**Implemented and validated (WP-59, 2026-10-29):** steps 1–5 are built. The global graph retains active-editor following; named groups own independent local graph views. The Links panel still follows the active document. Validation and later work are recorded in the implementation notes below.
 
 ## Concepts
 
@@ -87,3 +83,48 @@ Acceptance (browser suite `linked-panels.mjs`):
 - the groups survive a reload.
 
 Work package: WP-59 in [[Work Packages]].
+
+## WP-59 implementation notes (2026-10-29)
+
+The ext-api link model owns subjects, members, lead/follower roles, following
+modes and bounded group navigation. `SavedWorkspace` record version 2 adds groups
+and graph view/camera metadata plus lead-to-document identities; version 1
+migrates on read through defaulted
+fields. Content remains in its document signal. Each group has a stable lead
+panel identity, allowing two groups to view the same document independently.
+The shell resolves these identities through the winning editor contribution.
+
+Tab accessories carry numbered markers; eight light/dark theme tokens provide
+the stripe, hover outline and faint toolbar tint. Accessible names name the
+other members and group number. The original Graph tab carries ↯. Commands
+use the effective keymap; the Explorer and tab context menus provide pointer
+routes. Shift+F10 opens a focused tab's menu. Alt-drag links tabs without
+changing their placement. Unlinking a graph retains its view and subject.
+
+Graph instances use separate engine views, cameras and Whole/Local stashes.
+Wiki navigation and graph steering update their originating group. Table
+results and flow blocks supply their own context graph and selection identities.
+Group Back/Forward retains node and block/row selection independently of edit
+history. Closing a lead removes its
+group-following graphs; pinned contexts retain their subject and colour.
+
+Automatic side-by-side placements are persisted with the workbench layout;
+restoration also reconstructs pairs for records lacking those placements. Editor
+DOM hosts are keyed by panel instance. CodeMirror loads its bundled module once
+per document and checks mount ownership before applying messages or destroying
+a host, so remounts cannot remove a replacement editor.
+
+Validation passes: model, version-1 migration, navigation, pin/unlink, import
+bounds and close-rule unit tests; `linked-panels.mjs` (including opening an
+existing lead behind Settings, session switch and reload with both editors
+visible); all AGENTS gates; and the full smoke, structural, Sophia and
+platform-default graph browser matrix. A private desktop screenshot was
+inspected with two restored, marked note/graph pairs side by side; persisted
+metadata and unchanged source files were checked. The remount fixes also pass
+sessions, keyboard/mouse journeys, properties and CodeMirror search regressions.
+Link coordination is currently within one workspace window; cross-window group
+transport remains later work.
+
+**Step 6, “Beyond the graph”, remains later work:** generated-code pairs,
+conversations/files, runs/plots, proposals/diffs and commits/files are not added
+by WP-59.

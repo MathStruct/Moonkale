@@ -31,12 +31,87 @@ pub struct SavedWorkspace {
     #[serde(default)]
     /// Soft-deleted session retained in the store.
     pub archived: bool,
+    /// Linked panels, pins and independent subjects.
+    #[serde(default)]
+    pub link_groups: Vec<crate::links::LinkGroup>,
+    /// Camera and detached graph instance state.
+    #[serde(default)]
+    pub link_views: BTreeMap<String, crate::links::LinkView>,
+    /// Content instance identities, including detached views.
+    #[serde(default)]
+    pub link_contents: BTreeMap<String, NodeId>,
 }
 impl Record for SavedWorkspace {
     const TABLE: &'static str = moonkale_state::tables::SESSIONS;
-    const VERSION: u32 = 1;
+    const VERSION: u32 = 2;
 }
 impl SavedWorkspace {
+    /// Validate bounded link metadata before attaching imported or stored state.
+    pub fn validate_links(&self) -> Result<(), String> {
+        use crate::links::{Follow, Role};
+        let id_ok = |id: &str| {
+            !id.is_empty()
+                && id.len() <= 128
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_:".contains(&b))
+        };
+        let subject_ok = |s: &crate::links::Subject| {
+            s.selection.len() <= 4096 && s.selection.iter().all(|id| id.len() <= 256)
+        };
+        let mut members = std::collections::BTreeSet::new();
+        let mut ids = std::collections::BTreeSet::new();
+        if self.link_groups.len() > 256
+            || self.link_views.len() > 256
+            || self.link_contents.len() > 4096
+        {
+            return Err("link metadata limits exceeded".into());
+        }
+        for g in &self.link_groups {
+            if !id_ok(&g.id)
+                || !ids.insert(&g.id)
+                || !(1..=8).contains(&g.colour)
+                || g.number == 0
+                || g.members.is_empty()
+                || g.members.len() > 64
+                || g.history.is_empty()
+                || g.history.len() > 256
+                || g.cursor >= g.history.len()
+                || !subject_ok(&g.subject)
+                || g.history.iter().any(|s| !subject_ok(s))
+                || g.members
+                    .iter()
+                    .filter(|(_, r, _)| *r == Role::Lead)
+                    .count()
+                    > 1
+            {
+                return Err("invalid link group".into());
+            }
+            for (id, _, follow) in &g.members {
+                if !id_ok(id)
+                    || !members.insert(id)
+                    || matches!(follow, Follow::Pinned(s) if !subject_ok(s))
+                {
+                    return Err("invalid link member".into());
+                }
+            }
+        }
+        for (id, view) in &self.link_views {
+            if !id_ok(id)
+                || !id.starts_with("graph:")
+                || !subject_ok(&view.detached)
+                || view
+                    .camera
+                    .is_some_and(|c| c.iter().any(|n| !n.is_finite()) || c[0] <= 0.0 || c[6] <= 0.0)
+            {
+                return Err("invalid link view".into());
+            }
+        }
+        if self.link_contents.keys().any(|id| !id_ok(id)) {
+            return Err("invalid content view".into());
+        }
+        Ok(())
+    }
     fn empty(id: String, name: String) -> Self {
         Self {
             id,
@@ -48,6 +123,9 @@ impl SavedWorkspace {
             settings: SettingsFile::new(),
             layout: LayoutRecord::default(),
             archived: false,
+            link_groups: Vec::new(),
+            link_views: BTreeMap::new(),
+            link_contents: BTreeMap::new(),
         }
     }
 }
@@ -177,8 +255,10 @@ impl Workspace {
         let rows = (store.scan)(SavedWorkspace::TABLE.into(), Vec::new()).await?;
         let mut sessions = Vec::new();
         for (_, value) in rows {
-            sessions
-                .push(moonkale_state::decode::<SavedWorkspace>(&value).map_err(|e| e.to_string())?);
+            let saved =
+                moonkale_state::decode::<SavedWorkspace>(&value).map_err(|e| e.to_string())?;
+            saved.validate_links()?;
+            sessions.push(saved);
         }
         self.saved_sessions.list.set(sessions);
         // Restore the last selected session. A new Default still follows the
@@ -300,6 +380,9 @@ impl Workspace {
                     .map(|node| (node.source.clone(), node.native_key.clone()))
             });
         }
+        saved.link_groups = self.links.groups.peek().clone();
+        saved.link_views = self.links.views.peek().clone();
+        saved.link_contents = self.links.contents.peek().clone();
         saved.settings = self.saved_sessions.settings.peek().clone();
         saved.layout = LayoutRecord::of(&self.settings.workspace.peek());
         saved
@@ -432,6 +515,11 @@ impl Workspace {
             .saved_sessions
             .live
             .with_mut(|all| all.remove(&saved.id));
+        self.links.groups.set(Vec::new());
+        self.links.views.set(Default::default());
+        self.links.contents.set(Default::default());
+        self.links.results.set(Default::default());
+        self.links.focused.set(None);
         self.docs.open.set(Vec::new());
         self.docs.views.set(Vec::new());
         self.docs.editor_choice.set(Default::default());
@@ -504,6 +592,9 @@ impl Workspace {
                 self.docs.active.set(id);
             }
         }
+        self.links.groups.set(saved.link_groups);
+        self.links.views.set(saved.link_views);
+        self.links.contents.set(saved.link_contents);
         let folder = self.settings.folder.peek().clone();
         if let Some(folder) = folder {
             Box::pin(self.load_history(&folder)).await;
@@ -613,6 +704,7 @@ impl Workspace {
         }
         let mut saved: SavedWorkspace = moonkale_state::session_bundle::parse(text)?;
         validate_name(&saved.name)?;
+        saved.validate_links()?;
         // Imported content cannot grant permissions or automatic tool writes.
         saved.settings = saved.settings.without_authority().0;
         if saved.sources.len() > 256 || saved.documents.len() > 4096 {

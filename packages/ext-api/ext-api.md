@@ -124,3 +124,6 @@ state saves commit metadata and active-session selection together. Settings
 resolve user < session < folder < environment. Recovery/layout and local
 conversation keys are session-scoped. The window bus sends a Scoped envelope.
 Public enum additions and wire fields are listed in CHANGELOG.md.
+
+
+WP-59 adds Workspace.links, group-local subjects/navigation and version-2 saved workspace metadata. Old session rows default to no links; core Source APIs are unchanged.

@@ -390,6 +390,14 @@ pub fn Shell() -> Element {
                     ws.set_status(t!(ws, L, "status-saved", n = n));
                 });
             }
+            Some(Command::CloseEditor) => {
+                let panel = ws.links.focused.peek().clone();
+                if !panel.as_ref().is_some_and(|p| ws.close_content_panel(p)) {
+                    if let Some(node) = *ws.docs.active.peek() {
+                        ws.close_node(node);
+                    }
+                }
+            }
             Some(Command::CloseAllEditors) => {
                 let clean: Vec<moonkale_core::NodeId> = ws
                     .docs
@@ -443,12 +451,117 @@ pub fn Shell() -> Element {
 
     let mut tab_navigation = use_signal(|| None::<moonkale_core::NodeId>);
 
+    let mut placed_links = use_signal(std::collections::BTreeSet::<String>::new);
+    use_effect({
+        let exts = exts.clone();
+        move || {
+            if *ws.saved_sessions.switching.read() {
+                return;
+            }
+            let saved_layout = ws
+                .settings
+                .workspace
+                .peek()
+                .layout
+                .as_deref()
+                .and_then(PanelLayout::decode);
+            let mut changed_layout = None;
+            let groups = ws.links.groups.read().clone();
+            let session = ws.saved_sessions.active.read().clone();
+            for group in &groups {
+                let key = format!("{session}:{}", group.id);
+                if placed_links.peek().contains(&key) {
+                    continue;
+                }
+                let lead = group
+                    .members
+                    .iter()
+                    .find(|(_, r, _)| *r == moonkale_ext_api::links::Role::Lead)
+                    .map(|(p, _, _)| PanelId::from(p.as_str()));
+                let graph = group
+                    .members
+                    .iter()
+                    .find(|(p, _, _)| p.starts_with("graph:"))
+                    .map(|(p, _, _)| PanelId::from(p.as_str()));
+                let (Some(lead), Some(graph)) = (lead, graph) else {
+                    continue;
+                };
+                let mut target = if *narrow.peek() { phone_layout } else { layout };
+                let mut next = target.peek().clone();
+                let already_placed = next.tile_for_panel(&graph).is_some();
+                let settings = ws.settings.resolved.peek().extensions.clone();
+                let placements = contributions(&exts, &settings, ws, false)
+                    .into_iter()
+                    .map(|(_, c)| {
+                        PanelPlacement::new(
+                            PanelId::from(c.id),
+                            TileId::from(home_tile(*narrow.peek(), c.home)),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                next.reconcile(&placements);
+                let retained = saved_layout
+                    .as_ref()
+                    .is_some_and(|saved| saved.tile_for_panel(&graph).is_some());
+                if !already_placed || !retained {
+                    // Keep the new pair beside the previous pair, so both
+                    // leads remain visible instead of sharing one tab strip.
+                    if let Some(other) = groups
+                        .iter()
+                        .filter(|g| {
+                            g.id != group.id
+                                && placed_links.peek().contains(&format!("{session}:{}", g.id))
+                        })
+                        .flat_map(|g| &g.members)
+                        .find(|(p, _, _)| {
+                            p.starts_with("graph:")
+                                && next.tile_for_panel(&PanelId::from(p.as_str())).is_some()
+                        })
+                    {
+                        if let Some(tile) = next.tile_for_panel(&PanelId::from(other.0.as_str())) {
+                            next.dock_panel(&lead, &tile, DockZone::Right);
+                        }
+                    }
+                    if let Some(tile) = next.tile_for_panel(&lead) {
+                        next.dock_panel(&graph, &tile, DockZone::Right);
+                    }
+                    balance_link_tiles(&mut next.root);
+                    next.activate(&lead);
+                    changed_layout = Some(next.clone());
+                    target.set(next);
+                    ws.links.focused.set(Some(lead.to_string()));
+                    ws.focus_element(&format!("wb-tab-{}", lead.as_str().replace(':', "-")));
+                }
+                placed_links.with_mut(|ids| {
+                    ids.insert(key);
+                });
+            }
+            if let Some(next) = changed_layout {
+                on_layout_change(next);
+            }
+        }
+    });
+
     // Collect panels from every extension. `panels()` reads workspace
     // signals, so this render re-runs when documents open/close or turn dirty.
     let mut panels = Vec::new();
     let mut owner: HashMap<String, usize> = HashMap::new();
     let mut active_panel: Option<PanelId> = None;
     let active_node = *ws.docs.active.read();
+    let linked_activation = ws
+        .links
+        .focused
+        .peek()
+        .as_ref()
+        .and_then(|panel| ws.panel_group(panel))
+        .filter(|group| Some(group.subject.node) == active_node)
+        .and_then(|group| {
+            group
+                .members
+                .into_iter()
+                .find(|(_, role, _)| *role == moonkale_ext_api::links::Role::Lead)
+                .map(|(panel, _, _)| panel)
+        });
     // Activation is a navigation edge. Workbench remounts on layout changes;
     // replaying the last document here would override its retained active tabs.
     let activate_document = use_document_activation(active_node);
@@ -505,7 +618,10 @@ pub fn Shell() -> Element {
             }
             is_static.insert(c.id.clone(), c.node.is_none());
             present.push(c.id.clone());
-            if c.node.is_some() && c.node == active_node {
+            if c.node.is_some()
+                && c.node == active_node
+                && linked_activation.as_ref().is_none_or(|id| id == &c.id)
+            {
                 if activate_document {
                     active_panel = Some(PanelId::from(c.id.as_str()));
                 }
@@ -513,11 +629,15 @@ pub fn Shell() -> Element {
             }
             let home = home_tile(is_narrow, c.home);
             let content = rsx! { ExtensionPanel {
-                ws, index: i, panel_id: c.id.clone(), title: c.title.clone()
+                key: "{c.id}", ws, index: i, panel_id: c.id.clone(), title: c.title.clone()
             } };
             let mut panel = Panel::new(c.id.as_str(), c.title.as_str(), home, content)
                 .with_closable(c.closable)
                 .with_home_zone(home_zone(&current_layout, home));
+            let link = ws.panel_group(&c.id);
+            if let Some(group) = &link {
+                panel = panel.with_class(format!("mk-link-{}", group.colour));
+            }
             // Tab accessories: the unsaved dot, and the git status letter of
             // the document's file (Milestone 7).
             let vcs = c.node.and_then(|n| ws.document(n)).and_then(|d| {
@@ -536,9 +656,11 @@ pub fn Shell() -> Element {
                     }
                     None => Vec::new(),
                 };
-            if c.dirty || vcs.is_some() || !here.is_empty() {
+            if c.dirty || vcs.is_some() || !here.is_empty() || link.is_some() || c.id == "graph" {
                 let dirty = c.dirty;
                 panel = panel.with_tab_accessory(rsx! {
+                    if let Some(group) = link { span { class: "mk-link-marker mk-link-{group.colour}", "{group.marker()}" } }
+                    else if c.id == "graph" { span { class: "mk-link-marker", title: t!(ws, L, "link-active"), "↯" } }
                     if dirty { span { class: "mk-tab-dirty", "aria-label": "Unsaved changes" } }
                     if let Some(m) = vcs { span { class: "mk-tab-mark {m.class}", "data-status": "{m.letter}", title: "{m.title}", "{m.letter}" } }
                     for m in here.iter() {
@@ -586,6 +708,9 @@ pub fn Shell() -> Element {
     // A user-selected retained tab is foreground navigation too. Programmatic
     // activation during restore does not call the workbench's event callback.
     let on_activate = move |id: PanelId| {
+        if ws.links.focused.peek().as_deref() != Some(id.as_str()) {
+            ws.links.focused.set(Some(id.to_string()));
+        }
         if let Some(node) = document_nodes
             .get(id.as_str())
             .and_then(|node| ws.open_node_by_id(*node))
@@ -607,6 +732,10 @@ pub fn Shell() -> Element {
         let exts = exts.clone();
         move |id: PanelId| {
             let id_str = id.to_string();
+            if ws.close_content_panel(&id_str) {
+                return;
+            }
+            ws.close_linked_panel(&id_str);
             if let Some(&i) = owner.get(&id_str) {
                 exts[i].on_panel_closed(&id_str, ws);
             }
@@ -621,6 +750,10 @@ pub fn Shell() -> Element {
         }
     };
 
+    let link_panels: Vec<_> = panels
+        .iter()
+        .map(|p| (p.id.to_string(), p.title.clone()))
+        .collect();
     let status = ws.shell.status.read().clone();
     let _ = ws.session.presence.read();
     let others = ws.others();
@@ -803,6 +936,7 @@ pub fn Shell() -> Element {
 
     rsx! {
         moonkale_ext_api::Stylesheet { href: SHELL_CSS }
+        crate::linked_panels::LinkedPanels { ws, panels: link_panels }
         div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, "data-theme": "{theme}", onmounted: start_narrow_watch,
             Workbench {
                 rail: rsx! {
@@ -1011,12 +1145,19 @@ fn ExtensionPanel(ws: Workspace, index: usize, panel_id: String, title: String) 
     let exts = use_context::<Extensions_>().0;
     let ext = &exts[index];
     let manifest = ext.manifest();
+    use_context_provider(|| moonkale_ext_api::links::PanelOrigin(panel_id.clone()));
     use_context_provider(|| moonkale_ext_api::icons::ChromeOwner(manifest.clone()));
     let id = manifest.id;
     let guard = use_context_provider(|| moonkale_ext_api::crash::ExtensionGuard::new(ws, id));
+    let render_id = ws
+        .linked_content(&panel_id)
+        .map(|node| ws.content_panel(node))
+        .unwrap_or_else(|| panel_id.clone());
     let content = guard
-        .run(|| ext.render(&panel_id, ws))
+        .run(|| ext.render(&render_id, ws))
         .unwrap_or_else(VNode::empty);
+    let content =
+        rsx! { div { key: "{panel_id}:{render_id}", class: "mk-linked-content", {content} } };
     let settings = guard
         .run(|| ext.settings(ws, moonkale_ext_api::SettingsTarget::User))
         .flatten();
@@ -1027,6 +1168,31 @@ fn ExtensionPanel(ws: Workspace, index: usize, panel_id: String, title: String) 
         settings,
         ext.manifest().name.to_string(),
     )
+}
+
+// Balance only splits whose two children contain linked panels. The rail,
+// sidebar, terminal and manually placed unrelated tiles retain their ratios.
+fn balance_link_tiles(node: &mut LayoutNode) -> usize {
+    match node {
+        LayoutNode::Tile(tile) => usize::from(
+            tile.panels
+                .iter()
+                .any(|p| p.as_str().starts_with("lead:") || p.as_str().starts_with("graph:")),
+        ),
+        LayoutNode::Split {
+            first,
+            second,
+            ratio,
+            ..
+        } => {
+            let a = balance_link_tiles(first);
+            let b = balance_link_tiles(second);
+            if a > 0 && b > 0 {
+                *ratio = a as f64 / (a + b) as f64;
+            }
+            a + b
+        }
+    }
 }
 
 /// Where a panel first appears: its declared home, or the single tile of
@@ -1129,7 +1295,48 @@ pub(crate) fn contributions(
             out.push((i, c));
         }
     }
-    out
+    let views = if tracked {
+        ws.links.contents.read().clone()
+    } else {
+        ws.links.contents.peek().clone()
+    };
+    let effective: Vec<_> = views
+        .keys()
+        .map(|id| {
+            let node = if tracked {
+                ws.linked_content(id)
+            } else {
+                moonkale_ext_api::workspace::untracked(|| ws.linked_content(id))
+            };
+            (id.clone(), node)
+        })
+        .collect();
+    out.into_iter()
+        .flat_map(|(i, c)| {
+            let aliases: Vec<_> = effective
+                .iter()
+                .filter(|(_, node)| c.node.is_some() && *node == c.node)
+                .map(|(id, _)| id)
+                .collect();
+            if aliases.is_empty() {
+                // A linked instance can currently display a different document.
+                if views.contains_key(&c.id) {
+                    Vec::new()
+                } else {
+                    vec![(i, c)]
+                }
+            } else {
+                aliases
+                    .into_iter()
+                    .map(|id| {
+                        let mut c = c.clone();
+                        c.id = id.clone();
+                        (i, c)
+                    })
+                    .collect()
+            }
+        })
+        .collect()
 }
 
 fn claim_winner(

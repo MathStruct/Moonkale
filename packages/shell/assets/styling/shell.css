@@ -184,3 +184,28 @@
 .mk-recovery button { margin-inline-start: 8px; }
 .mk-recovery-conflict { position: fixed; inset: 10%; z-index: 1000; overflow: auto; padding: 16px; background: var(--wb-surface); color: var(--wb-ink); border: 1px solid var(--wb-line); }
 .mk-recovery-conflict pre { white-space: pre-wrap; }
+
+/* WP-59: a stripe plus a number, never colour alone. */
+.mk-link-1 { --mk-link-colour: var(--mk-link-1); }
+.mk-link-2 { --mk-link-colour: var(--mk-link-2); }
+.mk-link-3 { --mk-link-colour: var(--mk-link-3); }
+.mk-link-4 { --mk-link-colour: var(--mk-link-4); }
+.mk-link-5 { --mk-link-colour: var(--mk-link-5); }
+.mk-link-6 { --mk-link-colour: var(--mk-link-6); }
+.mk-link-7 { --mk-link-colour: var(--mk-link-7); }
+.mk-link-8 { --mk-link-colour: var(--mk-link-8); }
+.wb-tab[class*="mk-link-"] { box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab.mk-link-hover { outline: 2px solid var(--mk-link-colour); outline-offset: -2px; }
+.wb-panel-content[class*="mk-link-"] :is(.mk-graph-toolbar, .mk-md-modes, .mk-editor-toolbar, .mk-flow-toolbar, .mk-table-toolbar) { background: color-mix(in srgb, var(--mk-link-colour) 12%, var(--mk-surface)); }
+.mk-link-marker { font-weight: 600; margin-inline: 3px; }
+.mk-linked-content { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.mk-linked-content > * { flex: 1; min-height: 0; }
+.mk-link-menu { display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow: auto; }
+.wb-tab:has(.mk-link-marker.mk-link-1) { --mk-link-colour: var(--mk-link-1); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-2) { --mk-link-colour: var(--mk-link-2); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-3) { --mk-link-colour: var(--mk-link-3); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-4) { --mk-link-colour: var(--mk-link-4); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-5) { --mk-link-colour: var(--mk-link-5); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-6) { --mk-link-colour: var(--mk-link-6); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-7) { --mk-link-colour: var(--mk-link-7); box-shadow: inset 0 3px var(--mk-link-colour); }
+.wb-tab:has(.mk-link-marker.mk-link-8) { --mk-link-colour: var(--mk-link-8); box-shadow: inset 0 3px var(--mk-link-colour); }

@@ -16,3 +16,6 @@ Middle-clicking a Ref opens its source-known target in a background tab.
 
 
 WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Detailed density and the extension’s user-selected chrome. Secondary controls stay reachable through a flat ⋯ disclosure. Terminal session tabs and document/query content remain navigation/content. See [[ADR-0027 Simple by default]].
+
+
+WP-59 publishes the current result subgraph to its linked graph and synchronizes Ref-valued row selections with group selection. Query results remain derived, non-persisted state.

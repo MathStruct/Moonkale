@@ -25,7 +25,7 @@ impl Workspace {
         }
     }
 
-    pub(super) fn set_active_document(&mut self, node: Option<NodeId>) {
+    pub(crate) fn set_active_document(&mut self, node: Option<NodeId>) {
         if *self.docs.active.peek() != node {
             if let Some(id) = node {
                 self.visit_document(id);
@@ -56,8 +56,12 @@ impl Workspace {
         current: impl Fn() -> bool,
     ) -> Result<bool, SourceError> {
         let id = node.id;
+        let group = (*self.docs.active.peek()).and_then(|from| self.link_origin(from));
         if !self.open_node_when(node, current).await? {
             return Ok(false);
+        }
+        if let Some(group) = group {
+            self.move_group_lead(&group, id);
         }
         let mut counter = self
             .shared_state(|| RevealCounter(Signal::new_in_scope(0, ScopeId::ROOT)))
@@ -559,6 +563,26 @@ impl Workspace {
 
     /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
+        self.links.results.with_mut(|results| {
+            results.remove(&node);
+        });
+        let leads: Vec<_> = self
+            .links
+            .groups
+            .peek()
+            .iter()
+            .filter(|g| g.subject.node == node)
+            .flat_map(|g| {
+                g.members
+                    .iter()
+                    .filter(|(_, r, _)| *r == crate::links::Role::Lead)
+                    .map(|(p, _, _)| p.clone())
+            })
+            .collect();
+        for lead in leads {
+            self.close_linked_panel(&lead);
+        }
+        self.close_linked_panel(&self.content_panel(node));
         if let Some(doc) = self
             .document(node)
             .filter(|_| self.config.persistence.state.is_some())

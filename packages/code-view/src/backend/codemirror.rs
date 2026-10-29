@@ -149,14 +149,32 @@ enum FromJs {
 }
 
 const SCRIPT: &str = r#"
-const el = document.getElementById(ELEMENT_ID);
-if (!el) { return; }
-while (!(window.moonkale && window.moonkale.codemirror)) {
-    await new Promise((r) => setTimeout(r, 20));
-}
-const cm = window.moonkale.codemirror;
+const registrations = window.__mkCodeMirrorMounts ||= new Map();
+const owner = Symbol();
+registrations.set(ELEMENT_ID, owner);
 const init = await dioxus.recv();
+let el, cm;
 try {
+    // The first restored panel can be replaced before a head Script runs.
+    // Keep one document-owned import alive across those view lifetimes.
+    if (!window.moonkale?.codemirror) {
+        const loading = window.__mkCodeMirrorReady ||= import(new URL(BUNDLE_URL, document.baseURI || location.href).href);
+        try {
+            await Promise.race([loading, new Promise((_, reject) => setTimeout(() => reject(new Error("CodeMirror bundle timed out")), 10000))]);
+        } catch (error) {
+            if (window.__mkCodeMirrorReady === loading) delete window.__mkCodeMirrorReady;
+            throw error;
+        }
+    }
+    cm = window.moonkale?.codemirror;
+    if (!cm) throw new Error("CodeMirror bundle did not initialize");
+    const deadline = Date.now() + 5000;
+    while (!(el = document.getElementById(ELEMENT_ID))) {
+        if (Date.now() >= deadline) throw new Error("CodeMirror host did not mount");
+        await new Promise(resolve => setTimeout(resolve, 20));
+    }
+if (registrations.get(ELEMENT_ID) !== owner) return;
+el.__mkCodeMirrorOwner = owner;
 cm.mount(el, init.text, (changes, length, stamp) => dioxus.send({ kind: "splice", changes, length, stamp }), {
     onHover: (id, line, col) => dioxus.send({ kind: "hover", id, line, col }),
     onDefinition: (line, col) => dioxus.send({ kind: "definition", line, col }),
@@ -182,6 +200,7 @@ cm.mount(el, init.text, (changes, length, stamp) => dioxus.send({ kind: "splice"
 dioxus.send({ kind: "ready" });
 for (;;) {
     const msg = await dioxus.recv();
+    if (registrations.get(ELEMENT_ID) !== owner || el.__mkCodeMirrorOwner !== owner) break;
     if (msg.kind === "setText") cm.setText(el, msg.text, msg.epoch);
     else if (msg.kind === "focus") cm.focus(el);
     else if (msg.kind === "undo") cm.undo(el);
@@ -196,7 +215,7 @@ for (;;) {
     else if (msg.kind === "setWrap") cm.setWrap(el, msg.wrap);
     else if (msg.kind === "setIndentation") cm.setIndentation(el, msg.insert_spaces, msg.width);
     else if (msg.kind === "run") cm.run(el, msg.action);
-    else if (msg.kind === "destroy") { cm.destroy(el); break; }
+    else if (msg.kind === "destroy") { cm.destroy(el); registrations.delete(ELEMENT_ID); delete el.__mkCodeMirrorOwner; break; }
 }
 "#;
 
@@ -230,7 +249,12 @@ impl CodeMirrorBackend {
         on_event: Callback<BackendEvent>,
         binding: crate::group_history::Binding,
     ) -> Self {
-        let script = SCRIPT.replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap());
+        let script = SCRIPT
+            .replace("ELEMENT_ID", &serde_json::to_string(&element_id).unwrap())
+            .replace(
+                "BUNDLE_URL",
+                &serde_json::to_string(&BUNDLE.to_string()).unwrap(),
+            );
         let eval = document::eval(&script);
         // The JS side blocks on the first recv for the initial text.
         let _ = eval.send(ToJs::Init {

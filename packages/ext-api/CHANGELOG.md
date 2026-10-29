@@ -12,6 +12,17 @@ Rules:
 - Additions that cannot break (a new method, a new field on a `#[non_exhaustive]` contribution struct, a `Default`-finished literal, a new `Extension` method with a default) ride along without demanding a release in lockstep.
 - `WorkspaceConfig` and its groups are the **app** side (desktop, web, mobile): they gain fields when a platform service is added, and an app built against an older tag fails to compile until it fills them — by design, so no platform silently lacks a service.
 
+## Unreleased — 2026-10-29 (WP-59)
+
+- `Workspace.links` and `links::{LinkGroup, Subject, Role, Follow, LinkView}`
+  add session-owned panel groups and bounded navigation. `SavedWorkspace`
+  record version 2 adds `link_groups`, `link_views` and `link_contents`;
+  version 1 remains readable.
+  Full Rust literals need the new fields.
+- `Command::{OpenWithContext, LinkPanel, UnlinkPanel}` extend the public enum;
+  exhaustive matches must handle them. `GraphView::select_nodes` is additive:
+  bounded existing instance ids update selection without a feedback event.
+
 ## Unreleased — 2026-10-28 (WP-46)
 
 - `Command::Sessions`, `SettingsTarget::Session` and `SessionMessage::Scoped`

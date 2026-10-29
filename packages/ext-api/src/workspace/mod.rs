@@ -73,6 +73,8 @@ pub fn untracked<R>(f: impl FnOnce() -> R) -> R {
 pub struct Workspace {
     /// Session-only failure state; never written to extension preferences.
     pub crashes: crate::crash::CrashState,
+    /// Panel groups belonging to the current session.
+    pub links: crate::links::LinkState,
     /// Open sources and their change epochs.
     pub sources: SourcesState,
     /// Open documents, views, the active one, the cursor.
@@ -113,6 +115,7 @@ impl Workspace {
     pub fn new(config: WorkspaceConfig) -> Self {
         Self {
             crashes: crate::crash::CrashState::new(),
+            links: crate::links::LinkState::new(),
             sources: SourcesState::new(),
             docs: DocsState::new(),
             history: HistoryState::new(),
