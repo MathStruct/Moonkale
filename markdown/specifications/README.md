@@ -82,3 +82,16 @@ Requests that are agreed but have no spec number yet. Daniel numbers them when h
 - **Shared work in a session** (2026-10-14): several people and agents in one session (roles, agents with a sponsor, tasks, an approval inbox, attribution); concurrent edits on one graph, where the database guarantees each write and Moonkale adds awareness, conflicts, proposals and per-actor undo; comments on anything, with `@agent` mentions. In [[Shared Work]], WP-48 to WP-50. Conversations already render Markdown.
 - **Linked panels** (2026-10-14): a node's content and its context (the local graph, backlinks, rows, plots) form a link group that follows one subject. Each group has a tab colour plus a marker (never colour alone), and several groups can exist side by side, each with its own local graph. Plan in [[Linked Panels]], WP-59.
 - **Overview** (2026-10-14): like GNOME's Activities, `Ctrl+Alt+Space` (the Windows key isn't available) shows every open tab across tiles and windows as a card with a schematic preview of its content, grouped by link group, with type-to-search that also reaches quick open. Plan in [[Overview]], WP-60.
+- **Monochrome mode** (2026-10-29, **way later, low priority**). Daniel's idea: a mode without colour, to make the screen less attention-grabbing. Some people report that it helps them concentrate.
+  - **Evidence:**
+    - studies of grayscale phones (for example Holte & Ferraro, 2020) found less screen time, with little or no effect on well-being;
+    - nothing measured dopamine;
+    - nothing studied work tools such as an editor.
+
+    So it is a preference, not a proven aid.
+  - **Feasible because colour is never the only signal:** link groups have numbered markers, and diffs, conflicts and diagnostics have symbols. The mode loses no information and doubles as a check of that rule.
+  - **Shape:**
+    1. a monochrome theme (grey `--mk-*` tokens), with content such as images, graphs and plots keeping its colour;
+    2. optionally a "grayscale everything" switch, a whole-window filter like a phone's, which also greys graph colours that carry meaning.
+
+    Both live under Settings → Appearance, with a palette command to toggle them.
