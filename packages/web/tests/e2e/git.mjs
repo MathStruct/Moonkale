@@ -1,5 +1,6 @@
 // Milestone 7: git — Changes panel (status, diff, stage, commit, log), explorer/tab decorations,
 // discard of an untracked file, history drawn as a graph.
+import { control } from "./chrome-controls.mjs";
 import { firefox } from "playwright";
 import fs from "node:fs";
 import { execSync } from "node:child_process";
@@ -67,7 +68,7 @@ try {
   });
   await step("a new file is untracked (?) — discard removes it", async () => {
     fs.writeFileSync(`${ROOT}/scratch.txt`, "temporary\n");
-    await page.click(".mk-git-head button[title='Refresh']");
+    await control(page.locator(".mk-git-head button[data-command='git.refresh']"), "click");
     await page.waitForSelector(".mk-git-entry[data-status='?']", { timeout: 10000 });
     await page.hover(".mk-git-entry[data-status='?']");
     await page.click(".mk-git-entry[data-status='?'] .mk-git-actions button[title^='Discard']");
@@ -75,7 +76,7 @@ try {
     if (fs.existsSync(`${ROOT}/scratch.txt`)) throw new Error("still on disk");
   });
   await step("Graph button draws the history: 2 commits + touched files in the Graph panel", async () => {
-    await page.click(".mk-git-head button[title^='Draw']");
+    await control(page.locator(".mk-git-head button[data-command='git.history']"), "click");
     await page.waitForFunction(() => [...document.querySelectorAll(".wb-tab[aria-selected=true]")].some((t) => t.textContent.includes("Graph")), null, { timeout: 10000 });
     await page.waitForFunction(() => /git history/.test(document.querySelector(".mk-graph-source")?.selectedOptions[0]?.textContent || ""), null, { timeout: 10000 });
     await page.waitForFunction(() => +(document.querySelector(".mk-graph-info")?.getAttribute("data-nodes") || 0) >= 3, null, { timeout: 15000 });

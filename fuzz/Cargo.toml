@@ -65,3 +65,10 @@ path = "fuzz_targets/session_bundle.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "git_conflicts"
+path = "fuzz_targets/git_conflicts.rs"
+test = false
+doc = false
+bench = false

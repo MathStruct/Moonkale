@@ -4,13 +4,16 @@
 use crate::types::{parse_log, parse_status, GitRequest, GitResponse, LOG_FORMAT};
 use std::path::Path;
 
-async fn git(root: &Path, args: &[&str]) -> Result<String, String> {
+pub(super) async fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     let out = tokio::process::Command::new("git")
+        .arg("--literal-pathspecs")
         .arg("-C")
         .arg(root)
         .args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
+        .env("GIT_EDITOR", "true")
+        .env("GIT_SEQUENCE_EDITOR", "true")
         .output()
         .await
         .map_err(|e| format!("cannot run git: {e}"))?;
@@ -18,7 +21,7 @@ async fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     if out.status.success() {
         Ok(stdout)
     } else {
-        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let err = String::from_utf8_lossy(&out.stderr).to_string();
         Err(if err.is_empty() { stdout } else { err })
     }
 }
@@ -48,7 +51,23 @@ pub async fn run(root: &Path, req: GitRequest) -> Result<GitResponse, String> {
             }
         }
     }
+    if matches!(req, GitRequest::Progress) {
+        return Ok(GitResponse::Diff(crate::sync::progress(root)));
+    }
+    // Serialize mutations and observations of each repository within this process.
+    let repo_key = git(root, &["rev-parse", "--absolute-git-dir"]).await?;
+    let lock = crate::sync::repo_lock(repo_key.trim());
+    let _guard = lock.lock().await;
     match req {
+        GitRequest::Progress => unreachable!(),
+        GitRequest::Sync { action, expected } => crate::sync::sync(root, action, expected).await,
+        GitRequest::Conflicts => crate::sync::conflicts(root).await,
+        GitRequest::Resolve { file, result } => {
+            crate::sync::resolve(root, file, Some(result)).await
+        }
+        GitRequest::ResolveDeletion { file } => crate::sync::resolve(root, file, None).await,
+        GitRequest::Continue => crate::sync::finish(root, false).await,
+        GitRequest::Abort => crate::sync::finish(root, true).await,
         GitRequest::Status => {
             let out = git(
                 root,

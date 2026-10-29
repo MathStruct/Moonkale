@@ -44,6 +44,21 @@ pub struct Commit {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitRequest {
     Status,
+    Progress,
+    Sync {
+        action: SyncAction,
+        expected: Option<SyncPlan>,
+    },
+    Conflicts,
+    Resolve {
+        file: ConflictFile,
+        result: String,
+    },
+    ResolveDeletion {
+        file: ConflictFile,
+    },
+    Continue,
+    Abort,
     /// Unified diff of one path (staged: index vs HEAD; else worktree vs index).
     Diff {
         path: String,
@@ -73,6 +88,11 @@ pub enum GitRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitResponse {
+    SyncPlan(SyncPlan),
+    Conflicts {
+        operation: Option<String>,
+        files: Vec<ConflictFile>,
+    },
     Status {
         branch: Option<String>,
         upstream: Option<String>,
@@ -267,4 +287,42 @@ mod tests {
         assert!(log[1].parents.is_empty());
         assert_eq!(log[1].subject, "Initial");
     }
+}
+
+/// No endpoint, credential, token, or arbitrary command can come from the client.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SyncAction {
+    Sync,
+    Fetch,
+    Pull,
+    Push,
+    PushLease,
+    Publish,
+}
+
+/// Server-observed precondition. Lease pushes use this exact remote object id.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncPlan {
+    pub repository: String,
+    pub remote_identity: String,
+    pub head: String,
+    pub status: String,
+    pub remote: String,
+    pub branch: String,
+    pub target: String,
+    pub remote_oid: String,
+    pub ahead: u32,
+    pub behind: u32,
+    pub dirty: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConflictFile {
+    pub can_delete: bool,
+    pub path: String,
+    pub base: String,
+    pub ours: String,
+    pub theirs: String,
+    pub original: String,
+    pub hunks: String,
 }

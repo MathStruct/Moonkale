@@ -12,9 +12,13 @@
 
 #[cfg(all(feature = "cli", not(target_arch = "wasm32")))]
 pub mod cli;
+pub mod conflict;
+mod conflict_model;
 pub mod history;
 mod panel;
 pub mod server;
+#[cfg(all(feature = "cli", not(target_arch = "wasm32")))]
+mod sync;
 pub mod types;
 
 pub use server::{git_run, remote};
@@ -122,11 +126,25 @@ impl Extension for GitExtension {
     }
 
     fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
-        vec![
+        let mut commands = vec![
             CommandContribution::new("git.refresh", t!(ws, L, "cmd-git-refresh")),
             CommandContribution::new("git.commit", t!(ws, L, "cmd-git-commit")).key("Ctrl+Shift+G"),
             CommandContribution::new("git.history", t!(ws, L, "cmd-git-history")),
-        ]
+            CommandContribution::new("git.sync", t!(ws, L, "git-sync")).key("Ctrl+Alt+G"),
+            CommandContribution::new("git.continue", t!(ws, L, "git-continue"))
+                .key("Ctrl+Alt+Shift+Enter"),
+            CommandContribution::new("git.abort", t!(ws, L, "git-abort")).key("Ctrl+Alt+Backspace"),
+        ];
+        for ((id, label, _), key) in panel::sync_actions(ws).into_iter().zip([
+            "Ctrl+Alt+F",
+            "Ctrl+Alt+L",
+            "Ctrl+Alt+U",
+            "Ctrl+Alt+Shift+P",
+            "Ctrl+Alt+Shift+U",
+        ]) {
+            commands.push(CommandContribution::new(id, label).key(key));
+        }
+        commands
     }
 
     fn locales(&self) -> Locales {
@@ -134,7 +152,29 @@ impl Extension for GitExtension {
     }
 
     fn run_command(&self, id: &str, mut ws: Workspace) {
+        let sync = if id == "git.sync" {
+            Some(types::SyncAction::Sync)
+        } else {
+            panel::sync_actions(ws)
+                .into_iter()
+                .find(|(cmd, _, _)| *cmd == id)
+                .map(|(_, _, a)| a)
+        };
+        if let Some(action) = sync {
+            ws.dispatch(Command::ShowPanel(PANEL_ID));
+            panel::act(
+                ws,
+                self.state,
+                GitRequest::Sync {
+                    action,
+                    expected: None,
+                },
+            );
+            return;
+        }
         match id {
+            "git.continue" => panel::act(ws, self.state, GitRequest::Continue),
+            "git.abort" => panel::act(ws, self.state, GitRequest::Abort),
             "git.refresh" => self.state.bump(),
             "git.commit" => {
                 ws.dispatch(Command::ShowPanel(PANEL_ID));

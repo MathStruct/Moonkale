@@ -8,11 +8,12 @@ description = "Git integration (Milestone 7): status, diff, stage/commit, log, e
 [features]
 default = []
 # The CLI runner (tokio process). Not on wasm32.
-cli = ["dep:tokio"]
+cli = ["dep:tokio", "dep:tempfile"]
 # The server half (Milestone 18 phase 4.3): `git_run` runs on the server.
 server = ["cli", "dioxus/server", "dep:moonkale-server-host"]
 
 [dependencies]
+futures-timer = "3"
 dioxus = { workspace = true, features = ["fullstack"] }
 moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
@@ -22,7 +23,11 @@ tracing = "0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 moonkale-server-host = { workspace = true, optional = true }
-tokio = { version = "1", features = ["process", "rt"], optional = true }
+tokio = { version = "1", features = ["process", "rt", "sync", "io-util", "time", "macros"], optional = true }
+tempfile = { version = "3", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }
 
 [dev-dependencies]
 tempfile = "3"

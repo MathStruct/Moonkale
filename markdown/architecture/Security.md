@@ -64,6 +64,7 @@ The pieces are described where they were built ([[Remote and Server Modes]], [[L
 |---|---|---|
 | Client ↔ server (web, desktop as client, phone) | a token as an HttpOnly cookie or bearer; TLS built in; plain HTTP off loopback refused; `/login` rate-limited | accounts and roles; a CSP; generalised rate limits; #20 (the batch of low findings) |
 | Desktop ↔ remote folder (SSH) | the system `ssh` and the user's keys; a per-session token over stdin; a loopback-only port | #18: control socket in shared `/tmp`, port hijack, fixed upload temp name, unchecksummed server binary |
+| Moonkale ↔ Git remotes | system Git, ssh-agent/credential helper/askpass; server-authorised `/api/git`, configured named remotes only | HTTPS or SSH off loopback; local files and loopback HTTP for fixtures/development; embedded URL credentials refused; no credential input, persistence or argument/output logging |
 | Moonkale ↔ databases | drivers in-process; read-only opens; statement classification | per-source credentials through secrets; TLS for remote databases (Postgres, D1, Databento) checked, not optional |
 | Moonkale ↔ LLM providers | the server decides endpoints (`MOONKALE_LLM_ENDPOINTS`); the client sends only names | provider TLS pinning not planned; request logging must redact |
 | External agents ↔ Moonkale (MCP) | a separate bearer (`MOONKALE_MCP_TOKEN`) | scopes per token (read-only, one source) |
@@ -479,3 +480,31 @@ control sequences before retaining a 2,048-byte plain overview tail. Escape
 parser state is constant-size across chunks, including unterminated strings;
 preview reads never scan full replay history or consume live output. No new
 execution, dependency, connection or Source authority is added.
+
+
+## Git sync and conflict writes (WP-51, 2026-10-29)
+
+The existing authenticated, same-origin `/api/git` endpoint now also accepts
+typed sync and conflict operations. Git runs under the server's own identity;
+clients cannot name a remote URL, supply credentials or alter argv. The server
+selects a configured named remote and rejects fetch/push URLs with embedded
+HTTP credentials, SSH passwords or query/fragment tokens, including expanded
+URL rewrites. Off loopback, transport must be HTTPS or SSH; local file
+remotes and loopback HTTP remain available. Credentials stay with ssh-agent, the configured credential helper
+or the system's askpass UI; Moonkale has no credential input or persistence.
+Argument/output tracing is absent. Progress is transient, capped at 1 MiB and
+exposed only through the same authenticated jailed endpoint. Network commands
+have a five-minute limit. Normal Git diagnostics are shown as inert text.
+
+The server checks the Git repository root against `MOONKALE_ROOT` in addition
+to the requested directory. Reviewed sync plans are rechecked before execution;
+lease pushes name the exact observed upstream commit. Requests in a repository
+are serialized in this process. Conflict writes validate relative literal
+paths, refuse symlinks and `.git`, bound text/stages, recheck base/ours/theirs
+and the current file, then atomically replace and stage. Conflict refreshes
+stop at 100 files or 16 MiB of aggregate text. Git processes outside
+Moonkale do not take its mutex: the final external-writer filesystem race
+remains the same class of limitation documented for folder writes. The diff3
+parser has a standalone production-source fuzz target (`git_conflicts`).
+No account/role system is introduced: authorisation remains the host's token
+session, or its existing loopback-only development mode.

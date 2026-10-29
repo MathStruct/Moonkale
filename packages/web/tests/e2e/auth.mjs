@@ -17,6 +17,10 @@ try {
     const api = await page.request.post(`${base}/api/sources/open_folder`, { data: { path: "", embed: null }, headers: { "content-type": "application/json" } });
     console.log("\n  /api without cookie:", api.status());
     if (api.status() !== 401) throw new Error("expected 401");
+    for (const req of [{Sync:{action:"Push",expected:null}}, {Sync:{action:"PushLease",expected:null}}, "Progress"]) {
+      const denied = await page.request.post(`${base}/api/git`, {data:{root:"",req},headers:{"content-type":"application/json"}});
+      if (denied.status() !== 401) throw new Error("unauthenticated Git request reached the runner");
+    }
     await page.screenshot({ path: `${S}/m7-auth-login.png` });
   });
   await step("wrong token → 401 and stays on the form", async () => {
@@ -47,6 +51,9 @@ try {
     const bad = await fresh.request.post(`${base}/api/sources/open_folder`, { data: { path: "", embed: null }, headers: { "content-type": "application/json", authorization: "Bearer wrong" } });
     console.log("\n  bearer ok:", ok.status(), "| bad:", bad.status());
     if (ok.status() !== 200 || bad.status() !== 401) throw new Error("bearer handling");
+    const gitStatus = await fresh.request.post(`${base}/api/git`, {data:{root:"",req:"Status"},headers:{"content-type":"application/json",authorization:`Bearer ${TOKEN}`}});
+    const crossOrigin = await fresh.request.post(`${base}/api/git`, {data:{root:"",req:{Sync:{action:"Push",expected:null}}},headers:{"content-type":"application/json",authorization:`Bearer ${TOKEN}`,origin:"https://untrusted.invalid"}});
+    if (gitStatus.status() !== 200 || crossOrigin.status() !== 403) throw new Error("Git server identity/origin gate");
     await fresh.close();
   });
   console.log("AUTH E2E: PASS");

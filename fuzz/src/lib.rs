@@ -32,3 +32,7 @@ pub fn flow_format(source: &str) {
         assert_eq!(text, reparsed.to_json());
     }
 }
+
+// Same bounded hunk model used by the Git and future proposal conflict views.
+#[path = "../../packages/extensions/git/src/conflict_model.rs"]
+pub mod git_conflicts;

@@ -19,6 +19,19 @@ pub async fn git_run(
         Ok(d) => d,
         Err(e) => return Ok(Err(e.to_string())),
     };
+    // A jailed subdirectory must not grant access to a repository above the jail.
+    let top = match crate::cli::git(
+        std::path::Path::new(&dir),
+        &["rev-parse", "--show-toplevel"],
+    )
+    .await
+    {
+        Ok(top) => top,
+        Err(e) => return Ok(Err(e)),
+    };
+    if moonkale_server_host::jail_dir(Some(top.trim())).is_err() {
+        return Ok(Err("Repository root is outside MOONKALE_ROOT".into()));
+    }
     Ok(crate::cli::run(std::path::Path::new(&dir), req).await)
 }
 

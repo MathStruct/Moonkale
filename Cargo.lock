@@ -7300,6 +7300,8 @@ name = "moonkale-ext-git"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "futures-timer",
+ "gloo-timers 0.3.0",
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-server-host",

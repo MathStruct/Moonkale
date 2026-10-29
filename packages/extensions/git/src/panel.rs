@@ -1,6 +1,8 @@
 //! The Changes panel and the diff view.
 
-use crate::types::{Commit, GitRequest, GitResponse, StatusEntry};
+use crate::types::{
+    Commit, ConflictFile, GitRequest, GitResponse, StatusEntry, SyncAction, SyncPlan,
+};
 use crate::L;
 use dioxus::prelude::*;
 use moonkale_ext_api::prelude::*;
@@ -39,6 +41,10 @@ pub struct GitState {
     pub log: Signal<Vec<Commit>>,
     pub diffs: Signal<Vec<DiffView>>,
     pub busy: Signal<bool>,
+    pub output: Signal<String>,
+    pub plan: Signal<Option<(SyncAction, SyncPlan)>>,
+    pub conflicts: Signal<Vec<ConflictFile>>,
+    pub operation: Signal<Option<String>>,
     /// Bumped to ask for a refresh (commands, saves, file operations).
     pub epoch: Signal<u64>,
 }
@@ -56,6 +62,10 @@ impl GitState {
             log: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             diffs: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             busy: Signal::new_in_scope(false, ScopeId::ROOT),
+            output: Signal::new_in_scope(String::new(), ScopeId::ROOT),
+            plan: Signal::new_in_scope(None, ScopeId::ROOT),
+            conflicts: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            operation: Signal::new_in_scope(None, ScopeId::ROOT),
             epoch: Signal::new_in_scope(0, ScopeId::ROOT),
         }
     }
@@ -121,6 +131,14 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
     if let Ok(GitResponse::Log(log)) = run(ws, GitRequest::Log { limit: 30 }).await {
         state.log.set(log);
     }
+    match run(ws, GitRequest::Conflicts).await {
+        Ok(GitResponse::Conflicts { operation, files }) => {
+            state.operation.set(operation);
+            state.conflicts.set(files);
+        }
+        Err(e) => state.output.set(e),
+        _ => {}
+    }
     // Open diff views follow the working tree.
     let open: Vec<DiffView> = state.diffs.peek().clone();
     for d in open {
@@ -140,6 +158,79 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
             });
         }
     }
+}
+
+pub fn act(mut ws: Workspace, mut state: GitState, req: GitRequest) {
+    moonkale_ext_api::crash::spawn(async move {
+        if *state.busy.peek() {
+            return;
+        }
+        state.busy.set(true);
+        state.output.set(t!(ws, L, "git-working"));
+        let root = ws.folder_root();
+        let action_root = root.clone();
+        moonkale_ext_api::crash::spawn(async move {
+            loop {
+                #[cfg(target_arch = "wasm32")]
+                gloo_timers::future::TimeoutFuture::new(250).await;
+                #[cfg(not(target_arch = "wasm32"))]
+                futures_timer::Delay::new(std::time::Duration::from_millis(250)).await;
+                if !*state.busy.peek() || ws.folder_root() != root {
+                    break;
+                }
+                if let Ok(GitResponse::Diff(text)) = run(ws, GitRequest::Progress).await {
+                    if *state.busy.peek() && !text.is_empty() {
+                        state.output.set(text);
+                    }
+                }
+            }
+        });
+        let sync_action = match &req {
+            GitRequest::Sync { action, .. } => Some(*action),
+            _ => None,
+        };
+        let is_commit = matches!(req, GitRequest::Commit { .. });
+        let message = match &req {
+            GitRequest::Commit { message } => message.clone(),
+            _ => String::new(),
+        };
+        let response = run(ws, req).await;
+        if ws.folder_root() != action_root {
+            state.plan.set(None);
+            state.busy.set(false);
+            refresh(ws, state).await;
+            return;
+        }
+        match response {
+            Ok(GitResponse::Done(msg)) => {
+                state.output.set(msg.clone());
+                ws.set_status(msg.clone());
+                if is_commit {
+                    // `[main abc1234] subject` → checkpoint in the entity log (Milestone 8).
+                    let hash = msg
+                        .split_once(']')
+                        .and_then(|(head, _)| head.rsplit(' ').next())
+                        .unwrap_or("")
+                        .to_string();
+                    ws.record(moonkale_core::EventKind::Checkpoint {
+                        commit: hash,
+                        message: message.lines().next().unwrap_or("").to_string(),
+                    });
+                }
+            }
+            Ok(GitResponse::SyncPlan(p)) => {
+                state.output.set(String::new());
+                state.plan.set(sync_action.map(|a| (a, p)));
+            }
+            Ok(GitResponse::Unavailable(m)) | Err(m) => {
+                state.output.set(m.clone());
+                ws.set_status(t!(ws, L, "git-error", error = m))
+            }
+            Ok(_) => {}
+        }
+        refresh(ws, state).await;
+        state.busy.set(false);
+    });
 }
 
 /// Draw the last commits in the Graph panel.
@@ -199,8 +290,17 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
 
     // Refresh when the folder changes, when files or documents change, and
     // when asked (`epoch`).
+    let mut seen_root: Signal<Option<String>> = use_signal(|| None);
     let mut seen: Signal<(u64, u64, u64, usize)> = use_signal(|| (u64::MAX, 0, 0, 0));
     moonkale_ext_api::crash::use_effect(move || {
+        let root = ws.folder_root();
+        if *seen_root.peek() != root {
+            seen_root.set(root);
+            state.plan.set(None);
+            state.conflicts.set(Vec::new());
+            state.operation.set(None);
+            state.output.set(String::new());
+        }
         let key = (
             *state.epoch.read(),
             *ws.sources.fs_epoch.read(),
@@ -216,39 +316,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         }
     });
 
-    let act = move |req: GitRequest| {
-        moonkale_ext_api::crash::spawn(async move {
-            state.busy.set(true);
-            let is_commit = matches!(req, GitRequest::Commit { .. });
-            let message = match &req {
-                GitRequest::Commit { message } => message.clone(),
-                _ => String::new(),
-            };
-            match run(ws, req).await {
-                Ok(GitResponse::Done(msg)) => {
-                    ws.set_status(msg.clone());
-                    if is_commit {
-                        // `[main abc1234] subject` → checkpoint in the entity log (Milestone 8).
-                        let hash = msg
-                            .split_once(']')
-                            .and_then(|(head, _)| head.rsplit(' ').next())
-                            .unwrap_or("")
-                            .to_string();
-                        ws.record(moonkale_core::EventKind::Checkpoint {
-                            commit: hash,
-                            message: message.lines().next().unwrap_or("").to_string(),
-                        });
-                    }
-                }
-                Ok(GitResponse::Unavailable(m)) | Err(m) => {
-                    ws.set_status(t!(ws, L, "git-error", error = m))
-                }
-                Ok(_) => {}
-            }
-            state.busy.set(false);
-            refresh(ws, state).await;
-        });
-    };
+    let act = move |req: GitRequest| act(ws, state, req);
     let mut open_diff = move |path: String, staged: bool| {
         let view = DiffView {
             path: path.clone(),
@@ -301,12 +369,19 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                 if st.behind > 0 { span { class: "mk-muted", " ↓{st.behind}" } }
                                 span { class: "mk-git-spacer" }
                                 moonkale_ext_api::icons::ToolbarActions {
-                    primary: rsx! { button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| state.bump()), title: moonkale_ext_api::command_hint("git.refresh", t!(ws, L, "git-refresh")).title, "data-command": "git.refresh", "data-shortcut": moonkale_ext_api::command_hint("git.refresh", "").shortcut, "↻" } },
+                    primary: rsx! { button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| act(GitRequest::Sync { action: SyncAction::Sync, expected: None })), id: "mk-git-sync", "data-command": "git.sync", "data-shortcut": moonkale_ext_api::command_hint("git.sync", "").shortcut, title: moonkale_ext_api::command_hint("git.sync", t!(ws, L, "git-sync")).title, {t!(ws, L, "git-sync")} } },
+                                for (id, label, action) in sync_actions(ws) {
+                                    button { key: "{id}", class: "mk-btn", disabled: busy, "data-command": "{id}", "data-shortcut": moonkale_ext_api::command_hint(id, "").shortcut, title: moonkale_ext_api::command_hint(id, label.clone()).title,
+                                        onclick: moonkale_ext_api::crash::event(move |_| act(GitRequest::Sync { action, expected: None })), "{label}"
+                                    }
+                                }
+                                button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| state.bump()), title: moonkale_ext_api::command_hint("git.refresh", t!(ws, L, "git-refresh")).title, "data-command": "git.refresh", "data-shortcut": moonkale_ext_api::command_hint("git.refresh", "").shortcut, "↻" },
 
                                 button { class: "mk-btn", disabled: busy || log.is_empty(), onclick: moonkale_ext_api::crash::event(move |_| { moonkale_ext_api::crash::spawn(async move { show_history(ws, state).await; }); }), title: moonkale_ext_api::command_hint("git.history", t!(ws, L, "git-graph-title")).title, "data-command": "git.history", "data-shortcut": moonkale_ext_api::command_hint("git.history", "").shortcut, {t!(ws, L, "git-graph")} }
 
                 }
             }
+                            SyncView { ws, state }
                             div { class: "mk-git-commit",
                                 textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: t!(ws, L, "git-message"), value: "{message}",
                                     oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| message.set(e.value())),
@@ -454,4 +529,72 @@ fn mark(index: char, worktree: char) -> Option<FileMark> {
         _ => return None,
     };
     Some(FileMark::new(c, class, title))
+}
+
+pub fn sync_actions(ws: Workspace) -> Vec<(&'static str, String, SyncAction)> {
+    vec![
+        ("git.fetch", t!(ws, L, "git-fetch"), SyncAction::Fetch),
+        ("git.pull", t!(ws, L, "git-pull"), SyncAction::Pull),
+        ("git.push", t!(ws, L, "git-push"), SyncAction::Push),
+        (
+            "git.push-lease",
+            t!(ws, L, "git-push-lease"),
+            SyncAction::PushLease,
+        ),
+        ("git.publish", t!(ws, L, "git-publish"), SyncAction::Publish),
+    ]
+}
+
+#[component]
+fn SyncView(ws: Workspace, mut state: GitState) -> Element {
+    moonkale_ext_api::crash::use_effect(move || {
+        if state.plan.read().is_some() && !*state.busy.read() {
+            ws.focus_element("mk-git-confirm");
+        }
+    });
+    let busy = *state.busy.read();
+    let plan = state.plan.read().clone();
+    let files = state.conflicts.read().clone();
+    let operation = state.operation.read().clone();
+    rsx! {
+        div { class: "mk-git-sync", aria_busy: busy,
+            if let Some((action, p)) = plan {
+                div { class: "mk-git-plan", onkeydown: moonkale_ext_api::crash::event(move |e: KeyboardEvent| {
+                    if e.key() == Key::Escape { e.prevent_default(); e.stop_propagation(); state.plan.set(None); ws.focus_element("mk-git-sync"); }
+                }), role: "region", aria_label: t!(ws, L, "git-review"),
+                    p { {t!(ws, L, "git-review")} " {p.branch} → {p.remote} ({p.target}) ↑{p.ahead} ↓{p.behind}" }
+                    if p.dirty { p { {t!(ws, L, "git-dirty")} } }
+                    if p.ahead > 0 && p.behind > 0 { p { {t!(ws, L, "git-diverged")} } }
+                    if action == SyncAction::PushLease { p { {t!(ws, L, "git-lease-warning")} " {p.remote_oid}" } }
+                    button { class: "mk-btn", disabled: busy, onmounted: move |_| ws.focus_element("mk-git-confirm"), id: "mk-git-confirm",
+                        onclick: moonkale_ext_api::crash::event(move |_| { state.plan.set(None); act(ws, state, GitRequest::Sync { action, expected: Some(p.clone()) }); }), {t!(ws, L, "git-proceed")} }
+                    button { class: "mk-btn", onclick: moonkale_ext_api::crash::event(move |_| { state.plan.set(None); ws.focus_element("mk-git-sync"); }), {t!(ws, L, "git-cancel")} }
+                }
+            }
+            if busy { p { role: "status", {t!(ws, L, "git-working")} } }
+            if !state.output.read().is_empty() { pre { class: "mk-git-output", role: "status", "{state.output}" } }
+            if state.output.read().contains("rejected") || state.output.read().contains("non-fast-forward") {
+                button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| act(ws, state, GitRequest::Sync { action: SyncAction::Pull, expected: None })), {t!(ws, L, "git-pull")} }
+            }
+            if let Some(op) = operation {
+                p { {t!(ws, L, "git-operation")} " {op}" }
+                if op == "rebase" { p { {t!(ws, L, "git-rebase-sides")} } }
+                for file in files {
+                    details { key: "{file.path}:{file.hunks}:{file.original}", open: true, class: "mk-git-conflict-view",
+                        summary { "{file.path}" }
+                        if file.can_delete {
+                            button { class: "mk-btn", disabled: busy,
+                                onclick: moonkale_ext_api::crash::event({ let file = file.clone(); move |_| act(ws, state, GitRequest::ResolveDeletion { file: file.clone() }) }), {t!(ws, L, "git-keep-deletion")}
+                            }
+                        }
+                        crate::conflict::ThreeWayEditor { ws, base: file.base.clone(), ours: file.ours.clone(), theirs: file.theirs.clone(), hunks: file.hunks.clone(), original: file.original.clone(), busy,
+                            onresolve: move |result| act(ws, state, GitRequest::Resolve { file: file.clone(), result })
+                        }
+                    }
+                }
+                button { class: "mk-btn", "data-command": "git.continue", "data-shortcut": moonkale_ext_api::command_hint("git.continue", "").shortcut, title: moonkale_ext_api::command_hint("git.continue", t!(ws, L, "git-continue")).title, disabled: busy || !state.conflicts.read().is_empty(), onclick: moonkale_ext_api::crash::event(move |_| act(ws, state, GitRequest::Continue)), {t!(ws, L, "git-continue")} }
+                button { class: "mk-btn", "data-command": "git.abort", "data-shortcut": moonkale_ext_api::command_hint("git.abort", "").shortcut, title: moonkale_ext_api::command_hint("git.abort", t!(ws, L, "git-abort")).title, disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| act(ws, state, GitRequest::Abort)), {t!(ws, L, "git-abort")} }
+            }
+        }
+    }
 }
