@@ -199,6 +199,27 @@ const presenceField = StateField.define<RangeSet<GutterMarker>>({
 })
 const presenceGutter = [presenceField, gutter({ class: "cm-presence-gutter", markers: (v) => v.state.field(presenceField) })]
 
+// Generic inert line annotations; no Git-specific state in the view.
+type GutterMark = { line: number; label: string; title: string }
+class AnnotationMarker extends GutterMarker {
+  constructor(readonly mark: GutterMark) { super() }
+  eq(other: AnnotationMarker) { return other.mark.label === this.mark.label && other.mark.title === this.mark.title }
+  toDOM() { const s = document.createElement("span"); s.className = "cm-line-annotation"; s.textContent = this.mark.label; s.title = this.mark.title; return s }
+}
+const setGutterEffect = StateEffect.define<GutterMark[]>()
+const annotationField = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(set, tr) {
+    if (tr.docChanged) set = RangeSet.empty
+    for (const e of tr.effects) if (e.is(setGutterEffect)) {
+      set = RangeSet.of(e.value.filter(m => m.line >= 0 && m.line < tr.state.doc.lines).map(m => new AnnotationMarker(m).range(tr.state.doc.line(m.line + 1).from)), true)
+    }
+    return set
+  },
+})
+const annotationGutter = [annotationField, gutter({ class: "cm-annotation-gutter", markers: v => v.state.field(annotationField) })]
+function setGutterMarks(el: HTMLElement, marks: GutterMark[]): void { const entry = views.get(el); if (entry) entry.view.dispatch({effects: setGutterEffect.of(marks)}) }
+
 // [[wiki-links]] in source mode (spec 012): marks from Rust, mapped through edits.
 const setWikiEffect = StateEffect.define<WikiSpan[]>()
 const wikiMarkResolved = Decoration.mark({ class: "cm-wikilink" })
@@ -384,6 +405,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
         phrases.of(EditorState.phrases.of({})),
         EditorState.lineSeparator.of(separatorOf(text)),
         presenceGutter,
+        annotationGutter,
         cursorWatch,
         entry.wrap!.of(features.wrap ? EditorView.lineWrapping : []),
         entry.indentation!.of([]),
@@ -603,4 +625,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setPhrases, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, showRange, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }
+window.moonkale.codemirror = { mount, setGutterMarks, setPhrases, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, showRange, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }

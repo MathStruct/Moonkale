@@ -128,6 +128,8 @@ pub trait CodeEditorBackend {
     fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>);
     /// Other people's positions in this document: `(line, label)`.
     fn set_presence(&self, marks: &[(u32, String)]);
+    /// Inert line annotations, shared with the Rust editor.
+    fn set_gutter_marks(&self, _marks: &[moonkale_ext_api::workspace::GutterMark]) {}
     fn set_cursor(&self, line: u32, col: u32);
     /// Reveal a range in this view without taking keyboard focus.
     fn show_range(&self, line: u32, col: u32, end_line: u32, end_col: u32);

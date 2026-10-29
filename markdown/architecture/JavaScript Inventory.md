@@ -77,3 +77,8 @@ search text and clicked command ids to Rust and presents text-only status hints.
 returns focus on closure, and focuses command-opened panels after layout. No
 JavaScript editor state, nudge history, dependency or bundle build is added;
 Rust owns registry matching, the counters and platform-state persistence.
+
+WP-52 (2026-10-29): the CodeMirror adapter adds one generic inert line-annotation
+gutter (`setGutterMarks`), sharing ext-api's `GutterMark` data with the Rust
+editor. Git requests, blame parsing, previous-commit navigation, review and
+writes stay in Rust. The committed CodeMirror bundle is rebuilt.

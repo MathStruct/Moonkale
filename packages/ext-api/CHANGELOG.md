@@ -1,5 +1,17 @@
 # Changelog — the library crates
 
+## Unreleased — Sophia save warnings (2026-10-29)
+
+- `moonkale_core::OpResult::Ok` adds `warnings: Vec<String>`. Rust constructors
+  must supply the field; matches can use `..`. Older wire results default to
+  an empty list. Successful saves display warnings without changing saved text.
+- Sophia source text `Version`s now identify a fetched print plus its upstream
+  edit token. Callers continue treating them as opaque and save using the
+  fetched version; raw Sophia tokens are not Source versions. Bounded retained
+  bases preserve whole/partial splices when a moved reference changes printing
+  without changing the upstream token (P-238).
+
+
 ## Unreleased — overview previews (WP-60)
 
 - Add optional `Extension::preview(panel_id, ws, PreviewSize) -> Option<Element>`.
@@ -297,3 +309,10 @@ defaults. Session payloads gain
 `TurnSettings.display_name`, `SessionState.displays` and `DisplayEvent` with
 turn-captured `agent` attribution (serde-defaulted); full Rust literals need the
 new fields. Display events are bounded live state, excluded from transcript replay.
+
+## Unreleased — shared editor gutter annotations (WP-52, 2026-10-29)
+
+- `ContribState.gutter_marks` adds document-keyed `(Version, Vec<GutterMark>)` annotations.
+  `GutterMark` carries a zero-based line, inert label and hover title. Workspace
+  constructors supply the new signal. CodeMirror and Rust views clear dirty
+  documents' annotations instead of presenting stale blame positions.

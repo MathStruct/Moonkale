@@ -18,15 +18,15 @@ Requirements below are `VC-nn`; ✅ marks what is built.
 
 - **VC-01 Status:** changed, added, deleted, renamed, untracked and ignored files, in the Explorer and the editor gutter. ✅ Status and gutter marks; renames detected; ignored files shown on request.
 - **VC-02 Diff:** inline and side by side, word-level within lines, whitespace toggle, against the index, HEAD, any commit or branch. ✅ A diff panel; side-by-side and word-level open.
-- **VC-03 Stage what you mean:** whole files, hunks, single lines, and unstaging the same way. ✅ Files; hunks and lines open.
+- **VC-03 Stage what you mean:** whole files, hunks, single lines, and unstaging the same way. ✅ Files, text hunks and single changed lines in both directions (WP-52, 2026-10-29). Exact diff freshness checks; CRLF and missing final newlines are preserved. New/deleted text files support partial selection; renames are literal path additions/deletions. Symlinks, submodules and mode-only changes use whole-file actions.
 - **VC-04 Commit:** a message editor with a subject-line ruler, amend, sign-off and co-author trailers, signing (GPG or SSH), and the hooks run with their output shown. ✅ Basic commit.
-- **VC-05 Branches:** create, switch, rename, delete, set upstream, compare two branches; dirty-tree checks before switching, with an offer to stash.
+- **VC-05 Branches:** create, switch, rename, delete, set upstream, compare two branches; dirty-tree checks before switching, with an offer to stash. ✅ WP-52: reviewed local branch lifecycle, existing-ref upstreams, comparisons and explicit stash-before-switch including untracked files. Unmerged branch deletion is refused.
 - **VC-06 Sync:** fetch, pull (merge or rebase, as configured), push, push with lease, and publishing a new branch. **Credentials** come from the system (ssh-agent, the git credential helper), never stored by Moonkale ([[Security]]). Progress and errors are shown verbatim. ✅ WP-51 (2026-10-29): reviewed server-rechecked plans, configured pull, exact-commit leases and publishing; local bare-remote lifecycle and browser acceptance.
 - **VC-07 Conflicts:** merge, rebase and cherry-pick conflicts in a three-way view (ours, theirs, base, result). Pick per hunk, edit the result, mark resolved, continue or abort. ✅ WP-51 (2026-10-29), for bounded text conflicts: reusable three-way model/component, per-hunk choices, editable result preserving existing partial resolutions, explicit deletion resolution, stale-write refusal and merge/rebase/cherry-pick continue/abort. Binary and file-mode resolution still use external Git. The component is available for [[Shared Work]] SW-21; its proposal adapter remains WP-49.
 - **VC-08 History:** the log ✅ (as a graph, too: commits as nodes); per file; **per symbol or node** (see VC-20); with search by message, author, path and content (pickaxe).
-- **VC-09 Blame:** per line, in the gutter and on hover, with "the commit before this one" to walk back.
-- **VC-10 Undo for git:** revert a commit, reset (soft or mixed; hard only with confirmation), cherry-pick, and the **reflog** as a recovery view ("what did I lose?").
-- **VC-11 Stash:** push (with untracked), list, show, apply, pop, drop.
+- **VC-09 Blame:** per line, in the gutter and on hover, with "the commit before this one" to walk back. ✅ WP-52: shared inert gutter API for Rust and CodeMirror, author/commit/subject on hover, previous file/commit walking in the Git view. Dirty buffers clear annotations; historical positions stay off the live editor.
+- **VC-10 Undo for git:** revert a commit, reset (soft or mixed; hard only with confirmation), cherry-pick, and the **reflog** as a recovery view ("what did I lose?"). ✅ WP-52: reviewed revert, soft/mixed/hard reset with named losses, cherry-pick through the conflict view, and reflog recovery as a new branch. Plans are rechecked by the server before execution.
+- **VC-11 Stash:** push (with untracked), list, show, apply, pop, drop. ✅ WP-52: identity-checked reviewed operations, optional untracked inclusion, failed pop retains its stash; P-237 fixes literal-pathspec cleanup.
 - **VC-12 Tags and releases:** create (annotated or signed), push, list; a release's notes from its commits.
 - **VC-13 The rest of git:** worktrees (this project lives on them), submodules, LFS, sparse checkout, bisect (good/bad marks, the culprit shown), `.gitignore` editing from the Explorer, and the repository's config shown read-only.
 
@@ -89,3 +89,7 @@ The [[Scrutiny]] entries:
 5. **Hosts:** PRs as proposals, checks, issues as annotations (VC-14 to 16).
 
 Work packages WP-51 to WP-53 in [[Work Packages]].
+
+WP-52 is validated in the contributor worktree: 23 Git tests, all AGENTS gates
+and the reconciled 59-case browser matrix. Details are in [[Status]] and the
+NEXT-39 handoff.

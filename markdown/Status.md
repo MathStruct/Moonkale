@@ -7,6 +7,25 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Sophia save warnings and Git everyday (validated 2026-10-29)
+
+✅ Built and validated in the codex contributor worktree. Sophia v0.1.8
+successful-save warnings reach a localized status notice with the full message
+on hover. P-238 retains exact fetched patch bases when references change the
+printed text; concurrent definition/group edits still conflict.
+
+WP-52 adds hunk/line staging and unstaging, including new/deleted text files,
+reviewed branches/stash/reset/revert/cherry-pick, reflog branch recovery, and
+shared Rust/CodeMirror blame gutters with historical walking. Sync stays
+primary; secondary flows use the overflow and palette. Destructive reviews
+name affected commits/paths, ignored-file switches are refused, and automatic
+maintenance/pruning is disabled. P-237 fixes untracked-stash cleanup.
+
+All AGENTS gates and the reconciled 59-case browser feature matrix pass.
+There are 24 Git tests, 17 Sophia tests and 28 standalone parser regressions;
+the final Git parser fuzz run completes 1,141,732 inputs without a crash.
+See [[Version Control Requirements]] and [[Security]] for scope and bounds.
+
 ## Agent display and private terminals (WP-70 / WP-71, 2026-10-29)
 
 ✅ Built and validated on the codex contributor branch. Typed

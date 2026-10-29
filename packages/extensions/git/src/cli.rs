@@ -4,9 +4,28 @@
 use crate::types::{parse_log, parse_status, GitRequest, GitResponse, LOG_FORMAT};
 use std::path::Path;
 
+/// Retain recovery history even if repository configuration enables maintenance.
+pub(super) const RETAIN_HISTORY: &[&str] = &[
+    "-c",
+    "gc.auto=0",
+    "-c",
+    "maintenance.auto=false",
+    "-c",
+    "fetch.prune=false",
+    "-c",
+    "fetch.pruneTags=false",
+];
+
 pub(super) async fn git(root: &Path, args: &[&str]) -> Result<String, String> {
-    let out = tokio::process::Command::new("git")
-        .arg("--literal-pathspecs")
+    let mut command = tokio::process::Command::new("git");
+    command.args(RETAIN_HISTORY);
+    // Git 2.56 stash uses internal pathspec magic when cleaning untracked
+    // files. Literal mode breaks that cleanup (P-237). Typed stash requests
+    // accept no client pathspecs, so leave Git's internal mode intact.
+    if args.first() != Some(&"stash") {
+        command.arg("--literal-pathspecs");
+    }
+    let out = command
         .arg("-C")
         .arg(root)
         .args(args)
@@ -26,11 +45,83 @@ pub(super) async fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     }
 }
 
-fn check_path(p: &str) -> Result<&str, String> {
-    if p.is_empty() || p.starts_with('/') || p.split('/').any(|s| s == "..") {
+pub(super) fn check_path(p: &str) -> Result<&str, String> {
+    if p.is_empty()
+        || Path::new(p).is_absolute()
+        || p.contains(':')
+        || p.contains('\0')
+        || p.split(['/', '\\'])
+            .any(|s| s == ".." || s.eq_ignore_ascii_case(".git"))
+    {
         return Err(format!("bad path {p:?}"));
     }
     Ok(p)
+}
+
+/// The exact normal-direction diff used by display and stale-selection checks.
+pub(super) async fn diff_text(root: &Path, path: &str, staged: bool) -> Result<String, String> {
+    let path = check_path(path)?;
+    let out = if staged {
+        git(
+            root,
+            &[
+                "diff",
+                "--cached",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-renames",
+                "--no-color",
+                "--",
+                path,
+            ],
+        )
+        .await?
+    } else {
+        // Untracked files have no diff: show them as all-added.
+        let d = git(
+            root,
+            &[
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-renames",
+                "--no-color",
+                "--",
+                path,
+            ],
+        )
+        .await?;
+        if d.is_empty()
+            && git(root, &["ls-files", "--error-unmatch", "--", path])
+                .await
+                .is_err()
+        {
+            // `--no-index` exits 1 when there are differences, so the
+            // diff arrives on the error side.
+            match git(
+                root,
+                &[
+                    "diff",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--no-color",
+                    "--no-index",
+                    "--",
+                    "/dev/null",
+                    path,
+                ],
+            )
+            .await
+            {
+                Ok(d) => d,
+                Err(e) if e.starts_with("diff ") => e,
+                Err(e) => return Err(e),
+            }
+        } else {
+            d
+        }
+    };
+    Ok(out)
 }
 
 /// Run one request in `root`. A missing repository or binary comes back as
@@ -51,14 +142,40 @@ pub async fn run(root: &Path, req: GitRequest) -> Result<GitResponse, String> {
             }
         }
     }
+    let repository = git(root, &["rev-parse", "--show-toplevel"]).await?;
+    let repository = std::path::PathBuf::from(repository.trim());
+    let root = repository.as_path();
     if matches!(req, GitRequest::Progress) {
         return Ok(GitResponse::Diff(crate::sync::progress(root)));
     }
     // Serialize mutations and observations of each repository within this process.
-    let repo_key = git(root, &["rev-parse", "--absolute-git-dir"]).await?;
+    // Linked worktrees share refs and the stash stack. Lock their common
+    // directory, rather than each worktree's private metadata directory.
+    let repo_key = git(
+        root,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )
+    .await?;
     let lock = crate::sync::repo_lock(repo_key.trim());
     let _guard = lock.lock().await;
     match req {
+        GitRequest::EverydayState => crate::everyday::state(root)
+            .await
+            .map(GitResponse::EverydayState),
+        GitRequest::Everyday { action, expected } => {
+            crate::everyday::execute(root, action, expected).await
+        }
+        GitRequest::Compare { left, right } => crate::everyday::compare(root, &left, &right).await,
+        GitRequest::StashShow { oid } => crate::everyday::stash_show(root, &oid).await,
+        GitRequest::Blame { path, commit } => {
+            crate::everyday::blame(root, &path, commit.as_deref()).await
+        }
+        GitRequest::StageSelection {
+            path,
+            staged,
+            expected,
+            lines,
+        } => crate::everyday::stage(root, &path, staged, &expected, &lines).await,
         GitRequest::Progress => unreachable!(),
         GitRequest::Sync { action, expected } => crate::sync::sync(root, action, expected).await,
         GitRequest::Conflicts => crate::sync::conflicts(root).await,
@@ -83,34 +200,7 @@ pub async fn run(root: &Path, req: GitRequest) -> Result<GitResponse, String> {
             Ok(parse_status(&out))
         }
         GitRequest::Diff { path, staged } => {
-            let path = check_path(&path)?;
-            let out = if staged {
-                git(root, &["diff", "--cached", "--no-color", "--", path]).await?
-            } else {
-                // Untracked files have no diff: show them as all-added.
-                let d = git(root, &["diff", "--no-color", "--", path]).await?;
-                if d.is_empty()
-                    && git(root, &["ls-files", "--error-unmatch", "--", path])
-                        .await
-                        .is_err()
-                {
-                    // `--no-index` exits 1 when there are differences, so the
-                    // diff arrives on the error side.
-                    match git(
-                        root,
-                        &["diff", "--no-color", "--no-index", "--", "/dev/null", path],
-                    )
-                    .await
-                    {
-                        Ok(d) => d,
-                        Err(e) if e.starts_with("diff ") => e,
-                        Err(e) => return Err(e),
-                    }
-                } else {
-                    d
-                }
-            };
-            Ok(GitResponse::Diff(out))
+            diff_text(root, &path, staged).await.map(GitResponse::Diff)
         }
         GitRequest::Stage { paths } => {
             let mut args = vec!["add", "-A", "--"];
@@ -169,10 +259,21 @@ pub async fn run(root: &Path, req: GitRequest) -> Result<GitResponse, String> {
             Ok(GitResponse::Branches { current, list })
         }
         GitRequest::Checkout { branch } => {
-            if branch.starts_with('-') {
-                return Err("bad branch name".into());
+            crate::everyday::local_branch(root, &branch).await?;
+            if !git(root, &["status", "--porcelain=v2", "-z"])
+                .await?
+                .is_empty()
+            {
+                return Err(
+                    "Working tree has changes; use Branches to review and stash before switching"
+                        .into(),
+                );
             }
-            let out = git(root, &["checkout", &branch]).await?;
+            let out = git(
+                root,
+                &["switch", "--no-guess", "--no-overwrite-ignore", &branch],
+            )
+            .await?;
             Ok(GitResponse::Done(
                 out.lines().next().unwrap_or("switched").to_string(),
             ))

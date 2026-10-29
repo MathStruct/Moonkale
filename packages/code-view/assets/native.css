@@ -153,3 +153,4 @@
 .mk-crust .mk-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 3px 5px; min-width: 26px; }
 .mk-crust .mk-icon-btn .mk-icon { width: 16px; height: 16px; }
 .mk-crust .mk-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.mk-native-gutter-mark { display: inline-block; width: 3ch; overflow: hidden; vertical-align: top; opacity: 0.75; }

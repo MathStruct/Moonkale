@@ -72,6 +72,7 @@ try {
     await page.waitForSelector(".mk-git-entry[data-status='?']", { timeout: 10000 });
     await page.hover(".mk-git-entry[data-status='?']");
     await page.click(".mk-git-entry[data-status='?'] .mk-git-actions button[title^='Discard']");
+    await page.click("#mk-git-discard-confirm");
     await page.waitForSelector(".mk-git-entry[data-status='?']", { state: "detached", timeout: 10000 });
     if (fs.existsSync(`${ROOT}/scratch.txt`)) throw new Error("still on disk");
   });

@@ -45,6 +45,9 @@ enum ToJs<'a> {
         id: u32,
         items: Option<&'a [moonkale_lsp::CompletionItem]>,
     },
+    SetGutterMarks {
+        marks: &'a [moonkale_ext_api::workspace::GutterMark],
+    },
     SetPresence {
         marks: Vec<PresenceOut<'a>>,
     },
@@ -214,6 +217,7 @@ for (;;) {
     else if (msg.kind === "diagnostics") cm.setLspDiagnostics(el, msg.items);
     else if (msg.kind === "hoverResult") cm.hoverResult(el, msg.id, msg.text);
     else if (msg.kind === "completionResult") cm.completionResult(el, msg.id, msg.items);
+    else if (msg.kind === "setGutterMarks") cm.setGutterMarks(el, msg.marks);
     else if (msg.kind === "setPresence") cm.setPresence(el, msg.marks);
     else if (msg.kind === "showRange") cm.showRange(el, msg.line, msg.col, msg.end_line, msg.end_col);
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
@@ -399,6 +403,10 @@ impl CodeEditorBackend for CodeMirrorBackend {
 
     fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>) {
         let _ = self.eval.send(ToJs::CompletionResult { id, items });
+    }
+
+    fn set_gutter_marks(&self, marks: &[moonkale_ext_api::workspace::GutterMark]) {
+        let _ = self.eval.send(ToJs::SetGutterMarks { marks });
     }
 
     fn set_presence(&self, marks: &[(u32, String)]) {

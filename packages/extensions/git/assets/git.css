@@ -38,3 +38,10 @@
 .mk-conflict-hunk { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; }
 .mk-git-conflict-view { padding: 8px; }
 .mk-git-entry:focus-within .mk-git-actions { display: inline-flex; }
+.mk-git-everyday { padding: 8px; border-block: 1px solid var(--wb-line); }
+.mk-git-everyday label { display: block; margin-block: 6px; }
+.mk-git-everyday select, .mk-git-everyday input:not([type=checkbox]) { display: block; max-width: 100%; width: 100%; box-sizing: border-box; }
+.mk-git-everyday pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
+.mk-git-everyday button { margin: 2px; }
+.mk-git-stage-selection { margin-inline-end: 8px; padding: 0 5px; font: inherit; }
+.mk-git-blame-row { overflow-wrap: anywhere; padding-block: 3px; }

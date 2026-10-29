@@ -570,3 +570,82 @@ still retain the model-supplied tool arguments as conversation data.
 The direct nix, serde_json, futures-timer and pulldown-cmark dependencies reuse
 locked packages;
 no package version, new source authority or new network endpoint is added.
+
+## Git everyday operations (WP-52, 2026-10-29)
+
+The same authenticated jailed Git endpoint accepts typed branch, stash, blame,
+undo and partial-index requests. It checks the repository top-level against
+the jail, then runs relative to that top-level under its repository mutex.
+Clients supply no argv, patches, remote addresses or credentials. Local branch
+names are checked with `check-ref-format` and verified under `refs/heads`;
+upstreams must be existing local/remote refs. Commits must be full hexadecimal
+identities reachable from this repository's refs or reflog. Stashes are matched
+by object identity before a current selector is used. Option-like refs and
+escaping/metadata paths are rejected. Diff operations disable external diff
+and textconv helpers. System Git hooks and signing keep the existing WP-51
+trust boundary; repositories are executable developer inputs, not a sandbox.
+
+Everyday mutations first return a review plan. Confirmation recomputes and
+compares repository identity, HEAD, refs, full status and tracked diffs. Reset
+reviews list commits leaving the branch and affected files, explain soft/mixed
+preservation, and explicitly name hard reset's lost staged/unstaged edits and
+possible obstructing untracked files. Delete refuses unmerged branches. Dirty
+switching requires an explicit stash choice, including untracked files; failure
+keeps the stash. Stash drop names its saved identity and loss of the reference.
+No GC, expiry or pruning command is exposed.
+
+Partial staging rereads the bounded (2 MiB) server-generated text diff and
+requires an exact match before constructing selected hunks/lines. It never
+applies a client-supplied patch, and changes only the index. Text review,
+comparison and blame results are bounded to 2 MiB; UI lists cap refs at 1,000
+and recovery entries at 200. Blame annotations are inert labels and hover text,
+keyed by document identity and cleared on buffer edits. Historical blame never
+applies historical positions to current editor text. Other Git processes do
+not take Moonkale's mutex; the existing external-writer race remains.
+
+P-237: global literal pathspec mode breaks Git 2.56's internal untracked-stash
+cleanup. Only typed stash commands omit that global option; stash requests
+accept no pathspecs. Credentials remain with the system as in WP-51. No new
+dependency versions, network authority or persistent data store are added.
+
+The enabled-by-default new Git parsers share production source with the
+standalone `git_everyday` fuzz target. Each rejects text beyond 2 MiB;
+selection also caps 100,000 row identities and uses a hash set for linear
+membership work. Blame caps 100,000 output lines; recovery lists cap 200.
+Annotations require the same clean document and content version before
+publication and rendering, so asynchronous results cannot relabel changed text.
+
+The server also canonicalizes and jails Git's metadata and common directories,
+so a `.git` pointer in a jailed worktree cannot redirect writes outside the
+allowed root. Linked worktrees whose common directory is outside that root are
+refused; an operator must choose an allowed root containing both directories.
+The browser regression uses a disposable outside repository and an inside
+pointer to check refusal without writing any outside refs.
+
+## Sophia rendered edit bases (P-238, SR-150)
+
+Writable Sophia source versions identify the node, raw upstream token and
+exact fetched rendering. The adapter retains up to 128 in-memory bases, at
+most 2 MiB per base and 32 MiB per source. It never applies a splice to a
+newer print merely because the upstream token stayed equal. A current raw
+Sophia token must still match the retained base's token before writing;
+concurrent definition/group changes conflict. Evicted unchanged prints can be
+reconstructed by equality; changed evicted prints refuse and require reload.
+The equality hash is not an authorisation or cryptographic identity. Bases
+are neither persisted nor logged. Derived file versions and immutable content
+remain unchanged. No dependency or new connection is added.
+
+Git history retention overrides repository auto-maintenance for these commands
+(`gc.auto=0`, `maintenance.auto=false`), with explicit no-prune fetch/pull flags
+that override remote-specific pruning config. Regression tests preserve local
+remote-tracking refs and tags after their remote counterparts disappear. Branch
+switches refuse ignored obstructions (`--no-overwrite-ignore`). Hard reset
+reviews also list target paths, naming possible ignored obstructions before
+the explicit loss confirmation. System hooks and external Git processes retain
+the already documented host trust boundary.
+
+Linked worktrees share the common-directory mutex for ref/stash observations
+and mutations. Their private metadata directory is not a separate lock scope;
+this prevents in-process worktree actions from changing a reviewed stash's
+selector while another operation executes. External writers remain outside
+that mutex, as documented above.

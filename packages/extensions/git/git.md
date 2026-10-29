@@ -90,3 +90,71 @@ fuzz library passes 26 regression tests. Dependency policy passes with the
 existing cached advisory databases and dated exceptions. No new crate versions
 were resolved: the portable progress timers and tempfile reuse locked packages.
 See the root handoff and `target/next37-validation.json` for exact logs.
+
+## Everyday operations (WP-52, 2026-10-29)
+
+Hunk and single changed-line controls in each diff apply only the selected
+server-produced rows to the index, in either direction. The server rereads and
+compares the complete diff; no client patch reaches `git apply`. Deselected
+removals become context and deselected additions disappear. CRLF and Git's
+missing-final-newline markers survive. New and deleted text files support partial staging and unstaging too; renames
+are exposed as literal path additions/deletions for selection. Symlinks,
+submodules and mode-only changes use whole-file actions.
+
+Branches, Undo/reflog, Stash and Blame live in the overflow and palette, with
+shortcuts. Sync remains primary. Secondary operations use a typed review plan:
+repository, HEAD, refs, status and tracked content are rechecked on confirmation.
+Hard reset names affected files, commits leaving the branch, and lost edits.
+A dirty switch refuses until the user selects stash-before-switch, which saves
+tracked and untracked files. Failed switching leaves that stash available.
+Branch deletion refuses unmerged branches; no forced deletion is exposed.
+Stash pop retains its stash on conflicts. Cherry-pick and revert conflicts
+reuse the existing three-way view and continue/abort controls. No operation
+runs garbage collection, reflog expiry or pruning.
+
+Commit operands are full object identities reachable through this repository's
+refs or reflog, branch operands are verified local names, upstreams are existing
+local/remote refs, and stash operands resolve by observed object identity to a
+current selector. No endpoint or credentials enter these operations. P-237
+records why typed stash commands omit global literal-pathspec mode.
+
+`ContribState.gutter_marks` supplies inert line labels/hover text keyed by
+NodeId. CodeMirror and the Rust editor render it through the same API; dirty
+buffers clear stale annotations. Blame's previous-commit buttons walk the
+reported historical file/commit; historical rows remain in the Git panel and
+do not relabel the current editor with historical line positions.
+
+`git-everyday.mjs` covers the production workflows and both editor gutters.
+Real-CLI tests cover line/hunk staging and unstaging with LF, CRLF and no final
+newline, stale diffs, separate hunks, dirty switching, untracked stash lifecycle,
+reset review freshness, reflog recovery, branch lifecycle/upstream/comparison,
+blame parent walking, revert and cherry-pick. Validation results belong in the
+root NEXT-39 handoff; the section above describes implementation scope.
+
+The pure patch-selection, blame and reflog parsers are in `everyday_model.rs`,
+shared directly with the standalone `git_everyday` fuzz target. Selection uses
+a bounded hash set of row numbers, avoiding quadratic membership checks.
+CodeMirror shares one diff snapshot across all row callbacks; copies occur only
+when a selected action is sent. Blame results are attached only if the same
+clean document version remains active. Both views check that version later.
+The native gutter uses its existing three-character presence slot (presence
+wins when another cursor occupies that line), keeping hit-testing geometry
+unchanged; full commit, author and subject remain available on hover.
+
+History retention is explicit at the process boundary: commands disable
+`gc.auto` and `maintenance.auto`, and fetch/pull refuse pruning even when the
+repository config enables it. A real local-remote test deletes remote refs/tags
+and verifies that the local recovery refs remain. Switching also passes
+`--no-overwrite-ignore`; ignored obstructions are refused. Hard reset review
+names target paths as well as current changes, so ignored obstructions are
+included in the confirmed loss locations.
+
+WP-52 validation complete (2026-10-29): 24 Git CLI/model tests, 28 standalone
+parser regressions, all AGENTS gates and the reconciled 59-case browser feature
+matrix pass. The final git_everyday fuzz run completes 1,141,732 inputs in
+61 seconds without a crash. Both editor screenshots were inspected.
+
+Linked worktrees take the same in-process lock, keyed by their common Git
+directory, so branch refs and the shared stash stack cannot interleave within
+this host. The CLI regression holds that lock and verifies another worktree
+waits; external Git processes still have the documented race boundary.

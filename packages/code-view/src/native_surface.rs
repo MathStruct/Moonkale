@@ -41,6 +41,7 @@ pub(crate) fn RustEditorSurface(
     highlights: Signal<SearchHighlights>,
     diagnostics: Memo<Vec<moonkale_lsp::Diagnostic>>,
     presence: Vec<moonkale_ext_api::presence::Member>,
+    #[props(default)] gutter_marks: Vec<moonkale_ext_api::workspace::GutterMark>,
     wiki_marks: Vec<crate::native_wiki::Mark>,
     onwiki: Callback<String>,
     onlink: Callback<crate::native_links::Target>,
@@ -1492,6 +1493,11 @@ pub(crate) fn RustEditorSurface(
                                             }
                                             "{line.logical_line_index + 1:>4} "
                                             span { class: "mk-native-presence-slot",
+                                            if !line.is_wrapped_part && !presence.iter().any(|member| member.line == Some(logical_line as u32)) {
+                                                for mark in gutter_marks.iter().filter(|m|m.line as usize == logical_line) {
+                                                    span { class: "mk-native-gutter-mark", title: mark.title.clone(), "{mark.label}" }
+                                                }
+                                            }
                                             if !line.is_wrapped_part && presence.iter().any(|member| member.line == Some(logical_line as u32)) {
                                                 span {
                                                     class: "mk-native-presence",

@@ -91,3 +91,8 @@ concrete panel identity while retaining the shared Rust document and history.
 The backend owns one document-wide bundle import; replacing a restored panel
 cannot cancel a head-script load and strand its successor at Loading. Bundle
 and host waits are bounded, with failures using the existing retry surface.
+
+WP-52 (2026-10-29): both code engines consume shared document-keyed inert gutter
+annotations from ext-api (Git blame today). Labels show the short commit and
+hover text shows author, full commit and subject. Edits clear stale annotations.
+Historical blame walking remains in the Git panel.

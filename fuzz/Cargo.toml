@@ -72,3 +72,10 @@ path = "fuzz_targets/git_conflicts.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "git_everyday"
+path = "fuzz_targets/git_everyday.rs"
+test = false
+doc = false
+bench = false

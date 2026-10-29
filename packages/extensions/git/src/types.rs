@@ -43,6 +43,28 @@ pub struct Commit {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitRequest {
+    EverydayState,
+    Everyday {
+        action: crate::everyday_types::EverydayAction,
+        expected: Option<crate::everyday_types::EverydayPlan>,
+    },
+    Compare {
+        left: String,
+        right: String,
+    },
+    StashShow {
+        oid: String,
+    },
+    Blame {
+        path: String,
+        commit: Option<String>,
+    },
+    StageSelection {
+        path: String,
+        staged: bool,
+        expected: String,
+        lines: Vec<usize>,
+    },
     Status,
     Progress,
     Sync {
@@ -88,6 +110,9 @@ pub enum GitRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitResponse {
+    EverydayState(crate::everyday_types::EverydayState),
+    EverydayPlan(crate::everyday_types::EverydayPlan),
+    Blame(Vec<crate::everyday_types::BlameLine>),
     SyncPlan(SyncPlan),
     Conflicts {
         operation: Option<String>,

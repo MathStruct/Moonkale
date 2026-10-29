@@ -467,6 +467,27 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
         });
     }
+    moonkale_ext_api::crash::use_effect(move || {
+        let marks = ws
+            .contrib
+            .gutter_marks
+            .read()
+            .get(&node)
+            .filter(|(v, _)| *v == doc.read().version)
+            .map(|(_, marks)| marks.clone())
+            .unwrap_or_default();
+        let dirty = doc.read().dirty();
+        if dirty && !marks.is_empty() {
+            ws.contrib.gutter_marks.with_mut(|m| {
+                m.remove(&node);
+            });
+        }
+        if ready() {
+            if let Some(b) = backend.peek().as_ref() {
+                b.set_gutter_marks(if dirty { &[] } else { &marks });
+            }
+        }
+    });
     // Other people's cursors in this document (Milestone 9).
     {
         let key = doc.peek().node.native_key.clone();

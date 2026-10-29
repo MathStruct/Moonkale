@@ -40,7 +40,7 @@ mod sources;
 
 pub use config::*;
 pub use documents::DocsState;
-pub use extensions::ContribState;
+pub use extensions::{ContribState, GutterMark};
 pub use history::{event_key, EventRecord, HistoryState};
 pub use navigation::NavigationState;
 pub use processes::ProcessesState;

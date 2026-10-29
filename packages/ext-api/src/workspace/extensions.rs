@@ -203,6 +203,10 @@ try {
 /// What extensions contributed at runtime: flow libraries, wasm modules, file marks. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
 #[derive(Clone, Copy)]
 pub struct ContribState {
+    /// Per-document line annotations. Hosts hide them while the buffer is dirty.
+    pub gutter_marks: Signal<
+        std::collections::HashMap<moonkale_core::NodeId, (moonkale_core::Version, Vec<GutterMark>)>,
+    >,
     /// Block libraries from the enabled extensions (the shell keeps it current).
     pub flow_libraries: Signal<Vec<crate::flow::FlowLibrary>>,
     /// Installed wasm extensions (manifests), refreshed at start and on folder open.
@@ -216,9 +220,21 @@ pub struct ContribState {
 impl ContribState {
     pub(super) fn new() -> Self {
         Self {
+            gutter_marks: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
             flow_libraries: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             wasm_extensions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             file_marks: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
         }
     }
+}
+
+/// Inert, zero-based line annotation shared by code editor engines.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GutterMark {
+    /// Zero-based source line.
+    pub line: u32,
+    /// Short text shown in the gutter.
+    pub label: String,
+    /// Plain hover text.
+    pub title: String,
 }

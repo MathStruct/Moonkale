@@ -47,6 +47,8 @@ pub struct GitState {
     pub operation: Signal<Option<String>>,
     /// Bumped to ask for a refresh (commands, saves, file operations).
     pub epoch: Signal<u64>,
+    pub everyday: Signal<Option<crate::everyday_panel::Tab>>,
+    pub discard: Signal<Option<String>>,
 }
 
 impl PartialEq for GitState {
@@ -66,6 +68,8 @@ impl GitState {
             plan: Signal::new_in_scope(None, ScopeId::ROOT),
             conflicts: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             operation: Signal::new_in_scope(None, ScopeId::ROOT),
+            discard: Signal::new_in_scope(None, ScopeId::ROOT),
+            everyday: Signal::new_in_scope(None, ScopeId::ROOT),
             epoch: Signal::new_in_scope(0, ScopeId::ROOT),
         }
     }
@@ -76,7 +80,7 @@ impl GitState {
     }
 }
 
-async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
+pub(super) async fn run(ws: Workspace, req: GitRequest) -> Result<GitResponse, String> {
     let git = ws
         .service::<crate::GitRunner>()
         .map(|r| r.0)
@@ -297,6 +301,9 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         if *seen_root.peek() != root {
             seen_root.set(root);
             state.plan.set(None);
+            state.discard.set(None);
+            state.everyday.set(None);
+            ws.contrib.gutter_marks.with_mut(|m| m.clear());
             state.conflicts.set(Vec::new());
             state.operation.set(None);
             state.output.set(String::new());
@@ -316,7 +323,13 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         }
     });
 
-    let act = move |req: GitRequest| act(ws, state, req);
+    let mut act = move |req: GitRequest| {
+        if let GitRequest::Discard { path } = req {
+            state.discard.set(Some(path));
+        } else {
+            act(ws, state, req);
+        }
+    };
     let mut open_diff = move |path: String, staged: bool| {
         let view = DiffView {
             path: path.clone(),
@@ -370,6 +383,11 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                 span { class: "mk-git-spacer" }
                                 moonkale_ext_api::icons::ToolbarActions {
                     primary: rsx! { button { class: "mk-btn", disabled: busy, onclick: moonkale_ext_api::crash::event(move |_| act(GitRequest::Sync { action: SyncAction::Sync, expected: None })), id: "mk-git-sync", "data-command": "git.sync", "data-shortcut": moonkale_ext_api::command_hint("git.sync", "").shortcut, title: moonkale_ext_api::command_hint("git.sync", t!(ws, L, "git-sync")).title, {t!(ws, L, "git-sync")} } },
+                                for (id, label, tab) in crate::everyday_panel::actions(ws) {
+                                    button { key: "{id}", class: "mk-btn", "data-command": id, "data-shortcut": moonkale_ext_api::command_hint(id, "").shortcut, title: moonkale_ext_api::command_hint(id, label.clone()).title,
+                                        onclick: moonkale_ext_api::crash::event(move |_| state.everyday.set(Some(tab))), "{label}"
+                                    }
+                                }
                                 for (id, label, action) in sync_actions(ws) {
                                     button { key: "{id}", class: "mk-btn", disabled: busy, "data-command": "{id}", "data-shortcut": moonkale_ext_api::command_hint(id, "").shortcut, title: moonkale_ext_api::command_hint(id, label.clone()).title,
                                         onclick: moonkale_ext_api::crash::event(move |_| act(GitRequest::Sync { action, expected: None })), "{label}"
@@ -381,7 +399,19 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
 
                 }
             }
+                            if let Some(path) = state.discard.read().clone() {
+                                div { class: "mk-git-discard-review", role: "group",
+                                    p { {t!(ws,L,"git-discard-confirm",path=path.clone())} }
+                                    button { id: "mk-git-discard-confirm", class: "mk-btn mk-btn-danger",
+                                        onmounted: moonkale_ext_api::crash::event(move |e:Event<MountedData>| {let data=e.data();moonkale_ext_api::crash::spawn(async move {let _=data.set_focus(true).await;});}),
+                                        onclick: moonkale_ext_api::crash::event(move |_| {state.discard.set(None);self::act(ws,state,GitRequest::Discard{path:path.clone()});}), {t!(ws,L,"git-confirm")} }
+                                    button {class:"mk-btn", onclick: moonkale_ext_api::crash::event(move |_|state.discard.set(None)),{t!(ws,L,"git-cancel")} }
+                                }
+                            }
                             SyncView { ws, state }
+                            if let Some(tab) = *state.everyday.read() {
+                                crate::everyday_panel::EverydayPanel { key: "{tab:?}", ws, state, tab }
+                            }
                             div { class: "mk-git-commit",
                                 textarea { id: COMMIT_ID, class: "mk-input", rows: 2, placeholder: t!(ws, L, "git-message"), value: "{message}",
                                     oninput: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| message.set(e.value())),
@@ -409,11 +439,12 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                         let (p1, p2) = (e.path.clone(), e.path.clone());
                                         let letter = e.index;
                                         rsx! {
-                                            div { key: "s:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: status_label(ws, letter),
+                                            div { key: "s:{e.path}", class: "mk-git-entry", role: "button", tabindex: 0, "data-status": "{letter}", title: status_label(ws, letter),
+                                                onkeydown: moonkale_ext_api::crash::event({let p=p1.clone();move |ev:KeyboardEvent| {if ev.key()==Key::Enter || ev.key()==Key::Character(" ".into()) {ev.prevent_default();open_diff(p.clone(),true);}}}),
                                                 onclick: moonkale_ext_api::crash::event(move |_| open_diff(p1.clone(), true)),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
                                                 span { class: "mk-git-path", "{e.path}" }
-                                                span { class: "mk-git-actions",
+                                                span { class: "mk-git-actions", onkeydown: moonkale_ext_api::crash::event(move |e:KeyboardEvent|{if e.key()==Key::Enter || e.key()==Key::Character(" ".into()){e.stop_propagation();}}),
                                                     button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-unstage"), onclick: moonkale_ext_api::crash::event(move |ev: dioxus::prelude::MouseEvent| { ev.stop_propagation(); act(GitRequest::Unstage { paths: vec![p2.clone()] }) }), "−" }
                                                 }
                                             }
@@ -431,11 +462,12 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                         let (p1, p2, p3) = (e.path.clone(), e.path.clone(), e.path.clone());
                                         let letter = if e.index == '?' { '?' } else { e.worktree };
                                         rsx! {
-                                            div { key: "w:{e.path}", class: "mk-git-entry", "data-status": "{letter}", title: status_label(ws, letter),
+                                            div { key: "w:{e.path}", class: "mk-git-entry", role: "button", tabindex: 0, "data-status": "{letter}", title: status_label(ws, letter),
+                                                onkeydown: moonkale_ext_api::crash::event({let p=p1.clone();move |ev:KeyboardEvent| {if ev.key()==Key::Enter || ev.key()==Key::Character(" ".into()) {ev.prevent_default();open_diff(p.clone(),false);}}}),
                                                 onclick: moonkale_ext_api::crash::event(move |_| open_diff(p1.clone(), false)),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
                                                 span { class: "mk-git-path", "{e.path}" }
-                                                span { class: "mk-git-actions",
+                                                span { class: "mk-git-actions", onkeydown: moonkale_ext_api::crash::event(move |e:KeyboardEvent|{if e.key()==Key::Enter || e.key()==Key::Character(" ".into()){e.stop_propagation();}}),
                                                     button { class: "mk-btn mk-btn-mini", disabled: busy, title: t!(ws, L, "git-stage"), onclick: moonkale_ext_api::crash::event(move |ev: dioxus::prelude::MouseEvent| { ev.stop_propagation(); act(GitRequest::Stage { paths: vec![p2.clone()] }) }), "+" }
                                                     button { class: "mk-btn mk-btn-mini mk-btn-danger", disabled: busy, title: t!(ws, L, "git-discard"), onclick: moonkale_ext_api::crash::event(move |ev: dioxus::prelude::MouseEvent| { ev.stop_propagation(); act(GitRequest::Discard { path: p3.clone() }) }), "✕" }
                                                 }
@@ -474,6 +506,24 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
         return rsx! { div { class: "mk-git-diff", p { class: "mk-muted", {t!(ws, L, "git-closed")} } } };
     };
     let path = view.path.clone();
+    let shared_diff = std::rc::Rc::new(
+        view.text
+            .as_ref()
+            .and_then(|r| r.as_ref().ok())
+            .cloned()
+            .unwrap_or_default(),
+    );
+    let mut hunk_rows = std::collections::HashMap::<usize, Vec<usize>>::new();
+    let mut current_hunk = None;
+    for (i, line) in shared_diff.lines().enumerate() {
+        if line.starts_with("@@ ") {
+            current_hunk = Some(i);
+        } else if line.starts_with('+') || line.starts_with('-') {
+            if let Some(hunk) = current_hunk {
+                hunk_rows.entry(hunk).or_default().push(i);
+            }
+        }
+    }
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-git-diff",
@@ -500,7 +550,22 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
                                     else if line.starts_with("@@") { "mk-diff-hunk" }
                                     else if line.starts_with("diff ") || line.starts_with("index ") { "mk-diff-meta" }
                                     else { "mk-diff-ctx" };
-                                rsx! { span { key: "{i}", class: "mk-diff-line {class}", "{line}\n" } }
+                                let selected = if class == "mk-diff-hunk" { hunk_rows.get(&i).cloned().unwrap_or_default() } else { vec![i] };
+                                let expected = shared_diff.clone();
+                                let stage_path = view.path.clone();
+                                let staged = view.staged;
+                                rsx! { span { key: "{i}", class: "mk-diff-line {class}",
+                                    if matches!(class, "mk-diff-hunk" | "mk-diff-add" | "mk-diff-del") {
+                                        button { class: "mk-btn mk-git-stage-selection", "data-row": "{i}", "data-kind": if class == "mk-diff-hunk" { "hunk" } else { "line" },
+                                            disabled: *state.busy.read(),
+                                            aria_label: if view.staged { t!(ws,L,"git-unstage-selection") } else { t!(ws,L,"git-stage-selection") },
+                                            title: if view.staged { t!(ws,L,"git-unstage-selection") } else { t!(ws,L,"git-stage-selection") },
+                                            onclick: moonkale_ext_api::crash::event(move |_| act(ws,state,GitRequest::StageSelection{path:stage_path.clone(),staged,expected:expected.as_ref().clone(),lines:selected.clone()})),
+                                            if view.staged { "−" } else { "+" }
+                                        }
+                                    }
+                                    "{line}\n"
+                                } }
                             }
                         }
                     }

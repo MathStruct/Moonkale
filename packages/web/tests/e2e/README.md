@@ -755,3 +755,12 @@ the private overview and Pause sharing. `agent-display.mjs` drives mock display
 tools in Ask, When I'm not typing and Always modes while the person types in
 CodeMirror; checks marked graph selection, preserved focus, typed content limits,
 tables and rate limiting. Both are in run-all.sh and CI smoke.
+
+`git-everyday.mjs` (WP-52) drives branch creation/switch/rename/deletion,
+upstream/comparison, dirty-switch refusal and stash offer, all stash actions,
+reviewed soft/mixed/hard reset and cancellation, reflog branch recovery,
+cherry-pick/revert, blame parent walking and both editor gutters, and hunk/line
+staging in both directions. It uses disposable fixture repositories only.
+`sophia-folder` also seeds an authored `warnings.sophia` through the small
+`save_warning_fixture` example, then tests SR-150 save notices through the real
+editor after a second writer changes a referenced definition.

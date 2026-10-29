@@ -36,3 +36,9 @@ pub fn flow_format(source: &str) {
 // Same bounded hunk model used by the Git and future proposal conflict views.
 #[path = "../../packages/extensions/git/src/conflict_model.rs"]
 pub mod git_conflicts;
+
+#[allow(dead_code)]
+#[path = "../../packages/extensions/git/src/everyday_types.rs"]
+pub mod everyday_types;
+#[path = "../../packages/extensions/git/src/everyday_model.rs"]
+pub mod git_everyday;

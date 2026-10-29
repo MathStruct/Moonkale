@@ -232,6 +232,10 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 
 | [[P-236 Overview confirmation can lose focus]] | Repeated smoke runs expose an overview dirty-close dialog without focus; Escape can close the whole overview. Explicit mounted-button focus and input-side Escape cancellation fix it; five overview repetitions, three full smoke sweeps and all gates pass. | resolved | WP-26/60 |
 
+| [[P-237 Literal pathspecs break stash cleanup]] | Git 2.56.0 global literal mode leaves stashed untracked files on disk. Typed stash commands now preserve Git’s internal pathspec mode; real-CLI regression. | resolved | WP-52 |
+
+| [[P-238 Sophia patches need the fetched rendering]] | A moved reference reprints to a hash without changing Sophia’s edited-name token. Source versions now identify the fetched rendering, with bounded retained patch bases and raw-token checks; old-buffer saves can warn successfully. | resolved | SR-150 |
+
 ## Conventions
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.

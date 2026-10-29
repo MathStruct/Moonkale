@@ -14,6 +14,12 @@
 pub mod cli;
 pub mod conflict;
 mod conflict_model;
+#[cfg(all(feature = "cli", not(target_arch = "wasm32")))]
+mod everyday;
+#[cfg(all(feature = "cli", not(target_arch = "wasm32")))]
+mod everyday_model;
+mod everyday_panel;
+pub mod everyday_types;
 pub mod history;
 mod panel;
 pub mod server;
@@ -144,6 +150,14 @@ impl Extension for GitExtension {
         ]) {
             commands.push(CommandContribution::new(id, label).key(key));
         }
+        for ((id, label, _), key) in everyday_panel::actions(ws).into_iter().zip([
+            "Ctrl+Alt+B",
+            "Ctrl+Alt+Shift+Z",
+            "Ctrl+Alt+Shift+S",
+            "Ctrl+Alt+Shift+B",
+        ]) {
+            commands.push(CommandContribution::new(id, label).key(key));
+        }
         commands
     }
 
@@ -152,6 +166,15 @@ impl Extension for GitExtension {
     }
 
     fn run_command(&self, id: &str, mut ws: Workspace) {
+        if let Some((_, _, tab)) = everyday_panel::actions(ws)
+            .into_iter()
+            .find(|(cmd, _, _)| *cmd == id)
+        {
+            ws.dispatch(Command::ShowPanel(PANEL_ID));
+            let mut mode = self.state.everyday;
+            mode.set(Some(tab));
+            return;
+        }
         let sync = if id == "git.sync" {
             Some(types::SyncAction::Sync)
         } else {

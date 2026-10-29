@@ -111,3 +111,11 @@ P-219: `setPhrases(el, phrases)` / `setPhrases { phrases }` reconfigures
 `EditorState.phrases` with the shell locale's search strings. This is view
 configuration and does not edit text or history. Search controls use shell
 colour tokens in `theme.ts`.
+
+## Shared gutter annotations (WP-52)
+
+Rust sends `setGutterMarks { marks: [{ line, label, title }] }`. Lines are zero
+based; both label and title are inert text (`textContent` / `title`). The view
+keeps no Git state. Document changes clear annotations, and the workspace also
+clears its shared annotation entries for dirty buffers. Historical blame stays
+in the Git panel instead of assigning old positions to the live document.

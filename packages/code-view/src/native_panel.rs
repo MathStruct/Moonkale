@@ -59,6 +59,13 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
     use_hook(move || {
         moonkale_ext_api::workspace::grouped_edits::register_view(ws, node, "native", None)
     });
+    moonkale_ext_api::crash::use_effect(move || {
+        if doc.read().dirty() {
+            ws.contrib.gutter_marks.with_mut(|m| {
+                m.remove(&node);
+            });
+        }
+    });
     let diagnostics = crate::native_diagnostics::use_diagnostics(ws, node, manager);
     let (wiki_marks, follow_wiki) = crate::native_wiki::use_wiki(ws, node);
     let follow_link = crate::native_links::use_follow(ws, node);
@@ -870,6 +877,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 wiki_popup: Some(rsx!{crate::native_wiki_hover::WikiPopup{control:wiki_hover,ws,onclose:move |_|focus_request.with_mut(|value|*value+=1)}}),
                 diagnostics,
                 presence: presence(),
+                gutter_marks: if doc.read().dirty() { Vec::new() } else { ws.contrib.gutter_marks.read().get(&node).filter(|(v,_)| *v == doc.read().version).map(|(_,m)|m.clone()).unwrap_or_default() },
                 wiki_marks: wiki_marks(),
                 onwiki: follow_wiki,
                 onlink: follow_link,

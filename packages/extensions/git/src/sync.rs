@@ -198,10 +198,18 @@ async fn network(root: &Path, args: &[String]) -> Result<String, String> {
         outputs.retain(|_, v| v.strong_count() > 0);
         outputs.insert(root.into(), std::sync::Arc::downgrade(&output));
     }
+    let mut argv = args.to_vec();
+    if matches!(args.first().map(String::as_str), Some("fetch" | "pull")) {
+        argv.insert(1, "--no-prune".into());
+        if args[0] == "fetch" {
+            argv.insert(2, "--no-prune-tags".into());
+        }
+    }
     let mut child = tokio::process::Command::new("git")
+        .args(crate::cli::RETAIN_HISTORY)
         .arg("-C")
         .arg(root)
-        .args(args)
+        .args(&argv)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_EDITOR", "true")
         .env("LC_ALL", "C")
@@ -299,6 +307,7 @@ async fn operation(root: &Path) -> Option<String> {
         ("rebase-apply", "rebase"),
         ("MERGE_HEAD", "merge"),
         ("CHERRY_PICK_HEAD", "cherry-pick"),
+        ("REVERT_HEAD", "revert"),
     ] {
         if git_path(root, name).await.ok().is_some_and(|p| p.exists()) {
             return Some(op.into());
@@ -879,5 +888,69 @@ mod lifecycle_tests {
         let err = f.sync(SyncAction::Push).await.unwrap_err();
         assert!(!err.contains("token:secret"));
         assert!(err.contains("credential"));
+    }
+    #[tokio::test]
+    async fn configured_pruning_and_automatic_maintenance_are_disabled() {
+        let fixture = Fixture::new();
+        let root = &fixture.local;
+        g(root, &["branch", "retain-history"]);
+        g(root, &["push", "origin", "retain-history"]);
+        g(root, &["fetch", "origin"]);
+        g(root, &["tag", "retain-tag"]);
+        g(root, &["push", "origin", "refs/tags/retain-tag"]);
+        g(&fixture.remote, &["branch", "-D", "retain-history"]);
+        g(&fixture.remote, &["tag", "-d", "retain-tag"]);
+        for key in [
+            "remote.origin.prune",
+            "remote.origin.pruneTags",
+            "maintenance.auto",
+        ] {
+            g(root, &["config", key, "true"]);
+        }
+        g(root, &["config", "gc.auto", "1"]);
+        assert_eq!(
+            git(root, &["config", "--get", "gc.auto"])
+                .await
+                .unwrap()
+                .trim(),
+            "0"
+        );
+        assert_eq!(
+            git(root, &["config", "--get", "maintenance.auto"])
+                .await
+                .unwrap()
+                .trim(),
+            "false"
+        );
+        for action in [SyncAction::Fetch, SyncAction::Pull] {
+            let response = run(
+                root,
+                crate::types::GitRequest::Sync {
+                    action,
+                    expected: None,
+                },
+            )
+            .await
+            .unwrap();
+            if let GitResponse::SyncPlan(plan) = response {
+                run(
+                    root,
+                    crate::types::GitRequest::Sync {
+                        action,
+                        expected: Some(plan),
+                    },
+                )
+                .await
+                .unwrap();
+            } else {
+                assert!(matches!(response, GitResponse::Done(_)));
+            }
+            assert!(!g(
+                root,
+                &["show-ref", "--verify", "refs/remotes/origin/retain-history"]
+            )
+            .is_empty());
+            assert!(!g(root, &["show-ref", "--verify", "refs/tags/retain-tag"]).is_empty());
+        }
     }
 }
