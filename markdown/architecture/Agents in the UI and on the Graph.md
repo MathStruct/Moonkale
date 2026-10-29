@@ -48,7 +48,10 @@ An agent asks Moonkale to show something, and Moonkale draws it with its own ren
   - it never covers what someone is typing in;
   - it never closes or moves a person's tabs.
 
-  When a person is working, what an agent wants to show waits as a quiet offer ("Agent X wants to show 3 nodes — Show"), unless that person has turned on "let agents open views" for the session.
+  What an agent wants to show depends on a setting, **Agents may open views** (Daniel, 2026-10-29), with three values, in the user scope and overridable per session:
+  - **Ask:** every view is a quiet offer ("Agent X wants to show 3 nodes — Show"). This is the default.
+  - **When I'm not typing:** views open when nobody is typing; otherwise they wait as an offer.
+  - **Always:** views open at once, never taking the focus.
 - **AU-06 Budgeted:** display calls count toward the agent's budget (SW-08). Calls are rate-limited (for example at most one new view per few seconds), so a looping agent can't flood the workbench.
 - **AU-07 Classed as read-only:** display tools don't change sources, so the policy gate treats them as read-only. They can still be denied per session, like `editor.open` today.
 
@@ -86,7 +89,7 @@ Two buttons, both off by default, per session and per participant (a person or a
   You can stop sharing at any time. Agents can share their cursor too (SW-03), which is how "watch the agent work" looks.
 - **AU-11 Share my pointer:** others see your mouse pointer over the same view, as a labelled arrow, on graphs and canvases where position means something. This is for explaining ("this node here").
 - **AU-12 Hand over the keyboard:** a separate, explicit grant: "let X type in this document". It is time-limited and revocable. Every keystroke is attributed to whoever typed it (SW-06).
-  - An agent can be given the keyboard only as proposals (SW-05), never as live keystrokes into a person's terminal.
+  - **Agents never get live keystrokes** (decided, Daniel, 2026-10-29). Their edits are proposals (SW-05). Their text can stream into their own canvas or scratch document (AU-03), which is showing, not typing. A demonstration replays a proposal step by step, with its cursor moving through the edit, and is then accepted or rejected as a whole.
 - **AU-13 Visible state:**
   - a small indicator shows when you are sharing your cursor or pointer, or have handed over the keyboard;
   - one command stops all of it ("Stop sharing", with a shortcut);
@@ -142,7 +145,7 @@ It knows terminals, not the graph, so it would be a runtime under §2, not a rep
 4. **AG-01 to AG-05:** with proposals (WP-49) and agent tasks (WP-48).
 5. **AU-30 to AU-32, the herdr adapter:** when someone uses herdr with Moonkale. Work package WP-73.
 
-## Questions for Daniel
+## Decided (Daniel, 2026-10-29)
 
-- **AU-05:** should "let agents open views" default to on for a session you started an agent in, or always ask?
-- **AU-12:** should an agent ever get live keystrokes, for example in its own scratch document? This draft says proposals only.
+- **AU-05:** whether agents open views is the setting above, defaulting to Ask.
+- **AU-12:** no live keystrokes for agents. Streaming into their own canvas and step-by-step proposal replay cover drafting and demonstrations.
