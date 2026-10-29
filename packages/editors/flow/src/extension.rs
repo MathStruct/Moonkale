@@ -54,6 +54,27 @@ impl Extension for FlowExtension {
         (is_flow(node)).then_some(50)
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let node = ws
+            .linked_content(panel_id)
+            .or_else(|| panel_id.rsplit(':').next()?.parse().ok())?;
+        let doc = ws.document(node)?;
+        if !moonkale_ext_api::preview::allowed_path(&doc.peek().node.native_key) {
+            return None;
+        }
+        let id = if panel_id.starts_with("lead:") {
+            format!("mk-flow-{node}-{}", panel_id.replace(':', "-"))
+        } else {
+            format!("mk-flow-{node}")
+        };
+        moonkale_ext_api::preview::graph(id, true)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match panel_id
             .strip_prefix(EDITOR_PREFIX)

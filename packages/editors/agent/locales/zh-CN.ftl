@@ -56,3 +56,5 @@ agent-waiting = （{ $class }）——等待任一已连接的人回应
 agent-ask-server = 向智能体提问…（在服务器上运行；回车发送）
 agent-approval-waiting = 智能体正在等待你的批准（智能体面板）
 agent-approval-timeout = 10 分钟内无回应：已拒绝智能体的请求
+
+agent-overview-state = 代理活动

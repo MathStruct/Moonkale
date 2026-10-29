@@ -56,3 +56,5 @@ agent-waiting =  ({ $class }) — waiting for anyone connected to answer
 agent-ask-server = Ask the agent… (runs on the server; Enter to send)
 agent-approval-waiting = The agent waits for your approval (Agent panel)
 agent-approval-timeout = No answer for 10 minutes: the agent's request was declined
+
+agent-overview-state = Agent activity

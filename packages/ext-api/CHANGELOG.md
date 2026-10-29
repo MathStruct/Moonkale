@@ -1,5 +1,16 @@
 # Changelog — the library crates
 
+## Unreleased — overview previews (WP-60)
+
+- Add optional `Extension::preview(panel_id, ws, PreviewSize) -> Option<Element>`.
+  Existing implementations default to icon/title. Previews must use bounded,
+  already-held state, without subscriptions, source reads or execution.
+- Add `Command::Overview` (downstream exhaustive command matches need a new arm).
+- Add bounded schematic helpers in `preview` and clamped `PreviewSize`.
+- Graph renderer: add `GraphView.snapshot(width, height)` and native
+  `snapshot::snapshot`, sampling existing positions with node/edge/pixel caps.
+  It performs no layout or GPU readback.
+
 `moonkale-core`, `moonkale-ext-api` and `moonkale-graph-render` are versioned together by **git tags** `ext-api-YYYY-MM-DD` on [MathStruct/Moonkale](https://github.com/MathStruct/Moonkale) — the date of the tagged commit; a second tag on the same day gets `-2` (no version counter: the API tag and the app's releases are independent, and `ext-api-*` matches none of the release workflow's `v*`/`moonkale-*`/`YYMMDD-proto*` patterns; decided 2026-10-12). Depend by tag, never by branch:
 
 ```toml

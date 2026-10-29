@@ -37,6 +37,20 @@ impl Extension for GraphExtension {
         panels
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let _ = ws;
+        let id = panel_id
+            .strip_prefix("graph:")
+            .map(|id| format!("mk-graph-panel-{id}"))
+            .unwrap_or_else(|| "mk-graph-panel".into());
+        moonkale_ext_api::preview::graph(id, false)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         rsx! { GraphPanel { ws, panel_id: panel_id.to_string() } }
     }

@@ -422,3 +422,9 @@ link-pin = 固定此主题
 link-cancel = 取消
 link-active = 跟随当前编辑器
 link-description = 与 { $names } 链接（第 { $number } 组）
+
+overview-title = 概览
+overview-window = 此窗口
+overview-close = 关闭标签页
+overview-discard = 关闭并放弃未保存的更改？
+overview-unsaved = 未保存的更改

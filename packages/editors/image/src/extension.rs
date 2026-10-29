@@ -49,6 +49,23 @@ impl Extension for ImageExtension {
         (crate::is_image(node)).then_some(50)
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let node = ws.open_node_by_id(Self::node_of(panel_id)?)?;
+        if !moonkale_ext_api::preview::allowed_path(&node.native_key) {
+            return None;
+        }
+        let label = moonkale_ext_api::preview::bounded_text(&node.label);
+        Some(rsx! {
+            crate::panel::ImagePreview { node: node.id }
+            span { "{label}" }
+        })
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id)
             .and_then(|id| ws.docs.views.read().iter().find(|n| n.id == id).cloned())

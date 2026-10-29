@@ -438,3 +438,9 @@ link-pin = Dieses Thema beibehalten (anheften)
 link-cancel = Abbrechen
 link-active = Folgt dem aktiven Editor
 link-description = verknüpft mit { $names } (Gruppe { $number })
+
+overview-title = Übersicht
+overview-window = Dieses Fenster
+overview-close = Tab schließen
+overview-discard = Schließen und ungespeicherte Änderungen verwerfen?
+overview-unsaved = Ungespeicherte Änderungen

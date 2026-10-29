@@ -108,6 +108,16 @@ impl moonkale_ext_api::Extension for GuardedExtension {
             .run(|| self.inner.render(id, ws))
             .unwrap_or_else(dioxus::prelude::VNode::empty)
     }
+    fn preview(
+        &self,
+        id: &str,
+        ws: moonkale_ext_api::Workspace,
+        size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<dioxus::prelude::Element> {
+        self.guard
+            .run(|| self.inner.preview(id, ws, size))
+            .flatten()
+    }
     fn on_panel_closed(&self, id: &str, ws: moonkale_ext_api::Workspace) {
         self.guard.run(|| self.inner.on_panel_closed(id, ws));
     }

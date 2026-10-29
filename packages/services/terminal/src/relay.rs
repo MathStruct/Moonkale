@@ -40,6 +40,13 @@ impl Relay {
         }
     }
 
+    /// A bounded, non-consuming tail for static overview schematics.
+    pub fn preview(&self) -> String {
+        let mut bytes: Vec<_> = self.recent.iter().rev().take(2048).copied().collect();
+        bytes.reverse();
+        String::from_utf8_lossy(&bytes).into_owned()
+    }
+
     /// A view mounts: the output so far, and the stream from now on. The
     /// previous subscriber's stream ends.
     pub fn subscribe(&mut self) -> (Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>) {
@@ -59,6 +66,19 @@ impl Relay {
 mod tests {
     use super::*;
     use futures_channel::mpsc::TryRecvError;
+
+    #[test]
+    fn overview_tail_is_bounded_and_does_not_steal_live_output() {
+        let mut relay = Relay::new();
+        let (_, mut stream) = relay.subscribe();
+        let output = "x".repeat(4096);
+        relay.push(output.as_bytes());
+        assert_eq!(relay.preview().len(), 2048);
+        assert_eq!(stream.try_recv().unwrap(), output.as_bytes());
+        relay.push(b"tail");
+        assert!(relay.preview().ends_with("tail"));
+        assert_eq!(stream.try_recv().unwrap(), b"tail");
+    }
 
     #[test]
     fn a_second_subscriber_is_repainted_and_then_live() {

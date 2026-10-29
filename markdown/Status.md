@@ -7,6 +7,17 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Overview (WP-60, checked 2026-10-29)
+
+✅ Steps 1–4 are built and validated: grouped open-tab cards, effective
+Ctrl+Alt+Space/F13 shortcuts, keyboard/mouse switching and close, bounded lazy
+extension previews, decoded-image reuse and graph/flow engine snapshots.
+Title-bar search and the overview share the existing file/command list.
+The browser measured 14.63 ms for twelve tabs/two tiles and 23.25 ms for fifty
+tabs. All AGENTS gates, the complete browser feature matrix, the image regression
+and an inspected private desktop check pass. Other-window switching, docking,
+hot corner and animation remain step 5. See [[Overview]] for scope and bounds.
+
 ## Linked panels (WP-59, checked 2026-10-29)
 
 ✅ Session-owned groups, marked tabs, independent local graph instances and

@@ -3,7 +3,7 @@ name = "moonkale-editor-image"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Image viewer: png/jpg/gif/webp/svg/bmp/ico/avif files open as a zoomable, pannable view (spec 008). Rust-native, no JS."
+description = "Image viewer: png/jpg/gif/webp/svg/bmp/ico/avif files open as a zoomable, pannable view (spec 008). Rust-owned state with a bounded thumbnail adapter."
 
 [dependencies]
 dioxus = { workspace = true }

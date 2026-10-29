@@ -21,6 +21,20 @@ pub trait Extension: 'static {
     /// workspace, not in the element.
     fn render(&self, panel_id: &str, ws: Workspace) -> Element;
 
+    /// Draw a static overview schematic using only already-held panel state.
+    /// No subscriptions, I/O, execution or secret-excluded content is allowed.
+    /// Bound scanning/allocation before rendering; return `None` when unavailable.
+    /// The host calls this lazily and falls back after its cooperative 4 ms
+    /// budget. Synchronous extension code cannot be forcibly interrupted.
+    fn preview(
+        &self,
+        _panel_id: &str,
+        _ws: Workspace,
+        _size: crate::preview::PreviewSize,
+    ) -> Option<Element> {
+        None
+    }
+
     /// The shell tells the extension a closable panel was closed. Default:
     /// nothing.
     fn on_panel_closed(&self, _panel_id: &str, _ws: Workspace) {}

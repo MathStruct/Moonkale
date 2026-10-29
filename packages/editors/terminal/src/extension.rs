@@ -49,6 +49,16 @@ impl Extension for TerminalExtension {
         ]
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let _ = (panel_id, ws);
+        moonkale_ext_api::preview::text(&self.sessions.preview()?)
+    }
+
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
         rsx! { TerminalPanel { ws, sessions: self.sessions } }
     }

@@ -988,6 +988,47 @@ impl GraphView {
         s.dirty = true;
     }
 
+    /// Draw a bounded schematic from current positions into a fresh canvas.
+    /// No layout, GPU readback, labels or host content is evaluated.
+    pub fn snapshot(&self, width: u32, height: u32) -> Result<web_sys::HtmlCanvasElement, JsValue> {
+        let shot = crate::snapshot::snapshot(&self.state.borrow().graph, width, height);
+        let canvas = web_sys::window()
+            .and_then(|w| w.document())
+            .ok_or_else(|| JsValue::from_str("no document"))?
+            .create_element("canvas")?
+            .dyn_into::<web_sys::HtmlCanvasElement>()?;
+        canvas.set_width(shot.width);
+        canvas.set_height(shot.height);
+        let ctx = canvas
+            .get_context("2d")?
+            .ok_or_else(|| JsValue::from_str("no canvas"))?
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()?;
+        ctx.set_stroke_style_str(&self.state.borrow().label);
+        for (a, b) in shot.edges {
+            ctx.begin_path();
+            ctx.move_to(shot.nodes[a].x, shot.nodes[a].y);
+            ctx.line_to(shot.nodes[b].x, shot.nodes[b].y);
+            ctx.stroke();
+        }
+        for n in shot.nodes {
+            ctx.set_fill_style_str(&format!(
+                "rgba({},{},{},{})",
+                (n.colour[0] * 255.) as u8,
+                (n.colour[1] * 255.) as u8,
+                (n.colour[2] * 255.) as u8,
+                n.colour[3].clamp(0., 1.)
+            ));
+            if n.rect {
+                ctx.fill_rect(n.x - 4., n.y - 3., 8., 6.);
+            } else {
+                ctx.begin_path();
+                ctx.arc(n.x, n.y, 2.5, 0., std::f64::consts::TAU)?;
+                ctx.fill();
+            }
+        }
+        Ok(canvas)
+    }
+
     /// Every node's world position as `{"id":[x,y],...}` — the host's
     /// harvest after a drag or a layout (stage 7: the flow document owns
     /// the positions, the renderer only holds them between gestures).

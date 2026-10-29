@@ -43,6 +43,7 @@ pub mod editor;
 pub mod extension;
 pub mod links;
 pub mod media;
+pub mod preview;
 
 /// The namespace of the built-in extensions' ids; third-party (wasm)
 /// extensions may not use it (audit #4).

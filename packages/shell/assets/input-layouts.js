@@ -15,7 +15,7 @@ document.addEventListener('keydown', e => {
   if (e.isComposing || e.getModifierState('AltGraph')) return;
   const bindings = window.moonkaleInputBindings || [];
   const match = bindings.find(b => b.ctrl === primary(e) && b.shift === e.shiftKey && b.alt === e.altKey &&
-    (b.code ? b.code === e.code : b.key.toLowerCase() === e.key.toLowerCase()));
+    (b.code ? b.code === e.code : b.key.toLowerCase() === (e.key === ' ' ? 'Space' : e.key).toLowerCase()));
   // Capture positional punctuation, macro keys and registered Ctrl+Alt
   // chords. Other keys keep their editor handlers and Rust bubbling dispatcher.
   if (e.target.closest?.('.mk-input-test')) return;

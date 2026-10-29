@@ -733,3 +733,13 @@ state, rather than `networkidle`, which an open watched folder cannot guarantee.
 `linked-panels.mjs` (Chromium/SwiftShader) checks two independent local graphs,
 tab stripes and accessible group names, wiki navigation, group Back, lead close
 rules, reload and named-session switching (WP-59). Included in the CI smoke build.
+
+## Overview (WP-60)
+
+`overview.mjs` opens twelve documents in two tiles, measures keydown to painted
+cards (<100 ms), filters and switches to Alpha, checks adjacent link-group
+markers and actual engine pixels, and closes clean/dirty cards with keyboard and
+mouse. It also covers F13, arrow/group navigation, splitting, fifty-tab latency
+and offscreen preview unmounting. `image.mjs` checks held-image thumbnail pixels
+without another content fetch. Registered in `run-all.sh` and CI smoke.
+Screenshot: `overview.png`; raw timings: `overview-measurements.log`.

@@ -209,3 +209,29 @@
 .wb-tab:has(.mk-link-marker.mk-link-6) { --mk-link-colour: var(--mk-link-6); box-shadow: inset 0 3px var(--mk-link-colour); }
 .wb-tab:has(.mk-link-marker.mk-link-7) { --mk-link-colour: var(--mk-link-7); box-shadow: inset 0 3px var(--mk-link-colour); }
 .wb-tab:has(.mk-link-marker.mk-link-8) { --mk-link-colour: var(--mk-link-8); box-shadow: inset 0 3px var(--mk-link-colour); }
+
+/* The overview shares the palette's query, ranking and result list. */
+.mk-overview { width: min(1100px, 94vw); max-height: 92vh; }
+.mk-overview h2 { font-size: 1em; padding: 0 12px; }
+.mk-overview .mk-palette-list { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px; max-height: 70vh; }
+.mk-overview .mk-palette-item { width: 100%; }
+.mk-overview .mk-overview-card { position: relative; display: flex; flex-direction: column; align-items: start; width: 240px; flex-grow: 1; max-width: 320px; border: 1px solid var(--mk-line); border-radius: 8px; padding: 10px; cursor: pointer; }
+.mk-overview-preview { height: 120px; width: 100%; overflow: hidden; color: var(--mk-muted); pointer-events: none; contain: strict; }
+.mk-overview-preview pre { font-size: 10px; white-space: pre-wrap; margin: 0; }
+.mk-overview-close { position: absolute; top: 4px; right: 4px; }
+.mk-overview-confirm { padding: 12px; border: 1px solid var(--mk-line); }
+.mk-overview-source { width: 8px; height: 8px; border-radius: 50%; }
+.mk-overview-card:has(.mk-link-marker:not(.mk-link-0)) { border-top: 3px solid var(--mk-link-colour, var(--mk-line)); }
+.mk-overview-card:has(.mk-link-1) { --mk-link-colour: var(--mk-link-1); }
+.mk-overview-card:has(.mk-link-2) { --mk-link-colour: var(--mk-link-2); }
+.mk-overview-card:has(.mk-link-3) { --mk-link-colour: var(--mk-link-3); }
+.mk-overview-card:has(.mk-link-4) { --mk-link-colour: var(--mk-link-4); }
+.mk-overview-card:has(.mk-link-5) { --mk-link-colour: var(--mk-link-5); }
+.mk-overview-card:has(.mk-link-6) { --mk-link-colour: var(--mk-link-6); }
+.mk-overview-card:has(.mk-link-7) { --mk-link-colour: var(--mk-link-7); }
+.mk-overview-card:has(.mk-link-8) { --mk-link-colour: var(--mk-link-8); }
+
+.mk-overview .mk-overview-card { box-sizing: border-box; flex: 1 1 220px; max-width: 260px; gap: 6px; }
+.mk-overview-card-title { display: flex; gap: 4px; align-items: center; width: 100%; }
+.mk-overview-card-title .mk-palette-label { flex: 1; }
+.mk-overview-card .mk-palette-detail { max-width: 100%; }

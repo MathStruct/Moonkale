@@ -493,6 +493,14 @@ fn FrameContent(
                 }
             }
             Some(Command::DisconnectServer) => ws.disconnect_server(),
+            Some(Command::Overview) => {
+                let next = if *palette.peek() == Some(crate::palette::PaletteMode::Overview) {
+                    None
+                } else {
+                    Some(crate::palette::PaletteMode::Overview)
+                };
+                palette.set(next);
+            }
             Some(Command::Palette) => palette.set(Some(crate::palette::PaletteMode::Commands)),
             Some(Command::QuickOpen) => palette.set(Some(crate::palette::PaletteMode::Files)),
             Some(Command::CheckCodeCache) => {
@@ -607,7 +615,7 @@ fn FrameContent(
             // own error state); everything else that bubbles here is looked up.
             onkeydown: move |e| {
                 let m = e.modifiers();
-                if e.is_composing() || (m.ctrl() && m.alt() && !m.meta()) { return; }
+                if e.is_composing() || (m.ctrl() && m.alt() && !m.meta() && e.code() != Code::Space) { return; }
                 let key = key_name(&e.key());
                 if key.is_empty() {
                     return;
@@ -635,7 +643,6 @@ fn FrameContent(
                 }
             }
             div { class: "mk-frame-body", key: "{(ws.saved_sessions.generation)()}", {children} }
-            crate::palette::Palette {}
             crate::discovery::CheatSheet {}
             if remote_dialog() {
                 crate::remote_dialog::RemoteDialog { open: remote_dialog }

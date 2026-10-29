@@ -707,6 +707,7 @@ pub fn Shell() -> Element {
 
     // A user-selected retained tab is foreground navigation too. Programmatic
     // activation during restore does not call the workbench's event callback.
+    let overview_nodes = document_nodes.clone();
     let on_activate = move |id: PanelId| {
         if ws.links.focused.peek().as_deref() != Some(id.as_str()) {
             ws.links.focused.set(Some(id.to_string()));
@@ -728,6 +729,7 @@ pub fn Shell() -> Element {
         }
     };
 
+    let overview_owner = owner.clone();
     let on_close = {
         let exts = exts.clone();
         move |id: PanelId| {
@@ -750,6 +752,60 @@ pub fn Shell() -> Element {
         }
     };
 
+    let mut overview_tabs = panels
+        .iter()
+        .map(|p| {
+            crate::overview::Tab::new(
+                ws,
+                p.id.to_string(),
+                p.title.clone(),
+                overview_owner.get(p.id.as_str()).copied(),
+                overview_nodes.get(p.id.as_str()).copied(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let recent_tabs = use_hook(|| {
+        Rc::new(std::cell::RefCell::new(
+            crate::overview::RecentTabs::default(),
+        ))
+    });
+    recent_tabs.borrow_mut().sort(
+        &mut overview_tabs,
+        active_node,
+        ws.links.focused.read().clone(),
+    );
+    let mut overview_close = on_close.clone();
+    let mut overview_activate = on_activate.clone();
+    let overview_exts = exts.clone();
+    let overview_switch = move |(id, beside): (String, bool)| {
+        let mut target = if *narrow.peek() { phone_layout } else { layout };
+        let mut next = target.peek().clone();
+        let placements: Vec<_> = contributions(
+            &overview_exts,
+            &ws.settings.resolved.peek().extensions,
+            ws,
+            false,
+        )
+        .into_iter()
+        .filter(|(_, c)| c.node.is_some() || !ws.shell.closed_panels.peek().contains(&c.id))
+        .map(|(_, c)| {
+            PanelPlacement::new(
+                PanelId::from(c.id.as_str()),
+                TileId::from(home_tile(*narrow.peek(), c.home)),
+            )
+        })
+        .collect();
+        next.reconcile(&placements);
+        let panel = PanelId::from(id.as_str());
+        next.activate(&panel);
+        if beside {
+            if let Some(tile) = next.tile_for_panel(&panel) {
+                next.split_active(&tile, DockZone::Right);
+            }
+        }
+        target.set(next);
+        overview_activate(PanelId::from(id.as_str()));
+    };
     let link_panels: Vec<_> = panels
         .iter()
         .map(|p| (p.id.to_string(), p.title.clone()))
@@ -937,6 +993,7 @@ pub fn Shell() -> Element {
     rsx! {
         moonkale_ext_api::Stylesheet { href: SHELL_CSS }
         crate::linked_panels::LinkedPanels { ws, panels: link_panels }
+        crate::palette::Palette { tabs: overview_tabs, on_switch: overview_switch, on_close: move |id: String| overview_close(PanelId::from(id.as_str())) }
         div { class: if is_narrow { "mk-shell mk-narrow" } else { "mk-shell" }, "data-theme": "{theme}", onmounted: start_narrow_watch,
             Workbench {
                 rail: rsx! {

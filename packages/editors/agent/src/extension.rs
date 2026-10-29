@@ -26,6 +26,39 @@ impl Extension for AgentExtension {
         ]
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let _ = panel_id;
+        if ws.agent_sessions().is_some() {
+            return crate::server_panel::preview(ws);
+        }
+        let session = crate::panel::Chats::get(ws).current_session()?;
+        let items = session.items.peek();
+        let text = items
+            .iter()
+            .rev()
+            .take(8)
+            .filter_map(|item| match item {
+                crate::panel::Item::User(s) | crate::panel::Item::Assistant(s) => {
+                    Some(moonkale_ext_api::preview::bounded_text(s))
+                }
+                _ => None,
+            })
+            .take(2)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>()
+            .join("\n");
+        drop(items);
+        let body = moonkale_ext_api::preview::text(&text);
+        Some(rsx! { {body} crate::panel::PreviewStatus { session } })
+    }
+
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
         // Sources on a server → the session runs there (Milestone 12).
         match ws.agent_sessions() {

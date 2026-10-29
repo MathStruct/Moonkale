@@ -442,3 +442,9 @@ link-pin = Keep this subject (pin)
 link-cancel = Cancel
 link-active = Follows the active editor
 link-description = linked with { $names } (group { $number })
+
+overview-title = Overview
+overview-window = This window
+overview-close = Close tab
+overview-discard = Close and discard unsaved changes?
+overview-unsaved = Unsaved changes

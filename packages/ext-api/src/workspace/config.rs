@@ -353,6 +353,8 @@ pub struct ForeignDrag {
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Toggle the open-tab overview.
+    Overview,
     /// Open the active content together with an independent local graph.
     OpenWithContext,
     /// Choose a link target for the focused tab.

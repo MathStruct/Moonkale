@@ -22,6 +22,7 @@ pub mod graph;
 pub mod layout;
 pub mod quadtree;
 pub mod scene;
+pub mod snapshot;
 
 #[cfg(target_arch = "wasm32")]
 pub mod render;

@@ -49,6 +49,42 @@ impl Extension for TableExtension {
         (node.kind == NodeKind::Table).then_some(50)
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let node = ws
+            .linked_content(panel_id)
+            .or_else(|| Self::node_of(panel_id))?;
+        let results = ws.links.results.peek();
+        let result = results.get(&node)?;
+        let table = result.table.as_ref()?;
+        let mut lines = vec![table
+            .columns
+            .iter()
+            .take(6)
+            .map(|c| moonkale_ext_api::preview::bounded_text(c))
+            .collect::<Vec<_>>()
+            .join(" | ")];
+        for row in table.rows.iter().take(4) {
+            lines.push(
+                row.iter()
+                    .take(6)
+                    .map(|v| match v {
+                        moonkale_core::Value::Text(s) => moonkale_ext_api::preview::bounded_text(s),
+                        moonkale_core::Value::Int(n) => n.to_string(),
+                        _ => "…".into(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" | "),
+            );
+        }
+        lines.push(format!("Σ {}", table.rows.len()));
+        moonkale_ext_api::preview::text(&lines.join("\n"))
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id)
             .and_then(|id| ws.docs.views.read().iter().find(|n| n.id == id).cloned())

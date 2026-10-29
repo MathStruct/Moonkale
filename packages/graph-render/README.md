@@ -41,3 +41,9 @@ moonkale-graph-render = { git = "https://github.com/MathStruct/Moonkale", tag = 
 `lib-vN` tags mark states where `moonkale-core`, `moonkale-ext-api` and this crate are compatible; see `packages/ext-api/CHANGELOG.md` in the repository.
 
 License: as the Moonkale repository.
+
+
+`view.snapshot(width,height)` returns a standalone canvas with a bounded
+schematic of existing positions (256 nodes/512 edges; at most 512×256 pixels).
+It starts no layout and reads no GPU pixels. Native hosts can use
+`snapshot::snapshot(&graph, width, height)` for the same finite geometry.

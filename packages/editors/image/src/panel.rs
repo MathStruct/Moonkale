@@ -265,3 +265,38 @@ fn human(bytes: u64) -> String {
         format!("{bytes} B")
     }
 }
+
+/// A thumbnail of the image already decoded by this panel. No source read,
+/// URL allocation, second decoder or screenshot of the panel is involved.
+#[component]
+pub(crate) fn ImagePreview(node: moonkale_core::NodeId) -> Element {
+    let id = format!("mk-overview-image-{node}");
+    rsx! { canvas { id, width: 256, height: 120, onmounted: move |_| {
+        // NodeId's Display is a canonical UUID, never document text.
+
+        moonkale_ext_api::crash::spawn(async move {
+            let mut eval = document::eval(&format!(r#"
+                const stage='mk-image-stage-{node}',target='mk-overview-image-{node}';
+                const canvas=document.getElementById(target);
+                const deadline=performance.now()+750;
+                while(canvas?.isConnected && performance.now()<deadline) {{
+                    const image=document.getElementById(stage)?.querySelector('img.mk-image-img');
+                    if(image?.complete && image.naturalWidth>0 && image.naturalHeight>0) {{
+                        const scale=Math.min(256/image.naturalWidth,120/image.naturalHeight);
+                        const width=image.naturalWidth*scale,height=image.naturalHeight*scale;
+                        canvas.getContext('2d').drawImage(image,(256-width)/2,(120-height)/2,width,height);
+                        canvas.dataset.imagePreview='true';
+                        break;
+                    }}
+                    await new Promise(resolve=>setTimeout(resolve,25));
+                }}
+                if(canvas?.isConnected && !canvas.dataset.imagePreview) {{
+                    const ctx=canvas.getContext('2d');ctx.fillStyle=getComputedStyle(canvas).color;
+                    ctx.font='24px sans-serif';ctx.fillText('◇',116,65);
+                }}
+                dioxus.send(true);
+            "#));
+            let _ = eval.recv::<bool>().await;
+        });
+    } } }
+}

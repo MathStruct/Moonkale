@@ -9,6 +9,8 @@ const ROOT = process.env.M1_ROOT;
 const browser = await firefox.launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 const logs = [];
+let contentReads=0;
+page.on('request',request=>{if(request.url().includes('/api/sources/fetch')) contentReads++;});
 page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) logs.push(`[${m.type()}] ${t.slice(0, 300)}`); });
 const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 // A 4×3 red PNG built here (zlib + CRC), and a small SVG, written into the fixture.
@@ -37,6 +39,17 @@ try {
     console.log("\n  meta:", await page.$eval(".mk-image .mk-editor-meta", (e) => e.textContent), "src:", src);
     if (!src.startsWith("data:image/png")) throw new Error("not a png data url");
     if (await page.$(".cm-content")) throw new Error("a text editor opened for the image");
+  });
+  await step("overview reuses the decoded image without another content read", async () => {
+    const before=contentReads;
+    await page.keyboard.press('Control+Alt+Space');
+    await page.locator('#mk-palette-input').fill('pic.png');
+    const preview=page.locator('.mk-overview-preview canvas[data-image-preview="true"]');
+    await preview.waitFor();
+    const pixel=await preview.evaluate(canvas=>Array.from(canvas.getContext('2d').getImageData(128,60,1,1).data));
+    if(pixel.join(',')!=='255,0,0,255') throw new Error('thumbnail does not show the held red image: '+pixel);
+    if(contentReads!==before) throw new Error('overview fetched image content again');
+    await page.keyboard.press('Escape');
   });
   await step("zoom: + goes to 150 %, 100% sets 4×3 px, Fit returns", async () => {
     await control(page, 'click', ".mk-image button:has-text('100%')");

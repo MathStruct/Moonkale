@@ -67,6 +67,15 @@ impl Extension for CodeEditorExtension {
         matches!(node.content, Some(moonkale_core::ContentRef::Text { .. })).then_some(10)
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        moonkale_ext_api::preview::document(ws, panel_id)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         match Self::node_of(panel_id) {
             Some(node) => {

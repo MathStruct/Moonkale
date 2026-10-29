@@ -1,7 +1,7 @@
 ---
 title: "Overview — every open tab at a glance, then switch"
 description: A GNOME-Activities-like overview for Moonkale. One shortcut zooms out to every open tab across tiles and windows, each shown as a live-looking preview of its content (a schematic, not a screenshot), grouped by link group and window, with type-to-search that also reaches quick open. Requested 2026-10-14; the plan with decided defaults.
-tags: [editors, workbench, shell, spec, planned]
+tags: [editors, workbench, shell, spec, implemented]
 ---
 **From Daniel (2026-10-14):** GNOME has a feature where one key shows all open windows of the desktop at once, and you switch between them from there. Moonkale can't use the Windows key, but similar behaviour, where you immediately see what each open tab holds (or schemas or symbols standing for it), would be good.
 
@@ -12,7 +12,7 @@ tags: [editors, workbench, shell, spec, planned]
 ## Opening it (decided)
 
 - **`Ctrl+Alt+Space`** on desktop and web. It is free in Moonkale's keymap and rarely taken by desktop environments or browsers; Ctrl+Tab is not possible in the web build, where the browser owns it. Configurable like every keybinding.
-- **A button** in the activity bar (top) and in the phone's More sheet. On the phone the overview is the natural tab switcher.
+- **The command palette and title-bar search**, sharing the same command. No new rail entry or visible Simple-density button (ADR-0027).
 - **Optional hot corner** (off by default): moving the pointer into the window's top-left corner.
 - **Escape**, the same shortcut, or a click on the background closes it without switching.
 
@@ -81,3 +81,59 @@ Acceptance (`overview.mjs`):
 - Delete on a card closes that tab.
 
 Work package: WP-60 in [[Work Packages]].
+
+## Implementation notes (WP-60, 2026-10-29)
+
+Steps 1–4 are implemented on the contributor branch. The existing palette owns
+one query, selection and result list: open panels first, then its existing
+ranked command/file results. Ctrl+Alt+Space and the left-hand preset's F13 use
+the effective registry. The title-bar search includes the same open-tab cards.
+The current window is labelled, cards retain most-recently-used order, and
+linked cards precede ungrouped cards with
+WP-59's colour and numbered markers. Title, path, kind and bounded held text
+participate in filtering. Arrows, Home/End, Enter, Shift+Enter, group Tab,
+Escape, Delete, middle-click and visible close controls cover keyboard/mouse
+switching and closure. Dirty documents require explicit discard confirmation.
+
+`Extension::preview` is optional and crash guarded. No preview fetches a source
+or executes document content. Text schematics scan at most 2,048 characters,
+show eight lines of at most 100 characters, and exclude recovery's hidden and
+credential paths. Table schematics inspect six columns/four rows. Images copy the image
+already decoded by their panel into a bounded canvas, without another source
+read, URL allocation or decode.
+Terminal previews read bounded retained output without consuming the stream;
+conversations show the last held exchange with a live working/approval marker.
+Markdown and code use escaped text schematics, without math/HTML execution.
+
+IntersectionObserver defers extension calls until their card is visible. The
+host discards results exceeding a cooperative 4 ms synchronous call budget;
+compiled-in code cannot be forcibly interrupted. Revisioned document previews
+reuse a window-local cache of at most 64 elements, keyed by session, language,
+extension, panel and document revision. Other previews are snapshots per opening.
+Nothing is persisted. Graph/flow previews call the existing engine's
+`snapshot(width,height)`: a small canvas from at most 256 existing nodes and
+512 edges, dimensions capped at 512×256, without layout or GPU readback. Large
+graphs are a bounded sample. A newly mounted renderer gets a 750 ms readiness
+deadline; unavailable/unmounted panels fall back to their icon.
+
+Step 5 remains later work: other-window collection and focus/move, drag-to-dock,
+hot corner and animation. Full rich note rendering, symbol-aware minimaps,
+richer image metadata and flow symbol/issue overlays can refine these initial
+schematics without changing the API. The performance suite checks both twelve tabs in two tiles and the broader
+50-tab target.
+
+Validation complete on 2026-10-29: all AGENTS gates, all 52 browser matrix
+cases (with targeted reruns), the additional image regression and a private
+WebKitGTK desktop check pass. `overview.mjs` also checks F13, arrow/group
+navigation, Shift+Enter splitting, middle-click, dirty-close confirmation and
+offscreen unmounting. The image test checks real thumbnail pixels and no second
+content read. Desktop screenshots of overview → filter → switch were inspected;
+the display was stopped and source files stayed unchanged.
+
+The final Chromium run at 1800×1100 measured **14.63 ms for twelve tabs in two
+tiles** and **23.25 ms for fifty tabs**, from captured shortcut keydown to the
+animation frame containing the cards (debug build, software GPU). This is a
+browser frame-readiness measurement, not a hardware compositor benchmark.
+Raw measurements and reconciled validation live in
+`target/next20-e2e/shots/overview-measurements.log` and
+`target/next35-validation-final.json`; see the contributor handoff for commands.

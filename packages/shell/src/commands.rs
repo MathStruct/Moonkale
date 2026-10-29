@@ -44,6 +44,10 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
     let c = |id: &str, title: String| CommandContribution::new(id, title);
     vec![
         (
+            c("view.overview", t!(ws, L, "overview-title")).key("Ctrl+Alt+Space"),
+            Command::Overview,
+        ),
+        (
             c("panels.openWithContext", t!(ws, L, "link-open-context")).key("Ctrl+Alt+Enter"),
             Command::OpenWithContext,
         ),
@@ -293,6 +297,12 @@ impl Registry {
             );
         }
         for (id, label, key, command) in [
+            (
+                "input.overview",
+                t!(ws, L, "overview-title"),
+                "F13",
+                Command::Overview,
+            ),
             (
                 "editor.split",
                 t!(ws, L, "input-split"),

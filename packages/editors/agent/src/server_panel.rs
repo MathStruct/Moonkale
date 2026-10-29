@@ -14,7 +14,7 @@ use moonkale_llm::ToolOutcome;
 const CSS: Asset = asset!("/assets/agent.css");
 
 /// Per-window state of the server mode; survives panel remounts.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct ServerChat {
     session: Signal<Option<String>>,
     items: Signal<Vec<SessionItem>>,
@@ -60,6 +60,14 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         sessions: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
         poll_gen: Signal::new_in_scope(0, ScopeId::ROOT),
         restart: Signal::new_in_scope(0, ScopeId::ROOT),
+    });
+    use_hook(move || {
+        let mut previews = ws
+            .shared_state(|| PreviewChats(Signal::new_in_scope(Default::default(), ScopeId::ROOT)))
+            .0;
+        previews.with_mut(|all| {
+            all.insert(ws.saved_sessions.active.peek().clone(), chat);
+        });
     });
     let ServerChat {
         mut session,
@@ -326,4 +334,40 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
             }
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct PreviewChats(Signal<std::collections::BTreeMap<String, ServerChat>>);
+pub(crate) fn preview(ws: Workspace) -> Option<Element> {
+    let previews = ws
+        .shared_state(|| PreviewChats(Signal::new_in_scope(Default::default(), ScopeId::ROOT)))
+        .0;
+    let chat = previews
+        .peek()
+        .get(&*ws.saved_sessions.active.peek())
+        .copied()?;
+    let items = chat.items.peek();
+    let text = items
+        .iter()
+        .rev()
+        .take(8)
+        .filter_map(|item| match item {
+            SessionItem::User { text: s } | SessionItem::Assistant { text: s } => {
+                Some(moonkale_ext_api::preview::bounded_text(s))
+            }
+            _ => None,
+        })
+        .take(2)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let body = moonkale_ext_api::preview::text(&text);
+    Some(rsx! { {body} PreviewStatus { chat } })
+}
+#[component]
+fn PreviewStatus(chat: ServerChat) -> Element {
+    let ws = use_context::<Workspace>();
+    rsx! { span { "aria-label": t!(ws, L, "agent-overview-state"), if (chat.pending)().is_some() { "◉" } else if (chat.running)() { "●" } else { "○" } } }
 }

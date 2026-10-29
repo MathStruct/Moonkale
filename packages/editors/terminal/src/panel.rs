@@ -52,6 +52,12 @@ impl Sessions {
     /// Add a running session: its output is pumped into a relay for as long
     /// as the session lives — not for as long as a view of it is mounted
     /// (#12: docking the panel elsewhere ended the output for good).
+    pub(crate) fn preview(self) -> Option<String> {
+        let active = (*self.active.peek())?;
+        let relay = self.relays.peek().get(&active)?.clone();
+        let text = relay.borrow().preview();
+        Some(text)
+    }
     fn add(mut self, session: Session) {
         let id = session.id;
         let session = Rc::new(RefCell::new(session));

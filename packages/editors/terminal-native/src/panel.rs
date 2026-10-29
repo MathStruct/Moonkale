@@ -145,6 +145,31 @@ impl Extension for NativeTerminalExtension {
         ]
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        let _ = (panel_id, ws);
+        let active = (*self.sessions.active.peek())?;
+        let sessions = self.sessions.list.peek();
+        let session = sessions.iter().find(|s| s.borrow().id == active)?.borrow();
+        let screen = session.parser.screen();
+        let (rows, cols) = screen.size();
+        let end = screen.cursor_position().0.saturating_add(1).min(rows);
+        let mut text = String::new();
+        for row in end.saturating_sub(8)..end {
+            for col in 0..cols.min(100) {
+                if let Some(cell) = screen.cell(row, col) {
+                    text.extend(cell.contents().chars().take(4));
+                }
+            }
+            text.push('\n');
+        }
+        moonkale_ext_api::preview::text(&text)
+    }
+
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
         rsx! { NativeTerminalPanel { ws, sessions: self.sessions } }
     }

@@ -127,6 +127,15 @@ impl Extension for LinksExtension {
         (is_markdown(node)).then_some(50)
     }
 
+    fn preview(
+        &self,
+        panel_id: &str,
+        ws: Workspace,
+        _size: moonkale_ext_api::preview::PreviewSize,
+    ) -> Option<Element> {
+        moonkale_ext_api::preview::document(ws, panel_id)
+    }
+
     fn render(&self, panel_id: &str, ws: Workspace) -> Element {
         if panel_id == PREVIEW_ID {
             return rsx! { TypstPreviewPanel { ws } };

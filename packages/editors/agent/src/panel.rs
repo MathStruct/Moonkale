@@ -126,7 +126,7 @@ pub struct Chats {
 }
 
 impl Chats {
-    fn get(ws: Workspace) -> Self {
+    pub(crate) fn get(ws: Workspace) -> Self {
         #[derive(Clone)]
         struct SessionChats(Signal<std::collections::BTreeMap<String, Chats>>);
         let mut chats = ws
@@ -945,4 +945,10 @@ pub fn AgentPanel(ws: Workspace) -> Element {
             }
         }
     }
+}
+
+// Only cheap working/approval signals stay live inside a static preview.
+#[component]
+pub(crate) fn PreviewStatus(session: Session) -> Element {
+    rsx! { span { "aria-label": t!(use_context::<Workspace>(), L, "agent-overview-state"), if (session.pending)().is_some() { "◉" } else if (session.busy)() { "●" } else { "○" } } }
 }

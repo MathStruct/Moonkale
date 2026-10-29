@@ -457,3 +457,18 @@ emitting an event back into the host. Session exchange retains its 4 MiB parser
 bound. CodeMirror imports only its bundled asset URL; transient mount ownership
 tokens prevent a retiring panel from destroying its replacement. No dependency,
 Source write or network authority is added.
+
+
+WP-60 overview (2026-10-29): previews perform no source reads, process starts,
+network requests or document execution. Held text is escaped, bounded to a
+2,048-character scan/eight 100-character lines, and excludes hidden/credential
+paths using recovery's classifier. Image thumbnails copy only an already-decoded, path-admitted panel image into
+a 256×120 canvas, without reading its URL or fetching content. The adapter
+accepts a typed canonical UUID, not document text. Table samples cap rows/columns; terminal
+relay tails cap bytes without consuming output. Graph snapshots cap dimensions,
+node/edge scans and finite coordinates, with no GPU readback. The window-local
+64-entry preview cache is revision/session scoped and never persisted. Lazy
+visibility uses host-generated element ids as serialized data. The synchronous
+4 ms extension budget is cooperative, not process confinement; existing crash
+and extension authority boundaries remain in effect. Close uses existing panel
+identities and requires explicit discard for dirty documents.
