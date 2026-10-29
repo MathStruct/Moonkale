@@ -13,8 +13,8 @@ serde_json = "1"
 # dependable (SPEC-004 §3a). SQLite only: it is the backend with `sql`, and
 # redb would move Moonkale's own redb.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-sophia-interface = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.7", default-features = false, features = ["sqlite"] }
-sophia-store = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.7", default-features = false, features = ["sqlite"] }
+sophia-interface = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.8", default-features = false, features = ["sqlite"] }
+sophia-store = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.8", default-features = false, features = ["sqlite"] }
 tokio = { version = "1", features = ["rt", "time"] }
 
 [dev-dependencies]

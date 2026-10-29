@@ -33,8 +33,8 @@ arborium-julia = "2.18"
 arborium-python = "2.18"
 # WP-66 normal form and hashing, shared with Sophia (SR-116).
 moonkale-content-id = { workspace = true, optional = true }
-sophia-store = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.7", default-features = false, features = ["sqlite"], optional = true }
-sophia-hash = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.7", optional = true }
+sophia-store = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.8", default-features = false, features = ["sqlite"], optional = true }
+sophia-hash = { git = "https://github.com/MathStruct/Sophia.git", tag = "v0.1.8", optional = true }
 toml = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 tracing = "0.1"
