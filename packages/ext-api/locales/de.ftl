@@ -54,3 +54,5 @@ dragging = { $name } wird gezogen – auf ein anderes Moonkale-Fenster ziehen, u
 move-unsaved = Ungespeichertes Dokument bleibt hier — vor dem Verschieben in ein anderes Fenster speichern.
 
 chrome-more = Weitere Aktionen
+
+saved-with-warnings = { $name } gespeichert — { $warnings }

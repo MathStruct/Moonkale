@@ -11,7 +11,8 @@ use sophia_interface::{
 use sophia_store::query::{QueryLimits, Value as SValue, VIEWS};
 use sophia_store::sqlite::Sqlite;
 use sophia_store::StoreError;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -35,6 +36,32 @@ const FEED_BATCH: usize = 256;
 const VIEWS_DIR: &str = "moonkale:views";
 const VIEW_PREFIX: &str = "table:";
 
+/// A print snapshot may change when another name moves, even if this
+/// definition's Sophia token does not. Patches address this exact text.
+#[derive(Clone)]
+struct EditBase {
+    node: NodeId,
+    version: Version,
+    token: u64,
+    text: Arc<str>,
+}
+const MAX_EDIT_BASES: usize = 128;
+const MAX_EDIT_BASE_BYTES: usize = 32 * 1024 * 1024;
+const MAX_EDIT_BASE_TEXT: usize = 2 * 1024 * 1024;
+
+fn editable_key(key: &Key) -> bool {
+    matches!(key, Key::Derived(s) if s.starts_with("name:") || s == "settings")
+}
+
+fn text_version(node: NodeId, token: u64, text: &str) -> Version {
+    // An opaque equality token, never an authorisation or cryptographic identity.
+    let mut hash = std::collections::hash_map::DefaultHasher::new();
+    node.hash(&mut hash);
+    token.hash(&mut hash);
+    text.hash(&mut hash);
+    Version(hash.finish())
+}
+
 pub struct SophiaSource {
     id: SourceId,
     root: NodeId,
@@ -45,6 +72,7 @@ pub struct SophiaSource {
     stale: Arc<Mutex<BTreeSet<String>>>,
     /// Moonkale hands back ids; Sophia wants keys. Filled by every answer.
     keys: Mutex<HashMap<NodeId, Key>>,
+    edit_bases: Mutex<VecDeque<EditBase>>,
 }
 
 impl SophiaSource {
@@ -124,11 +152,37 @@ impl SophiaSource {
             folder_root: None,
             stale: Arc::new(Mutex::new(BTreeSet::new())),
             keys: Mutex::new(HashMap::new()),
+            edit_bases: Mutex::new(VecDeque::new()),
         };
         source.remember(&root_key);
         source.remember(&Key::settings());
         source.remember_views();
         Ok(source)
+    }
+
+    fn remember_text(&self, node: NodeId, token: u64, text: &str) -> Version {
+        let version = text_version(node, token, text);
+        if text.len() > MAX_EDIT_BASE_TEXT {
+            return version;
+        }
+        let mut bases = self.edit_bases.lock().unwrap_or_else(|e| e.into_inner());
+        if bases.iter().any(|b| b.node == node && b.version == version) {
+            return version;
+        }
+        let mut bytes: usize = bases.iter().map(|b| b.text.len()).sum();
+        while bases.len() >= MAX_EDIT_BASES || bytes + text.len() > MAX_EDIT_BASE_BYTES {
+            let Some(old) = bases.pop_front() else {
+                break;
+            };
+            bytes -= old.text.len();
+        }
+        bases.push_back(EditBase {
+            node,
+            version,
+            token,
+            text: Arc::from(text),
+        });
+        version
     }
 
     /// Files for which a read found a different source id (or no current file).
@@ -315,7 +369,7 @@ impl SophiaSource {
         }
     }
 
-    async fn op(&self, op: Op) -> Result<(NodeId, Version), SourceError> {
+    async fn op(&self, op: Op) -> Result<(NodeId, Version, Vec<String>), SourceError> {
         let target = match &op {
             Op::WriteText { node, .. } | Op::Rename { node, .. } | Op::Delete { node } => *node,
             Op::CreateText { parent, .. } | Op::CreateDir { parent, .. } => *parent,
@@ -332,53 +386,101 @@ impl SophiaSource {
                 patch,
             } => {
                 let key = self.key(node)?;
-                let version = self
+                if !editable_key(&key) {
+                    return Err(SourceError::Unsupported(
+                        "Sophia content is read-only; edit its name".into(),
+                    ));
+                }
+                let base = self
+                    .edit_bases
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .iter()
+                    .find(|b| b.node == node && b.version == expected)
+                    .cloned();
+                let (token, printed, warnings) = self
                     .call(move |i| {
-                        let (text, found) = i.fetch_text(&key).map_err(store_error)?;
-                        if found != expected.0 {
-                            return Err(SourceError::Conflict {
-                                expected,
-                                actual: Version(found),
-                            });
-                        }
-                        let new = patch.apply(&text)?;
-                        i.write_text(&key, expected.0, &new)
-                            .map(|w| w.version)
-                            .map_err(|e| edit_error(e, &new))
+                        let (current, found) = i.fetch_text(&key).map_err(store_error)?;
+                        let actual = text_version(node, found, &current);
+                        let original = match &base {
+                            Some(base) if base.token == found => base.text.as_ref(),
+                            None if actual == expected => current.as_str(),
+                            _ => return Err(SourceError::Conflict { expected, actual }),
+                        };
+                        let new = patch.apply(original)?;
+                        let written = i.write_text(&key, found, &new).map_err(|e| {
+                            let error = edit_error(e, &new);
+                            if matches!(error, SourceError::Conflict { .. }) {
+                                match i.fetch_text(&key) {
+                                    Ok((text, token)) => SourceError::Conflict {
+                                        expected,
+                                        actual: text_version(node, token, &text),
+                                    },
+                                    Err(_) => error,
+                                }
+                            } else {
+                                error
+                            }
+                        })?;
+                        // Return the canonical print for this write. If an external
+                        // writer already changed it again, acknowledge only ours;
+                        // the next save will conflict against the newer raw token.
+                        let printed = match i.fetch_text(&key) {
+                            Ok((text, token)) if token == written.version => text,
+                            _ => new,
+                        };
+                        Ok((
+                            written.version,
+                            printed,
+                            written.warnings.into_iter().map(|d| d.message).collect(),
+                        ))
                     })
                     .await?;
-                Ok((node, Version(version)))
+                let version = self.remember_text(node, token, &printed);
+                Ok((node, version, warnings))
             }
             Op::CreateText { parent, name, text } => {
                 let parent = self.key(parent)?;
-                let (key, version) = self
+                let (key, token, printed, warnings) = self
                     .call(move |i| {
-                        i.create_text(&parent, &name, &text)
-                            .map(|(k, w)| (k, w.version))
-                            .map_err(|e| edit_error(e, &text))
+                        let (key, written) = i
+                            .create_text(&parent, &name, &text)
+                            .map_err(|e| edit_error(e, &text))?;
+                        let printed = match i.fetch_text(&key) {
+                            Ok((printed, token)) if token == written.version => printed,
+                            _ => text,
+                        };
+                        Ok((
+                            key,
+                            written.version,
+                            printed,
+                            written.warnings.into_iter().map(|d| d.message).collect(),
+                        ))
                     })
                     .await?;
-                Ok((self.remember(&key), Version(version)))
+                let node = self.remember(&key);
+                let version = self.remember_text(node, token, &printed);
+                Ok((node, version, warnings))
             }
             Op::CreateDir { parent, name } => {
                 let parent = self.key(parent)?;
                 let key = self
                     .call(move |i| i.create_dir(&parent, &name).map_err(|e| edit_error(e, "")))
                     .await?;
-                Ok((self.remember(&key), Version(0)))
+                Ok((self.remember(&key), Version(0), Vec::new()))
             }
             Op::Rename { node, to } => {
                 let key = self.key(node)?;
                 let key = self
                     .call(move |i| i.rename(&key, &to).map_err(|e| edit_error(e, "")))
                     .await?;
-                Ok((self.remember(&key), Version(0)))
+                Ok((self.remember(&key), Version(0), Vec::new()))
             }
             Op::Delete { node } => {
                 let key = self.key(node)?;
                 self.call(move |i| i.delete(&key).map_err(|e| edit_error(e, "")))
                     .await?;
-                Ok((node, Version(0)))
+                Ok((node, Version(0), Vec::new()))
             }
         }
     }
@@ -949,10 +1051,16 @@ impl Source for SophiaSource {
                 .map_err(|e| SourceError::Io(e.to_string()))?;
             }
         }
+        let editable = editable_key(&key);
         let (text, v) = self
             .call(move |i| i.fetch_text(&key).map_err(store_error))
             .await?;
-        Ok((text, Version(v)))
+        let version = if self.derived_path.is_none() && editable {
+            self.remember_text(node, v, &text)
+        } else {
+            Version(v)
+        };
+        Ok((text, version))
     }
 
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
@@ -968,7 +1076,11 @@ impl Source for SophiaSource {
                 Op::CreateText { parent, .. } | Op::CreateDir { parent, .. } => *parent,
             };
             results.push(match self.op(op).await {
-                Ok((node, version)) => OpResult::Ok { node, version },
+                Ok((node, version, warnings)) => OpResult::Ok {
+                    node,
+                    version,
+                    warnings,
+                },
                 Err(error) => OpResult::Refused { node, error },
             });
         }
@@ -1391,5 +1503,57 @@ mod profile_tests {
         assert_eq!(initial.seq, tail);
         assert!(initial.paths.is_empty());
         assert!(!initial.reset);
+    }
+    #[test]
+    fn edit_bases_bound_retention_and_distinguish_prints() {
+        let source = SophiaSource::sample().unwrap();
+        let node = NodeId::derive(&source.id(), "name:sample.user");
+        let first = source.remember_text(node, 1, "old print");
+        assert_ne!(first, source.remember_text(node, 1, "new print"));
+        assert_ne!(first, source.remember_text(node, 2, "old print"));
+        for i in 0..MAX_EDIT_BASES + 1 {
+            source.remember_text(node, i as u64, &format!("print {i}"));
+        }
+        let bases = source.edit_bases.lock().unwrap();
+        assert_eq!(bases.len(), MAX_EDIT_BASES);
+        assert!(!bases.iter().any(|b| b.version == first));
+        drop(bases);
+        source.remember_text(node, 1, &"x".repeat(MAX_EDIT_BASE_TEXT + 1));
+        assert_eq!(source.edit_bases.lock().unwrap().len(), MAX_EDIT_BASES);
+        let text = "x".repeat(MAX_EDIT_BASE_TEXT);
+        for token in 0..20 {
+            source.remember_text(node, token, &text);
+        }
+        assert!(
+            source
+                .edit_bases
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|b| b.text.len())
+                .sum::<usize>()
+                <= MAX_EDIT_BASE_BYTES
+        );
+    }
+
+    #[tokio::test]
+    async fn unchanged_prints_remain_savable_after_base_eviction() {
+        let source = SophiaSource::sample().unwrap();
+        let node = source.remember(&Key::name("sample.double"));
+        let (text, version) = source.fetch_text(node).await.unwrap();
+        source.edit_bases.lock().unwrap().clear();
+        let applied = source
+            .apply(Transaction::write_text(
+                node,
+                version,
+                moonkale_core::TextPatch::whole(&text, text.chars().count()),
+            ))
+            .await
+            .unwrap();
+        assert!(applied.first_error().is_none());
+        assert_eq!(
+            applied.version_of(node),
+            Some(source.fetch_text(node).await.unwrap().1)
+        );
     }
 }

@@ -4,7 +4,7 @@
 
 ## Dependency
 
-`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below. Currently the tag **v0.1.4** (2026-10-26, commit 919d723: `replace_files` refuses records nothing in the file reaches, `StoreError::UnreachedRecord`; the error mapping's catch-all turns it into `SourceError::Io`). Before it the tag v0.1.3 (2026-10-25, commit 79f6429: in derived stores facts no longer keep records alive, so a store equals a fresh build of its files; a file listing a generic twice counts as one contributor). Before it the tag v0.1.2 (2026-10-24, commit 3c4b4a9: folder-store garbage collection in derived mode, SR-146, `FileReport::records_removed`, `Store::collect_folder()`, and each removal a `remove-definition` change; `Interface::all` without namespace child expansion; indexed prefix reads, P-232). Before it the tag v0.1.1 (commit def22b0c: the P-231 fix 77f5c1c9, generic memberships stay right across refreshes and names changing kind, plus the version bump). Before it the tag v0.1.0 (commit c3c48e02: `replace_files` retracts a file's facts, manifest `sophia-file-manifest@1`, `WriteTx::remove_fact`), on top of cafe940e: SPEC-009's folder store (`replace_files`, derived mode, `NameClaimed`, `text_source`), the read-only wasm path (`Sqlite::from_bytes`, `Interface::open_read_only`), and SP-015 resolved (no pass recurses on the call stack, `Limits::max_nodes` replaces `max_depth`, SR-145). Before: bed1e02e (P-229).
+`sophia-interface` and `sophia-store` come from git at one locked revision, which Sophia announces when it is dependable (SPEC-004 §3a); `deny.toml` allows that repository. Only the SQLite backend is built: it is the one with `sql`, and Sophia's redb backend would move Moonkale's own redb version. Bump the revision in `Cargo.toml` together with the tests below. Currently the tag **v0.1.8** (SR-150 warnings, 2026-10-29). Before it the tag **v0.1.4** (2026-10-26, commit 919d723: `replace_files` refuses records nothing in the file reaches, `StoreError::UnreachedRecord`; the error mapping's catch-all turns it into `SourceError::Io`). Before it the tag v0.1.3 (2026-10-25, commit 79f6429: in derived stores facts no longer keep records alive, so a store equals a fresh build of its files; a file listing a generic twice counts as one contributor). Before it the tag v0.1.2 (2026-10-24, commit 3c4b4a9: folder-store garbage collection in derived mode, SR-146, `FileReport::records_removed`, `Store::collect_folder()`, and each removal a `remove-definition` change; `Interface::all` without namespace child expansion; indexed prefix reads, P-232). Before it the tag v0.1.1 (commit def22b0c: the P-231 fix 77f5c1c9, generic memberships stay right across refreshes and names changing kind, plus the version bump). Before it the tag v0.1.0 (commit c3c48e02: `replace_files` retracts a file's facts, manifest `sophia-file-manifest@1`, `WriteTx::remove_fact`), on top of cafe940e: SPEC-009's folder store (`replace_files`, derived mode, `NameClaimed`, `text_source`), the read-only wasm path (`Sqlite::from_bytes`, `Interface::open_read_only`), and SP-015 resolved (no pass recurses on the call stack, `Limits::max_nodes` replaces `max_depth`, SR-145). Before: bed1e02e (P-229).
 
 ## Opening
 
@@ -21,11 +21,11 @@ The reader id is given once at open (SPEC-004 §4): `SophiaSource::open_as(path,
 
 ## Edits
 
-**Versions are edit tokens** (from revision 404b332b): the `Version` of a name's text is an opaque hash over every name that text covers (the name and all names of its recursive group, with their seqs and targets). Tokens aren't ordered; equal means unchanged. So saving `even`, whose text also holds `odd`, conflicts if `odd` changed meanwhile, instead of reverting it. A profile switch alone keeps the token. `WriteText` checks the token, applies the patch to that text and hands the whole text to Sophia, which parses it, stores the new definition and moves the name. The name's id doesn't change. Parse errors come back as one `SourceError::Invalid` with a `line:col: message` per diagnostic, and the name is unchanged. A stale version is `Conflict`; writing a definition rather than a name is `Unsupported`. **Aliases:** a definition opens read-only; it is edited through the name it was reached by (SPEC-004 §3). The source never picks a name for a bare definition, because with aliases in several namespaces that could move the wrong one. `CreateText`, `CreateDir`, `Rename` (Moonkale's `/` paths) and `Delete` map one to one. Sophia stores and reprints in the reader's profile, so the stored text can differ from what was typed (indentation, keywords). After a save to any `truth: Store` source the workspace fetches the text back and, when it differs, makes it the document's saved text, and its buffer unless it was edited meanwhile (`ext-api` `Workspace::save`, test `store_save.rs`). Without that, the next save's patch was against text the store no longer had (found in the desktop check, 2026-10-20). An edit is several store transactions on Sophia's side (Sophia SP-008): a failure half-way leaves a consistent, partial state.
+**Sophia edit tokens** (from revision 404b332b) hash every name that text covers (the name and all names of its recursive group, with their seqs and targets). Tokens aren't ordered; equal means unchanged. So saving `even`, whose text also holds `odd`, conflicts if `odd` changed meanwhile, instead of reverting it. A profile switch alone keeps Sophia’s raw token, but can change the source’s rendering version (P-238). `WriteText` checks the raw token, applies the patch to the exact fetched text and hands the whole text to Sophia, which parses it, stores the new definition and moves the name. The name's id doesn't change. Parse errors come back as one `SourceError::Invalid` with a `line:col: message` per diagnostic, and the name is unchanged. A stale version is `Conflict`; writing a definition rather than a name is `Unsupported`. **Aliases:** a definition opens read-only; it is edited through the name it was reached by (SPEC-004 §3). The source never picks a name for a bare definition, because with aliases in several namespaces that could move the wrong one. `CreateText`, `CreateDir`, `Rename` (Moonkale's `/` paths) and `Delete` map one to one. Sophia stores and reprints in the reader's profile, so the stored text can differ from what was typed (indentation, keywords). After a save to any `truth: Store` source the workspace fetches the text back and, when it differs, makes it the document's saved text, and its buffer unless it was edited meanwhile (`ext-api` `Workspace::save`, test `store_save.rs`). Without that, the next save's patch was against text the store no longer had (found in the desktop check, 2026-10-20). An edit is several store transactions on Sophia's side (Sophia SP-008): a failure half-way leaves a consistent, partial state.
 
 ## Change feed
 
-`changes_since` polls Sophia's log every 500 ms for up to 25 s. The first call only returns the position. `paths` are the changed native keys, which the workspace resolves through `Query::Text { dialect: "path" }`; a gone name falls back to `derive(source, path)`, which is its old id. A rendering-profile change (or a log batch that didn't fit) is `reset`: everything is re-read, since every definition's text may have changed. Open names without unsaved edits are reprinted then too; the version stays, so the workspace compares the text.
+`changes_since` polls Sophia's log every 500 ms for up to 25 s. The first call only returns the position. `paths` are the changed native keys, which the workspace resolves through `Query::Text { dialect: "path" }`; a gone name falls back to `derive(source, path)`, which is its old id. A rendering-profile change (or a log batch that didn't fit) is `reset`: everything is re-read, since every definition's text may have changed. Open names without unsaved edits are reprinted then too; their rendering versions change when the printed text changes.
 
 ## Queries
 
@@ -164,3 +164,27 @@ alongside generic calls. The target path/span/source digest must match its
 current manifest. Calls/References retain import provenance, count and ranges;
 annotation reads cap at 64 KiB each and 10,000 examined edges. Authored stores do
 not use this folder-cache projection. See [[Indexing]].
+
+## Successful-save warnings (SR-150, 2026-10-29)
+
+The locked Sophia tag is now **v0.1.8**. `write_text` and `create_text` preserve
+`Written.warnings` as plain messages in `OpResult::Ok.warnings`, alongside the
+successful content version. The workspace shows a localized “saved” status
+with these diagnostics, then fetches the store's current printed text as usual.
+A moved reference is a successful save, with no synthetic span, text insertion
+or conflict. The source regression edits `sample.helper`, saves `sample.user`,
+checks the warning and checks that the next save is quiet. The authored fixture
+in `sophia-folder.mjs` tests another writer's change followed by an editor save.
+
+
+P-238: source text versions now wrap Sophia's raw token and the exact print.
+The server retains up to 128 fetched bases (2 MiB each, 32 MiB total, memory
+only), so another client's reprint cannot change a first client's splice base.
+An evicted unchanged print can be reconstructed; an evicted changed print
+refuses rather than guessing. The raw Sophia token is checked again on save,
+so concurrent edits of the name/group still conflict, while reference moves
+produce SR-150 warnings. Canonical print versions are acknowledged after writes.
+
+SR-150 / P-238 validation complete (2026-10-29): three unit and fourteen
+acceptance tests pass, plus the production native-editor browser save with
+its full hover notice and all AGENTS gates. The screenshot was inspected.

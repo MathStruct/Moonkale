@@ -46,3 +46,5 @@ dragging = 正在拖动 { $name }——将其拖放到另一个 Moonkale 窗口�
 move-unsaved = 未保存的文档保留在此窗口中，请先保存再移至其他窗口。
 
 chrome-more = 更多操作
+
+saved-with-warnings = 已保存 { $name } — { $warnings }

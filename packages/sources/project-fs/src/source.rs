@@ -372,14 +372,22 @@ impl Source for FolderSource {
                 } => applied
                     .results
                     .push(match self.write_text(node, expected, &patch).await {
-                        Ok(version) => OpResult::Ok { node, version },
+                        Ok(version) => OpResult::Ok {
+                            node,
+                            version,
+                            warnings: Vec::new(),
+                        },
                         Err(error) => OpResult::Refused { node, error },
                     }),
                 Op::CreateText { parent, name, text } => {
                     applied
                         .results
                         .push(match self.create_text(parent, &name, &text).await {
-                            Ok((node, version)) => OpResult::Ok { node, version },
+                            Ok((node, version)) => OpResult::Ok {
+                                node,
+                                version,
+                                warnings: Vec::new(),
+                            },
                             Err(error) => OpResult::Refused {
                                 node: parent,
                                 error,
@@ -390,7 +398,11 @@ impl Source for FolderSource {
                     applied
                         .results
                         .push(match self.create_dir(parent, &name).await {
-                            Ok((node, version)) => OpResult::Ok { node, version },
+                            Ok((node, version)) => OpResult::Ok {
+                                node,
+                                version,
+                                warnings: Vec::new(),
+                            },
                             Err(error) => OpResult::Refused {
                                 node: parent,
                                 error,
@@ -402,6 +414,7 @@ impl Source for FolderSource {
                         Ok((new_node, version)) => OpResult::Ok {
                             node: new_node,
                             version,
+                            warnings: Vec::new(),
                         },
                         Err(error) => OpResult::Refused { node, error },
                     })
@@ -410,6 +423,7 @@ impl Source for FolderSource {
                     Ok(()) => OpResult::Ok {
                         node,
                         version: Version(0),
+                        warnings: Vec::new(),
                     },
                     Err(error) => OpResult::Refused { node, error },
                 }),

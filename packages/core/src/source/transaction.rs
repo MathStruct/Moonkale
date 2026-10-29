@@ -137,8 +137,17 @@ impl Transaction {
 /// the UI can partially succeed and explain why.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OpResult {
-    Ok { node: NodeId, version: Version },
-    Refused { node: NodeId, error: SourceError },
+    Ok {
+        node: NodeId,
+        version: Version,
+        /// Non-fatal diagnostics from a successful write. Never inserted into text.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        warnings: Vec<String>,
+    },
+    Refused {
+        node: NodeId,
+        error: SourceError,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,7 +159,9 @@ impl Applied {
     /// The new version of `node` if its op succeeded.
     pub fn version_of(&self, node: NodeId) -> Option<Version> {
         self.results.iter().find_map(|r| match r {
-            OpResult::Ok { node: n, version } if *n == node => Some(*version),
+            OpResult::Ok {
+                node: n, version, ..
+            } if *n == node => Some(*version),
             _ => None,
         })
     }
@@ -166,6 +177,16 @@ impl Applied {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_success_results_default_to_no_warnings() {
+        let node = NodeId::derive(&crate::SourceId::new("test"), "name");
+        let value = serde_json::json!({"Ok": {"node": node, "version": Version(1)}});
+        let OpResult::Ok { warnings, .. } = serde_json::from_value(value).unwrap() else {
+            panic!()
+        };
+        assert!(warnings.is_empty());
+    }
 
     #[test]
     fn whole_document_patch_replaces_everything() {

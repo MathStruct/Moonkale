@@ -676,6 +676,7 @@ impl Source for MemoryFile {
                 results.push(OpResult::Ok {
                     node: node.id,
                     version: node.version,
+                    warnings: Vec::new(),
                 });
             }
             if let Op::WriteText {
@@ -690,6 +691,7 @@ impl Source for MemoryFile {
                 results.push(OpResult::Ok {
                     node,
                     version: saved.1,
+                    warnings: Vec::new(),
                 });
             }
         }

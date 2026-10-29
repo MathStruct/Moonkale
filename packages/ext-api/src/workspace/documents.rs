@@ -678,7 +678,29 @@ impl Workspace {
                     }
                 }
                 self.forget_recovery_in(&session, &source_id.0, &key).await;
-                self.set_status(t!(self, L, "saved", name = key.clone()));
+                let warnings: Vec<&str> = applied
+                    .results
+                    .iter()
+                    .filter_map(|r| match r {
+                        moonkale_core::OpResult::Ok {
+                            node: n, warnings, ..
+                        } if *n == node => Some(warnings),
+                        _ => None,
+                    })
+                    .flatten()
+                    .map(String::as_str)
+                    .collect();
+                if warnings.is_empty() {
+                    self.set_status(t!(self, L, "saved", name = key.clone()));
+                } else {
+                    self.set_status(t!(
+                        self,
+                        L,
+                        "saved-with-warnings",
+                        name = key.clone(),
+                        warnings = warnings.join("; ")
+                    ));
+                }
                 // History: the patch the save carried, attributed to the
                 // agent when it made the edit (the user still approved it).
                 let actor = match self.history.pending_actor.with_mut(|m| m.remove(&node)) {

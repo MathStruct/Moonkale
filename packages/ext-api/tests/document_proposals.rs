@@ -350,6 +350,7 @@ fn save_completion_acknowledges_only_the_submitted_snapshot() {
                 results: vec![moonkale_core::OpResult::Ok {
                     node: node().id,
                     version: Version(42),
+                    warnings: Vec::new(),
                 }],
             })
         }
@@ -526,6 +527,7 @@ fn group_partial_save_retains_failed_buffers_and_undo_is_buffer_only() {
                     results: vec![moonkale_core::OpResult::Ok {
                         node: target,
                         version: Version(1),
+                        warnings: Vec::new(),
                     }],
                 })
             } else {

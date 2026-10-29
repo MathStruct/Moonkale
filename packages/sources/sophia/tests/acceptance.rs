@@ -175,7 +175,7 @@ async fn editing_moves_the_name_and_parse_errors_leave_it() {
     let (text, v0) = s.fetch_text(double).await.unwrap();
     assert_eq!(text, "function double(x::Int64)::Int64\n    x + x\nend\n");
     let edited = "function double(x::Int64)::Int64\n    2 * x\nend\n";
-    let OpResult::Ok { node, version } = write(&s, double, v0, edited).await else {
+    let OpResult::Ok { node, version, .. } = write(&s, double, v0, edited).await else {
         panic!("the edit was refused")
     };
     assert_eq!(node, double, "the name keeps its id");
@@ -262,10 +262,10 @@ async fn a_profile_switch_reprints_without_changing_ids() {
 
     let (profile, v) = s.fetch_text(settings).await.unwrap();
     assert!(profile.contains("based_on = \"julia\""), "{profile}");
-    assert!(matches!(
-        write(&s, settings, v, "based_on = rust\n").await,
-        OpResult::Ok { .. }
-    ));
+    let OpResult::Ok { version, .. } = write(&s, settings, v, "based_on = rust\n").await else {
+        panic!("profile refused")
+    };
+    assert_eq!(version, s.fetch_text(settings).await.unwrap().1);
     let after = s.fetch_text(add).await.unwrap().0;
     assert!(
         after.starts_with("fn add(a: Nat, b: Nat) -> Nat {"),
@@ -586,4 +586,66 @@ async fn coarse_roots_count_shared_definitions_once() {
     let mut identities: std::collections::HashSet<_> = all.nodes.iter().map(|n| n.id).collect();
     identities.insert(settings.id);
     assert_eq!(represented as usize, identities.len());
+}
+
+#[tokio::test]
+async fn saving_a_referrer_reports_moved_reference_without_conflicting() {
+    let s = SophiaSource::sample().unwrap();
+    let root = children(&s, s.descriptor().root).await;
+    let ns = find(&root, "Directory", "sample").id;
+    for (name, body) in [("helper", "x"), ("user", "helper(x)")] {
+        let tx = Transaction::create_text(
+            ns,
+            name,
+            format!("function {name}(x::Int64)::Int64\n    {body}\nend\n"),
+        );
+        assert!(s.apply(tx).await.unwrap().first_error().is_none());
+    }
+    let names = sample_names(&s).await;
+    let helper = find(&names, "Name", "helper").id;
+    let user = find(&names, "Name", "user").id;
+    let (text, v) = s.fetch_text(user).await.unwrap();
+    let (ht, hv) = s.fetch_text(helper).await.unwrap();
+    assert!(matches!(
+        write(&s, helper, hv, &ht.replace("    x\n", "    x + x\n")).await,
+        OpResult::Ok { .. }
+    ));
+    let (reprinted, reprinted_version) = s.fetch_text(user).await.unwrap();
+    assert_ne!(
+        reprinted, text,
+        "moving helper changes the old reference's print"
+    );
+    assert_ne!(
+        reprinted_version, v,
+        "different patch bases have different versions"
+    );
+    let OpResult::Ok {
+        warnings, version, ..
+    } = s
+        .apply(Transaction::write_text(
+            user,
+            v,
+            TextPatch::whole(&text, text.chars().count()),
+        ))
+        .await
+        .unwrap()
+        .results
+        .remove(0)
+    else {
+        panic!("save refused")
+    };
+    assert_eq!(warnings.len(), 1);
+    assert!(warnings[0].contains("`sample.helper`"));
+    assert!(warnings[0].contains("`sample.user`"));
+    assert_ne!(version, v);
+    let (stored, v) = s.fetch_text(user).await.unwrap();
+    assert!(
+        !stored.contains("now refers"),
+        "warning never enters the saved text"
+    );
+    assert!(stored.starts_with("function user"));
+    let OpResult::Ok { warnings, .. } = write(&s, user, v, &stored).await else {
+        panic!()
+    };
+    assert!(warnings.is_empty(), "a second save has no moved reference");
 }

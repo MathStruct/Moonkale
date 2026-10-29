@@ -1112,7 +1112,7 @@ pub fn Shell() -> Element {
                                 {source_name.clone().unwrap_or_else(|| t!(ws, L, "status-no-folder-open"))}
                             }
                         },
-                        message: rsx! { StatusMessage { if status.is_empty() { {t!(ws, L, "status-ready")} } else { "{status}" } } },
+                        message: rsx! { StatusMessage { title: (!status.is_empty()).then(||status.clone()), if status.is_empty() { {t!(ws, L, "status-ready")} } else { "{status}" } } },
                         right: rsx! {
                             if let Some((message, tooltip)) = cache_status.read().as_ref().filter(|(s, _)| !s.is_empty()) {
                                 StatusItem { title: tooltip.clone(), span { class: "mk-status-folder", "{message}" } }

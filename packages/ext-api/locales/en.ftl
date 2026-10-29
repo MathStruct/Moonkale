@@ -54,3 +54,5 @@ dragging = Dragging { $name } — drop it on another Moonkale window to move it 
 move-unsaved = Unsaved document kept here — save before moving it to another window.
 
 chrome-more = More actions
+
+saved-with-warnings = Saved { $name } — { $warnings }

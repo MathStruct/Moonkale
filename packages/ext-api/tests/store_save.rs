@@ -100,6 +100,7 @@ impl Source for Reprinting {
                         OpResult::Ok {
                             node,
                             version: Version(s.1),
+                            warnings: vec!["helper now refers to other content".into()],
                         }
                     }
                     Err(error) => OpResult::Refused { node, error },
@@ -163,6 +164,12 @@ fn a_save_takes_the_stores_spelling_back() {
         assert_eq!(doc.peek().saved, canonical);
         assert!(!doc.peek().dirty());
         assert_eq!(doc.peek().version, Version(2));
+        assert!(ws
+            .shell
+            .status
+            .peek()
+            .contains("helper now refers to other content"));
+        assert!(!doc.peek().text.contains("refers to"));
 
         // The next save patches the stored text, not the old spelling.
         doc.write().text = "function double(x)\n    3 * x\nend\n".into();

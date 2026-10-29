@@ -81,6 +81,7 @@ impl Source for Files {
                 result.results.push(OpResult::Ok {
                     node,
                     version: CONTENT,
+                    warnings: Vec::new(),
                 });
             } else {
                 return Err(SourceError::Unsupported("unexpected create".into()));

@@ -15,6 +15,8 @@ const storeRoot = `${root}/store-truth-fixture`;
 const browser = await chromium.launch({args:["--use-angle=swiftshader","--enable-unsafe-swiftshader","--ignore-gpu-blocklist"]});
 const page = await browser.newPage({ viewport: {width:1500,height:900} });
 const logs = [];
+const warningSaves = [];
+page.on("request",request=>{if(request.url().includes("/api/sources/apply") && request.postData()?.includes("warnings.sophia")) warningSaves.push(request.postData());});
 page.on("console",m => logs.push(m.text()));
 try {
   fs.writeFileSync(`${root}/cross_helper.py`, "def cross_plus(x):\n    return x + 1\n");
@@ -142,9 +144,36 @@ try {
   await control(page.locator(".wb-tab").filter({hasText:"owned.py"}), 'click');
   await page.waitForFunction(() => document.querySelector(".mk-status-folder")?.textContent.includes("Truth: Sophia store"));
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder-truth.png`});
+  // SR-150: a real authored store, another writer changes a referenced name,
+  // then the user saves the referrer through the editor's regular save path.
+  await control(page, 'fill', ".mk-explorer-open input", `${root}/warnings.sophia`);
+  await control(page, 'click', ".mk-explorer-open button[type=submit]");
+  const authoredSource = page.locator(".mk-explorer-source").filter({has:page.locator(".mk-source-label",{hasText:/^warnings$/})});
+  await authoredSource.waitFor();
+  await authoredSource.locator('.mk-tree-row[title="ns:sample"]').click();
+  await authoredSource.locator('.mk-tree-row[title="name:sample.user"]').click();
+  await page.locator('.cm-content:visible, .mk-native-surface:visible').first().waitFor();
+  const warningSource = `sophia:${root}/warnings.sophia`;
+  const query = await page.request.post(`http://127.0.0.1:${process.env.PORT}/api/sources/query`, {data:{source:warningSource,q:{Text:{dialect:"path",text:"name:sample.helper"}}}});
+  const helper = (await query.json()).Ok.nodes[0];
+  const fetched = await page.request.post(`http://127.0.0.1:${process.env.PORT}/api/sources/fetch_text`,{data:{source:warningSource,node:helper.id}});
+  const [helperText, helperVersion] = (await fetched.json()).Ok;
+  const changed = await page.request.post(`http://127.0.0.1:${process.env.PORT}/api/sources/apply`,{data:{source:warningSource,tx:{ops:[{WriteText:{node:helper.id,expected:helperVersion,patch:{Replace:[{start:0,end:[...helperText].length,text:helperText.replace("    x\n","    x + x\n")}]}}}]}}});
+  assert((await changed.json()).Ok.results[0].Ok);
+  if (await page.locator('.mk-native-surface:visible').count()) await page.locator('.mk-editor-core-input-sink:visible').focus();
+  else await page.locator('.cm-content:visible').click();
+  await page.keyboard.press('Control+Home');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('End');
+  await page.keyboard.type(' + x');
+  await page.keyboard.press('Control+s');
+  await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('`sample.helper` now refers to other content'));
+  assert(!(await page.locator('.cm-content:visible, .mk-native-surface:visible').first().innerText()).includes('now refers'));
+  assert((await page.locator('.wb-status-message').getAttribute('title')).includes('the save uses it'), 'full warning remains readable on hover');
+  await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-save-warning.png`});
   console.log("SOPHIA FOLDER E2E: PASS");
 } catch(error) {
-  console.error(error,logs.slice(-10));
+  console.error(error,logs.slice(-10),warningSaves);
   await page.screenshot({path:`${process.env.M1_SHOTS}/sophia-folder-fail.png`});
   process.exitCode=1;
 } finally {
