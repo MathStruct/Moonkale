@@ -137,3 +137,16 @@ browser frame-readiness measurement, not a hardware compositor benchmark.
 Raw measurements and reconciled validation live in
 `target/next20-e2e/shots/overview-measurements.log` and
 `target/next35-validation-final.json`; see the contributor handoff for commands.
+
+
+Follow-up (2026-10-29): both interaction journeys switch retained tabs through
+the overview (Ctrl+Alt+Space/filter/Enter and programmable mouse F13/card click).
+Terminal relay previews strip ANSI/control sequences before text bounding,
+keeping parser state across chunks and a 2,048-byte plain tail; replay/live
+bytes are unchanged. The native terminal already previews its parsed screen.
+
+
+P-236 (2026-10-29): the dirty-close confirmation explicitly focuses its mounted
+button. Escape in the search field cancels a pending confirmation first; both
+cancellation routes return to search. The browser regression waits for actual
+confirmation focus, then checks that Escape retains the overview and dirty tab.

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const browser = await firefox.launch();
 const page = await browser.newPage({viewport: {width: 1500, height: 900}});
+await page.addInitScript(() => localStorage.setItem('moonkale.settings', JSON.stringify({language: 'en', editor: {implementation: 'codemirror', markdown_rich: false}, keymap: 'left-hand'})));
 const shots = process.env.M1_SHOTS ?? '.';
 const menu = async (group, command) => {
   await control(page.getByRole('button', {name: group, exact: true}), 'click');
@@ -35,6 +36,12 @@ try {
   await page.waitForSelector('.wb-tab[aria-selected="true"]:has-text("README.md")');
   await control(page.locator('.wb-tab:has-text("Alpha.md")'), 'click');
   await page.waitForSelector('.wb-tab[aria-selected="true"]:has-text("Alpha.md")');
+  // F13 is the programmable mouse overview binding; cards need no typing.
+  await page.evaluate(() => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key: 'F13', code: 'F13', bubbles: true, cancelable: true})));
+  await page.waitForSelector('.mk-overview');
+  await control(page.locator('.mk-overview-card').filter({hasText: 'README.md'}), 'click');
+  await page.waitForSelector('.mk-overview', {state: 'detached'});
+  await page.waitForSelector('.wb-tab[aria-selected="true"]:has-text("README.md")');
   await menu('View', 'view.panel.graph');
   await page.waitForSelector('.mk-graph');
   await menu('File', 'editor.closeAll');

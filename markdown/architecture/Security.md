@@ -472,3 +472,10 @@ visibility uses host-generated element ids as serialized data. The synchronous
 4 ms extension budget is cooperative, not process confinement; existing crash
 and extension authority boundaries remain in effect. Close uses existing panel
 identities and requires explicit discard for dirty documents.
+
+
+WP-60 follow-up (2026-10-29): the terminal relay incrementally discards ANSI
+control sequences before retaining a 2,048-byte plain overview tail. Escape
+parser state is constant-size across chunks, including unterminated strings;
+preview reads never scan full replay history or consume live output. No new
+execution, dependency, connection or Source authority is added.

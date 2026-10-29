@@ -87,6 +87,14 @@ try {
   await page.waitForFunction(() => document.querySelector('.wb-tab[aria-selected="true"][aria-controls*="editor"]')?.textContent.includes('README.md'));
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(() => document.querySelector('.wb-tab[aria-selected="true"][aria-controls*="editor"]')?.textContent.includes('Alpha.md'));
+  // Switch retained tabs through the overview using only its shortcut/input.
+  await page.keyboard.press('Control+Alt+Space');
+  await page.waitForSelector('.mk-overview');
+  await page.keyboard.type('README.md');
+  await page.waitForFunction(() => document.querySelectorAll('.mk-overview-card').length === 1);
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.mk-overview', {state: 'detached'});
+  await page.waitForFunction(() => document.querySelector('.wb-tab[aria-selected="true"][aria-controls*="editor"]')?.textContent.includes('README.md'));
   await palette('Show Graph', 'view.panel.graph');
   await page.waitForSelector('.mk-graph');
   await palette('Close All Editors', 'editor.closeAll');

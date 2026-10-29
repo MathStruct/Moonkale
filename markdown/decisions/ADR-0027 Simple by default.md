@@ -110,6 +110,17 @@ focus/discovery tests pass. WP-61 still owns input presets and five-button maps;
 WP-60 owns the overview and its broader journey.
 
 
+WP-60 overview (2026-10-29): Ctrl+Alt+Space opens the existing palette in
+Overview mode, with grouped open-tab cards above file/command results. The
+left-hand preset maps programmable mouse F13 to the same command. The search
+field takes focus; arrows and Enter select a tab, Escape cancels, Delete closes,
+and card clicks provide the mouse route. Title-bar search also includes open
+tabs. No new rail entry or visible Simple button was added. Both journeys now
+switch from Alpha to README through the overview: shortcut/filter/Enter in the
+keyboard journey, F13/card click without typing in the mouse journey. Other
+windows, drag docking, hot corner and animation remain WP-60 step 5.
+
+
 - **Symbols, with their description on hover:**
   - `moonkale_ext_api::icons::IconButton` draws an icon; its tooltip is the description and shortcut ("Save (Ctrl+S)", "Wrap long lines (Alt+Z)"); its label is hidden text, so screen readers name it and tests find it by its words.
   - The icon set moved from the shell to `ext-api` (`icons::Icon`), so every extension can use it.

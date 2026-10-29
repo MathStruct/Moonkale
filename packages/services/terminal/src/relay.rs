@@ -14,6 +14,7 @@ pub const REPLAY_BYTES: usize = 256 * 1024;
 pub struct Relay {
     recent: VecDeque<u8>,
     sink: Option<mpsc::UnboundedSender<Vec<u8>>>,
+    preview: PlainTail,
 }
 
 impl Relay {
@@ -24,6 +25,7 @@ impl Relay {
     /// A chunk from the process: kept for the next subscriber and passed to
     /// the current one, if it is still listening.
     pub fn push(&mut self, chunk: &[u8]) {
+        self.preview.push(chunk);
         self.recent.extend(chunk);
         if self.recent.len() > REPLAY_BYTES {
             let mut cut = self.recent.len() - REPLAY_BYTES;
@@ -42,9 +44,7 @@ impl Relay {
 
     /// A bounded, non-consuming tail for static overview schematics.
     pub fn preview(&self) -> String {
-        let mut bytes: Vec<_> = self.recent.iter().rev().take(2048).copied().collect();
-        bytes.reverse();
-        String::from_utf8_lossy(&bytes).into_owned()
+        self.preview.text()
     }
 
     /// A view mounts: the output so far, and the stream from now on. The
@@ -59,6 +59,66 @@ impl Relay {
     pub fn end(&mut self, marker: &[u8]) {
         self.push(marker);
         self.sink = None;
+    }
+}
+
+// Strip controls as bytes arrive: parsing state survives chunk and tail boundaries.
+// Replay/live output remains byte-for-byte intact for the actual terminal.
+#[derive(Default)]
+struct PlainTail {
+    bytes: VecDeque<u8>,
+    state: EscapeState,
+}
+
+#[derive(Default)]
+enum EscapeState {
+    #[default]
+    Text,
+    Escape,
+    Intermediate,
+    Csi,
+    String,
+    StringEscape,
+}
+
+impl PlainTail {
+    fn push(&mut self, chunk: &[u8]) {
+        use EscapeState::*;
+        for &byte in chunk {
+            self.state = match (&self.state, byte) {
+                (StringEscape, b'\\') | (String | StringEscape, 7) => Text,
+                (String | StringEscape, 0x1b) => StringEscape,
+                (String | StringEscape, _) => String,
+                (_, 0x1b) => Escape,
+                (Escape, b'[') => Csi,
+                (Escape, b']' | b'P' | b'X' | b'^' | b'_') => String,
+                (Escape | Intermediate, 0x20..=0x2f) => Intermediate,
+                (Escape | Intermediate, _) | (Csi, 0x40..=0x7e) => Text,
+                (Csi, _) => Csi,
+                (Text, _) => {
+                    if byte >= 0x20 && byte != 0x7f || matches!(byte, b'\n' | b'\t') {
+                        self.bytes.push_back(byte);
+                        if self.bytes.len() > 2048 {
+                            self.bytes.pop_front();
+                        }
+                    }
+                    Text
+                }
+            };
+        }
+    }
+
+    fn text(&self) -> String {
+        let bytes: Vec<_> = self.bytes.iter().copied().collect();
+        // A bounded byte tail may begin partway through a UTF-8 character.
+        let start = bytes
+            .iter()
+            .position(|b| b & 0xc0 != 0x80)
+            .unwrap_or(bytes.len());
+        String::from_utf8_lossy(&bytes[start..])
+            .chars()
+            .filter(|c| !c.is_control() || matches!(c, '\n' | '\t'))
+            .collect()
     }
 }
 
@@ -78,6 +138,35 @@ mod tests {
         relay.push(b"tail");
         assert!(relay.preview().ends_with("tail"));
         assert_eq!(stream.try_recv().unwrap(), b"tail");
+    }
+
+    #[test]
+    fn overview_strips_controls_without_changing_replay() {
+        let mut relay = Relay::new();
+        let raw = b"\x1b[31mred\x1b[0m\r\n\x1b]0;window title\x07\x1b]8;;https://example.test\x1b\\link\x1b]8;;\x1b\\\x1bPprivate\x1b\\\x1b(B\x00\x08\x7f\tend";
+        for byte in raw {
+            relay.push(&[*byte]); // Deliberately split every escape sequence.
+        }
+        assert_eq!(relay.preview(), "red\nlink\tend");
+        assert_eq!(relay.subscribe().0, raw);
+    }
+
+    #[test]
+    fn overview_tail_never_starts_inside_an_escape_or_utf8_character() {
+        let mut relay = Relay::new();
+        relay.push(b"\x1b]0;");
+        relay.push(&vec![b'x'; 4096]);
+        assert_eq!(relay.preview(), "");
+        relay.push(b"\x1b");
+        relay.push(b"\\");
+        relay.push("中".repeat(1000).as_bytes());
+        let preview = relay.preview();
+        assert!(preview.len() <= 2048);
+        assert!(preview.chars().all(|c| c == '中'));
+        relay.push(b"\x1b[31");
+        assert_eq!(relay.preview(), preview);
+        relay.push(b"mend");
+        assert!(relay.preview().ends_with("end"));
     }
 
     #[test]

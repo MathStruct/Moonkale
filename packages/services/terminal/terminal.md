@@ -13,3 +13,11 @@ The platform-neutral half of the terminal. It compiles on wasm.
 - `links::find(line, neighbours) → Vec<Link{path,line,col}>` — `path:line[:col]` detection for Ctrl+click; the neighbours are the rows above and below because xterm wraps long lines (see P-055).
 
 Tests: `cargo test -p moonkale-terminal` (link detection).
+
+
+WP-60 follow-up (2026-10-29): `Relay::preview` reads a non-consuming tail of
+at most 2,048 retained plain bytes, decoded as lossy UTF-8. A streaming parser strips
+CSI, OSC/hyperlinks, DCS and other escape strings before bounding the tail;
+state survives output chunks and long controls. C0/DEL controls are dropped
+except newline/tab. Replay and live terminal bytes remain unchanged. Tests
+cover split escapes, long OSC, Unicode tail boundaries and unchanged output.

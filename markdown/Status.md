@@ -13,6 +13,10 @@ Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 
 Ctrl+Alt+Space/F13 shortcuts, keyboard/mouse switching and close, bounded lazy
 extension previews, decoded-image reuse and graph/flow engine snapshots.
 Title-bar search and the overview share the existing file/command list.
+Both journeys cover overview tab switching; relay previews strip terminal
+control sequences before text bounding. P-236 fixes dirty-close confirmation
+focus and scoped Escape cancellation; five overview repetitions, three full
+smoke sweeps and all gates pass with the fix.
 The browser measured 14.63 ms for twelve tabs/two tiles and 23.25 ms for fifty
 tabs. All AGENTS gates, the complete browser feature matrix, the image regression
 and an inspected private desktop check pass. Other-window switching, docking,
