@@ -657,7 +657,10 @@ fn window_config() -> dioxus::desktop::Config {
         // Small enough to try the phone-sized shell (< 700 px) on desktop.
         .with_min_inner_size(LogicalSize::new(360.0, 400.0))
         // No native decorations: the title bar is ours (see moonkale_shell::TitleBar).
-        .with_decorations(false);
+        .with_decorations(false)
+        // Shown by `reveal_when_ready` once the shell is styled, so the first
+        // frame is never unstyled markup.
+        .with_visible(false);
     Config::new()
         .with_window(window)
         // Drop dioxus-desktop's default native menu bar; ours replaces it,
@@ -720,6 +723,8 @@ fn App() -> Element {
     let (controls, open_window) = (Some(window_controls()), Some(new_window as fn()));
     #[cfg(all(feature = "desktop", windows))]
     use_hook(|| fit_to_work_area(&dioxus::desktop::window().window));
+    #[cfg(feature = "desktop")]
+    use_hook(reveal_when_ready);
     #[cfg(not(feature = "desktop"))]
     let (controls, open_window): (Option<WindowControls>, Option<fn()>) = (None, None);
 
@@ -736,6 +741,34 @@ fn App() -> Element {
             Shell {}
         }
     }
+}
+
+/// Shows the hidden window once the shell has restored its session, every
+/// stylesheet has loaded and the fonts are ready, so the first frame is the
+/// finished UI. At most 3 s: a stuck startup must never leave the window
+/// invisible, so a Rust-side timer shows it even if the page's script stalls.
+#[cfg(feature = "desktop")]
+fn reveal_when_ready() {
+    const DEADLINE_MS: u64 = 3000;
+    spawn(async move {
+        let mut ready = document::eval(&format!(
+            r#"
+            const deadline = Date.now() + {DEADLINE_MS};
+            const styled = () => document.querySelector('.mk-frame[data-mk-ready]')
+                && [...document.querySelectorAll('link[rel="stylesheet"]')].every(l => l.sheet);
+            while (!styled() && Date.now() < deadline) await new Promise(r => setTimeout(r, 16));
+            const left = Math.max(0, deadline - Date.now());
+            await Promise.race([document.fonts?.ready, new Promise(r => setTimeout(r, left))]);
+            dioxus.send(true);
+            "#
+        ));
+        let timeout = tokio::time::sleep(std::time::Duration::from_millis(DEADLINE_MS + 500));
+        tokio::select! {
+            _ = ready.recv::<bool>() => {}
+            _ = timeout => {}
+        }
+        dioxus::desktop::window().window.set_visible(true);
+    });
 }
 
 /// A window rectangle in physical pixels: left, top, right, bottom.

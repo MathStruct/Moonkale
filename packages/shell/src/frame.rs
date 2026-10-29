@@ -609,6 +609,8 @@ fn FrameContent(
         div {
             class: "mk-frame",
             class: if controls.is_some() { "mk-frame-undecorated" },
+            // The desktop shows its hidden window once this is set.
+            "data-mk-ready": (ws.saved_sessions.ready)().then_some("true"),
             onmounted: start_settings,
             // Global keybindings through the command registry. Editors
             // handle Ctrl+S themselves and stop the event (they need their

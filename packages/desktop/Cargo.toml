@@ -15,7 +15,7 @@ webbrowser = "1.2.4"
 # The store for this app's own state (ADR-0014): SQLite.
 moonkale-state = { workspace = true }
 moonkale-state-stores = { workspace = true, features = ["sqlite"] }
-tokio = { version = "1", features = ["rt", "macros"] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
 tokio-tungstenite = "0.28"
 tracing = "0.1"
 dioxus = { workspace = true, features = ["fullstack"] }
