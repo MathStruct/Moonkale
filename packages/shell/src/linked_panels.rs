@@ -157,6 +157,10 @@ const on = (name, fn) => { document.addEventListener(name,fn,true); listeners.pu
 on('focusin', e => { const entry = find(e.target) || tabs().find(([,el]) => document.getElementById(el.getAttribute('aria-controls'))?.contains(e.target)); if(entry) send('focus',entry[0]); });
 on('pointerdown', e => { const entry = find(e.target) || tabs().find(([,el]) => document.getElementById(el.getAttribute('aria-controls'))?.contains(e.target)); if(entry) send('focus',entry[0]); });
 on('contextmenu', e => { const entry=find(e.target); if(entry) { e.preventDefault(); e.stopPropagation(); send('menu',entry[0]); } });
+on('keydown', () => { window.__mkAgentTypingUntil = performance.now() + 1500; });
+on('input', () => { window.__mkAgentTypingUntil = performance.now() + 1500; });
+on('compositionstart', () => { window.__mkAgentComposing = true; });
+on('compositionend', () => { window.__mkAgentComposing = false; window.__mkAgentTypingUntil = performance.now() + 1500; });
 on('keydown', e => { if(e.key==='ContextMenu' || (e.shiftKey && e.key==='F10')) { const entry=find(e.target); if(entry) { e.preventDefault(); e.stopPropagation(); send('menu',entry[0]); } } });
 on('dragstart', e => { dragging=find(e.target)?.[0]; });
 on('dragover', e => { if(e.altKey && dragging && find(e.target)) { e.preventDefault(); e.stopPropagation(); } });

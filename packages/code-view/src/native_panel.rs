@@ -88,25 +88,29 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         .editor_session(node)
         .expect("open document has a session");
     let language = language_for_hint(doc.peek().node.language_hint());
-    let view = ws
-        .editor_view_state_with_cleanup(
+    let agent_panel =
+        use_hook(move || moonkale_ext_api::links::panel_instance(format!("editor:{node}")));
+    let agent_view = agent_panel.starts_with("lead:agent:");
+    let create_view = |scope| NativeView {
+        model: Signal::new_in_scope(NativeModel::new(session.peek().snapshot(), language), scope),
+        first_row: Signal::new_in_scope(0, scope),
+        first_column: Signal::new_in_scope(0, scope),
+        scroll_displacement: Signal::new_in_scope(0.0, scope),
+        horizontal_displacement: Signal::new_in_scope(0.0, scope),
+        source_anchor: Signal::new_in_scope(None, scope),
+        run_heights: Signal::new_in_scope(Default::default(), scope),
+        highlights: Signal::new_in_scope(SearchHighlights::default(), scope),
+        seen_command: Signal::new_in_scope(ws.shell.commands.peek().0, scope),
+        seen_reveal: Signal::new_in_scope(0, scope),
+    };
+    // An agent range has its own model/camera. It must never move the person's
+    // retained caret merely because both views show the same document.
+    let isolated = use_hook(|| agent_view.then(|| create_view(dioxus::core::current_scope_id())));
+    let view = isolated.unwrap_or_else(|| {
+        *ws.editor_view_state_with_cleanup(
             node,
-            || NativeView {
-                model: Signal::new_in_scope(
-                    NativeModel::new(session.peek().snapshot(), language),
-                    ScopeId::ROOT,
-                ),
-                first_row: Signal::new_in_scope(0, ScopeId::ROOT),
-                first_column: Signal::new_in_scope(0, ScopeId::ROOT),
-                scroll_displacement: Signal::new_in_scope(0.0, ScopeId::ROOT),
-                horizontal_displacement: Signal::new_in_scope(0.0, ScopeId::ROOT),
-                source_anchor: Signal::new_in_scope(None, ScopeId::ROOT),
-                run_heights: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
-                highlights: Signal::new_in_scope(SearchHighlights::default(), ScopeId::ROOT),
-                seen_command: Signal::new_in_scope(ws.shell.commands.peek().0, ScopeId::ROOT),
-                seen_reveal: Signal::new_in_scope(0, ScopeId::ROOT),
-            },
-            |view| {
+            || create_view(ScopeId::ROOT),
+            |view: &NativeView| {
                 view.model.manually_drop();
                 view.first_row.manually_drop();
                 view.first_column.manually_drop();
@@ -119,7 +123,9 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
                 view.seen_reveal.manually_drop();
             },
         )
-        .expect("open document has a view");
+        .expect("open document has a view")
+        .peek()
+    });
     let NativeView {
         mut model,
         mut first_row,
@@ -131,7 +137,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         highlights,
         mut seen_command,
         mut seen_reveal,
-    } = *view.peek();
+    } = view;
     use_hook(move || {
         // Reconcile retained state synchronously at attachment. Mounted events
         // and effects may arrive after the first browser input event.
@@ -240,7 +246,7 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         if model.peek().revision != revision {
             let snapshot = session.peek().snapshot().clone();
             model.with_mut(|state| state.replace(&snapshot));
-            if let Some(selection) = snapshot.selection {
+            if let Some(selection) = snapshot.selection.filter(|_| !agent_view) {
                 let mut ws = ws;
                 ws.set_selection(node, selection.anchor, selection.head);
                 if let Some((line, col)) =
@@ -550,11 +556,49 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
             _ => {}
         }
     });
+
+    let mut seen_agent_range = use_signal(|| None);
+    moonkale_ext_api::crash::use_effect(move || {
+        let range = ws.links.reveals.read().get(&agent_panel).cloned();
+        if range == *seen_agent_range.peek() {
+            return;
+        }
+        if let Some(range) = &range {
+            let text = doc.peek().text.clone();
+            let position = |line: u32, col: u32| {
+                let start = text
+                    .split_inclusive('\n')
+                    .take(line as usize)
+                    .map(|s| s.encode_utf16().count() as u32)
+                    .sum::<u32>();
+                let len = text
+                    .split('\n')
+                    .nth(line as usize)
+                    .unwrap_or_default()
+                    .encode_utf16()
+                    .count() as u32;
+                utf16_position(&text, start.saturating_add(col.min(len)))
+            };
+            let start = position(range.line, range.column);
+            let end = position(
+                range.end_line.unwrap_or(range.line),
+                range.end_column.unwrap_or(range.column),
+            );
+            model.with_mut(|state| {
+                let _ = state.engine.execute(editor_core::Command::Cursor(
+                    editor_core::CursorCommand::SetSelection { start, end },
+                ));
+                state.reveal_cursor();
+            });
+            first_row.set(start.line.saturating_sub(3));
+            seen_agent_range.set(Some(range.clone()));
+        }
+    });
     moonkale_ext_api::crash::use_effect(move || {
         let Some(reveal) = *ws.docs.reveal.read() else {
             return;
         };
-        if reveal.node != node || reveal.seq <= *seen_reveal.peek() {
+        if agent_view || reveal.node != node || reveal.seq <= *seen_reveal.peek() {
             return;
         }
         seen_reveal.set(reveal.seq);

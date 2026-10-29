@@ -62,6 +62,9 @@ impl Subject {
 /// One lead and its context panels. Panel ids belong to the host, never content.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LinkGroup {
+    /// Attribution for an agent-owned group; ordinary groups have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
     /// Opaque group identity.
     pub id: String,
     /// One-based palette index (1..=8).
@@ -128,6 +131,12 @@ pub struct LinkState {
     pub results: Signal<BTreeMap<NodeId, std::rc::Rc<moonkale_core::QueryResult>>>,
     /// Focused panel, including context panels.
     pub focused: Signal<Option<String>>,
+    /// Host-owned agent panel to show without taking focus or splitting a typing view.
+    pub display_request: Signal<Option<String>>,
+    /// Documents loaded solely for an agent view, until explicitly opened by the person.
+    pub agent_documents: Signal<std::collections::BTreeSet<NodeId>>,
+    /// Agent range requests, isolated to one content view and never focused.
+    pub reveals: Signal<BTreeMap<String, moonkale_llm_types::display::Reveal>>,
 }
 impl LinkState {
     pub(crate) fn new() -> Self {
@@ -137,6 +146,9 @@ impl LinkState {
             contents: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
             results: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
             focused: Signal::new_in_scope(None, ScopeId::ROOT),
+            display_request: Signal::new_in_scope(None, ScopeId::ROOT),
+            agent_documents: Signal::new_in_scope(Default::default(), ScopeId::ROOT),
+            reveals: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
         }
     }
 }
@@ -221,6 +233,7 @@ impl Workspace {
         });
         self.links.groups.with_mut(|groups| {
             groups.push(LinkGroup {
+                agent: None,
                 id: group.clone(),
                 colour: ((number - 1) % 8 + 1) as u8,
                 number,
@@ -321,6 +334,7 @@ impl Workspace {
                         .unwrap_or(0)
                         .saturating_add(1);
                     groups.push(LinkGroup {
+                        agent: None,
                         id: uuid::Uuid::new_v4().to_string(),
                         colour: ((number - 1) % 8 + 1) as u8,
                         number,

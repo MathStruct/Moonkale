@@ -47,7 +47,7 @@ pub fn send_blocking(tx: &mut mpsc::Sender<Vec<u8>>, mut chunk: Vec<u8>) -> bool
 
 /// The wire format between a terminal view/client and its backend. Also
 /// what goes over the websocket for remote terminals.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TerminalMessage {
     /// First message from a client: what to run and how big the view is.
@@ -63,6 +63,10 @@ pub enum TerminalMessage {
     Resize {
         cols: u16,
         rows: u16,
+    },
+    /// Host line discipline, independent of process output. Never contains input.
+    Privacy {
+        private: bool,
     },
     /// Process output, base64.
     Output {
@@ -81,6 +85,10 @@ pub enum TerminalMessage {
 ///
 /// [`take_output`]: TerminalBackend::take_output
 pub trait TerminalBackend {
+    /// Canonical mode with echo disabled. Raw mode is deliberately not a prompt.
+    fn private_input(&self) -> bool {
+        false
+    }
     fn write(&self, data: &[u8]);
     fn resize(&self, cols: u16, rows: u16);
     /// The output stream; `None` after the first call.
@@ -102,11 +110,36 @@ pub type SpawnTerminalFuture =
 /// Installed by the platform: how to start a terminal (cwd, cols, rows).
 pub type SpawnTerminal = fn(Option<String>, u16, u16) -> SpawnTerminalFuture;
 
+// Never format input/output bodies into diagnostics or crash reports.
+impl std::fmt::Debug for TerminalMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Open { .. } => "TerminalMessage::Open",
+            Self::Input { .. } => "TerminalMessage::Input([private])",
+            Self::Resize { .. } => "TerminalMessage::Resize",
+            Self::Privacy { .. } => "TerminalMessage::Privacy",
+            Self::Output { .. } => "TerminalMessage::Output([private])",
+            Self::Exit { .. } => "TerminalMessage::Exit",
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+
+    #[test]
+    fn wire_debug_never_formats_terminal_bodies() {
+        let input = TerminalMessage::Input {
+            data: "never_print_this".into(),
+        };
+        let output = TerminalMessage::Output {
+            data: "never_print_this".into(),
+        };
+        assert!(!format!("{input:?} {output:?}").contains("never_print_this"));
+    }
 
     /// #14: a producer waits while the consumer lags, instead of queueing.
     #[test]

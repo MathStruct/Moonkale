@@ -38,3 +38,6 @@ WP-46: local Chats state is retained per named outer session. Host records keep
 the authorized folder/local prefix, then session identity; legacy rows migrate
 to Default once. Server conversation heads/summaries carry outer_session, and
 sending to a conversation belonging to another outer session is refused.
+
+
+WP-70: display.rs validates typed display actions, budgets each conversation and queues quiet offers according to agent.open_views. Marked linked instances keep selection/ranges isolated; content renders through safe Markdown and existing table/graph views. Server events are ephemeral and checked on each client. WP-71 terminal.run uses the bounded private-gated ANSI relay tail.

@@ -70,6 +70,7 @@ export type WikiSpan = { from: number; to: number; resolved: boolean }
 export type PresenceMark = { line: number; label: string }
 export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
 type Entry = {
+  showingRange?: boolean
   view: EditorView
   detached?: EditorState
   epoch: number
@@ -363,7 +364,7 @@ function mount(el: HTMLElement, text: string, onChange: OnChange, features: Feat
   let cursorTimer: number | null = null
   let lastCursor = ""
   const cursorWatch = EditorView.updateListener.of((u) => {
-    if (!features.onCursor || !u.selectionSet) return
+    if (!features.onCursor || !u.selectionSet || views.get(el)?.showingRange) return
     if (cursorTimer !== null) return
     cursorTimer = window.setTimeout(() => {
       cursorTimer = null
@@ -521,6 +522,14 @@ function hoverResult(el: HTMLElement, id: number, text: string | null): void {
   if (resolve) { e!.pendingHover.delete(id); resolve(text) }
 }
 
+function showRange(el: HTMLElement, line: number, col: number, endLine: number, endCol: number): void {
+  const e = views.get(el)
+  if (!e) return
+  e.showingRange = true
+  try { e.view.dispatch({ selection: {anchor: cmPos(e.view,line,col), head: cmPos(e.view,endLine,endCol)}, scrollIntoView: true }) }
+  finally { e.showingRange = false }
+}
+
 function setCursor(el: HTMLElement, line: number, col: number): void {
   const e = views.get(el)
   if (!e) return
@@ -594,4 +603,4 @@ declare global {
 }
 
 window.moonkale = window.moonkale ?? {}
-window.moonkale.codemirror = { mount, setPhrases, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }
+window.moonkale.codemirror = { mount, setPhrases, setText, groupSession, dropSession, pruneSessions, getText, focus, undo, redo, destroy, setLspDiagnostics, hoverResult, completionResult, showRange, setCursor, setPresence, setWikiLinks, setWrap, setIndentation, run }

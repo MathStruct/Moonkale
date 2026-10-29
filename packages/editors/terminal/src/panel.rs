@@ -28,6 +28,7 @@ pub struct Sessions {
     /// The last command handled: a remounted panel must not start the last
     /// New Terminal again (#12).
     handled: Signal<u64>,
+    pub frame: Signal<u64>,
 }
 
 impl PartialEq for Sessions {
@@ -44,6 +45,7 @@ impl Sessions {
             active: Signal::new_in_scope(None, ScopeId::ROOT),
             trace_tick: Signal::new_in_scope(0, ScopeId::ROOT),
             handled: Signal::new_in_scope(0, ScopeId::ROOT),
+            frame: Signal::new_in_scope(0, ScopeId::ROOT),
         }
     }
 }
@@ -55,6 +57,15 @@ impl Sessions {
     pub(crate) fn preview(self) -> Option<String> {
         let active = (*self.active.peek())?;
         let relay = self.relays.peek().get(&active)?.clone();
+        let private = self
+            .list
+            .peek()
+            .iter()
+            .find(|s| s.borrow().id == active)?
+            .borrow()
+            .backend
+            .private_input();
+        relay.borrow_mut().set_private(private);
         let text = relay.borrow().preview();
         Some(text)
     }
@@ -65,10 +76,17 @@ impl Sessions {
         let output = session.borrow_mut().backend.take_output();
         if let Some(mut out) = output {
             let relay = relay.clone();
+            let weak = Rc::downgrade(&session);
             // Ends when the session is closed: dropping the backend closes the stream.
             moonkale_ext_api::crash::spawn_forever(async move {
                 while let Some(chunk) = out.next().await {
-                    relay.borrow_mut().push(&chunk);
+                    let Some(session) = weak.upgrade() else {
+                        break;
+                    };
+                    let private = session.borrow().backend.private_input();
+                    let mut relay = relay.borrow_mut();
+                    relay.set_private(private);
+                    relay.push(&chunk);
                 }
                 relay.borrow_mut().end(b"\r\n[process exited]\r\n");
             });
@@ -78,6 +96,37 @@ impl Sessions {
         });
         self.list.with_mut(|l| l.push(session));
         self.active.set(Some(id));
+    }
+
+    pub fn toggle_sharing(mut self) {
+        if let Some(relay) = self
+            .active
+            .peek()
+            .and_then(|id| self.relays.peek().get(&id).cloned())
+        {
+            relay.borrow_mut().toggle_sharing();
+        }
+        self.frame += 1;
+    }
+
+    pub fn private(self) -> bool {
+        self.active
+            .peek()
+            .and_then(|id| {
+                self.list
+                    .peek()
+                    .iter()
+                    .find(|s| s.borrow().id == id)
+                    .cloned()
+            })
+            .is_some_and(|s| s.borrow().backend.private_input())
+    }
+
+    pub fn paused(self) -> bool {
+        self.active
+            .peek()
+            .and_then(|id| self.relays.peek().get(&id).cloned())
+            .is_some_and(|r| r.borrow().sharing_paused())
     }
 
     fn close(mut self, id: SessionId) {
@@ -110,9 +159,11 @@ enum ToJs<'a> {
     Destroy,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 enum FromJs {
+    Tick,
+    Paste { data: String },
     Ready { cols: u16, rows: u16 },
     Input { data: String },
     Resize { cols: u16, rows: u16 },
@@ -130,6 +181,13 @@ const size = x.mount(el, {
     onData: (data) => dioxus.send({ kind: "input", data }),
     onResize: (cols, rows) => dioxus.send({ kind: "resize", cols, rows }),
 });
+const timer = setInterval(() => dioxus.send({kind: "tick"}), 100);
+el.addEventListener("paste", (e) => {
+    e.preventDefault(); e.stopImmediatePropagation();
+    const bytes = new TextEncoder().encode((e.clipboardData?.getData("text/plain") || "").slice(0,65536));
+    let raw = ""; for (const b of bytes) raw += String.fromCharCode(b);
+    dioxus.send({kind: "paste", data: btoa(raw)});
+}, true);
 el.addEventListener("click", (e) => {
     // Cmd+click on a Mac, Ctrl+click elsewhere (spec 027).
     if (!(/Mac|iPhone|iPad/.test(navigator.platform) ? e.metaKey : e.ctrlKey)) return;
@@ -142,7 +200,7 @@ for (;;) {
     if (msg.kind === "output") x.write(el, msg.data);
     else if (msg.kind === "focus") x.focus(el);
     else if (msg.kind === "text") dioxus.send({ kind: "text", text: x.allText(el) });
-    else if (msg.kind === "destroy") { x.destroy(el); break; }
+    else if (msg.kind === "destroy") { clearInterval(timer); x.destroy(el); break; }
 }
 "#;
 
@@ -205,6 +263,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let list = sessions.list.read().clone();
     let active = *sessions.active.read();
     let available = ws.spawn_terminal().is_some();
+    let _ = (sessions.frame)();
 
     rsx! {
         moonkale_ext_api::Stylesheet { href: XTERM_CSS }
@@ -241,6 +300,10 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         {t!(ws, L, "terminal-trace")}
                     }
                 }
+                button { class: "mk-term-sharing", aria_pressed: sessions.paused(),
+                    onclick: moonkale_ext_api::crash::event(move |_| sessions.toggle_sharing()),
+                    if sessions.paused() { {t!(ws, L, "terminal-resume-sharing")} } else { {t!(ws, L, "terminal-pause-sharing")} }
+                }
                 span { class: "mk-term-spacer" }
                 moonkale_ext_api::icons::PanelSettingsButton {}
 
@@ -258,7 +321,7 @@ pub fn TerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                         let relay = sessions.relays.peek().get(&id).cloned();
                         rsx! {
                             if let Some(relay) = relay {
-                                SessionView { key: "{id.0}", ws, session: s.clone(), relay, visible: active == Some(id), trace_tick: sessions.trace_tick }
+                                SessionView { key: "{id.0}", ws, session: s.clone(), relay, visible: active == Some(id), trace_tick: sessions.trace_tick, frame: sessions.frame }
                             }
                         }
                     }
@@ -275,6 +338,7 @@ struct SessionViewProps {
     relay: Rc<RefCell<Relay>>,
     visible: bool,
     trace_tick: Signal<u64>,
+    frame: Signal<u64>,
 }
 
 impl PartialEq for SessionViewProps {
@@ -291,10 +355,14 @@ fn SessionView(props: SessionViewProps) -> Element {
         relay,
         visible,
         trace_tick,
+        mut frame,
     } = props;
     let id = session.borrow().id;
     let element_id = format!("mk-term-{}", id.0);
     let mut eval: Signal<Option<Eval>> = use_signal(|| None);
+    let mut private = use_signal(|| session.borrow().backend.private_input());
+    let mut paste: Signal<Option<Vec<u8>>> = use_signal(|| None);
+    let session_paste = session.clone();
     let mount = {
         let session = session.clone();
         let element_id = element_id.clone();
@@ -309,10 +377,32 @@ fn SessionView(props: SessionViewProps) -> Element {
             // from it), then the live output.
             let (replay, mut live) = relay.borrow_mut().subscribe();
             let session_in = session.clone();
+            let relay_in = relay.clone();
             // JS → Rust: keystrokes, resizes, links.
             moonkale_ext_api::crash::spawn(async move {
                 loop {
                     match rx.recv::<FromJs>().await {
+                        Ok(FromJs::Tick) => {
+                            let value = session_in.borrow().backend.private_input();
+                            if *private.peek() != value {
+                                if !value {
+                                    paste.set(None);
+                                }
+                                private.set(value);
+                                frame += 1;
+                            }
+                        }
+                        Ok(FromJs::Paste { data }) => {
+                            if let Ok(bytes) =
+                                base64::engine::general_purpose::STANDARD.decode(data)
+                            {
+                                if session_in.borrow().backend.private_input() {
+                                    paste.set(Some(bytes));
+                                } else {
+                                    session_in.borrow().backend.write(&bytes);
+                                }
+                            }
+                        }
                         Ok(FromJs::Ready { cols, rows }) | Ok(FromJs::Resize { cols, rows }) => {
                             session_in.borrow().backend.resize(cols, rows)
                         }
@@ -330,6 +420,11 @@ fn SessionView(props: SessionViewProps) -> Element {
                             }
                         }
                         Ok(FromJs::Text { text }) => {
+                            if session_in.borrow().backend.private_input()
+                                || relay_in.borrow().sharing_paused()
+                            {
+                                continue;
+                            }
                             let mut ws = ws;
                             let traces = moonkale_trace::parse(&text);
                             if traces.is_empty() {
@@ -381,8 +476,10 @@ fn SessionView(props: SessionViewProps) -> Element {
                 return;
             }
             seen.set(tick);
-            if let Some(ev) = eval.peek().as_ref() {
-                let _ = ev.send(ToJs::Text);
+            if !*private.peek() {
+                if let Some(ev) = eval.peek().as_ref() {
+                    let _ = ev.send(ToJs::Text);
+                }
             }
         });
     }
@@ -394,6 +491,16 @@ fn SessionView(props: SessionViewProps) -> Element {
     });
 
     rsx! {
+        if visible && private() {
+            span { class: "mk-term-private", role: "status", aria_label: t!(ws, L, "terminal-password-prompt"), "🔒 " {t!(ws, L, "terminal-password-prompt")} }
+        }
+        if visible && paste.read().is_some() {
+            div { class: "mk-term-confirm", role: "alertdialog", onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); e.prevent_default(); paste.set(None); } }, aria_label: t!(ws, L, "terminal-confirm-paste"),
+                p { {t!(ws, L, "terminal-confirm-paste")} }
+                button { class: "mk-btn", onclick: move |_| { let bytes = paste.write().take(); if let Some(bytes) = bytes { let session = session_paste.borrow(); if session.backend.private_input() { session.backend.write(&bytes); } } }, {t!(ws, L, "terminal-paste")} }
+                button { class: "mk-btn", onmounted: move |event: MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = event.data().set_focus(true).await; }); }, onclick: move |_| paste.set(None), {t!(ws, L, "terminal-cancel")} }
+            }
+        }
         div {
             id: "{element_id}",
             class: "mk-term-session",
@@ -407,4 +514,30 @@ fn SessionView(props: SessionViewProps) -> Element {
 /// Ctrl+click on `path:line`: open the file through the workspace.
 async fn open_link(ws: Workspace, path: String) {
     let _ = ws.open_relative_path(&path).await;
+}
+
+/// The content stays a snapshot, but privacy can revoke it while Overview is open.
+#[component]
+pub(crate) fn PrivatePreview(ws: Workspace, sessions: Sessions) -> Element {
+    let mut text = use_signal(|| sessions.preview().unwrap_or_default());
+    let mut mode = use_signal(|| (sessions.private(), sessions.paused()));
+    moonkale_ext_api::crash::use_future(move || async move {
+        loop {
+            futures_timer::Delay::new(std::time::Duration::from_millis(100)).await;
+            let next = (sessions.private(), sessions.paused());
+            if next != *mode.peek() {
+                text.set(String::new());
+                mode.set(next);
+            }
+        }
+    });
+    let (private, paused) = mode();
+    let body = if private {
+        t!(ws, L, "terminal-password-prompt")
+    } else if paused {
+        t!(ws, L, "terminal-sharing-paused")
+    } else {
+        text()
+    };
+    rsx! { {moonkale_ext_api::preview::text(&body)} }
 }

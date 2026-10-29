@@ -19,11 +19,31 @@ impl Extension for AgentExtension {
     }
 
     fn panels(&self, ws: Workspace) -> Vec<PanelContribution> {
-        vec![
-            PanelContribution::new(PANEL_ID, t!(ws, L, "agent-title"), PanelHome::Right)
-                .closable(true)
-                .activity(Activity::new("agent", 60, t!(ws, L, "agent-title"))),
-        ]
+        let mut panels =
+            vec![
+                PanelContribution::new(PANEL_ID, t!(ws, L, "agent-title"), PanelHome::Right)
+                    .closable(true)
+                    .activity(Activity::new("agent", 60, t!(ws, L, "agent-title"))),
+            ];
+        let state = crate::display::Displays::get(ws);
+        let outer = ws.saved_sessions.active.read().clone();
+        for (group, display) in state.panels.read().iter().filter(|(_, d)| {
+            d.outer == outer
+                && matches!(
+                    d.content,
+                    Some(moonkale_llm::display::Canvas::Markdown { .. })
+                )
+        }) {
+            panels.push(
+                PanelContribution::new(
+                    format!("agent-canvas:{group}"),
+                    display.name.clone(),
+                    PanelHome::Right,
+                )
+                .closable(true),
+            );
+        }
+        panels
     }
 
     fn preview(
@@ -32,7 +52,16 @@ impl Extension for AgentExtension {
         ws: Workspace,
         _size: moonkale_ext_api::preview::PreviewSize,
     ) -> Option<Element> {
-        let _ = panel_id;
+        if let Some(group) = panel_id.strip_prefix("agent-canvas:") {
+            let state = crate::display::Displays::get(ws);
+            let panels = state.panels.peek();
+            if let Some(moonkale_llm::display::Canvas::Markdown { text }) =
+                panels.get(group).and_then(|d| d.content.as_ref())
+            {
+                return moonkale_ext_api::preview::text(text);
+            }
+            return None;
+        }
         if ws.agent_sessions().is_some() {
             return crate::server_panel::preview(ws);
         }
@@ -59,11 +88,16 @@ impl Extension for AgentExtension {
         Some(rsx! { {body} crate::panel::PreviewStatus { session } })
     }
 
-    fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
+    fn render(&self, panel_id: &str, ws: Workspace) -> Element {
+        if let Some(group) = panel_id.strip_prefix("agent-canvas:") {
+            return rsx! { crate::display::CanvasPanel { ws, group: group.to_string() } };
+        }
         // Sources on a server → the session runs there (Milestone 12).
         match ws.agent_sessions() {
-            Some(api) => rsx! { crate::server_panel::ServerAgentPanel { ws, api } },
-            None => rsx! { AgentPanel { ws } },
+            Some(api) => {
+                rsx! { crate::display::Offers { ws } crate::server_panel::ServerAgentPanel { ws, api } }
+            }
+            None => rsx! { crate::display::Offers { ws } AgentPanel { ws } },
         }
     }
 

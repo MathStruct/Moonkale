@@ -21,3 +21,6 @@ CSI, OSC/hyperlinks, DCS and other escape strings before bounding the tail;
 state survives output chunks and long controls. C0/DEL controls are dropped
 except newline/tab. Replay and live terminal bytes remain unchanged. Tests
 cover split escapes, long OSC, Unicode tail boundaries and unchanged output.
+
+
+WP-71: Relay gates private/paused shared tails and clears them on either boundary. Owner replay remains output-only. TerminalBackend exposes private_input; TerminalMessage carries a body-free Privacy update and redacted Debug. Unit tests cover tail admission and replay separation.

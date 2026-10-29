@@ -41,6 +41,11 @@ pub fn builtin_tools() -> Vec<ToolDef> {
         input_schema: json!({ "type": "object", "properties": props, "required": required }),
     };
     vec![
+        t("ui.reveal", "Offer a node with its context in your marked group. Reveal a zero-based line/column range without taking focus.",
+          json!({"source":{"type":"string"},"node":{"type":"string"},"line":{"type":"integer","minimum":0},"column":{"type":"integer","minimum":0},"end_line":{"type":"integer"},"end_column":{"type":"integer"}}), &["source","node"]),
+        t("ui.select", "Select and fit nodes in your own group's graph. Uses the ids of the graph you last showed.", json!({"nodes":{"type":"array","maxItems":200,"items":{"type":"string"}}}), &["nodes"]),
+        t("ui.show_result", "Show result rows or a subgraph. content is a typed table or graph, as for ui.canvas.", json!({"content":{"type":"object"}}), &["content"]),
+        t("ui.canvas", "Show typed content in your marked group: content={kind:markdown,text:string}, {kind:table,columns:[string],rows:[[string]]}, or {kind:graph,nodes:[{id,label,style:default|accent|success|warning}],edges:[{from,to}]}. Maximum 64 KiB, 200 rows/nodes, 32 columns, 1000 edges. Never HTML, CSS, scripts or URLs as executable content.", json!({"content":{"type":"object"}}), &["content"]),
         t(
             "workspace.list_sources",
             "List the open sources (folders, indexes, databases) with their ids, display names, families and query dialects. Call this first to learn what ids to use.",
@@ -91,7 +96,7 @@ pub fn builtin_tools() -> Vec<ToolDef> {
         ),
         t(
             "editor.open",
-            "Open a file or table for the user in the editor, optionally at a line.",
+            "Offer a file or table in your marked link group without taking focus, subject to the person’s view-opening preference. Optional line is one-based (ui.reveal uses zero-based ranges).",
             json!({
                 "source": { "type": "string" },
                 "node": { "type": "string" },

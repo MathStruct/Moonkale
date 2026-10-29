@@ -48,8 +48,13 @@ pub async fn terminal_socket(
             }
         };
         let mut out = pty.take_output().expect("fresh pty");
+        let mut privacy_tick = tokio::time::interval(std::time::Duration::from_millis(100));
         loop {
             tokio::select! {
+                _ = privacy_tick.tick() => {
+                    let sent = tokio::time::timeout(std::time::Duration::from_secs(60), socket.send(TerminalMessage::Privacy { private: pty.private_input() })).await;
+                    if !matches!(sent, Ok(Ok(()))) { break; }
+                },
                 chunk = out.next() => match chunk {
                     Some(bytes) => {
                         // A client that takes no output for a minute is gone
@@ -94,6 +99,7 @@ async fn send_async(tx: &mut futures_channel::mpsc::Sender<Vec<u8>>, chunk: Vec<
 /// websocket above. Input is queued and pumped by a task; output arrives on
 /// the usual channel. Compiled on every client; only used on web.
 pub struct RemoteTerminal {
+    private: std::rc::Rc<std::cell::Cell<bool>>,
     input: futures_channel::mpsc::UnboundedSender<TerminalMessage>,
     output: Option<moonkale_terminal::Output>,
     /// Dropped with the terminal: ends the output pump, which closes the socket.
@@ -128,6 +134,8 @@ impl RemoteTerminal {
             }
         });
         // output pump
+        let private = std::rc::Rc::new(std::cell::Cell::new(false));
+        let private_out = private.clone();
         let s = socket;
         dioxus::core::spawn_forever(async move {
             loop {
@@ -140,6 +148,7 @@ impl RemoteTerminal {
                     }
                 };
                 match next {
+                    Ok(TerminalMessage::Privacy { private }) => private_out.set(private),
                     Ok(TerminalMessage::Output { data }) => {
                         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(data) {
                             // Waits while the view lags: the socket is not
@@ -162,6 +171,7 @@ impl RemoteTerminal {
             }
         });
         Ok(Self {
+            private,
             input: in_tx,
             output: Some(out_rx),
             _closed: closed_tx,
@@ -170,6 +180,9 @@ impl RemoteTerminal {
 }
 
 impl moonkale_terminal::TerminalBackend for RemoteTerminal {
+    fn private_input(&self) -> bool {
+        self.private.get()
+    }
     fn write(&self, data: &[u8]) {
         use base64::Engine;
         let _ = self.input.unbounded_send(TerminalMessage::Input {

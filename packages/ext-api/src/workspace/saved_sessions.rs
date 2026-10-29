@@ -131,6 +131,12 @@ impl SavedWorkspace {
 }
 
 struct LiveWorkspace {
+    link_groups: Vec<crate::links::LinkGroup>,
+    link_views: BTreeMap<String, crate::links::LinkView>,
+    link_contents: BTreeMap<String, NodeId>,
+    link_results: BTreeMap<NodeId, Rc<moonkale_core::QueryResult>>,
+    link_reveals: BTreeMap<String, moonkale_llm_types::display::Reveal>,
+    agent_documents: std::collections::BTreeSet<NodeId>,
     sources: Vec<SourceHandle>,
     docs: Vec<(NodeId, Signal<Document>)>,
     views: Vec<Node>,
@@ -346,6 +352,7 @@ impl Workspace {
                 .views
                 .peek()
                 .iter()
+                .filter(|node| !node.source.as_str().starts_with("agent:"))
                 .map(|node| (node.source.clone(), node.native_key.clone())),
         );
         for document in previous_documents {
@@ -380,9 +387,30 @@ impl Workspace {
                     .map(|node| (node.source.clone(), node.native_key.clone()))
             });
         }
-        saved.link_groups = self.links.groups.peek().clone();
-        saved.link_views = self.links.views.peek().clone();
-        saved.link_contents = self.links.contents.peek().clone();
+        saved.link_groups = self
+            .links
+            .groups
+            .peek()
+            .iter()
+            .filter(|g| g.agent.is_none())
+            .cloned()
+            .collect();
+        saved.link_views = self
+            .links
+            .views
+            .peek()
+            .iter()
+            .filter(|(id, _)| !id.starts_with("graph:agent:"))
+            .map(|(id, v)| (id.clone(), v.clone()))
+            .collect();
+        saved.link_contents = self
+            .links
+            .contents
+            .peek()
+            .iter()
+            .filter(|(id, _)| !id.starts_with("lead:agent:"))
+            .map(|(id, v)| (id.clone(), *v))
+            .collect();
         saved.settings = self.saved_sessions.settings.peek().clone();
         saved.layout = LayoutRecord::of(&self.settings.workspace.peek());
         saved
@@ -393,6 +421,12 @@ impl Workspace {
             return;
         }
         let live = LiveWorkspace {
+            link_groups: self.links.groups.peek().clone(),
+            link_views: self.links.views.peek().clone(),
+            link_contents: self.links.contents.peek().clone(),
+            link_results: self.links.results.peek().clone(),
+            link_reveals: self.links.reveals.peek().clone(),
+            agent_documents: self.links.agent_documents.peek().clone(),
             sources: self.sources.open.peek().clone(),
             docs: self.docs.open.peek().clone(),
             views: self.docs.views.peek().clone(),
@@ -541,7 +575,14 @@ impl Workspace {
         self.session.foreign_drag.set(None);
         self.session.presence_link.set(None);
         self.session.presence.set(Vec::new());
+        let live_links = live.is_some();
         if let Some(live) = live {
+            self.links.groups.set(live.link_groups);
+            self.links.views.set(live.link_views);
+            self.links.contents.set(live.link_contents);
+            self.links.results.set(live.link_results);
+            self.links.reveals.set(live.link_reveals);
+            self.links.agent_documents.set(live.agent_documents);
             self.sources.open.set(live.sources);
             self.docs.open.set(live.docs);
             self.docs.views.set(live.views);
@@ -592,9 +633,13 @@ impl Workspace {
                 self.docs.active.set(id);
             }
         }
-        self.links.groups.set(saved.link_groups);
-        self.links.views.set(saved.link_views);
-        self.links.contents.set(saved.link_contents);
+        if !live_links {
+            self.links.groups.set(saved.link_groups);
+            self.links.views.set(saved.link_views);
+            self.links.contents.set(saved.link_contents);
+            self.links.reveals.set(BTreeMap::new());
+            self.links.agent_documents.set(Default::default());
+        }
         let folder = self.settings.folder.peek().clone();
         if let Some(folder) = folder {
             Box::pin(self.load_history(&folder)).await;

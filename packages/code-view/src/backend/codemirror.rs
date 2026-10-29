@@ -48,6 +48,12 @@ enum ToJs<'a> {
     SetPresence {
         marks: Vec<PresenceOut<'a>>,
     },
+    ShowRange {
+        line: u32,
+        col: u32,
+        end_line: u32,
+        end_col: u32,
+    },
     SetCursor {
         line: u32,
         col: u32,
@@ -209,6 +215,7 @@ for (;;) {
     else if (msg.kind === "hoverResult") cm.hoverResult(el, msg.id, msg.text);
     else if (msg.kind === "completionResult") cm.completionResult(el, msg.id, msg.items);
     else if (msg.kind === "setPresence") cm.setPresence(el, msg.marks);
+    else if (msg.kind === "showRange") cm.showRange(el, msg.line, msg.col, msg.end_line, msg.end_col);
     else if (msg.kind === "setCursor") cm.setCursor(el, msg.line, msg.col);
     else if (msg.kind === "setWikiLinks") cm.setWikiLinks(el, msg.marks);
     else if (msg.kind === "setPhrases") cm.setPhrases(el, msg.phrases);
@@ -400,6 +407,15 @@ impl CodeEditorBackend for CodeMirrorBackend {
             .map(|(line, label)| PresenceOut { line: *line, label })
             .collect();
         let _ = self.eval.send(ToJs::SetPresence { marks });
+    }
+
+    fn show_range(&self, line: u32, col: u32, end_line: u32, end_col: u32) {
+        let _ = self.eval.send(ToJs::ShowRange {
+            line,
+            col,
+            end_line,
+            end_col,
+        });
     }
 
     fn set_cursor(&self, line: u32, col: u32) {

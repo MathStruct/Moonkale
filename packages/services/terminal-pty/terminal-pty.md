@@ -12,3 +12,6 @@ Tests: `cargo test -p moonkale-terminal-pty` (`echo` round trip through a real P
 
 ## Milestone 11
 `spawn_args(cwd, program, args, cols, rows)` runs a program with arguments (`ssh …` for `moonkale-remote`); `spawn_with_env` adds environment variables for the child (`SSH_AUTH_SOCK=0`); `spawn` delegates to them. `kill()` ends the child now (a remote session being closed) without waiting for the drop. `is_running()` lets the session fail fast when `ssh` exits.
+
+
+WP-71: On Unix, private_input queries portable-pty master termios (tcgetattr), requiring ICANON and no ECHO. A real stty/read test covers echo-off canonical and raw-mode exclusion. Other platforms currently have no detector. nix reuses the locked portable-pty version.

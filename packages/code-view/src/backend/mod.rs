@@ -129,6 +129,8 @@ pub trait CodeEditorBackend {
     /// Other people's positions in this document: `(line, label)`.
     fn set_presence(&self, marks: &[(u32, String)]);
     fn set_cursor(&self, line: u32, col: u32);
+    /// Reveal a range in this view without taking keyboard focus.
+    fn show_range(&self, line: u32, col: u32, end_line: u32, end_col: u32);
     /// `[[link]]` spans and whether they resolve (spec 012).
     fn set_wiki_links(&self, marks: &[WikiMark]);
     /// Localized backend UI phrases; does not change the document.

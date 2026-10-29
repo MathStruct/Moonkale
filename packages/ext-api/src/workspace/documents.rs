@@ -26,6 +26,11 @@ impl Workspace {
     }
 
     pub(crate) fn set_active_document(&mut self, node: Option<NodeId>) {
+        if let Some(node) = node {
+            self.links.agent_documents.with_mut(|ids| {
+                ids.remove(&node);
+            });
+        }
         if *self.docs.active.peek() != node {
             if let Some(id) = node {
                 self.visit_document(id);

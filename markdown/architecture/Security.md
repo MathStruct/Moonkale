@@ -508,3 +508,65 @@ remains the same class of limitation documented for folder writes. The diff3
 parser has a standalone production-source fuzz target (`git_conflicts`).
 No account/role system is introduced: authorisation remains the host's token
 session, or its existing loopback-only development mode.
+
+
+## Private terminals and agent displays (WP-71 / WP-70, 2026-10-29)
+
+Terminal input goes only to its owner’s PTY: xterm’s data/paste bridge or the
+native key/paste handler → backend write → local PTY, or its authenticated
+terminal websocket → server PTY. It never enters presence, link groups, the
+entity log, recordings, previews or agent context. Terminal wire Debug omits
+bodies. Owner replay and the visible screen retain output only. Trace extraction
+is refused during a private prompt or Pause sharing. No live keyboard-grant mechanism exists;
+a future grant must explicitly exclude terminals and end at private mode.
+
+Unix hosts query the master’s termios (`tcgetattr` through portable-pty), treating
+ICANON without ECHO as a private prompt. The server sends the mode separately
+from output, polled at 100 ms; native and xterm views show a localized accessible
+lock. Previews show only “Password prompt”, and paste waits for an explicit
+choice. Per-terminal Pause sharing is in the overflow and palette. The bounded
+ANSI-stripped relay tail excludes private/paused output and clears at both
+boundaries. Agent terminal.run reads that same bounded tail; there is no tool
+for reading an existing owner terminal or its input. No prompt text is parsed.
+
+AU-22 remains a deliberate limit: raw-mode local applications and an ssh
+session’s remote password cannot be distinguished by the local line discipline.
+Input still has no sharing path; a remote program can echo sensitive output.
+Pause sharing protects preview/agent output in that case. Non-Unix PTYs lack
+this termios detector. Mode observation is sampled, not a classifier of arbitrary
+output or secrets already printed by a process. Owner screens/replay are private
+local state, not a follower/agent channel. Global Stop sharing remains WP-72.
+
+Display tools are read-only under the existing policy gate and support session
+denials. Each conversation has a 100-attempt display budget and a two-second
+minimum between admitted calls; invalid/rate-limited attempts also count.
+Canvas inputs are typed Markdown/table/graph data: no HTML, CSS, script or
+arbitrary style fields. Unknown fields are refused. Serialization stops at
+64 KiB; tables cap at 200×32 cells, graphs at 200 unique nodes/1,000 known-endpoint
+edges. Only theme styles are accepted. Canvas validation rejects parsed HTML events while accepting inert code blocks,
+quotes and math; rendering uses the safe message renderer without remote images. Tables/graph labels are escaped data.
+No display call invokes a source write or evaluates content. Markdown render
+trees cap nesting at 64 and parser events at 8,192, falling back to inert
+source beyond either bound.
+
+Ask is the default; When I’m not typing queues an offer during recent input;
+Always shows the marked view in an existing tile away from keyboard focus;
+on a single-tile screen it stays in the background. Display calls preserve the active
+document and keyboard focus, and never move/close a person’s tabs. Each view
+has an attributed link group; selections are confined to its graph. At most
+eight offers and 64 budget records are retained per workspace. New document
+instances stop once an agent group has 16 members; reusable canvas/result panels
+are scoped per conversation and agent profile. A focused agent table queues an
+offer rather than resetting its controls. Legacy editor.open and implicit views
+after approved writes use the same consent and focus rules. Server sessions retain at most eight ephemeral
+display events, with the same validation/budget; each connected client applies
+its own consent and current policy. Attribution is captured at turn start, so
+changing profiles during a turn cannot relabel its displays; profiles have separate
+groups but share the conversation budget. Events are absent from saved transcript
+replay. Typing detection retains only an activity deadline, never keys/text.
+Display bodies remain transient panel state; existing transcript/audit tools
+still retain the model-supplied tool arguments as conversation data.
+
+The direct nix, serde_json, futures-timer and pulldown-cmark dependencies reuse
+locked packages;
+no package version, new source authority or new network endpoint is added.

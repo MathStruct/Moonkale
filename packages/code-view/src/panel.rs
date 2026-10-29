@@ -19,6 +19,8 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         return rsx! { div { class: "mk-editor-missing", "Document is not open." } };
     };
     let element_id = moonkale_ext_api::links::panel_element_id("mk-editor", node);
+    let agent_view = moonkale_ext_api::links::panel_instance(format!("editor:{node}"))
+        .starts_with("lead:agent:");
     let mut backend: Signal<Option<Box<dyn CodeEditorBackend>>> = use_signal(|| None);
     // LSP identity: language + folder root + file URI, when the file lives in a folder.
     let lsp_ident: Option<(String, String, String)> = {
@@ -415,7 +417,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             let Some(r) = *ws.docs.reveal.read() else {
                 return;
             };
-            if r.node != node_id || !ready() || *applied.peek() == r.seq {
+            if agent_view || r.node != node_id || !ready() || *applied.peek() == r.seq {
                 return;
             }
             if let Some(b) = backend.peek().as_ref() {
@@ -424,6 +426,24 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
             }
         });
     }
+    let agent_panel =
+        use_hook(move || moonkale_ext_api::links::panel_instance(format!("editor:{node}")));
+    let mut seen_agent_range = use_signal(|| None);
+    moonkale_ext_api::crash::use_effect(move || {
+        let range = ws.links.reveals.read().get(&agent_panel).cloned();
+        if !ready() || range == *seen_agent_range.peek() {
+            return;
+        }
+        if let (Some(range), Some(backend)) = (&range, backend.peek().as_ref()) {
+            backend.show_range(
+                range.line,
+                range.column,
+                range.end_line.unwrap_or(range.line),
+                range.end_column.unwrap_or(range.column),
+            );
+            seen_agent_range.set(Some(range.clone()));
+        }
+    });
     // Word wrap follows the user setting (spec 014).
     {
         moonkale_ext_api::crash::use_effect(move || {

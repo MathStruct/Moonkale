@@ -1,6 +1,6 @@
 ---
 title: "Agents in the UI and on the graph — showing, sharing control, and private input"
-description: "What an agent may show a person in Moonkale (display tools, never its own HTML or scripts), what working on the graph needs beyond Shared Work's tasks and approvals, share-keyboard and share-pointer buttons for people and agents, terminal input that stays private (passwords), and herdr as an optional agent runtime. From Daniel, 2026-10-29. Design, not built."
+description: "What an agent may show a person in Moonkale (display tools, never its own HTML or scripts), what working on the graph needs beyond Shared Work's tasks and approvals, share-keyboard and share-pointer buttons for people and agents, terminal input that stays private (passwords), and herdr as an optional agent runtime. From Daniel, 2026-10-29. Display tools and private input are built; shared control and herdr remain planned."
 tags: [architecture, agents, collaboration, security, requirements, planned]
 ---
 **From Daniel (2026-10-29):**
@@ -12,12 +12,25 @@ tags: [architecture, agents, collaboration, security, requirements, planned]
 
 This page extends [[Shared Work]] (SW-01 to SW-08 for participants and tasks, SW-40 to SW-45 for tools) and [[Collaboration]] (presence). Its rules are added to [[Security]].
 
+## Implementation status (2026-10-29)
+
+WP-71 and WP-70 are built on the codex contributor branch. All AGENTS gates and
+the requested smoke/structural/Sophia/default graph browser matrix pass.
+AU-20–23 cover both terminal views
+with Unix PTY mode detection, private tails, paste confirmation and Pause sharing.
+AU-24 has no current handover path; terminal exclusion remains mandatory when
+WP-72 adds grants.
+AU-01–07 add typed display tools, marked groups, bounded per-conversation display
+budgets and the user/session view-opening setting. AU-10–14, AG-01–05 and
+AU-30–32 remain planned. The shared multi-agent task/token budget (SW-08) remains
+WP-48; today’s display budget is its bounded local precursor.
+
 ## Today
 
 - **Agent tools:**
   - `index.search`, `graph.query`, `graph.fetch` and `workspace.list_sources` read;
   - `editor.replace`, `file.create` and `file.save` write, through the policy gate (`services/llm/src/policy.rs`);
-  - `editor.open` is the only tool that changes what a person sees: it opens a node in an editor.
+  - `editor.open` opens a node; `ui.reveal`, `ui.select`, `ui.show_result` and `ui.canvas` show bounded typed content in the conversation’s own marked group.
 - **Agent messages** render as safe Markdown: raw HTML is shown as text, and images are never loaded ([[Shared Work]] §2).
 - **Presence** shows other people's initials on tabs and files ([[Collaboration]]). It has no cursors across machines yet, and no agents.
 - **Not built:** tasks, approvals, attribution and budgets ([[Shared Work]] SW-01 to SW-08, WP-48, which needs server accounts first).
@@ -149,3 +162,37 @@ It knows terminals, not the graph, so it would be a runtime under §2, not a rep
 
 - **AU-05:** whether agents open views is the setting above, defaulting to Ask.
 - **AU-12:** no live keystrokes for agents. Streaming into their own canvas and step-by-step proposal replay cover drafting and demonstrations.
+
+
+## Implementation notes
+
+Display payloads are at most 64 KiB. A canvas is `{kind: "markdown", text}`, a
+`{kind: "table", columns, rows}` of strings, or `{kind: "graph", nodes, edges}`.
+Markdown rejects actual HTML events while accepting code blocks, quotes and
+math. Validation caps nesting at 64 and parser events at 8,192.
+Graph node styles are `default`, `accent`, `success` and `warning`, mapped to
+existing theme-controlled graph kinds; edges refer to ids already in that
+payload. `ui.select` uses those ids (or the displayed UUIDs), selects through
+`select_nodes` and fits that subset. `ui.reveal` uses zero-based UTF-16 document
+line/columns and an optional end, in its own linked content instance. Each
+conversation and agent profile reuse their canvas/result views; pinned documents
+keep distinct instances. Attribution is captured at turn start, independent of
+later profile changes. Profiles share the conversation budget. Ranges do not focus the editor.
+
+The display setting is `agent.open_views`: `ask`, `when_idle`, `always`. A folder
+cannot override it. Settings offers User and Session scopes. Recent input means
+a key/input/composition event within 1.5 seconds; the adapter retains only a
+deadline. Offers are explicit Show/Dismiss controls in the Agent panel. Display
+calls share the agent tool loop/audit and its turn safety limits; an additional
+100-call budget and one admitted call per two seconds prevent view floods.
+Legacy editor.open and views after approved writes follow the same consent;
+a focused agent table queues updates as offers to preserve typed controls.
+Server-owned conversations publish bounded ephemeral requests to connected
+clients; saved transcripts never replay them as new display actions.
+
+Private prompts use the local Unix master line discipline, sampled every 100 ms
+(including quiet prompts with no new output). Raw mode is intentionally outside
+the detector; non-Unix PTYs have no termios detector. Neither limitation adds a
+terminal-input sharing path. “Pause sharing” clears and gates the bounded relay
+tail until resumed; owner output replay stays available. No keyboard hand-over
+is implemented, so no grant can currently include terminal input.

@@ -315,6 +315,11 @@ enum FromJs {
         nodes: Vec<String>,
         edges: Vec<String>,
     },
+    /// A host projection updates accessibility without feeding back into links.
+    SelectionSynced {
+        nodes: Vec<String>,
+        edges: Vec<String>,
+    },
     /// The keyboard focus moved (spec 031, stage 10): announced too.
     Focus {
         id: String,
@@ -458,7 +463,7 @@ window.addEventListener("pagehide", unload, { once: true });
 COARSE_SCRIPT
 let loadSerial = 0;
 let pendingCamera = null;
-let linkedSelection = [];
+let linkedSelection = null;
 for (;;) {
     const msg = await dioxus.recv();
     if (msg.kind === "setGraph") {
@@ -471,12 +476,13 @@ for (;;) {
         const stringify_ms = performance.now() - start;
         const handoff_ms = msg.sent_ms ? received - msg.sent_ms : 0;
         if (msg.fresh) view.set_graph_fresh(g); else view.set_graph(g);
-        view.select_nodes(JSON.stringify(linkedSelection));
+        if (linkedSelection !== null) view.select_nodes(JSON.stringify(linkedSelection));
+        dioxus.send({kind:"selectionSynced", ...JSON.parse(view.selection_state())});
         if (pendingCamera && view.node_count() > 0) { view.restore_camera(new Float32Array(pendingCamera)); pendingCamera = null; }
         requestAnimationFrame(() => requestAnimationFrame(() => { if (serial === loadSerial) dioxus.send({kind:"loadProfile", stringify_ms, handoff_ms, engine: Array.from(view.load_stats())}); }));
     }
     else if (msg.kind === "restoreCamera") { pendingCamera = msg.state; if (view.node_count() > 0) { view.restore_camera(new Float32Array(pendingCamera)); pendingCamera = null; } }
-    else if (msg.kind === "selectLinked") { linkedSelection = msg.nodes; view.select_nodes(JSON.stringify(linkedSelection)); }
+    else if (msg.kind === "selectLinked") { linkedSelection = msg.nodes; view.select_nodes(JSON.stringify(linkedSelection)); if (msg.fit) view.focus(JSON.stringify(linkedSelection)); dioxus.send({kind:"selectionSynced", ...JSON.parse(view.selection_state())}); }
     else if (msg.kind === "coarseBase") { coarseGraph = JSON.parse(msg.graph); }
     else if (msg.kind === "coarseExpand") {
         try { coarseExpand(msg.id, JSON.parse(msg.graph)); } catch (_) { dioxus.send({kind:"error",message:msg.error}); }
@@ -767,6 +773,9 @@ pub fn GraphPanel(ws: Workspace, panel_id: String) -> Element {
                                 }
                             }
                         }
+                        Ok(FromJs::SelectionSynced { nodes, edges }) => {
+                            selected.set((nodes, edges))
+                        }
                         Ok(FromJs::Select { nodes, edges }) => {
                             ws.select_linked(&panel, nodes.clone());
                             selected.set((nodes, edges));
@@ -784,13 +793,23 @@ pub fn GraphPanel(ws: Workspace, panel_id: String) -> Element {
         }
     };
 
+    // Memoize the actual selection, rather than subscribing every view to all
+    // groups. A new agent group must never clear the person's own selection.
+    let linked_selection = use_memo({
+        let panel = panel.clone();
+        move || {
+            if grouped {
+                ws.link_subject(&panel).map(|subject| subject.selection)
+            } else {
+                None
+            }
+        }
+    });
     moonkale_ext_api::crash::use_effect({
         let panel = panel.clone();
         move || {
-            let subject = ws.link_subject(&panel);
-            if let (Some(ev), Some(subject)) = (*eval.read(), subject) {
-                let _ =
-                    ev.send(serde_json::json!({"kind":"selectLinked","nodes":subject.selection}));
+            if let (Some(ev), Some(nodes)) = (*eval.read(), linked_selection.read().clone()) {
+                let _ = ev.send(serde_json::json!({"kind":"selectLinked","nodes":nodes,"fit":panel.starts_with("graph:agent:")}));
             }
         }
     });

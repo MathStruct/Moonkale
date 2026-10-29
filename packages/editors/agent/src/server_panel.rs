@@ -80,6 +80,10 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         mut poll_gen,
         mut restart,
     } = chat;
+    let seen_displays = use_hook(move || {
+        ws.shared_state(|| SeenDisplays(Signal::new_in_scope(Default::default(), ScopeId::ROOT)))
+            .0
+    });
     let mut input = use_signal(String::new);
     let mut ws = ws;
 
@@ -119,6 +123,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         });
     });
 
+    let outer = use_hook(move || ws.saved_sessions.active.peek().clone());
     // Poll the open session while it runs (and once when it is opened).
     moonkale_ext_api::crash::use_effect(move || {
         let _ = restart();
@@ -129,7 +134,9 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         poll_gen.set(gen);
         items.set(Vec::new());
         pending.set(None);
+        let outer = outer.clone();
         moonkale_ext_api::crash::spawn(async move {
+            let mut seen_displays = seen_displays;
             let mut since = 0usize;
             loop {
                 if *poll_gen.peek() != gen {
@@ -137,6 +144,44 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
                 }
                 match (api.events)(id.clone(), since).await {
                     Ok(state) => {
+                        if *ws.saved_sessions.active.peek() != outer {
+                            return;
+                        }
+                        for event in &state.displays {
+                            if event.seq <= *seen_displays.peek().get(&id).unwrap_or(&0) {
+                                continue;
+                            }
+                            seen_displays.with_mut(|all| {
+                                all.insert(id.clone(), event.seq);
+                            });
+                            let denied = ws
+                                .settings
+                                .resolved
+                                .peek()
+                                .policy
+                                .denied_tools
+                                .iter()
+                                .any(|t| t == &event.name);
+                            if !denied {
+                                let name = if event.agent.is_empty() {
+                                    state.provider.clone()
+                                } else {
+                                    event.agent.clone()
+                                };
+                                let _ = crate::display::request(
+                                    ws,
+                                    outer.clone(),
+                                    id.clone(),
+                                    name,
+                                    moonkale_llm::ToolCall {
+                                        id: format!("display-{}", event.seq),
+                                        name: event.name.clone(),
+                                        input: event.input.clone(),
+                                    },
+                                )
+                                .await;
+                            }
+                        }
                         if !state.items.is_empty() {
                             items.with_mut(|v| {
                                 // A streamed assistant bubble arrives whole each time:
@@ -184,6 +229,7 @@ pub fn ServerAgentPanel(ws: Workspace, api: AgentSessions) -> Element {
         let settings = {
             let s = ws.settings.resolved.peek();
             TurnSettings {
+                display_name: profile.peek().clone(),
                 outer_session: Some(ws.saved_sessions.active.peek().clone()),
                 llm: s.agent(&profile.peek()).llm.clone(),
                 allow_writes: s.policy.allow_writes,
@@ -371,3 +417,6 @@ fn PreviewStatus(chat: ServerChat) -> Element {
     let ws = use_context::<Workspace>();
     rsx! { span { "aria-label": t!(ws, L, "agent-overview-state"), if (chat.pending)().is_some() { "◉" } else if (chat.running)() { "●" } else { "○" } } }
 }
+
+#[derive(Clone, Copy)]
+struct SeenDisplays(Signal<std::collections::BTreeMap<String, u64>>);

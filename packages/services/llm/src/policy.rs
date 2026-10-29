@@ -61,7 +61,11 @@ impl Policy {
             | "graph.query"
             | "graph.fetch"
             | "index.search"
-            | "editor.open" => Class::ReadOnly,
+            | "editor.open"
+            | "ui.reveal"
+            | "ui.select"
+            | "ui.show_result"
+            | "ui.canvas" => Class::ReadOnly,
             // Anything else is third-party (wasm) code: ask.
             _ => Class::Mutating,
         }
@@ -348,5 +352,29 @@ mod tests {
             p.decide_with(&c, Some(Risk::Write)),
             (Class::Mutating, Decision::Ask)
         );
+    }
+}
+
+#[cfg(test)]
+mod display_policy_tests {
+    use super::*;
+    #[test]
+    fn every_display_tool_is_read_only_and_session_deniable() {
+        for name in ["ui.reveal", "ui.select", "ui.show_result", "ui.canvas"] {
+            let call = ToolCall {
+                id: "test".into(),
+                name: name.into(),
+                input: serde_json::json!({}),
+            };
+            assert_eq!(
+                Policy::default().decide(&call),
+                (Class::ReadOnly, Decision::Allow)
+            );
+            let denied = Policy {
+                denied_tools: vec![name.into()],
+                ..Default::default()
+            };
+            assert_eq!(denied.decide(&call), (Class::ReadOnly, Decision::Deny));
+        }
     }
 }

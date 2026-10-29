@@ -66,6 +66,12 @@ impl TeeBackend {
 }
 
 impl TerminalBackend for TeeBackend {
+    fn private_input(&self) -> bool {
+        self.inner
+            .lock()
+            .map(|inner| inner.private_input())
+            .unwrap_or(true)
+    }
     fn write(&self, data: &[u8]) {
         if let Ok(i) = self.inner.lock() {
             i.write(data);

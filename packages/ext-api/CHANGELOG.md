@@ -282,3 +282,18 @@ The first tagged state. Compared to the untagged code of Milestone 17:
 literally need the new fields or `..Default::default()`. Persisted settings keep
 backward-compatible defaults. `icons::ToolbarActions`, `ToolbarMenu`,
 `ChromeOwner` and `chrome_visible` are new shared chrome helpers.
+
+### 2026-10-29 — agent display groups (WP-70)
+
+`LinkGroup` adds optional `agent` attribution (serde-defaulted for saved groups);
+Rust struct literals must supply `agent: None` for ordinary groups. `LinkState`
+adds per-view background range requests. Agent settings add `open_views` (Ask by
+default), user scope with session overrides; folder values lose authority.
+`agent_display` re-exports the bounded typed display contract from llm-types.
+
+`LinkState` also carries transient display requests, per-view reveals and
+preloaded agent document ownership. Full Rust literals need these fields or
+defaults. Session payloads gain
+`TurnSettings.display_name`, `SessionState.displays` and `DisplayEvent` with
+turn-captured `agent` attribution (serde-defaulted); full Rust literals need the
+new fields. Display events are bounded live state, excluded from transcript replay.

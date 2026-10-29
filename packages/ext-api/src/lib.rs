@@ -101,3 +101,6 @@ pub mod prelude {
 }
 
 pub mod crash;
+
+/// Typed agent display content and opening preference.
+pub use moonkale_llm_types::display as agent_display;

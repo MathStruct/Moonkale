@@ -76,10 +76,25 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let mut dialect = use_signal(|| dialects[0]);
     let mut text = use_signal(|| default_query(&node, dialects[0]));
     // Shared, not cloned per render: a result can hold 50 000 rows.
-    let mut result: Signal<Option<Result<Rc<QueryResult>, SourceError>>> = use_signal(|| None);
-    let mut running = use_signal(|| false);
-    // Each run's grid starts fresh (widths, sort, filter, scroll).
+    let mut result: Signal<Option<Result<Rc<QueryResult>, SourceError>>> =
+        use_signal(|| ws.links.results.peek().get(&node.id).cloned().map(Ok));
+    // Each new data set receives a fresh keyed grid.
     let mut runs = use_signal(|| 0u64);
+    let agent_result = node.source.as_str().starts_with("agent:");
+    let owner = node.id;
+    moonkale_ext_api::crash::use_effect(move || {
+        if agent_result {
+            if let Some(rows) = ws.links.results.read().get(&owner).cloned() {
+                let same =
+                    matches!(&*result.peek(), Some(Ok(current)) if Rc::ptr_eq(current, &rows));
+                if !same {
+                    result.set(Some(Ok(rows)));
+                    runs += 1;
+                }
+            }
+        }
+    });
+    let mut running = use_signal(|| false);
 
     let run = {
         let source_id = source_id.clone();
@@ -129,7 +144,11 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     // First load.
     use_hook({
         let run = run.clone();
-        move || run()
+        move || {
+            if !ws.links.results.peek().contains_key(&node.id) {
+                run();
+            }
+        }
     });
 
     let show_in_graph = {
@@ -166,7 +185,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-table",
-            div { class: "mk-table-query",
+            if !agent_result { div { class: "mk-table-query",
 
                 textarea {
                     class: "mk-table-sql",
@@ -210,12 +229,15 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                 }
                 }
             }
+            }
             div { class: "mk-table-grid-host",
                 match result() {
                     None => rsx! { p { class: "mk-table-msg", {t!(ws, L, "table-loading")} } },
                     Some(Err(e)) => rsx! { p { class: "mk-table-msg mk-table-error", "{e}" } },
                     Some(Ok(r)) => rsx! {
-                        ResultGrid { key: "{runs}", ws, owner: node.id, result: SharedResult(r) }
+                        for run in [runs()] {
+                            ResultGrid { key: "{run}", ws, owner: node.id, result: SharedResult(r.clone()) }
+                        }
                     },
                 }
             }

@@ -55,8 +55,21 @@ impl Extension for TerminalExtension {
         ws: Workspace,
         _size: moonkale_ext_api::preview::PreviewSize,
     ) -> Option<Element> {
-        let _ = (panel_id, ws);
-        moonkale_ext_api::preview::text(&self.sessions.preview()?)
+        let _ = panel_id;
+        Some(rsx! { crate::panel::PrivatePreview { ws, sessions: self.sessions } })
+    }
+
+    fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
+        vec![CommandContribution::new(
+            "terminal.pauseSharing",
+            t!(ws, L, "terminal-pause-sharing-command"),
+        )]
+    }
+
+    fn run_command(&self, id: &str, _ws: Workspace) {
+        if id == "terminal.pauseSharing" {
+            self.sessions.toggle_sharing();
+        }
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {

@@ -144,6 +144,15 @@ fn SettingsPanel(ws: Workspace) -> Element {
                 div { class: "mk-settings-form",
                     h3 { {t!(ws, L, "settings-agents")} span { class: "mk-settings-scope", "{scope_label(llm_scope)}" } }
                     p { class: "mk-muted", {t!(ws, L, "settings-agents-hint")} }
+                    label { class: "mk-settings-field", {t!(ws, L, "settings-agent-open-views")}
+                        select { class: "mk-agent-open-views", disabled: target() == Target::Workspace,
+                            value: match settings.agent.open_views { moonkale_ext_api::agent_display::OpenViews::Ask => "ask", moonkale_ext_api::agent_display::OpenViews::WhenIdle => "when_idle", moonkale_ext_api::agent_display::OpenViews::Always => "always" },
+                            onchange: move |e| { let v = match e.value().as_str() { "always" => moonkale_ext_api::agent_display::OpenViews::Always, "when_idle" => moonkale_ext_api::agent_display::OpenViews::WhenIdle, _ => moonkale_ext_api::agent_display::OpenViews::Ask }; apply(Box::new(move |f| f.agent.open_views = Some(v))); },
+                            option { value: "ask", {t!(ws, L, "settings-agent-open-ask")} }
+                            option { value: "when_idle", {t!(ws, L, "settings-agent-open-idle")} }
+                            option { value: "always", {t!(ws, L, "settings-agent-open-always")} }
+                        }
+                    }
                     for profile in agents.iter() {
                         AgentProfileCard { key: "{profile.name}", ws, target: target(), profile: profile.clone(), is_default: profile.name == default_agent, only_one: agents.len() == 1 }
                     }

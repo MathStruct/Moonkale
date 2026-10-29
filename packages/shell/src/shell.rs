@@ -473,6 +473,14 @@ pub fn Shell() -> Element {
                 if placed_links.peek().contains(&key) {
                     continue;
                 }
+                if group.agent.is_some() {
+                    // Attach agent panels in the background. Reconciliation below
+                    // preserves every existing tile's active tab and DOM focus.
+                    placed_links.with_mut(|ids| {
+                        ids.insert(key);
+                    });
+                    continue;
+                }
                 let lead = group
                     .members
                     .iter()
@@ -659,7 +667,7 @@ pub fn Shell() -> Element {
             if c.dirty || vcs.is_some() || !here.is_empty() || link.is_some() || c.id == "graph" {
                 let dirty = c.dirty;
                 panel = panel.with_tab_accessory(rsx! {
-                    if let Some(group) = link { span { class: "mk-link-marker mk-link-{group.colour}", "{group.marker()}" } }
+                    if let Some(group) = link { span { class: "mk-link-marker mk-link-{group.colour}", "{group.marker()}" if let Some(name) = group.agent { " {name}" } } }
                     else if c.id == "graph" { span { class: "mk-link-marker", title: t!(ws, L, "link-active"), "↯" } }
                     if dirty { span { class: "mk-tab-dirty", "aria-label": "Unsaved changes" } }
                     if let Some(m) = vcs { span { class: "mk-tab-mark {m.class}", "data-status": "{m.letter}", title: "{m.title}", "{m.letter}" } }
@@ -674,14 +682,34 @@ pub fn Shell() -> Element {
 
     // The workbench activates newly attached panels by default. Reconcile
     // background document loads here and retain each tile's chosen tab.
-    if let Some(next) =
-        attach_background_panels(&current_layout, &panels, &document_nodes, active_node)
-    {
+    let agent_panels = ws
+        .links
+        .groups
+        .peek()
+        .iter()
+        .filter(|g| g.agent.is_some())
+        .flat_map(|g| g.members.iter().map(|(id, _, _)| id.clone()))
+        .collect();
+    let display_request = ws.links.display_request.read().clone();
+    let focused_panel = ws.links.focused.peek().clone();
+    if let Some(next) = attach_background_panels(
+        &current_layout,
+        &panels,
+        &document_nodes,
+        active_node,
+        &agent_panels,
+        display_request.as_deref(),
+        focused_panel.as_deref(),
+    ) {
         if is_narrow {
             phone_layout.set(next);
         } else {
             layout.set(next);
         }
+    }
+
+    if display_request.is_some() {
+        ws.links.display_request.set(None);
     }
 
     // Document navigation opens/focuses its concrete editor. Retained-tab
@@ -1376,6 +1404,11 @@ pub(crate) fn contributions(
                 .map(|(id, _)| id)
                 .collect();
             if aliases.is_empty() {
+                if c.node
+                    .is_some_and(|node| ws.links.agent_documents.peek().contains(&node))
+                {
+                    return Vec::new();
+                }
                 // A linked instance can currently display a different document.
                 if views.contains_key(&c.id) {
                     Vec::new()
@@ -1383,14 +1416,21 @@ pub(crate) fn contributions(
                     vec![(i, c)]
                 }
             } else {
-                aliases
+                let preserve_person = aliases.iter().all(|id| id.starts_with("lead:agent:"))
+                    && c.node
+                        .is_some_and(|node| !ws.links.agent_documents.peek().contains(&node));
+                let mut panels: Vec<_> = aliases
                     .into_iter()
                     .map(|id| {
-                        let mut c = c.clone();
-                        c.id = id.clone();
-                        (i, c)
+                        let mut alias = c.clone();
+                        alias.id = id.clone();
+                        (i, alias)
                     })
-                    .collect()
+                    .collect();
+                if preserve_person {
+                    panels.insert(0, (i, c));
+                }
+                panels
             }
         })
         .collect()
@@ -1607,13 +1647,19 @@ fn attach_background_panels(
     panels: &[Panel],
     nodes: &HashMap<String, moonkale_core::NodeId>,
     active: Option<moonkale_core::NodeId>,
+    agent_panels: &std::collections::HashSet<String>,
+    display_request: Option<&str>,
+    focused: Option<&str>,
 ) -> Option<PanelLayout> {
-    if !panels.iter().any(|panel| {
-        nodes
-            .get(panel.id.as_str())
-            .is_some_and(|node| Some(*node) != active)
-            && layout.tile_for_panel(&panel.id).is_none()
-    }) {
+    if display_request.is_none()
+        && !panels.iter().any(|panel| {
+            (agent_panels.contains(panel.id.as_str())
+                || nodes
+                    .get(panel.id.as_str())
+                    .is_some_and(|node| Some(*node) != active))
+                && layout.tile_for_panel(&panel.id).is_none()
+        })
+    {
         return None;
     }
     fn actives(node: &LayoutNode, selected: &mut Vec<PanelId>) {
@@ -1628,9 +1674,10 @@ fn attach_background_panels(
     let background: std::collections::HashSet<_> = panels
         .iter()
         .filter(|panel| {
-            nodes
-                .get(panel.id.as_str())
-                .is_some_and(|node| Some(*node) != active)
+            (agent_panels.contains(panel.id.as_str())
+                || nodes
+                    .get(panel.id.as_str())
+                    .is_some_and(|node| Some(*node) != active))
                 && layout.tile_for_panel(&panel.id).is_none()
         })
         .map(|panel| panel.id.clone())
@@ -1655,8 +1702,38 @@ fn attach_background_panels(
         })
         .collect();
     let mut next = layout.reconciled(&placements);
-    for panel in selected {
-        next.activate(&panel);
+    for panel in &selected {
+        next.activate(panel);
+    }
+    // A split would remount the person's editor and lose in-flight input.
+    // Show only in an existing tile away from keyboard focus. On a one-tile
+    // screen the new view stays a background tab, available for the person.
+    let focus_tile = focused
+        .and_then(|p| before.tile_for_panel(&PanelId::from(p)))
+        .or_else(|| {
+            selected
+                .iter()
+                .find(|p| nodes.get(p.as_str()).is_some_and(|n| Some(*n) == active))
+                .and_then(|p| before.tile_for_panel(p))
+        });
+    let destination = before
+        .tile_for_panel(&PanelId::from("agent"))
+        .filter(|tile| Some(tile) != focus_tile.as_ref())
+        .or_else(|| {
+            selected
+                .iter()
+                .rev()
+                .filter_map(|p| before.tile_for_panel(p))
+                .find(|tile| Some(tile) != focus_tile.as_ref())
+        });
+    if let Some(request) = display_request.filter(|id| agent_panels.contains(*id)) {
+        let panel = PanelId::from(request);
+        if let Some(tile) = destination {
+            if next.tile_for_panel(&panel).as_ref() != Some(&tile) {
+                next.dock_panel(&panel, &tile, DockZone::Center);
+            }
+            next.activate(&panel);
+        }
     }
     (next != *layout).then_some(next)
 }
@@ -1762,6 +1839,54 @@ mod responsive_tests {
 #[cfg(test)]
 mod background_tests {
     use super::*;
+
+    #[test]
+    fn agent_display_keeps_the_typing_tile_mounted() {
+        let node = moonkale_core::NodeId::fresh("person");
+        let layout = PanelLayout::new(LayoutNode::split(
+            "root",
+            SplitAxis::Horizontal,
+            0.7,
+            LayoutNode::tile("main", ["person"]),
+            LayoutNode::tile("right", ["agent"]),
+        ));
+        let panels = [
+            Panel::new("person", "Person", "main", rsx! {div {}}),
+            Panel::new("agent", "Agent", "right", rsx! {div {}}),
+            Panel::new("graph:agent:test", "Agent graph", "right", rsx! {div {}}),
+        ];
+        let nodes = HashMap::from([("person".to_string(), node)]);
+        let owned = std::collections::HashSet::from(["graph:agent:test".to_string()]);
+        let next = attach_background_panels(
+            &layout,
+            &panels,
+            &nodes,
+            Some(node),
+            &owned,
+            Some("graph:agent:test"),
+            Some("person"),
+        )
+        .unwrap();
+        match next.root {
+            LayoutNode::Split {
+                first,
+                second,
+                ratio,
+                ..
+            } => {
+                assert_eq!(ratio, 0.7);
+                let LayoutNode::Tile(person) = *first else {
+                    panic!("typing tile was split")
+                };
+                let LayoutNode::Tile(agent) = *second else {
+                    panic!("display tile was split")
+                };
+                assert_eq!(person.active, Some(PanelId::from("person")));
+                assert_eq!(agent.active, Some(PanelId::from("graph:agent:test")));
+            }
+            _ => panic!("workbench root changed"),
+        }
+    }
     #[test]
     fn background_attachment_preserves_each_tiles_selected_tab() {
         let node = moonkale_core::NodeId::fresh("background-alpha");
@@ -1778,7 +1903,16 @@ mod background_tests {
             Panel::new("alpha", "Alpha", "main", rsx! {}),
         ];
         let nodes = HashMap::from([("alpha".into(), node)]);
-        let next = attach_background_panels(&layout, &panels, &nodes, None).unwrap();
+        let next = attach_background_panels(
+            &layout,
+            &panels,
+            &nodes,
+            None,
+            &Default::default(),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             next.tile(&TileId::from("main")).unwrap().active,
             Some(PanelId::from("readme"))
@@ -1788,7 +1922,25 @@ mod background_tests {
             Some(PanelId::from("search"))
         );
         assert!(next.tile_for_panel(&PanelId::from("alpha")).is_some());
-        assert!(attach_background_panels(&next, &panels, &nodes, None).is_none());
-        assert!(attach_background_panels(&layout, &panels, &nodes, Some(node)).is_none());
+        assert!(attach_background_panels(
+            &next,
+            &panels,
+            &nodes,
+            None,
+            &Default::default(),
+            None,
+            None
+        )
+        .is_none());
+        assert!(attach_background_panels(
+            &layout,
+            &panels,
+            &nodes,
+            Some(node),
+            &Default::default(),
+            None,
+            None
+        )
+        .is_none());
     }
 }

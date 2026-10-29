@@ -15,6 +15,8 @@ pub struct Relay {
     recent: VecDeque<u8>,
     sink: Option<mpsc::UnboundedSender<Vec<u8>>>,
     preview: PlainTail,
+    private: bool,
+    paused: bool,
 }
 
 impl Relay {
@@ -25,7 +27,7 @@ impl Relay {
     /// A chunk from the process: kept for the next subscriber and passed to
     /// the current one, if it is still listening.
     pub fn push(&mut self, chunk: &[u8]) {
-        self.preview.push(chunk);
+        self.preview.push(chunk, !self.private && !self.paused);
         self.recent.extend(chunk);
         if self.recent.len() > REPLAY_BYTES {
             let mut cut = self.recent.len() - REPLAY_BYTES;
@@ -42,9 +44,31 @@ impl Relay {
         }
     }
 
+    /// Update the sharing gate; discard the tail at both boundaries so private
+    /// output cannot reappear after a prompt or a pause ends. Owner replay is separate.
+    pub fn set_private(&mut self, private: bool) {
+        if self.private != private {
+            self.preview.bytes.clear();
+        }
+        self.private = private;
+    }
+
+    pub fn toggle_sharing(&mut self) {
+        self.paused = !self.paused;
+        self.preview.bytes.clear();
+    }
+
+    pub fn sharing_paused(&self) -> bool {
+        self.paused
+    }
+
     /// A bounded, non-consuming tail for static overview schematics.
     pub fn preview(&self) -> String {
-        self.preview.text()
+        if self.private || self.paused {
+            String::new()
+        } else {
+            self.preview.text()
+        }
     }
 
     /// A view mounts: the output so far, and the stream from now on. The
@@ -82,7 +106,7 @@ enum EscapeState {
 }
 
 impl PlainTail {
-    fn push(&mut self, chunk: &[u8]) {
+    fn push(&mut self, chunk: &[u8], retain: bool) {
         use EscapeState::*;
         for &byte in chunk {
             self.state = match (&self.state, byte) {
@@ -96,7 +120,7 @@ impl PlainTail {
                 (Escape | Intermediate, _) | (Csi, 0x40..=0x7e) => Text,
                 (Csi, _) => Csi,
                 (Text, _) => {
-                    if byte >= 0x20 && byte != 0x7f || matches!(byte, b'\n' | b'\t') {
+                    if retain && (byte >= 0x20 && byte != 0x7f || matches!(byte, b'\n' | b'\t')) {
                         self.bytes.push_back(byte);
                         if self.bytes.len() > 2048 {
                             self.bytes.pop_front();
@@ -126,6 +150,46 @@ impl PlainTail {
 mod tests {
     use super::*;
     use futures_channel::mpsc::TryRecvError;
+
+    #[test]
+    fn escape_strings_remain_stripped_across_privacy_and_pause_boundaries() {
+        let mut relay = Relay::new();
+        relay.push(b"\x1b]metadata");
+        relay.set_private(true);
+        relay.push(b"private");
+        relay.set_private(false);
+        relay.push(b"continued\x07safe");
+        assert_eq!(relay.preview(), "safe");
+        relay.push(b"\x1b[31");
+        relay.toggle_sharing();
+        relay.push(b"mignored\x1b]hidden");
+        relay.toggle_sharing();
+        relay.push(b"continued\x07text");
+        assert_eq!(relay.preview(), "text");
+    }
+
+    #[test]
+    fn private_and_paused_output_never_enters_the_shared_tail() {
+        let mut relay = Relay::new();
+        relay.push(b"public");
+        relay.set_private(true);
+        relay.push(b"private");
+        assert_eq!(relay.preview(), "");
+        relay.set_private(false);
+        assert_eq!(relay.preview(), "");
+        relay.push(b"public again");
+        relay.toggle_sharing();
+        relay.push(b"paused");
+        assert_eq!(relay.preview(), "");
+        relay.toggle_sharing();
+        assert_eq!(relay.preview(), "");
+        relay.push(b"new public");
+        assert_eq!(relay.preview(), "new public");
+        assert_eq!(
+            relay.subscribe().0,
+            b"publicprivatepublic againpausednew public"
+        );
+    }
 
     #[test]
     fn overview_tail_is_bounded_and_does_not_steal_live_output() {

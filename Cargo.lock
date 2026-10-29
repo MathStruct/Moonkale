@@ -7123,6 +7123,7 @@ dependencies = [
  "moonkale-llm",
  "moonkale-project-fs",
  "moonkale-state",
+ "moonkale-terminal",
  "pulldown-cmark",
  "serde",
  "serde_json",
@@ -7234,6 +7235,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "dioxus",
+ "futures-timer",
  "futures-util",
  "moonkale-core",
  "moonkale-ext-api",
@@ -7253,6 +7255,7 @@ dependencies = [
  "moonkale-core",
  "moonkale-ext-api",
  "moonkale-terminal",
+ "serde_json",
  "tokio",
  "vt100",
 ]
@@ -7426,6 +7429,7 @@ name = "moonkale-llm-types"
 version = "0.1.0"
 dependencies = [
  "futures-channel",
+ "pulldown-cmark",
  "serde",
  "serde_json",
 ]
@@ -7666,6 +7670,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "moonkale-terminal",
+ "nix 0.28.0",
  "portable-pty",
  "tokio",
 ]

@@ -33,7 +33,7 @@ pub mod claude_code;
 pub mod config;
 pub mod mock;
 pub mod policy;
-pub use moonkale_llm_types::{provider, sessions};
+pub use moonkale_llm_types::{display, provider, sessions};
 pub mod sse;
 pub mod tools;
 pub use moonkale_llm_types::types;

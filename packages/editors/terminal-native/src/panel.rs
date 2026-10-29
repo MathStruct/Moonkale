@@ -22,6 +22,7 @@ pub struct NativeSession {
     pub title: String,
     pub backend: Box<dyn TerminalBackend>,
     pub parser: vt100::Parser,
+    pub relay: moonkale_terminal::Relay,
     /// Bumped per output chunk: the view re-renders.
     pub frame: Signal<u64>,
 }
@@ -43,6 +44,7 @@ impl NativeSession {
             title,
             backend,
             parser: vt100::Parser::new(24, 80, SCROLLBACK),
+            relay: moonkale_terminal::Relay::new(),
             frame: Signal::new_in_scope(0, ScopeId::ROOT),
         }
     }
@@ -64,6 +66,9 @@ impl NativeSession {
                         return false;
                     };
                     let mut s = s.borrow_mut();
+                    let private = s.backend.private_input();
+                    s.relay.set_private(private);
+                    s.relay.push(bytes);
                     s.parser.process(bytes);
                     let mut f = s.frame;
                     drop(s);
@@ -78,6 +83,25 @@ impl NativeSession {
                 feed(b"\r\n[process ended]\r\n");
             });
         }
+        let weak = Rc::downgrade(&session);
+        moonkale_ext_api::crash::spawn_forever(async move {
+            let mut previous = false;
+            loop {
+                crate::sleep_ms(100).await;
+                let Some(session) = weak.upgrade() else {
+                    break;
+                };
+                let mut session = session.borrow_mut();
+                let private = session.backend.private_input();
+                session.relay.set_private(private);
+                if previous != private {
+                    previous = private;
+                    let mut frame = session.frame;
+                    drop(session);
+                    frame += 1;
+                }
+            }
+        });
         session
     }
 }
@@ -95,6 +119,24 @@ pub struct Sessions {
 impl PartialEq for Sessions {
     fn eq(&self, o: &Self) -> bool {
         self.list == o.list && self.active == o.active
+    }
+}
+
+impl Sessions {
+    fn toggle_sharing(self) {
+        if let Some(s) = self.active.peek().and_then(|id| {
+            self.list
+                .peek()
+                .iter()
+                .find(|s| s.borrow().id == id)
+                .cloned()
+        }) {
+            let mut s = s.borrow_mut();
+            s.relay.toggle_sharing();
+            let mut frame = s.frame;
+            drop(s);
+            frame += 1;
+        }
     }
 }
 
@@ -154,20 +196,21 @@ impl Extension for NativeTerminalExtension {
         let _ = (panel_id, ws);
         let active = (*self.sessions.active.peek())?;
         let sessions = self.sessions.list.peek();
-        let session = sessions.iter().find(|s| s.borrow().id == active)?.borrow();
-        let screen = session.parser.screen();
-        let (rows, cols) = screen.size();
-        let end = screen.cursor_position().0.saturating_add(1).min(rows);
-        let mut text = String::new();
-        for row in end.saturating_sub(8)..end {
-            for col in 0..cols.min(100) {
-                if let Some(cell) = screen.cell(row, col) {
-                    text.extend(cell.contents().chars().take(4));
-                }
-            }
-            text.push('\n');
+        let session = sessions.iter().find(|s| s.borrow().id == active)?.clone();
+        Some(rsx! { PrivatePreview { ws, session } })
+    }
+
+    fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
+        vec![CommandContribution::new(
+            "terminalNative.pauseSharing",
+            t!(ws, L, "terminal-pause-sharing-command"),
+        )]
+    }
+
+    fn run_command(&self, id: &str, _ws: Workspace) {
+        if id == "terminalNative.pauseSharing" {
+            self.sessions.toggle_sharing();
         }
-        moonkale_ext_api::preview::text(&text)
     }
 
     fn render(&self, _panel_id: &str, ws: Workspace) -> Element {
@@ -220,6 +263,14 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
     let list = sessions.list.read().clone();
     let active = *sessions.active.read();
     let available = ws.spawn_terminal().is_some();
+    let paused = list
+        .iter()
+        .find(|s| Some(s.borrow().id) == active)
+        .is_some_and(|s| {
+            let s = s.borrow();
+            let _ = (s.frame)();
+            s.relay.sharing_paused()
+        });
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
         div { class: "mk-tn",
@@ -248,6 +299,10 @@ pub fn NativeTerminalPanel(ws: Workspace, sessions: Sessions) -> Element {
                     primary: rsx! { button { class: "mk-tn-new", disabled: !available, title: t!(ws, L, "tn-new"),
                     onclick: moonkale_ext_api::crash::event(move |_| { ws.processes.terminal_cwd.set(None); moonkale_ext_api::crash::spawn(start_session(ws, sessions, None)); }), "+" } },
 
+
+                button { class: "mk-tn-sharing", aria_pressed: paused, onclick: move |_| sessions.toggle_sharing(),
+                    if paused { {t!(ws, L, "terminal-resume-sharing")} } else { {t!(ws, L, "terminal-pause-sharing")} }
+                }
 
                 }
             }
@@ -388,6 +443,41 @@ fn rows_of(screen: &vt100::Screen, show_cursor: bool) -> Vec<Vec<Run>> {
 #[component]
 fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool) -> Element {
     let frame = session.borrow().frame;
+    let mut paste: Signal<Option<String>> = use_signal(|| None);
+    let paste_session = session.clone();
+    let paste_confirm = session.clone();
+    let paste_mode = session.clone();
+    moonkale_ext_api::crash::use_effect(move || {
+        let _ = frame();
+        if !paste_mode.borrow().backend.private_input() && paste.peek().is_some() {
+            paste.set(None);
+        }
+    });
+    let element_id = format!("mk-tn-{}", session.borrow().id.0);
+    let paste_id = element_id.clone();
+    moonkale_ext_api::crash::use_future(move || {
+        let paste_session = paste_session.clone();
+        let id = serde_json::to_string(&paste_id).unwrap();
+        async move {
+            let mut eval = dioxus::document::eval(&format!(
+                r#"
+                let el;
+                while (!(el = document.getElementById({id}))) await new Promise(r => setTimeout(r, 20));
+                el.addEventListener("paste", e => {{
+                    e.preventDefault(); e.stopImmediatePropagation();
+                    dioxus.send((e.clipboardData?.getData("text/plain") || "").slice(0, 65536));
+                }}, true);
+            "#
+            ));
+            while let Ok(text) = eval.recv::<String>().await {
+                if paste_session.borrow().backend.private_input() {
+                    paste.set(Some(text));
+                } else {
+                    paste_session.borrow().backend.write(text.as_bytes());
+                }
+            }
+        }
+    });
     let mut mounted: Signal<Option<Rc<MountedData>>> = use_signal(|| None);
     let mut cell_size: Signal<(f64, f64)> = use_signal(|| (8.0, 17.0));
     let mut probe: Signal<Option<Rc<MountedData>>> = use_signal(|| None);
@@ -446,7 +536,18 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
     let (cw, ch) = cell_size();
 
     rsx! {
+        if visible && session.borrow().backend.private_input() {
+            span { class: "mk-term-private", role: "status", aria_label: t!(ws, L, "terminal-password-prompt"), "🔒 " {t!(ws, L, "terminal-password-prompt")} }
+        }
+        if visible && paste.read().is_some() {
+            div { class: "mk-term-confirm", role: "alertdialog", onkeydown: move |e: KeyboardEvent| { if e.key() == Key::Escape { e.stop_propagation(); e.prevent_default(); paste.set(None); } }, aria_label: t!(ws, L, "terminal-confirm-paste"),
+                p { {t!(ws, L, "terminal-confirm-paste")} }
+                button { class: "mk-btn", onclick: move |_| { let text = paste.write().take(); if let Some(text) = text { let session = paste_confirm.borrow(); if session.backend.private_input() { session.backend.write(text.as_bytes()); } } }, {t!(ws, L, "terminal-paste")} }
+                button { class: "mk-btn", onmounted: move |event: MountedEvent| { moonkale_ext_api::crash::spawn(async move { let _ = event.data().set_focus(true).await; }); }, onclick: move |_| paste.set(None), {t!(ws, L, "terminal-cancel")} }
+            }
+        }
         div {
+            id: "{element_id}",
             class: if visible { "mk-tn-screen" } else { "mk-tn-screen mk-tn-hidden" },
             class: if focused() { "mk-tn-focused" },
             tabindex: 0,
@@ -535,4 +636,38 @@ fn SessionView(ws: Workspace, session: Rc<RefCell<NativeSession>>, visible: bool
             }
         }
     }
+}
+
+#[component]
+fn PrivatePreview(ws: Workspace, session: Rc<RefCell<NativeSession>>) -> Element {
+    let mut text = use_signal(|| session.borrow().relay.preview());
+    let mut mode = use_signal(|| {
+        let s = session.borrow();
+        (s.backend.private_input(), s.relay.sharing_paused())
+    });
+    moonkale_ext_api::crash::use_future(move || {
+        let session = session.clone();
+        async move {
+            loop {
+                crate::sleep_ms(100).await;
+                let next = {
+                    let s = session.borrow();
+                    (s.backend.private_input(), s.relay.sharing_paused())
+                };
+                if next != *mode.peek() {
+                    text.set(String::new());
+                    mode.set(next);
+                }
+            }
+        }
+    });
+    let (private, paused) = mode();
+    let body = if private {
+        t!(ws, L, "terminal-password-prompt")
+    } else if paused {
+        t!(ws, L, "terminal-sharing-paused")
+    } else {
+        text()
+    };
+    rsx! { {moonkale_ext_api::preview::text(&body)} }
 }

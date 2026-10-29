@@ -58,3 +58,7 @@ agent-approval-waiting = The agent waits for your approval (Agent panel)
 agent-approval-timeout = No answer for 10 minutes: the agent's request was declined
 
 agent-overview-state = Agent activity
+
+agent-display-offer = Agent { $name } wants to show a view
+agent-display-show = Show
+agent-display-dismiss = Dismiss

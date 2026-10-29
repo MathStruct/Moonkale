@@ -382,6 +382,9 @@ struct PtyHandle {
     output: Option<moonkale_terminal::Output>,
 }
 impl TerminalBackend for PtyHandle {
+    fn private_input(&self) -> bool {
+        self.pty.private_input()
+    }
     fn write(&self, data: &[u8]) {
         self.pty.write(data)
     }

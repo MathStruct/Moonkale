@@ -34,3 +34,5 @@ pub async fn sleep_ms(ms: u32) {
     #[cfg(not(target_arch = "wasm32"))]
     tokio::time::sleep(std::time::Duration::from_millis(ms as u64)).await;
 }
+
+mod display;

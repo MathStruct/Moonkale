@@ -6,6 +6,7 @@ use moonkale_state::{decode, encode, Record};
 fn group() -> LinkGroup {
     let node = NodeId::fresh("linked-test");
     LinkGroup {
+        agent: None,
         id: "test".into(),
         colour: 3,
         number: 3,

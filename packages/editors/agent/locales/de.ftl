@@ -58,3 +58,7 @@ agent-approval-waiting = Der Agent wartet auf deine Freigabe (Agent-Panel)
 agent-approval-timeout = 10 Minuten keine Antwort: die Anfrage des Agenten wurde abgelehnt
 
 agent-overview-state = Agentenaktivität
+
+agent-display-offer = Agent { $name } möchte eine Ansicht zeigen
+agent-display-show = Anzeigen
+agent-display-dismiss = Verwerfen

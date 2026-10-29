@@ -102,7 +102,12 @@ fn parse_inner(text: &str) -> Vec<Node> {
             top.1.push(n);
         }
     };
-    for ev in Parser::new_ext(text, opts) {
+    for (events, ev) in Parser::new_ext(text, opts).enumerate() {
+        // Keep recursively cloned/rendered trees shallow, including typed canvases.
+        // Fall back to inert source instead of discarding or truncating content.
+        if events >= 8192 || stack.len() >= 64 {
+            return vec![Node::Text(text.to_string())];
+        }
         match ev {
             Event::Start(tag) => {
                 let open = match tag {
@@ -315,6 +320,12 @@ fn Draw(node: Node) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deeply_nested_canvas_markdown_stays_inert_source() {
+        let text = format!("{}canvas", "> ".repeat(1000));
+        assert_eq!(parse(&text), vec![Node::Text(text)]);
+    }
 
     #[test]
     fn structure_survives() {

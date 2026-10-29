@@ -8,6 +8,7 @@ description = "The in-app agent: chat panel, tools over the workspace, policy pr
 [dependencies]
 dioxus = { workspace = true }
 moonkale-core = { workspace = true }
+moonkale-terminal = { workspace = true }
 moonkale-ext-api = { workspace = true }
 moonkale-llm = { workspace = true }
 moonkale-state = { workspace = true }

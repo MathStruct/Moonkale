@@ -37,17 +37,20 @@ try {
     await page.screenshot({ path: `${S}/m5-agent-diff.png` });
     await page.click(".mk-agent-approval button:has-text('Allow')");
     await idle();
+    await page.locator(".mk-agent-display-show").last().click();
     await page.waitForFunction(() => /hello from the agent/.test(document.querySelector(".mk-md .cm-content")?.textContent || ""), null, { timeout: 15000 });
     await page.waitForSelector(".mk-editor-dirty", { timeout: 5000 });
     if (fs.readFileSync(`${ROOT}/README.md`, "utf8").includes("hello from the agent")) throw new Error("file written without the user saving");
   });
   await step("file.create → Allow → new file exists and opens", async () => {
+    await page.waitForTimeout(2100);
     await ask(`/tool file.create {"source":"${folder}","path":"notes/agent-made.md","text":"# Made by the agent\\n"}`);
     await page.waitForSelector(".mk-agent-approval", { timeout: 20000 });
     await page.click(".mk-agent-approval button:has-text('Allow')");
     await idle();
     if (!fs.existsSync(`${ROOT}/notes/agent-made.md`)) throw new Error("file not created");
-    await page.waitForFunction(() => /agent-made\.md/.test(document.querySelector(".mk-titlebar-title")?.textContent || ""), null, { timeout: 15000 });
+    await page.locator(".mk-agent-display-show").last().click();
+    await page.waitForFunction(() => [...document.querySelectorAll(".wb-tab")].some(el=>el.textContent.includes("agent-made.md") && el.querySelector(".mk-link-marker")), null, { timeout: 15000 });
   });
   await step("terminal.run → Allow → the command's output comes back", async () => {
     await ask(`/tool terminal.run {"command":"echo out_$((20+3))"}`);

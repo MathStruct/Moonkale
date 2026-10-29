@@ -224,6 +224,8 @@ pub struct SearchFile {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AgentFile {
+    /// User choice, overridable by the outer session; folder values have no authority.
+    pub open_views: Option<moonkale_llm_types::display::OpenViews>,
     /// Run turns on the server (they finish without a client; the phone
     /// sees the state) when the sources are a server's.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -365,6 +367,9 @@ impl SettingsFile {
     pub fn without_authority(&self) -> (SettingsFile, Vec<&'static str>) {
         let mut f = self.clone();
         let mut ignored = Vec::new();
+        if f.agent.open_views.take().is_some() {
+            ignored.push("agent.open_views");
+        }
         if f.llm != LlmFile::default() {
             f.llm = LlmFile::default();
             ignored.push("llm");
@@ -417,6 +422,7 @@ impl SettingsFile {
             .or(self.policy.denied_tools.take());
         self.code_graph.source = other.code_graph.source.or(self.code_graph.source);
         self.search.embeddings = other.search.embeddings.or(self.search.embeddings);
+        self.agent.open_views = other.agent.open_views.or(self.agent.open_views);
         self.agent.on_server = other.agent.on_server.or(self.agent.on_server);
         self.agent.default = other.agent.default.clone().or(self.agent.default.take());
         // Saved agents: by name, the later scope's set fields winning.
@@ -616,6 +622,8 @@ pub struct SearchSettings {
 /// Resolved agent-panel settings.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AgentSettings {
+    /// Whether an agent may open its views without a quiet offer.
+    pub open_views: moonkale_llm_types::display::OpenViews,
     /// Turns run on the server when the sources are a server's (default off).
     pub on_server: bool,
     /// The saved agent that runs unless a session picks another.
@@ -878,6 +886,7 @@ impl Settings {
                 embeddings: merged.search.embeddings.unwrap_or(true),
             },
             agent: AgentSettings {
+                open_views: merged.agent.open_views.unwrap_or_default(),
                 on_server: merged.agent.on_server.unwrap_or(false),
                 default,
             },
@@ -1533,5 +1542,38 @@ mod density_tests {
         assert_eq!(decoded.chrome, user.chrome);
         assert_eq!(decoded.chrome_initialized, Some(true));
         assert!(decoded.extensions.enabled.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod agent_display_settings_tests {
+    use super::*;
+    use moonkale_llm_types::display::OpenViews;
+    #[test]
+    fn display_default_and_scope_authority() {
+        let empty = SettingsFile::new();
+        assert_eq!(
+            Settings::resolve(&empty, &empty, &empty).agent.open_views,
+            OpenViews::Ask
+        );
+        let mut folder = SettingsFile::new();
+        folder.agent.open_views = Some(OpenViews::Always);
+        assert_eq!(
+            Settings::resolve(&empty, &folder, &empty).agent.open_views,
+            OpenViews::Ask
+        );
+        let mut user = SettingsFile::new();
+        user.agent.open_views = Some(OpenViews::WhenIdle);
+        assert_eq!(
+            Settings::resolve(&user, &folder, &empty).agent.open_views,
+            OpenViews::WhenIdle
+        );
+        let mut session = SettingsFile::new();
+        session.agent.open_views = Some(OpenViews::Always);
+        user.overlay(&session); // the same precedence used by the workspace's session resolver
+        assert_eq!(
+            Settings::resolve(&user, &folder, &empty).agent.open_views,
+            OpenViews::Always
+        );
     }
 }

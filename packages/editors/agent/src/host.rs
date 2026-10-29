@@ -24,6 +24,9 @@ impl PartialEq for PendingApproval {
 
 pub struct WorkspaceHost {
     pub ws: Workspace,
+    pub outer: String,
+    pub owner: String,
+    pub name: String,
     pub pending: Signal<Option<PendingApproval>>,
     /// Relative paths the agent touched (for transcript wiki-links).
     pub cited: Signal<Vec<String>>,
@@ -37,9 +40,42 @@ impl WorkspaceHost {
         }
     }
 
+    async fn offer_node(&self, node: &moonkale_core::Node, line: u64) -> String {
+        let call = ToolCall {
+            id: format!("display-{}", node.id),
+            name: "editor.open".into(),
+            input: serde_json::json!({"source": node.source.as_str(), "node": node.id.to_string(), "line": line}),
+        };
+        match crate::display::request(
+            self.ws,
+            self.outer.clone(),
+            self.owner.clone(),
+            self.name.clone(),
+            call,
+        )
+        .await
+        {
+            Ok(note) => note,
+            Err(error) => format!("View not opened: {error}"),
+        }
+    }
+
     async fn run(&self, call: ToolCall) -> Result<String, String> {
         let ws = self.ws;
+        if *ws.saved_sessions.active.peek() != self.outer {
+            return Err("conversation belongs to another session".into());
+        }
         match call.name.as_str() {
+            "ui.reveal" | "ui.select" | "ui.show_result" | "ui.canvas" | "editor.open" => {
+                crate::display::request(
+                    ws,
+                    self.outer.clone(),
+                    self.owner.clone(),
+                    self.name.clone(),
+                    call,
+                )
+                .await
+            }
             "workspace.list_sources" => {
                 let mut out = String::from("id\tname\tfamily\tdialect\troot\n");
                 for s in ws.sources.open.peek().iter() {
@@ -141,28 +177,6 @@ impl WorkspaceHost {
                 }
                 Ok(table_text(&res))
             }
-            "editor.open" => {
-                let (source, _) = source_of(ws, &call)?;
-                let node = parse_node(call.str("node").ok_or("node is required")?)?;
-                let n = source
-                    .query(Query::Node(node))
-                    .await
-                    .map_err(|e| e.to_string())?
-                    .nodes
-                    .into_iter()
-                    .next()
-                    .ok_or("no such node")?;
-                self.cite(&n.native_key);
-                let label = n.label.clone();
-                match call.u64("line") {
-                    Some(line) => ws
-                        .reveal(n, line.saturating_sub(1) as u32, 0)
-                        .await
-                        .map_err(|e| e.to_string())?,
-                    None => ws.open_node(n).await.map_err(|e| e.to_string())?,
-                }
-                Ok(format!("Opened {label}"))
-            }
             "editor.replace" => {
                 let (source, _) = source_of(ws, &call)?;
                 let node = parse_node(call.str("node").ok_or("node is required")?)?;
@@ -184,7 +198,15 @@ impl WorkspaceHost {
                 // Edit the open document (the same buffer the user sees): the
                 // change shows as unsaved; the user saves.
                 if ws.document(node).is_none() {
-                    ws.open_node(n).await.map_err(|e| e.to_string())?;
+                    let mut ws = ws;
+                    ws.links.agent_documents.with_mut(|ids| {
+                        ids.insert(node);
+                    });
+                    ws.load_node_guarded(n.clone(), || {
+                        *ws.saved_sessions.active.peek() == self.outer
+                    })
+                    .await
+                    .map_err(|e| e.to_string())?;
                 }
                 let mut doc = ws.document(node).ok_or("document did not open")?;
                 let (count, line) = {
@@ -206,9 +228,14 @@ impl WorkspaceHost {
                         ))
                     }
                 }
+                if *ws.saved_sessions.active.peek() != self.outer {
+                    return Err("session changed".into());
+                }
                 doc.with_mut(|d| d.text = d.text.replacen(&old, &new, 1));
                 let mut ws = ws;
-                ws.docs.active.set(Some(node));
+                if *ws.saved_sessions.active.peek() != self.outer {
+                    return Err("session changed".into());
+                }
                 // The save that follows is attributed to the agent (Milestone 8 history).
                 let actor = {
                     let llm = &ws.settings.resolved.peek().llm;
@@ -224,10 +251,8 @@ impl WorkspaceHost {
                 ws.history.pending_actor.with_mut(|m| {
                     m.insert(node, actor);
                 });
-                Ok(format!(
-                    "Replaced in {label} at line {} (unsaved: the user reviews and saves).",
-                    line.unwrap_or(1)
-                ))
+                let display = self.offer_node(&n, line.unwrap_or(1) as u64).await;
+                Ok(format!("Replaced in {label} at line {} (unsaved: the user reviews and saves). {display}", line.unwrap_or(1)))
             }
             "file.create" => {
                 let (_, handle) = source_of(ws, &call)?;
@@ -246,8 +271,11 @@ impl WorkspaceHost {
                     .map_err(|e| e.to_string())?;
                 self.cite(&node.native_key);
                 let key = node.native_key.clone();
-                let _ = ws.open_node(node).await;
-                Ok(format!("Created {key} ({} chars)", text.chars().count()))
+                let display = self.offer_node(&node, 1).await;
+                Ok(format!(
+                    "Created {key} ({} chars). {display}",
+                    text.chars().count()
+                ))
             }
             "terminal.run" => {
                 let spawn_fn = ws
@@ -275,7 +303,8 @@ impl WorkspaceHost {
                 let mut out = backend.take_output().ok_or("no output stream")?;
                 // Run, then end the shell so the stream closes.
                 backend.write(format!("{command}; exit $?\n").as_bytes());
-                let mut bytes: Vec<u8> = Vec::new();
+                let mut relay = moonkale_terminal::Relay::new();
+                let mut total = 0usize;
                 use futures_util::StreamExt;
                 // A command that never ends (`sleep infinity`, an open quote
                 // swallowing the `exit`) must not wedge the turn (#13): a
@@ -284,27 +313,22 @@ impl WorkspaceHost {
                 loop {
                     match futures_util::future::select(out.next(), deadline.as_mut()).await {
                         futures_util::future::Either::Left((Some(chunk), _)) => {
-                            bytes.extend_from_slice(&chunk);
-                            if bytes.len() > 200_000 {
-                                bytes.extend_from_slice(b"\n[output truncated]");
+                            relay.set_private(backend.private_input());
+                            relay.push(&chunk);
+                            total += chunk.len();
+                            if total > 200_000 {
                                 break;
                             }
                         }
                         futures_util::future::Either::Left((None, _)) => break,
                         futures_util::future::Either::Right(_) => {
-                            bytes.extend_from_slice(
-                                format!(
-                                    "\n[stopped after {} s without finishing; the shell was closed]",
-                                    TERMINAL_RUN_MS / 1000
-                                )
-                                .as_bytes(),
-                            );
                             break;
                         }
                     }
                 }
+                relay.set_private(backend.private_input());
+                let text = relay.preview();
                 drop(backend);
-                let text = strip_ansi(&String::from_utf8_lossy(&bytes));
                 Ok(format!("$ {command}\n{text}"))
             }
             other => match wasm_owner(ws, other) {
@@ -354,44 +378,6 @@ fn wasm_owner(ws: Workspace, command: &str) -> Option<String> {
                 && m.commands.iter().any(|c| c.id == command)
         })
         .map(|m| m.id.clone())
-}
-
-/// Drop ANSI escape sequences and carriage returns from terminal output.
-fn strip_ansi(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\u{1b}' {
-            match chars.peek() {
-                Some('[') => {
-                    chars.next();
-                    for c in chars.by_ref() {
-                        if ('@'..='~').contains(&c) {
-                            break;
-                        }
-                    }
-                }
-                Some(']') => {
-                    chars.next();
-                    let mut prev = '\0';
-                    for c in chars.by_ref() {
-                        if c == '\u{7}' || (prev == '\u{1b}' && c == '\\') {
-                            break;
-                        }
-                        prev = c;
-                    }
-                }
-                _ => {
-                    chars.next();
-                }
-            }
-            continue;
-        }
-        if c != '\r' {
-            out.push(c);
-        }
-    }
-    out
 }
 
 fn source_of(
@@ -457,6 +443,9 @@ impl ToolHost for WorkspaceHost {
     fn call(&self, call: ToolCall) -> HostFuture<Result<String, String>> {
         let this = WorkspaceHost {
             ws: self.ws,
+            outer: self.outer.clone(),
+            owner: self.owner.clone(),
+            name: self.name.clone(),
             pending: self.pending,
             cited: self.cited,
         };

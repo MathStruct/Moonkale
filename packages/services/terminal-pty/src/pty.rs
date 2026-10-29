@@ -129,6 +129,25 @@ impl PtyBackend {
 }
 
 impl TerminalBackend for PtyBackend {
+    fn private_input(&self) -> bool {
+        #[cfg(unix)]
+        {
+            use nix::sys::termios::LocalFlags;
+            self.master
+                .lock()
+                .ok()
+                .and_then(|m| m.get_termios())
+                .is_some_and(|t| {
+                    t.local_flags.contains(LocalFlags::ICANON)
+                        && !t.local_flags.contains(LocalFlags::ECHO)
+                })
+        }
+        #[cfg(not(unix))]
+        {
+            false
+        }
+    }
+
     fn write(&self, data: &[u8]) {
         if let Ok(mut w) = self.writer.lock() {
             let _ = w.write_all(data);

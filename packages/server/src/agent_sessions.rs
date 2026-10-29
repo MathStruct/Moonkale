@@ -29,6 +29,10 @@ mod server {
     use std::sync::{Arc, Mutex, OnceLock};
 
     pub struct Record {
+        pub display_budget: moonkale_llm::display::DisplayBudget,
+        pub display_epoch: std::time::Instant,
+        pub display_seq: u64,
+        pub displays: Vec<moonkale_llm::sessions::DisplayEvent>,
         pub summary: SessionSummary,
         pub provider_label: String,
         pub items: Vec<SessionItem>,
@@ -265,6 +269,10 @@ mod server {
             store.insert(
                 id.clone(),
                 Arc::new(Mutex::new(Record {
+                    display_budget: Default::default(),
+                    display_epoch: std::time::Instant::now(),
+                    display_seq: 0,
+                    displays: Vec::new(),
                     summary: SessionSummary {
                         outer_session: head.outer_session,
                         id,
@@ -308,6 +316,10 @@ mod server {
     ) -> (String, Arc<Mutex<Record>>) {
         let id = uuid::Uuid::new_v4().simple().to_string();
         let rec = Arc::new(Mutex::new(Record {
+            display_budget: Default::default(),
+            display_epoch: std::time::Instant::now(),
+            display_seq: 0,
+            displays: Vec::new(),
             summary: SessionSummary {
                 outer_session: outer_session.into(),
                 id: id.clone(),
@@ -348,13 +360,27 @@ mod server {
     /// The server's tool host: read-only tools over the registry; writes
     /// need an approval from a client.
     struct ServerHost {
+        name: String,
         rec: Arc<Mutex<Record>>,
     }
 
     impl ToolHost for ServerHost {
         fn call(&self, call: ToolCall) -> moonkale_llm::agent::HostFuture<Result<String, String>> {
+            let rec = self.rec.clone();
+            let agent_name = self.name.clone();
             Box::pin(async move {
                 match call.name.as_str() {
+                    "ui.reveal" | "ui.select" | "ui.show_result" | "ui.canvas" | "editor.open" => {
+                        let mut rec = rec.lock().unwrap();
+                        let now = rec.display_epoch.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                        rec.display_budget.charge(now)?;
+                        moonkale_llm::display::parse_action(&call.name, call.input.clone())?;
+                        rec.display_seq += 1;
+                        let seq = rec.display_seq;
+                        rec.displays.push(moonkale_llm::sessions::DisplayEvent { seq, name: call.name, input: call.input, agent: agent_name });
+                        if rec.displays.len() > 8 { rec.displays.remove(0); }
+                        Ok("Offered to connected clients; each applies its display preference without taking focus".into())
+                    }
                     "workspace.list_sources" | "graph.query" | "graph.fetch" | "index.search"
                     | "source.text_query" => crate::mcp::run(call).await,
                     other => Err(format!(
@@ -460,7 +486,14 @@ mod server {
             Decision::Ask
         };
         agent.policy.denied_tools = settings.denied_tools.clone();
-        let host = ServerHost { rec: rec.clone() };
+        let host = ServerHost {
+            rec: rec.clone(),
+            name: if settings.display_name.is_empty() {
+                rec.lock().unwrap().provider_label.clone()
+            } else {
+                settings.display_name.clone()
+            },
+        };
         let rec2 = rec.clone();
         let mut on_event = |ev: AgentEvent| match ev {
             AgentEvent::TextDelta(t) => {
@@ -676,6 +709,7 @@ pub async fn agent_events(session: String, since: usize) -> Result<SessionState,
         .ok_or_else(|| ServerFnError::new(format!("no session {session}")))?;
     let r = rec.lock().unwrap();
     Ok(SessionState {
+        displays: r.displays.clone(),
         id: r.summary.id.clone(),
         title: r.summary.title.clone(),
         provider: r.provider_label.clone(),

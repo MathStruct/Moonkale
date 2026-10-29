@@ -55,6 +55,9 @@ pub struct SessionSummary {
 /// What `agent_events(since)` returns.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SessionState {
+    /// Recent ephemeral display requests. Not replayed from saved transcripts.
+    #[serde(default)]
+    pub displays: Vec<DisplayEvent>,
     pub id: String,
     pub title: String,
     pub provider: String,
@@ -69,6 +72,9 @@ pub struct SessionState {
 /// policy it would apply locally.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct TurnSettings {
+    /// Saved profile name captured when the person sends the turn.
+    #[serde(default)]
+    pub display_name: String,
     /// Owning outer workspace (missing on old clients means Default).
     #[serde(default)]
     pub outer_session: Option<String>,
@@ -82,4 +88,15 @@ pub struct TurnSettings {
 /// Stable migration identity for legacy conversations.
 pub fn default_outer_session() -> String {
     "default".into()
+}
+
+/// One bounded display request from a server-owned conversation.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DisplayEvent {
+    /// Trusted profile attribution from that turn, never from model content.
+    #[serde(default)]
+    pub agent: String,
+    pub seq: u64,
+    pub name: String,
+    pub input: Value,
 }

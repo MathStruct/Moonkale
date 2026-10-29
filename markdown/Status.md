@@ -7,6 +7,17 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Agent display and private terminals (WP-70 / WP-71, 2026-10-29)
+
+✅ Built and validated on the codex contributor branch. Typed
+agent reveal/select/result/canvas tools use marked groups, Ask/When idle/Always
+user/session settings and per-conversation rate/budget bounds. Both terminal
+views detect Unix canonical echo-off prompts, confirm pastes and suppress shared
+tails, with per-terminal Pause sharing. See [[Agents in the UI and on the Graph]]
+and [[Security]]; the raw-mode/non-Unix limitations remain explicit. All AGENTS gates
+and the smoke, structural, Sophia and default graph browser matrix pass. Shared
+control and global Stop sharing remain WP-72.
+
 ## Overview (WP-60, checked 2026-10-29)
 
 ✅ Steps 1–4 are built and validated: grouped open-tab cards, effective

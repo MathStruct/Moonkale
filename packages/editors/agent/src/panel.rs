@@ -351,7 +351,14 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
                 denied_tools: denied,
             };
         }
-        let host = WorkspaceHost { ws, pending, cited };
+        let host = WorkspaceHost {
+            ws,
+            pending,
+            cited,
+            outer: s.outer_session.clone(),
+            owner: s.id.clone(),
+            name: s.profile.peek().clone(),
+        };
         let mut on_event = |ev: AgentEvent| match ev {
             AgentEvent::TextDelta(t) => items.with_mut(|v| match v.last_mut() {
                 Some(Item::Assistant(s)) => s.push_str(&t),

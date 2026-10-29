@@ -12,8 +12,11 @@ const browser = await firefox.launch();
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 900 } });
 const page = await ctx.newPage();
 const logs = [];
+const errors = [];
+let currentStep = "startup";
+page.on("pageerror", error => errors.push((error.stack || String(error)).slice(0, 4096)));
 page.on("console", (m) => { const t = m.text(); if (!t.includes("session[")) logs.push(`[${m.type()}] ${t.slice(0, 300)}`); });
-const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
+const step = async (n, f) => { currentStep=n; process.stdout.write(`- ${n} … `); await f(); console.log("ok"); };
 const ask = async (text) => { await page.fill(".mk-agent-input", text); await page.click(".mk-agent-compose button"); };
 const idle = () => page.waitForFunction(() => !document.querySelector(".mk-agent-compose button[disabled]"), null, { timeout: 60000 });
 const sessionId = () => page.$eval(".mk-agent", (e) => e.getAttribute("data-session"));
@@ -117,4 +120,4 @@ try {
     await page.screenshot({ path: `${S}/m15-restored.png` });
   });
   console.log("\nAGENTS E2E: PASS");
-} catch (e) { console.log("\nFAIL:", e.message); console.log(logs.slice(-12).join("\n")); await page.screenshot({ path: `${S}/m15-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }
+} catch (e) { console.log("\nFAIL:", currentStep, e.stack || e.message); console.log(errors.join("\n")); fs.writeFileSync(`${S}/m15-errors.txt`, errors.join("\n")); console.log(logs.slice(-12).join("\n")); await page.screenshot({ path: `${S}/m15-fail.png` }); process.exitCode = 1; } finally { await browser.close(); }

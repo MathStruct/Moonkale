@@ -14,3 +14,13 @@ terminal-drew =
        *[other] { $n } Traces
     } gezeichnet; siehe die Quellenauswahl des Graph-Panels
 terminal-empty = Noch kein Terminal – + drücken oder Ansicht → Neues Terminal.
+
+terminal-password-prompt = Passworteingabe
+terminal-pause-sharing = Teilen pausieren
+terminal-resume-sharing = Teilen fortsetzen
+terminal-sharing-paused = Teilen pausiert
+terminal-confirm-paste = In diese Passworteingabe einfügen?
+terminal-paste = Einfügen
+terminal-cancel = Abbrechen
+
+terminal-pause-sharing-command = Terminal: Teilen pausieren/fortsetzen

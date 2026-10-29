@@ -8,6 +8,7 @@
 //! depending on the agent engine. `moonkale-llm` re-exports everything here,
 //! so `moonkale_llm::…` paths are unchanged.
 
+pub mod display;
 pub mod provider;
 pub mod sessions;
 pub mod types;

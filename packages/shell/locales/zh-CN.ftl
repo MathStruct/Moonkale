@@ -428,3 +428,8 @@ overview-window = 此窗口
 overview-close = 关闭标签页
 overview-discard = 关闭并放弃未保存的更改？
 overview-unsaved = 未保存的更改
+
+settings-agent-open-views = 允许代理打开视图
+settings-agent-open-ask = 询问
+settings-agent-open-idle = 我未输入时
+settings-agent-open-always = 始终

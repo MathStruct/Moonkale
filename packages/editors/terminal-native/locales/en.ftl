@@ -6,3 +6,13 @@ terminal-failed = Could not start a terminal: { $error }
 terminal-close = Close
 tn-new = New terminal (Rust renderer)
 tn-empty = No terminal yet — press + or use View → New Terminal.
+
+terminal-password-prompt = Password prompt
+terminal-pause-sharing = Pause sharing
+terminal-resume-sharing = Resume sharing
+terminal-sharing-paused = Sharing paused
+terminal-confirm-paste = Paste into this password prompt?
+terminal-paste = Paste
+terminal-cancel = Cancel
+
+terminal-pause-sharing-command = Terminal (Rust): Pause/resume sharing

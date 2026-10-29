@@ -12,3 +12,8 @@
 .mk-term-session .xterm { height: 100%; }
 .mk-term-trace { margin-left: auto; font-size: 11px; color: var(--mk-muted); }
 .mk-term-spacer { flex: 1; }
+
+/* Privacy stays visible above the terminal's owner-only screen. */
+.mk-term-private { position: absolute; top: 4px; right: 8px; z-index: 2; padding: 2px 4px; border-radius: 3px; font-size: 12px; background: var(--wb-surface); color: var(--wb-ink); pointer-events: none; }
+.mk-term-confirm { position: absolute; inset: 0; z-index: 3; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 8px; padding: 8px; background: var(--wb-surface); color: var(--wb-ink); }
+.mk-term-confirm p { flex-basis: 100%; margin: 0; text-align: center; }

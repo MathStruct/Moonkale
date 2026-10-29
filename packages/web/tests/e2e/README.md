@@ -749,3 +749,9 @@ mouse. It also covers F13, arrow/group navigation, splitting, fifty-tab latency
 and offscreen preview unmounting. `image.mjs` checks held-image thumbnail pixels
 without another content fetch. Registered in `run-all.sh` and CI smoke.
 Screenshot: `overview.png`; raw timings: `overview-measurements.log`.
+
+`terminal-private.mjs` checks a real echo-off canonical prompt, its accessible lock,
+the private overview and Pause sharing. `agent-display.mjs` drives mock display
+tools in Ask, When I'm not typing and Always modes while the person types in
+CodeMirror; checks marked graph selection, preserved focus, typed content limits,
+tables and rate limiting. Both are in run-all.sh and CI smoke.

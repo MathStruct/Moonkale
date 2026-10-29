@@ -448,3 +448,8 @@ overview-window = This window
 overview-close = Close tab
 overview-discard = Close and discard unsaved changes?
 overview-unsaved = Unsaved changes
+
+settings-agent-open-views = Agents may open views
+settings-agent-open-ask = Ask
+settings-agent-open-idle = When I’m not typing
+settings-agent-open-always = Always

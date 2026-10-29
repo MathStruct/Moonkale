@@ -444,3 +444,8 @@ overview-window = Dieses Fenster
 overview-close = Tab schließen
 overview-discard = Schließen und ungespeicherte Änderungen verwerfen?
 overview-unsaved = Ungespeicherte Änderungen
+
+settings-agent-open-views = Agenten dürfen Ansichten öffnen
+settings-agent-open-ask = Nachfragen
+settings-agent-open-idle = Wenn ich nicht tippe
+settings-agent-open-always = Immer

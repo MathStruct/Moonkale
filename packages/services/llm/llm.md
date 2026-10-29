@@ -33,3 +33,6 @@ Tests: `cargo test -p moonkale-llm --features http` (SSE parser, both translator
 
 ## Milestone 15
 `Provider::status() -> Option<ProviderStatus>` (default `None`): `ok`, one-line `summary`, `hint`, `can_login`. `claude_code::cli_status(path)` runs `claude --version` and `claude auth status --json` (15 s timeout, `CLAUDECODE` unset so it works from inside a Claude Code session) → not installed (+ install command) / not logged in / logged in as … / login unknown (older CLI). The mock CLI answers both (`MOCK_CLAUDE_LOGGED_OUT=1` for the logged-out case). Logging in is the CLI's own `claude auth login` in a terminal tab (the ui crate); this crate never handles the credential.
+
+
+WP-70: Built-in ui.reveal/ui.select/ui.show_result/ui.canvas are read-only and session-deniable. llm-types::display owns strict bounded schemas and a deterministic per-conversation budget/rate limiter; UI and server hosts enforce them before publishing content.

@@ -25,3 +25,6 @@ Overview previews use the relay's bounded plain-text tail, with ANSI/control
 sequences removed before `preview::text` applies its line/character limits.
 The native terminal already reads its parsed screen. See the terminal service's
 crate note for bounds and regression tests.
+
+
+WP-71: Accessible localized password marker, private overview, confirmed paste, per-session Pause sharing in the overflow and terminal.pauseSharing palette command. JS reports input only to its owner backend; trace extraction refuses private mode. Relay shared tails exclude private/paused output and clear across transitions.
