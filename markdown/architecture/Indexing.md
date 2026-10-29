@@ -188,6 +188,10 @@ The hermetic five-commit test also switches after commit 3.
 SPEC-010): the same counts, 0 differences and 0 errors in both histories. Raw
 reports: `history-2026-10-28-{lenticulum,moonkale}-v0.1.6.jsonl`.
 
+**Rerun on Sophia v0.1.7** (`5310d80`, 2026-10-29: fixes from a second Codex
+review of SPEC-010): the same counts again, 0 differences and 0 errors in both
+histories. Raw reports: `history-2026-10-29-{lenticulum,moonkale}-v0.1.7.jsonl`.
+
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
 **Current: Sophia v0.1.4** (`919d723`, 2026-10-26): `replace_files` refuses
