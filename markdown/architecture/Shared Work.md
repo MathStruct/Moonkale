@@ -11,6 +11,8 @@ tags: [architecture, collaboration, sessions, agents, comments, requirements]
 
 Builds on [[ADR-0025 Sessions are the outermost state]], [[Collaboration]] (presence today, CRDT editing later), [[Annotations]] (comments, designed), [[Agent Sessions and Profiles]] (now *conversations*) and the [[Security]] rules.
 
+What agents may show in the UI, what working on the graph adds, the share buttons and private terminal input are in [[Agents in the UI and on the Graph]] (2026-10-29).
+
 ## 1. Participants: people and agents in a session
 
 `SW-nn`.
