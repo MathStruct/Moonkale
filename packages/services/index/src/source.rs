@@ -860,6 +860,7 @@ impl Source for IndexSource {
                 text_query: None,
                 extra_text_query: None,
                 atomic_text: false,
+                atomic_rows: false,
             },
             root: self.root,
         }

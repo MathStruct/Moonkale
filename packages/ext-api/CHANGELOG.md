@@ -1,5 +1,13 @@
 # Changelog — the library crates
 
+## Unreleased — typed database rows (WP-14, 2026-10-30)
+
+- `DateTimeCell::source_text` preserves naive values and original minute offsets for typed edits; unsupported local dates/offsets refuse conversion.
+- `RowSnapshot::stored` retains original values where display typing changes the native representation; it defaults empty on old wire snapshots. Undo must prefer these originals.
+- Core adds `RowKey`, `RowSnapshot`, `RowPage`, `RowChange`, `RowOp`, `RowBatch` and default-unsupported `Source::{read_rows,preview_rows,apply_rows}`. Row writes carry exact expected versions; insert asserts absence.
+- `Capabilities::atomic_rows` defaults to false on old wire descriptors. Rust full literals must supply the field. True promises all-or-nothing typed row batches, including stale refusal.
+
+
 ## Unreleased — proposals (WP-49, 2026-10-30)
 
 - Core `Source::preview_text(Transaction)` validates bounded text proposals without authoring; overrides may enforce database constraints. Apply must still recheck versions.

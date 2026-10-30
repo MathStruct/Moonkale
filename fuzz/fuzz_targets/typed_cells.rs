@@ -5,6 +5,9 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let _ = serde_json::from_slice::<moonkale_core::Value>(data);
+    if let Ok(batch) = serde_json::from_slice::<moonkale_core::RowBatch>(data) {
+        let _ = batch.validate();
+    }
     if let Ok(text) = std::str::from_utf8(data) {
         let _ = moonkale_core::DateTimeCell::parse(text);
     }

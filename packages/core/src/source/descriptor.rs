@@ -28,6 +28,9 @@ pub struct Capabilities {
     /// Other sources persist in operation order with per-operation results.
     #[serde(default)]
     pub atomic_text: bool,
+    /// Typed row batches commit or roll back as one database transaction.
+    #[serde(default)]
+    pub atomic_rows: bool,
     /// Dialect accepted by `Query::Text`, if any (`"sql"`).
     pub text_query: Option<TextDialect>,
     /// A second dialect the source also answers, offered beside the first

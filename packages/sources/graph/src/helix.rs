@@ -372,6 +372,7 @@ impl Source for HelixSource {
                 text_query: Some(TextDialect::Helix),
                 extra_text_query: None,
                 atomic_text: false,
+                atomic_rows: false,
             },
             root: self.root_id(),
         }

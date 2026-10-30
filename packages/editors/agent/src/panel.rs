@@ -335,6 +335,9 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
             // Permissions removed in the Extensions panel deny the tools.
             let manifest = crate::extension::AgentExtension.manifest();
             let mut denied = ps.denied_tools;
+            if !ext.has(&manifest, "read-sources") {
+                denied.push("source.read_rows".to_string());
+            }
             if !ext.has(&manifest, "write-files") {
                 denied.extend([
                     "editor.replace".to_string(),

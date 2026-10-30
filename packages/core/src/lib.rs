@@ -57,3 +57,5 @@ pub use source::{
     Shape, Source, SourceDescriptor, SourceFamily, SourceOpener, SourceTruth, Splice, Table,
     TextDialect, TextPatch, Transaction,
 };
+
+pub use source::rows::{RowBatch, RowChange, RowKey, RowOp, RowPage, RowSnapshot};

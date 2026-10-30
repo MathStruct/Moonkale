@@ -41,7 +41,8 @@ pub struct DuckDbSource {
     path: PathBuf,
     /// Data folder mode: the files behind the views.
     files: Vec<PathBuf>,
-    conn: Arc<Mutex<Connection>>,
+    writable: bool,
+    conn: Arc<Mutex<Option<Connection>>>,
     known: RwLock<HashMap<NodeId, String>>,
 }
 
@@ -50,28 +51,39 @@ fn io(e: impl std::fmt::Display) -> SourceError {
 }
 
 impl DuckDbSource {
-    /// Open a `.duckdb` file read-only.
+    /// Open a `.duckdb` file for typed row writes; text queries remain read-only.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, SourceError> {
         let path = std::fs::canonicalize(path)?;
-        // Read-only, and no files beyond the database (#2): DuckDB's table
-        // functions (`read_csv('/etc/passwd')`, `glob`, …) and extension
-        // auto-loading (`httpfs`, `sqlite_scan`) would otherwise reach any
-        // path or URL the process can, whatever the SQL gate says.
+        if path.to_str().is_none() {
+            return Err(SourceError::Invalid(
+                "database paths require an unambiguous UTF-8 source identity".into(),
+            ));
+        }
+        let (conn, writable) = match Self::file_connection(&path, true) {
+            Ok(c) => (c, true),
+            Err(_) => (Self::file_connection(&path, false).map_err(io)?, false),
+        };
+        let mut source = Self::new(format!("duckdb:{}", path.display()), path, Vec::new(), conn);
+        source.writable = writable;
+        Ok(source)
+    }
+
+    // File handles last one operation: external applications may write while
+    // this source is idle. The mutex serializes our own operations; a row batch
+    // keeps this handle and its transaction through commit/rollback.
+    fn file_connection(path: &Path, writable: bool) -> duckdb::Result<Connection> {
         let config = Config::default()
-            .access_mode(AccessMode::ReadOnly)
+            .access_mode(if writable {
+                AccessMode::ReadWrite
+            } else {
+                AccessMode::ReadOnly
+            })
             .and_then(|c| c.enable_external_access(false))
             .and_then(|c| c.enable_autoload_extension(false))
-            .and_then(|c| c.with("autoinstall_known_extensions", "false"))
-            .map_err(io)?;
-        let conn = Connection::open_with_flags(&path, config).map_err(io)?;
-        conn.execute_batch("SET lock_configuration = true")
-            .map_err(io)?;
-        Ok(Self::new(
-            format!("duckdb:{}", path.display()),
-            path,
-            Vec::new(),
-            conn,
-        ))
+            .and_then(|c| c.with("autoinstall_known_extensions", "false"))?;
+        let conn = Connection::open_with_flags(path, config)?;
+        conn.execute_batch("SET lock_configuration = true")?;
+        Ok(conn)
     }
 
     /// An in-memory database whose tables are the data files directly in
@@ -155,11 +167,14 @@ impl DuckDbSource {
         let id = SourceId::new(id);
         let mut known = HashMap::new();
         known.insert(NodeId::derive(&id, ""), String::new());
+        let writable = path.is_file();
+        let memory = if path.is_file() { None } else { Some(conn) };
         Self {
             id,
             path,
             files,
-            conn: Arc::new(Mutex::new(conn)),
+            writable,
+            conn: Arc::new(Mutex::new(memory)),
             known: RwLock::new(known),
         }
     }
@@ -219,9 +234,17 @@ impl DuckDbSource {
         f: impl FnOnce(&Connection) -> duckdb::Result<T> + Send + 'static,
     ) -> Result<T, SourceError> {
         let conn = self.conn.clone();
+        let path = self.path.clone();
         tokio::task::spawn_blocking(move || {
-            let c = conn.lock().unwrap();
-            f(&c)
+            let mut guard = conn.lock().unwrap();
+            let mut file;
+            let c = if let Some(c) = guard.as_mut() {
+                c
+            } else {
+                file = Self::file_connection(&path, false)?;
+                &mut file
+            };
+            f(c)
         })
         .await
         .map_err(io)?
@@ -393,11 +416,12 @@ impl Source for DuckDbSource {
             family: SourceFamily::Sql,
             capabilities: Capabilities {
                 read: true,
-                write: false,
+                write: self.writable,
                 watch: false,
                 text_query: Some(TextDialect::Sql),
                 extra_text_query: None,
                 atomic_text: false,
+                atomic_rows: self.writable,
             },
             root: self.root_id(),
         }
@@ -490,6 +514,41 @@ impl Source for DuckDbSource {
         ))
     }
 
+    async fn read_rows(
+        &self,
+        table: String,
+        limit: usize,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
+        let conn = self.conn.clone();
+        let path = self.path.clone();
+        let writable = self.writable;
+        tokio::task::spawn_blocking(move || {
+            let mut guard = conn.lock().unwrap();
+            let mut file;
+            let c = if let Some(c) = guard.as_mut() {
+                c
+            } else {
+                file = Self::file_connection(&path, writable).map_err(crate::rows::err)?;
+                &mut file
+            };
+            let mut db = RowDb(c);
+            tokio::runtime::Handle::current().block_on(crate::rows::read(&mut db, table, limit))
+        })
+        .await
+        .map_err(crate::rows::err)?
+    }
+
+    async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
+        self.row_batch(batch, true).await.map(|_| ())
+    }
+
+    async fn apply_rows(
+        &self,
+        batch: moonkale_core::RowBatch,
+    ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+        self.row_batch(batch, false).await
+    }
+
     async fn apply(&self, _tx: Transaction) -> Result<Applied, SourceError> {
         Err(SourceError::Unsupported(
             "DuckDB sources are read-only".into(),
@@ -525,6 +584,139 @@ fn numeric_array(values: &dyn duckdb::arrow::array::Array, start: usize, end: us
     moonkale_core::NumericVector::new(out)
         .map(Value::Vector)
         .unwrap_or_else(|| Value::Text("<list>".into()))
+}
+
+impl DuckDbSource {
+    async fn row_batch(
+        &self,
+        batch: moonkale_core::RowBatch,
+        preview: bool,
+    ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+        if !self.descriptor().capabilities.atomic_rows {
+            return Err(SourceError::Unsupported("read-only database".into()));
+        }
+        batch.validate()?;
+        let conn = self.conn.clone();
+        let path = self.path.clone();
+        let writable = self.writable;
+        tokio::task::spawn_blocking(move || {
+            let mut guard = conn.lock().unwrap();
+            let mut file;
+            let c = if let Some(c) = guard.as_mut() {
+                c
+            } else {
+                file = Self::file_connection(&path, writable).map_err(crate::rows::err)?;
+                &mut file
+            };
+            let mut db = RowDb(c);
+            tokio::runtime::Handle::current().block_on(crate::rows::batch(&mut db, batch, preview))
+        })
+        .await
+        .map_err(crate::rows::err)?
+    }
+}
+
+struct RowDb<'a>(&'a mut Connection);
+
+fn bind_row_value(v: Value) -> Result<duckdb::types::Value, SourceError> {
+    use duckdb::types::Value as D;
+    Ok(match v {
+        Value::Null => D::Null,
+        Value::Int(n) => D::BigInt(n),
+        Value::Float(n) if n.is_finite() => D::Double(n),
+        Value::Bool(b) => D::Boolean(b),
+        Value::Text(s) => D::Text(s),
+        Value::DateTime(d) => D::Text(Value::DateTime(d).to_string()),
+        Value::Vector(v) => D::Text(serde_json::to_string(v.as_slice()).map_err(crate::rows::err)?),
+        _ => {
+            return Err(SourceError::Unsupported(
+                "this cell type cannot be written".into(),
+            ))
+        }
+    })
+}
+
+#[async_trait]
+impl crate::rows::Db for RowDb<'_> {
+    async fn query(
+        &mut self,
+        sql: &str,
+        params: Vec<Value>,
+    ) -> Result<Vec<Vec<Value>>, SourceError> {
+        let params = params
+            .into_iter()
+            .map(bind_row_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut st = self.0.prepare(sql).map_err(crate::rows::err)?;
+        let mut it = st
+            .query(duckdb::params_from_iter(params))
+            .map_err(crate::rows::err)?;
+        let mut out = Vec::new();
+        let mut bytes = 0usize;
+        while let Some(r) = it.next().map_err(crate::rows::err)? {
+            if out.len() > 4096 {
+                return Err(SourceError::Invalid("row/catalog budget exceeded".into()));
+            }
+            let n = r.as_ref().column_count();
+            let mut row = Vec::new();
+            for i in 0..n {
+                let value = match r.get_ref(i).map_err(crate::rows::err)? {
+                    ValueRef::Null => Value::Null,
+                    ValueRef::Text(s) if s.len() <= 512 * 1024 => {
+                        Value::Text(String::from_utf8(s.to_vec()).map_err(crate::rows::err)?)
+                    }
+                    ValueRef::Boolean(b) => Value::Bool(b),
+                    ValueRef::TinyInt(n) => Value::Int(n.into()),
+                    ValueRef::SmallInt(n) => Value::Int(n.into()),
+                    ValueRef::Int(n) => Value::Int(n.into()),
+                    ValueRef::BigInt(n) => Value::Int(n),
+                    ValueRef::Float(n) if n.is_finite() => Value::Float(n.into()),
+                    ValueRef::Double(n) if n.is_finite() => Value::Float(n),
+                    v @ (ValueRef::Date32(_) | ValueRef::Timestamp(_, _)) => {
+                        let value = convert(v);
+                        if !matches!(value, Value::DateTime(_)) {
+                            return Err(crate::rows::err("date outside supported range"));
+                        }
+                        value
+                    }
+                    v @ (ValueRef::List(_, _) | ValueRef::Array(_, _)) => {
+                        let value = convert(v);
+                        if !matches!(value, Value::Vector(_)) {
+                            return Err(crate::rows::err(
+                                "list is not a bounded finite numeric vector",
+                            ));
+                        }
+                        value
+                    }
+                    _ => {
+                        return Err(SourceError::Unsupported(
+                            "lossless row versions for this cell type are unavailable".into(),
+                        ))
+                    }
+                };
+                crate::rows::budget(&mut bytes, &value)?;
+                row.push(value);
+            }
+            out.push(row);
+        }
+        Ok(out)
+    }
+    async fn execute(&mut self, sql: &str, params: Vec<Value>) -> Result<(), SourceError> {
+        let params = params
+            .into_iter()
+            .map(bind_row_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.0
+            .execute(sql, duckdb::params_from_iter(params))
+            .map_err(crate::rows::err)?;
+        Ok(())
+    }
+    async fn schema(&mut self, table: &str) -> Result<crate::rows::Schema, SourceError> {
+        crate::rows::duck_schema(self, table).await
+    }
+    fn begin(&self) -> &'static str {
+        "BEGIN TRANSACTION"
+    }
 }
 
 #[cfg(test)]

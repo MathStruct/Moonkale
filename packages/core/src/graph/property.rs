@@ -132,6 +132,22 @@ impl DateTimeCell {
     pub fn offset(&self) -> Option<i32> {
         self.offset
     }
+    /// Lossless bounded text for an editable SQL date/time. Naive values stay
+    /// naive; offset values retain their original wall time and minute offset.
+    /// Exotic subminute offsets or overflowing local dates refuse conversion.
+    pub fn source_text(&self) -> Option<String> {
+        let Some(offset) = self.offset else {
+            return Some(self.utc.format("%Y-%m-%d %H:%M:%S%.f").to_string());
+        };
+        if offset % 60 != 0 {
+            return None;
+        }
+        self.utc
+            .checked_add_signed(chrono::Duration::seconds(i64::from(offset)))?;
+        let offset = chrono::FixedOffset::east_opt(offset)?;
+        Some(self.utc.with_timezone(&offset).to_rfc3339())
+    }
+
     /// Locale-specific ordering and punctuation; uses the original wall time,
     /// or UTC for sources without offset metadata.
     pub fn display(&self, locale: &str) -> String {
@@ -298,5 +314,23 @@ mod typed_tests {
             let json = serde_json::to_string(&v).unwrap();
             assert_eq!(serde_json::from_str::<Value>(&json).unwrap(), v);
         }
+    }
+    #[test]
+    fn sql_date_text_preserves_naive_values_offsets_and_subseconds() {
+        for text in [
+            "2026-10-30 11:45:00.000000001",
+            "2026-10-30T11:45:00+02:00",
+            "2026-10-30T11:45:00-05:30",
+        ] {
+            let date = DateTimeCell::parse(text).unwrap();
+            assert_eq!(
+                DateTimeCell::parse(&date.source_text().unwrap()),
+                Some(date)
+            );
+        }
+        assert!(DateTimeCell::new(0, 0, Some(1))
+            .unwrap()
+            .source_text()
+            .is_none());
     }
 }

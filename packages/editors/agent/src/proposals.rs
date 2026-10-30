@@ -46,13 +46,30 @@ struct Conflict {
     version: Version,
 }
 #[derive(Clone)]
+struct Rows {
+    source: SourceId,
+    source_name: String,
+    handle: std::sync::Arc<dyn moonkale_core::Source>,
+    batch: moonkale_core::RowBatch,
+    bases: Vec<Option<moonkale_core::RowSnapshot>>,
+    selected: bool,
+}
+#[derive(Clone)]
+struct RowConflict {
+    source: SourceId,
+    op: usize,
+    current: Option<moonkale_core::RowSnapshot>,
+}
+#[derive(Clone)]
 struct Proposal {
     id: String,
     outer: String,
     actor: String,
     created: u64,
     files: Vec<File>,
+    rows: Vec<Rows>,
     conflict: Option<Conflict>,
+    row_conflict: Option<RowConflict>,
     report: String,
     busy: bool,
 }
@@ -88,7 +105,7 @@ impl Inbox {
                 .0
                 .read()
                 .iter()
-                .filter(|p| p.outer == outer && !p.files.is_empty())
+                .filter(|p| p.outer == outer && (!p.files.is_empty() || !p.rows.is_empty()))
                 .count()
     }
     fn update(ws: Workspace, id: &str, edit: impl FnOnce(&mut Proposal)) {
@@ -127,10 +144,13 @@ impl Inbox {
     }
     fn reject(ws: Workspace, id: &str) {
         Self::update(ws, id, |p| {
-            if !p.busy && p.files.iter().any(|f| f.selected) {
+            if !p.busy && (p.files.iter().any(|f| f.selected) || p.rows.iter().any(|r| r.selected))
+            {
+                p.rows.retain(|r| !r.selected);
                 p.files
                     .retain(|f| !f.selected && f.phase != FilePhase::Saved);
                 p.conflict = None;
+                p.row_conflict = None;
             }
         });
     }
@@ -183,9 +203,18 @@ pub(crate) async fn submit(
             .get("files")
             .and_then(|v| v.as_array())
             .cloned()
-            .ok_or("files is required")?
+            .unwrap_or_default()
     };
-    if inputs.is_empty() || inputs.len() > MAX_FILES || call.input.to_string().len() > MAX_BYTES {
+    let row_inputs = call
+        .input
+        .get("rows")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if (inputs.is_empty() && row_inputs.is_empty())
+        || inputs.len() + row_inputs.len() > MAX_FILES
+        || call.input.to_string().len() > MAX_BYTES
+    {
         return Err("proposal exceeds the file/text budget".into());
     }
     if Inbox::get(ws).0.peek().len() >= MAX_PENDING {
@@ -310,6 +339,58 @@ pub(crate) async fn submit(
             phase: FilePhase::Pending,
         });
     }
+    let mut rows = Vec::new();
+    let mut row_sources = BTreeSet::new();
+    for input in row_inputs {
+        let source = SourceId::new(
+            input
+                .get("source")
+                .and_then(|v| v.as_str())
+                .ok_or("row source is required")?,
+        );
+        if !row_sources.insert(source.clone()) {
+            return Err("combine operations from one database into one row batch".into());
+        }
+        let h = handle(ws, &source)?;
+        if !h.descriptor.capabilities.atomic_rows {
+            return Err("source does not support atomic row writes".into());
+        }
+        let batch: moonkale_core::RowBatch =
+            serde_json::from_value(input.get("batch").cloned().ok_or("row batch is required")?)
+                .map_err(|e| e.to_string())?;
+        batch.validate().map_err(|e| e.to_string())?;
+        h.source
+            .preview_rows(batch.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        bytes = bytes.saturating_add(serde_json::to_vec(&batch).map_err(|e| e.to_string())?.len());
+        let mut bases = Vec::new();
+        for op in &batch.ops {
+            let page = h
+                .source
+                .read_rows(op.table.clone(), 1000)
+                .await
+                .map_err(|e| e.to_string())?;
+            let base = page.rows.into_iter().find(|r| r.key == op.key);
+            if op.expected != base.as_ref().map(|r| r.version) {
+                return Err("row is stale or outside the review page; read it again".into());
+            }
+            bytes =
+                bytes.saturating_add(serde_json::to_vec(&base).map_err(|e| e.to_string())?.len());
+            if bytes > MAX_BYTES {
+                return Err("proposal exceeds row/text budget".into());
+            }
+            bases.push(base);
+        }
+        rows.push(Rows {
+            source,
+            source_name: h.descriptor.display_name.clone(),
+            handle: h.source,
+            batch,
+            bases,
+            selected: true,
+        });
+    }
     // Validate every captured buffer after asynchronous loading.
     let plans: Vec<_> = files.iter().filter_map(|f| f.plan.clone()).collect();
     if !plans.is_empty() {
@@ -349,7 +430,9 @@ pub(crate) async fn submit(
             actor,
             created,
             files,
+            rows,
             conflict: None,
+            row_conflict: None,
             report: String::new(),
             busy: false,
         }))
@@ -370,7 +453,8 @@ async fn apply(mut ws: Workspace, p: Rc<Proposal>) {
     };
     if p.busy
         || p.conflict.is_some()
-        || !p.files.iter().any(|f| f.selected)
+        || p.row_conflict.is_some()
+        || !(p.files.iter().any(|f| f.selected) || p.rows.iter().any(|r| r.selected))
         || !active(ws, &p.outer)
     {
         return;
@@ -390,10 +474,94 @@ async fn apply(mut ws: Workspace, p: Rc<Proposal>) {
         ws.set_status(t!(ws, L, "proposal-reviewed"));
     }
 }
+fn row_diff(
+    op: &moonkale_core::RowOp,
+    base: Option<&moonkale_core::RowSnapshot>,
+) -> Vec<(String, String, String)> {
+    use moonkale_core::RowChange;
+    let before = base.map(|r| r.values.clone()).unwrap_or_default();
+    let after = match &op.change {
+        RowChange::Insert(values) => values.clone(),
+        RowChange::Delete => Default::default(),
+        RowChange::Update(values) => {
+            let mut after = before.clone();
+            after.extend(values.clone());
+            after
+        }
+    };
+    before
+        .keys()
+        .chain(after.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .filter_map(|key| {
+            (before.get(&key) != after.get(&key)).then(|| {
+                let old = before
+                    .get(&key)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "—".into());
+                let new = after
+                    .get(&key)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "—".into());
+                (key, old, new)
+            })
+        })
+        .collect()
+}
+
+async fn row_conflict(ws: Workspace, p: &Proposal, rows: &Rows) -> Result<(), String> {
+    let h = handle(ws, &rows.source)?;
+    if !std::sync::Arc::ptr_eq(&h.source, &rows.handle) {
+        return Err("row source was replaced".into());
+    }
+    for (index, op) in rows.batch.ops.iter().enumerate() {
+        let page = h
+            .source
+            .read_rows(op.table.clone(), 1000)
+            .await
+            .map_err(|e| e.to_string())?;
+        if !active(ws, &p.outer) {
+            return Err("session changed".into());
+        }
+        let current = page.rows.into_iter().find(|r| r.key == op.key);
+        if current.as_ref().map(|r| r.version) != op.expected {
+            Inbox::update(ws, &p.id, |p| {
+                p.row_conflict = Some(RowConflict {
+                    source: rows.source.clone(),
+                    op: index,
+                    current,
+                })
+            });
+            return Ok(());
+        }
+    }
+    Inbox::update(ws, &p.id, |p| p.row_conflict = None);
+    Ok(())
+}
+
 async fn apply_inner(mut ws: Workspace, p: &Proposal) -> Result<(), String> {
     let selected: Vec<_> = p.files.iter().filter(|f| f.selected).collect();
-    if selected.is_empty() {
+    if selected.is_empty() && !p.rows.iter().any(|r| r.selected) {
         return Err("Select at least one file".into());
+    }
+    // Preview every database before mutating any file. Apply checks again;
+    // sources commit in order and never claim a cross-database transaction.
+    for rows in p.rows.iter().filter(|r| r.selected) {
+        let h = handle(ws, &rows.source)?;
+        if !std::sync::Arc::ptr_eq(&h.source, &rows.handle) {
+            return Err("row source was replaced; reopen review".into());
+        }
+        if let Err(e) = h.source.preview_rows(rows.batch.clone()).await {
+            if matches!(e, moonkale_core::SourceError::Conflict { .. }) {
+                row_conflict(ws, p, rows).await?;
+            }
+            return Err(e.to_string());
+        }
+        if !active(ws, &p.outer) {
+            return Err("session changed".into());
+        }
     }
     // Refuse the whole selected set before changing any buffer if disk or editor drifted.
     for (index, file) in p.files.iter().enumerate().filter(|(_, f)| f.selected) {
@@ -618,6 +786,39 @@ async fn apply_inner(mut ws: Workspace, p: &Proposal) -> Result<(), String> {
         });
         ws.refresh_source(source).await;
     }
+    for rows in p.rows.iter().filter(|r| r.selected) {
+        if !active(ws, &p.outer) {
+            return Err("session changed after earlier source results; review the report".into());
+        }
+        let h = handle(ws, &rows.source)?;
+        if !std::sync::Arc::ptr_eq(&h.source, &rows.handle) {
+            return Err("row source was replaced".into());
+        }
+        match h.source.apply_rows(rows.batch.clone()).await {
+            Ok(_) => {
+                report.push(format!(
+                    "{}: {}",
+                    rows.source_name,
+                    t!(ws, L, "proposal-saved-atomic")
+                ));
+                Inbox::update(ws, &p.id, |p| {
+                    p.rows.retain(|r| r.source != rows.source);
+                    p.report = report.join("\n");
+                });
+            }
+            Err(e) => {
+                if matches!(e, moonkale_core::SourceError::Conflict { .. }) {
+                    row_conflict(ws, p, rows).await?;
+                }
+                return Err(format!(
+                    "{}\n{}: {}",
+                    report.join("\n"),
+                    rows.source_name,
+                    e
+                ));
+            }
+        }
+    }
     let report = report.join("\n");
     Inbox::update(ws, &p.id, |p| {
         p.files
@@ -670,6 +871,76 @@ pub(crate) fn Panel(ws: Workspace) -> Element {
                         }
                     } }
                 } }
+                for (index, rows) in p.rows.iter().enumerate() { {
+                    let id = id.clone();
+                    rsx! { details { key: "rows:{rows.source}", open: true, class: "mk-proposal-rows", "data-source": "{rows.source}",
+                        summary { label {
+                            input { r#type: "checkbox", checked: rows.selected, disabled: p.busy,
+                                onchange: move |e: FormEvent| Inbox::update(ws, &id, |p| { if !p.busy { p.rows[index].selected=e.checked(); } }) }
+                            "{rows.source_name}"
+                        } }
+                        for (op, base) in rows.batch.ops.iter().zip(&rows.bases) {
+                            div { class: "mk-proposal-table", "data-table": "{op.table}",
+                                p { "{op.table}" }
+                                table { class: "mk-proposal-cell-diff",
+                                    thead { tr { th { {t!(ws,L,"proposal-row-column")} } th { {t!(ws,L,"proposal-row-before")} } th { {t!(ws,L,"proposal-row-after")} } } }
+                                    tbody { for (column,old,new) in row_diff(op,base.as_ref()) { tr { key: "{column}", td { "{column}" } td { pre { "{old}" } } td { pre { "{new}" } } } } }
+                                }
+                            }
+                        }
+                    } }
+                } }
+                if let Some(conflict) = &p.row_conflict { {
+                    let source = conflict.source.clone();
+                    let index = conflict.op;
+                    let group = p.rows.iter().find(|r| r.source == source);
+                    let id = id.clone();
+                    let keep = id.clone();
+                    let discard = id.clone();
+                    let reopen = id.clone();
+                    let mine = group.map(|r| row_diff(&r.batch.ops[index],r.bases[index].as_ref()).into_iter().map(|(col,_,new)|format!("{col}: {new}")).collect::<Vec<_>>().join("\n")).unwrap_or_default();
+                    let base = group.and_then(|r| r.bases[index].as_ref()).map(|r| r.values.iter().map(|(col,value)|format!("{col}: {value}")).collect::<Vec<_>>().join("\n")).unwrap_or_default();
+                    let current = conflict.current.clone();
+                    let current_text = current.as_ref().map(|r| r.values.iter().map(|(col,value)|format!("{col}: {value}")).collect::<Vec<_>>().join("\n")).unwrap_or_default();
+                    let keep_source=source.clone();
+                    let discard_source=source.clone();
+                    rsx! { div { class: "mk-proposal-row-conflict", role: "alert",
+                        p { {t!(ws,L,"proposal-stale")} }
+                        p { {t!(ws,L,"proposal-current-unknown")} }
+                        div { class: "mk-three-way-sides", pre { "{base}" } pre { "{mine}" } pre { "{current_text}" } }
+                        button { class: "mk-proposal-row-mine", disabled:p.busy,
+                            onclick: move |_| Inbox::update(ws,&keep,|p| {
+                                if p.busy { return; }
+                                if let Some(rows)=p.rows.iter_mut().find(|r|r.source==keep_source) {
+                                    use moonkale_core::RowChange;
+                                    let op=&mut rows.batch.ops[index];
+                                    match (&op.change,&current) {
+                                        (RowChange::Insert(values),Some(_)) => op.change=RowChange::Update(values.clone()),
+                                        (RowChange::Update(values),None) => {
+                                            let mut all=rows.bases[index].as_ref().map(|r| { let mut values=r.values.clone(); values.extend(r.stored.clone()); values }).unwrap_or_default();
+                                            all.extend(op.key.clone());
+                                            all.extend(values.clone()); op.change=RowChange::Insert(all);
+                                        }
+                                        (RowChange::Delete,None) => { rows.batch.ops.remove(index); rows.bases.remove(index); p.rows.retain(|r|!r.batch.ops.is_empty()); p.row_conflict=None; return; }
+                                        _ => {}
+                                    }
+                                    op.expected=current.as_ref().map(|r|r.version);
+                                    rows.bases[index]=current.clone();
+                                }
+                                p.row_conflict=None;
+                            }), {t!(ws,L,"proposal-row-mine")} }
+                        button { class: "mk-proposal-row-current", disabled:p.busy,
+                            onclick: move |_| Inbox::update(ws,&discard,|p| { if !p.busy {
+                                if let Some(rows)=p.rows.iter_mut().find(|r|r.source==discard_source) { rows.batch.ops.remove(index); rows.bases.remove(index); }
+                                p.rows.retain(|r|!r.batch.ops.is_empty()); p.row_conflict=None;
+                            } }), {t!(ws,L,"proposal-row-current")} }
+                        button { class: "mk-proposal-row-reopen", disabled:p.busy,
+                            onclick: move |_| { let id=reopen.clone(); let source=source.clone(); moonkale_ext_api::crash::spawn(async move {
+                                let p=Inbox::get(ws).0.peek().iter().find(|p|p.id==id).cloned();
+                                if let Some(p)=p { if let Some(rows)=p.rows.iter().find(|r|r.source==source) { let _=row_conflict(ws,&p,rows).await; } }
+                            }); }, {t!(ws,L,"proposal-reopen")} }
+                    } }
+                } }
                 if let Some(conflict) = &p.conflict { {
                     let file = &p.files[conflict.file];
                     let id = id.clone();
@@ -701,8 +972,8 @@ pub(crate) fn Panel(ws: Workspace) -> Element {
                         }
                     } }
                 } }
-                if !p.files.is_empty() {
-                    button { class: "mk-btn mk-btn-on mk-proposal-approve", disabled: p.busy || p.conflict.is_some(),
+                if !p.files.is_empty() || !p.rows.is_empty() {
+                    button { class: "mk-btn mk-btn-on mk-proposal-approve", disabled: p.busy || p.conflict.is_some() || p.row_conflict.is_some(),
                         onclick: { let p=p.clone(); move |_| { let p=p.clone(); moonkale_ext_api::crash::spawn_forever(apply(ws,p)); } }, {t!(ws,L,"proposal-approve")} }
                     button { class: "mk-btn mk-proposal-reject", disabled: p.busy,
                         onclick: { let id=id.clone(); move |_| Inbox::reject(ws,&id) }, {t!(ws,L,"proposal-reject")} }
@@ -1389,6 +1660,196 @@ mod tests {
             assert_eq!(source.0.lock().unwrap()[&node("a").id].0, "AA\n");
             assert_eq!(source.0.lock().unwrap()[&node("b").id].0, "BB\n");
             assert!(Inbox::get(ws).0.peek()[0].files.is_empty());
+        });
+    }
+
+    #[derive(Clone)]
+    struct RowMemory {
+        row: Arc<Mutex<moonkale_core::RowSnapshot>>,
+        race: Arc<std::sync::atomic::AtomicBool>,
+    }
+    impl RowMemory {
+        fn new() -> Self {
+            Self {
+                row: Arc::new(Mutex::new(moonkale_core::RowSnapshot {
+                    key: BTreeMap::from([("id".into(), moonkale_core::Value::Int(1))]),
+                    values: BTreeMap::from([
+                        ("id".into(), moonkale_core::Value::Int(1)),
+                        ("name".into(), moonkale_core::Value::Text("original".into())),
+                    ]),
+                    stored: Default::default(),
+                    version: Version(1),
+                })),
+                race: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            }
+        }
+        fn batch(&self) -> moonkale_core::RowBatch {
+            moonkale_core::RowBatch {
+                ops: vec![moonkale_core::RowOp {
+                    table: "items".into(),
+                    key: self.row.lock().unwrap().key.clone(),
+                    expected: Some(Version(1)),
+                    change: moonkale_core::RowChange::Update(BTreeMap::from([(
+                        "name".into(),
+                        moonkale_core::Value::Text("proposed".into()),
+                    )])),
+                }],
+            }
+        }
+    }
+    #[moonkale_core::async_trait]
+    impl Source for RowMemory {
+        fn id(&self) -> SourceId {
+            SourceId::new("row-proposal-tests")
+        }
+        fn descriptor(&self) -> SourceDescriptor {
+            SourceDescriptor {
+                id: self.id(),
+                root: NodeId::derive(&self.id(), ""),
+                display_name: "SQL fixture".into(),
+                family: SourceFamily::Sql,
+                truth: SourceTruth::Files,
+                capabilities: moonkale_core::Capabilities {
+                    read: true,
+                    write: true,
+                    atomic_rows: true,
+                    ..Default::default()
+                },
+            }
+        }
+        async fn query(&self, _: Query) -> Result<moonkale_core::QueryResult, SourceError> {
+            Err(SourceError::Unsupported("fixture".into()))
+        }
+        async fn fetch_text(&self, _: NodeId) -> Result<(String, Version), SourceError> {
+            Err(SourceError::Unsupported("fixture".into()))
+        }
+        async fn apply(&self, _: Transaction) -> Result<Applied, SourceError> {
+            Err(SourceError::Unsupported("fixture".into()))
+        }
+        async fn read_rows(
+            &self,
+            _: String,
+            _: usize,
+        ) -> Result<moonkale_core::RowPage, SourceError> {
+            Ok(moonkale_core::RowPage {
+                columns: vec!["id".into(), "name".into()],
+                rows: vec![self.row.lock().unwrap().clone()],
+                ..Default::default()
+            })
+        }
+        async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
+            batch.validate()?;
+            let actual = self.row.lock().unwrap().version;
+            if let Some(op) = batch.ops.iter().find(|op| op.expected != Some(actual)) {
+                return Err(SourceError::Conflict {
+                    expected: op.expected.unwrap_or_default(),
+                    actual,
+                });
+            }
+            Ok(())
+        }
+        async fn apply_rows(
+            &self,
+            batch: moonkale_core::RowBatch,
+        ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+            if self.race.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                self.row.lock().unwrap().version = Version(2);
+            }
+            self.preview_rows(batch.clone()).await?;
+            let mut row = self.row.lock().unwrap();
+            let mut result = Vec::new();
+            for op in batch.ops {
+                if let moonkale_core::RowChange::Update(values) = op.change {
+                    row.values.extend(values);
+                    row.version.0 += 1;
+                    result.push(Some(row.clone()));
+                }
+            }
+            Ok(result)
+        }
+    }
+    fn mixed(ws: Workspace, rows: &RowMemory) -> Rc<Proposal> {
+        let mut call = call();
+        call.input["rows"] = serde_json::json!([{"source":rows.id(),"batch":rows.batch()}]);
+        submit(
+            ws,
+            ws.saved_sessions.active.peek().clone(),
+            "agent".into(),
+            call,
+        )
+        .now_or_never()
+        .unwrap()
+        .unwrap();
+        Inbox::get(ws).0.peek().last().unwrap().clone()
+    }
+    #[test]
+    fn two_files_and_sql_are_nonmutating_until_one_review() {
+        let (dom, mut ws, files) = setup();
+        dom.in_scope(ScopeId::ROOT, || {
+            let rows = RowMemory::new();
+            ws.add_source(Arc::new(rows.clone()));
+            let p = mixed(ws, &rows);
+            assert_eq!(rows.row.lock().unwrap().version, Version(1));
+            assert_eq!(files.0.lock().unwrap()[&node("a").id].0, "A\n");
+            assert_eq!(
+                row_diff(&p.rows[0].batch.ops[0], p.rows[0].bases[0].as_ref()),
+                vec![("name".into(), "original".into(), "proposed".into())]
+            );
+            apply_inner(ws, &p).now_or_never().unwrap().unwrap();
+            assert_eq!(
+                rows.row.lock().unwrap().values["name"],
+                moonkale_core::Value::Text("proposed".into())
+            );
+            assert_eq!(files.0.lock().unwrap()[&node("a").id].0, "AA\n");
+            assert_eq!(files.0.lock().unwrap()[&node("b").id].0, "BB\n");
+            assert!(Inbox::get(ws).0.peek()[0].rows.is_empty());
+        });
+    }
+    #[test]
+    fn stale_sql_preflight_changes_no_file_and_opens_row_comparison() {
+        let (dom, mut ws, files) = setup();
+        dom.in_scope(ScopeId::ROOT, || {
+            let rows = RowMemory::new();
+            ws.add_source(Arc::new(rows.clone()));
+            let p = mixed(ws, &rows);
+            rows.row.lock().unwrap().version = Version(2);
+            assert!(apply_inner(ws, &p).now_or_never().unwrap().is_err());
+            assert_eq!(files.0.lock().unwrap()[&node("a").id].0, "A\n");
+            assert_eq!(ws.document(node("b").id).unwrap().peek().text, "B\n");
+            assert!(Inbox::get(ws).0.peek()[0].row_conflict.is_some());
+        });
+    }
+    #[test]
+    fn late_sql_conflict_retains_ordered_file_successes_for_second_review() {
+        let (dom, mut ws, files) = setup();
+        dom.in_scope(ScopeId::ROOT, || {
+            let rows = RowMemory::new();
+            ws.add_source(Arc::new(rows.clone()));
+            let p = mixed(ws, &rows);
+            rows.race.store(true, std::sync::atomic::Ordering::SeqCst);
+            assert!(apply_inner(ws, &p).now_or_never().unwrap().is_err());
+            assert_eq!(files.0.lock().unwrap()[&node("a").id].0, "AA\n");
+            assert_eq!(
+                rows.row.lock().unwrap().values["name"],
+                moonkale_core::Value::Text("original".into())
+            );
+            let partial = Inbox::get(ws).0.peek()[0].clone();
+            assert!(partial.row_conflict.is_some());
+            assert!(partial
+                .files
+                .iter()
+                .all(|f| f.phase == FilePhase::Saved && !f.selected));
+            Inbox::update(ws, &p.id, |p| {
+                p.rows[0].batch.ops[0].expected = Some(Version(2));
+                p.rows[0].bases[0] = Some(rows.row.lock().unwrap().clone());
+                p.row_conflict = None;
+            });
+            let retry = Inbox::get(ws).0.peek()[0].clone();
+            apply_inner(ws, &retry).now_or_never().unwrap().unwrap();
+            assert_eq!(
+                rows.row.lock().unwrap().values["name"],
+                moonkale_core::Value::Text("proposed".into())
+            );
         });
     }
 

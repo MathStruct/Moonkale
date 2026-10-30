@@ -151,6 +151,17 @@ impl WorkspaceHost {
                     slice
                 ))
             }
+            "source.read_rows" => {
+                let (source, _) = source_of(ws, &call)?;
+                let page = source
+                    .read_rows(
+                        call.str("table").ok_or("table is required")?.to_string(),
+                        call.u64("limit").unwrap_or(100).min(1000) as usize,
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
+                serde_json::to_string(&page).map_err(|e| e.to_string())
+            }
             "source.text_query" => {
                 let (source, _) = source_of(ws, &call)?;
                 let res = source

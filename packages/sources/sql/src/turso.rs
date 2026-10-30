@@ -39,7 +39,13 @@ impl TursoSource {
     /// Open an existing Turso/SQLite file (never creates one).
     pub async fn open(path: impl AsRef<Path>) -> Result<Self, SourceError> {
         let path = std::fs::canonicalize(path)?;
+        if path.to_str().is_none() {
+            return Err(SourceError::Invalid(
+                "database paths require an unambiguous UTF-8 source identity".into(),
+            ));
+        }
         let db = turso::Builder::new_local(&path.to_string_lossy())
+            .experimental_generated_columns(true)
             .build()
             .await
             .map_err(|e| SourceError::Io(e.to_string()))?;
@@ -210,11 +216,12 @@ impl Source for TursoSource {
             family: SourceFamily::Sql,
             capabilities: Capabilities {
                 read: true,
-                write: false,
+                write: true,
                 watch: false,
                 text_query: Some(TextDialect::Sql),
                 extra_text_query: None,
                 atomic_text: false,
+                atomic_rows: true,
             },
             root: self.root_id(),
         }
@@ -310,10 +317,108 @@ impl Source for TursoSource {
         ))
     }
 
+    async fn read_rows(
+        &self,
+        table: String,
+        limit: usize,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
+        crate::rows::read(&mut RowDb(self.db.connect().map_err(err)?), table, limit).await
+    }
+    async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
+        crate::rows::batch(&mut RowDb(self.db.connect().map_err(err)?), batch, true)
+            .await
+            .map(|_| ())
+    }
+    async fn apply_rows(
+        &self,
+        batch: moonkale_core::RowBatch,
+    ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+        crate::rows::batch(&mut RowDb(self.db.connect().map_err(err)?), batch, false).await
+    }
+
     async fn apply(&self, _tx: Transaction) -> Result<Applied, SourceError> {
         Err(SourceError::Unsupported(
-            "Turso sources are read-only in this milestone".into(),
+            "SQL writes require typed row operations".into(),
         ))
+    }
+}
+
+struct RowDb(turso::Connection);
+
+fn bind_row_value(v: Value) -> Result<turso::Value, SourceError> {
+    use turso::Value as D;
+    Ok(match v {
+        Value::Null => D::Null,
+        Value::Int(n) => D::Integer(n),
+        Value::Float(n) if n.is_finite() => D::Real(n),
+        Value::Bool(b) => D::Integer(i64::from(b)),
+        Value::Text(s) => D::Text(s),
+        Value::DateTime(d) => D::Text(d.source_text().ok_or_else(|| {
+            SourceError::Unsupported("date offset cannot be represented losslessly".into())
+        })?),
+        _ => {
+            return Err(SourceError::Unsupported(
+                "this cell type cannot be written".into(),
+            ))
+        }
+    })
+}
+
+#[async_trait]
+impl crate::rows::Db for RowDb {
+    async fn query(
+        &mut self,
+        sql: &str,
+        params: Vec<Value>,
+    ) -> Result<Vec<Vec<Value>>, SourceError> {
+        let params = params
+            .into_iter()
+            .map(bind_row_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut statement = self.0.prepare(sql).await.map_err(err)?;
+        let declared: Vec<_> = statement
+            .columns()
+            .iter()
+            .map(|c| c.decl_type().map(str::to_owned))
+            .collect();
+        let mut rows = statement.query(params).await.map_err(err)?;
+        let n = rows.column_names().len();
+        let mut out = Vec::new();
+        let mut bytes = 0usize;
+        while let Some(row) = rows.next().await.map_err(err)? {
+            if out.len() > 4096 {
+                return Err(err("row/catalog budget exceeded"));
+            }
+            let mut values = Vec::new();
+            for (i, declared_type) in declared.iter().enumerate().take(n) {
+                let value = match row.get_value(i).map_err(err)? {
+                    turso::Value::Null => Value::Null,
+                    turso::Value::Integer(n) => Value::Int(n),
+                    turso::Value::Real(n) if n.is_finite() => Value::Float(n),
+                    turso::Value::Text(s) => crate::typed_text(s, declared_type.as_deref()),
+                    _ => {
+                        return Err(SourceError::Unsupported(
+                            "lossless row versions for this cell type are unavailable".into(),
+                        ))
+                    }
+                };
+                crate::rows::budget(&mut bytes, &value)?;
+                values.push(value);
+            }
+            out.push(values);
+        }
+        Ok(out)
+    }
+    async fn execute(&mut self, sql: &str, params: Vec<Value>) -> Result<(), SourceError> {
+        let params = params
+            .into_iter()
+            .map(bind_row_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.0.execute(sql, params).await.map_err(err)?;
+        Ok(())
+    }
+    async fn schema(&mut self, table: &str) -> Result<crate::rows::Schema, SourceError> {
+        crate::rows::sqlite_schema(self, table).await
     }
 }
 

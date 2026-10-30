@@ -23,6 +23,8 @@ c.executescript("""
 CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, score REAL);
 INSERT INTO users(name, score) VALUES ('ann', 1.5), ('bob', NULL), ('cid', 3.25);
 CREATE TABLE tags(id INTEGER PRIMARY KEY, label TEXT);
+CREATE TABLE edit_rows(id INTEGER PRIMARY KEY, name TEXT, score REAL);
+INSERT INTO edit_rows VALUES(1,'original',1.5),(2,'second',2.5);
 CREATE TABLE dates(instant DATETIME, day DATE, text_date TEXT);
 INSERT INTO dates VALUES ('2026-10-23T10:30:00+02:00', '2026-10-23', '2026-10-23');
 """)

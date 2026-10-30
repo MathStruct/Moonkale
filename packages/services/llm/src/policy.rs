@@ -58,6 +58,7 @@ impl Policy {
             "terminal.run" => classify_command(call.str("command").unwrap_or_default()),
             // The built-in read tools.
             "workspace.list_sources"
+            | "source.read_rows"
             | "graph.query"
             | "graph.fetch"
             | "index.search"

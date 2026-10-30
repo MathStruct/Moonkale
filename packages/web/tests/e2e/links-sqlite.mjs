@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 import { firefox } from "playwright";
 const S = process.env.M1_SHOTS ?? ".";
 const browser = await firefox.launch();
@@ -34,7 +35,7 @@ try {
   });
   await step("click the users table → table panel with 3 rows", async () => {
     await page.click(".mk-tree-db >> text=users");
-    await page.waitForSelector(".mk-table-grid", { timeout: 15000 });
+    await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     const rows = await page.$$eval(".mk-table-grid .mk-table-row", (els) => els.length);
     const head = await page.$$eval(".mk-table-grid .mk-table-hname", (els) => els.map((e) => e.textContent));
     if (rows !== 3 || head.join() !== "id,name,score") throw new Error(`rows=${rows} head=${head}`);
@@ -42,11 +43,11 @@ try {
     if (nulls !== 1) throw new Error(`nulls ${nulls}`);
   });
   await step("custom SQL runs; a write is refused with a clear message", async () => {
-    await page.fill(".mk-table-sql", "SELECT name FROM users WHERE score > 2");
-    await page.click(".mk-table button");
+    await page.fill(".mk-table:visible .mk-table-sql", "SELECT name FROM users WHERE score > 2");
+    await control(page, 'click', ".mk-table:visible .mk-table-query button");
     await page.waitForFunction(() => document.querySelectorAll(".mk-table-grid .mk-table-row").length === 1, null, { timeout: 10000 });
-    await page.fill(".mk-table-sql", "DELETE FROM users");
-    await page.click(".mk-table button");
+    await page.fill(".mk-table:visible .mk-table-sql", "DELETE FROM users");
+    await control(page, 'click', ".mk-table:visible .mk-table-query button");
     await page.waitForSelector(".mk-table-error", { timeout: 10000 });
     console.log("\n  refusal:", await page.$eval(".mk-table-error", (e) => e.textContent.trim()));
     await page.screenshot({ path: `${S}/m2-table.png` });

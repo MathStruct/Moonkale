@@ -82,6 +82,29 @@ impl Source for RemoteSource {
             .map_err(transport)?
     }
 
+    async fn read_rows(
+        &self,
+        table: String,
+        limit: usize,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
+        crate::read_rows_at(self.id(), table, limit)
+            .await
+            .map_err(transport)?
+    }
+    async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
+        crate::preview_rows_at(self.id(), batch)
+            .await
+            .map_err(transport)?
+    }
+    async fn apply_rows(
+        &self,
+        batch: moonkale_core::RowBatch,
+    ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+        crate::apply_rows_at(self.id(), batch)
+            .await
+            .map_err(transport)?
+    }
+
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
         crate::apply_to(self.id(), tx).await.map_err(transport)?
     }

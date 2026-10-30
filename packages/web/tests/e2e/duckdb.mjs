@@ -1,3 +1,4 @@
+import { control } from './chrome-controls.mjs';
 // Milestone 9: DuckDB — a CSV in the folder opens its directory as a database of views; the table
 // editor shows the rows; SQL joins two files; writes are refused.
 import { firefox } from "playwright";
@@ -24,19 +25,19 @@ try {
   });
   await step("the people table shows 3 rows; a join across the two files runs; a write is refused", async () => {
     await page.click(".mk-tree-db >> text=people (view)");
-    await page.waitForSelector(".mk-table-grid", { timeout: 15000 });
+    await page.waitForSelector(".mk-table:visible .mk-table-grid", { timeout: 15000 });
     const rows = await page.$$eval(".mk-table-grid .mk-table-row", (els) => els.length);
     const head = await page.$$eval(".mk-table-grid .mk-table-hname", (els) => els.map((e) => e.textContent));
     console.log("\n  columns:", head.join(","), "rows:", rows);
     if (rows !== 3 || head.join() !== "name,age") throw new Error("grid");
-    await page.fill(".mk-table-sql", "SELECT p.name, sum(o.qty) AS qty FROM people p JOIN orders o ON o.person = p.name GROUP BY p.name ORDER BY qty DESC");
-    await page.click(".mk-table button");
+    await page.fill(".mk-table:visible .mk-table-sql", "SELECT p.name, sum(o.qty) AS qty FROM people p JOIN orders o ON o.person = p.name GROUP BY p.name ORDER BY qty DESC");
+    await control(page, 'click', ".mk-table:visible .mk-table-query button");
     await page.waitForFunction(() => document.querySelectorAll(".mk-table-grid .mk-table-row").length === 2, null, { timeout: 10000 });
     const first = await page.$eval(".mk-table-grid .mk-table-row", (r) => r.textContent);
     console.log("  top:", first.trim());
     if (!first.includes("Ada")) throw new Error("join result");
-    await page.fill(".mk-table-sql", "DELETE FROM people");
-    await page.click(".mk-table button");
+    await page.fill(".mk-table:visible .mk-table-sql", "DELETE FROM people");
+    await control(page, 'click', ".mk-table:visible .mk-table-query button");
     await page.waitForSelector(".mk-table-error", { timeout: 10000 });
     await page.screenshot({ path: `${S}/m9-duckdb.png` });
   });

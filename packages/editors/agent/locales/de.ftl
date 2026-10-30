@@ -69,8 +69,8 @@ proposal-reviewed = Vorschlagsprüfung abgeschlossen
 proposal-empty = Keine Vorschläge zur Prüfung.
 proposal-stale = Der Vorschlag ist veraltet. Kein ausgewählter Puffer wurde geändert. Konflikt prüfen und erneut genehmigen.
 proposal-current-unknown = Autor und Änderungszeit des aktuellen Inhalts sind für diese Quelle nicht verfügbar.
-proposal-approve = Ausgewählte Dateien genehmigen
-proposal-reject = Ausgewählte Dateien ablehnen
+proposal-approve = Ausgewählte Änderungen übernehmen
+proposal-reject = Ausgewählte Änderungen ablehnen
 proposal-dismiss = Schließen
 
 proposal-saved = Gespeichert
@@ -86,3 +86,9 @@ proposal-reopen = Konfliktprüfung neu öffnen
 
 proposal-stale-partial = Eine Datei wurde während der Übernahme geändert. Genehmigte Puffer können bereits aktualisiert sein; bisherige Speicherergebnisse stehen im Bericht.
 proposal-save-unavailable = Die Puffer wurden aktualisiert, ihre Speicherung konnte aber nicht koordiniert werden. Ungespeicherte Puffer vor dem Speichern prüfen.
+
+proposal-row-mine = Meine Änderung erneut prüfen
+proposal-row-current = Aktuellen Wert behalten
+proposal-row-column = Spalte
+proposal-row-before = Gelesener Wert
+proposal-row-after = Vorgeschlagener Wert

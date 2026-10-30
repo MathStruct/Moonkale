@@ -161,3 +161,9 @@ pub(crate) fn typed_text(text: String, declared: Option<&str>) -> moonkale_core:
         moonkale_core::Value::Text(text)
     }
 }
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(feature = "sqlite", feature = "duckdb", feature = "turso")
+))]
+mod rows;

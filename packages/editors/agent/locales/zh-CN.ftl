@@ -69,8 +69,8 @@ proposal-reviewed = 提案审核已完成
 proposal-empty = 没有待审核的提案。
 proposal-stale = 提案已过期。未更改任何选中的缓冲区。请审核冲突并再次批准。
 proposal-current-unknown = 此数据源不提供当前内容的作者和修改时间。
-proposal-approve = 批准所选文件
-proposal-reject = 拒绝所选文件
+proposal-approve = 批准所选修改
+proposal-reject = 拒绝所选修改
 proposal-dismiss = 关闭
 
 proposal-saved = 已保存
@@ -86,3 +86,9 @@ proposal-reopen = 重新打开冲突审核
 
 proposal-stale-partial = 应用时文件发生了变化。已批准的缓冲区可能已更新；报告保留此前的保存结果。
 proposal-save-unavailable = 缓冲区已更新，但无法协调保存到数据源。请先检查未保存的缓冲区。
+
+proposal-row-mine = 保留我的修改以再次审核
+proposal-row-current = 保留当前值
+proposal-row-column = 列
+proposal-row-before = 读取的值
+proposal-row-after = 提议的值

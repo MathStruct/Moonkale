@@ -79,3 +79,14 @@ relation; aliases do not multiply membership counts.
 ### Proposals and review (2026-10-30)
 
 `Source::preview_text` checks bounded text proposals without writing. `Capabilities::atomic_text` explicitly promises text-only transactions are all-or-nothing; ordinary sources continue reporting ordered per-op results. Read versions still come from `fetch_text`, not query metadata.
+
+### Typed row writes (WP-14, 2026-10-30)
+
+`source::rows` defines `RowPage`/`RowSnapshot`, source-checked `RowKey`, and
+bounded `RowBatch` operations (`Update`, `Insert`, `Delete`). Every update/delete
+carries the fetched row version; inserts assert keyed absence with `None`.
+`Source::read_rows`, `preview_rows` and `apply_rows` default to Unsupported.
+`Capabilities::atomic_rows` promises the whole batch commits or rolls back.
+This is separate from text patches: no SQL text, DDL or arbitrary commands are
+represented by a row operation. The authenticated remote adapter forwards typed
+requests to the authoritative source host for validation and execution.

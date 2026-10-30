@@ -18,6 +18,8 @@ pub mod event;
 pub mod opener;
 pub mod query;
 pub mod risk;
+pub mod rows;
+pub use rows::{RowBatch, RowChange, RowKey, RowOp, RowPage, RowSnapshot};
 pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, SourceTruth, TextDialect};
@@ -61,6 +63,22 @@ pub trait Source: MaybeSendSync {
     async fn fetch_bytes(&self, node: NodeId) -> Result<(Vec<u8>, Version), SourceError> {
         let _ = node;
         Err(SourceError::Unsupported("binary content".into()))
+    }
+
+    /// Read a bounded page with authoritative keys and exact row versions.
+    async fn read_rows(&self, _table: String, _limit: usize) -> Result<RowPage, SourceError> {
+        Err(SourceError::Unsupported("row reads".into()))
+    }
+
+    /// Check a typed row proposal without persisting it. Apply rechecks versions.
+    async fn preview_rows(&self, _batch: RowBatch) -> Result<(), SourceError> {
+        Err(SourceError::Unsupported("row writes".into()))
+    }
+
+    /// Apply a typed row batch in one database transaction or refuse it entirely.
+    /// Returned entries correspond to operations; deletes return None.
+    async fn apply_rows(&self, _batch: RowBatch) -> Result<Vec<Option<RowSnapshot>>, SourceError> {
+        Err(SourceError::Unsupported("row writes".into()))
     }
 
     /// Preview a bounded text proposal without changing authored state.

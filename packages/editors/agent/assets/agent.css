@@ -58,3 +58,10 @@
 .mk-md-math-block { display: block; text-align: center; margin: 0.4em 0; }
 .mk-md-image { color: var(--mk-muted); }
 .mk-md li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.2em; }
+
+.mk-proposal-cell-diff { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.mk-proposal-cell-diff th, .mk-proposal-cell-diff td { padding: 6px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--wb-line); }
+.mk-proposal-cell-diff th:first-child { width: 20%; }
+.mk-proposal-cell-diff pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mk-proposal-cell-diff td:nth-child(2) { background: var(--mk-diff-del-bg); }
+.mk-proposal-cell-diff td:nth-child(3) { background: var(--mk-diff-add-bg); }

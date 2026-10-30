@@ -418,6 +418,7 @@ impl Source for LadybugSource {
                 text_query: Some(TextDialect::Cypher),
                 extra_text_query: None,
                 atomic_text: false,
+                atomic_rows: false,
             },
             root: self.root_id(),
         }

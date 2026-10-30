@@ -19,9 +19,9 @@ const read=async node=>{
   const out=await ask('graph.fetch',{source,node});const version=out.match(/\[version (\d+)\]/)?.[1];
   assert(version,out);return version;
 };
-const queue=async files=>{
+const queue=async (files,rows=[])=>{
   const before=await page.locator('.mk-proposal').count();
-  const reply=await ask('editor.propose',{files});assert(reply.includes('queued for review'),reply);
+  const reply=await ask('editor.propose',{files,rows});assert(reply.includes('queued for review'),reply);
   await page.locator('.mk-proposals-open').first().click();
   await until(()=>page.locator('.mk-proposal').count().then(n=>n===before+1));
   return page.locator('.mk-proposal').last();
@@ -32,21 +32,33 @@ try{
  await page.locator('.mk-explorer-open button[type=submit]').click();
  await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
  await page.waitForFunction(()=>document.querySelector('.mk-agent-provider')?.textContent.includes('mock'));
- const listing=await ask('graph.query',{source,mode:'children'});
+ await page.locator('.mk-tree-db').filter({hasText:'data.sqlite'}).first().click();
+ await page.locator('.mk-tree-db').filter({hasText:/^edit_rows$/}).first().waitFor();
+ const sqlSource=`sqlite:${root}/data.sqlite`;
+ const rowReply=await ask('source.read_rows',{source:sqlSource,table:'edit_rows'});
+ const rowJson=rowReply.slice(rowReply.indexOf('{"columns"'));
+ const sqlRows=JSON.parse(rowJson.slice(0,rowJson.lastIndexOf('}')+1));
+ const sqlBase=sqlRows.rows[0];
+ const listing=await ask('graph.query' ,{source,mode:'children'});
  const node=path=>{const id=listing.match(new RegExp(`([0-9a-f-]{36})\\s+File\\s+${path.replaceAll('.','\\.')}\\s+`))?.[1];assert(id,listing);return id;};
  const a=node('Alpha.md'),b=node('README.md');
  const beforeA=fs.readFileSync(`${root}/Alpha.md`,'utf8'),beforeB=fs.readFileSync(`${root}/README.md`,'utf8');
  step='two files arrive as one reviewed proposal';
  let av=await read(a),bv=await read(b);
- let proposal=await queue([{source,node:a,expected:av,text:'Alpha proposed\n'},{source,node:b,expected:bv,text:'README proposed\n'}]);
+ let proposal=await queue([{source,node:a,expected:av,text:'Alpha proposed\n'},{source,node:b,expected:bv,text:'README proposed\n'}],[{source:sqlSource,batch:{ops:[{table:'edit_rows',key:sqlBase.key,expected:sqlBase.version,change:{Update:{name:{Text:'agent proposed'}}}}]}}]);
  assert.equal(await proposal.locator('.mk-proposal-file').count(),2);
+ assert.equal(await proposal.locator('.mk-proposal-table').count(),1);
+ await page.screenshot({path:`${process.env.M1_SHOTS}/proposals-sql-review.png`});
  assert.equal(fs.readFileSync(`${root}/Alpha.md`,'utf8'),beforeA);
  assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),beforeB);
  await proposal.locator('.mk-proposal-approve').click();
  await proposal.locator('.mk-proposal-report').waitFor();
+ await until(()=>proposal.locator('.mk-proposal-file').count().then(n=>n===0));
  assert.equal(fs.readFileSync(`${root}/Alpha.md`,'utf8'),'Alpha proposed\n');
  assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
  assert.equal(await proposal.locator('.mk-proposal-file').count(),0);
+ const persisted=await ask('source.read_rows',{source:sqlSource,table:'edit_rows'});
+ assert(persisted.includes('agent proposed'),persisted);
  step='one stale file refuses the whole selected proposal';
  av=await read(a);bv=await read(b);
  proposal=await queue([{source,node:a,expected:av,text:'Alpha second\n'},{source,node:b,expected:bv,text:'README second\n'}]);

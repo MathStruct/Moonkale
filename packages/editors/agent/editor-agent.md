@@ -46,3 +46,15 @@ WP-70: display.rs validates typed display actions, budgets each conversation and
 ### Proposals and review (2026-10-30)
 
 Local text writes now queue in a bounded per-session Proposals inbox (`proposals.rs`). `editor.propose` groups existing files; `editor.replace` requires an expected read version too. Approval validates source versions and editor leases; file buffers apply as one group, filesystem saves report ordered results. Pending creation/command reviews from all local conversations use the same inbox. No roles or durable inbox protocol yet.
+
+
+WP-14 (2026-10-30): `source.read_rows` returns authoritative typed values,
+native keys and exact versions. `editor.propose` accepts optional per-source
+`RowBatch` groups alongside text files. Submission only queues a review, even in
+trusted sessions. The inbox renders per-cell old/new table values and supports
+source selection, row conflicts and a second review after choosing mine/current.
+SQL preview prepares statements and validates versions without executing defaults;
+apply rechecks and commits each database batch atomically. Separate sources
+persist in order, retaining successful results after a later refusal. Row bases
+share the existing 4 MiB proposal budget; current source author/time metadata and
+durable multi-agent inboxes remain later work.

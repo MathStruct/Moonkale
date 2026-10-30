@@ -69,8 +69,8 @@ proposal-reviewed = Proposal review finished
 proposal-empty = No proposals awaiting review.
 proposal-stale = The proposal is stale. No selected buffer was changed. Review the conflict and approve again.
 proposal-current-unknown = Current author and modification time are unavailable from this source.
-proposal-approve = Approve selected files
-proposal-reject = Reject selected files
+proposal-approve = Approve selected changes
+proposal-reject = Reject selected changes
 proposal-dismiss = Dismiss
 
 proposal-saved = Saved
@@ -86,3 +86,9 @@ proposal-reopen = Reopen conflict review
 
 proposal-stale-partial = A file changed during application. Approved buffers may already be updated; earlier save results remain in the report.
 proposal-save-unavailable = The buffers were updated, but their source saves could not be coordinated. Review the unsaved buffers before saving.
+
+proposal-row-mine = Keep mine for another review
+proposal-row-current = Keep current
+proposal-row-column = Column
+proposal-row-before = Read value
+proposal-row-after = Proposed value

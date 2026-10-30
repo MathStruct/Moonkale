@@ -7608,9 +7608,11 @@ dependencies = [
 name = "moonkale-sources-sql"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "duckdb",
  "moonkale-core",
  "rusqlite",
+ "serde_json",
  "tempfile",
  "tokio",
  "tracing",

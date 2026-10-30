@@ -299,3 +299,38 @@ pub async fn preview_text_at(
         .ok_or_else(|| server_error("unknown source"))?;
     Ok(s.preview_text(tx).await)
 }
+
+/// Read authoritative row identities on the authenticated source host.
+#[post("/api/sources/read_rows")]
+pub async fn read_rows_at(
+    source: SourceId,
+    table: String,
+    limit: usize,
+) -> Result<Result<moonkale_core::RowPage, SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.read_rows(table, limit).await)
+}
+
+#[post("/api/sources/preview_rows")]
+pub async fn preview_rows_at(
+    source: SourceId,
+    batch: moonkale_core::RowBatch,
+) -> Result<Result<(), SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.preview_rows(batch).await)
+}
+
+#[post("/api/sources/apply_rows")]
+pub async fn apply_rows_at(
+    source: SourceId,
+    batch: moonkale_core::RowBatch,
+) -> Result<Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.apply_rows(batch).await)
+}

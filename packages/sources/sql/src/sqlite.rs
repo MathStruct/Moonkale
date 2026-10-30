@@ -27,6 +27,7 @@ pub const ROW_CAP: usize = 50_000;
 pub struct SqliteSource {
     id: SourceId,
     path: PathBuf,
+    writable: bool,
     conn: Arc<Mutex<Connection>>,
     /// `NodeId → native key`, filled as nodes are listed.
     known: RwLock<HashMap<NodeId, String>>,
@@ -35,17 +36,30 @@ pub struct SqliteSource {
 impl SqliteSource {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, SourceError> {
         let path = std::fs::canonicalize(path)?;
+        if path.to_str().is_none() {
+            return Err(SourceError::Invalid(
+                "database paths require an unambiguous UTF-8 source identity".into(),
+            ));
+        }
         let conn = Connection::open_with_flags(
             &path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
+        .or_else(|_| {
+            Connection::open_with_flags(
+                &path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+        })
         .map_err(|e| SourceError::Io(e.to_string()))?;
+        let writable = !conn.is_readonly("main").unwrap_or(true);
         let id = SourceId::new(format!("sqlite:{}", path.display()));
         let mut known = HashMap::new();
         known.insert(NodeId::derive(&id, ""), String::new());
         Ok(Self {
             id,
             path,
+            writable,
             conn: Arc::new(Mutex::new(conn)),
             known: RwLock::new(known),
         })
@@ -135,6 +149,9 @@ impl SqliteSource {
     async fn run_read(&self, sql: String) -> Result<Table, SourceError> {
         self.blocking(move |c| {
             let mut st = c.prepare(&sql)?;
+            if !st.readonly() {
+                return Err(rusqlite::Error::InvalidQuery);
+            }
             let columns: Vec<String> = st.column_names().iter().map(|s| s.to_string()).collect();
             let declared: Vec<_> = st
                 .columns()
@@ -225,11 +242,12 @@ impl Source for SqliteSource {
             family: SourceFamily::Sql,
             capabilities: Capabilities {
                 read: true,
-                write: false,
+                write: self.writable,
                 watch: false,
                 text_query: Some(TextDialect::Sql),
                 extra_text_query: None,
                 atomic_text: false,
+                atomic_rows: self.writable,
             },
             root: self.root_id(),
         }
@@ -330,10 +348,143 @@ impl Source for SqliteSource {
         ))
     }
 
+    async fn read_rows(
+        &self,
+        table: String,
+        limit: usize,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut guard = conn.lock().unwrap();
+            let mut db = RowDb(&mut guard);
+            tokio::runtime::Handle::current().block_on(crate::rows::read(&mut db, table, limit))
+        })
+        .await
+        .map_err(crate::rows::err)?
+    }
+
+    async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
+        self.row_batch(batch, true).await.map(|_| ())
+    }
+
+    async fn apply_rows(
+        &self,
+        batch: moonkale_core::RowBatch,
+    ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+        self.row_batch(batch, false).await
+    }
+
     async fn apply(&self, _tx: Transaction) -> Result<Applied, SourceError> {
         Err(SourceError::Unsupported(
-            "SQLite sources are read-only in this milestone".into(),
+            "SQL writes require typed row operations".into(),
         ))
+    }
+}
+
+impl SqliteSource {
+    async fn row_batch(
+        &self,
+        batch: moonkale_core::RowBatch,
+        preview: bool,
+    ) -> Result<Vec<Option<moonkale_core::RowSnapshot>>, SourceError> {
+        if !self.descriptor().capabilities.atomic_rows {
+            return Err(SourceError::Unsupported("read-only database".into()));
+        }
+        batch.validate()?;
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut guard = conn.lock().unwrap();
+            let mut db = RowDb(&mut guard);
+            tokio::runtime::Handle::current().block_on(crate::rows::batch(&mut db, batch, preview))
+        })
+        .await
+        .map_err(crate::rows::err)?
+    }
+}
+
+struct RowDb<'a>(&'a mut Connection);
+
+fn bind_row_value(v: Value) -> Result<rusqlite::types::Value, SourceError> {
+    use rusqlite::types::Value as D;
+    Ok(match v {
+        Value::Null => D::Null,
+        Value::Int(n) => D::Integer(n),
+        Value::Float(n) if n.is_finite() => D::Real(n),
+        Value::Bool(b) => D::Integer(i64::from(b)),
+        Value::Text(s) => D::Text(s),
+        Value::DateTime(d) => D::Text(d.source_text().ok_or_else(|| {
+            SourceError::Unsupported("date offset cannot be represented losslessly".into())
+        })?),
+        _ => {
+            return Err(SourceError::Unsupported(
+                "this cell type cannot be written".into(),
+            ))
+        }
+    })
+}
+
+#[async_trait]
+impl crate::rows::Db for RowDb<'_> {
+    async fn query(
+        &mut self,
+        sql: &str,
+        params: Vec<Value>,
+    ) -> Result<Vec<Vec<Value>>, SourceError> {
+        let params = params
+            .into_iter()
+            .map(bind_row_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut st = self.0.prepare(sql).map_err(crate::rows::err)?;
+        let n = st.column_count();
+        let declared: Vec<_> = st
+            .columns()
+            .iter()
+            .map(|c| c.decl_type().map(str::to_owned))
+            .collect();
+        let mut it = st
+            .query(rusqlite::params_from_iter(params))
+            .map_err(crate::rows::err)?;
+        let mut out = Vec::new();
+        let mut bytes = 0usize;
+        while let Some(r) = it.next().map_err(crate::rows::err)? {
+            if out.len() > 4096 {
+                return Err(SourceError::Invalid("row/catalog budget exceeded".into()));
+            }
+            let mut row = Vec::new();
+            for (i, declared_type) in declared.iter().enumerate().take(n) {
+                let value = match r.get_ref(i).map_err(crate::rows::err)? {
+                    ValueRef::Null => Value::Null,
+                    ValueRef::Text(s) => crate::typed_text(
+                        String::from_utf8(s.to_vec()).map_err(crate::rows::err)?,
+                        declared_type.as_deref(),
+                    ),
+                    ValueRef::Integer(n) => Value::Int(n),
+                    ValueRef::Real(n) if n.is_finite() => Value::Float(n),
+                    _ => {
+                        return Err(SourceError::Unsupported(
+                            "lossless row versions for this cell type are unavailable".into(),
+                        ))
+                    }
+                };
+                crate::rows::budget(&mut bytes, &value)?;
+                row.push(value);
+            }
+            out.push(row);
+        }
+        Ok(out)
+    }
+    async fn execute(&mut self, sql: &str, params: Vec<Value>) -> Result<(), SourceError> {
+        let params = params
+            .into_iter()
+            .map(bind_row_value)
+            .collect::<Result<Vec<_>, _>>()?;
+        self.0
+            .execute(sql, rusqlite::params_from_iter(params))
+            .map_err(crate::rows::err)?;
+        Ok(())
+    }
+    async fn schema(&mut self, table: &str) -> Result<crate::rows::Schema, SourceError> {
+        crate::rows::sqlite_schema(self, table).await
     }
 }
 
