@@ -314,3 +314,12 @@ changed. Evidence: `target/next41-fuzz-tests.log`, the initial failure in
 ### Lesson
 Separate workspaces can require separate target directories even within one
 agent's worktree, especially for packages that emit a cdylib as well as an rlib.
+
+## P-242 — Sharing announcement test outruns remote position (2026-10-30)
+
+**Status:** resolved · [[P-242 Sharing announcement test outruns remote position]]
+
+At 6× CDP CPU throttling, sharing.mjs requests a second announcement before the
+receiver necessarily has the moved caret. Its fixed 120 ms sleep is replaced by
+a wait for the named remote member's changed position; all waits have step labels.
+The request-only announcement and off-wire assertions remain. Ten 6× suite runs passed; production coalescing and mount readiness were reviewed separately.
