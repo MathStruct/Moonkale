@@ -718,3 +718,35 @@ external writers still have the documented filesystem race at each rename.
 Shell commands and wasm calls remain explicit policy operations; they are not
 claimed to be transactional text proposals. Server-hosted agent sessions retain
 their read-only tool surface. No account/role authorization is added here.
+
+
+## Typed SQL row writes (WP-14, 2026-10-30)
+
+The authenticated source host owns schema/key/capability and version checks.
+Clients send only typed row operations; neither agents nor UI submit SQL write
+text, DDL, DROP/TRUNCATE or multi-statement commands. Statements use catalog-
+checked quoted main-schema identifiers and bound values. Views, virtual tables,
+generated columns, read-only attachments and unusable keys refuse. Lossy cell
+projections cannot produce concurrency tokens. Row versions hash complete typed
+values with existing BLAKE3; they are opaque concurrency hints, not credentials.
+DuckDB query text uses a read-only file connection, so SELECT functions cannot mutate sequences. One stale or invalid operation rolls back the whole database batch. Preview validates versions and prepares EXPLAIN statements without executing writes, defaults or triggers, then rolls back its validation transaction; apply repeats the validation before any mutation. DuckDB retains
+external-access/extension restrictions and locked configuration on every file
+connection. Idle file connections close to permit external writers.
+
+Agent row operations are mutating proposals even in trusted sessions. Submission
+can be allowed because it only fills the bounded review inbox; actual writes
+require explicit review. The inbox checks session/source identity and preflights
+SQL before mutating file buffers. Database transactions do not span unrelated
+sources: ordered results show earlier successes after a later failure. Read,
+proposed and current values render as escaped text, never executable markup.
+Row batches have at most 64 operations/4 MiB, table pages at most 1000 rows/4 MiB,
+and cell drafts at most 512 KiB. Reviewed row bases share the proposal’s 4 MiB budget with text; row undo retains at most 64 entries/8 MiB and stores only keys, versions and the previous cell value. The JSON transport's existing depth/request
+bounds remain. No connection or dependency version is added; existing serde_json
+and BLAKE3 become direct dependencies of the SQL crate for wire bounds and hashes.
+Turso generated-column parsing is enabled for inspection/refusal, not DDL access.
+
+Native row values, including the exact text underlying displayed SQLite dates,
+participate in the concurrency hash. Exact originals are retained for undo;
+display conversion is never a write token. Inline contexts retain source-handle
+identity from the read. Database file paths without lossless UTF-8 source ids
+refuse before driver opening; no lossy Turso filename is created.

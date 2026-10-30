@@ -83,8 +83,7 @@ unparsed definitions; derived views refresh after successful store writes.
 
 The inbox is bounded, in-memory, per outer session and shared across its local
 conversations. Account roles, durable multi-agent tasks/inbox synchronization,
-cell/property writes and SQL updates remain WP-48/WP-14 and later SW-21 adapters.
-SQL sources currently have no reviewed write API; this slice does not add one.
+property/structural writes remain later adapters. WP-14 extends this inbox with typed SQL row batches (below).
 
 ## 3. Many people and agents on one graph: the database's job and Moonkale's
 
@@ -105,7 +104,7 @@ The short answer to "how far is it Moonkale's concern": **the database guarantee
 | Text and flow documents edited at once | — | a CRDT per document ([[Collaboration]], Phase 4–5) |
 
 **Requirements:**
-- **SW-20 Optimistic writes.** Every write through the `Source` write API (text writes built; SQL/row writes remain R-41) carries the version it was based on. The source refuses a stale one, and Moonkale shows why. Last-writer-wins is never silent.
+- **SW-20 Optimistic writes.** Every write through the `Source` write API (text and typed SQL row writes built) carries the version it was based on. The source refuses a stale one, and Moonkale shows why. Last-writer-wins is never silent.
 - **SW-21 A conflict view** with both sides, their authors and times, and the choices. It is the same view for a cell, a node's property, a flow block's parameter and a file.
 - **SW-22 Soft claims, not locks.** "Daniel is editing this subgraph" or "agent X works on these files" is shown to everyone, and others are warned before editing there, never blocked. Hard locks are left to the database when it has them.
 - **SW-23 Proposals (changesets):** a set of edits across sources, made by an agent (always) or a person (optionally), reviewed as a whole with a diff per source, commented on (§4), and applied atomically where the source can (one transaction), or in order with a report where it can't. An agent's work is a proposal by default.
@@ -152,3 +151,36 @@ So **tools are a third kind of actor**, with rules of their own:
 3. **Participants, roles and agent tasks** (WP-48): SW-01 to 08. It needs accounts on the server first.
 
 Per-actor undo and claims come with the CRDT phase of [[Collaboration]].
+
+
+## SQL rows (WP-14, 2026-10-30)
+
+SW-20 applies to rows as well as text. `source.read_rows` returns source-checked
+keys, typed values and opaque row versions. `editor.propose` accepts optional
+`rows: [{source, batch: {ops: [...]}}]` alongside `files`. Each operation names
+its table, key, expected version and typed update/insert/delete. Inserts assert
+absence. Submission never writes authored data, including trusted sessions.
+
+The same session inbox shows table diffs and file diffs, with per-source row
+batch selection. It preflights every selected database before applying buffers;
+source commit rechecks all versions in the transaction. SQL batches are atomic
+within one database. Different databases and filesystem files persist in order,
+with earlier successes retained and reported after a later refusal. There is no
+claim of a transaction spanning unrelated sources. A stale row has a comparison
+of its read, proposed and current values; choosing mine prepares a new review,
+and choosing current discards that operation. Reopen reads current values again.
+Direct person edits use the same typed write API, and undo is a checked write.
+
+SQLite and Turso accept usable primary keys or an unshadowed rowid; DuckDB
+requires a primary key. Views, generated columns, unusable identity, read-only
+sources/attachments and lossy value projections refuse. SQL text remains
+read-only. Source-provided current author/time metadata, accounts and durable
+multi-agent inboxes remain later work.
+
+
+WP-14 validation: four SQL engine/identity tests (shared multi-case acceptance
+for each engine), eleven proposal-model tests, all AGENTS gates and the complete
+59-suite smoke/structural/Sophia/default-graph browser set pass. The mixed review
+and both cell conflict screenshots were inspected. Existing-file persistence
+still reports ordered results across independent sources; no cross-source atomic
+commit is claimed.

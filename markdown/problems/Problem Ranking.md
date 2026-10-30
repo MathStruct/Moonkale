@@ -19,7 +19,7 @@ Status, as of Milestone 17 (2026-09-29): ✅ done · ◐ partly done (what is mi
 | R-05 | Extension API + static registry; built-ins as extensions | 3 | **high** | ◐ `Extension` trait (panels, commands, settings, flow libraries), tiers, permissions. **Not built**: `moonkale.toml`, activation events, `when` clauses, contribution points beyond panels/commands — and `ui` still hard-codes the catalogue ([[Extension Catalogue]] critique) |
 | R-06 | tree-sitter index + wiki-link extraction | 3 | medium | ◐ native tree-sitter (arborium), wiki-links, Rust/Julia/Python symbols (Julia/Python only since the #16 fix, 2026-10-02); other languages, calls and references open |
 | R-07 | Graph view v1: wgpu 2D, WebGL2/WebGPU, CPU layout, pick/popup | 4 | **high** | ✅ |
-| R-08 | SQLite + DuckDB sources + table editor | 3 | low | ✅ read-only |
+| R-08 | SQLite + DuckDB sources + table editor | 3 | low | ✅ typed SQL rows, reviewed proposals and cell editing (WP-14) |
 | R-09 | Markdown editor: source mode, links, backlinks, local graph | 2 | low | ✅ |
 | R-10 | Remote source via `api` (web/mobile parity) | 3 | medium | ✅ token auth (M7), TLS (M11) |
 | R-11 | Milkdown WYSIWYG behind `RichTextBackend` | 3 | medium | ✅ |
@@ -30,7 +30,7 @@ Status, as of Milestone 17 (2026-09-29): ✅ done · ◐ partly done (what is mi
 | R-16 | Cross-source edges + consistency | 4 | **high** | ○ needs projects ([[Projects and Sources]]) |
 | R-17 | LLM gateway: providers, tool surface, policy, audit | 3 | medium | ✅ Claude Code, Anthropic, OpenAI-compatible, Ollama, mock |
 | R-18 | Embeddings + hybrid search | 3 | medium | ✅ BM25 + brute-force cosine, in memory |
-| R-19 | Postgres/Supabase, Turso sources | 2 | low | ◐ Turso embedded (M17, read-only); Postgres not started |
+| R-19 | Postgres/Supabase, Turso sources | 2 | low | ◐ Turso embedded with typed row writes (WP-14); Postgres not started |
 | R-20 | Remote LSP + remote terminal on `api` (security) | 4 | **high** | ◐ one token per server; the audit found gaps ([[Audit 2026-09-23]]); no accounts |
 | R-21 | Stack-trace / AST → graph | 2 | low | ◐ traces; ASTs not |
 | R-22 | GPU compute layouts; 100k+; desktop surface ([[P-001 Graph surface in desktop webview]]) | 5 | **very high** | ◐ Barnes–Hut on the CPU reaches 100k; surface plan A in use; GPU compute and the coarse tier ([[Case Selector]]) open |
@@ -52,7 +52,7 @@ Status, as of Milestone 17 (2026-09-29): ✅ done · ◐ partly done (what is mi
 | R-38 | **Security findings of the external audit** (issues #1–#5, #7–#10, #18, #20) | 3 | **high** | ○ — [[Audit 2026-09-23]], [[Security]] |
 | R-39 | **CI that runs the tests** (none did until 2026-10-01) | 2 | **high** | ◐ `ci.yml`: fmt, layering rules, tests, clippy, wasm check, six browser suites; macOS/Windows/Android not tested in CI — [[Milestone 18 - Implementation Log]] |
 | R-40 | Projects: several sources saved as a project, selector, sync | 4 | medium | ○ desired behaviour in [[Projects and Sources]] |
-| R-41 | Writes to databases (OLTP) — every database source is read-only | 3 | medium | ○ announced after Milestone 17 |
+| R-41 | Writes to databases (OLTP) | 3 | medium | ◐ WP-14 SQL scope validated: atomic/versioned SQLite/DuckDB/Turso rows, proposals and cell editing; graph/KV remain read-only |
 
 ## Reading the table
 - What is left of the original top risks: **R-01** (the model's missing half), **R-05** (the extension API's missing half), **R-16**, **R-20** and **R-22**. **R-36** and **R-37** are new and have the widest blast radius — every crate touches the state and the `Workspace`.

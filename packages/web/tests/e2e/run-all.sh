@@ -16,7 +16,7 @@ AUTH_PORT="${AUTH_PORT:-8091}"   # the token-mode server of auth.mjs
 export PORT="${PORT:-8090}" M1_ROOT="$E/m2root" M1_SHOTS="$E/shots" MOONKALE_REPO="$(cd "$HERE/../../../.." && pwd)"
 mkdir -p "$E/e2e" "$E/shots"
 cp "$HERE"/*.mjs "$E/e2e/"   # playwright resolves from the working directory
-ALL="proposals sharing agent-display terminal-private density mouse keymaps journey-keyboard journey-mouse shortcut-discovery crash-safety recovery sessions linked-panels overview menubar appearance session graph graph-overview graph-startup graph-camera graph-egraph graph-egraph-ui graph-edges graph-edit graph-layers graph-delta graph-groups graph-higher graph-pulse graph-flow graph-shapes graph-a11y links-sqlite terminal typst lsp ladybug agent search-trace settings rich rich-images codemirror-search responsive-tabs agent-writes flow canvas-layer flow-tree-open wasm-ext phone palette files replace lsp2 lsp-restart live-preview-long live-preview-links live-preview-images live-preview-tables live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview doc-preview-long git git-sync git-everyday auth history presence graph3d duckdb wiki highlight panels image shell server extensions claude-code agent-server terminal-native code-native agents watch graph-local touch-drag stores roundtrip mtk subflow rxinfer table-grid toolbar-icons"
+ALL="table-edit proposals sharing agent-display terminal-private density mouse keymaps journey-keyboard journey-mouse shortcut-discovery crash-safety recovery sessions linked-panels overview menubar appearance session graph graph-overview graph-startup graph-camera graph-egraph graph-egraph-ui graph-edges graph-edit graph-layers graph-delta graph-groups graph-higher graph-pulse graph-flow graph-shapes graph-a11y links-sqlite terminal typst lsp ladybug agent search-trace settings rich rich-images codemirror-search responsive-tabs agent-writes flow canvas-layer flow-tree-open wasm-ext phone palette files replace lsp2 lsp-restart live-preview-long live-preview-links live-preview-images live-preview-tables live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview doc-preview-long git git-sync git-everyday auth history presence graph3d duckdb wiki highlight panels image shell server extensions claude-code agent-server terminal-native code-native agents watch graph-local touch-drag stores roundtrip mtk subflow rxinfer table-grid toolbar-icons"
 reset() {
   # Back to the committed fixture (the folder is a git repository).
   git -C "$E/m2root" reset -q --hard "$(git -C "$E/m2root" rev-list --max-parents=0 HEAD)" 2>/dev/null; git -C "$E/m2root" clean -fdq 2>/dev/null
@@ -39,6 +39,9 @@ for s in ${@:-$ALL}; do
   reset
   if [ "$s" = sophia-folder ]; then
     cargo run --quiet --locked --manifest-path "$MOONKALE_REPO/Cargo.toml" -p moonkale-sources-sophia --example save_warning_fixture -- "$M1_ROOT/warnings.sophia" || { fail=1; continue; }
+  fi
+  if [ "$s" = table-edit ]; then
+    cargo build --quiet --locked --manifest-path "$MOONKALE_REPO/Cargo.toml" -p moonkale-sources-sql --features duckdb --example change_row || { fail=1; continue; }
   fi
   if [ "$s" = auth ]; then
     # Token mode needs its own server (AUTH_PORT, default 8091), started and stopped here.

@@ -23,3 +23,5 @@ pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
 
 pub use extension::TableExtension;
 pub use panel::TablePanel;
+
+mod edit;

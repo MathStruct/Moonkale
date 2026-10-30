@@ -2,12 +2,17 @@
 title: "Data Sources"
 tags: [architecture, sources]
 ---
-Crates: `sources` (abstraction, registry, lifting, remote proxy), `sources-sql`, `sources-graph`, `sources-kv`, `project-fs`. Driver availability is in [[Database Backends]].
+Crates: `core` (contract and query/write types), `sources/registry` (registry), `sources/sql`, `sources/graph`, `sources/kv`, `project-fs`; the remote proxy lives in `server`. Driver availability is in [[Database Backends]].
 
-> [!note] As built (2026-10-01)
-> Built: folders; SQLite, DuckDB (+ folders of CSV/TSV/Parquet), Turso, redb, RocksDB, HelixDB (embedded), LadybugDB (Linux) — **all opened from a file or directory, all read-only**; the remote proxy. Not built: any networked database (Postgres, Redis, TypeDB, FalkorDB), connection parameters with `SecretRef`, the connection state machine, `SourceEvent` subscriptions (sources report external changes through `changes_since` instead), and the shared lifting rules (`sources::lift` is a stub — each driver lifts its own rows and decides its own ids). `Capabilities` has `read`, `write`, `watch`, `text_query` only. Which file opens as which source is decided by **source openers** since Milestone 18 phase 2: each driver crate exports `openers()` (`moonkale_core::SourceOpener`: a name check that compiles everywhere, and an `open` function where the driver is built); the app assembles them into one `Openers` list that the Explorer, the desktop and the server all ask. Text queries are classified by the source itself (`Source::classify`, default rules in `moonkale_core::source::risk`).
+> [!note] Write update (2026-10-30, WP-14)
+> SQLite, DuckDB and Turso support typed, optimistic row batches in one database transaction. The table editor saves cells directly with checked undo; agents queue reviewed proposals alongside text files. Raw query text, data-folder views, graph and KV sources remain read-only. `RowSnapshot` carries native keys and exact native-value versions, with original stored values where display typing differs. Tables without usable identity and generated columns refuse with a reason. `Capabilities` now also includes `extra_text_query`, `atomic_text` and `atomic_rows`. See [[Table Editor]], [[Shared Work]] and [[Status]] for validation and limits.
 
-## Query path
+> [!note] Earlier provider baseline (2026-10-01)
+> Built: folders; SQLite, DuckDB (+ folders of CSV/TSV/Parquet), Turso, redb, RocksDB, HelixDB (embedded), LadybugDB (Linux) — **all opened from a file or directory, all read-only**; the remote proxy. Not built: any networked database (Postgres, Redis, TypeDB, FalkorDB), connection parameters with `SecretRef`, the connection state machine, `SourceEvent` subscriptions (sources report external changes through `changes_since` instead), and the shared lifting rules (`sources::lift` is a stub — each driver lifts its own rows and decides its own ids). At that baseline `Capabilities` had `read`, `write`, `watch` and `text_query` only. Which file opens as which source is decided by **source openers** since Milestone 18 phase 2: each driver crate exports `openers()` (`moonkale_core::SourceOpener`: a name check that compiles everywhere, and an `open` function where the driver is built); the app assembles them into one `Openers` list that the Explorer, the desktop and the server all ask. Text queries are classified by the source itself (`Source::classify`, default rules in `moonkale_core::source::risk`).
+
+## Query path (historical design)
+
+The current API returns finite `QueryResult` values and uses `changes_since`; the old `GraphView`/subscription diagram below predates [[ADR-0015 The core model]]. Typed row reads, preview and apply now use `Source::{read_rows,preview_rows,apply_rows}`, with authoritative validation on the source host.
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +40,7 @@ sequenceDiagram
 | Remote | any | any | any | proxy to `api`; the only source on web |
 
 ## Lifting rules (`sources::lift`)
-- **Tables without a primary key** get unstable ids (`ctid`/`rowid`/hash) and the descriptor flags them; editors show a warning and disable inline edit.
+- **Row identities:** shared graph-row lifting remains planned. Typed SQL writes use source-checked native primary keys; SQLite/Turso can use an unshadowed rowid, while DuckDB requires a primary key. Query positions and aliases never grant edit authority. Refused tables show the reason.
 - **Foreign keys become edges** on demand (neighbour queries), never eagerly.
 - **Schema is a graph too**: `Table`/`Column` nodes with `Contains`, `ForeignKey` edges between tables — so the schema view is the graph view.
 - **KV patterns**: `user:{id}:{field}` → `user` → `42` → `profile`, configurable per source, auto-detected by sampling.
@@ -60,7 +65,7 @@ sequenceDiagram
 5. ◐ LadybugDB ✅ (embedded; Linux only, P-144) · FalkorDB ○.
 6. ◐ redb, RocksDB ✅ (embedded key/value, Milestone 17, not in the original list) · Redis/Dragonfly ○.
 7. ◐ HelixDB ✅ (embedded, git dependency, Milestone 17) · TypeDB ○.
-8. ○ Writes (OLTP) for every database source — the next step announced after Milestone 17.
+8. ◐ SQL writes (WP-14, validated 2026-10-30): SQLite, DuckDB and Turso. Graph/KV writes remain later work.
 
 ## Projects
 Several sources open at once, grouped into a saved **project** with a selector, per-source colour and read-only, suspended sources, an open report and sync: [[Projects and Sources]] (desired behaviour, 2026-09-19).
@@ -71,7 +76,7 @@ Several sources open at once, grouped into a saved **project** with a selector, 
 
 ## Driver designs not built yet
 Until Milestone 18 these lived as comment-only files in the driver crates; they were removed in phase 1 so the workspace compiles only real code ([[Milestone 18 - Implementation Log]]).
-- **Connection lifecycle** (`sources/connect.rs`): `ConnectParams` → `SourceFactory::connect` → `ConnectionState` (Connecting → Ready ↔ Degraded → Closed) with backoff; the UI draws the status dot from it. Today every source is a file opened synchronously that never reconnects.
+- **Connection lifecycle** (`sources/connect.rs`): `ConnectParams` → `SourceFactory::connect` → `ConnectionState` (Connecting → Ready ↔ Degraded → Closed) with backoff; the UI draws the status dot from it. Today these networked connection states are not implemented; local providers open files/directories, and DuckDB file connections now last one operation.
 - **Credentials** (`sources/credentials.rs`): `SecretRef` names are persisted, values resolved at connect time — desktop from the OS keychain (`keyring`), web never in the browser, mobile from Keychain/Keystore.
 - **Lifting** (`sources/lift.rs`): the shared rules of the section above; folder lifting is trivial and lives in `project-fs`.
 - **SQL** — *schema* (`sources-sql/schema.rs`): `information_schema` / `PRAGMA table_info` / `duckdb_tables()` → a schema cached per connection, invalidated on `SchemaChanged`. *Structured queries* (`structured.rs`): `Query` → SQL, conservative — paginated `SELECT` with keyset pagination, FK-based neighbour expansion, `LIKE`/FTS for text search, dialect-specific vector ops (`pgvector`, `sqlite-vec`, DuckDB `array_cosine_similarity`) when the capability is there. *Postgres/Supabase* (`postgres.rs`): `LISTEN/NOTIFY` for change events when the user opts in (needs a trigger; offer to install it).

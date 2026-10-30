@@ -34,3 +34,10 @@
 
 .mk-cell-ref { color: var(--wb-accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; font: inherit; }
 .mk-cell-vector { color: var(--wb-ink); display: block; max-width: 100%; }
+
+.mk-cell-display { color: inherit; background: transparent; border: 0; padding: 0; font: inherit; text-align: inherit; cursor: text; width: 100%; }
+.mk-cell-editor { position: relative; z-index: 8; display: flex; gap: 4px; background: var(--wb-surface); color: var(--wb-ink); }
+.mk-cell-input { min-width: 80px; width: 100%; color: inherit; background: var(--wb-surface); }
+.mk-cell-refusal, .mk-cell-conflict { position: absolute; top: 24px; left: 0; min-width: 300px; white-space: normal; background: var(--wb-surface); color: var(--wb-ink); border: 1px solid var(--wb-line); padding: 8px; }
+.mk-cell-conflict pre { white-space: pre-wrap; }
+.mk-table-cell:has(.mk-cell-editor) { overflow: visible; }

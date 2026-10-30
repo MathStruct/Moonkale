@@ -783,3 +783,17 @@ preview and one-stale-file all-or-nothing refusal have index unit tests.
 `MOONKALE_CPU_THROTTLE=6 run-all.sh git-everyday` uses CDP to exercise slower UI
 refresh timing. Entries and diffs are selected by file and mode; disk state alone
 is not a UI-ready signal (P-239).
+
+
+### Typed row writes and cell editing (WP-14)
+
+`table-edit.mjs` opens the disposable SQLite and DuckDB fixture tables, edits by
+mouse and keyboard, saves/reloads, cancels, Tabs and undoes. A separate process
+changes the row while a draft is open (Python SQLite; the fixed `change_row`
+DuckDB fixture writer); the cell must show the conflict and save only after a
+new checked choice. `proposals.mjs` reviews two files and a SQL update together.
+Both are registered in `run-all.sh` and CI smoke. Regenerate the disposable fixture
+after adding `edit_rows`; run-all builds its fixed DuckDB helper before the suite.
+Engine tests in `sources/sql/tests/rows.rs` cover rollback, stale versions,
+insert/delete, generated/view refusal and injection. Never point these writers
+at user databases.

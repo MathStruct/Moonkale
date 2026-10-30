@@ -1,3 +1,4 @@
+use crate::edit::{Editing, RowsContext, SharedRow};
 use crate::grid::{self, Move, HEAD_H, NUM_W, ROW_H};
 use crate::L;
 use dioxus::prelude::*;
@@ -95,16 +96,73 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
         }
     });
     let mut running = use_signal(|| false);
+    let mut row_context = use_signal(|| None::<RowsContext>);
+    let mut row_refusal = use_signal(String::new);
 
     let run = {
         let source_id = source_id.clone();
         let owner = node.id;
+        let node = node.clone();
         move || {
             let source_id = source_id.clone();
             let text = text.peek().clone();
             let dialect = dialect.peek().to_string();
+            let node = node.clone();
             moonkale_ext_api::crash::spawn(async move {
                 running.set(true);
+                row_context.set(None);
+                row_refusal.set(String::new());
+                if let Some(source) = ws.source(&source_id) {
+                    if source.descriptor().family == moonkale_core::SourceFamily::Sql
+                        && dialect == "sql"
+                        && text == default_query(&node, "sql")
+                    {
+                        let table = node
+                            .native_key
+                            .strip_prefix("table:")
+                            .unwrap_or(&node.native_key)
+                            .to_string();
+                        match source.read_rows(table.clone(), 1000).await {
+                            Ok(page) => {
+                                if page.refusal.is_none()
+                                    && source.descriptor().capabilities.atomic_rows
+                                {
+                                    let data = Table {
+                                        columns: page.columns.clone(),
+                                        rows: page
+                                            .rows
+                                            .iter()
+                                            .map(|r| {
+                                                page.columns
+                                                    .iter()
+                                                    .map(|c| r.values[c].clone())
+                                                    .collect()
+                                            })
+                                            .collect(),
+                                        truncated: page.truncated,
+                                    };
+                                    row_context.set(Some(RowsContext {
+                                        source: source_id,
+                                        handle: source.clone(),
+                                        table,
+                                        page: Rc::new(page),
+                                    }));
+                                    result.set(Some(Ok(Rc::new(QueryResult {
+                                        table: Some(data),
+                                        ..Default::default()
+                                    }))));
+                                    runs += 1;
+                                    running.set(false);
+                                    return;
+                                }
+                                row_refusal.set(
+                                    page.refusal.unwrap_or_else(|| t!(ws, L, "table-readonly")),
+                                );
+                            }
+                            Err(error) => row_refusal.set(error.to_string()),
+                        }
+                    }
+                }
                 let out = match ws.source(&source_id) {
                     Some(s) => s.query(Query::Text { dialect, text }).await.and_then(|r| {
                         if r.table.is_none() {
@@ -230,13 +288,14 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                 }
             }
             }
+            if !row_refusal.read().is_empty() { p { class: "mk-table-readonly", role: "status", "{row_refusal}" } }
             div { class: "mk-table-grid-host",
                 match result() {
                     None => rsx! { p { class: "mk-table-msg", {t!(ws, L, "table-loading")} } },
                     Some(Err(e)) => rsx! { p { class: "mk-table-msg mk-table-error", "{e}" } },
                     Some(Ok(r)) => rsx! {
-                        for run in [runs()] {
-                            ResultGrid { key: "{run}", ws, owner: node.id, result: SharedResult(r.clone()) }
+                        for generation in [runs()] {
+                            ResultGrid { key: "{generation}", ws, owner: node.id, result: SharedResult(r.clone()), context: row_context(), onreload: { let run=run.clone(); move |_| run() } }
                         }
                     },
                 }
@@ -283,7 +342,26 @@ fn cell_class(v: &Value) -> &'static str {
 /// (arrows, Page Up/Down, Home/End, Ctrl+Home/End). Sort and filter apply
 /// to the rows loaded — the meta line says so when the source truncated.
 #[component]
-fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult) -> Element {
+fn ResultGrid(
+    ws: Workspace,
+    owner: moonkale_core::NodeId,
+    result: SharedResult,
+    context: Option<RowsContext>,
+    onreload: EventHandler<()>,
+) -> Element {
+    let page = use_signal(|| context.as_ref().map(|c| c.page.clone()).unwrap_or_default());
+    let undo = use_signal(Vec::new);
+    let start = use_signal(|| None);
+    let busy = use_signal(|| false);
+    let active = use_signal(|| None);
+    let mut editing = Editing {
+        page,
+        undo,
+        start,
+        busy,
+        active,
+    };
+    let current_page = context.as_ref().map(|_| editing.page.read().clone());
     let instance = use_signal(|| moonkale_ext_api::links::panel_instance(ws.content_panel(owner)));
     let table = result.table();
     let total = table.rows.len();
@@ -303,7 +381,20 @@ fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult)
     let mut grid_el = use_signal(|| None::<Rc<MountedData>>);
     let order = use_memo({
         let r = result.clone();
-        move || grid::order(&r.table().rows, sort(), &filter.read())
+        let authoritative = context.is_some();
+        move || {
+            if authoritative {
+                let p = editing.page.read();
+                let values: Vec<_> = p
+                    .rows
+                    .iter()
+                    .map(|r| p.columns.iter().map(|c| r.values[c].clone()).collect())
+                    .collect();
+                grid::order(&values, sort(), &filter.read())
+            } else {
+                grid::order(&r.table().rows, sort(), &filter.read())
+            }
+        }
     });
 
     moonkale_ext_api::crash::use_effect({
@@ -360,6 +451,7 @@ fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult)
     let sorted = sort();
 
     let key_result = result.clone();
+    let key_context = context.clone();
     let mut go = move |mv: Move| {
         let n = order.peek().len();
         let to = match *cursor.peek() {
@@ -393,6 +485,9 @@ fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult)
 
     rsx! {
         div { class: "mk-table-meta",
+            if let Some(context) = context.clone() {
+                button { class: "mk-table-undo", disabled: editing.undo.read().is_empty() || *editing.busy.read(), title: t!(ws,L,"table-edit-undo"), onclick: move |_| { let context=context.clone(); moonkale_ext_api::crash::spawn(async move { if let Err(e)=crate::edit::undo(ws,context,editing).await { ws.set_status(e); } }); }, {t!(ws,L,"table-edit-undo")} }
+            }
             if shown == total {
                 {t!(ws, L, "table-counts", rows = total, columns = n_cols)}
             } else {
@@ -439,7 +534,15 @@ fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult)
                 let primary = moonkale_ext_api::keys::primary(&e.modifiers());
                 let left_hand = ws.settings.resolved.peek().keymap == "left-hand" && !primary && !e.modifiers().alt();
                 if e.is_composing() { return; }
+                if primary && e.key() == Key::Character("z".into()) {
+                    if let Some(context) = key_context.clone() { e.prevent_default(); e.stop_propagation(); moonkale_ext_api::crash::spawn(async move { if let Err(e) = crate::edit::undo(ws, context, editing).await { ws.set_status(e); } }); }
+                    return;
+                }
                 if e.key() == Key::Enter {
+                    if key_context.is_some() {
+                        if let Some((pos,c)) = *cursor.peek() { if let Some(i) = order.peek().get(pos).copied() { editing.start.set(Some((i,c))); e.prevent_default(); e.stop_propagation(); } }
+                        return;
+                    }
                     if let Some((row,col)) = *cursor.peek() {
                         let target = order.peek().get(row).and_then(|i| key_result.table().rows.get(*i)).and_then(|r| r.get(col)).and_then(|v| match v { Value::Ref {node,..} => Some(*node), _ => None });
                         if let Some(target) = target { e.prevent_default(); e.stop_propagation(); let new_group = e.modifiers().alt(); moonkale_ext_api::crash::spawn(async move { open_reference(ws,target,None,false,new_group).await; }); }
@@ -519,17 +622,19 @@ fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult)
                         {
                             let i = order.read()[pos];
                             let row = &table.rows[i];
+                            let shared = current_page.as_ref().map(|p|SharedRow(Rc::new(p.rows[i].clone())));
                             rsx! {
                                 div { key: "{i}", class: "mk-table-row", role: "row", aria_rowindex: "{pos + 2}", "data-row": "{i}",
                                     div { class: "mk-table-num", "{i + 1}" }
                                     div { class: "mk-table-gap", style: "width: {lefts[cols.start]}px;" }
                                     for c in cols.clone() {
                                         {
-                                            let v = row.get(c).unwrap_or(&Value::Null);
+                                            let v = shared.as_ref().and_then(|r|r.0.values.get(&table.columns[c])).or_else(||row.get(c)).unwrap_or(&Value::Null);
                                             let text = match v { Value::DateTime(d) => d.display(&ws.lang()), _ => grid::cell_text(v) };
                                             let target = match v { Value::Ref { node, .. } => Some(*node), _ => None };
                                             let known = target.and_then(|id| result.0.nodes.iter().find(|n| n.id == id).cloned().or_else(|| ws.open_node_by_id(id)));
                                             let double_known = known.clone();
+                                            let edit_context = context.clone();
                                             let points = match v { Value::Vector(v) => Some(grid::sparkline(v)), _ => None };
                                             let at = cur == Some((pos, c));
                                             rsx! {
@@ -541,9 +646,23 @@ fn ResultGrid(ws: Workspace, owner: moonkale_core::NodeId, result: SharedResult)
                                                     title: if matches!(v, Value::Text(_)) { "{text}" } else { "" },
                                                     onclick: moonkale_ext_api::crash::event(move |_| cursor.set(Some((pos, c)))),
                                                     ondoubleclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
-                                                        if let Some(target) = target { let known = double_known.clone(); let new_group = e.modifiers().alt(); moonkale_ext_api::crash::spawn(async move { open_reference(ws,target,known,false,new_group).await; }); }
+                                                        if edit_context.is_some() { editing.start.set(Some((i,c))); return; }
+                                                                                                                if let Some(target) = target { let known = double_known.clone(); let new_group = e.modifiers().alt(); moonkale_ext_api::crash::spawn(async move { open_reference(ws,target,known,false,new_group).await; }); }
                                                     }),
-                                                    if let Some(target) = target {
+                                                    if let Some(context) = context.clone() {
+                                                        crate::edit::Cell { ws, context, snapshot: shared.clone().expect("editable row snapshot"), editing, row: i, column: c, onreload,
+                                                            onfinish: move |_| { if let Some(el)=grid_el.peek().clone() { moonkale_ext_api::crash::spawn(async move { let _=el.set_focus(true).await; }); } },
+                                                            onmove: { let mut move_cursor=go; move |(row,c,movement)| {
+                                                                if let Some(pos)=order.peek().iter().position(|i|*i==row) {
+                                                                    cursor.set(Some((pos,c)));
+                                                                    move_cursor(movement);
+                                                                    if let Some((pos,c))=*cursor.peek() { if let Some(row)=order.peek().get(pos).copied() { editing.start.set(Some((row,c))); } }
+                                                                } else if let Some(el)=grid_el.peek().clone() {
+                                                                    moonkale_ext_api::crash::spawn(async move { let _=el.set_focus(true).await; });
+                                                                }
+                                                            } },
+                                                        }
+                                                    } else if let Some(target) = target {
                                                         { let beside = known.clone(); rsx! { button { class: "mk-cell-ref", role: "link", onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| {
                                                             e.stop_propagation();
                                                             let known = known.clone();

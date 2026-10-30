@@ -15,10 +15,19 @@ buffer proposals. Stale text is refused and reviewed with the shared three-way
 editor. Folder persistence reports ordered saves; normal store-truth Sophia
 folders preview and apply selected text together in the database. Generated
 files are not overwritten. Read-only fallback remains for unavailable stores.
-SQL writes, accounts, durable task/inbox synchronization and source-provided
+Accounts, durable task/inbox synchronization and source-provided
 current author/time metadata remain later work. Eight proposal-model and four
 Sophia adapter tests, all AGENTS gates, the full CI/default-graph browser matrix
 and the final rendered review check pass. See [[Shared Work]].
+
+## Database writes and cell edits (WP-14, 2026-10-30)
+
+✅ Built and validated. SQLite, DuckDB and Turso have
+bounded typed row batches, expected versions and atomic source transactions.
+The local agent inbox reviews SQL rows alongside text files. Direct cells edit
+with save/cancel/Tab, checked undo and conflicts; arbitrary query results,
+views/generated columns, unusable identities and lossy projections stay read-only.
+Graph and KV databases remain read-only. All AGENTS gates, four native engine/identity tests, eleven proposal-model tests, the standalone parser checks and 59 browser suites across smoke/structural/Sophia/default graphs pass. See [[Table Editor]] and [[Shared Work]].
 
 ## Position sharing (WP-72, validated 2026-10-30)
 
@@ -358,7 +367,7 @@ seven ignored); the focused folder/index/Sophia run passes 118 tests and the
 | **Diagram fences** (tabs, Typst math, Mermaid, TikZ) | 📝 | [[Markdown Diagrams and Math]] |
 | **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; 2026-10-22: overview drags pan below a 3 CSS px radius (P-223); private WebKit desktop initial picture 6.78 → 2.54 s, warm median 5.70 → 2.63 s (P-224; physical NVIDIA recheck due), see `packages/graph-render/graph-render.md`; WP-06 coarse queries, selector and one-region expansion built (1M fixture first picture 110 ms); cached cuts/layouts and upstream Sophia full traversal remain open ([[Case Selector]]) |
 | **Flow editor** + Lux.jl library | ◐ | editing and codegen; running the model is not built |
-| **Table editor** | ✅ | read-only |
+| **Table editor** | ✅ | WP-14: typed SQLite/DuckDB/Turso cell edits, conflicts and checked undo; raw query results remain read-only |
 | **Image viewer** | ✅ | spec [[008]] |
 | **Terminal** — xterm and Rust | ✅ | traces become graphs |
 | **Notebook editor** | 📝 | [[Notebook Editor]] |
@@ -387,12 +396,12 @@ seven ignored); the focused folder/index/Sophia run passes 118 tests and the
 | source | state | platforms |
 |---|---|---|
 | Folder | ✅ watched | all (Android: private storage only, spec [[028]]) |
-| SQLite, DuckDB (+ CSV/TSV/Parquet folders) | ✅ read-only | desktop, server |
-| Turso, redb, RocksDB, HelixDB (embedded) | ✅ read-only (Milestone 17) | desktop, server |
+| SQLite, DuckDB (+ CSV/TSV/Parquet folders) | ✅ typed row writes | desktop, server; data-folder views read-only |
+| Turso; redb, RocksDB, HelixDB (embedded) | ◐ Turso typed row writes; others read-only | desktop, server |
 | LadybugDB | ✅ read-only | **Linux only** (P-144) |
 | Postgres/Supabase, Redis/Dragonfly, TypeDB, FalkorDB, HelixDB (HTTP) | 📝 | stub files only |
 | Git-host repositories, REST/GraphQL APIs, Julia depot | 📝 | [[Projects and Sources]], [[Julia and Lenticulum]] |
-| Writes to any database | 📝 | announced after Milestone 17 (R-41) |
+| Writes to databases | ◐ | WP-14 typed SQLite/DuckDB/Turso row batches, review and grid edits validated; graph/KV remain read-only (R-41) |
 
 ## Platforms
 
