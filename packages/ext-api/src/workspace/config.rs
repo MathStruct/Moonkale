@@ -334,6 +334,8 @@ pub struct GraphRequest {
 /// A document being dragged out of another window of this session.
 #[derive(Clone, PartialEq)]
 pub struct ForeignDrag {
+    /// Additional instance metadata for linked panels.
+    pub transfer: Option<crate::window_panels::PanelTransfer>,
     /// The window the drag started in.
     pub from: WindowId,
     /// The document's node.

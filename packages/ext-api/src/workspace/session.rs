@@ -31,6 +31,29 @@ impl Workspace {
     /// of the dragged tab (`wb-tab-<panel id>`); any open document whose node
     /// id appears in it is the one being dragged, whatever the panel scheme.
     pub fn start_drag_from_tab(&mut self, tab_id: &str) -> bool {
+        if let Some(panel) = self
+            .session
+            .local_tabs
+            .peek()
+            .iter()
+            .find(|t| {
+                let safe: String = t
+                    .panel
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                            c
+                        } else {
+                            '-'
+                        }
+                    })
+                    .collect();
+                tab_id == format!("wb-tab-{safe}")
+            })
+            .map(|t| t.panel.clone())
+        {
+            return self.start_panel_drag(&panel, None);
+        }
         let node = self
             .docs
             .open
@@ -60,16 +83,29 @@ impl Workspace {
             _ => return,
         };
         let me = self.session.window.peek().clone();
+        if msg.sender().0.is_empty() || msg.sender().0.len() > 128 || !msg.sender().0.is_ascii() {
+            return;
+        }
         if msg.sender() == &me {
             return;
         }
         tracing::info!("session[{me}] recv {}", summary(&msg));
         let sender = msg.sender().clone();
-        if !self.session.peers.peek().contains(&sender) {
+        if self.session.peers.peek().len() < 128 && !self.session.peers.peek().contains(&sender) {
             self.session.peers.with_mut(|p| p.push(sender));
         }
+        if self.handle_panel_message(&msg).await {
+            return;
+        }
         match msg {
-            SessionMessage::Scoped { .. } => (),
+            SessionMessage::Scoped { .. }
+            | SessionMessage::WindowTabs { .. }
+            | SessionMessage::Links { .. }
+            | SessionMessage::FocusPanel { .. }
+            | SessionMessage::MovePanel { .. }
+            | SessionMessage::PanelDrag { .. }
+            | SessionMessage::PanelMoved { .. }
+            | SessionMessage::WindowLeft { .. } => (),
             SessionMessage::Presence { from, mut member } => {
                 member.window = from.to_string();
                 if let Some(p) = member.sharing.as_mut() {
@@ -87,6 +123,12 @@ impl Workspace {
             }
             SessionMessage::Welcome { .. } => {}
             SessionMessage::Hello { .. } => {
+                self.publish_window_tabs();
+                self.send(SessionMessage::Links {
+                    from: me.clone(),
+                    groups: self.links.groups.peek().clone(),
+                    removed: Vec::new(),
+                });
                 self.send(SessionMessage::Welcome { from: me.clone() });
                 // Tell the newcomer what we have open.
                 let sources: Vec<_> = self
@@ -112,6 +154,7 @@ impl Workspace {
                     node,
                     source,
                     live: true,
+                    transfer: None,
                 }));
             }
             SessionMessage::DragEnded { from } => {
@@ -124,9 +167,9 @@ impl Workspace {
                     }
                 }
             }
-            SessionMessage::Moved { node, to, .. } => {
+            SessionMessage::Moved { node, from, to } => {
                 // Our document landed in another window: close it here.
-                if let Some(doc) = self.document(node) {
+                if let Some(doc) = self.document(node).filter(|_| from == me) {
                     if doc.peek().dirty() {
                         self.set_status(t!(self, L, "move-unsaved"));
                     } else {
@@ -196,6 +239,9 @@ impl Workspace {
             return Ok(());
         };
         self.session.foreign_drag.set(None);
+        if let Some(transfer) = drag.transfer {
+            return self.accept_panel_drop(drag.from, transfer).await;
+        }
         self.attach_source(drag.source).await?;
         self.open_node(drag.node.clone()).await?;
         self.send(SessionMessage::Moved {
@@ -303,6 +349,16 @@ impl Workspace {
 /// This window among the others: the bus, drag and drop, presence. (Milestone 18 phase 3c: the workspace's state, grouped by area.)
 #[derive(Clone, Copy)]
 pub struct SessionState {
+    /// This host's current metadata catalogue.
+    pub local_tabs: Signal<Vec<crate::window_panels::WindowTab>>,
+    /// Live catalogues in other windows of this outer session.
+    pub remote_tabs: Signal<Vec<crate::window_panels::WindowTabs>>,
+    /// Receiving a focus request also raises the platform window.
+    pub focus_requested: Signal<u64>,
+    pub(crate) links_seen: Signal<Vec<crate::links::LinkGroup>>,
+    pub(crate) catalogue_sent: Signal<u64>,
+    pub(crate) requested_move: Signal<Option<(WindowId, String)>>,
+    pub(crate) panel_offer: Signal<Option<String>>,
     /// This window's id in the session.
     pub window: Signal<WindowId>,
     /// Other windows we have heard from (diagnostic: shown in the status bar).
@@ -322,6 +378,13 @@ pub struct SessionState {
 impl SessionState {
     pub(super) fn new() -> Self {
         Self {
+            local_tabs: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            remote_tabs: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            focus_requested: Signal::new_in_scope(0, ScopeId::ROOT),
+            links_seen: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            catalogue_sent: Signal::new_in_scope(0, ScopeId::ROOT),
+            requested_move: Signal::new_in_scope(None, ScopeId::ROOT),
+            panel_offer: Signal::new_in_scope(None, ScopeId::ROOT),
             window: Signal::new_in_scope(WindowId::fresh(), ScopeId::ROOT),
             peers: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
             foreign_drag: Signal::new_in_scope(None, ScopeId::ROOT),

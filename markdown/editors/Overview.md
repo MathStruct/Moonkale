@@ -116,8 +116,9 @@ Nothing is persisted. Graph/flow previews call the existing engine's
 graphs are a bounded sample. A newly mounted renderer gets a 750 ms readiness
 deadline; unavailable/unmounted panels fall back to their icon.
 
-Step 5 remains later work: other-window collection and focus/move, drag-to-dock,
-hot corner and animation. Full rich note rendering, symbol-aware minimaps,
+Step 5's other-window collection, activation and source-backed moves are implemented
+and validated (2026-10-30). Local drag-to-dock, hot corner and animation
+remain later work. Full rich note rendering, symbol-aware minimaps,
 richer image metadata and flow symbol/issue overlays can refine these initial
 schematics without changing the API. The performance suite checks both twelve tabs in two tiles and the broader
 50-tab target.
@@ -150,3 +151,43 @@ P-236 (2026-10-29): the dirty-close confirmation explicitly focuses its mounted
 button. Escape in the search field cancels a pending confirmation first; both
 cancellation routes return to search. The browser regression waits for actual
 confirmation focus, then checks that Escape retains the overview and dirty tab.
+
+
+## Other windows (2026-10-30)
+
+Same-session windows advertise bounded metadata catalogues, refreshed every two
+seconds and removed after eight seconds without a heartbeat. The overview shows
+a labelled section per window and retains link-group markers and colours. Enter
+or click asks the owning window to activate its actual tab; desktop also requests
+that window be raised. The compositor controls focus prevention. The private
+Wayland check uses Sway `focus_on_window_activation focus`; its default policy
+can retain the requesting window even after the target tab activates. Browser focus is best effort under browser restrictions, and those
+cards explicitly say they are open in another browser tab.
+
+The Move it here control and a remote card's drag/drop onto the current-window
+move target use the same request/offer/acknowledgement path. Only a source-backed
+document or retained graph instance is movable; static panels can be activated
+in their window. Dirty documents disable move and the origin checks its current
+buffer again. Remote cards show title/path/type/status and an icon fallback;
+preview text, terminal tails, image buffers and agent conversations are never
+broadcast. Delete and middle-click close only local tabs.
+
+Catalogues cap 512 tabs per window and 64 peers. Paths excluded by the existing
+preview privacy filter are omitted. Group bounds and the browser's 4 MiB JSON
+boundary apply before state changes. `window-panels.mjs` covers real browser
+windows sharing a session, wiki-link following after a graph move, labelled
+remote cards, Enter activation, drag-to-move, graph return and session isolation.
+
+
+The current-window drop target stays in the layout while movable remote cards
+are present. Inserting it at dragstart moved the source card and cancelled
+Chromium's native drag. The browser regression now drives actual mouse
+down/move/up and verifies that the moved document becomes active. Both the
+button and drop route preserve instance ownership and dirty-buffer refusal.
+
+Validation is complete for this slice: all AGENTS gates, the reconciled 62-case
+browser matrix, six post-fix affected suites and inspected two-window desktop
+screenshots pass. The desktop check confirms wiki navigation across a moved
+graph and overview activation of another window's tab; window focus remains
+subject to the compositor policy described above. Hot corner, animation and
+local drag-to-dock are still outside this slice.

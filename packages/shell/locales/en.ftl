@@ -462,3 +462,6 @@ sharing-stop = Stop sharing
 sharing-announce = Announce participant cursors
 sharing-follow = Follow { $name }
 sharing-agent-cursor = Share agent cursor
+
+overview-other-window = Window { $window }
+overview-browser-window = Open in another browser tab

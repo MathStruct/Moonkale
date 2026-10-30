@@ -10,6 +10,8 @@ struct PreviewCache(Rc<RefCell<VecDeque<(String, u64, Element)>>>);
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Tab {
+    pub movable: bool,
+    pub window: Option<moonkale_ext_api::WindowId>,
     pub id: String,
     pub title: String,
     pub path: String,
@@ -78,6 +80,8 @@ impl Tab {
             id.split(':').next().unwrap_or(&id)
         };
         Self {
+            movable: node.is_some() || ws.links.views.peek().contains_key(&id),
+            window: None,
             state: if dirty {
                 t!(ws, L, "overview-unsaved")
             } else {
@@ -98,6 +102,43 @@ impl Tab {
             dirty,
             mark,
         }
+    }
+    pub fn remote(
+        ws: Workspace,
+        window: moonkale_ext_api::WindowId,
+        tab: moonkale_ext_api::window_panels::WindowTab,
+    ) -> Self {
+        let group = tab
+            .group
+            .as_ref()
+            .and_then(|id| ws.links.groups.peek().iter().find(|g| &g.id == id).cloned());
+        Self {
+            movable: tab.movable,
+            window: Some(window.clone()),
+            id: format!("window:{}:{}", window.0, tab.panel),
+            title: tab.title,
+            path: tab.path,
+            kind: tab.category,
+            group: tab.group.unwrap_or_default(),
+            marker: group.as_ref().map(|g| g.marker()).unwrap_or_default(),
+            colour: group.as_ref().map_or(0, |g| g.colour),
+            owner: None,
+            node: None,
+            dirty: tab.dirty,
+            state: if tab.dirty {
+                t!(ws, L, "overview-unsaved")
+            } else {
+                String::new()
+            },
+            mark: String::new(),
+            search_text: String::new(),
+            source_colour: String::new(),
+            presence: String::new(),
+        }
+    }
+    pub fn remote_panel(&self) -> Option<&str> {
+        self.id
+            .strip_prefix(&format!("window:{}:", self.window.as_ref()?.0))
     }
     pub fn matches(&self, query: &str) -> bool {
         let q = query.to_lowercase();
@@ -143,15 +184,19 @@ impl RecentTabs {
 
 /// Stable clusters preserve the supplied recency order within each group.
 pub(crate) fn grouped(tabs: &[Tab], query: &str) -> Vec<Tab> {
-    let mut groups: Vec<(String, Vec<Tab>)> = Vec::new();
+    type Cluster = ((Option<moonkale_ext_api::WindowId>, String), Vec<Tab>);
+    let mut groups: Vec<Cluster> = Vec::new();
     for tab in tabs.iter().filter(|t| t.matches(query)) {
-        if let Some((_, members)) = groups.iter_mut().find(|(g, _)| *g == tab.group) {
+        let key = (tab.window.clone(), tab.group.clone());
+        if let Some((_, members)) = groups.iter_mut().find(|(g, _)| *g == key) {
             members.push(tab.clone());
         } else {
-            groups.push((tab.group.clone(), vec![tab.clone()]));
+            groups.push((key, vec![tab.clone()]));
         }
     }
-    groups.sort_by_key(|(g, _)| g.is_empty());
+    groups.sort_by_key(|((window, group), _)| {
+        (window.as_ref().map(|w| w.0.clone()), group.is_empty())
+    });
     groups.into_iter().flat_map(|(_, tabs)| tabs).collect()
 }
 
@@ -261,6 +306,8 @@ mod tests {
     use super::*;
     fn tab(title: &str, group: &str) -> Tab {
         Tab {
+            movable: true,
+            window: None,
             id: title.into(),
             title: title.into(),
             path: format!("notes/{title}"),

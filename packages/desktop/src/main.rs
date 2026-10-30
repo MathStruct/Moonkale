@@ -700,7 +700,12 @@ fn new_window() {
 fn window_controls() -> WindowControls {
     use dioxus::desktop::{tao::window::ResizeDirection, window};
     use moonkale_shell::ResizeEdge;
+    let focus_window = window();
     WindowControls {
+        focus: Callback::new(move |_| {
+            focus_window.window.set_minimized(false);
+            focus_window.window.set_focus();
+        }),
         minimize: Callback::new(|_| window().window.set_minimized(true)),
         toggle_maximize: Callback::new(|_| window().toggle_maximized()),
         close: Callback::new(|_| window().close()),

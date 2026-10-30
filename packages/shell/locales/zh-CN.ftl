@@ -442,3 +442,6 @@ sharing-stop = 停止共享
 sharing-announce = 朗读参与者光标
 sharing-follow = 跟随 { $name }
 sharing-agent-cursor = 共享智能体光标
+
+overview-other-window = 窗口 { $window }
+overview-browser-window = 已在另一个浏览器标签页中打开

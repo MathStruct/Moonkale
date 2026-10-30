@@ -41,6 +41,7 @@ pub fn Palette(
     on_close: Callback<String>,
 ) -> Element {
     let mut ws = use_context::<Workspace>();
+    let mut dragging = use_signal(|| None::<(moonkale_ext_api::WindowId, String)>);
     let mut state = use_context::<PaletteState>();
     let reg = use_context::<CommandRegistry>();
     let seed = use_context::<SearchSeed>().0;
@@ -205,7 +206,11 @@ pub fn Palette(
             };
             if let Some(tab) = item.tab {
                 state.set(None);
-                on_switch.call((tab.id, background));
+                if let (Some(window), Some(panel)) = (tab.window.clone(), tab.remote_panel()) {
+                    ws.focus_window_panel(window, panel.into());
+                } else {
+                    on_switch.call((tab.id, background));
+                }
                 return;
             }
             if background && item.command {
@@ -239,6 +244,9 @@ pub fn Palette(
         let items = items.clone();
         move |i: usize| {
             if let Some(tab) = items.get(i).and_then(|i| i.tab.as_ref()) {
+                if tab.window.is_some() {
+                    return;
+                }
                 if tab.dirty {
                     confirming.set(Some(tab.id.clone()));
                 } else {
@@ -310,14 +318,41 @@ pub fn Palette(
                         button { class: "mk-btn", onclick: move |_| { confirming.set(None); dioxus_workbench::focus_after_render(INPUT_ID); }, {t!(ws, L, "link-cancel")} }
                     }
                 }
-                if matches!(mode, PaletteMode::Overview | PaletteMode::Search) { h2 { {t!(ws, L, "overview-window")} } }
+
+                // Keep the target in the layout before dragstart: inserting it
+                // then would move the dragged card under the native drag gesture.
+                if items.iter().any(|i| i.tab.as_ref().is_some_and(|t| t.window.is_some() && t.movable && !t.dirty)) {
+                    div { class: "mk-overview-drop", "data-dragging": dragging().is_some().to_string(), role: "region", aria_label: t!(ws, L, "drop-move-here"),
+                        ondragover: move |e| e.prevent_default(),
+                        ondrop: move |e| {
+                            e.prevent_default();
+                            let pending = dragging.peek().clone();
+                            if let Some((window, panel)) = pending { ws.move_window_panel(window, panel); dragging.set(None); state.set(None); }
+                        }, {t!(ws, L, "drop-move-here")}
+                    }
+                }
                 ul { id: "mk-palette-results", class: "mk-palette-list", role: "listbox",
                     for (i, item) in items.iter().enumerate() {
+                        Fragment { key: "{item.key}",
+                        if let Some(tab) = &item.tab {
+                            if i == 0 || items.get(i-1).and_then(|p| p.tab.as_ref()).is_none_or(|p| p.window != tab.window) {
+                                li { class: "mk-overview-window", role: "presentation",
+                                    if let Some(window) = &tab.window { {t!(ws, L, "overview-other-window", window = window.to_string())} }
+                                    else { {t!(ws, L, "overview-window")} }
+                                }
+                            }
+                        }
                         li {
-                            key: "{item.key}",
                             id: "mk-palette-option-{i}",
                             class: if item.tab.is_some() { if i == sel { "mk-palette-item mk-overview-card mk-selected" } else { "mk-palette-item mk-overview-card" } } else if i == sel { "mk-palette-item mk-selected" } else { "mk-palette-item" },
                             "data-overview-card": item.tab.is_some(),
+                            "data-window": item.tab.as_ref().and_then(|t| t.window.as_ref()).map(|w| w.0.as_str()).unwrap_or(""),
+                            draggable: item.tab.as_ref().is_some_and(|t| t.window.is_some() && t.movable && !t.dirty),
+                            ondragstart: {
+                                let tab = item.tab.clone();
+                                move |_| { if let Some(tab) = tab.as_ref().filter(|t| t.movable && !t.dirty) { if let (Some(window), Some(panel)) = (tab.window.clone(), tab.remote_panel()) { dragging.set(Some((window, panel.into()))); } } }
+                            },
+                            ondragend: move |_| dragging.set(None),
                             "data-kind": item.tab.as_ref().map(|t| t.kind.as_str()).unwrap_or(""),
                             "data-link-group": item.tab.as_ref().map(|t| t.group.as_str()).unwrap_or(""),
                             "aria-label": item.tab.as_ref().map(|t| format!("{} {} {} {} {}", t.title, t.kind, t.marker, t.state, t.mark)).unwrap_or_else(|| item.label.clone()),
@@ -325,13 +360,17 @@ pub fn Palette(
                             "aria-selected": i == sel,
                             "data-key": "{item.key}",
                             "data-command-id": if item.command { item.key.as_str() } else { "" },
-                            onmousedown: move |e| e.prevent_default(),
+                            onmousedown: {
+                                let remote = item.tab.as_ref().is_some_and(|t| t.window.is_some());
+                                move |e| { if !remote { e.prevent_default(); } }
+                            },
                             onclick: move |_| choose.call((i, false)),
                             onauxclick: move |e| {
                                 if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { e.prevent_default(); if i < tab_count { close.call(i); } else { choose.call((i, true)); } }
                             },
                             if let Some(tab) = &item.tab {
-                                crate::overview::Preview { key: "{tab.id}", tab: tab.clone() }
+                                if tab.window.is_none() { crate::overview::Preview { key: "{tab.id}", tab: tab.clone() } }
+                                else { div { class: "mk-overview-preview", "◇" } }
                                 div { class: "mk-overview-card-title",
                                     span { class: "mk-link-marker mk-link-{tab.colour}", title: "{tab.marker}", "{tab.marker}" }
                                     span { class: "mk-palette-label", "◇ {item.label}" }
@@ -340,11 +379,20 @@ pub fn Palette(
                                     span { class: "mk-overview-source", style: "background: {tab.source_colour}" }
                                 }
                                 if !tab.presence.is_empty() { span { "{tab.presence}" } }
-                                button { class: "mk-btn mk-overview-close", aria_label: t!(ws, L, "overview-close"), onclick: move |e| { e.stop_propagation(); close.call(i); }, "×" }
+                                if let (Some(window), Some(panel)) = (tab.window.clone(), tab.remote_panel()) {
+                                    if cfg!(target_arch = "wasm32") { span { class: "mk-palette-detail", {t!(ws, L, "overview-browser-window")} } }
+                                    button { class: "mk-btn mk-overview-move", disabled: tab.dirty || !tab.movable, onclick: {
+                                        let panel = panel.to_string();
+                                        move |e| { e.stop_propagation(); ws.move_window_panel(window.clone(), panel.clone()); state.set(None); }
+                                    }, {t!(ws, L, "drop-move-here")} }
+                                } else {
+                                    button { class: "mk-btn mk-overview-close", aria_label: t!(ws, L, "overview-close"), onclick: move |e| { e.stop_propagation(); close.call(i); }, "×" }
+                                }
                             } else { span { class: "mk-palette-label", "{item.label}" } }
                             span { class: "mk-palette-detail", "{item.detail}" }
                         }
                     }
+                        }
                     if items.is_empty() {
                         li { class: "mk-palette-empty", if mode == PaletteMode::Files && files.read().is_empty() { "No folder open" } else { "No matches" } }
                     }

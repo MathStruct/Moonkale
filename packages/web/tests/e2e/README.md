@@ -817,3 +817,16 @@ The table suite also creates 1500 small SQLite rows and adds a column between
 pages. It checks a Refresh notice without merging stale snapshots, then fresh
 columns and the final page. `keymaps` follows F into the hidden column filter
 for pushed SQL tables; loaded-only global search stays in its disclosure.
+
+`sharing.mjs` labels its explicit waits and supports `MOONKALE_CPU_THROTTLE=6`
+(Chromium CDP, applied to both participant pages). Its announcement regression
+waits for the named remote member's updated cursor payload before asking for a
+new snapshot; cursor motion alone must leave the live region unchanged (P-242).
+
+`window-panels.mjs` uses two pages in the same browser context, so the real
+BroadcastChannel session bus joins them. It moves a linked graph, follows a
+wiki-link from the remote lead, checks numbered markers, activates a remote tab
+with overview Enter, moves a source-backed card here by actual mouse drag/drop, returns the
+graph and checks outer-session isolation. Remote cards intentionally use a
+metadata/icon fallback. The existing `session.mjs` also exercises Firefox's
+native mouse drag and the fallback Move it here banner.

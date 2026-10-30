@@ -1,5 +1,11 @@
 # Changelog — the library crates
 
+## Unreleased — session windows (WP-59/60, 2026-10-30)
+
+- `SessionMessage` adds bounded window catalogues, group deltas, panel focus/move requests and linked-instance transfer acknowledgements. Exhaustive matches must handle the new variants. The outer-session envelope still scopes every message.
+- `ForeignDrag::transfer` carries optional panel-instance metadata; full Rust literals need the new field. Ordinary document drags remain readable.
+- `WindowTab`, `WindowTabs` and `PanelTransfer` carry metadata only. Local content/view maps remain the owner of actual panel instances. Browser messages reuse the bounded session JSON parser through `SessionMessage::parse_wire`.
+
 ## Unreleased — table queries (WP-13, 2026-10-30)
 
 - Core adds bounded `TableQuery`, ANDed typed predicates, multi-column sort, `TableCursor` and default-unsupported `Source::query_rows`. Cursors contain native sort values and a complete row key; callers clear them when changing the query. NULLs sort last in both directions.

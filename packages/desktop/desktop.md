@@ -48,3 +48,12 @@ safe mode. A healthy frame checkpoint clears it after 30 seconds.
 WP-72: without MOONKALE_HUB, opt-in position presence uses the existing scoped session bus between windows. With a hub configured, the native websocket carries the same Member payload.
 
 Native hub presence uses watch channels in both directions: one latest member state and one latest member list, with no movement backlog. Stop replaces pending motion even while the socket task is stalled.
+
+
+WP-59/60 (2026-10-30): overview activation routes to the target window's actual
+panel, then calls the captured DesktopContext's unminimize/focus operations.
+The compositor may refuse focus stealing. On the private Sway display,
+`focus_on_window_activation focus` permits the explicit overview action; the
+default policy can activate the target tab while retaining the origin window's
+keyboard focus. No compositor command or focus-policy change is shipped in the
+application.

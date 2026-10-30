@@ -533,6 +533,17 @@ impl Workspace {
         self.remember_live();
         self.saved_sessions.switching.set(true);
         self.stop_sharing();
+        self.send(SessionMessage::WindowLeft {
+            from: self.session.window.peek().clone(),
+        });
+        self.session.remote_tabs.set(Vec::new());
+        self.session.local_tabs.set(Vec::new());
+        self.session.peers.set(Vec::new());
+        self.session.links_seen.set(Vec::new());
+        self.session.foreign_drag.set(None);
+        self.session.panel_offer.set(None);
+        self.session.requested_move.set(None);
+        self.session.own_drag.set(None);
         self.saved_sessions.active.set(id);
         Box::pin(self.restore_session(saved)).await;
         self.saved_sessions.switching.set(false);

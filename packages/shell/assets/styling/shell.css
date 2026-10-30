@@ -235,3 +235,6 @@
 .mk-overview-card-title { display: flex; gap: 4px; align-items: center; width: 100%; }
 .mk-overview-card-title .mk-palette-label { flex: 1; }
 .mk-overview-card .mk-palette-detail { max-width: 100%; }
+
+.mk-overview-window { flex-basis: 100%; list-style: none; font-weight: 600; color: var(--mk-muted); padding: 4px 0; }
+.mk-overview-drop { border: 2px dashed var(--mk-line); border-radius: 8px; padding: 18px; margin: 8px 12px; text-align: center; }

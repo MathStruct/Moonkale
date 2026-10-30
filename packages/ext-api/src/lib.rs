@@ -112,3 +112,6 @@ pub mod sharing;
 pub mod conflict;
 /// Bounded diff3 model, also usable without a UI.
 pub mod conflict_model;
+
+/// Metadata shared between windows in one outer session.
+pub mod window_panels;

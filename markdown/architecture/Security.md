@@ -770,3 +770,34 @@ authority or content evaluation is added.
 WP-13 page merging also requires the original column layout. A changed layout
 returns a localized Refresh notice before merging snapshots or reusing cell
 contexts; the schema-change browser regression uses a disposable SQLite file.
+
+## Same-session window catalogues and linked instances (2026-10-30)
+
+The desktop's existing in-process bus and web's same-origin BroadcastChannel
+remain single-user transports. Every new catalogue, group, focus and move
+message is scoped to the outer session before dispatch. Browser envelopes reuse
+the existing versioned session JSON parser (4 MiB, serde recursion limit), with
+the byte bound also checked before crossing JS-to-Rust. Its existing
+`session_bundle` fuzz target has catalogue/link/focus corpus seeds; model tests
+exercise semantic bounds and cross-session refusal. No new connection or
+package dependency is introduced.
+
+Catalogues carry only bounded panel titles, relative paths, types, dirty/movable
+flags and group ids. They omit excluded hidden/credential paths and all document
+text, terminal output/input, conversation bodies and previews. Retention caps
+512 tabs per window and 64 peers; heartbeats expire after eight seconds. Groups
+reuse saved-session member/history/selection/camera validation. Metadata renders
+as escaped text. Focus requests must name an actual local contribution. A move
+request asks the origin to validate an owned, source-backed instance and its
+current dirty state; a directed offer is accepted only for the pending matching
+request. The destination uses its normal source-attach/read boundary, never the
+provider's buffer. A late acknowledgement retains edits made during a drag.
+Keyboard/terminal sharing and write permissions are unchanged.
+
+
+Membership is interpreted only for an owned local content/view instance. Remote
+metadata cannot turn a plain local copy with the same conventional panel id into
+a group member. Selection, navigation origins and close rules use that ownership
+boundary; the regression opens and closes such a copy while the remote lead and
+local graph remain open. Alias transfers carry an explicit instance flag;
+ordinary document moves do not acquire aliases or remote memberships.

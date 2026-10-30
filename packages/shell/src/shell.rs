@@ -495,6 +495,13 @@ pub fn Shell() -> Element {
                 let (Some(lead), Some(graph)) = (lead, graph) else {
                     continue;
                 };
+                // A remote group is metadata. Pair placement belongs only to
+                // a window that actually owns both instances.
+                if !ws.links.contents.read().contains_key(lead.as_str())
+                    || !ws.links.views.read().contains_key(graph.as_str())
+                {
+                    continue;
+                }
                 let mut target = if *narrow.peek() { phone_layout } else { layout };
                 let mut next = target.peek().clone();
                 let already_placed = next.tile_for_panel(&graph).is_some();
@@ -793,6 +800,21 @@ pub fn Shell() -> Element {
             )
         })
         .collect::<Vec<_>>();
+    let catalogue: Vec<_> = overview_tabs
+        .iter()
+        .map(|t| moonkale_ext_api::window_panels::WindowTab {
+            movable: t.movable,
+            panel: t.id.clone(),
+            title: t.title.clone(),
+            path: t.path.clone(),
+            category: t.kind.clone(),
+            group: (!t.group.is_empty()).then(|| t.group.clone()),
+            dirty: t.dirty,
+        })
+        .collect();
+    use_effect(use_reactive((&catalogue,), move |(tabs,)| {
+        ws.set_window_tabs(tabs)
+    }));
     let recent_tabs = use_hook(|| {
         Rc::new(std::cell::RefCell::new(
             crate::overview::RecentTabs::default(),
@@ -803,6 +825,14 @@ pub fn Shell() -> Element {
         active_node,
         ws.links.focused.read().clone(),
     );
+    for peer in ws.session.remote_tabs.read().iter() {
+        overview_tabs.extend(
+            peer.tabs
+                .iter()
+                .cloned()
+                .map(|tab| crate::overview::Tab::remote(ws, peer.window.clone(), tab)),
+        );
+    }
     let mut overview_close = on_close.clone();
     let mut overview_activate = on_activate.clone();
     let overview_exts = exts.clone();

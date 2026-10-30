@@ -94,7 +94,16 @@ pub(crate) fn LinkedPanels(mut ws: Workspace, panels: Vec<(String, String)>) -> 
                         panels
                             .iter()
                             .find(|(p, _)| p == member)
-                            .map(|(_, t)| t.as_str())
+                            .map(|(_, t)| t.clone())
+                            .or_else(|| {
+                                ws.session
+                                    .remote_tabs
+                                    .read()
+                                    .iter()
+                                    .flat_map(|w| &w.tabs)
+                                    .find(|t| &t.panel == member)
+                                    .map(|t| t.title.clone())
+                            })
                     })
                     .collect::<Vec<_>>()
                     .join(", ");

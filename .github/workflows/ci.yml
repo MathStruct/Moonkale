@@ -244,7 +244,7 @@ jobs:
             check_name: browser smoke suites
             features: julia,rocksdb,helix,crash-test
             browser: firefox chromium
-            suites: table-edit proposals sharing agent-display terminal-private git git-sync git-everyday density mouse keymaps journey-keyboard journey-mouse shortcut-discovery crash-safety recovery sessions linked-panels overview files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
+            suites: table-edit proposals sharing agent-display terminal-private git git-sync git-everyday density mouse keymaps journey-keyboard journey-mouse shortcut-discovery crash-safety recovery sessions linked-panels window-panels overview files rich stores palette shell wiki live-preview-math live-preview-callouts live-preview-wiki-hover live-preview-properties doc-preview
           - name: structural
             check_name: browser structural edits
             features: julia,structural-edits

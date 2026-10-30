@@ -458,3 +458,6 @@ sharing-stop = Teilen beenden
 sharing-announce = Cursor der Teilnehmer ansagen
 sharing-follow = { $name } folgen
 sharing-agent-cursor = Agentencursor teilen
+
+overview-other-window = Fenster { $window }
+overview-browser-window = In einem anderen Browser-Tab geöffnet

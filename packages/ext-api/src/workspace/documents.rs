@@ -570,6 +570,7 @@ impl Workspace {
 
     /// Close `node`'s document and its views (unsaved changes are dropped; callers ask first).
     pub fn close_node(mut self, node: NodeId) {
+        let metadata = self.open_node_by_id(node);
         self.links.results.with_mut(|results| {
             results.remove(&node);
         });
@@ -582,14 +583,27 @@ impl Workspace {
             .flat_map(|g| {
                 g.members
                     .iter()
-                    .filter(|(_, r, _)| *r == crate::links::Role::Lead)
+                    .filter(|(panel, r, _)| {
+                        *r == crate::links::Role::Lead
+                            && self.links.contents.peek().contains_key(panel)
+                    })
                     .map(|(p, _, _)| p.clone())
             })
             .collect();
         for lead in leads {
             self.close_linked_panel(&lead);
         }
-        self.close_linked_panel(&self.content_panel(node));
+        let conventional = self.content_panel(node);
+        if self.links.contents.peek().contains_key(&conventional)
+            || !self
+                .links
+                .groups
+                .peek()
+                .iter()
+                .any(|g| g.members.iter().any(|(p, _, _)| *p == conventional))
+        {
+            self.close_linked_panel(&conventional);
+        }
         if let Some(doc) = self
             .document(node)
             .filter(|_| self.config.persistence.state.is_some())
@@ -626,6 +640,15 @@ impl Workspace {
             views.remove(&node);
         });
         self.docs.views.with_mut(|v| v.retain(|n| n.id != node));
+        // A retained graph can still need this node's source identity for a move;
+        // keep metadata only, without reopening the editor or retaining its text.
+        if self.links.views.peek().iter().any(|(panel, view)| {
+            view.detached.node == node || self.link_subject(panel).is_some_and(|s| s.node == node)
+        }) {
+            if let Some(metadata) = metadata {
+                self.docs.views.with_mut(|v| v.push(metadata));
+            }
+        }
         if self.docs.active.read().as_ref() == Some(&node) {
             let next = self.docs.open.read().last().map(|(id, _)| *id);
             self.set_active_document(next);

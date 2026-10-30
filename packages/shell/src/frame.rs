@@ -56,6 +56,8 @@ pub enum ResizeEdge {
 /// `ui` stays platform-agnostic by only ever calling these callbacks.
 #[derive(Clone, Copy, PartialEq)]
 pub struct WindowControls {
+    /// Raise this window after a session-bus activation request.
+    pub focus: Callback<()>,
     pub minimize: Callback<()>,
     pub toggle_maximize: Callback<()>,
     pub close: Callback<()>,
@@ -221,6 +223,21 @@ fn FrameContent(
         ws.connect_bus(bus);
     });
 
+    use_effect(move || {
+        let request = *ws.session.focus_requested.read();
+        if request == 0 {
+            return;
+        }
+        if let Some(controls) = controls {
+            controls.focus.call(());
+        } else {
+            let _ = document::eval("window.focus();");
+        }
+    });
+    use_effect(move || {
+        let _ = ws.links.groups.read();
+        ws.publish_link_changes();
+    });
     // Native drag plumbing, once per window:
     // - a workbench tab is an HTML5 drag carrying its element id (Firefox needs
     //   data to start one at all); when a tab drag starts, start a session drag
@@ -235,6 +252,8 @@ fn FrameContent(
             document.addEventListener("dragstart", (e) => {
                 const tab = e.target && e.target.closest ? e.target.closest(".wb-tab") : null;
                 if (tab && tab.id) dioxus.send({ kind: "start", tab: tab.id });
+                const card = e.target?.closest?.('.mk-overview-card[draggable=true]');
+                if (card && e.dataTransfer) { e.dataTransfer.setData("text/plain", "moonkale-panel"); e.dataTransfer.effectAllowed = "move"; }
                 // Explorer rows (Milestone 7): Firefox starts a drag only when
                 // the transfer carries data.
                 const row = e.target && e.target.closest ? e.target.closest(".mk-tree-row[draggable=true]") : null;

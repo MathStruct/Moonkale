@@ -35,6 +35,7 @@ mod remote;
 mod saved_sessions;
 mod session;
 mod sharing;
+mod window_panels;
 pub use saved_sessions::{SavedSessions, SavedWorkspace, DEFAULT_SESSION};
 mod settings;
 mod sources;
@@ -275,6 +276,13 @@ fn summary(msg: &SessionMessage) -> String {
     match msg {
         SessionMessage::Scoped { message, .. } => summary(message),
         SessionMessage::Hello { from } => format!("Hello from {from}"),
+        SessionMessage::WindowTabs { .. } => "WindowTabs".into(),
+        SessionMessage::Links { .. } => "Links".into(),
+        SessionMessage::FocusPanel { .. } => "FocusPanel".into(),
+        SessionMessage::MovePanel { .. } => "MovePanel".into(),
+        SessionMessage::PanelDrag { .. } => "PanelDrag".into(),
+        SessionMessage::PanelMoved { .. } => "PanelMoved".into(),
+        SessionMessage::WindowLeft { .. } => "WindowLeft".into(),
         SessionMessage::Presence { .. } => "Presence".into(),
         SessionMessage::Welcome { from } => format!("Welcome from {from}"),
         SessionMessage::SourceOpened { from, descriptor } => {

@@ -22,3 +22,6 @@
 !/corpus/symbol_paths/closed
 
 !/corpus/session_bundle/version.json
+!/corpus/session_bundle/window-tabs.json
+!/corpus/session_bundle/window-links.json
+!/corpus/session_bundle/window-focus.json

@@ -257,15 +257,21 @@ fn session(deliver: Callback<SessionMessage>) -> Rc<dyn SessionBus> {
     let eval = document::eval(
         r#"
         const bc = new BroadcastChannel("moonkale-session");
-        bc.onmessage = (e) => dioxus.send(e.data);
+        bc.onmessage = (e) => {
+            const text = JSON.stringify({bundle_version:1,message:e.data});
+            if (text.length <= 4*1024*1024 && new TextEncoder().encode(text).length <= 4*1024*1024) dioxus.send(text);
+        };
         for (;;) { bc.postMessage(await dioxus.recv()); }
         "#,
     );
     let mut rx = eval;
     spawn(async move {
         loop {
-            match rx.recv::<SessionMessage>().await {
-                Ok(msg) => deliver.call(msg),
+            match rx.recv::<String>().await {
+                Ok(text) => match SessionMessage::parse_wire(&text) {
+                    Ok(msg) => deliver.call(msg),
+                    Err(e) => tracing::warn!("session: {e}"),
+                },
                 // A peer sent something we can't read (version skew): skip it.
                 Err(dioxus::document::EvalError::Serialization(e)) => {
                     tracing::warn!("session: bad message: {e}")

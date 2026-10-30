@@ -39,6 +39,63 @@ pub enum SessionMessage {
         /// Existing window protocol.
         message: Box<SessionMessage>,
     },
+    /// Bounded catalogue of this window's open panels, refreshed while alive.
+    WindowTabs {
+        /// Publisher.
+        from: WindowId,
+        /// Metadata only, never previews or document bodies.
+        tabs: Vec<crate::window_panels::WindowTab>,
+    },
+    /// Changed groups and tombstones, with local panel ownership left untouched.
+    Links {
+        /// Publisher.
+        from: WindowId,
+        /// Changed groups only.
+        groups: Vec<crate::links::LinkGroup>,
+        /// Removed group identities.
+        removed: Vec<String>,
+    },
+    /// Activate a panel in its owning window.
+    FocusPanel {
+        /// Requesting window.
+        from: WindowId,
+        /// Owning window.
+        to: WindowId,
+        /// Advertised panel identity.
+        panel: String,
+    },
+    /// Ask an owning window to offer one of its panels for transfer.
+    MovePanel {
+        /// Requesting window.
+        from: WindowId,
+        /// Owning window.
+        to: WindowId,
+        /// Advertised panel identity.
+        panel: String,
+    },
+    /// Transfer one instance while retaining its group membership.
+    PanelDrag {
+        /// Offering window.
+        from: WindowId,
+        /// Optional requesting destination (overview moves).
+        to: Option<WindowId>,
+        /// Source-backed panel metadata only.
+        transfer: Box<crate::window_panels::PanelTransfer>,
+    },
+    /// A panel offer was accepted; only the origin relinquishes it.
+    PanelMoved {
+        /// Origin window.
+        from: WindowId,
+        /// Destination window (sender).
+        to: WindowId,
+        /// Moved panel.
+        panel: String,
+    },
+    /// The window leaves this outer session.
+    WindowLeft {
+        /// Departing window.
+        from: WindowId,
+    },
     /// Ephemeral opt-in presence over the local desktop bus.
     Presence {
         /// Sending window.
@@ -90,18 +147,34 @@ pub enum SessionMessage {
 }
 
 impl SessionMessage {
+    /// Parse the browser envelope through the existing bounded, fuzzed session JSON boundary.
+    pub fn parse_wire(text: &str) -> Result<Self, &'static str> {
+        #[derive(Deserialize)]
+        struct Envelope {
+            message: SessionMessage,
+        }
+        let envelope: Envelope = moonkale_state::session_bundle::parse(text)?;
+        Ok(envelope.message)
+    }
+
     /// The window that *sent* this message (used to drop echoes of our own
     /// messages). For `Moved` that is the destination, not `from`.
     pub fn sender(&self) -> &WindowId {
         match self {
             SessionMessage::Scoped { message, .. } => message.sender(),
-            SessionMessage::Hello { from }
+            SessionMessage::WindowTabs { from, .. }
+            | SessionMessage::Links { from, .. }
+            | SessionMessage::FocusPanel { from, .. }
+            | SessionMessage::MovePanel { from, .. }
+            | SessionMessage::PanelDrag { from, .. }
+            | SessionMessage::WindowLeft { from }
+            | SessionMessage::Hello { from }
             | SessionMessage::Presence { from, .. }
             | SessionMessage::Welcome { from }
             | SessionMessage::SourceOpened { from, .. }
             | SessionMessage::DragStarted { from, .. }
             | SessionMessage::DragEnded { from } => from,
-            SessionMessage::Moved { to, .. } => to,
+            SessionMessage::Moved { to, .. } | SessionMessage::PanelMoved { to, .. } => to,
         }
     }
 }

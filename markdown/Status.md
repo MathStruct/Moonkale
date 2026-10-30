@@ -94,7 +94,7 @@ and [[Security]]; the raw-mode/non-Unix limitations remain explicit. All AGENTS 
 and the smoke, structural, Sophia and default graph browser matrix pass. Keyboard
 control awaits accounts; global position Stop sharing is in WP-72.
 
-## Overview (WP-60, checked 2026-10-29)
+## Overview (WP-60, validated 2026-10-30)
 
 ✅ Steps 1–4 are built and validated: grouped open-tab cards, effective
 Ctrl+Alt+Space/F13 shortcuts, keyboard/mouse switching and close, bounded lazy
@@ -106,10 +106,15 @@ focus and scoped Escape cancellation; five overview repetitions, three full
 smoke sweeps and all gates pass with the fix.
 The browser measured 14.63 ms for twelve tabs/two tiles and 23.25 ms for fifty
 tabs. All AGENTS gates, the complete browser feature matrix, the image regression
-and an inspected private desktop check pass. Other-window switching, docking,
-hot corner and animation remain step 5. See [[Overview]] for scope and bounds.
+and an inspected private desktop check pass. Local drag-to-dock, hot corner and animation remain later work. See [[Overview]] for scope and bounds.
 
-## Linked panels (WP-59, checked 2026-10-29)
+The cross-window follow-up adds labelled peer catalogues, Enter activation and
+source-backed card moves through the outer-session bus. Browser focus remains
+best effort; remote preview bodies are never sent. All gates, the reconciled
+62-case matrix, six post-fix suites and two-window desktop inspection pass.
+Desktop focus follows compositor policy; see [[Overview]].
+
+## Linked panels (WP-59, validated 2026-10-30)
 
 ✅ Session-owned groups, marked tabs, independent local graph instances and
 Open with context are built and validated on the contributor branch. Keyboard
@@ -118,6 +123,12 @@ rules are included. Model/migration and session tests, browser acceptance,
 private desktop inspection, all AGENTS gates and the full CI browser feature
 matrix pass; see [[Linked Panels]]. Step 6 (other kinds of follower pairs)
 remains later work.
+
+The cross-window follow-up transfers an instance without unlinking its members;
+remote navigation and selections update its graph with the same marker/colour.
+Desktop and BroadcastChannel browser acceptance pass, including actual card
+dragging and an independent same-file copy. All gates and the reconciled browser
+feature matrix pass; the private display is stopped.
 
 ## Sessions (WP-46, checked 2026-10-28)
 

@@ -160,10 +160,29 @@ impl Workspace {
             .is_some_and(|n| n.kind == NodeKind::Table);
         format!("{}:{node}", if table { "table" } else { "editor" })
     }
+    // Group metadata also names remote members. Only owned instances may
+    // interpret those memberships; a plain copy of the same file is independent.
+    fn local_link_member(&self, panel: &str, group: &LinkGroup) -> bool {
+        if panel.starts_with("lead:") || panel.starts_with("editor:") || panel.starts_with("table:")
+        {
+            return self.links.contents.read().contains_key(panel);
+        }
+        if panel.starts_with("graph:") {
+            return self.links.views.read().contains_key(panel);
+        }
+        group
+            .members
+            .iter()
+            .any(|(id, role, _)| *role == Role::Lead && self.links.contents.read().contains_key(id))
+    }
     /// Read a panel's subject reactively. Ungrouped panels follow the active editor.
     pub fn link_subject(&self, panel: &str) -> Option<Subject> {
         for group in self.links.groups.read().iter() {
-            if let Some((_, _, follow)) = group.members.iter().find(|(id, _, _)| id == panel) {
+            if let Some((_, _, follow)) = group
+                .members
+                .iter()
+                .find(|(id, _, _)| id == panel && self.local_link_member(panel, group))
+            {
                 return match follow {
                     Follow::Pinned(subject) => Some(subject.clone()),
                     Follow::Group => Some(group.subject.clone()),
@@ -197,7 +216,9 @@ impl Workspace {
             .groups
             .read()
             .iter()
-            .find(|g| g.members.iter().any(|(id, _, _)| id == panel))
+            .find(|g| {
+                g.members.iter().any(|(id, _, _)| id == panel) && self.local_link_member(panel, g)
+            })
             .cloned()
     }
     /// Open content and create a local graph beside it.
@@ -402,18 +423,21 @@ impl Workspace {
             return;
         }
         if !self.links.groups.peek().iter().any(|g| {
-            g.members
-                .iter()
-                .any(|(id, _, f)| id == panel && *f == Follow::Group)
+            self.local_link_member(panel, g)
+                && g.members
+                    .iter()
+                    .any(|(id, _, f)| id == panel && *f == Follow::Group)
                 && g.subject.selection != selection
         }) {
             return;
         }
+        let ws = self;
         self.links.groups.with_mut(|groups| {
             for g in groups {
-                if g.members
-                    .iter()
-                    .any(|(id, _, f)| id == panel && *f == Follow::Group)
+                if ws.local_link_member(panel, g)
+                    && g.members
+                        .iter()
+                        .any(|(id, _, f)| id == panel && *f == Follow::Group)
                     && g.subject.selection != selection
                 {
                     g.subject.selection = selection.clone();
@@ -430,9 +454,9 @@ impl Workspace {
             .iter()
             .find(|g| {
                 g.subject.node == node
-                    && focused
-                        .as_ref()
-                        .is_some_and(|p| g.members.iter().any(|(id, _, _)| id == p))
+                    && focused.as_ref().is_some_and(|p| {
+                        self.local_link_member(p, g) && g.members.iter().any(|(id, _, _)| id == p)
+                    })
             })
             .map(|g| g.id.clone())
     }
@@ -461,7 +485,7 @@ impl Workspace {
             }
             None
         });
-        if let Some(lead) = lead {
+        if let Some(lead) = lead.filter(|p| self.links.contents.peek().contains_key(p)) {
             self.show_panel(&lead);
         }
     }

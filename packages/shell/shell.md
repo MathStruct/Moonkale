@@ -188,7 +188,7 @@ a session target. Periodic metadata persistence runs outside the input path;
 the workspace awaits an immediate save before switching dirty working sets.
 
 
-WP-59 resolves stable group lead aliases through editor contributions, marks tabs with numbered theme colours, and provides palette/context-menu/Alt-drag routes without adding rail or toolbar controls. Browser and desktop validation are in progress.
+WP-59 resolves stable group lead aliases through editor contributions, marks tabs with numbered theme colours, and provides palette/context-menu/Alt-drag routes without adding rail or toolbar controls. Browser and desktop validation pass; the window follow-up is recorded below.
 
 Linked-pair placement saves the final settled layout through the same state
 path as workbench gestures. Restoring older group metadata without a layout
@@ -206,3 +206,13 @@ confirmation focus, then checks that Escape retains the overview and dirty tab.
 
 
 WP-72: one always-mounted Sharing title-bar disclosure owns the indicator, publication clock, independent human/agent cursor and pointer switches, follow and request-only announcements. Stop sharing defaults to Ctrl+Shift+Escape in the effective registry.
+
+WP-59/60 window follow-up (2026-10-30): local contributions publish bounded tab
+catalogues; the overview clusters by window and link group, routes activation to
+the owning window and offers source-backed move by button or drag/drop. Remote
+cards use metadata/icon fallback. The frame publishes group deltas and raises
+desktop windows through WindowControls::focus; web focus is best effort.
+
+The remote-card drop target reserves its layout space before dragstart, so the
+source card stays put during a native HTML drag. The actual mouse regression
+checks that the moved document becomes active.

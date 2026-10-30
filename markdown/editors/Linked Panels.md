@@ -122,9 +122,45 @@ platform-default graph browser matrix. A private desktop screenshot was
 inspected with two restored, marked note/graph pairs side by side; persisted
 metadata and unchanged source files were checked. The remount fixes also pass
 sessions, keyboard/mouse journeys, properties and CodeMirror search regressions.
-Link coordination is currently within one workspace window; cross-window group
-transport remains later work.
+The original validation covered one workspace window; the 2026-10-30 follow-up
+below adds cross-window group transport.
 
 **Step 6, “Beyond the graph”, remains later work:** generated-code pairs,
 conversations/files, runs/plots, proposals/diffs and commits/files are not added
 by WP-59.
+
+## Cross-window groups (WP-59 follow-up, 2026-10-30)
+
+Implemented and validated on 2026-10-30. The outer-session bus carries per-group
+changes and removals. Received changes update the local comparison baseline, so
+unchanged peers do not echo them. A window keeps only its own content and graph
+instances; learning a remote group never opens duplicate panels. A source-backed
+tab move carries that instance's group, marker, colour, pinned subject and graph
+camera. Relinquishing its local instance leaves group membership intact. The
+lead's navigation and selection update followers in other windows. A remote
+lead reads a new source-backed target through already-attached sources when a
+follower steers it; no editor buffer crosses the bus.
+
+The existing desktop bus and browser BroadcastChannel both support this. Named
+outer sessions filter traffic before applying any catalogue, group, move or
+focus operation. Switching sessions clears transient peer/drag state and tells
+old peers to remove this window. Independent unsaved content is never transferred;
+a dirty tab refuses a move, and an edit made during a drag is retained at the
+origin even if an acknowledgement arrives. Session metadata still persists groups
+and each window's owned views through the existing saved-workspace mechanism.
+
+
+The follow-up also distinguishes local ownership from received membership. A
+plain copy of a file in another window does not inherit the group's subject or
+selection, and closing that copy never closes the remote lead. Moving an
+instance preserves its content-alias identity; moving an ordinary document
+keeps it ordinary. Model tests cover conventional lead ids as well as source
+identity, local-copy closure, remote-lead closure and outer-session refusal.
+
+Validation: all AGENTS gates pass. The 62-case smoke/structural/CodeMirror/
+Sophia/default-graph matrix passes with one targeted CodeMirror graph-rename
+startup retry; the six affected browser suites pass again after the ownership
+fix. `window-panels.mjs` uses a real mouse drag for a remote overview card and
+checks source/graph moves, wiki following, markers, activation and isolation.
+Private two-window desktop screenshots were inspected; compositor policy and
+source-file checks are recorded in the handoff. The private display is stopped.

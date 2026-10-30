@@ -132,3 +132,14 @@ WP-59 adds Workspace.links, group-local subjects/navigation and version-2 saved 
 ### Proposals and review (2026-10-30)
 
 The reusable `conflict::ThreeWayEditor` and pure `conflict_model` are shared by Git and agent proposal review. Whole-file side selection preserves exact text; the host owns persistence and requires another approval after rebasing.
+
+WP-59/60 window follow-up (2026-10-30): `window_panels` defines metadata catalogues
+and single-instance transfers. Workspace retains local panel ownership, merges
+group deltas without echoes, expires catalogues, checks focus against local
+contributions and refuses dirty moves. The existing bounded session JSON parser
+also reads BroadcastChannel envelopes; no buffer/preview body is shared.
+
+Membership lookup checks local content/view ownership. A plain same-file copy
+in another window stays independent; peer metadata cannot reroute its selection
+or close the remote lead when the local copy closes. PanelTransfer explicitly
+distinguishes content aliases from ordinary document panels.

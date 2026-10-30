@@ -31,6 +31,7 @@ pub fn Sharing(mut ws: Workspace) -> Element {
                     ws.session.sharing.with_mut(|s| s.following = None);
                 }
                 ws.sharing_tick();
+                ws.window_tick();
             }
         });
         cleanup
