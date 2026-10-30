@@ -65,7 +65,7 @@ try {
    // Bound retries still fail a source that retains a connection while idle.
    let last;
    for(let attempt=0;attempt<50;attempt++) {
-    try { execFileSync(path.join(process.env.CARGO_TARGET_DIR??path.join(repo,'target/agent'),'debug/examples/change_row'),[path.join(root,file),'theirs'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}); last=null; break; }
+    try { execFileSync(path.join(process.env.CARGO_TARGET_DIR??path.join(repo,'target'),'debug/examples/change_row'),[path.join(root,file),'theirs'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}); last=null; break; }
     catch(error) { last=error; if(!/lock.*file|file.*lock|conflicting lock/i.test(String(error.stderr)))throw error; await page.waitForTimeout(100); }
    }
    if(last)throw last;

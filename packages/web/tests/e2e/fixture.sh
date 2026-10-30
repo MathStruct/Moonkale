@@ -34,6 +34,9 @@ PY
 # Milestone 17: one small Turso, redb, RocksDB and HelixDB store (stores.mjs).
 (cd "$REPO" && cargo run -q -p moonkale-sources-kv --features redb,rocksdb --example seed_stores -- "$ROOT/stores" >/dev/null)
 (cd "$REPO" && cargo run -q -p moonkale-sources-sql --features duckdb --example seed_typed -- "$ROOT/typed.duckdb")
+# table-edit.mjs writes a row from outside with this helper (WP-14); build it here,
+# where CI builds everything the suites run, into cargo's own target dir.
+(cd "$REPO" && cargo build -q -p moonkale-sources-sql --features duckdb --example change_row)
 # A git repository with one commit (Milestone 7: git suite); .moonkale is ignored.
 printf 'target/\n.moonkale/\n' > "$ROOT/.gitignore"
 git -C "$ROOT" init -q -b main
