@@ -240,10 +240,11 @@ impl Source for FolderSource {
             family: SourceFamily::Folder,
             capabilities: Capabilities {
                 read: true,
-                write: true,
+                write: self.truth == moonkale_core::SourceTruth::Files,
                 watch: true,
                 text_query: None,
                 extra_text_query: None,
+                atomic_text: false,
             },
             root: self.root_id(),
         }
@@ -362,6 +363,14 @@ impl Source for FolderSource {
     }
 
     async fn apply(&self, tx: moonkale_core::Transaction) -> Result<Applied, SourceError> {
+        if self.truth == moonkale_core::SourceTruth::Store
+            || crate::truth::detect(&self.root).map_err(SourceError::from)?
+                == moonkale_core::SourceTruth::Store
+        {
+            return Err(SourceError::Unsupported(
+                "store-truth text must be edited through the authoritative store".into(),
+            ));
+        }
         let mut applied = Applied::default();
         for op in tx.ops {
             match op {

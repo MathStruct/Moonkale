@@ -336,7 +336,11 @@ fn run_turn(ws: Workspace, s: Session, text: String) {
             let manifest = crate::extension::AgentExtension.manifest();
             let mut denied = ps.denied_tools;
             if !ext.has(&manifest, "write-files") {
-                denied.extend(["editor.replace".to_string(), "file.create".to_string()]);
+                denied.extend([
+                    "editor.replace".to_string(),
+                    "editor.propose".to_string(),
+                    "file.create".to_string(),
+                ]);
             }
             if !ext.has(&manifest, "run-commands") {
                 denied.push("terminal.run".to_string());
@@ -872,6 +876,9 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                     }
                 }
             }
+            if crate::proposals::Inbox::count(ws) > 0 {
+                button { class: "mk-btn mk-proposals-open", onclick: move |_| crate::proposals::Inbox::open(ws), {t!(ws,L,"proposal-waiting")} }
+            }
             div { class: "mk-agent-log",
                 if items().is_empty() {
                     p { class: "mk-muted mk-agent-hint",
@@ -906,28 +913,8 @@ pub fn AgentPanel(ws: Workspace) -> Element {
                         }
                     }
                 }
-                if let Some(p) = pending_now {
-                    div { class: "mk-agent-approval",
-                        div { class: "mk-agent-approval-title",
-                            {t!(ws, L, "agent-wants")}
-                            code { "{p.call.name}" }
-                            " ({p.class:?})"
-                        }
-                        if p.call.name == "editor.replace" {
-                            div { class: "mk-agent-diff",
-                                pre { class: "mk-agent-diff-old", "{p.call.str(\"old\").unwrap_or_default()}" }
-                                pre { class: "mk-agent-diff-new", "{p.call.str(\"new\").unwrap_or_default()}" }
-                            }
-                        } else if p.call.name == "terminal.run" {
-                            pre { class: "mk-agent-diff-cmd", "$ {p.call.str(\"command\").unwrap_or_default()}" }
-                        } else {
-                            code { class: "mk-agent-tool-input", "{p.call.input}" }
-                        }
-                        div { class: "mk-agent-approval-actions",
-                            button { class: "mk-btn mk-btn-on", onclick: moonkale_ext_api::crash::event({ let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(true); } } }), {t!(ws, L, "agent-allow")} }
-                            button { class: "mk-btn", onclick: moonkale_ext_api::crash::event({ let p = p.clone(); move |_| { if let Some(tx) = p.reply.borrow_mut().take() { let _ = tx.send(false); } } }), {t!(ws, L, "agent-deny")} }
-                        }
-                    }
+                if pending_now.is_some() {
+                    button { class: "mk-btn mk-proposals-open", onclick: move |_| crate::proposals::Inbox::open(ws), {t!(ws,L,"proposal-waiting")} }
                 }
             }
             div { class: "mk-agent-compose",

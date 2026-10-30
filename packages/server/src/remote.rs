@@ -76,6 +76,12 @@ impl Source for RemoteSource {
         Ok((bytes, version))
     }
 
+    async fn preview_text(&self, tx: Transaction) -> Result<(), SourceError> {
+        crate::preview_text_at(self.id(), tx)
+            .await
+            .map_err(transport)?
+    }
+
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError> {
         crate::apply_to(self.id(), tx).await.map_err(transport)?
     }

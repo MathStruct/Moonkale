@@ -45,7 +45,7 @@ mod tests {
     use moonkale_core::Source;
 
     #[test]
-    fn folder_descriptor_detects_truth_and_preserves_plain_file_writes() {
+    fn folder_descriptor_detects_truth_and_only_files_truth_grants_plain_writes() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(detect(dir.path()).unwrap(), SourceTruth::Files);
         std::fs::create_dir(dir.path().join(".moonkale")).unwrap();
@@ -59,7 +59,7 @@ mod tests {
             std::fs::write(dir.path().join(MARKER_PATH), json).unwrap();
             let descriptor = crate::FolderSource::open(dir.path()).unwrap().descriptor();
             assert_eq!(descriptor.truth, truth);
-            assert!(descriptor.capabilities.write);
+            assert_eq!(descriptor.capabilities.write, truth == SourceTruth::Files);
         }
         for invalid in ["{", r#"{"truth":"unknown"}"#, &" ".repeat(4097)] {
             std::fs::write(dir.path().join(MARKER_PATH), invalid).unwrap();

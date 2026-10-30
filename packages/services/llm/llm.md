@@ -36,3 +36,14 @@ Tests: `cargo test -p moonkale-llm --features http` (SSE parser, both translator
 
 
 WP-70: Built-in ui.reveal/ui.select/ui.show_result/ui.canvas are read-only and session-deniable. llm-types::display owns strict bounded schemas and a deterministic per-conversation budget/rate limiter; UI and server hosts enforce them before publishing content.
+
+
+## WP-49 text proposal tools (2026-10-30)
+
+`graph.fetch` returns the exact read version as a decimal string. `editor.replace`
+and `editor.propose` require it and submit review data rather than mutating text.
+Policy classifies them as mutating for permissions and denials, but permits the
+submission itself; the session inbox alone authorizes apply. Trusted writes do
+not bypass that review, and file creation still asks. The local host supplies
+source validation, previews, atomic buffer/source groups and ordered save reports.
+Server-hosted sessions retain their read-only tool surface. See [[Shared Work]].

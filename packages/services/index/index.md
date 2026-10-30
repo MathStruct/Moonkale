@@ -214,3 +214,8 @@ NEXT-33 (2026-10-28): byte-budget eviction is latched per FolderStore handle.
 Later sync/check/repair/rebuild calls cannot recreate the cache during that open;
 the existing memory-index/status fallback remains active. A fresh folder open
 may try again. ADR-0026 records desktop repository and synthetic-fixture sizes.
+
+
+### Proposals and review (2026-10-30)
+
+`folder_store::store_folder::StoreFolder` adapts existing normal store-truth folders: authoritative manifest text, exact Sophia file tokens, nonmutating `propose_files` preview and atomic `replace_files_checked`. It never migrates a store or writes generated files. Cache repair stays disabled for store truth.

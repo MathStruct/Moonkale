@@ -88,6 +88,38 @@ pub struct Transaction {
 }
 
 impl Transaction {
+    /// Validate the shape and inserted-text budget of a reviewable text batch
+    /// before fetching bases, applying patches or parsing proposed code.
+    pub fn validate_text_proposal(&self) -> Result<(), SourceError> {
+        if self.ops.is_empty() || self.ops.len() > 64 {
+            return Err(SourceError::Invalid(
+                "text proposal requires 1..64 writes".into(),
+            ));
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut bytes = 0usize;
+        let mut edits = 0usize;
+        for op in &self.ops {
+            let Op::WriteText { node, patch, .. } = op else {
+                return Err(SourceError::Unsupported("text proposals only".into()));
+            };
+            if !seen.insert(*node) {
+                return Err(SourceError::Invalid("duplicate proposal node".into()));
+            }
+            let TextPatch::Replace(splices) = patch;
+            edits = edits.saturating_add(splices.len());
+            for splice in splices {
+                bytes = bytes.saturating_add(splice.text.len());
+            }
+            if edits > 4096 || bytes > 4 * 1024 * 1024 {
+                return Err(SourceError::Invalid(
+                    "text proposal exceeds edit/text budget".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn create_text(parent: NodeId, name: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
             ops: vec![Op::CreateText {

@@ -62,3 +62,27 @@ agent-overview-state = 代理活动
 agent-display-offer = 代理 { $name } 想显示视图
 agent-display-show = 显示
 agent-display-dismiss = 忽略
+
+proposal-title = 提案
+proposal-waiting = 待审核的提案
+proposal-reviewed = 提案审核已完成
+proposal-empty = 没有待审核的提案。
+proposal-stale = 提案已过期。未更改任何选中的缓冲区。请审核冲突并再次批准。
+proposal-current-unknown = 此数据源不提供当前内容的作者和修改时间。
+proposal-approve = 批准所选文件
+proposal-reject = 拒绝所选文件
+proposal-dismiss = 关闭
+
+proposal-saved = 已保存
+proposal-already-saved = 已保存
+proposal-changed = 缓冲区已更改；未保存
+proposal-closed = 文件或数据源已关闭；未保存
+proposal-readonly = 只读；未保存
+proposal-save-conflict = 版本冲突；未保存
+proposal-save-failed = 保存失败
+proposal-saved-atomic = 已在同一数据源事务中一起保存
+proposal-author = 代理 { $actor } · { $at }
+proposal-reopen = 重新打开冲突审核
+
+proposal-stale-partial = 应用时文件发生了变化。已批准的缓冲区可能已更新；报告保留此前的保存结果。
+proposal-save-unavailable = 缓冲区已更新，但无法协调保存到数据源。请先检查未保存的缓冲区。

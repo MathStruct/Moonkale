@@ -107,3 +107,8 @@ pub use moonkale_llm_types::display as agent_display;
 
 /// Opt-in ephemeral cursor and pointer metadata.
 pub mod sharing;
+
+/// Reusable three-way text review, shared by Git and agent proposals.
+pub mod conflict;
+/// Bounded diff3 model, also usable without a UI.
+pub mod conflict_model;

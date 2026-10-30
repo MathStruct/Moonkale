@@ -57,13 +57,6 @@ git-diverged = Local and upstream branches have diverged. Pull follows this repo
 git-lease-warning = This rewrites remote history only if its commit still matches this lease:
 git-operation = Operation in progress:
 git-rebase-sides = During rebase, ours is the upstream branch; theirs is the commit being replayed.
-git-ours = Ours
-git-base = Base
-git-theirs = Theirs
-git-result = Editable result
-git-resolve = Mark resolved
-git-hunk = Hunk { $n }
-git-conflict-invalid = Cannot parse conflict hunks. Reload or use an external editor.
 git-keep-deletion = Keep deletion and mark resolved
 
 git-branches = Branches…

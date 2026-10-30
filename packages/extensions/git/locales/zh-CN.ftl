@@ -57,13 +57,6 @@ git-diverged = 本地与上游分支已分叉。拉取遵循仓库的合并或�
 git-lease-warning = 仅当远程提交仍与此租约匹配时才重写远程历史：
 git-operation = 正在进行的操作：
 git-rebase-sides = 变基时，“我们的”是上游分支，“他们的”是正在重放的提交。
-git-ours = 我们的
-git-base = 基准
-git-theirs = 他们的
-git-result = 可编辑结果
-git-resolve = 标记为已解决
-git-hunk = 区块 { $n }
-git-conflict-invalid = 无法解析冲突区块。请重新加载或使用外部编辑器。
 git-keep-deletion = 保留删除并标记为已解决
 
 git-branches = 分支…

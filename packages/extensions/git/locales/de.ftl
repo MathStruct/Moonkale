@@ -57,13 +57,6 @@ git-diverged = Lokaler und entfernter Branch sind auseinandergegangen. Pull folg
 git-lease-warning = Dies überschreibt entfernte Historie nur, wenn der Commit noch dieser Lease entspricht:
 git-operation = Laufender Vorgang:
 git-rebase-sides = Beim Rebase ist „Unsere“ der Upstream-Branch und „Ihre“ der erneut angewandte Commit.
-git-ours = Unsere
-git-base = Basis
-git-theirs = Ihre
-git-result = Bearbeitbares Ergebnis
-git-resolve = Als gelöst markieren
-git-hunk = Abschnitt { $n }
-git-conflict-invalid = Konfliktabschnitte können nicht gelesen werden. Neu laden oder extern bearbeiten.
 git-keep-deletion = Löschung beibehalten und als gelöst markieren
 
 git-branches = Zweige…

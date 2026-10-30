@@ -7113,6 +7113,7 @@ dependencies = [
 name = "moonkale-editor-agent"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dioxus",
  "dioxus-core",
  "futures-channel",

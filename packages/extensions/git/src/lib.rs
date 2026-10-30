@@ -13,7 +13,6 @@
 #[cfg(all(feature = "cli", not(target_arch = "wasm32")))]
 pub mod cli;
 pub mod conflict;
-mod conflict_model;
 #[cfg(all(feature = "cli", not(target_arch = "wasm32")))]
 mod everyday;
 #[cfg(all(feature = "cli", not(target_arch = "wasm32")))]

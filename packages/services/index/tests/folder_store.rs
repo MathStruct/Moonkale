@@ -709,8 +709,8 @@ async fn store_truth_protects_unreadable_store_and_sidecars_from_every_repair_pa
         .unwrap();
     assert!(!memory.nodes.is_empty());
     assert_eq!(index.query(cache_query(false)).await.unwrap(), memory);
-    // Ordinary file saves remain possible, then watcher reconciliation must
-    // still leave the store alone.
+    // Store truth refuses the plain folder writer. An outside file edit
+    // still must not let watcher reconciliation touch the authored store.
     let file = folder
         .query(Query::Text {
             dialect: "path".into(),
@@ -721,18 +721,18 @@ async fn store_truth_protects_unreadable_store_and_sidecars_from_every_repair_pa
         .nodes
         .remove(0);
     let (text, version) = folder.fetch_text(file.id).await.unwrap();
-    let saved = folder
+    let refused = folder
         .apply(Transaction::write_text(
             file.id,
             version,
             TextPatch::whole("const external_edit = 9\n", text.chars().count()),
         ))
-        .await
-        .unwrap();
-    assert!(saved
-        .results
-        .iter()
-        .all(|r| matches!(r, moonkale_core::OpResult::Ok { .. })));
+        .await;
+    assert!(matches!(
+        refused,
+        Err(moonkale_core::SourceError::Unsupported(_))
+    ));
+    fs::write(dir.path().join("a.jl"), "const external_edit = 9\n").unwrap();
     index.refresh(file.id).await.unwrap();
     for suffix in ["", "-wal", "-shm", "-journal"] {
         assert_eq!(

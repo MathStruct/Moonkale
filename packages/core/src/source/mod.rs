@@ -63,7 +63,52 @@ pub trait Source: MaybeSendSync {
         Err(SourceError::Unsupported("binary content".into()))
     }
 
+    /// Preview a bounded text proposal without changing authored state.
+    /// A successful preview does not reserve versions: apply must check again.
+    /// Store-backed implementations can validate their transaction's constraints.
+    async fn preview_text(&self, tx: Transaction) -> Result<(), SourceError> {
+        tx.validate_text_proposal()?;
+        if !self.descriptor().capabilities.write {
+            return Err(SourceError::Unsupported("read-only source".into()));
+        }
+        if tx.ops.is_empty() || tx.ops.len() > 64 {
+            return Err(SourceError::Invalid(
+                "text proposal requires 1..64 writes".into(),
+            ));
+        }
+        let mut seen = std::collections::HashSet::new();
+        let mut bytes = 0usize;
+        for op in tx.ops {
+            let Op::WriteText {
+                node,
+                expected,
+                patch,
+            } = op
+            else {
+                return Err(SourceError::Unsupported("text proposals only".into()));
+            };
+            if !seen.insert(node) {
+                return Err(SourceError::Invalid("duplicate proposal node".into()));
+            }
+            let (text, actual) = self.fetch_text(node).await?;
+            if expected != actual {
+                return Err(SourceError::Conflict { expected, actual });
+            }
+            let next = patch.apply(&text)?;
+            bytes = bytes.saturating_add(text.len()).saturating_add(next.len());
+            if text.len() > 512 * 1024 || next.len() > 512 * 1024 || bytes > 4 * 1024 * 1024 {
+                return Err(SourceError::Invalid(
+                    "text proposal exceeds byte budget".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Apply a transaction. Partial success is reported per op in `Applied`.
+    /// When `capabilities.atomic_text` is true, a transaction containing only
+    /// WriteText operations must instead be all-or-nothing, with every expected
+    /// version validated inside the same source transaction.
     async fn apply(&self, tx: Transaction) -> Result<Applied, SourceError>;
 
     /// A node changed (it was saved through *another* source, or externally):

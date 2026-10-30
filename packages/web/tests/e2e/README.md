@@ -766,3 +766,20 @@ staging in both directions. It uses disposable fixture repositories only.
 editor after a second writer changes a referenced definition.
 
 `sharing.mjs` (CI smoke): two independent browser contexts, both CodeMirror and Rust editors; default-off wire silence, named caret/selection, independently enabled world-space graph pointer at different zooms, follow and Escape/own-navigation cancellation, request-only announcement, and the effective Stop sharing shortcut with indicator/revocation.
+
+
+## Proposals (WP-49)
+
+`proposals.mjs` uses the mock LLM and production controls: exact versions from
+`graph.fetch`, one two-file proposal without writes before approval, selected
+buffer apply and ordered file-save report, stale refusal with both sides in the
+shared three-way view, reopening after another external change, merge/re-review,
+partial approval and rejection. The rendered conflict waits for its shared
+stylesheet so the screenshot captures its final three-column layout. It also
+checks that the legacy replacement tool refuses a missing read version. It runs
+in CI smoke and `run-all.sh proposals`. Sophia transaction atomicity, nonmutating
+preview and one-stale-file all-or-nothing refusal have index unit tests.
+
+`MOONKALE_CPU_THROTTLE=6 run-all.sh git-everyday` uses CDP to exercise slower UI
+refresh timing. Entries and diffs are selected by file and mode; disk state alone
+is not a UI-ready signal (P-239).

@@ -160,9 +160,6 @@ this host. The CLI regression holds that lock and verifies another worktree
 waits; external Git processes still have the documented race boundary.
 
 
-### CI timing (2026-10-30)
+### Proposals and review (2026-10-30)
 
-P-239 retires staged tabs after their final index change disappears; Git actions
-outlive originating diff-tab unmounts. Commit actions require a loaded commit
-selection. File/mode attributes let everyday tests await exact content rather
-than racing the Changes list.
+P-239 retires staged tabs after their final index change disappears; Git actions outlive originating diff-tab unmounts. File/mode attributes let everyday tests await exact content rather than racing the Changes list. The three-way editor/model now live in ext-api; Git reexports the previous API.

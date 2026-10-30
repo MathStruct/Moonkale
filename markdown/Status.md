@@ -7,6 +7,19 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Proposals and optimistic text writes (WP-49 first slice, 2026-10-30)
+
+◐ **Text slice built and validated.** Local agents queue versioned text
+changes in one session inbox; two-file and partial review reuse coordinated
+buffer proposals. Stale text is refused and reviewed with the shared three-way
+editor. Folder persistence reports ordered saves; normal store-truth Sophia
+folders preview and apply selected text together in the database. Generated
+files are not overwritten. Read-only fallback remains for unavailable stores.
+SQL writes, accounts, durable task/inbox synchronization and source-provided
+current author/time metadata remain later work. Eight proposal-model and four
+Sophia adapter tests, all AGENTS gates, the full CI/default-graph browser matrix
+and the final rendered review check pass. See [[Shared Work]].
+
 ## Position sharing (WP-72, validated 2026-10-30)
 
 ✅ Built and validated on the codex contributor worktree.

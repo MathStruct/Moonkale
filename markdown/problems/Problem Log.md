@@ -268,3 +268,49 @@ mode, content and enabled action. `MOONKALE_CPU_THROTTLE=6` exercises slow UI ti
 
 ### Lesson
 A disk-state assertion does not mean the UI has finished its asynchronous refresh.
+
+
+## P-240 — Flow code generation hid a stale write refusal
+
+**Status:** fixed and validated in contributor worktree (workspace gates and flow browser journey) · **Related:** [[Shared Work]], SW-20, WP-49
+
+### Problem
+The text-write audit found that flow codegen fetched the correct content version
+(P-227) but treated any successful `Source::apply` response as success. Sources
+may return `Applied` containing a per-operation `Refused`, including `Conflict`.
+The file remained safe, but the UI could claim generation succeeded after refusal.
+
+### Decision
+Inspect `Applied::first_error` before acknowledging the generated file, matching
+normal saves, workspace replacement, settings and history writes. The existing
+error path now displays the stale version or other refusal.
+
+### Lesson
+The outer transport result and the per-operation result both matter for sources
+whose transactions explicitly permit partial success.
+
+
+## P-241 — Standalone fuzz and application builds need separate target directories
+
+**Status:** procedure corrected · **Related:** [[How to Write Tests]], WP-49 validation
+
+### Problem and measurements
+The documented stable parser test command reused `target/agent` for the standalone
+fuzz workspace. Its 28 parser tests passed, but the following application workspace
+build rejected the graph-render headless example: `Event` implemented a different
+`serde_core::Serialize` instance from the one its caller expected (the same package
+version/path with different feature contexts). The graph crate emits native
+cdylib/rlib artifacts that can collide across those workspace builds.
+
+### Decision
+Give the standalone workspace its own absolute `target/agent-fuzz` directory,
+including fuzz runs. The application keeps `target/agent`; neither is shared with
+another worktree. Corrected the test guide commands. Recovery needed only
+`cargo clean -p moonkale-graph-render` in the application environment; the full
+workspace tests then passed. No graph-render source or committed engine wasm
+changed. Evidence: `target/next41-fuzz-tests.log`, the initial failure in
+`target/next41-gates-clean.log`, and `target/next41-workspace-final.log`.
+
+### Lesson
+Separate workspaces can require separate target directories even within one
+agent's worktree, especially for packages that emit a cdylib as well as an rlib.

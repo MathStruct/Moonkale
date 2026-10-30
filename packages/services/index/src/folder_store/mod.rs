@@ -594,3 +594,6 @@ mod budget_tests {
         assert!(cache.path().exists());
     }
 }
+
+/// Authoritative store-truth folder text, independent of the derived cache.
+pub mod store_folder;

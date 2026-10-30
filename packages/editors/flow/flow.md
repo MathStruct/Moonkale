@@ -57,3 +57,7 @@ WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Det
 
 
 WP-59 synchronizes block selections with its group context graph. The graph extension projects the flow blocks/wires from the canonical document; no generated-code follower is added.
+
+
+WP-49 text-write audit (2026-10-30, P-240): codegen now surfaces per-operation
+source refusals, including stale versions, before reporting a generated file.

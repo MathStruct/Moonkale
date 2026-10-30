@@ -157,6 +157,15 @@ fn open_local(path: String, _options: moonkale_shell::OpenOptions) -> OpenFolder
         tracing::info!("mobile: opening {path}");
         let folder: Arc<dyn Source> =
             Arc::new(moonkale_project_fs::FolderSource::open(&path).map_err(SourceError::from)?);
+        #[cfg(feature = "sophia")]
+        let folder = if folder.descriptor().truth == moonkale_core::SourceTruth::Store {
+            match moonkale_index::folder_store::store_folder::StoreFolder::open(folder.clone()) {
+                Ok(source) => Arc::new(source) as Arc<dyn Source>,
+                Err(_) => folder,
+            }
+        } else {
+            folder
+        };
         // The index (links, symbols, search) as on desktop; no embeddings here.
         let index = Arc::new(moonkale_index::IndexSource::build(folder.clone()).await?);
         #[cfg(feature = "sophia")]

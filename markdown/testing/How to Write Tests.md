@@ -262,10 +262,13 @@ Desktop FPS preflight samples aggregate `/proc/stat` activity before each mode a
 `fuzz/` is a standalone cargo-fuzz crate with its own workspace and lockfile. It
 includes the actual production source files instead of copying parser code or
 compiling the Dioxus UI. Ordinary `cargo test --workspace` needs no nightly or
-libFuzzer build. Check its existing parser regressions on stable:
+libFuzzer build. Use a **separate target directory for this standalone workspace**
+(P-241): its graph-render cdylib/rlib artifacts can otherwise collide with the
+application workspace's serde feature context. Both directories stay inside your
+own worktree. Check its existing parser regressions on stable:
 
 ```sh
-CARGO_TARGET_DIR="$PWD/target/agent" cargo test --manifest-path fuzz/Cargo.toml --locked --lib
+CARGO_TARGET_DIR="$PWD/target/agent-fuzz" cargo test --manifest-path fuzz/Cargo.toml --locked --lib
 cargo fmt --manifest-path fuzz/Cargo.toml --check
 ```
 
@@ -275,8 +278,8 @@ pins nightly-2026-09-29). Run heavy commands through your slot wrapper and keep
 `CARGO_TARGET_DIR` absolute and inside your own worktree:
 
 ```sh
-CARGO_TARGET_DIR="$PWD/target/agent" cargo +nightly fuzz run math_delimiters -- -max_total_time=60 -max_len=65536 -rss_limit_mb=2048 -timeout=10
-CARGO_TARGET_DIR="$PWD/target/agent" cargo +nightly fuzz run flow_format -- -max_total_time=60 -max_len=65536 -rss_limit_mb=2048 -timeout=10
+CARGO_TARGET_DIR="$PWD/target/agent-fuzz" cargo +nightly fuzz run math_delimiters -- -max_total_time=60 -max_len=65536 -rss_limit_mb=2048 -timeout=10
+CARGO_TARGET_DIR="$PWD/target/agent-fuzz" cargo +nightly fuzz run flow_format -- -max_total_time=60 -max_len=65536 -rss_limit_mb=2048 -timeout=10
 ```
 
 `math_delimiters` exercises the existing Markdown display-math range parser,

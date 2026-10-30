@@ -1150,7 +1150,10 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                         ),
                                     ))
                                     .await
-                                    .map(|_| existing)
+                                    .and_then(|applied| match applied.first_error() {
+                                        Some(error) => Err(error.clone()),
+                                        None => Ok(existing),
+                                    })
                                     .map_err(|e| e.to_string()),
                                 Err(e) => Err(e.to_string()),
                             }

@@ -10,7 +10,7 @@
 //! | `source.text_query` | classified | raw SQL / Cypher / search on a source |
 //! | `index.search` | read | hybrid search over the index |
 //! | `editor.open` | read | open a node in the editor (optionally at a line) |
-//! | `editor.replace` | mutating | replace one exact occurrence of text in an open document (the user still saves) |
+//! | `editor.replace` | mutating | queue one exact replacement as a versioned review proposal |
 //! | `file.create` | mutating | create a new text file in a folder |
 //! | `terminal.run` | mutating (destructive by pattern) | run a shell command in a new terminal and return its output |
 
@@ -41,6 +41,8 @@ pub fn builtin_tools() -> Vec<ToolDef> {
         input_schema: json!({ "type": "object", "properties": props, "required": required }),
     };
     vec![
+        t("editor.propose", "Queue a multi-file text proposal for review. Nothing changes until the person approves from the session inbox. Each file requires the exact expected version string returned by graph.fetch. Approval changes all selected buffers atomically; files persist in order with a report.",
+          json!({"files":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","properties":{"source":{"type":"string"},"node":{"type":"string"},"expected":{"type":"string"},"text":{"type":"string"}},"required":["source","node","expected","text"]}}}), &["files"]),
         t("ui.reveal", "Offer a node with its context in your marked group. Reveal a zero-based line/column range without taking focus.",
           json!({"source":{"type":"string"},"node":{"type":"string"},"line":{"type":"integer","minimum":0},"column":{"type":"integer","minimum":0},"end_line":{"type":"integer"},"end_column":{"type":"integer"}}), &["source","node"]),
         t("ui.select", "Select and fit nodes in your own group's graph. Uses the ids of the graph you last showed.", json!({"nodes":{"type":"array","maxItems":200,"items":{"type":"string"}}}), &["nodes"]),
@@ -106,14 +108,15 @@ pub fn builtin_tools() -> Vec<ToolDef> {
         ),
         t(
             "editor.replace",
-            "Edit a text file: replace exactly one occurrence of `old` with `new` in the document (opened in the editor if needed). `old` must match the file text exactly, including whitespace; include enough context to be unique. The change appears in the user's editor as an unsaved edit; the user saves.",
+            "Queue a single-file review proposal replacing exactly one occurrence of `old` with `new`. `expected` must be the version string from graph.fetch. Include enough context for a unique exact match. Nothing changes until approval in the session inbox. Use editor.propose for changes reviewed together across files.",
             json!({
                 "source": { "type": "string" },
+                "expected": { "type": "string", "description": "version string from graph.fetch" },
                 "node": { "type": "string", "description": "node id of the file" },
                 "old": { "type": "string" },
                 "new": { "type": "string" }
             }),
-            &["source", "node", "old", "new"],
+            &["source", "node", "expected", "old", "new"],
         ),
         t(
             "file.create",

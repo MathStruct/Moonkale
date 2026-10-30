@@ -641,6 +641,7 @@ impl Source for SophiaSource {
                 watch: true,
                 text_query: Some(TextDialect::Sql),
                 extra_text_query: Some(TextDialect::SophiaQuery),
+                atomic_text: false,
             },
             root: self.root,
         }

@@ -24,6 +24,10 @@ pub struct Capabilities {
     pub read: bool,
     pub write: bool,
     pub watch: bool,
+    /// Text-only transactions are all-or-nothing, including stale refusal.
+    /// Other sources persist in operation order with per-operation results.
+    #[serde(default)]
+    pub atomic_text: bool,
     /// Dialect accepted by `Query::Text`, if any (`"sql"`).
     pub text_query: Option<TextDialect>,
     /// A second dialect the source also answers, offered beside the first

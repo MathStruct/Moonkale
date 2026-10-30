@@ -62,3 +62,27 @@ agent-overview-state = Agentenaktivität
 agent-display-offer = Agent { $name } möchte eine Ansicht zeigen
 agent-display-show = Anzeigen
 agent-display-dismiss = Verwerfen
+
+proposal-title = Vorschläge
+proposal-waiting = Vorschläge zur Prüfung
+proposal-reviewed = Vorschlagsprüfung abgeschlossen
+proposal-empty = Keine Vorschläge zur Prüfung.
+proposal-stale = Der Vorschlag ist veraltet. Kein ausgewählter Puffer wurde geändert. Konflikt prüfen und erneut genehmigen.
+proposal-current-unknown = Autor und Änderungszeit des aktuellen Inhalts sind für diese Quelle nicht verfügbar.
+proposal-approve = Ausgewählte Dateien genehmigen
+proposal-reject = Ausgewählte Dateien ablehnen
+proposal-dismiss = Schließen
+
+proposal-saved = Gespeichert
+proposal-already-saved = Bereits gespeichert
+proposal-changed = Puffer geändert; nicht gespeichert
+proposal-closed = Datei oder Quelle geschlossen; nicht gespeichert
+proposal-readonly = Schreibgeschützt; nicht gespeichert
+proposal-save-conflict = Versionskonflikt; nicht gespeichert
+proposal-save-failed = Speichern fehlgeschlagen
+proposal-saved-atomic = Zusammen in einer Quelltransaktion gespeichert
+proposal-author = Agent { $actor } · { $at }
+proposal-reopen = Konfliktprüfung neu öffnen
+
+proposal-stale-partial = Eine Datei wurde während der Übernahme geändert. Genehmigte Puffer können bereits aktualisiert sein; bisherige Speicherergebnisse stehen im Bericht.
+proposal-save-unavailable = Die Puffer wurden aktualisiert, ihre Speicherung konnte aber nicht koordiniert werden. Ungespeicherte Puffer vor dem Speichern prüfen.

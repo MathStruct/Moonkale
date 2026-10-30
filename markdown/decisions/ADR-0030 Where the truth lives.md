@@ -71,3 +71,16 @@ also protects a previously opened files-truth writer. Removing a marker from an
 already store-truth handle does not authorize writes. This is a safety stopgap,
 not implementation of the truth-move commands or a store migration. Sharing,
 generated files, outside-edit proposals and project templates remain deferred.
+
+
+### WP-49 text adapter (2026-10-30)
+
+The original stopgap above remains for missing, unreadable and derived stores.
+An **existing normal store-truth folder** can now expose its authored manifest
+text through a folder Source: reads carry Sophia file tokens, proposal preview
+calls `propose_files`, and text apply calls `replace_files_checked` once for the
+selected files. This never performs a truth migration, creates an authoritative
+store, clears derived mode or changes generated filesystem text. Bare folder
+writers refuse store-truth writes, including a marker added after opening.
+Code-graph cache repair, migration commands, generated-file export and the
+store-truth graph reader remain separate follow-ups. See [[Shared Work]].

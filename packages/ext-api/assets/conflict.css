@@ -1,0 +1,4 @@
+.mk-three-way-sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mk-three-way-sides pre { overflow: auto; max-height: 220px; white-space: pre-wrap; }
+.mk-conflict-result { display: block; width: 100%; min-height: 180px; box-sizing: border-box; font-family: monospace; }
+.mk-conflict-hunk { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; }

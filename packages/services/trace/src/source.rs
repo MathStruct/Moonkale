@@ -107,6 +107,7 @@ impl Source for TraceSource {
                 watch: false,
                 text_query: None,
                 extra_text_query: None,
+                atomic_text: false,
             },
             root: self.root,
         }

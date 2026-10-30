@@ -119,7 +119,17 @@ pub(crate) mod state {
         {
             return Ok(vec![db]);
         }
-        Ok(vec![Arc::new(FolderSource::open(canonical)?)])
+        let folder: Arc<dyn moonkale_core::Source> = Arc::new(FolderSource::open(canonical)?);
+        #[cfg(feature = "sophia")]
+        let folder = if folder.descriptor().truth == moonkale_core::SourceTruth::Store {
+            match moonkale_index::folder_store::store_folder::StoreFolder::open(folder.clone()) {
+                Ok(source) => Arc::new(source) as Arc<dyn moonkale_core::Source>,
+                Err(_) => folder,
+            }
+        } else {
+            folder
+        };
+        Ok(vec![folder])
     }
 }
 
@@ -276,4 +286,16 @@ pub async fn apply_to(
         .get(&source)
         .ok_or_else(|| server_error("unknown source"))?;
     Ok(s.apply(tx).await)
+}
+
+/// Preview on the source host; the ordinary authenticated API guard applies.
+#[post("/api/sources/preview_text")]
+pub async fn preview_text_at(
+    source: SourceId,
+    tx: Transaction,
+) -> Result<Result<(), SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.preview_text(tx).await)
 }

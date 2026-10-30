@@ -52,3 +52,11 @@ saved-with-warnings = 已保存 { $name } — { $warnings }
 # WP-72 ephemeral position sharing
 sharing-announcement = { $name }：{ $document }，第 { $line } 行，第 { $column } 列
 sharing-no-cursor = 没有共享光标
+
+conflict-ours = 我们的
+conflict-base = 基准
+conflict-theirs = 他们的
+conflict-result = 可编辑结果
+conflict-resolve = 标记为已解决
+conflict-hunk = 区块 { $n }
+conflict-conflict-invalid = 无法解析冲突区块。请重新加载或使用外部编辑器。

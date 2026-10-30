@@ -60,3 +60,11 @@ saved-with-warnings = { $name } gespeichert — { $warnings }
 # WP-72 ephemeral position sharing
 sharing-announcement = { $name }: { $document }, Zeile { $line }, Spalte { $column }
 sharing-no-cursor = Kein geteilter Cursor
+
+conflict-ours = Unsere
+conflict-base = Basis
+conflict-theirs = Ihre
+conflict-result = Bearbeitbares Ergebnis
+conflict-resolve = Als gelöst markieren
+conflict-hunk = Abschnitt { $n }
+conflict-conflict-invalid = Konfliktabschnitte können nicht gelesen werden. Neu laden oder extern bearbeiten.

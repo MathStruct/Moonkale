@@ -36,3 +36,5 @@ pub async fn sleep_ms(ms: u32) {
 }
 
 mod display;
+
+mod proposals;

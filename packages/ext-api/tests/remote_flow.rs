@@ -55,6 +55,7 @@ fn open_folder(path: String, _: OpenOptions) -> OpenFolderFuture {
                 watch: false,
                 text_query: None,
                 extra_text_query: None,
+                atomic_text: false,
             },
         };
         Ok(vec![Arc::new(Mem(d)) as Arc<dyn Source>])

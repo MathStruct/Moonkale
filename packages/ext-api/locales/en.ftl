@@ -60,3 +60,11 @@ saved-with-warnings = Saved { $name } — { $warnings }
 # WP-72 ephemeral position sharing
 sharing-announcement = { $name }: { $document }, line { $line }, column { $column }
 sharing-no-cursor = No shared cursor
+
+conflict-ours = Ours
+conflict-base = Base
+conflict-theirs = Theirs
+conflict-result = Editable result
+conflict-resolve = Mark resolved
+conflict-hunk = Hunk { $n }
+conflict-conflict-invalid = Cannot parse conflict hunks. Reload or use an external editor.

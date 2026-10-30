@@ -74,3 +74,8 @@ scopes. For sources without All, the fallback walks Children metadata from the
 root, queuing directories only. Sophia assigns a shared content definition to
 its smallest stable name id for navigation and retains every original Names
 relation; aliases do not multiply membership counts.
+
+
+### Proposals and review (2026-10-30)
+
+`Source::preview_text` checks bounded text proposals without writing. `Capabilities::atomic_text` explicitly promises text-only transactions are all-or-nothing; ordinary sources continue reporting ordered per-op results. Read versions still come from `fetch_text`, not query metadata.

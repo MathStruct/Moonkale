@@ -32,10 +32,6 @@
 
 .mk-git-output { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; padding: 8px; }
 .mk-git-plan { padding: 8px; border: 1px solid var(--wb-line); }
-.mk-three-way-sides { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.mk-three-way-sides pre { overflow: auto; max-height: 220px; white-space: pre-wrap; }
-.mk-conflict-result { display: block; width: 100%; min-height: 180px; box-sizing: border-box; font-family: monospace; }
-.mk-conflict-hunk { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; }
 .mk-git-conflict-view { padding: 8px; }
 .mk-git-entry:focus-within .mk-git-actions { display: inline-flex; }
 .mk-git-everyday { padding: 8px; border-block: 1px solid var(--wb-line); }

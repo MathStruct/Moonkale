@@ -190,6 +190,7 @@ impl<S: KvStore> Source for KvSource<S> {
                 watch: false,
                 text_query: Some(TextDialect::Kv),
                 extra_text_query: None,
+                atomic_text: false,
             },
             root: self.root_id(),
         }

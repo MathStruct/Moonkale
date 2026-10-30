@@ -1,0 +1,86 @@
+// WP-49: real mock-agent tool calls, one session inbox, versioned reviewed writes.
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const root=process.env.M1_ROOT,port=process.env.PORT;
+const browser=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
+const page=await browser.newPage({viewport:{width:1600,height:1000}});
+let step='setup';const logs=[];page.on('pageerror',e=>logs.push(e.stack));
+const source=`folder:${root}`;
+const ask=async(name,input)=>{
+  await page.locator('.wb-tab').filter({hasText:/^Agent$/}).click();
+  await page.locator('.mk-agent-input').fill(`/tool ${name} ${JSON.stringify(input)}`);
+  await page.locator('.mk-agent-compose button').click();
+  await page.waitForFunction(()=>!document.querySelector('.mk-agent-compose button')?.disabled,null,{timeout:60000});
+  return page.locator('.mk-agent-assistant').last().innerText();
+};
+const until=async fn=>{for(let i=0;i<150;i++){if(await fn())return;await page.waitForTimeout(100);}throw Error('condition timed out');};
+const read=async node=>{
+  const out=await ask('graph.fetch',{source,node});const version=out.match(/\[version (\d+)\]/)?.[1];
+  assert(version,out);return version;
+};
+const queue=async files=>{
+  const before=await page.locator('.mk-proposal').count();
+  const reply=await ask('editor.propose',{files});assert(reply.includes('queued for review'),reply);
+  await page.locator('.mk-proposals-open').first().click();
+  await until(()=>page.locator('.mk-proposal').count().then(n=>n===before+1));
+  return page.locator('.mk-proposal').last();
+};
+try{
+ await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'networkidle'});
+ await page.locator('.wb-workspace').waitFor({timeout:90000});
+ await page.locator('.mk-explorer-open button[type=submit]').click();
+ await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
+ await page.waitForFunction(()=>document.querySelector('.mk-agent-provider')?.textContent.includes('mock'));
+ const listing=await ask('graph.query',{source,mode:'children'});
+ const node=path=>{const id=listing.match(new RegExp(`([0-9a-f-]{36})\\s+File\\s+${path.replaceAll('.','\\.')}\\s+`))?.[1];assert(id,listing);return id;};
+ const a=node('Alpha.md'),b=node('README.md');
+ const beforeA=fs.readFileSync(`${root}/Alpha.md`,'utf8'),beforeB=fs.readFileSync(`${root}/README.md`,'utf8');
+ step='two files arrive as one reviewed proposal';
+ let av=await read(a),bv=await read(b);
+ let proposal=await queue([{source,node:a,expected:av,text:'Alpha proposed\n'},{source,node:b,expected:bv,text:'README proposed\n'}]);
+ assert.equal(await proposal.locator('.mk-proposal-file').count(),2);
+ assert.equal(fs.readFileSync(`${root}/Alpha.md`,'utf8'),beforeA);
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),beforeB);
+ await proposal.locator('.mk-proposal-approve').click();
+ await proposal.locator('.mk-proposal-report').waitFor();
+ assert.equal(fs.readFileSync(`${root}/Alpha.md`,'utf8'),'Alpha proposed\n');
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
+ assert.equal(await proposal.locator('.mk-proposal-file').count(),0);
+ step='one stale file refuses the whole selected proposal';
+ av=await read(a);bv=await read(b);
+ proposal=await queue([{source,node:a,expected:av,text:'Alpha second\n'},{source,node:b,expected:bv,text:'README second\n'}]);
+ fs.writeFileSync(`${root}/Alpha.md`,'External person\n');
+ await proposal.locator('.mk-proposal-approve').click();
+ await proposal.locator('.mk-proposal-conflict .mk-three-way').waitFor();
+ assert((await proposal.locator('.mk-three-way-sides').innerText()).includes('External person'));
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
+ assert.equal(fs.readFileSync(`${root}/Alpha.md`,'utf8'),'External person\n');
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.mk-proposal-conflict .mk-three-way-sides')).display==='grid');
+ await page.screenshot({path:`${process.env.M1_SHOTS}/proposals-conflict.png`});
+ step='reopen conflict after another external edit';
+ fs.writeFileSync(`${root}/Alpha.md`,'External again\n');
+ await proposal.locator('.mk-proposal-reopen').click();
+ await until(()=>proposal.locator('.mk-three-way-sides').innerText().then(t=>t.includes('External again')));
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
+ step='merge reopens review, with exact final newline, and per-file approval';
+ await proposal.locator('.mk-three-way').getByRole('button',{name:'Theirs',exact:true}).click();
+ await proposal.locator('.mk-three-way').getByRole('button',{name:'Mark resolved',exact:true}).click();
+ await proposal.locator('.mk-proposal-conflict').waitFor({state:'detached'});
+ await proposal.locator('.mk-proposal-file[data-path="README.md"] input').uncheck();
+ await proposal.locator('.mk-proposal-approve').click();
+ await until(()=>fs.readFileSync(`${root}/Alpha.md`,'utf8')==='Alpha second\n');
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
+ assert.equal(await proposal.locator('.mk-proposal-file').count(),1);
+ await proposal.locator('.mk-proposal-file input').check();
+ await proposal.locator('.mk-proposal-reject').click();
+ await until(()=>proposal.locator('.mk-proposal-file').count().then(n=>n===0));
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
+ step='legacy replacement requires the version it read';
+ const result=await ask('editor.replace',{source,node:b,old:'README',new:'wrong'});
+ assert(result.includes('expected must be the version string'),result);
+ assert.equal(fs.readFileSync(`${root}/README.md`,'utf8'),'README proposed\n');
+ await page.screenshot({path:`${process.env.M1_SHOTS}/proposals.png`});
+ console.log('PROPOSALS E2E: PASS');
+}catch(e){console.error(`FAIL ${step}:`,e,logs.slice(-6));await page.screenshot({path:`${process.env.M1_SHOTS}/proposals-fail.png`});process.exitCode=1;}
+finally{await browser.close();}

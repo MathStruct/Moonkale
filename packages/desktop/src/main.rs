@@ -157,6 +157,15 @@ fn open_local(path: String, options: moonkale_shell::OpenOptions) -> OpenFolderF
             return Ok(v);
         }
         let folder: Arc<dyn Source> = Arc::new(folder);
+        #[cfg(feature = "sophia")]
+        let folder = if folder.descriptor().truth == moonkale_core::SourceTruth::Store {
+            match moonkale_index::folder_store::store_folder::StoreFolder::open(folder.clone()) {
+                Ok(source) => Arc::new(source) as Arc<dyn Source>,
+                Err(_) => folder,
+            }
+        } else {
+            folder
+        };
         tracing::info!("open_local: building folder index");
         // Embeddings (if configured) fill in the background; search is
         // BM25-only until they arrive.

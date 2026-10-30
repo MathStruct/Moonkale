@@ -1,5 +1,11 @@
 # Changelog — the library crates
 
+## Unreleased — proposals (WP-49, 2026-10-30)
+
+- Core `Source::preview_text(Transaction)` validates bounded text proposals without authoring; overrides may enforce database constraints. Apply must still recheck versions.
+- `Capabilities::atomic_text` defaults to false on old wire descriptors. Rust full literals need the new field; true promises all-or-nothing text transactions, including stale refusal.
+- Move the WP-51 conflict model and `ThreeWayEditor` into `ext-api::conflict`/`conflict_model` so extensions share them without depending on each other. Git retains its previous reexports. The optional `whole_file` editor mode preserves side text exactly, including final newlines.
+
 ## Unreleased — Sophia save warnings (2026-10-29)
 
 - `moonkale_core::OpResult::Ok` adds `warnings: Vec<String>`. Rust constructors

@@ -25,6 +25,12 @@ impl Extension for AgentExtension {
                     .closable(true)
                     .activity(Activity::new("agent", 60, t!(ws, L, "agent-title"))),
             ];
+        if crate::proposals::Inbox::opened(ws) {
+            panels.push(
+                PanelContribution::new("proposals", t!(ws, L, "proposal-title"), PanelHome::Main)
+                    .closable(true),
+            );
+        }
         let state = crate::display::Displays::get(ws);
         let outer = ws.saved_sessions.active.read().clone();
         for (group, display) in state.panels.read().iter().filter(|(_, d)| {
@@ -92,6 +98,9 @@ impl Extension for AgentExtension {
         if let Some(group) = panel_id.strip_prefix("agent-canvas:") {
             return rsx! { crate::display::CanvasPanel { ws, group: group.to_string() } };
         }
+        if panel_id == "proposals" {
+            return rsx! { crate::proposals::Panel { ws } };
+        }
         // Sources on a server → the session runs there (Milestone 12).
         match ws.agent_sessions() {
             Some(api) => {
@@ -104,6 +113,7 @@ impl Extension for AgentExtension {
     // Milestone 7: the first extension-contributed command.
     fn commands(&self, ws: Workspace) -> Vec<CommandContribution> {
         vec![
+            CommandContribution::new("agent.proposals", t!(ws, L, "proposal-title")),
             CommandContribution::new("agent.focus", t!(ws, L, "cmd-agent-focus"))
                 .key("Ctrl+Shift+A"),
         ]
@@ -114,6 +124,9 @@ impl Extension for AgentExtension {
     }
 
     fn run_command(&self, id: &str, mut ws: Workspace) {
+        if id == "agent.proposals" {
+            crate::proposals::Inbox::open(ws);
+        }
         if id == "agent.focus" {
             ws.dispatch(Command::ShowPanel(PANEL_ID));
             ws.focus_element(crate::panel::INPUT_ID);

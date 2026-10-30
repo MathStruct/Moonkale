@@ -132,7 +132,7 @@ impl WorkspaceHost {
             "graph.fetch" => {
                 let (source, _) = source_of(ws, &call)?;
                 let node = parse_node(call.str("node").ok_or("node is required")?)?;
-                let (text, _) = source.fetch_text(node).await.map_err(|e| e.to_string())?;
+                let (text, version) = source.fetch_text(node).await.map_err(|e| e.to_string())?;
                 if let Ok(r) = source.query(Query::Node(node)).await {
                     if let Some(n) = r.nodes.first() {
                         self.cite(&n.native_key);
@@ -143,7 +143,8 @@ impl WorkspaceHost {
                 let total = text.chars().count();
                 let slice: String = text.chars().skip(offset).take(max).collect();
                 Ok(format!(
-                    "[chars {}..{} of {}]\n{}",
+                    "[version {}] [chars {}..{} of {}]\n{}",
+                    version.0,
                     offset,
                     (offset + slice.chars().count()).min(total),
                     total,
@@ -177,82 +178,8 @@ impl WorkspaceHost {
                 }
                 Ok(table_text(&res))
             }
-            "editor.replace" => {
-                let (source, _) = source_of(ws, &call)?;
-                let node = parse_node(call.str("node").ok_or("node is required")?)?;
-                let old = call.str("old").ok_or("old is required")?.to_string();
-                let new = call.str("new").ok_or("new is required")?.to_string();
-                if old.is_empty() {
-                    return Err("old must not be empty".into());
-                }
-                let n = source
-                    .query(Query::Node(node))
-                    .await
-                    .map_err(|e| e.to_string())?
-                    .nodes
-                    .into_iter()
-                    .next()
-                    .ok_or("no such node")?;
-                self.cite(&n.native_key);
-                let label = n.native_key.clone();
-                // Edit the open document (the same buffer the user sees): the
-                // change shows as unsaved; the user saves.
-                if ws.document(node).is_none() {
-                    let mut ws = ws;
-                    ws.links.agent_documents.with_mut(|ids| {
-                        ids.insert(node);
-                    });
-                    ws.load_node_guarded(n.clone(), || {
-                        *ws.saved_sessions.active.peek() == self.outer
-                    })
-                    .await
-                    .map_err(|e| e.to_string())?;
-                }
-                let mut doc = ws.document(node).ok_or("document did not open")?;
-                let (count, line) = {
-                    let d = doc.peek();
-                    let count = d.text.matches(&old).count();
-                    let line = d.text.find(&old).map(|i| d.text[..i].lines().count() + 1);
-                    (count, line)
-                };
-                match count {
-                    0 => {
-                        return Err(
-                            "`old` was not found in the document (it must match exactly)".into(),
-                        )
-                    }
-                    1 => {}
-                    n => {
-                        return Err(format!(
-                            "`old` matches {n} places; include more context so it is unique"
-                        ))
-                    }
-                }
-                if *ws.saved_sessions.active.peek() != self.outer {
-                    return Err("session changed".into());
-                }
-                doc.with_mut(|d| d.text = d.text.replacen(&old, &new, 1));
-                let mut ws = ws;
-                if *ws.saved_sessions.active.peek() != self.outer {
-                    return Err("session changed".into());
-                }
-                // The save that follows is attributed to the agent (Milestone 8 history).
-                let actor = {
-                    let llm = &ws.settings.resolved.peek().llm;
-                    format!(
-                        "agent:{}",
-                        if llm.model.is_empty() {
-                            llm.provider.clone()
-                        } else {
-                            llm.model.clone()
-                        }
-                    )
-                };
-                ws.history.pending_actor.with_mut(|m| {
-                    m.insert(node, actor);
-                });
-                let display = self.offer_node(&n, line.unwrap_or(1) as u64).await;
-                Ok(format!("Replaced in {label} at line {} (unsaved: the user reviews and saves). {display}", line.unwrap_or(1)))
+            "editor.replace" | "editor.propose" => {
+                crate::proposals::submit(ws, self.outer.clone(), self.name.clone(), call).await
             }
             "file.create" => {
                 let (_, handle) = source_of(ws, &call)?;

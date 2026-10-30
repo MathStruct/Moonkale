@@ -692,3 +692,29 @@ existing decoration APIs.
 Cursor announcements update only a core-owned, always-mounted live region on an explicit request. The adapter receives serialized metadata and uses textContent, clearing before a frame to support repeated announcements. Incoming movement never writes that region.
 
 Transport backpressure keeps a single latest outgoing snapshot, so revocation replaces queued motion. The web link uses a bounded wake queue; native hub links use watch channels for outgoing state and incoming member lists. Application queues do not retain a movement history.
+
+
+## Versioned proposal reviews (WP-49, 2026-10-30)
+
+Local-agent text tools submit data to a bounded session inbox; they cannot edit
+by enabling trusted writes. Every existing-file submission names the opaque
+version returned by `fetch_text`; missing, mismatched or changed editor bases
+refuse. The 64-file/4 MiB proposal and 16-item inbox bounds apply before mutation.
+Review rechecks source identity/capabilities, active session, expected text/version
+and editor leases. One stale selected file refuses the buffer batch. Conflict
+choices only prepare another review; they do not authorize a write. The view
+escapes text and never interprets agent-supplied HTML. Current author/time data
+is shown as unavailable rather than inferred from display labels.
+
+The authenticated preview endpoint delegates validation to the authoritative
+Source, so remote clients do not bypass Sophia's constraints. Preview reserves
+nothing; checked apply validates tokens again. Existing normal Sophia folders
+use one checked database transaction per source, preserve generated files, and
+never clear derived mode or migrate truth. A bare folder source refuses writes
+when its captured or current marker says store truth. Missing/corrupt/derived
+stores retain read-only fallback; no cache repair or file-truth fallback grants
+write authority. Filesystem saves remain ordered with visible per-file outcomes;
+external writers still have the documented filesystem race at each rename.
+Shell commands and wasm calls remain explicit policy operations; they are not
+claimed to be transactional text proposals. Server-hosted agent sessions retain
+their read-only tool surface. No account/role authorization is added here.

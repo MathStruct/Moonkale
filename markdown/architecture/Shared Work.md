@@ -1,6 +1,6 @@
 ---
 title: "Shared work — several people and agents in one session, on one graph"
-description: Requirements for sessions with many participants (people and agents), output that renders as rich text, concurrent work on the same graph (what the database guarantees and what Moonkale must add), and comments on anything. From Daniel, 2026-10-14. Partly built (conversations render Markdown); the rest is design.
+description: Requirements for sessions with many participants (people and agents), output that renders as rich text, concurrent work on the same graph (what the database guarantees and what Moonkale must add), and comments on anything. From Daniel, 2026-10-14. Partly built (Markdown output and versioned text proposals); accounts, tasks and general conflict metadata remain planned.
 tags: [architecture, collaboration, sessions, agents, comments, requirements]
 ---
 **From Daniel (2026-10-14):**
@@ -43,6 +43,49 @@ What agents may show in the UI, what working on the graph adds, the share button
 - **SW-14** a proposed change renders as a diff;
 - **SW-15** the same renderer for comments (§4), run outputs and task summaries, so everything people and agents write reads alike.
 
+## WP-49 first slice (validated 2026-10-30)
+
+SW-05/SW-14/SW-20/SW-21/SW-23 now have a local-agent text slice.
+`graph.fetch` returns an opaque decimal version string. `editor.propose` takes
+1–64 existing files with those versions and their proposed text; `editor.replace`
+is the single-file compatibility path and also requires the read version.
+Submission never edits a buffer, including in sessions that allow other writes.
+The session's Proposals inbox holds all conversations' requests, original/proposed
+text and file checkboxes. Approve/reject operates on the selected subset.
+File creation remains one absence-checked proposal; shell/extension calls retain
+the existing explicit policy reviews in the same inbox.
+
+Selected file-backed buffers apply together through the existing coordinated
+multi-document proposal/history API. Files persist in order with a per-file
+report because a filesystem offers no cross-file transaction. Sources advertising
+`atomic_text` apply a source's text changes in one checked transaction. Existing,
+normal Sophia store-truth folders preview with `propose_files` and apply with
+`replace_files_checked`; generated filesystem text is never written. No migration
+is implied by opening a folder. Unreadable/missing/derived authoritative stores
+keep the read-only fallback; the cache writer remains disabled.
+
+A stale source version or editor lease found in preflight refuses the selected
+buffer batch before mutation and opens the shared WP-51 three-way editor. Late
+conflicts at source commit or view preparation open that same review immediately.
+Ordered-save conflicts retain earlier results, mark successful files finished and
+review only the failed file. Missing view acknowledgements retain the approved
+unsaved buffers and report that persistence was unavailable. Busy reviews reject
+late selection, rejection and dismissal events. Choosing a side or editing
+its result reopens the proposal for a second approval against a newly captured
+version. The proposing agent and submission time are shown; current authors and
+modification times are explicitly unavailable until sources provide them.
+
+Validation: eight proposal-model and four Sophia adapter tests, all AGENTS gates,
+64 browser matrix runs (including ten consecutive 6× CPU-throttled Git journeys),
+and three final affected-suite regressions pass. The final proposal screenshot was inspected.
+Authoritative writes refuse syntax or normalization failures rather than losing
+unparsed definitions; derived views refresh after successful store writes.
+
+The inbox is bounded, in-memory, per outer session and shared across its local
+conversations. Account roles, durable multi-agent tasks/inbox synchronization,
+cell/property writes and SQL updates remain WP-48/WP-14 and later SW-21 adapters.
+SQL sources currently have no reviewed write API; this slice does not add one.
+
 ## 3. Many people and agents on one graph: the database's job and Moonkale's
 
 The short answer to "how far is it Moonkale's concern": **the database guarantees that each write is correct; Moonkale makes sure people see each other, see conflicts, and can review what agents do. For sources with no database behind them (files, flow documents), Moonkale supplies the guarantees itself.**
@@ -62,7 +105,7 @@ The short answer to "how far is it Moonkale's concern": **the database guarantee
 | Text and flow documents edited at once | — | a CRDT per document ([[Collaboration]], Phase 4–5) |
 
 **Requirements:**
-- **SW-20 Optimistic writes.** Every write through the `Source` write API (R-41, not built) carries the version it was based on. The source refuses a stale one, and Moonkale shows why. Last-writer-wins is never silent.
+- **SW-20 Optimistic writes.** Every write through the `Source` write API (text writes built; SQL/row writes remain R-41) carries the version it was based on. The source refuses a stale one, and Moonkale shows why. Last-writer-wins is never silent.
 - **SW-21 A conflict view** with both sides, their authors and times, and the choices. It is the same view for a cell, a node's property, a flow block's parameter and a file.
 - **SW-22 Soft claims, not locks.** "Daniel is editing this subgraph" or "agent X works on these files" is shown to everyone, and others are warned before editing there, never blocked. Hard locks are left to the database when it has them.
 - **SW-23 Proposals (changesets):** a set of edits across sources, made by an agent (always) or a person (optionally), reviewed as a whole with a diff per source, commented on (§4), and applied atomically where the source can (one transaction), or in order with a report where it can't. An agent's work is a proposal by default.

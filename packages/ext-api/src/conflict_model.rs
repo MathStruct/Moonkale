@@ -1,14 +1,22 @@
 //! Bounded, platform-independent diff3 hunk model shared with the fuzz target.
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// One unresolved diff3 region.
 pub struct Hunk {
+    /// Current side.
     pub ours: String,
+    /// Common base.
     pub base: String,
+    /// Proposed side.
     pub theirs: String,
+    /// Unique unresolved marker in the editable result.
     pub marker: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+/// Bounded text with unresolved diff3 hunks.
 pub struct ConflictDocument {
+    /// Parsed unresolved regions.
     pub hunks: Vec<Hunk>,
+    /// Initial editable text with unique hunk markers.
     pub result: String,
 }
 impl ConflictDocument {
@@ -138,6 +146,7 @@ impl ConflictDocument {
         };
         result.replacen(&h.marker, replacement, 1)
     }
+    /// Whether any unresolved marker remains in the result.
     pub fn unresolved(&self, result: &str) -> bool {
         result
             .lines()

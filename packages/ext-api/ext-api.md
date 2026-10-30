@@ -127,3 +127,8 @@ Public enum additions and wire fields are listed in CHANGELOG.md.
 
 
 WP-59 adds Workspace.links, group-local subjects/navigation and version-2 saved workspace metadata. Old session rows default to no links; core Source APIs are unchanged.
+
+
+### Proposals and review (2026-10-30)
+
+The reusable `conflict::ThreeWayEditor` and pure `conflict_model` are shared by Git and agent proposal review. Whole-file side selection preserves exact text; the host owns persistence and requires another approval after rebasing.

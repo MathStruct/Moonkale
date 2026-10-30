@@ -101,4 +101,6 @@ An empty staged diff is retired when the status refresh finds no index change
 for that path. The action finishes even if that retirement unmounts its tab.
 The everyday browser test waits for the requested file/mode and content rather
 than treating a disk-state assertion as proof that the Changes UI is current.
-Ten consecutive runs at 6× CDP CPU throttling pass.
+Ten consecutive runs at 6× CDP CPU throttling pass. The three-way conflict
+model/editor now live in ext-api, reused by proposal review; Git's public paths
+continue reexporting them.

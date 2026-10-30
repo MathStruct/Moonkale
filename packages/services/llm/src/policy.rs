@@ -82,6 +82,19 @@ impl Policy {
             return (Self::classify_with(call, text_risk), Decision::Deny);
         }
         let class = Self::classify_with(call, text_risk);
+        if matches!(call.name.as_str(), "editor.replace" | "editor.propose") {
+            return (
+                class,
+                if self.mutating == Decision::Deny {
+                    Decision::Deny
+                } else {
+                    Decision::Allow
+                },
+            ); // submission only; the inbox owns review
+        }
+        if call.name == "file.create" && self.mutating != Decision::Deny {
+            return (class, Decision::Ask);
+        }
         let decision = match class {
             Class::ReadOnly => Decision::Allow,
             Class::Mutating => self.mutating,
@@ -304,7 +317,17 @@ mod tests {
             name: "editor.replace".into(),
             input: json!({"old":"a","new":"b"}),
         };
-        assert_eq!(p.decide(&rep), (Class::Mutating, Decision::Ask));
+        // Submission is permitted, but only the inbox can authorize apply.
+        assert_eq!(p.decide(&rep), (Class::Mutating, Decision::Allow));
+        assert_eq!(
+            Policy {
+                mutating: Decision::Deny,
+                ..Default::default()
+            }
+            .decide(&rep)
+            .1,
+            Decision::Deny
+        );
         let run = |c: &str| ToolCall {
             id: "4".into(),
             name: "terminal.run".into(),

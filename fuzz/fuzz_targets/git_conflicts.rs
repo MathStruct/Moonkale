@@ -1,5 +1,5 @@
 #![no_main]
-#[path = "../../packages/extensions/git/src/conflict_model.rs"]
+#[path = "../../packages/ext-api/src/conflict_model.rs"]
 mod conflict_model;
 libfuzzer_sys::fuzz_target!(|text: &str| {
     if let Ok(doc) = conflict_model::ConflictDocument::parse(text) {

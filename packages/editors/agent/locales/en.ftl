@@ -62,3 +62,27 @@ agent-overview-state = Agent activity
 agent-display-offer = Agent { $name } wants to show a view
 agent-display-show = Show
 agent-display-dismiss = Dismiss
+
+proposal-title = Proposals
+proposal-waiting = Proposals awaiting review
+proposal-reviewed = Proposal review finished
+proposal-empty = No proposals awaiting review.
+proposal-stale = The proposal is stale. No selected buffer was changed. Review the conflict and approve again.
+proposal-current-unknown = Current author and modification time are unavailable from this source.
+proposal-approve = Approve selected files
+proposal-reject = Reject selected files
+proposal-dismiss = Dismiss
+
+proposal-saved = Saved
+proposal-already-saved = Already saved
+proposal-changed = Buffer changed; not saved
+proposal-closed = File or source closed; not saved
+proposal-readonly = Read-only; not saved
+proposal-save-conflict = Version conflict; not saved
+proposal-save-failed = Save failed
+proposal-saved-atomic = Saved together in one source transaction
+proposal-author = Agent { $actor } · { $at }
+proposal-reopen = Reopen conflict review
+
+proposal-stale-partial = A file changed during application. Approved buffers may already be updated; earlier save results remain in the report.
+proposal-save-unavailable = The buffers were updated, but their source saves could not be coordinated. Review the unsaved buffers before saving.
