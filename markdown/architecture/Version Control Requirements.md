@@ -93,3 +93,12 @@ Work packages WP-51 to WP-53 in [[Work Packages]].
 WP-52 is validated in the contributor worktree: 23 Git tests, all AGENTS gates
 and the reconciled 59-case browser matrix. Details are in [[Status]] and the
 NEXT-39 handoff.
+
+
+### CI timing follow-up (P-239, 2026-10-30)
+
+An empty staged diff is retired when the status refresh finds no index change
+for that path. The action finishes even if that retirement unmounts its tab.
+The everyday browser test waits for the requested file/mode and content rather
+than treating a disk-state assertion as proof that the Changes UI is current.
+Ten consecutive runs at 6× CDP CPU throttling pass.

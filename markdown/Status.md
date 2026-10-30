@@ -36,6 +36,10 @@ primary; secondary flows use the overflow and palette. Destructive reviews
 name affected commits/paths, ignored-file switches are refused, and automatic
 maintenance/pruning is disabled. P-237 fixes untracked-stash cleanup.
 
+P-239 (2026-10-30) retires an empty staged diff and keeps its operation alive
+through tab retirement. Everyday controls await a valid commit selection. The
+file/mode-specific browser journey passed ten consecutive 6× CPU-throttled runs.
+
 All AGENTS gates and the reconciled 59-case browser feature matrix pass.
 There are 24 Git tests, 17 Sophia tests and 28 standalone parser regressions;
 the final Git parser fuzz run completes 1,141,732 inputs without a crash.

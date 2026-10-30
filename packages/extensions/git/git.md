@@ -158,3 +158,11 @@ Linked worktrees take the same in-process lock, keyed by their common Git
 directory, so branch refs and the shared stash stack cannot interleave within
 this host. The CLI regression holds that lock and verifies another worktree
 waits; external Git processes still have the documented race boundary.
+
+
+### CI timing (2026-10-30)
+
+P-239 retires staged tabs after their final index change disappears; Git actions
+outlive originating diff-tab unmounts. Commit actions require a loaded commit
+selection. File/mode attributes let everyday tests await exact content rather
+than racing the Changes list.

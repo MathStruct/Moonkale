@@ -12,6 +12,8 @@ const git=(...args)=>execFileSync('git',['-C',root,...args],{encoding:'utf8'}).t
 if(git('show','-s','--format=%s',git('rev-list','--max-parents=0','HEAD'))!=='fixture') throw Error('Expected the disposable fixture root commit');
 const browser=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
 let page=await browser.newPage({viewport:{width:1600,height:1000}});
+const throttle=Number(process.env.MOONKALE_CPU_THROTTLE || 1);
+if(throttle>1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate',{rate:throttle});
 const logs=[];page.on('pageerror',e=>logs.push(e.stack));page.on('console',m=>{if(!m.text().includes('session['))logs.push(m.text().slice(0,500));});page.on('requestfailed',r=>logs.push(`${r.url()}: ${r.failure()?.errorText}`));
 let step='setup';
 const until=async fn=>{const end=Date.now()+15000;let last;while(Date.now()<end){try{if(await fn())return;}catch(error){last=error;}await page.waitForTimeout(150);}throw Error('condition timed out',{cause:last});};
@@ -21,6 +23,16 @@ const palette=async id=>{
   const item=page.locator(`.mk-palette-item[data-key='${id}']`);
   if(!await item.isVisible()) {await page.locator('.mk-palette-input').fill('');}
   await item.click();
+};
+// Wait for the status UI, then the exact requested diff, rather than using
+// disk state or visibility as a proxy for which mode the person opened.
+const diff=async(path,mode)=>{
+  await page.locator(`.mk-git-entry[data-path="${path}"][data-mode="${mode}"] .mk-git-path`).click();
+  const view=page.locator(`.mk-git-diff[data-path="${path}"][data-mode="${mode}"]`);
+  await view.waitFor({state:'visible'});
+  await view.locator('.mk-git-diff-body').waitFor();
+  await until(()=>view.locator('.mk-git-stage-selection').first().isEnabled());
+  return view;
 };
 const tools=()=>page.locator('.mk-git-everyday');
 const button=name=>tools().getByRole('button',{name,exact:true});
@@ -52,6 +64,7 @@ try{
   step='branch create rename upstream compare';
   await control(page.locator(".mk-git-head [data-command='git.branches']"),'click');
   await tools().locator('.mk-git-branch-name').fill('topic');
+  await tools().locator('.mk-git-commit-select').selectOption(tip);
   await button('Create branch').click();await confirm(true);await until(()=>git('branch','--list','topic')==='topic');
   await tools().locator('#mk-git-everyday-first').selectOption('topic');
   await tools().locator('.mk-git-branch-name').fill('renamed');
@@ -102,43 +115,44 @@ try{
   await tools().getByRole('button',{name:'Commit before this one',exact:true}).first().click();await until(()=>tools().locator('.mk-git-blame-row').first().innerText().then(t=>t.includes('everyday tip')));
   await button('Close').click();
   step='stage and unstage lines and hunks';
+  let view;
   fs.writeFileSync(`${root}/everyday.txt`,'one\nTWO\nthree\nFOUR\n');await refresh();
-  await page.locator('.mk-git-entry').filter({hasText:'everyday.txt'}).first().click();await page.locator('.mk-git-diff-body').waitFor();
-  await page.locator('.mk-diff-add').filter({hasText:'+FOUR'}).locator('button').click();await until(()=>git('show',':everyday.txt').includes('FOUR'));
+  view=await diff('everyday.txt','worktree');await page.locator('.mk-git-diff-body').waitFor();
+  await view.locator('.mk-diff-add').filter({hasText:'+FOUR'}).locator('button').click();await until(()=>git('show',':everyday.txt').includes('FOUR'));
   assert(git('show',':everyday.txt').includes('two'));
-  await page.locator('.mk-git-group').filter({has:page.locator('.mk-git-group-head', {hasText:'Staged ('})}).locator('.mk-git-entry').filter({hasText:'everyday.txt'}).click();
-  await page.locator('.mk-git-diff').filter({has:page.locator('.mk-git-diff-head',{hasText:'staged vs HEAD'})}).locator('.mk-diff-add').filter({hasText:'+FOUR'}).locator('button').click();await until(()=>!git('show',':everyday.txt').includes('FOUR'));
-  await page.locator('.mk-git-entry').filter({hasText:'everyday.txt'}).last().click();
-  const keyboardHunk=page.locator('.mk-git-diff:visible .mk-git-stage-selection[data-kind=hunk]').first();
+  view=await diff('everyday.txt','staged');
+  await view.locator('.mk-diff-add').filter({hasText:'+FOUR'}).locator('button').click();await until(()=>!git('show',':everyday.txt').includes('FOUR'));
+  view=await diff('everyday.txt','worktree');
+  const keyboardHunk=view.locator('.mk-git-stage-selection[data-kind=hunk]').first();
   await until(()=>keyboardHunk.isEnabled());
   await page.waitForFunction(()=>document.activeElement?.closest('.mk-git-diff-head'));
   await page.keyboard.press('Tab');
   await page.waitForFunction(()=>document.activeElement?.matches('.mk-git-stage-selection[data-kind=hunk]'));
   await page.keyboard.press('Enter');await until(()=>git('diff','--','everyday.txt')==='');
-  await page.locator('.mk-git-entry').filter({hasText:'everyday.txt'}).first().click();await page.locator('.mk-git-diff:visible .mk-git-stage-selection[data-kind=hunk]').first().click();await until(()=>git('diff','--cached','--','everyday.txt')==='');
+  view=await diff('everyday.txt','staged');await view.locator('.mk-git-stage-selection[data-kind=hunk]').first().click();await until(()=>git('diff','--cached','--','everyday.txt')==='');
 
   step='partial new and deleted text files';
   fs.writeFileSync(`${root}/fresh.txt`,'first\nsecond\n');await refresh();
-  await page.locator('.mk-git-entry').filter({hasText:'fresh.txt'}).first().click();
-  await page.locator('.mk-git-diff:visible .mk-diff-add').filter({hasText:'+second'}).locator('button').click();
+  view=await diff('fresh.txt','worktree');
+  await view.locator('.mk-diff-add').filter({hasText:'+second'}).locator('button').click();
   await until(()=>git('show',':fresh.txt')==='second');
-  await page.locator('.mk-git-entry').filter({hasText:'fresh.txt'}).first().click();
-  await page.locator('.mk-git-diff:visible .mk-diff-add').filter({hasText:'+second'}).locator('button').click();
+  view=await diff('fresh.txt','staged');
+  await view.locator('.mk-diff-add').filter({hasText:'+second'}).locator('button').click();
   await until(()=>git('ls-files','--','fresh.txt')==='');
-  await page.locator('.mk-git-entry').filter({hasText:'fresh.txt'}).first().click();
-  await page.locator('.mk-git-diff:visible .mk-git-stage-selection[data-kind=hunk]').first().click();
+  view=await diff('fresh.txt','worktree');
+  await view.locator('.mk-git-stage-selection[data-kind=hunk]').first().click();
   await until(()=>git('show',':fresh.txt')==='first\nsecond');
-  await page.locator('.mk-git-entry').filter({hasText:'fresh.txt'}).first().click();
-  await page.locator('.mk-git-diff:visible .mk-diff-add').filter({hasText:'+second'}).locator('button').click();
+  view=await diff('fresh.txt','staged');
+  await view.locator('.mk-diff-add').filter({hasText:'+second'}).locator('button').click();
   await until(()=>git('show',':fresh.txt')==='first');
-  await page.locator('.mk-git-diff:visible .mk-git-stage-selection[data-kind=hunk]').first().click();
+  await view.locator('.mk-git-stage-selection[data-kind=hunk]').first().click();
   await until(()=>git('ls-files','--','fresh.txt')==='');
   fs.rmSync(`${root}/everyday.txt`);await refresh();
-  await page.locator('.mk-git-entry').filter({hasText:'everyday.txt'}).last().click();
-  await page.locator('.mk-git-diff:visible .mk-diff-del').filter({hasText:'-two'}).locator('button').click();
+  view=await diff('everyday.txt','worktree');
+  await view.locator('.mk-diff-del').filter({hasText:'-two'}).locator('button').click();
   await until(()=>git('show',':everyday.txt')==='one\nthree');
-  await page.locator('.mk-git-entry').filter({hasText:'everyday.txt'}).first().click();
-  await page.locator('.mk-git-diff:visible .mk-diff-del').filter({hasText:'-two'}).locator('button').click();
+  view=await diff('everyday.txt','staged');
+  await view.locator('.mk-diff-del').filter({hasText:'-two'}).locator('button').click();
   await until(()=>git('show',':everyday.txt')==='one\ntwo\nthree');
   assert(!fs.existsSync(`${root}/everyday.txt`));
   fs.writeFileSync(`${root}/everyday.txt`,'one\ntwo\nthree\n');

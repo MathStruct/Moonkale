@@ -188,7 +188,7 @@ pub fn EverydayPanel(mut ws: Workspace, mut state: GitState, tab: Tab) -> Elemen
                     button {class:"mk-btn",onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::SwitchBranch{name:branch(),stash:stash_first()})),{t!(ws,L,"git-switch-branch")} }
                     label {{t!(ws,L,"git-new-branch-name")} input {class:"mk-input mk-git-branch-name",value:name(),oninput:moonkale_ext_api::crash::event(move|e:FormEvent|name.set(e.value()))} }
                     label {{t!(ws,L,"git-commit-select")} select {class:"mk-input mk-git-commit-select",value:commit(),onchange:moonkale_ext_api::crash::event(move|e:FormEvent|commit.set(e.value())),for r in &content.reflog{option{value:r.oid.clone(),"{r.oid} {r.subject}"}}} }
-                    button {class:"mk-btn",disabled:name.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::CreateBranch{name:name(),commit:commit()})),{t!(ws,L,"git-create-branch")} }
+                    button {class:"mk-btn",disabled:name.read().is_empty() || commit.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::CreateBranch{name:name(),commit:commit()})),{t!(ws,L,"git-create-branch")} }
                     button {class:"mk-btn",disabled:name.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::RenameBranch{name:branch(),to:name()})),{t!(ws,L,"git-rename-branch")} }
                     button {class:"mk-btn",onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::DeleteBranch{name:branch()})),{t!(ws,L,"git-delete-branch")} }
                     label {{t!(ws,L,"git-upstream-select")} select {class:"mk-input mk-git-upstream-select",value:upstream(),onchange:moonkale_ext_api::crash::event(move|e:FormEvent|upstream.set(e.value())),for r in &content.upstreams{option{value:r.clone(),"{r}"}}} }
@@ -198,12 +198,12 @@ pub fn EverydayPanel(mut ws: Workspace, mut state: GitState, tab: Tab) -> Elemen
                 }
                 if tab==Tab::Undo {
                     label {{t!(ws,L,"git-commit-select")} select {id:"mk-git-everyday-first",class:"mk-input mk-git-commit-select",value:commit(),onchange:moonkale_ext_api::crash::event(move|e:FormEvent|commit.set(e.value())),for r in &content.reflog{option{value:r.oid.clone(),"{r.oid} {r.selector}: {r.subject}"}}} }
-                    button {class:"mk-btn",onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::Revert{commit:commit()})),{t!(ws,L,"git-revert")} }
-                    button {class:"mk-btn",onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::CherryPick{commit:commit()})),{t!(ws,L,"git-cherry-pick")} }
+                    button {class:"mk-btn",disabled:commit.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::Revert{commit:commit()})),{t!(ws,L,"git-revert")} }
+                    button {class:"mk-btn",disabled:commit.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::CherryPick{commit:commit()})),{t!(ws,L,"git-cherry-pick")} }
                     label {{t!(ws,L,"git-reset-mode")} select {class:"mk-input mk-git-reset-mode",value:format!("{:?}",mode()),onchange:moonkale_ext_api::crash::event(move |e:FormEvent|mode.set(match e.value().as_str(){"Soft"=>ResetMode::Soft,"Hard"=>ResetMode::Hard,_=>ResetMode::Mixed})),option{value:"Soft",{t!(ws,L,"git-reset-soft")}} option{value:"Mixed",{t!(ws,L,"git-reset-mixed")}} option{value:"Hard",{t!(ws,L,"git-reset-hard")}}} }
-                    button {class:"mk-btn",onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::Reset{commit:commit(),mode:mode()})),{t!(ws,L,"git-reset")} }
+                    button {class:"mk-btn",disabled:commit.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::Reset{commit:commit(),mode:mode()})),{t!(ws,L,"git-reset")} }
                     label {{t!(ws,L,"git-new-branch-name")} input {class:"mk-input mk-git-branch-name",value:name(),oninput:moonkale_ext_api::crash::event(move |e:FormEvent|name.set(e.value()))} }
-                    button {class:"mk-btn",disabled:name.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::Restore{commit:commit(),name:name()})),{t!(ws,L,"git-reflog-restore")} }
+                    button {class:"mk-btn",disabled:name.read().is_empty() || commit.read().is_empty(),onclick:moonkale_ext_api::crash::event(move |_|act(EverydayAction::Restore{commit:commit(),name:name()})),{t!(ws,L,"git-reflog-restore")} }
                 }
                 if tab==Tab::Stash {
                     label {{t!(ws,L,"git-stash-message")} input {id:"mk-git-everyday-first",class:"mk-input mk-git-stash-message",value:name(),oninput:moonkale_ext_api::crash::event(move|e:FormEvent|name.set(e.value()))} }

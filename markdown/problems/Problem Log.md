@@ -240,3 +240,31 @@ Not here: the external audit's twenty GitHub issues — they have their own page
 - **Status**: open · investigating · decided · resolved · wontfix.
 - Link the ADR if the resolution became a decision.
 - Include measurements, not adjectives ("30 fps at 50k nodes on WebGL2", not "slow").
+
+
+## P-239 — Unstaging leaves an empty staged diff in front
+
+**Status:** fixed in contributor worktree; ten consecutive 6× CPU-throttled browser runs pass · **Related:** [[Version Control Requirements]], WP-52
+
+### Problem
+CI failed twice at git-everyday's partial-new-file stage. Git's index was already
+empty but the Changes list had not finished refreshing. The test clicked the
+first filename, still the staged entry, and kept an empty staged diff in front.
+The screenshot is `target/ci-evidence/git-everyday-fail.png`.
+The full smoke run under native rebuild load also exposed Create branch racing
+its initial reflog fetch: an empty commit state could be submitted before the
+select populated. Commit actions now disable while no commit is selected, and
+the test explicitly selects the intended full tip identity before creation.
+
+### Options
+Keep empty staged tabs and only fix the test, or retire staged views when their
+index entry disappears and also wait for exact status/diff mode in the test.
+
+### Decision
+Retire the obsolete staged view during status refresh. Open diff tabs through
+the workspace's interned `show_panel` path. Status rows and diff roots expose
+file/mode attributes; the browser test waits for the intended status row,
+mode, content and enabled action. `MOONKALE_CPU_THROTTLE=6` exercises slow UI timing.
+
+### Lesson
+A disk-state assertion does not mean the UI has finished its asynchronous refresh.

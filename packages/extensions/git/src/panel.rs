@@ -113,6 +113,17 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
             if *ws.contrib.file_marks.peek() != map {
                 ws.contrib.file_marks.set(map);
             }
+            // An index diff ceases to exist when its last staged change is
+            // removed. Retire its tab instead of leaving an empty staged view
+            // in front of the working-tree diff for the same path.
+            state.diffs.with_mut(|diffs| {
+                diffs.retain(|diff| {
+                    !diff.staged
+                        || entries
+                            .iter()
+                            .any(|entry| entry.path == diff.path && entry.staged())
+                });
+            });
             state.status.set(Some(Ok(Status {
                 branch,
                 upstream,
@@ -165,7 +176,9 @@ pub async fn refresh(mut ws: Workspace, mut state: GitState) {
 }
 
 pub fn act(mut ws: Workspace, mut state: GitState, req: GitRequest) {
-    moonkale_ext_api::crash::spawn(async move {
+    // Refresh may retire the originating diff tab. Finish the operation and
+    // release busy even if its component unmounts during that refresh.
+    moonkale_ext_api::crash::spawn_forever(async move {
         if *state.busy.peek() {
             return;
         }
@@ -340,9 +353,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
         if !state.diffs.peek().iter().any(|d| d.key() == key) {
             state.diffs.with_mut(|v| v.push(view));
         }
-        ws.dispatch(Command::ShowPanel(Box::leak(
-            format!("git-diff:{key}").into_boxed_str(),
-        )));
+        ws.show_panel(&format!("git-diff:{key}"));
         moonkale_ext_api::crash::spawn(async move {
             let res = match run(ws, GitRequest::Diff { path, staged }).await {
                 Ok(GitResponse::Diff(t)) => Ok(t),
@@ -439,7 +450,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                         let (p1, p2) = (e.path.clone(), e.path.clone());
                                         let letter = e.index;
                                         rsx! {
-                                            div { key: "s:{e.path}", class: "mk-git-entry", role: "button", tabindex: 0, "data-status": "{letter}", title: status_label(ws, letter),
+                                            div { key: "s:{e.path}", class: "mk-git-entry", role: "button", tabindex: 0, "data-mode": "staged", "data-path": "{e.path}", "data-status": "{letter}", title: status_label(ws, letter),
                                                 onkeydown: moonkale_ext_api::crash::event({let p=p1.clone();move |ev:KeyboardEvent| {if ev.key()==Key::Enter || ev.key()==Key::Character(" ".into()) {ev.prevent_default();open_diff(p.clone(),true);}}}),
                                                 onclick: moonkale_ext_api::crash::event(move |_| open_diff(p1.clone(), true)),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
@@ -462,7 +473,7 @@ pub fn ChangesPanel(ws: Workspace, state: GitState) -> Element {
                                         let (p1, p2, p3) = (e.path.clone(), e.path.clone(), e.path.clone());
                                         let letter = if e.index == '?' { '?' } else { e.worktree };
                                         rsx! {
-                                            div { key: "w:{e.path}", class: "mk-git-entry", role: "button", tabindex: 0, "data-status": "{letter}", title: status_label(ws, letter),
+                                            div { key: "w:{e.path}", class: "mk-git-entry", role: "button", tabindex: 0, "data-mode": "worktree", "data-path": "{e.path}", "data-status": "{letter}", title: status_label(ws, letter),
                                                 onkeydown: moonkale_ext_api::crash::event({let p=p1.clone();move |ev:KeyboardEvent| {if ev.key()==Key::Enter || ev.key()==Key::Character(" ".into()) {ev.prevent_default();open_diff(p.clone(),false);}}}),
                                                 onclick: moonkale_ext_api::crash::event(move |_| open_diff(p1.clone(), false)),
                                                 span { class: "mk-git-letter mk-git-{status_word(letter)}", "{letter}" }
@@ -526,7 +537,7 @@ pub fn DiffPanel(ws: Workspace, state: GitState, view_key: String) -> Element {
     }
     rsx! {
         moonkale_ext_api::Stylesheet { href: CSS }
-        div { class: "mk-git-diff",
+        div { class: "mk-git-diff", "data-path": "{view.path}", "data-mode": if view.staged { "staged" } else { "worktree" },
             div { class: "mk-git-diff-head",
                 span { class: "mk-git-path", "{view.path}" }
                 span { class: "mk-muted", if view.staged { {t!(ws, L, "git-staged-vs-head")} } else { {t!(ws, L, "git-worktree-vs-index")} } }
