@@ -25,6 +25,8 @@ pub struct RowPage {
     pub rows: Vec<RowSnapshot>,
     pub refusal: Option<String>,
     pub truncated: bool,
+    #[serde(default)]
+    pub next: Option<super::TableCursor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

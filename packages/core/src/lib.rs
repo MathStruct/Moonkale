@@ -59,3 +59,5 @@ pub use source::{
 };
 
 pub use source::rows::{RowBatch, RowChange, RowKey, RowOp, RowPage, RowSnapshot};
+
+pub use source::table_query::*;

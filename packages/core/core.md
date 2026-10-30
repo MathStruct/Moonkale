@@ -90,3 +90,13 @@ carries the fetched row version; inserts assert keyed absence with `None`.
 This is separate from text patches: no SQL text, DDL or arbitrary commands are
 represented by a row operation. The authenticated remote adapter forwards typed
 requests to the authoritative source host for validation and execution.
+
+
+### Typed table queries (WP-13, 2026-10-30)
+
+`Source::query_rows` defaults to Unsupported. `TableCapabilities` advertises sort,
+filter and keyset independently, false for old descriptors. `TableQuery` carries
+up to eight sort keys, 32 ANDed predicates, 1–1000 rows and a native-valued
+`TableCursor` (sort values plus complete row key); requests cap at 64 KiB.
+`RowPage::next` is optional and defaults to None on old wire snapshots. The SQL
+implementation preserves row snapshots and their expected versions.

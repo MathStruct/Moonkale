@@ -313,6 +313,19 @@ pub async fn read_rows_at(
     Ok(s.read_rows(table, limit).await)
 }
 
+/// Typed prepared table query; the source validates schema and bounds.
+#[post("/api/sources/query_rows")]
+pub async fn query_rows_at(
+    source: SourceId,
+    table: String,
+    query: moonkale_core::TableQuery,
+) -> Result<Result<moonkale_core::RowPage, SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.query_rows(table, query).await)
+}
+
 #[post("/api/sources/preview_rows")]
 pub async fn preview_rows_at(
     source: SourceId,

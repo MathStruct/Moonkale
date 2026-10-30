@@ -215,6 +215,7 @@ impl Source for TursoSource {
             display_name: self.database_node().label,
             family: SourceFamily::Sql,
             capabilities: Capabilities {
+                table_query: moonkale_core::TableCapabilities::SQL,
                 read: true,
                 write: true,
                 watch: false,
@@ -322,7 +323,22 @@ impl Source for TursoSource {
         table: String,
         limit: usize,
     ) -> Result<moonkale_core::RowPage, SourceError> {
-        crate::rows::read(&mut RowDb(self.db.connect().map_err(err)?), table, limit).await
+        self.query_rows(
+            table,
+            moonkale_core::TableQuery {
+                limit: limit.clamp(1, 1000),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    async fn query_rows(
+        &self,
+        table: String,
+        query: moonkale_core::TableQuery,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
+        crate::rows::query(&mut RowDb(self.db.connect().map_err(err)?), table, query).await
     }
     async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
         crate::rows::batch(&mut RowDb(self.db.connect().map_err(err)?), batch, true)

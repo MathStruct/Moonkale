@@ -1,5 +1,11 @@
 # Changelog — the library crates
 
+## Unreleased — table queries (WP-13, 2026-10-30)
+
+- Core adds bounded `TableQuery`, ANDed typed predicates, multi-column sort, `TableCursor` and default-unsupported `Source::query_rows`. Cursors contain native sort values and a complete row key; callers clear them when changing the query. NULLs sort last in both directions.
+- `Capabilities::table_query` advertises sort/filter/keyset separately and defaults to false on old descriptors. Rust full literals need the field.
+- `RowPage::next` is an optional keyset cursor, defaulting to None for old wire pages. SQL reads now return a stable order ending in the row key.
+
 ## Unreleased — typed database rows (WP-14, 2026-10-30)
 
 - `DateTimeCell::source_text` preserves naive values and original minute offsets for typed edits; unsupported local dates/offsets refuse conversion.

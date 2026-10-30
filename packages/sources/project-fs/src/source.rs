@@ -246,6 +246,7 @@ impl Source for FolderSource {
                 extra_text_query: None,
                 atomic_text: false,
                 atomic_rows: false,
+                table_query: Default::default(),
             },
             root: self.root_id(),
         }

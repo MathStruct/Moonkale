@@ -419,6 +419,7 @@ impl Source for LadybugSource {
                 extra_text_query: None,
                 atomic_text: false,
                 atomic_rows: false,
+                table_query: Default::default(),
             },
             root: self.root_id(),
         }

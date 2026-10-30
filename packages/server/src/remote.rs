@@ -91,6 +91,15 @@ impl Source for RemoteSource {
             .await
             .map_err(transport)?
     }
+    async fn query_rows(
+        &self,
+        table: String,
+        query: moonkale_core::TableQuery,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
+        crate::query_rows_at(self.id(), table, query)
+            .await
+            .map_err(transport)?
+    }
     async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
         crate::preview_rows_at(self.id(), batch)
             .await

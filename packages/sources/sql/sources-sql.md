@@ -47,3 +47,18 @@ and value injection, view and generated-column acceptance against each engine.
 it is not an application SQL command interface.
 
 Database file paths must have lossless UTF-8 source identities; ambiguous non-UTF-8 paths refuse before opening a driver or creating a lossy Turso path.
+
+
+## Table pushdown (WP-13, 2026-10-30)
+
+All three engines share the `rows.rs` prepared planner for `TableQuery`. It
+validates request bounds before metadata access, verifies identifiers against
+fresh main-schema columns/keys, binds filter/cursor/limit values and seeks
+lexicographically without OFFSET. Explicit NULLS LAST applies in both directions;
+the complete native row key breaks ties. CASE-projected native values produce
+cursors, preserving SQLite DATE text rather than comparing localized display.
+`read_rows` delegates to the same stable key order. Read-only tables with usable
+keys can page; unusable/unsupported identities keep the existing refusal/fallback.
+`tests/table_query.rs` compares complete small-table traversals against a
+brute-force reference in SQLite, DuckDB and Turso. `seed_scale` creates a new
+million-row DuckDB fixture for the browser suite, never a committed database.

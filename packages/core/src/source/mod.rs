@@ -19,7 +19,9 @@ pub mod opener;
 pub mod query;
 pub mod risk;
 pub mod rows;
+pub mod table_query;
 pub use rows::{RowBatch, RowChange, RowKey, RowOp, RowPage, RowSnapshot};
+pub use table_query::*;
 pub mod transaction;
 
 pub use descriptor::{Capabilities, SourceDescriptor, SourceFamily, SourceTruth, TextDialect};
@@ -68,6 +70,12 @@ pub trait Source: MaybeSendSync {
     /// Read a bounded page with authoritative keys and exact row versions.
     async fn read_rows(&self, _table: String, _limit: usize) -> Result<RowPage, SourceError> {
         Err(SourceError::Unsupported("row reads".into()))
+    }
+
+    /// Query an authoritative table page. Sources without pushdown return
+    /// Unsupported; callers sort/filter their loaded result and label it partial.
+    async fn query_rows(&self, _table: String, _query: TableQuery) -> Result<RowPage, SourceError> {
+        Err(SourceError::Unsupported("table pushdown".into()))
     }
 
     /// Check a typed row proposal without persisting it. Apply rechecks versions.

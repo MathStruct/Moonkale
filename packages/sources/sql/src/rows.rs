@@ -247,7 +247,15 @@ async fn fetch(
         .transpose()
 }
 
-pub(crate) async fn read(db: &mut impl Db, table: String, limit: usize) -> Result<RowPage> {
+pub(crate) async fn query(
+    db: &mut impl Db,
+    table: String,
+    query: moonkale_core::TableQuery,
+) -> Result<RowPage> {
+    query.validate()?;
+    if table.is_empty() || table.len() > 1024 {
+        return Err(err("invalid table name"));
+    }
     let schema = db.schema(&table).await?;
     if schema.refusal.is_some() {
         return Ok(RowPage {
@@ -256,12 +264,10 @@ pub(crate) async fn read(db: &mut impl Db, table: String, limit: usize) -> Resul
             ..Default::default()
         });
     }
-    let limit = limit.clamp(1, 1000);
+    let limit = query.limit;
+    let (suffix, params) = plan(&schema, &query)?;
     let rows = db
-        .query(
-            &format!("{} LIMIT ?", select(&table, &schema)),
-            vec![Value::Int((limit + 1) as i64)],
-        )
+        .query(&format!("{} {suffix}", select(&table, &schema)), params)
         .await?;
     let truncated = rows.len() > limit;
     let rows = rows
@@ -277,7 +283,27 @@ pub(crate) async fn read(db: &mut impl Db, table: String, limit: usize) -> Resul
     for row in &rows {
         predicate(&schema, &row.key)?;
     }
+    let next = if truncated {
+        rows.last().map(|row| moonkale_core::TableCursor {
+            values: query
+                .sort
+                .iter()
+                .map(|s| {
+                    row.stored
+                        .get(&s.column)
+                        .or_else(|| row.values.get(&s.column))
+                        .or_else(|| row.key.get(&s.column))
+                        .expect("schema-checked sort column")
+                        .clone()
+                })
+                .collect(),
+            key: row.key.clone(),
+        })
+    } else {
+        None
+    };
     Ok(RowPage {
+        next,
         columns: schema.columns,
         rows,
         refusal: None,
@@ -387,4 +413,116 @@ async fn apply(
         out.push(after);
     }
     Ok(out)
+}
+
+/// Lexicographic seek, with explicit NULLS LAST in both directions. The key
+/// suffix makes duplicate user sort values stable, including composite keys.
+fn plan(schema: &Schema, query: &moonkale_core::TableQuery) -> Result<(String, Vec<Value>)> {
+    use moonkale_core::TablePredicate as P;
+    let scalar = |v: &Value| -> Result<()> {
+        match v {
+            Value::Int(_) | Value::Bool(_) | Value::Text(_) | Value::DateTime(_) => Ok(()),
+            Value::Float(n) if n.is_finite() => Ok(()),
+            _ => Err(unsupported("table predicates require a finite scalar")),
+        }
+    };
+    let column = |c: &str| -> Result<String> {
+        if !schema.columns.iter().chain(&schema.keys).any(|s| s == c) {
+            return Err(err("unknown table column"));
+        }
+        Ok(quote(c))
+    };
+    let mut clauses = Vec::new();
+    let mut params = Vec::new();
+    for filter in &query.filters {
+        let c = column(&filter.column)?;
+        clauses.push(match &filter.predicate {
+            P::IsNull => format!("{c} IS NULL"),
+            P::Contains(s) => {
+                params.push(Value::Text(s.clone()));
+                format!("instr({c}, ?) > 0")
+            }
+            P::Prefix(s) => {
+                params.extend([Value::Int(s.chars().count() as i64), Value::Text(s.clone())]);
+                format!("substr({c}, 1, ?) = ?")
+            }
+            p => {
+                let (op, v) = match p {
+                    P::Eq(v) => ("=", v),
+                    P::Lt(v) => ("<", v),
+                    P::Le(v) => ("<=", v),
+                    P::Gt(v) => (">", v),
+                    P::Ge(v) => (">=", v),
+                    _ => unreachable!(),
+                };
+                scalar(v)?;
+                params.push(v.clone());
+                format!("{c} {op} ?")
+            }
+        });
+    }
+    let mut order = Vec::new();
+    let mut seek_columns = Vec::new();
+    for sort in &query.sort {
+        let c = column(&sort.column)?;
+        order.push(format!(
+            "{c} {} NULLS LAST",
+            if sort.descending { "DESC" } else { "ASC" }
+        ));
+        seek_columns.push((c, sort.descending));
+    }
+    // Repeating a user-sorted key is harmless and keeps cursor shape explicit.
+    for key in &schema.keys {
+        let c = quote(key);
+        order.push(format!("{c} ASC NULLS LAST"));
+        seek_columns.push((c, false));
+    }
+    if let Some(cursor) = &query.after {
+        predicate(schema, &cursor.key)?;
+        let mut values = cursor.values.clone();
+        values.extend(schema.keys.iter().map(|k| cursor.key[k].clone()));
+        let mut alternatives = Vec::new();
+        for i in 0..values.len() {
+            if values[i] == Value::Null {
+                continue;
+            } // NULL is the final group.
+            scalar(&values[i])?;
+            let mut parts = Vec::new();
+            for j in 0..i {
+                let c = &seek_columns[j].0;
+                if values[j] == Value::Null {
+                    parts.push(format!("{c} IS NULL"));
+                } else {
+                    scalar(&values[j])?;
+                    parts.push(format!("{c} = ?"));
+                    params.push(values[j].clone());
+                }
+            }
+            let (c, desc) = &seek_columns[i];
+            parts.push(format!(
+                "({c} {} ? OR {c} IS NULL)",
+                if *desc { "<" } else { ">" }
+            ));
+            params.push(values[i].clone());
+            alternatives.push(format!("({})", parts.join(" AND ")));
+        }
+        clauses.push(if alternatives.is_empty() {
+            "FALSE".into()
+        } else {
+            format!("({})", alternatives.join(" OR "))
+        });
+    }
+    params.push(Value::Int((query.limit + 1) as i64));
+    Ok((
+        format!(
+            "{} ORDER BY {} LIMIT ?",
+            if clauses.is_empty() {
+                String::new()
+            } else {
+                format!("WHERE {}", clauses.join(" AND "))
+            },
+            order.join(",")
+        ),
+        params,
+    ))
 }

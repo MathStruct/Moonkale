@@ -31,6 +31,8 @@ pub struct Capabilities {
     /// Typed row batches commit or roll back as one database transaction.
     #[serde(default)]
     pub atomic_rows: bool,
+    #[serde(default)]
+    pub table_query: super::TableCapabilities,
     /// Dialect accepted by `Query::Text`, if any (`"sql"`).
     pub text_query: Option<TextDialect>,
     /// A second dialect the source also answers, offered beside the first

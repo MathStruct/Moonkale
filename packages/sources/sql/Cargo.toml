@@ -37,3 +37,7 @@ required-features = ["duckdb"]
 [[example]]
 name = "change_row"
 required-features = ["duckdb"]
+
+[[example]]
+name = "seed_scale"
+required-features = ["duckdb"]

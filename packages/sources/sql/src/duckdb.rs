@@ -415,6 +415,7 @@ impl Source for DuckDbSource {
             display_name: self.database_node().label,
             family: SourceFamily::Sql,
             capabilities: Capabilities {
+                table_query: moonkale_core::TableCapabilities::SQL,
                 read: true,
                 write: self.writable,
                 watch: false,
@@ -519,6 +520,21 @@ impl Source for DuckDbSource {
         table: String,
         limit: usize,
     ) -> Result<moonkale_core::RowPage, SourceError> {
+        self.query_rows(
+            table,
+            moonkale_core::TableQuery {
+                limit: limit.clamp(1, 1000),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    async fn query_rows(
+        &self,
+        table: String,
+        query: moonkale_core::TableQuery,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
         let conn = self.conn.clone();
         let path = self.path.clone();
         let writable = self.writable;
@@ -532,7 +548,7 @@ impl Source for DuckDbSource {
                 &mut file
             };
             let mut db = RowDb(c);
-            tokio::runtime::Handle::current().block_on(crate::rows::read(&mut db, table, limit))
+            tokio::runtime::Handle::current().block_on(crate::rows::query(&mut db, table, query))
         })
         .await
         .map_err(crate::rows::err)?

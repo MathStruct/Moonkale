@@ -643,6 +643,7 @@ impl Source for SophiaSource {
                 extra_text_query: Some(TextDialect::SophiaQuery),
                 atomic_text: false,
                 atomic_rows: false,
+                table_query: Default::default(),
             },
             root: self.root,
         }

@@ -5,6 +5,9 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let _ = serde_json::from_slice::<moonkale_core::Value>(data);
+    if let Ok(query) = serde_json::from_slice::<moonkale_core::TableQuery>(data) {
+        let _ = query.validate();
+    }
     if let Ok(batch) = serde_json::from_slice::<moonkale_core::RowBatch>(data) {
         let _ = batch.validate();
     }

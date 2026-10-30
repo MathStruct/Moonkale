@@ -241,6 +241,7 @@ impl Source for SqliteSource {
             display_name: self.database_node().label,
             family: SourceFamily::Sql,
             capabilities: Capabilities {
+                table_query: moonkale_core::TableCapabilities::SQL,
                 read: true,
                 write: self.writable,
                 watch: false,
@@ -353,11 +354,26 @@ impl Source for SqliteSource {
         table: String,
         limit: usize,
     ) -> Result<moonkale_core::RowPage, SourceError> {
+        self.query_rows(
+            table,
+            moonkale_core::TableQuery {
+                limit: limit.clamp(1, 1000),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    async fn query_rows(
+        &self,
+        table: String,
+        query: moonkale_core::TableQuery,
+    ) -> Result<moonkale_core::RowPage, SourceError> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = conn.lock().unwrap();
             let mut db = RowDb(&mut guard);
-            tokio::runtime::Handle::current().block_on(crate::rows::read(&mut db, table, limit))
+            tokio::runtime::Handle::current().block_on(crate::rows::query(&mut db, table, query))
         })
         .await
         .map_err(crate::rows::err)?
