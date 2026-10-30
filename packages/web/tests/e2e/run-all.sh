@@ -40,6 +40,9 @@ for s in ${@:-$ALL}; do
   if [ "$s" = sophia-folder ]; then
     cargo run --quiet --locked --manifest-path "$MOONKALE_REPO/Cargo.toml" -p moonkale-sources-sophia --example save_warning_fixture -- "$M1_ROOT/warnings.sophia" || { fail=1; continue; }
   fi
+  if [ "$s" = table-grid ]; then
+    cargo run --quiet --locked --manifest-path "$MOONKALE_REPO/Cargo.toml" -p moonkale-sources-sql --features duckdb --example seed_scale -- "$M1_ROOT/million.duckdb" || { fail=1; continue; }
+  fi
   if [ "$s" = table-edit ]; then
     cargo build --quiet --locked --manifest-path "$MOONKALE_REPO/Cargo.toml" -p moonkale-sources-sql --features duckdb --example change_row || { fail=1; continue; }
   fi
@@ -52,7 +55,9 @@ for s in ${@:-$ALL}; do
     # The standalone server binary (Milestone 11) — needs `cd packages/web && dx build --platform server`.
     out=$(timeout 300 node server.mjs 2>&1); rc=$?
   else
-    out=$(timeout 420 node "$s.mjs" 2>&1); rc=$?
+    suite_timeout=420
+    [ "$s" = table-grid ] && suite_timeout=1200
+    out=$(timeout "$suite_timeout" node "$s.mjs" 2>&1); rc=$?
   fi
   echo "== $s: rc=$rc $(echo "$out" | grep -E 'PASS|FAIL' | tail -1)"
   if [ $rc -ne 0 ]; then echo "$out" | tail -15; fail=1; fi

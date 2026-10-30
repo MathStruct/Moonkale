@@ -38,6 +38,7 @@ pub(crate) struct Undo {
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct Editing {
     pub page: Signal<Rc<RowPage>>,
+    pub pinned: Signal<Vec<moonkale_core::RowKey>>,
     pub undo: Signal<Vec<Undo>>,
     pub start: Signal<Option<(usize, usize)>>,
     pub busy: Signal<bool>,
@@ -134,6 +135,7 @@ pub(crate) fn Cell(
     context: RowsContext,
     snapshot: SharedRow,
     mut editing: Editing,
+    blocked: bool,
     row: usize,
     column: usize,
     onfinish: EventHandler<()>,
@@ -146,11 +148,26 @@ pub(crate) fn Cell(
     // for every visible cell and every draft keystroke.
     let value = snapshot.values.get(&name).cloned().unwrap_or(Value::Null);
     let mut draft = use_signal(|| None::<Draft>);
+    moonkale_ext_api::crash::use_effect(move || {
+        let closed = draft.read().is_none();
+        let active = *editing.active.peek();
+        if closed && active == Some((row, column)) {
+            editing.active.set(None);
+        }
+    });
     let mut begin = {
         let value = value.clone();
         let snapshot = snapshot.clone();
         move || {
-            if draft.peek().is_none() && !*editing.busy.peek() {
+            if !crate::browse::pin_fits(&editing.page.peek(), &editing.pinned.peek(), &snapshot) {
+                ws.set_status(t!(ws, L, "table-edit-cap"));
+                return;
+            }
+            if draft.peek().is_none()
+                && !blocked
+                && !*editing.busy.peek()
+                && editing.pinned.peek().len() < 1000
+            {
                 editing.active.set(Some((row, column)));
                 draft.set(Some(Draft {
                     text: match &value {
@@ -197,6 +214,17 @@ pub(crate) fn Cell(
                 });
                 return;
             };
+            let mut projected = d.base.clone();
+            projected.values.insert(name.clone(), value.clone());
+            projected.stored.remove(&name);
+            if !crate::browse::pin_fits(&editing.page.peek(), &editing.pinned.peek(), &projected) {
+                draft.with_mut(|d| {
+                    if let Some(d) = d {
+                        d.error = t!(ws, L, "table-edit-cap");
+                    }
+                });
+                return;
+            }
             let source = context.handle.clone();
             let outer = ws.saved_sessions.active.peek().clone();
             if !valid(ws, &outer, &context.source, &source) {
@@ -252,6 +280,11 @@ pub(crate) fn Cell(
                                     u.remove(0);
                                 }
                             });
+                            editing.pinned.with_mut(|keys| {
+                                if !keys.contains(&after.key) {
+                                    keys.push(after.key.clone());
+                                }
+                            });
                             editing.page.with_mut(|p| Rc::make_mut(p).rows[row] = after);
                             draft.set(None);
                             if next.is_none() {
@@ -266,7 +299,7 @@ pub(crate) fn Cell(
                         let current =
                             if matches!(error, moonkale_core::SourceError::Conflict { .. }) {
                                 source
-                                    .read_rows(context.table.clone(), 1000)
+                                    .query_rows(context.table.clone(), key_query(&d.base.key))
                                     .await
                                     .ok()
                                     .and_then(|p| p.rows.into_iter().find(|r| r.key == d.base.key))
@@ -335,7 +368,7 @@ pub(crate) fn Cell(
                                 {
                                     let outer=ws.saved_sessions.active.peek().clone();
                                     if !valid(ws,&outer,&context.source,&source) { return; }
-                                    if let Ok(page)=source.read_rows(context.table.clone(),1000).await {
+                                    if let Ok(page)=source.query_rows(context.table.clone(),key_query(&key)).await {
                                         if !valid(ws,&outer,&context.source,&source) { return; }
                                         let current=page.rows.into_iter().find(|r|r.key==key);
                                         draft.with_mut(|d| { if let Some(d)=d { d.current=current; } });
@@ -399,6 +432,20 @@ pub(crate) async fn undo(
         });
     }
     Ok(())
+}
+
+fn key_query(key: &moonkale_core::RowKey) -> moonkale_core::TableQuery {
+    moonkale_core::TableQuery {
+        filters: key
+            .iter()
+            .map(|(column, value)| moonkale_core::TableFilter {
+                column: column.clone(),
+                predicate: moonkale_core::TablePredicate::Eq(value.clone()),
+            })
+            .collect(),
+        limit: 1,
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]

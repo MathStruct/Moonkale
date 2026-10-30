@@ -797,3 +797,23 @@ after adding `edit_rows`; run-all builds its fixed DuckDB helper before the suit
 Engine tests in `sources/sql/tests/rows.rs` cover rollback, stale versions,
 insert/delete, generated/view refusal and injection. Never point these writers
 at user databases.
+
+
+### Table pushdown (WP-13)
+
+`run-all.sh table-grid` generates a new million-row DuckDB fixture through
+`seed_scale` inside the disposable fixture directory (keep MOONKALE_E2E under
+your worktree target). It checks two-key sorting with the keyboard, typed AND
+filters through keyboard and mouse menus, a filtered cell edit retained until
+refresh, checked undo, and a complete 1000-page keyset traversal. Every step
+checks the 4000-loaded/80-DOM-row bounds. `table-grid-million.json` records all
+end-to-end page-to-paint p50/p95/max, request latencies and sampled/collected browser heap; p95 must stay
+within 2 seconds and every page within 10 seconds, with retained heap below
+128 MiB. The suite has a 1200-second process bound; each page has its own
+15-second readiness deadline. Small native engine tests compare exact pages
+against a brute-force reference, including NULLs, duplicate sorts and injection.
+
+The table suite also creates 1500 small SQLite rows and adds a column between
+pages. It checks a Refresh notice without merging stale snapshots, then fresh
+columns and the final page. `keymaps` follows F into the hidden column filter
+for pushed SQL tables; loaded-only global search stays in its disclosure.

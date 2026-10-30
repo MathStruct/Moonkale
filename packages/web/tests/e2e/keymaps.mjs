@@ -103,7 +103,7 @@ try {
   await page.keyboard.press('Alt+ArrowRight');
   await page.waitForFunction(state => [...window.moonkale.graphViews['mk-graph-panel'].navigation_camera_state()].every((value,i) => Math.abs(value-state[i]) < 0.001), depthAfter);
   await control(page.locator('.mk-graph button:text-is("3D")'), 'click');
-  // Table navigation uses the same preset but retains ordinary filter input.
+  // Table navigation uses the same preset; F reaches the hidden column filter.
   await control(page.locator('.mk-tree-db >> text=data.sqlite'), 'click');
   await control(page.locator('.mk-tree-db >> text=users'), 'click');
   const grid = page.locator('.mk-table:visible .mk-table-grid');
@@ -113,9 +113,14 @@ try {
   await page.waitForSelector('.mk-cell-cursor');
   assert.equal(await page.locator('.mk-cell-cursor').evaluate(el => el.closest('.mk-table-row').dataset.row), '1');
   await page.keyboard.press('f');
-  await page.waitForFunction(() => document.activeElement?.classList.contains('mk-table-filter'));
-  await page.keyboard.type('Ada');
-  assert.equal(await page.locator('.mk-table:visible .mk-table-filter').inputValue(), 'Ada');
+  await page.waitForFunction(() => document.activeElement?.tagName === 'SUMMARY' && document.activeElement.closest('.mk-column-menu'));
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await page.waitForFunction(() => document.activeElement?.classList.contains('mk-filter-value'));
+  await page.keyboard.type('2');
+  assert.equal(await page.locator('.mk-table:visible .mk-column-menu[open] .mk-filter-value').inputValue(), '2');
+  await page.keyboard.press('Escape');
   await control(page.locator('.mk-table:visible .mk-table-sql'), 'fill', 'SELECT 42 AS answer');
   await macroKey(19);
   await page.waitForFunction(() => [...document.querySelectorAll('.mk-table-hname')].some(el => el.textContent === 'answer'));

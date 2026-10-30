@@ -750,3 +750,23 @@ participate in the concurrency hash. Exact originals are retained for undo;
 display conversion is never a write token. Inline contexts retain source-handle
 identity from the read. Database file paths without lossless UTF-8 source ids
 refuse before driver opening; no lossy Turso filename is created.
+
+
+WP-13 (2026-10-30): authenticated typed table queries carry no SQL fragments.
+Request validation caps eight sort keys, 32 AND predicates, a 1–1000 row page,
+64 cursor-key columns and 64 KiB encoded input. Identifiers must exist in fresh
+main-schema metadata and are quoted; all predicate, cursor and limit values bind
+as prepared parameters. NULLs use generated fixed statement shapes; native
+row keys end stable order. Existing 512-KiB value / 4-MiB page budgets and exact row
+versions apply. The grid caps retained rows at 4000 and targets 16 MiB of serialized snapshots
+on page loads. Edit preflight caps pins at 1000 rows/4 MiB; one source trigger
+can enlarge its result by at most a 4-MiB page, yielding 8 MiB pinned and
+24 MiB total retained snapshot hard bounds between page loads. Undo stays
+at 64 entries/8 MiB; stale source/session/generation replies are discarded.
+`typed_cells` fuzzing now exercises TableQuery serde and bounds. The grid uses the already-locked serde_json directly to deduplicate complete
+row keys during page retention. No connection, dependency version, SQL write
+authority or content evaluation is added.
+
+WP-13 page merging also requires the original column layout. A changed layout
+returns a localized Refresh notice before merging snapshots or reusing cell
+contexts; the schema-change browser regression uses a disposable SQLite file.

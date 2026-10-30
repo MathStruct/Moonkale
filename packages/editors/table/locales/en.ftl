@@ -28,3 +28,24 @@ table-edit-reopen = Reopen
 table-readonly = This table is read-only.
 table-edit-deleted = Row deleted
 table-edit-source-changed = The source changed or closed. Reopen the table before editing.
+
+table-partial = Partial: sort and filter apply only to loaded rows
+table-next-page = Next page
+table-refresh = Refresh
+table-edited-outside = Edited rows outside the filter stay visible until refresh
+table-edit-cap = Refresh to edit more rows (1000 rows or 4 MiB of edited snapshots)
+table-column-filter = Filter { $column }
+table-filter-operator = Operator
+table-filter-value = Value
+table-filter-apply = Apply filter
+table-filter-clear = Clear filter
+table-op-eq = Equals
+table-op-lt = Less than
+table-op-le = At most
+table-op-gt = Greater than
+table-op-ge = At least
+table-op-contains = Contains text
+table-op-prefix = Starts with text
+table-op-null = Is NULL
+
+table-schema-changed = The table columns changed. Refresh to load the new schema.

@@ -7228,6 +7228,7 @@ dependencies = [
  "dioxus",
  "moonkale-core",
  "moonkale-ext-api",
+ "serde_json",
 ]
 
 [[package]]

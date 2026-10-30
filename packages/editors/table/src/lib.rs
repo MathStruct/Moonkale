@@ -6,9 +6,9 @@
 //! decides what is allowed (SQLite is read-only in Milestone 2).
 //!
 //! The grid is virtualised in rows and columns ([`grid`]), sorts and
-//! filters the loaded rows, resizes columns and moves a keyboard cursor.
-//! Not yet: pushdown sort/filter/pagination, cell editing (needs the
-//! primary-key lifting), "open as table" for graph views.
+//! filters loaded rows or sends typed queries to capable sources. Keyset pages
+//! retain authoritative row versions for checked cell edits. Columns resize and
+//! a keyboard cursor moves through the visible window.
 
 pub mod extension;
 pub mod grid;
@@ -25,3 +25,5 @@ pub use extension::TableExtension;
 pub use panel::TablePanel;
 
 mod edit;
+
+mod browse;

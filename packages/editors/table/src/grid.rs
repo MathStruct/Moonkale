@@ -75,7 +75,8 @@ pub fn cell_text(v: &Value) -> String {
 /// fit at the end too.
 pub fn initial_widths(columns: &[String], rows: &[Vec<Value>]) -> Vec<f64> {
     const CHAR: f64 = 7.6;
-    const PAD: f64 = 22.0;
+    // Cell padding plus the header sort marker and column-menu target.
+    const PAD: f64 = 54.0;
     columns
         .iter()
         .enumerate()
@@ -299,6 +300,72 @@ pub fn sparkline(v: &moonkale_core::NumericVector) -> String {
         .join(" ")
 }
 
+/// Typed column predicates for sources that cannot push down the request.
+/// NULL never satisfies an ordinary comparison.
+pub fn matches(value: &Value, predicate: &moonkale_core::TablePredicate) -> bool {
+    use moonkale_core::TablePredicate as P;
+    match predicate {
+        P::IsNull => *value == Value::Null,
+        P::Contains(s) => matches!(value, Value::Text(v) if v.contains(s)),
+        P::Prefix(s) => matches!(value, Value::Text(v) if v.starts_with(s)),
+        p => {
+            if *value == Value::Null {
+                return false;
+            }
+            match p {
+                P::Eq(v) => value == v,
+                P::Lt(v) => compare(value, v).is_lt(),
+                P::Le(v) => !compare(value, v).is_gt(),
+                P::Gt(v) => compare(value, v).is_gt(),
+                P::Ge(v) => !compare(value, v).is_lt(),
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+pub fn table_order(
+    columns: &[String],
+    rows: &[Vec<Value>],
+    query: &moonkale_core::TableQuery,
+    search: &str,
+) -> Vec<usize> {
+    let mut out = order(rows, None, search);
+    out.retain(|i| {
+        query.filters.iter().all(|f| {
+            columns
+                .iter()
+                .position(|c| c == &f.column)
+                .is_some_and(|c| matches(rows[*i].get(c).unwrap_or(&Value::Null), &f.predicate))
+        })
+    });
+    out.sort_by(|i, j| {
+        for sort in &query.sort {
+            if let Some(c) = columns.iter().position(|c| c == &sort.column) {
+                let a = rows[*i].get(c).unwrap_or(&Value::Null);
+                let b = rows[*j].get(c).unwrap_or(&Value::Null);
+                let cmp = match (a == &Value::Null, b == &Value::Null) {
+                    (true, true) => Ordering::Equal,
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => {
+                        if sort.descending {
+                            compare(b, a)
+                        } else {
+                            compare(a, b)
+                        }
+                    }
+                };
+                if !cmp.is_eq() {
+                    return cmp;
+                }
+            }
+        }
+        i.cmp(j)
+    });
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,17 +410,13 @@ mod tests {
             vec![Int(22), Text("x".repeat(400))],
         ];
         let w = initial_widths(&cols, &rows);
-        // "id" plus room for the sort arrow: four characters and padding.
-        assert!((w[0] - (4.0 * 7.6 + 22.0)).abs() < 1e-9, "{}", w[0]);
-        assert_eq!(
-            initial_widths(&["x".into()], &[])[0],
-            MIN_W,
-            "never under the minimum"
-        );
+        // Short ids remain compact while leaving room for header controls.
+        assert!((80.0..100.0).contains(&w[0]), "{}", w[0]);
+        assert!(initial_widths(&["x".into()], &[])[0] >= MIN_W);
         // Ids that grow: the last row's width counts, not only the first's.
         let ids: Vec<Vec<Value>> = (1..=50_000).map(|i| vec![Int(i)]).collect();
         let iw = initial_widths(&["i".into()], &ids)[0];
-        assert!((iw - (5.0 * 7.6 + 22.0)).abs() < 1e-9, "{iw}");
+        assert!((90.0..120.0).contains(&iw), "{iw}");
         assert!(sample(50_000).count() < 450);
         assert_eq!(sample(3).collect::<Vec<_>>(), vec![0, 1, 2]);
         assert_eq!(
@@ -475,5 +538,49 @@ mod typed_tests {
             let points = sparkline(&v);
             assert!(!points.contains("NaN") && !points.contains("inf"));
         }
+    }
+}
+
+#[cfg(test)]
+mod partial_tests {
+    use super::*;
+    use moonkale_core::{TableFilter, TablePredicate, TableQuery, TableSort};
+    #[test]
+    fn non_pushdown_rows_filter_and_sort_the_loaded_subset() {
+        let columns = vec!["group".into(), "score".into()];
+        let rows = vec![
+            vec![Value::Text("a".into()), Value::Int(2)],
+            vec![Value::Text("a".into()), Value::Null],
+            vec![Value::Text("b".into()), Value::Int(9)],
+            vec![Value::Text("a".into()), Value::Int(1)],
+        ];
+        let q = TableQuery {
+            sort: vec![
+                TableSort {
+                    column: "group".into(),
+                    descending: false,
+                },
+                TableSort {
+                    column: "score".into(),
+                    descending: true,
+                },
+            ],
+            filters: vec![TableFilter {
+                column: "group".into(),
+                predicate: TablePredicate::Prefix("a".into()),
+            }],
+            ..Default::default()
+        };
+        assert_eq!(table_order(&columns, &rows, &q, ""), vec![0, 3, 1]);
+        assert_eq!(table_order(&columns, &rows, &q, "2"), vec![0]);
+        assert!(!matches(&Value::Null, &TablePredicate::Lt(Value::Int(2))));
+        assert!(!matches(
+            &Value::Text("a".into()),
+            &TablePredicate::Contains("'; DROP TABLE".into())
+        ));
+        assert_eq!(
+            moonkale_core::Capabilities::default().table_query,
+            moonkale_core::TableCapabilities::default()
+        );
     }
 }

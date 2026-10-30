@@ -28,3 +28,24 @@ table-edit-reopen = Erneut öffnen
 table-readonly = Diese Tabelle ist schreibgeschützt.
 table-edit-deleted = Zeile gelöscht
 table-edit-source-changed = Die Quelle wurde geändert oder geschlossen. Die Tabelle vor dem Bearbeiten erneut öffnen.
+
+table-partial = Teilweise: Sortieren und Filtern gilt nur für geladene Zeilen
+table-next-page = Nächste Seite
+table-refresh = Aktualisieren
+table-edited-outside = Bearbeitete Zeilen außerhalb des Filters bleiben bis zum Aktualisieren sichtbar
+table-edit-cap = Zum weiteren Bearbeiten aktualisieren (1000 Zeilen oder 4 MiB bearbeitete Daten)
+table-column-filter = { $column } filtern
+table-filter-operator = Operator
+table-filter-value = Wert
+table-filter-apply = Filter anwenden
+table-filter-clear = Filter löschen
+table-op-eq = Gleich
+table-op-lt = Kleiner als
+table-op-le = Höchstens
+table-op-gt = Größer als
+table-op-ge = Mindestens
+table-op-contains = Enthält Text
+table-op-prefix = Beginnt mit Text
+table-op-null = Ist NULL
+
+table-schema-changed = Die Tabellenspalten wurden geändert. Zum Laden des neuen Schemas aktualisieren.

@@ -125,7 +125,8 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                         match source.read_rows(table.clone(), 1000).await {
                             Ok(page) => {
                                 if page.refusal.is_none()
-                                    && source.descriptor().capabilities.atomic_rows
+                                    && (source.descriptor().capabilities.atomic_rows
+                                        || source.descriptor().capabilities.table_query.keyset)
                                 {
                                     let data = Table {
                                         columns: page.columns.clone(),
@@ -356,6 +357,7 @@ fn ResultGrid(
     let active = use_signal(|| None);
     let mut editing = Editing {
         page,
+        pinned: use_signal(Vec::new),
         undo,
         start,
         busy,
@@ -363,14 +365,52 @@ fn ResultGrid(
     };
     let current_page = context.as_ref().map(|_| editing.page.read().clone());
     let instance = use_signal(|| moonkale_ext_api::links::panel_instance(ws.content_panel(owner)));
-    let table = result.table();
+    let pushed = context.as_ref().is_some_and(|c| {
+        c.handle.descriptor().capabilities.table_query == moonkale_core::TableCapabilities::SQL
+    });
+    let editable = context
+        .clone()
+        .filter(|c| c.handle.descriptor().capabilities.atomic_rows);
+    let mut browse = crate::browse::Browse {
+        query: use_signal(moonkale_core::TableQuery::default),
+        busy: use_signal(|| false),
+        error: use_signal(String::new),
+        generation: use_signal(|| 0),
+        skipped: use_signal(|| 0),
+        reposition: use_signal(|| None),
+    };
+    let mut initialized = use_signal(|| false);
+    moonkale_ext_api::crash::use_effect({
+        let context = context.clone();
+        move || {
+            let query = browse.query.read().clone();
+            if !*initialized.peek() {
+                initialized.set(true);
+                return;
+            }
+            if pushed {
+                if let Some(context) = context.clone() {
+                    let generation = *browse.generation.peek() + 1;
+                    browse.generation.set(generation);
+                    browse.busy.set(true);
+                    browse.error.set(String::new());
+                    moonkale_ext_api::crash::spawn(crate::browse::load(
+                        ws, context, editing, browse, query, generation,
+                    ));
+                }
+            }
+        }
+    });
+    let live_table = use_memo({
+        let authoritative = context.is_some();
+        move || authoritative.then(|| crate::browse::table(&editing.page.read()))
+    });
+    let live_table_guard = live_table.read();
+    let table = live_table_guard.as_ref().unwrap_or_else(|| result.table());
     let total = table.rows.len();
     let n_cols = table.columns.len();
-    let mut widths = use_signal({
-        let t = table.clone();
-        move || grid::initial_widths(&t.columns, &t.rows)
-    });
-    let mut sort = use_signal(|| None::<(usize, bool)>);
+    let mut widths = use_signal(|| grid::initial_widths(&table.columns, &table.rows));
+
     let mut filter = use_signal(String::new);
     let mut scroll = use_signal(|| (0.0f64, 0.0f64));
     // Until the first resize report, a generous guess: overscan covers it.
@@ -379,6 +419,30 @@ fn ResultGrid(
     // A column resize in progress: (column, pointer x at the start, width).
     let mut drag = use_signal(|| None::<(usize, f64, f64)>);
     let mut grid_el = use_signal(|| None::<Rc<MountedData>>);
+    moonkale_ext_api::crash::use_effect(move || {
+        let reposition = *browse.reposition.read();
+        if let Some(delta) = reposition {
+            if let Some(el) = grid_el.peek().clone() {
+                let (x, y) = *scroll.peek();
+                let top = if delta.is_infinite() {
+                    0.0
+                } else {
+                    (y - delta).max(0.0)
+                };
+                scroll.set((x, top));
+                cursor.set(None);
+                browse.reposition.set(None);
+                moonkale_ext_api::crash::spawn(async move {
+                    let _ = el
+                        .scroll(
+                            dioxus::html::geometry::PixelsVector2D::new(x, top),
+                            ScrollBehavior::Instant,
+                        )
+                        .await;
+                });
+            }
+        }
+    });
     let order = use_memo({
         let r = result.clone();
         let authoritative = context.is_some();
@@ -390,9 +454,18 @@ fn ResultGrid(
                     .iter()
                     .map(|r| p.columns.iter().map(|c| r.values[c].clone()).collect())
                     .collect();
-                grid::order(&values, sort(), &filter.read())
+                if pushed {
+                    (0..p.rows.len()).collect()
+                } else {
+                    grid::table_order(&p.columns, &values, &browse.query.read(), &filter.read())
+                }
             } else {
-                grid::order(&r.table().rows, sort(), &filter.read())
+                grid::table_order(
+                    &r.table().columns,
+                    &r.table().rows,
+                    &browse.query.read(),
+                    &filter.read(),
+                )
             }
         }
     });
@@ -448,10 +521,12 @@ fn ResultGrid(
     let rows = grid::row_window(st, vh, shown);
     let cols = grid::col_window(&lefts, sl, vw);
     let cur = cursor();
-    let sorted = sort();
+    let sorted = browse.query.read().sort.clone();
+    let columns = table.columns.clone();
+    let sort_columns = columns.clone();
 
     let key_result = result.clone();
-    let key_context = context.clone();
+    let key_context = editable.clone();
     let mut go = move |mv: Move| {
         let n = order.peek().len();
         let to = match *cursor.peek() {
@@ -485,7 +560,7 @@ fn ResultGrid(
 
     rsx! {
         div { class: "mk-table-meta",
-            if let Some(context) = context.clone() {
+            if let Some(context) = editable.clone() {
                 button { class: "mk-table-undo", disabled: editing.undo.read().is_empty() || *editing.busy.read(), title: t!(ws,L,"table-edit-undo"), onclick: move |_| { let context=context.clone(); moonkale_ext_api::crash::spawn(async move { if let Err(e)=crate::edit::undo(ws,context,editing).await { ws.set_status(e); } }); }, {t!(ws,L,"table-edit-undo")} }
             }
             if shown == total {
@@ -495,6 +570,8 @@ fn ResultGrid(
             }
             if !result.0.nodes.is_empty() { {t!(ws, L, "table-graph-counts", nodes = result.0.nodes.len(), edges = result.0.edges.len())} }
             if table.truncated || result.0.truncated { {t!(ws, L, "table-truncated")} }
+            if !pushed { span { class: "mk-table-partial", {t!(ws,L,"table-partial")} }
+                details { class: "mk-table-search-menu", summary { title: t!(ws,L,"table-filter"), "⋯" }
             input {
                 class: "mk-table-filter",
                 r#type: "search",
@@ -505,6 +582,17 @@ fn ResultGrid(
                     cursor.set(None);
                 }),
             }
+                }
+            }
+            if pushed {
+                button { class: "mk-table-next", disabled: *browse.busy.read() || *editing.busy.read() || editing.active.read().is_some() || editing.page.read().next.is_none(), onclick: move |_| { cursor.set(None); browse.next(editing); }, {t!(ws,L,"table-next-page")} }
+                button { class: "mk-table-refresh", disabled: *browse.busy.read() || *editing.busy.read() || editing.active.read().is_some(), onclick: move |_| { let q=browse.query.peek().clone(); browse.reset(q); onreload.call(()); }, {t!(ws,L,"table-refresh")} }
+                if *browse.busy.read() { span { role: "status", {t!(ws,L,"table-loading")} } }
+                if crate::browse::outside_filter(&editing.page.read(), &browse.query.read(), &editing.pinned.read()) { span { class: "mk-table-retained", role: "status", {t!(ws,L,"table-edited-outside")} } }
+                if editing.pinned.read().len() >= 1000 { span { role: "status", {t!(ws,L,"table-edit-cap")} } }
+            }
+            if !browse.error.read().is_empty() { span { role: "alert", "{browse.error}" } }
+
         }
         div {
             class: "mk-table-grid",
@@ -512,6 +600,11 @@ fn ResultGrid(
             tabindex: "0",
             aria_rowcount: "{shown + 1}",
             aria_colcount: "{n_cols}",
+            "data-pushdown": "{pushed}",
+            "data-skipped": "{browse.skipped}",
+            "data-has-next": "{editing.page.read().next.is_some()}",
+            "data-loading": "{browse.busy}",
+            "data-generation": "{browse.generation}",
             "data-rows": "{shown}",
             "data-total": "{total}",
             "data-first": "{rows.start}",
@@ -526,6 +619,10 @@ fn ResultGrid(
             onscroll: moonkale_ext_api::crash::event(move |e: dioxus::prelude::ScrollEvent| {
                 let d = e.data();
                 scroll.set((d.scroll_left(), d.scroll_top()));
+                if pushed && d.scroll_top() + d.client_height() as f64 >= HEAD_H + total as f64 * ROW_H - 2.0 * ROW_H {
+                    cursor.set(None);
+                    browse.next(editing);
+                }
                 if d.client_width() > 0 {
                     view.set((d.client_width() as f64, d.client_height() as f64));
                 }
@@ -558,7 +655,7 @@ fn ResultGrid(
                     Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("d") => Move::Right,
                     Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("q") => Move::PageUp,
                     Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("e") => Move::PageDown,
-                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("f") => { e.prevent_default(); let _ = dioxus::document::eval("document.activeElement?.closest('.mk-table')?.querySelector('.mk-table-filter')?.focus();"); return; },
+                    Key::Character(ref c) if left_hand && c.eq_ignore_ascii_case("f") => { e.prevent_default(); let _ = dioxus::document::eval("const t=document.activeElement?.closest('.mk-table');const i=t?.querySelector('.mk-table-filter');if(i){i.closest('details').open=true;i.focus()}else{t?.querySelector('.mk-column-menu summary')?.focus()}"); return; },
                     Key::ArrowUp => Move::Up,
                     Key::ArrowDown => Move::Down,
                     Key::ArrowLeft => Move::Left,
@@ -596,14 +693,15 @@ fn ResultGrid(
                             key: "{c}",
                             class: "mk-table-hcell",
                             role: "columnheader",
-                            aria_sort: match sorted { Some((s, true)) if s == c => "ascending", Some((s, false)) if s == c => "descending", _ => "none" },
+                            aria_sort: match sorted.iter().find(|s|s.column==columns[c]) { Some(s) if s.descending => "descending", Some(_) => "ascending", _ => "none" },
                             style: "width: {widths.read()[c]}px;",
                             title: "{table.columns[c]}",
-                            onclick: moonkale_ext_api::crash::event(move |_| { let next = grid::next_sort(*sort.peek(), c); sort.set(next); }),
+                            tabindex: "0",
+                            onclick: { let column=sort_columns[c].clone(); move |e: MouseEvent| { if !*browse.busy.peek() && editing.active.peek().is_none() { crate::browse::sort(browse,column.clone(),e.modifiers().shift()); cursor.set(None); } } },
+                            onkeydown: { let column=sort_columns[c].clone(); move |e: KeyboardEvent| { e.stop_propagation(); if matches!(e.key(),Key::Enter) || e.key()==Key::Character(" ".into()) { e.prevent_default(); if !*browse.busy.peek() && editing.active.peek().is_none() { crate::browse::sort(browse,column.clone(),e.modifiers().shift()); cursor.set(None); } } } },
                             span { class: "mk-table-hname", "{table.columns[c]}" }
-                            span { class: "mk-table-arrow",
-                                match sorted { Some((s, true)) if s == c => "▲", Some((s, false)) if s == c => "▼", _ => "" }
-                            }
+                            span { class: "mk-table-arrow", match sorted.iter().find(|s|s.column==columns[c]) { Some(s) if s.descending => "▼", Some(_) => "▲", _ => "" } }
+                            crate::browse::FilterMenu { ws, column: columns[c].clone(), sample: table.rows.iter().filter_map(|r|r.get(c)).find(|v|**v!=Value::Null).cloned().unwrap_or(Value::Null), browse, disabled: *browse.busy.read() || editing.active.read().is_some() }
                             div {
                                 class: "mk-table-resize",
                                 onclick: moonkale_ext_api::crash::event(move |e: dioxus::prelude::MouseEvent| e.stop_propagation()),
@@ -625,7 +723,7 @@ fn ResultGrid(
                             let shared = current_page.as_ref().map(|p|SharedRow(Rc::new(p.rows[i].clone())));
                             rsx! {
                                 div { key: "{i}", class: "mk-table-row", role: "row", aria_rowindex: "{pos + 2}", "data-row": "{i}",
-                                    div { class: "mk-table-num", "{i + 1}" }
+                                    div { class: "mk-table-num", "{i + 1 + *browse.skipped.read()}" }
                                     div { class: "mk-table-gap", style: "width: {lefts[cols.start]}px;" }
                                     for c in cols.clone() {
                                         {
@@ -634,7 +732,7 @@ fn ResultGrid(
                                             let target = match v { Value::Ref { node, .. } => Some(*node), _ => None };
                                             let known = target.and_then(|id| result.0.nodes.iter().find(|n| n.id == id).cloned().or_else(|| ws.open_node_by_id(id)));
                                             let double_known = known.clone();
-                                            let edit_context = context.clone();
+                                            let edit_context = editable.clone();
                                             let points = match v { Value::Vector(v) => Some(grid::sparkline(v)), _ => None };
                                             let at = cur == Some((pos, c));
                                             rsx! {
@@ -649,8 +747,8 @@ fn ResultGrid(
                                                         if edit_context.is_some() { editing.start.set(Some((i,c))); return; }
                                                                                                                 if let Some(target) = target { let known = double_known.clone(); let new_group = e.modifiers().alt(); moonkale_ext_api::crash::spawn(async move { open_reference(ws,target,known,false,new_group).await; }); }
                                                     }),
-                                                    if let Some(context) = context.clone() {
-                                                        crate::edit::Cell { ws, context, snapshot: shared.clone().expect("editable row snapshot"), editing, row: i, column: c, onreload,
+                                                    if let Some(context) = editable.clone() {
+                                                        crate::edit::Cell { ws, context, snapshot: shared.clone().expect("editable row snapshot"), editing, blocked: *browse.busy.read(), row: i, column: c, onreload,
                                                             onfinish: move |_| { if let Some(el)=grid_el.peek().clone() { moonkale_ext_api::crash::spawn(async move { let _=el.set_focus(true).await; }); } },
                                                             onmove: { let mut move_cursor=go; move |(row,c,movement)| {
                                                                 if let Some(pos)=order.peek().iter().position(|i|*i==row) {

@@ -28,3 +28,24 @@ table-edit-reopen = 重新打开
 table-readonly = 此表为只读。
 table-edit-deleted = 行已删除
 table-edit-source-changed = 数据源已更改或关闭。请重新打开表后再编辑。
+
+table-partial = 部分：排序和筛选仅适用于已加载的行
+table-next-page = 下一页
+table-refresh = 刷新
+table-edited-outside = 不符合筛选条件的已编辑行将保留到刷新时
+table-edit-cap = 请刷新后继续编辑（1000行或4 MiB已编辑快照）
+table-column-filter = 筛选 { $column }
+table-filter-operator = 运算符
+table-filter-value = 值
+table-filter-apply = 应用筛选
+table-filter-clear = 清除筛选
+table-op-eq = 等于
+table-op-lt = 小于
+table-op-le = 小于等于
+table-op-gt = 大于
+table-op-ge = 大于等于
+table-op-contains = 包含文本
+table-op-prefix = 文本前缀
+table-op-null = 为空
+
+table-schema-changed = 表的列已更改。请刷新以加载新结构。

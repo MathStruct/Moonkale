@@ -20,6 +20,22 @@ current author/time metadata remain later work. Eight proposal-model and four
 Sophia adapter tests, all AGENTS gates, the full CI/default-graph browser matrix
 and the final rendered review check pass. See [[Shared Work]].
 
+## Table pushdown (WP-13, validated 2026-10-30)
+
+✅ Built and validated. SQLite, DuckDB and Turso accept typed sort/AND filters
+and prepared keyset pages with stable row-key ordering, NULLs last and no OFFSET.
+Keyboard/mouse header controls hide filters behind column menus; scrolling and
+Next share bounded pages. Other results show a partial indicator. Edited rows
+outside the filter remain visible until refresh. Paging retains at most 4,000
+rows with a 16-MiB snapshot eviction target and a separate edited-row byte budget.
+Schema changes refuse merging until Refresh.
+
+All AGENTS gates, three engine reference suites, 13 grid/edit tests, 28 standalone
+parser regressions and the reconciled full browser feature matrix pass. The
+million-row fixture completed 1,000 pages at page-to-paint p50 198.95 ms /
+p95 215.68 ms, with 41 DOM rows maximum and constant 70.125-MiB Wasm
+memory across the sampled traversal. See [[Table Editor]] for bounds and scope.
+
 ## Database writes and cell edits (WP-14, 2026-10-30)
 
 ✅ Built and validated. SQLite, DuckDB and Turso have
@@ -367,7 +383,7 @@ seven ignored); the focused folder/index/Sophia run passes 118 tests and the
 | **Diagram fences** (tabs, Typst math, Mermaid, TikZ) | 📝 | [[Markdown Diagrams and Math]] |
 | **Graph view** (wgpu 2D/3D, Barnes–Hut, Local mode, several folders) | ✅ | 100k nodes on the CPU; 2026-10-22: overview drags pan below a 3 CSS px radius (P-223); private WebKit desktop initial picture 6.78 → 2.54 s, warm median 5.70 → 2.63 s (P-224; physical NVIDIA recheck due), see `packages/graph-render/graph-render.md`; WP-06 coarse queries, selector and one-region expansion built (1M fixture first picture 110 ms); cached cuts/layouts and upstream Sophia full traversal remain open ([[Case Selector]]) |
 | **Flow editor** + Lux.jl library | ◐ | editing and codegen; running the model is not built |
-| **Table editor** | ✅ | WP-14: typed SQLite/DuckDB/Turso cell edits, conflicts and checked undo; raw query results remain read-only |
+| **Table editor** | ✅ | WP-13: source sort/filter/keyset pages and bounded retention; WP-14: typed SQLite/DuckDB/Turso cell edits, conflicts and checked undo; raw query results remain read-only |
 | **Image viewer** | ✅ | spec [[008]] |
 | **Terminal** — xterm and Rust | ✅ | traces become graphs |
 | **Notebook editor** | 📝 | [[Notebook Editor]] |

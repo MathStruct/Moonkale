@@ -41,3 +41,14 @@
 .mk-cell-refusal, .mk-cell-conflict { position: absolute; top: 24px; left: 0; min-width: 300px; white-space: normal; background: var(--wb-surface); color: var(--wb-ink); border: 1px solid var(--wb-line); padding: 8px; }
 .mk-cell-conflict pre { white-space: pre-wrap; }
 .mk-table-cell:has(.mk-cell-editor) { overflow: visible; }
+
+.mk-table-hcell { overflow: visible; padding-right: 32px; }
+.mk-table-hname { display: inline-block; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+.mk-column-menu { position: absolute; right: 7px; top: 0; font-weight: normal; }
+.mk-column-menu summary { cursor: pointer; list-style: none; }
+.mk-column-popover { position: absolute; top: 26px; right: 0; display: flex; flex-direction: column; gap: 4px; min-width: 180px; padding: 8px; background: var(--wb-surface); border: 1px solid var(--wb-line); color: var(--wb-ink); z-index: 10; }
+.mk-column-popover input, .mk-column-popover select, .mk-column-popover button { color: inherit; background: var(--wb-surface); border: 1px solid var(--wb-line); }
+.mk-table-search-menu { margin-left: auto; }
+.mk-table-search-menu summary { cursor: pointer; }
+.mk-table-meta { flex-wrap: wrap; }
+.mk-table-hcell:focus-visible, .mk-column-menu summary:focus-visible { outline: 1px solid var(--wb-accent); }
