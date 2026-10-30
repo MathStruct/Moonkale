@@ -19,7 +19,7 @@ A small document anchored to a place:
 ```
 - **Anchors** are the graph's own addresses: a node (file, table row, graph vertex, page) plus an optional range inside its text. Because the entity log already tracks every edit ([[ADR-0012 Two histories]]), an anchor survives edits: it is re-mapped through the log's patches like presence cursors and history are, and an anchor whose text moved is shown as *drifted* with the original quote kept.
 - **Threads**: replies reference a root; a thread has one state (open/resolved).
-- **Storage** (being revised by [[ADR-0031 Where annotations live]], proposed 2026-10-30: Sophia annotations in store-truth folders, this jsonl elsewhere): `.moonkale/annotations.jsonl` in the folder — append-only like the history file, one JSON per line, merged by id (so it syncs through git or any folder sync and conflicts resolve by timestamp); for non-folder sources (a database) the annotations live in the *project* ([[Projects and Sources]]) keyed by the source id.
+- **Storage** (superseded by [[ADR-0031 Where annotations live]], accepted 2026-10-30: Sophia annotations in store-truth folders, this jsonl elsewhere): `.moonkale/annotations.jsonl` in the folder — append-only like the history file, one JSON per line, merged by id (so it syncs through git or any folder sync and conflicts resolve by timestamp); for non-folder sources (a database) the annotations live in the *project* ([[Projects and Sources]]) keyed by the source id.
 - **Annotations are nodes** in the graph (`NodeKind::Annotation`, edges `Annotates` to the anchor), so the graph view shows them, search finds them, the agent can read them (and, under policy, create them), and the History panel shows when they were made.
 
 ## Where they appear

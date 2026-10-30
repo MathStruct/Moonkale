@@ -1,10 +1,10 @@
 ---
 title: "ADR-0031 — Where annotations live: Sophia annotations in store-truth folders, the folder's jsonl elsewhere"
 tags: [adr, annotations, sophia, storage]
-status: proposed
+status: accepted
 date: 2026-10-30
 ---
-**Status:** proposed 2026-10-30 (Claude), revised the same day after the Sophia session's review against SPEC-001 §8–9 and SPEC-006 §5. Not yet accepted; Daniel decides. Related: [[Annotations]], [[North Star]] §5 and §7, [[ADR-0030 Where the truth lives]], [[ADR-0029 Sophia stores the code graph]], [[Shared Work]] (comments, SW-30 to SW-34), Sophia SPEC-001 §8, SPEC-004, SPEC-009, SPEC-010 and SPEC-006 §5.
+**Status:** accepted 2026-10-30 (Daniel). Proposed by Claude and revised the same day after the Sophia session's review against SPEC-001 §8–9 and SPEC-006 §5. Sophia records it as SR-151. Related: [[Annotations]], [[North Star]] §5 and §7, [[ADR-0030 Where the truth lives]], [[ADR-0029 Sophia stores the code graph]], [[Shared Work]] (comments, SW-30 to SW-34), Sophia SPEC-001 §8, SPEC-004, SPEC-009, SPEC-010 and SPEC-006 §5.
 
 ## Context
 
@@ -64,7 +64,7 @@ A derived store is a deletable cache. Anything that lives only in it is lost on 
 
    Assumptions may name other annotations by id, including `asserted` claims. A proof that rests on an asserted claim inherits that status. A subject may itself be an annotation.
 7. **Subjects that aren't stored:** in a derived cache, the jsonl's annotations about old versions point at records the cache has collected. Such an annotation is shown from its quote, as a stale goal, never hidden or dropped.
-8. **Moving the truth (SPEC-010 §7, proposed by the Sophia session):**
+8. **Moving the truth (SPEC-010 §7, accepted by Daniel 2026-10-30; not built yet):**
    - **`give_truth`** takes the ids of the annotations Moonkale has written to `.moonkale/annotations.jsonl`, written first. It refuses with `AnnotationsNotExported { ids }` if any stored annotation is missing, in the same transaction as the switch, mirroring the export-mismatch check.
    - **`take_truth`** stores the jsonl's annotations in the same transaction as the switch. The jsonl is kept but no longer read.
    - **In derived mode**, annotation writes stay allowed (only interface edits are refused), so cache loading works.
@@ -85,7 +85,7 @@ A derived store is a deletable cache. Anything that lives only in it is lost on 
   - an annotation staleness check (`Store::is_stale` covers facts only);
   - term-path subjects;
   - `annotate_many` skipping ids already stored;
-  - the `give_truth`/`take_truth` hook (drafted as SPEC-010 §7, a proposal awaiting Daniel).
+  - the `give_truth`/`take_truth` hook and `annotate_many` skipping existing ids (SPEC-010 §7, accepted 2026-10-30; Sophia 9b9bc53, not built yet).
 - **[[Annotations]]** keeps its UI plan. Its storage section is superseded by this ADR once accepted.
 - **Not decided here:**
   - whether resolved threads are compacted out of the jsonl;
