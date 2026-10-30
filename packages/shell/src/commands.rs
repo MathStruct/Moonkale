@@ -44,6 +44,26 @@ fn builtins(ws: Workspace) -> Vec<(CommandContribution, Command)> {
     let c = |id: &str, title: String| CommandContribution::new(id, title);
     vec![
         (
+            c("sharing.cursor", t!(ws, L, "sharing-cursor")),
+            Command::ShareCursor,
+        ),
+        (
+            c("sharing.pointer", t!(ws, L, "sharing-pointer")),
+            Command::SharePointer,
+        ),
+        (
+            c("sharing.agentCursor", t!(ws, L, "sharing-agent-cursor")),
+            Command::ShareAgentCursor,
+        ),
+        (
+            c("sharing.stop", t!(ws, L, "sharing-stop")).key("Ctrl+Shift+Escape"),
+            Command::StopSharing,
+        ),
+        (
+            c("sharing.announce", t!(ws, L, "sharing-announce")),
+            Command::AnnounceCursor,
+        ),
+        (
             c("view.overview", t!(ws, L, "overview-title")).key("Ctrl+Alt+Space"),
             Command::Overview,
         ),

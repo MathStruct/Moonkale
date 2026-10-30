@@ -203,3 +203,6 @@ P-236 (2026-10-29): the dirty-close confirmation explicitly focuses its mounted
 button. Escape in the search field cancels a pending confirmation first; both
 cancellation routes return to search. The browser regression waits for actual
 confirmation focus, then checks that Escape retains the overview and dirty tab.
+
+
+WP-72: one always-mounted Sharing title-bar disclosure owns the indicator, publication clock, independent human/agent cursor and pointer switches, follow and request-only announcements. Stop sharing defaults to Ctrl+Shift+Escape in the effective registry.

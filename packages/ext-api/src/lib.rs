@@ -104,3 +104,6 @@ pub mod crash;
 
 /// Typed agent display content and opening preference.
 pub use moonkale_llm_types::display as agent_display;
+
+/// Opt-in ephemeral cursor and pointer metadata.
+pub mod sharing;

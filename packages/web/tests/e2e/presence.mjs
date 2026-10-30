@@ -8,6 +8,7 @@ const step = async (n, f) => { process.stdout.write(`- ${n} … `); await f(); c
 const openAs = async (name) => {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
   const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem('moonkale.settings', JSON.stringify({density:'detailed', editor:{implementation:'codemirror',markdown_rich:false}})));
   await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: "networkidle" });
   await page.waitForSelector(".wb-workspace");
   // Name before joining: Settings → You → Name (user scope, localStorage).
@@ -46,11 +47,14 @@ try {
     await a.page.screenshot({ path: `${S}/m8-presence.png` });
   });
   await step("Milestone 9: Bob's cursor on line 3 → Ada's gutter shows 'BO' on line 3 and the badge says :3", async () => {
+    await b.page.locator('.mk-sharing > summary').click();
+    await b.page.locator('.mk-sharing [data-command="sharing.cursor"]').click();
     await b.page.click(".cm-content");
     await b.page.keyboard.press("Control+Home");
     await b.page.keyboard.press("ArrowDown");
     await b.page.keyboard.press("ArrowDown");
     await a.page.waitForSelector(".cm-presence-mark:text-is('BO')", { timeout: 15000 });
+    await a.page.waitForFunction(() => [...document.querySelectorAll('.mk-presence-badge')].some(el => /README\.md:3$/.test(el.title)), null, { timeout: 15000 });
     const line = await a.page.evaluate(() => {
       const mark = document.querySelector(".cm-presence-mark");
       const gutters = [...document.querySelectorAll(".cm-presence-gutter .cm-gutterElement")];

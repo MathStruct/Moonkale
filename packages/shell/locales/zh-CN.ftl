@@ -433,3 +433,12 @@ settings-agent-open-views = 允许代理打开视图
 settings-agent-open-ask = 询问
 settings-agent-open-idle = 我未输入时
 settings-agent-open-always = 始终
+
+# WP-72 ephemeral position sharing
+sharing-title = 共享
+sharing-cursor = 共享我的光标
+sharing-pointer = 共享我的指针
+sharing-stop = 停止共享
+sharing-announce = 朗读参与者光标
+sharing-follow = 跟随 { $name }
+sharing-agent-cursor = 共享智能体光标

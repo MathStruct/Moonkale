@@ -83,7 +83,13 @@ fn RustCodeEditorView(ws: Workspace, node: NodeId, lsp: Option<crate::lsp::LspMa
         ws.others()
             .into_iter()
             .filter(|member| {
-                member.active.as_deref() == Some(key.as_str()) && member.line.is_some()
+                member.active.as_deref() == Some(key.as_str())
+                    && member.line.is_some()
+                    && member
+                        .sharing
+                        .as_ref()
+                        .and_then(|p| p.cursor.as_ref())
+                        .is_none_or(|c| c.source == doc.peek().node.source.as_str())
             })
             .collect::<Vec<_>>()
     });

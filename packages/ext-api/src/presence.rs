@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
 /// One window of one user in a room: who, and where they are.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Member {
     /// The window's id (a user may have several).
     pub window: String,
@@ -15,12 +15,23 @@ pub struct Member {
     /// Relative key of the active document, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active: Option<String>,
+    /// Opt-in ephemeral position, absent by default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sharing: Option<crate::sharing::Position>,
     /// Cursor line (0-based) in the active document (Milestone 9).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<u32>,
 }
 
 impl Member {
+    /// Stable theme palette slot, identical in all views.
+    pub fn color(&self) -> usize {
+        self.window
+            .bytes()
+            .fold(0usize, |h, b| h.wrapping_mul(31).wrapping_add(b as usize))
+            % 4
+    }
+
     /// Two letters for a badge.
     pub fn initials(&self) -> String {
         let mut it = self
@@ -44,7 +55,7 @@ impl Member {
 }
 
 /// Wire messages, both directions.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PresenceMessage {
     /// Client → hub: join `room` as `member` (first message).
@@ -88,6 +99,7 @@ mod tests {
             name: n.into(),
             active: None,
             line: None,
+            sharing: None,
         };
         assert_eq!(m("Daniel Boigk").initials(), "DB");
         assert_eq!(m("daniel").initials(), "DA");

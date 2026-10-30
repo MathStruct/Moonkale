@@ -941,7 +941,11 @@ fn workspace_config() -> WorkspaceConfig {
             user_settings_in_state: true,
         },
         network: moonkale_shell::Network {
-            presence: Some(presence::join),
+            presence: if presence::hub_url().is_some() {
+                Some(presence::join)
+            } else {
+                None
+            },
             remote: Some(moonkale_shell::remote::RemoteHosts {
                 open: open_remote,
                 hosts: ssh_hosts,

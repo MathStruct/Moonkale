@@ -493,11 +493,17 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
         let key = doc.peek().node.native_key.clone();
         moonkale_ext_api::crash::use_effect(move || {
             let _ = ws.session.presence.read();
-            let marks: Vec<(u32, String)> = ws
+            let marks: Vec<_> = ws
                 .others()
                 .into_iter()
                 .filter(|m| m.active.as_deref() == Some(key.as_str()))
-                .filter_map(|m| m.line.map(|l| (l, m.initials())))
+                .filter(|m| {
+                    m.line.is_some()
+                        && m.sharing
+                            .as_ref()
+                            .and_then(|p| p.cursor.as_ref())
+                            .is_none_or(|c| c.source == doc.peek().node.source.as_str())
+                })
                 .collect();
             if !ready() {
                 return;
@@ -729,6 +735,7 @@ pub fn CodeEditorPanel(ws: Workspace, node: NodeId, lsp: LspManager) -> Element 
     };
     rsx! {
             moonkale_ext_api::Stylesheet { href: PANEL_CSS }
+            moonkale_ext_api::Stylesheet { href: asset!("/assets/native.css") }
             div {
                 class: "mk-editor",
                 "data-editor": "codemirror",

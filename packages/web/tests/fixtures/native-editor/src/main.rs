@@ -1095,9 +1095,9 @@ fn App() -> Element {
             let mut members = ws.session.presence;
             let key = doc.peek().node.native_key.clone();
             members.set(vec![
-                moonkale_ext_api::presence::Member { window: "peer".into(), name: "Alice Bob".into(), active: Some(key.clone()), line: Some(1) },
-                moonkale_ext_api::presence::Member { window: ws.session.window.peek().to_string(), name: "Local User".into(), active: Some(key), line: Some(0) },
-                moonkale_ext_api::presence::Member { window: "other-file".into(), name: "Wrong File".into(), active: Some("elsewhere.rs".into()), line: Some(0) },
+                moonkale_ext_api::presence::Member { window: "peer".into(), name: "Alice Bob".into(), active: Some(key.clone()), line: Some(1), sharing: None },
+                moonkale_ext_api::presence::Member { window: ws.session.window.peek().to_string(), name: "Local User".into(), active: Some(key), line: Some(0), sharing: None },
+                moonkale_ext_api::presence::Member { window: "other-file".into(), name: "Wrong File".into(), active: Some("elsewhere.rs".into()), line: Some(0), sharing: None },
             ]);
         }, "Presence fixture" }
         button { id: "presence-move", onclick: move |_| {

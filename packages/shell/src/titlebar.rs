@@ -405,6 +405,7 @@ pub fn TitleBar(controls: Option<WindowControls>) -> Element {
             },
             ondoubleclick: move |_| { if let Some(c) = controls { c.toggle_maximize.call(()) } },
             div { class: "mk-titlebar-left", onmousedown: |e| e.stop_propagation(), ondoubleclick: |e| e.stop_propagation(),
+                crate::sharing::Sharing { ws }
                 img { class: "mk-titlebar-logo", src: LOGO, alt: "Moonkale", width: "16", height: "16", draggable: false }
                 if !detailed {
                     button { class: "mk-menu-button mk-main-menu", aria_label: crate::tl!(&ws.lang(), "density-menu"), title: crate::tl!(&ws.lang(), "density-menu"), aria_expanded: revealed().to_string(),

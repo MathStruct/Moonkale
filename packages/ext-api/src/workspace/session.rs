@@ -70,6 +70,21 @@ impl Workspace {
         }
         match msg {
             SessionMessage::Scoped { .. } => (),
+            SessionMessage::Presence { from, mut member } => {
+                member.window = from.to_string();
+                if let Some(p) = member.sharing.as_mut() {
+                    if !p.valid() {
+                        return;
+                    }
+                    p.updated = now_ms();
+                }
+                self.session.presence.with_mut(|members| {
+                    members.retain(|m| m.window != member.window);
+                    if members.len() < 128 {
+                        members.push(member);
+                    }
+                });
+            }
             SessionMessage::Welcome { .. } => {}
             SessionMessage::Hello { .. } => {
                 self.send(SessionMessage::Welcome { from: me.clone() });
@@ -198,17 +213,17 @@ impl Workspace {
             .active
             .peek()
             .and_then(|n| self.document(n))
+            .filter(|d| crate::preview::allowed_path(&d.peek().node.native_key))
             .map(|d| d.peek().node.native_key.clone());
-        let line = if active.is_some() {
-            *self.docs.cursor_line.peek()
-        } else {
-            None
-        };
+        let sharing = self.shared_position();
         crate::presence::Member {
             window: self.session.window.peek().to_string(),
             name: self.settings.resolved.peek().user_name.clone(),
             active,
-            line,
+            line: sharing
+                .as_ref()
+                .and_then(|p| p.cursor.as_ref().map(|c| c.line)),
+            sharing,
         }
     }
 
@@ -219,13 +234,26 @@ impl Workspace {
             return;
         };
         let mut members = self.session.presence;
-        let on_members = Callback::new(move |list: Vec<crate::presence::Member>| members.set(list));
-        let link = join(room.to_string(), self.my_presence(), on_members);
+        let active = self.saved_sessions.active;
+        let outer = active.peek().clone();
+        let on_members = Callback::new(move |list: Vec<crate::presence::Member>| {
+            if *active.peek() == outer {
+                members.set(list);
+            }
+        });
+        let room = format!("{}:{}", room, self.saved_sessions.active.peek());
+        let link = join(room, self.my_presence(), on_members);
         self.session.presence_link.set(Some(link));
     }
 
     /// Tell the hub what this window looks at now.
     pub fn publish_presence(&self) {
+        if self.config.network.presence.is_none() || self.session.presence_link.peek().is_none() {
+            self.send(SessionMessage::Presence {
+                from: self.session.window.peek().clone(),
+                member: self.my_presence(),
+            });
+        }
         if let Some(link) = self.session.presence_link.peek().as_ref() {
             link.update(self.my_presence());
         }
@@ -234,13 +262,41 @@ impl Workspace {
     /// Members other than this window.
     pub fn others(&self) -> Vec<crate::presence::Member> {
         let me = self.session.window.peek().to_string();
-        self.session
+        let now = now_ms();
+        let mut others: Vec<_> = self
+            .session
             .presence
             .peek()
             .iter()
             .filter(|m| m.window != me)
             .cloned()
-            .collect()
+            .collect();
+        for member in &mut others {
+            if member.sharing.as_ref().is_some_and(|p| !p.fresh(now)) {
+                member.sharing = None;
+                member.line = None;
+            }
+        }
+        let agents: Vec<_> = others
+            .iter()
+            .filter_map(|m| {
+                let (name, cursor) = m.sharing.as_ref()?.agent.clone()?;
+                Some(crate::presence::Member {
+                    window: format!("{}:agent", m.window),
+                    name,
+                    active: Some(cursor.document.clone()),
+                    line: Some(cursor.line),
+                    sharing: Some(crate::sharing::Position {
+                        cursor: Some(cursor),
+                        pointer: None,
+                        agent: None,
+                        ..m.sharing.clone()?
+                    }),
+                })
+            })
+            .collect();
+        others.extend(agents);
+        others
     }
 }
 
@@ -257,6 +313,8 @@ pub struct SessionState {
     pub own_drag: Signal<Option<NodeId>>,
     /// Who else is in the open folder (Milestone 8); this window included.
     pub presence: Signal<Vec<crate::presence::Member>>,
+    /// Opt-in state, reset on every named-session switch.
+    pub sharing: Signal<crate::sharing::Sharing>,
     pub(crate) presence_link: Signal<Option<Rc<dyn crate::presence::PresenceLink>>>,
     pub(crate) bus: Signal<Option<Rc<dyn SessionBus>>>,
 }
@@ -269,6 +327,7 @@ impl SessionState {
             foreign_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             own_drag: Signal::new_in_scope(None, ScopeId::ROOT),
             presence: Signal::new_in_scope(Vec::new(), ScopeId::ROOT),
+            sharing: Signal::new_in_scope(crate::sharing::Sharing::default(), ScopeId::ROOT),
             presence_link: Signal::new_in_scope(None, ScopeId::ROOT),
             bus: Signal::new_in_scope(None, ScopeId::ROOT),
         }

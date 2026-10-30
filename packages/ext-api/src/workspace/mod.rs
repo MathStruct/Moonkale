@@ -34,6 +34,7 @@ mod recovery;
 mod remote;
 mod saved_sessions;
 mod session;
+mod sharing;
 pub use saved_sessions::{SavedSessions, SavedWorkspace, DEFAULT_SESSION};
 mod settings;
 mod sources;
@@ -174,6 +175,65 @@ impl Workspace {
 
     /// Dispatch an application command to whoever handles it.
     pub fn dispatch(&mut self, cmd: Command) {
+        match cmd {
+            Command::ShareCursor => {
+                let s = self.session.sharing.peek().clone();
+                self.share_positions(!s.cursor, s.pointer);
+                return;
+            }
+            Command::SharePointer => {
+                let s = self.session.sharing.peek().clone();
+                self.share_positions(s.cursor, !s.pointer);
+                return;
+            }
+            Command::ShareAgentCursor => {
+                self.session.sharing.with_mut(|s| {
+                    s.agent_enabled = !s.agent_enabled;
+                    if !s.agent_enabled {
+                        s.agent = None;
+                    }
+                });
+                self.publish_presence();
+                return;
+            }
+            Command::StopSharing => {
+                self.stop_sharing();
+                return;
+            }
+            Command::AnnounceCursor => {
+                let text = self
+                    .others()
+                    .into_iter()
+                    .filter_map(|m| {
+                        let c = m.sharing?.cursor?;
+                        Some(crate::t!(
+                            self,
+                            crate::L,
+                            "sharing-announcement",
+                            name = m.name,
+                            document = c.document,
+                            line = c.line.saturating_add(1),
+                            column = c.column.saturating_add(1)
+                        ))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                let message = if text.is_empty() {
+                    crate::t!(self, crate::L, "sharing-no-cursor")
+                } else {
+                    text
+                };
+                self.set_status(message.clone());
+                // An always-mounted live region is changed only on this request.
+                // Clearing first also makes a repeated announcement observable.
+                let message = serde_json::to_string(&message).unwrap_or_default();
+                let _ = dioxus::document::eval(&format!(
+                    "const el = document.querySelector('.mk-titlebar-left > .mk-sharing-announcement'); if (el) {{ el.textContent = ''; requestAnimationFrame(() => {{ el.textContent = {message}; }}); }}"
+                ));
+                return;
+            }
+            _ => {}
+        }
         let seq = self.shell.commands.peek().0 + 1;
         self.shell.commands.set((seq, Some(cmd)));
     }
@@ -215,6 +275,7 @@ fn summary(msg: &SessionMessage) -> String {
     match msg {
         SessionMessage::Scoped { message, .. } => summary(message),
         SessionMessage::Hello { from } => format!("Hello from {from}"),
+        SessionMessage::Presence { .. } => "Presence".into(),
         SessionMessage::Welcome { from } => format!("Welcome from {from}"),
         SessionMessage::SourceOpened { from, descriptor } => {
             format!("SourceOpened {} from {from}", descriptor.id)

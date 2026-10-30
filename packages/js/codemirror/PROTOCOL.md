@@ -119,3 +119,6 @@ based; both label and title are inert text (`textContent` / `title`). The view
 keeps no Git state. Document changes clear annotations, and the workspace also
 clears its shared annotation entries for dirty buffers. Historical blame stays
 in the Git panel instead of assigning old positions to the live document.
+
+
+WP-72: setPresence now receives {line,label,name,color,cursor?:{anchor,head}} entries. Offsets are canonical UTF-16 and converted to the local CodeMirror document. A StateField renders inert named caret widgets and selection marks. Rust filters source/document identity before sending them.

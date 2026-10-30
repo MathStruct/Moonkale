@@ -89,6 +89,7 @@ mod native_widgets;
 #[cfg(feature = "layout-fixture")]
 pub use native_proportional::ProportionalGeometryProbe;
 mod native_links;
+mod native_remote;
 mod native_rename;
 mod native_search;
 mod native_structure;

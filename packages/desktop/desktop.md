@@ -43,3 +43,8 @@ WP-57: `--safe` disables extension contributions and saved layout/document
 restoration for the session. Before launch, a content-free startup marker is
 written to the existing local state store; repeated incomplete startups offer
 safe mode. A healthy frame checkpoint clears it after 30 seconds.
+
+
+WP-72: without MOONKALE_HUB, opt-in position presence uses the existing scoped session bus between windows. With a hub configured, the native websocket carries the same Member payload.
+
+Native hub presence uses watch channels in both directions: one latest member state and one latest member list, with no movement backlog. Stop replaces pending motion even while the socket task is stalled.

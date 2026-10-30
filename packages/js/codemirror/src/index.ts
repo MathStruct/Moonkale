@@ -9,7 +9,7 @@ import { bracketMatching, foldGutter, foldKeymap, indentOnInput, indentUnit } fr
 import { languageExtension } from "./languages"
 import { autocompletion, completionKeymap, type CompletionContext, type CompletionResult, type Completion } from "@codemirror/autocomplete"
 import { EditorState, StateEffect, StateField, RangeSet, Compartment, type Text, type Transaction, type TransactionSpec } from "@codemirror/state"
-import { gutter, GutterMarker, Decoration, type DecorationSet } from "@codemirror/view"
+import { gutter, GutterMarker, WidgetType, Decoration, type DecorationSet } from "@codemirror/view"
 import {
   EditorView,
   keymap,
@@ -67,7 +67,7 @@ type Features = {
 }
 /** A `[[link]]` span in UTF-16 offsets, resolved or not (Rust computes both). */
 export type WikiSpan = { from: number; to: number; resolved: boolean }
-export type PresenceMark = { line: number; label: string }
+export type PresenceMark = { line: number; label: string; name: string; color: number; cursor?: { anchor: number; head: number } }
 export type CompletionItem = { label: string; kind?: string; detail?: string; insert?: string; sort?: string }
 type Entry = {
   showingRange?: boolean
@@ -197,7 +197,36 @@ const presenceField = StateField.define<RangeSet<GutterMarker>>({
     return set
   },
 })
-const presenceGutter = [presenceField, gutter({ class: "cm-presence-gutter", markers: (v) => v.state.field(presenceField) })]
+class SharedCaret extends WidgetType {
+  constructor(readonly mark: PresenceMark) { super() }
+  eq(other: SharedCaret) { return other.mark.name === this.mark.name && other.mark.color === this.mark.color }
+  toDOM() {
+    const caret = document.createElement('span'); caret.className = 'mk-remote-caret cm-remote-caret';
+    caret.dataset.color = String(this.mark.color); caret.dataset.participant = this.mark.name;
+    const name = document.createElement('span'); name.className = 'mk-remote-name'; name.textContent = this.mark.name;
+    caret.append(name); return caret;
+  }
+}
+const sharedPositions = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    value = value.map(tr.changes);
+    for (const effect of tr.effects) if (effect.is(setPresenceEffect)) {
+      const marks = [];
+      for (const m of effect.value) {
+        if (!m.cursor) continue;
+        const anchor = fromText(tr.state, m.cursor.anchor), head = fromText(tr.state, m.cursor.head);
+        if (anchor < 0 || head < 0 || anchor > tr.state.doc.length || head > tr.state.doc.length) continue;
+        marks.push(Decoration.widget({widget:new SharedCaret(m),side:1}).range(head));
+        if (anchor !== head) marks.push(Decoration.mark({class:'mk-remote-selection cm-remote-selection',attributes:{'data-color':String(m.color)}}).range(Math.min(anchor,head),Math.max(anchor,head)));
+      }
+      value = Decoration.set(marks, true);
+    }
+    return value;
+  },
+  provide: field => EditorView.decorations.from(field),
+});
+const presenceGutter = [sharedPositions, presenceField, gutter({ class: "cm-presence-gutter", markers: (v) => v.state.field(presenceField) })]
 
 // Generic inert line annotations; no Git-specific state in the view.
 type GutterMark = { line: number; label: string; title: string }

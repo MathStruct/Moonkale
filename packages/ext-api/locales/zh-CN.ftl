@@ -48,3 +48,7 @@ move-unsaved = 未保存的文档保留在此窗口中，请先保存再移至�
 chrome-more = 更多操作
 
 saved-with-warnings = 已保存 { $name } — { $warnings }
+
+# WP-72 ephemeral position sharing
+sharing-announcement = { $name }：{ $document }，第 { $line } 行，第 { $column } 列
+sharing-no-cursor = 没有共享光标

@@ -532,6 +532,7 @@ impl Workspace {
         });
         self.remember_live();
         self.saved_sessions.switching.set(true);
+        self.stop_sharing();
         self.saved_sessions.active.set(id);
         Box::pin(self.restore_session(saved)).await;
         self.saved_sessions.switching.set(false);
@@ -573,6 +574,7 @@ impl Workspace {
         self.session.peers.set(Vec::new());
         self.session.own_drag.set(None);
         self.session.foreign_drag.set(None);
+        self.session.sharing.set(crate::sharing::Sharing::default());
         self.session.presence_link.set(None);
         self.session.presence.set(Vec::new());
         let live_links = live.is_some();

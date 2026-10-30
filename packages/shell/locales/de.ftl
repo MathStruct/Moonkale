@@ -449,3 +449,12 @@ settings-agent-open-views = Agenten dürfen Ansichten öffnen
 settings-agent-open-ask = Nachfragen
 settings-agent-open-idle = Wenn ich nicht tippe
 settings-agent-open-always = Immer
+
+# WP-72 ephemeral position sharing
+sharing-title = Teilen
+sharing-cursor = Meinen Cursor teilen
+sharing-pointer = Meinen Zeiger teilen
+sharing-stop = Teilen beenden
+sharing-announce = Cursor der Teilnehmer ansagen
+sharing-follow = { $name } folgen
+sharing-agent-cursor = Agentencursor teilen

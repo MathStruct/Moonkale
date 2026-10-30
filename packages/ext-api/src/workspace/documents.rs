@@ -11,7 +11,10 @@ struct RevealCounter(Signal<u64>);
 struct NavigationCounter(Signal<u64>);
 
 impl Workspace {
-    fn begin_document_navigation(self) {
+    fn begin_document_navigation(mut self) {
+        if self.session.sharing.peek().following.is_some() {
+            self.session.sharing.with_mut(|s| s.following = None);
+        }
         // Only restoration needs this clock. Ordinary document operations,
         // including close_node outside a render scope, must not allocate it.
         let counter = self
@@ -155,7 +158,6 @@ impl Workspace {
     pub fn set_cursor_line(&mut self, node: NodeId, line: u32) {
         if *self.docs.active.peek() == Some(node) && *self.docs.cursor_line.peek() != Some(line) {
             self.docs.cursor_line.set(Some(line));
-            self.publish_presence();
         }
     }
 

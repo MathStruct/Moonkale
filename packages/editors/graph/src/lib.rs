@@ -28,3 +28,5 @@ pub(crate) static L: moonkale_ext_api::i18n::Locales = &[
 
 pub use extension::GraphExtension;
 pub use panel::GraphPanel;
+
+mod sharing;

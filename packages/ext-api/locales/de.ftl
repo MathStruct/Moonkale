@@ -56,3 +56,7 @@ move-unsaved = Ungespeichertes Dokument bleibt hier — vor dem Verschieben in e
 chrome-more = Weitere Aktionen
 
 saved-with-warnings = { $name } gespeichert — { $warnings }
+
+# WP-72 ephemeral position sharing
+sharing-announcement = { $name }: { $document }, Zeile { $line }, Spalte { $column }
+sharing-no-cursor = Kein geteilter Cursor

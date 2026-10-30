@@ -316,3 +316,16 @@ new fields. Display events are bounded live state, excluded from transcript repl
   `GutterMark` carries a zero-based line, inert label and hover title. Workspace
   constructors supply the new signal. CodeMirror and Rust views clear dirty
   documents' annotations instead of presenting stale blame positions.
+
+
+### WP-72 — opt-in positions (2026-10-29)
+
+`presence::Member` gains optional `sharing::Position`; struct literals must set
+`sharing: None`. Position uses finite floating-point graph coordinates, so
+Member/PresenceMessage now implement PartialEq rather than Eq. SessionMessage
+gains scoped Presence and Command gains sharing toggles/Stop/Announce. Downstream
+exhaustive matches must handle them. The sharing module defines the bounded
+metadata model, ephemeral switches and publication/expiry rules. Position state
+is opt-in, never stored, and source-aware. Existing document-name badges remain.
+
+CodeEditorBackend::set_presence now accepts Member records instead of line/label tuples, so custom view backends can receive full participant names and selection metadata.

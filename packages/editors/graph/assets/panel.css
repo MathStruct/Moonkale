@@ -53,3 +53,11 @@
    pushing Fit/3D out of reach in a docked graph. */
 .mk-graph-toolbar-egraph { flex-wrap: wrap; }
 .mk-graph-toolbar-egraph > * { flex-shrink: 0; white-space: nowrap; }
+
+.mk-shared-pointers { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+.mk-shared-pointer { --mk-peer-color:var(--mk-accent); position:absolute; top:0; left:0; color:var(--mk-peer-color); visibility:hidden; white-space:nowrap; }
+.mk-shared-pointer[data-color="1"] { --mk-peer-color:var(--mk-good, var(--mk-accent)); }
+.mk-shared-pointer[data-color="2"] { --mk-peer-color:var(--mk-caution, var(--mk-accent)); }
+.mk-shared-pointer[data-color="3"] { --mk-peer-color:var(--mk-danger, var(--mk-accent)); }
+.mk-shared-arrow { display:inline-block; transform:rotate(-135deg); }
+.mk-shared-pointer-name { font-size:11px; background:var(--mk-canvas); padding:2px; }

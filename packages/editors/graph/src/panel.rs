@@ -1595,6 +1595,7 @@ pub fn GraphPanel(ws: Workspace, panel_id: String) -> Element {
                 div { class: "mk-graph-host", onmounted: moonkale_ext_api::crash::event(mount),
                     canvas { id: "{id}-gl", class: "mk-graph-canvas" }
                     canvas { id: "{id}-ov", class: "mk-graph-canvas mk-graph-overlay" }
+                    crate::sharing::SharedPointers { ws, id: id.clone(), view_key: format!("graph:{}:{}:{}:{}:{}:{}", picked().as_ref().map_or("index", |p|p.as_str()), local_center().map_or_else(||"whole".into(), |n|n.to_string()), filters().files, filters().symbols, filters().folders, filters().phantoms) }
                     if !has_any && !egraph_mode() {
                         div { class: "mk-graph-empty", {t!(ws, L, "graph-empty")} }
                     }

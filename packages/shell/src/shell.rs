@@ -44,6 +44,7 @@ pub const NARROW_MAX_PX: u32 = 700;
 #[component]
 pub fn Shell() -> Element {
     let mut ws = use_context::<Workspace>();
+    let following_cursor = use_memo(move || ws.session.sharing.read().following.is_some());
     let mut status_folder = use_context_provider(|| Signal::new(None::<moonkale_core::SourceId>));
     use_effect(move || {
         if let Some((_, doc)) = ws.active_document() {
@@ -572,7 +573,7 @@ pub fn Shell() -> Element {
         });
     // Activation is a navigation edge. Workbench remounts on layout changes;
     // replaying the last document here would override its retained active tabs.
-    let activate_document = use_document_activation(active_node);
+    let activate_document = use_document_activation(active_node, following_cursor());
     let is_narrow = *narrow.read();
     // Disabled extensions (Settings → Extensions) contribute nothing.
     let ext_settings = ws.settings.resolved.read().extensions.clone();
@@ -858,7 +859,9 @@ pub fn Shell() -> Element {
                         .as_ref()
                         .map(|a| format!(" · {a}"))
                         .unwrap_or_default(),
-                    m.line.map(|l| format!(":{}", l + 1)).unwrap_or_default()
+                    m.line
+                        .map(|l| format!(":{}", u64::from(l) + 1))
+                        .unwrap_or_default()
                 ),
             )
         })
@@ -1307,9 +1310,12 @@ fn home_tile(narrow: bool, home: moonkale_ext_api::PanelHome) -> &'static str {
 }
 
 /// Remember navigation outside the workbench subtree that remounts on resize.
-fn use_document_activation(active: Option<moonkale_core::NodeId>) -> bool {
-    let last = use_hook(|| Rc::new(std::cell::Cell::new(None)));
-    last.replace(active) != active
+fn use_document_activation(active: Option<moonkale_core::NodeId>, following: bool) -> bool {
+    let last = use_hook(|| Rc::new(std::cell::Cell::new((None, false))));
+    let previous = last.replace((active, following));
+    // Starting follow must also reveal a retained document hidden behind Graph.
+    // Cancelling follow leaves the person's newly chosen tab alone.
+    previous.0 != active || (following && !previous.1)
 }
 
 /// Reports `matchMedia("(max-width: <px>px)")` now and on every change.
@@ -1752,7 +1758,7 @@ mod responsive_tests {
         let node = use_hook(|| {
             moonkale_core::NodeId::derive(&moonkale_core::SourceId("fixture".into()), "Cargo.lock")
         });
-        let request = use_document_activation(Some(node));
+        let request = use_document_activation(Some(node), false);
         REQUESTS.with(|requests| requests.borrow_mut().push(request));
         let wide = use_signal(|| {
             PanelLayout::new(LayoutNode::split(

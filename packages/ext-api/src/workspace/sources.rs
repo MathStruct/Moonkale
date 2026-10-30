@@ -76,6 +76,7 @@ impl Workspace {
                 .workspace
                 .set(crate::settings::SettingsFile::new());
             self.settings.folder.set(None);
+            self.stop_sharing();
             self.session.presence_link.set(None);
             self.session.presence.set(Vec::new());
             self.resolve_settings();

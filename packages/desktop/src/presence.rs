@@ -25,12 +25,12 @@ pub fn hub_url() -> Option<String> {
 }
 
 pub struct NativePresence {
-    tx: futures_channel::mpsc::UnboundedSender<Msg>,
+    tx: tokio::sync::watch::Sender<PresenceMember>,
 }
 
 impl PresenceLink for NativePresence {
     fn update(&self, member: PresenceMember) {
-        let _ = self.tx.unbounded_send(Msg::Update { member });
+        self.tx.send_replace(member);
     }
 }
 
@@ -40,8 +40,8 @@ pub fn join(
     member: PresenceMember,
     on_members: Callback<Vec<PresenceMember>>,
 ) -> Rc<dyn PresenceLink> {
-    let (tx, mut rx) = futures_channel::mpsc::unbounded::<Msg>();
-    let (lists_tx, mut lists_rx) = futures_channel::mpsc::unbounded::<Vec<PresenceMember>>();
+    let (tx, mut rx) = tokio::sync::watch::channel(member);
+    let (lists_tx, mut lists_rx) = tokio::sync::watch::channel(Vec::<PresenceMember>::new());
     let Some(url) = hub_url() else {
         return Rc::new(NativePresence { tx });
     };
@@ -67,6 +67,7 @@ pub fn join(
                 return;
             }
         };
+        let member = rx.borrow_and_update().clone();
         tracing::info!("presence: joined {url} as {}", member.name);
         let (mut sink, mut stream) = socket.split();
         let join = serde_json::to_vec(&Msg::Join { room, member }).unwrap_or_default();
@@ -75,22 +76,23 @@ pub fn join(
         }
         loop {
             tokio::select! {
-                out = rx.next() => match out {
-                    Some(m) => {
-                        let bytes = serde_json::to_vec(&m).unwrap_or_default();
+                out = rx.changed() => match out {
+                    Ok(()) => {
+                        let member = rx.borrow_and_update().clone();
+                        let bytes = serde_json::to_vec(&Msg::Update { member }).unwrap_or_default();
                         if sink.send(Message::Binary(bytes.into())).await.is_err() { break; }
                     }
-                    None => break, // link dropped → leave
+                    Err(_) => break,
                 },
                 inc = stream.next() => match inc {
                     Some(Ok(Message::Binary(b))) => {
                         if let Ok(Msg::Members { members }) = serde_json::from_slice::<Msg>(&b) {
-                            let _ = lists_tx.unbounded_send(members);
+                            lists_tx.send_replace(members);
                         }
                     }
                     Some(Ok(Message::Text(t))) => {
                         if let Ok(Msg::Members { members }) = serde_json::from_str::<Msg>(&t) {
-                            let _ = lists_tx.unbounded_send(members);
+                            lists_tx.send_replace(members);
                         }
                     }
                     Some(Ok(_)) => {}
@@ -98,12 +100,37 @@ pub fn join(
                 },
             }
         }
-        let _ = lists_tx.unbounded_send(Vec::new());
+        lists_tx.send_replace(Vec::new());
     });
     spawn(async move {
-        while let Some(list) = lists_rx.next().await {
+        while lists_rx.changed().await.is_ok() {
+            let list = lists_rx.borrow_and_update().clone();
             on_members.call(list);
         }
     });
     Rc::new(NativePresence { tx })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn stalled_native_transport_retains_latest_revocation() {
+        let member = PresenceMember {
+            window: "peer".into(),
+            name: "Peer".into(),
+            active: None,
+            line: None,
+            sharing: None,
+        };
+        let (tx, rx) = tokio::sync::watch::channel(member.clone());
+        let link = NativePresence { tx };
+        for _ in 0..10_000 {
+            let mut next = member.clone();
+            next.sharing = Some(Default::default());
+            link.update(next);
+        }
+        link.update(member);
+        assert!(rx.borrow().sharing.is_none());
+    }
 }

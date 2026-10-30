@@ -243,6 +243,39 @@ async fn apply(mut ws: Workspace, offer: Offer) -> Result<(), String> {
             if *ws.saved_sessions.active.peek() != offer.outer {
                 return Err("session changed".into());
             }
+            if let Some(doc) = ws.document(node_id) {
+                let doc = doc.peek();
+                if moonkale_ext_api::preview::allowed_path(&doc.node.native_key) {
+                    let offset = |line: u32, col: u32| -> u32 {
+                        let mut offset = 0;
+                        for (i, text) in doc.text.split_inclusive('\n').enumerate() {
+                            if i == line as usize {
+                                return offset
+                                    + col.min(
+                                        text.trim_end_matches(['\n', '\r']).encode_utf16().count()
+                                            as u32,
+                                    );
+                            }
+                            offset += text.encode_utf16().count() as u32;
+                        }
+                        offset
+                    };
+                    ws.share_agent_cursor(
+                        offer.name.clone(),
+                        moonkale_ext_api::sharing::Cursor {
+                            source: doc.node.source.to_string(),
+                            document: doc.node.native_key.clone(),
+                            line: range.line,
+                            column: range.column,
+                            anchor: offset(range.line, range.column),
+                            head: offset(
+                                range.end_line.unwrap_or(range.line),
+                                range.end_column.unwrap_or(range.column),
+                            ),
+                        },
+                    );
+                }
+            }
             let group = ws.links.groups.peek().iter().find(|g| g.id == key).cloned();
             let focused = ws.links.focused.peek().clone();
             let retained = group.as_ref().and_then(|g| {

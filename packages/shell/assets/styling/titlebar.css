@@ -80,3 +80,8 @@
   -webkit-app-region: no-drag; max-width: 12rem; overflow: hidden;
   white-space: nowrap; text-overflow: ellipsis;
 }
+
+.mk-sharing { position: relative; flex-shrink: 0; }
+.mk-sharing summary { list-style: none; cursor: pointer; }
+.mk-sharing-indicator { color: var(--mk-accent); }
+.mk-sharing-menu { position: absolute; z-index: 1000; top: 100%; left: 0; min-width: 220px; padding: 6px; background: var(--mk-surface); border: 1px solid var(--mk-line); display: flex; flex-direction: column; gap: 4px; }

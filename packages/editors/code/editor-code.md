@@ -96,3 +96,6 @@ WP-52 (2026-10-29): both code engines consume shared document-keyed inert gutter
 annotations from ext-api (Git blame today). Labels show the short commit and
 hover text shows author, full commit and subject. Edits clear stale annotations.
 Historical blame walking remains in the Git panel.
+
+
+WP-72: CodeMirror and Rust surfaces draw source-aware remote named carets and selections from opt-in presence metadata. The Rust proportional surface reuses its measured geometry; uniform rows reuse virtual cells. No buffer content crosses presence.

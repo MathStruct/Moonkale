@@ -7,6 +7,21 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Position sharing (WP-72, validated 2026-10-30)
+
+✅ Built and validated on the codex contributor worktree.
+Cursor/selection, 2D world-space graph pointers and the demonstration agent
+reveal cursor have independent opt-in switches, a title-bar indicator and one
+Stop sharing command with an effective shortcut. The local session bus and web
+hub carry the same bounded ephemeral metadata. Follow stays within already-open
+authorized sources and stops on local navigation or Escape. Request-only announcements
+work without a pointer. Accounts and AU-12 keyboard grants remain later.
+All AGENTS gates, the required CI feature matrix, default graph suites and the
+extra presence regression pass (52 browser suite runs). The private two-window
+desktop check was inspected and stopped. Follow reads exclude the provider’s
+unsaved buffer; transport queues retain only the latest state.
+See [[Collaboration]] and [[Agents in the UI and on the Graph]].
+
 ## Sophia save warnings and Git everyday (validated 2026-10-29)
 
 ✅ Built and validated in the codex contributor worktree. Sophia v0.1.8
@@ -34,8 +49,8 @@ user/session settings and per-conversation rate/budget bounds. Both terminal
 views detect Unix canonical echo-off prompts, confirm pastes and suppress shared
 tails, with per-terminal Pause sharing. See [[Agents in the UI and on the Graph]]
 and [[Security]]; the raw-mode/non-Unix limitations remain explicit. All AGENTS gates
-and the smoke, structural, Sophia and default graph browser matrix pass. Shared
-control and global Stop sharing remain WP-72.
+and the smoke, structural, Sophia and default graph browser matrix pass. Keyboard
+control awaits accounts; global position Stop sharing is in WP-72.
 
 ## Overview (WP-60, checked 2026-10-29)
 

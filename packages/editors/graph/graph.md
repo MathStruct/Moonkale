@@ -112,3 +112,6 @@ WP-63 (2026-10-28): panel actions use `icons::ToolbarActions` for the Simple/Det
 
 
 WP-59 contributes graph:<group> instances with separate engine identities, cameras and Local stashes. Group subjects replace active-document reads in those instances; the global graph retains active mode. Flow/table context and selection use the same engine.
+
+
+WP-72: 2D pointer sharing uses world-space coordinates and semantic source/scope/filter view keys. A pointer-only adapter projects through the receiver camera every frame; 3D positions are hidden. Labels are inert and have no hit target.

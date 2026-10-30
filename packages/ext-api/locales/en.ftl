@@ -56,3 +56,7 @@ move-unsaved = Unsaved document kept here — save before moving it to another w
 chrome-more = More actions
 
 saved-with-warnings = Saved { $name } — { $warnings }
+
+# WP-72 ephemeral position sharing
+sharing-announcement = { $name }: { $document }, line { $line }, column { $column }
+sharing-no-cursor = No shared cursor

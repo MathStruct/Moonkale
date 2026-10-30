@@ -535,7 +535,7 @@ Input still has no sharing path; a remote program can echo sensitive output.
 Pause sharing protects preview/agent output in that case. Non-Unix PTYs lack
 this termios detector. Mode observation is sampled, not a classifier of arbitrary
 output or secrets already printed by a process. Owner screens/replay are private
-local state, not a follower/agent channel. Global Stop sharing remains WP-72.
+local state, not a follower/agent channel. Global position Stop sharing is implemented by WP-72; per-terminal Pause sharing remains a separate output control.
 
 Display tools are read-only under the existing policy gate and support session
 denials. Each conversation has a 100-attempt display budget and a two-second
@@ -649,3 +649,46 @@ and mutations. Their private metadata directory is not a separate lock scope;
 this prevents in-process worktree actions from changing a reviewed stash's
 selector while another operation executes. External writers remain outside
 that mutex, as documented above.
+
+
+## Position sharing (WP-72, 2026-10-29)
+
+Cursor, graph pointer and demonstration agent cursor are explicit independent
+window/session choices, off by default, never persisted. The always-mounted
+title-bar disclosure owns the indicator and publication clock. Stop sharing
+revokes all three immediately, clears pending samples and follow, and publishes
+the revocation. Closing the folder and switching sessions also revoke them.
+Terminal input/private prompts have no path into this protocol; terminal
+Pause sharing continues to govern the separate preview/agent-output channel.
+
+Payloads contain source/key identities, UTF-16 caret/selection offsets, finite
+world coordinates and labels only. No buffer, terminal or prompt body is sent.
+Credential/hidden paths use recovery's exclusion rule. Receivers render only
+their own document in the matching source. Follow can read a newly visited
+document through an already-open authorized Source, never open a new source or
+receive the provider’s unsaved buffer. Follow reads admit at most one per second
+and 32 per explicit follow, with 64 path components and the existing Source
+content bounds. Session/participant/target guards are rechecked after reads so
+Escape or local navigation prevents a pending result from opening a tab. Labels are escaped text; coordinates are bounded
+numbers, never styles supplied by a participant. Pointers have no hit target.
+
+The existing authenticated same-origin websocket hub and scoped local bus carry
+the same metadata. Outer sessions are room organization, not authentication or
+accounts. The hub binds updates to the socket's joining window, caps member
+labels/keys, validates payloads and limits a room to 128 members. It stamps
+positions with receipt time. Clients coalesce at 20 Hz, heartbeat at five seconds
+and drop positions after fifteen seconds; last write wins. No position is stored
+in the entity log, settings, transcript or recovery. A remote member's claimed
+name remains a display label until SW-02 accounts exist. No keyboard/control
+authority is introduced. Shared offsets refer to the receiver's current text;
+version convergence/CRDT and 3D pointer depth are outside this slice.
+
+The agent demonstration publishes only an approved reveal target after the
+existing display/policy checks, with its own explicit sharing switch. It never
+publishes prompt text, live keystrokes or proposal bodies. This adds no package
+version, source write or endpoint; CodeMirror's rebuilt bundled adapter uses
+existing decoration APIs.
+
+Cursor announcements update only a core-owned, always-mounted live region on an explicit request. The adapter receives serialized metadata and uses textContent, clearing before a frame to support repeated announcements. Incoming movement never writes that region.
+
+Transport backpressure keeps a single latest outgoing snapshot, so revocation replaces queued motion. The web link uses a bounded wake queue; native hub links use watch channels for outgoing state and incoming member lists. Application queues do not retain a movement history.

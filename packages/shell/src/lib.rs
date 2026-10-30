@@ -29,6 +29,7 @@ mod search;
 mod server_dialog;
 mod sessions;
 mod settings_panel;
+mod sharing;
 mod shell;
 mod terminal_chooser;
 pub mod theme;

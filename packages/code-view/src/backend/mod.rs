@@ -127,7 +127,7 @@ pub trait CodeEditorBackend {
     fn hover_result(&self, id: u32, text: Option<&str>);
     fn completion_result(&self, id: u32, items: Option<&[moonkale_lsp::CompletionItem]>);
     /// Other people's positions in this document: `(line, label)`.
-    fn set_presence(&self, marks: &[(u32, String)]);
+    fn set_presence(&self, marks: &[moonkale_ext_api::presence::Member]);
     /// Inert line annotations, shared with the Rust editor.
     fn set_gutter_marks(&self, _marks: &[moonkale_ext_api::workspace::GutterMark]) {}
     fn set_cursor(&self, line: u32, col: u32);

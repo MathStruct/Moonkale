@@ -70,3 +70,8 @@ heads belong to Default. TurnSettings carries the selected outer workspace;
 agent_send refuses continuing a conversation owned by another session. Client
 local records retain the authorized folder/local prefix with their outer
 session beneath it. Session identity does not replace authentication or jailing.
+
+
+WP-72: presence members optionally carry bounded source-aware cursor/selection, 2D graph world pointer and agent reveal metadata. Rooms include the outer session id; positions expire after 15 s. This is ephemeral awareness, not editing authority or accounts.
+
+Presence client backpressure coalesces into one pending Member and bounded wakes; link drop closes the socket. The stalled-transport regression verifies 10,000 movements cannot build a queue and Stop replaces the pending state.

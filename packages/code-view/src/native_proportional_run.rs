@@ -40,6 +40,7 @@ pub(crate) fn ProportionalRun(
     marks: Vec<CellMarks>,
     tags: Vec<String>,
     points: Vec<(usize, bool)>,
+    remote: Vec<crate::native_remote::Mark>,
     include_end: bool,
     affinity: Signal<Option<crate::native_proportional_navigation::CaretAffinity>>,
     mut dragging: Signal<bool>,
@@ -446,6 +447,16 @@ pub(crate) fn ProportionalRun(
                         title: move_marks.get(index).and_then(|mark| mark.diagnostic.as_ref().map(|value| value.message.clone()).or_else(|| mark.wiki.as_ref().map(|value| value.target.clone()))).unwrap_or_default(),
                         style: "display:inline;", "{ch}"
                     }
+                    }
+                }
+            }
+            for mark in remote {
+                if let Some(g) = &geometry {
+                    if let Some((x, y, height)) = mark.head.checked_sub(stamp.start).filter(|i| *i <= text.chars().count()).and_then(|i| g.caret(i)) {
+                        crate::native_remote::Caret { name: mark.name.clone(), color: mark.color, x, y, height }
+                    }
+                    for rect in g.boxes.iter().filter(|r| mark.anchor != mark.head && stamp.start + r.start < mark.anchor.max(mark.head) && stamp.start + r.end > mark.anchor.min(mark.head)) {
+                        span { class: "mk-remote-selection", "data-color": mark.color.to_string(), style: "left:{rect.x}px;top:{rect.y}px;width:{rect.width}px;height:{rect.height}px;" }
                     }
                 }
             }

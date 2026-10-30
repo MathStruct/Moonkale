@@ -5,6 +5,7 @@
 use dioxus::fullstack::{WebSocketOptions, Websocket};
 use dioxus::prelude::*;
 use moonkale_ext_api::presence::{Member, PresenceMessage};
+use std::{cell::RefCell, rc::Rc};
 
 #[cfg(feature = "server")]
 mod hub {
@@ -25,13 +26,27 @@ mod hub {
 
     /// Insert/replace a member and broadcast; returns a receiver for the
     /// room's updates (on first join).
-    pub fn upsert(room: &str, member: Member) -> broadcast::Receiver<Vec<Member>> {
+    pub fn upsert(room: &str, mut member: Member) -> broadcast::Receiver<Vec<Member>> {
+        if let Some(position) = member.sharing.as_mut() {
+            if !position.valid() {
+                member.sharing = None;
+                member.line = None;
+            } else {
+                position.updated = moonkale_ext_api::workspace::now_ms();
+            }
+        }
+        member.line = member
+            .sharing
+            .as_ref()
+            .and_then(|p| p.cursor.as_ref().map(|c| c.line));
         let mut rooms = rooms().lock().unwrap();
         let r = rooms.entry(room.to_string()).or_insert_with(|| Room {
             members: HashMap::new(),
             tx: broadcast::channel(64).0,
         });
-        r.members.insert(member.window.clone(), member);
+        if r.members.len() < 128 || r.members.contains_key(&member.window) {
+            r.members.insert(member.window.clone(), member);
+        }
         let rx = r.tx.subscribe();
         let _ = r.tx.send(sorted(&r.members));
         rx
@@ -59,6 +74,13 @@ mod hub {
 
     fn sorted(m: &HashMap<String, Member>) -> Vec<Member> {
         let mut v: Vec<Member> = m.values().cloned().collect();
+        let now = moonkale_ext_api::workspace::now_ms();
+        for member in &mut v {
+            if member.sharing.as_ref().is_some_and(|p| !p.fresh(now)) {
+                member.sharing = None;
+                member.line = None;
+            }
+        }
         v.sort_by(|a, b| a.name.cmp(&b.name).then(a.window.cmp(&b.window)));
         v
     }
@@ -73,6 +95,7 @@ pub async fn presence_socket(
         let Ok(PresenceMessage::Join { room, member }) = socket.recv().await else {
             return;
         };
+        if room.len() > 8192 || member.window.len() > 128 || member.name.len() > 128 || member.active.as_ref().is_some_and(|a| a.len() > 4096) { return; }
         let window = member.window.clone();
         let mut rx = hub::upsert(&room, member);
         // The joiner gets the current list right away.
@@ -93,6 +116,7 @@ pub async fn presence_socket(
                 },
                 msg = socket.recv() => match msg {
                     Ok(PresenceMessage::Update { mut member }) => {
+                        if member.name.len() > 128 || member.active.as_ref().is_some_and(|a| a.len() > 4096) { break; }
                         member.window = window.clone();
                         let _ = hub::upsert(&room, member);
                     }
@@ -107,13 +131,16 @@ pub async fn presence_socket(
 
 /// Client side (web): the link the workspace holds while a folder is open.
 pub struct RemotePresence {
-    tx: futures_channel::mpsc::UnboundedSender<PresenceMessage>,
+    wake: RefCell<futures_channel::mpsc::Sender<()>>,
+    pending: Rc<RefCell<Option<Member>>>,
 }
 
 impl RemotePresence {
     /// Connects in the background; member lists arrive on `on_members`.
     pub fn join(room: String, member: Member, on_members: Callback<Vec<Member>>) -> Self {
-        let (tx, mut rx) = futures_channel::mpsc::unbounded::<PresenceMessage>();
+        let (wake, mut rx) = futures_channel::mpsc::channel::<()>(1);
+        let pending = Rc::new(RefCell::new(Some(member)));
+        let outgoing = pending.clone();
         spawn(async move {
             use futures_util::StreamExt;
             let socket = match presence_socket(WebSocketOptions::new()).await {
@@ -123,6 +150,7 @@ impl RemotePresence {
                     return;
                 }
             };
+            let member = outgoing.borrow_mut().take().expect("initial presence");
             if socket
                 .send(PresenceMessage::Join { room, member })
                 .await
@@ -130,32 +158,85 @@ impl RemotePresence {
             {
                 return;
             }
-            let socket = std::rc::Rc::new(socket);
-            let s = socket.clone();
-            spawn(async move {
-                while let Some(msg) = rx.next().await {
-                    if s.send(msg).await.is_err() {
-                        break;
-                    }
-                }
-            });
             loop {
-                match socket.recv().await {
-                    Ok(PresenceMessage::Members { members }) => on_members.call(members),
-                    Ok(_) => {}
-                    Err(_) => {
+                use futures_util::future::{select, Either};
+                match select(Box::pin(rx.next()), Box::pin(socket.recv())).await {
+                    Either::Left((Some(()), _)) => {
+                        let member = outgoing.borrow_mut().take();
+                        if let Some(member) = member {
+                            if socket
+                                .send(PresenceMessage::Update { member })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    Either::Left((None, _)) => break,
+                    Either::Right((Ok(PresenceMessage::Members { members }), _)) => {
+                        on_members.call(members)
+                    }
+                    Either::Right((Ok(_), _)) => {}
+                    Either::Right((Err(_), _)) => {
                         on_members.call(Vec::new());
                         break;
                     }
                 }
             }
         });
-        Self { tx }
+        Self {
+            wake: RefCell::new(wake),
+            pending,
+        }
     }
 }
 
 impl moonkale_ext_api::presence::PresenceLink for RemotePresence {
     fn update(&self, member: Member) {
-        let _ = self.tx.unbounded_send(PresenceMessage::Update { member });
+        *self.pending.borrow_mut() = Some(member);
+        // A full wake queue already guarantees a drain. Replace the sample,
+        // including revocation, instead of retaining a movement backlog.
+        let _ = self.wake.borrow_mut().try_send(());
+    }
+}
+
+#[cfg(test)]
+mod client_tests {
+    use super::*;
+    use moonkale_ext_api::presence::PresenceLink;
+
+    #[test]
+    fn stalled_transport_keeps_only_latest_state_and_stop_replaces_motion() {
+        let (wake, mut rx) = futures_channel::mpsc::channel(1);
+        let link = RemotePresence {
+            wake: RefCell::new(wake),
+            pending: Rc::new(RefCell::new(None)),
+        };
+        for n in 0..10_000 {
+            link.update(Member {
+                window: "peer".into(),
+                name: n.to_string(),
+                active: None,
+                line: None,
+                sharing: Some(Default::default()),
+            });
+        }
+        assert_eq!(link.pending.borrow().as_ref().unwrap().name, "9999");
+        link.update(Member {
+            window: "peer".into(),
+            name: "stopped".into(),
+            active: None,
+            line: None,
+            sharing: None,
+        });
+        let last = link.pending.borrow_mut().take().unwrap();
+        assert_eq!(last.name, "stopped");
+        assert!(last.sharing.is_none());
+        let mut wakes = 0;
+        while let Ok(()) = rx.try_recv() {
+            wakes += 1;
+        }
+        assert!(wakes <= 2, "wake queue grew with the movement backlog");
     }
 }

@@ -93,7 +93,10 @@ struct DiagOut<'a> {
 #[derive(Serialize)]
 struct PresenceOut<'a> {
     line: u32,
-    label: &'a str,
+    label: String,
+    name: &'a str,
+    color: usize,
+    cursor: Option<&'a moonkale_ext_api::sharing::Cursor>,
 }
 
 #[derive(Deserialize)]
@@ -409,10 +412,18 @@ impl CodeEditorBackend for CodeMirrorBackend {
         let _ = self.eval.send(ToJs::SetGutterMarks { marks });
     }
 
-    fn set_presence(&self, marks: &[(u32, String)]) {
+    fn set_presence(&self, marks: &[moonkale_ext_api::presence::Member]) {
         let marks = marks
             .iter()
-            .map(|(line, label)| PresenceOut { line: *line, label })
+            .filter_map(|member| {
+                Some(PresenceOut {
+                    line: member.line?,
+                    label: member.initials(),
+                    name: &member.name,
+                    color: member.color(),
+                    cursor: member.sharing.as_ref().and_then(|p| p.cursor.as_ref()),
+                })
+            })
             .collect();
         let _ = self.eval.send(ToJs::SetPresence { marks });
     }

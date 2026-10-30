@@ -353,6 +353,16 @@ pub struct ForeignDrag {
 /// `Undo`; the shell handles `ResetLayout`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
+    /// Toggle ephemeral caret sharing.
+    ShareCursor,
+    /// Toggle ephemeral graph pointer sharing.
+    SharePointer,
+    /// Toggle the demonstrated agent participant's cursor.
+    ShareAgentCursor,
+    /// Revoke both position channels.
+    StopSharing,
+    /// Announce one participant's caret on request.
+    AnnounceCursor,
     /// Toggle the open-tab overview.
     Overview,
     /// Open the active content together with an independent local graph.

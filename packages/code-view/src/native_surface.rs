@@ -769,6 +769,7 @@ pub(crate) fn RustEditorSurface(
             .map(|line| line.logical_line_index)
             .unwrap_or(0),
     };
+    let remote = model.with(|state| crate::native_remote::marks(state, &presence));
     let decorations = model.with(|state| {
         let values = diagnostics.read();
         let text = if values.is_empty() {
@@ -1465,6 +1466,20 @@ pub(crate) fn RustEditorSurface(
                                         class: "mk-editor-core-row",
                                         "data-line": "{line.logical_line_index}",
                                         style: "height: {text_height}px; line-height: {layout.row_height()}px; position: relative;",
+                                        if !proportional_enabled(fixture, model, logical_line, line.is_fold_placeholder_appended) {
+                                            for mark in &remote {
+                                                if mark.head >= line.char_offset_start && mark.head <= line.char_offset_end {
+                                                    crate::native_remote::Caret { name: mark.name.clone(), color: mark.color,
+                                                        x: (9.0 + line.segment_x_start_cells as f64 + line.cells.iter().take(mark.head - line.char_offset_start).map(|c|c.width).sum::<usize>() as f64) * cell_pixels(),
+                                                        y: 0.0, height: layout.row_height(),
+                                                    }
+                                                }
+                                                { let a = mark.anchor.min(mark.head).max(line.char_offset_start); let b = mark.anchor.max(mark.head).min(line.char_offset_end);
+                                                if a < b { rsx! { span { class: "mk-remote-selection", "data-color": mark.color.to_string(),
+                                                    style: format!("left:{}px;top:0;height:{}px;width:{}px;", (9.0 + line.segment_x_start_cells as f64 + line.cells.iter().take(a-line.char_offset_start).map(|c|c.width).sum::<usize>() as f64)*cell_pixels(), layout.row_height(), line.cells.iter().skip(a-line.char_offset_start).take(b-a).map(|c|c.width).sum::<usize>() as f64*cell_pixels())
+                                                } } } else { rsx!{} } }
+                                            }
+                                        }
                                         if !line.is_wrapped_part {
                                             if let Some(region) = folds.iter().find(|region| region.start_line == logical_line) {
                                                 button {
@@ -1517,7 +1532,7 @@ pub(crate) fn RustEditorSurface(
                                                     let stamp = crate::native_proportional_run::RunKey { model, revision: model.read().revision, start: line.char_offset_start, row: visual_row, viewport_width: viewport_width_pixels(), font_epoch: font_epoch(), presentation: show_presentation };
                                                     let include_end = grid.lines.get(row_index + 1).is_none_or(|next| next.char_offset_start != line.char_offset_start + line.cells.len());
                                                     rsx! { crate::native_proportional_run::ProportionalRun {
-                                                        text: line.cells.iter().map(|cell| cell.ch).collect::<String>(), stamp,
+                                                        text: line.cells.iter().map(|cell| cell.ch).collect::<String>(), stamp, remote: remote.clone(),
                                                         replacements: crate::native_presentation::in_run(&presentation_values, show_presentation, line.char_offset_start..line.char_offset_start+line.cells.len()),
                                                         marks: (0..line.cells.len()).map(|i| decorations.cell(line.char_offset_start + i)).collect::<Vec<_>>(),
                                                         tags: tags[row_index].iter().enumerate().map(|(i, tag)| if bracket_pair.is_some_and(|(a,b)| a == line.char_offset_start+i || b == line.char_offset_start+i) { format!("{tag} mk-native-bracket-match") } else { tag.clone() }).collect::<Vec<_>>(),

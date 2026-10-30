@@ -764,3 +764,5 @@ staging in both directions. It uses disposable fixture repositories only.
 `sophia-folder` also seeds an authored `warnings.sophia` through the small
 `save_warning_fixture` example, then tests SR-150 save notices through the real
 editor after a second writer changes a referenced definition.
+
+`sharing.mjs` (CI smoke): two independent browser contexts, both CodeMirror and Rust editors; default-off wire silence, named caret/selection, independently enabled world-space graph pointer at different zooms, follow and Escape/own-navigation cancellation, request-only announcement, and the effective Stop sharing shortcut with indicator/revocation.

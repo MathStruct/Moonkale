@@ -1,6 +1,6 @@
 ---
 title: "Agents in the UI and on the graph — showing, sharing control, and private input"
-description: "What an agent may show a person in Moonkale (display tools, never its own HTML or scripts), what working on the graph needs beyond Shared Work's tasks and approvals, share-keyboard and share-pointer buttons for people and agents, terminal input that stays private (passwords), and herdr as an optional agent runtime. From Daniel, 2026-10-29. Display tools and private input are built; shared control and herdr remain planned."
+description: "What an agent may show a person in Moonkale (display tools, never its own HTML or scripts), what working on the graph needs beyond Shared Work's tasks and approvals, share-keyboard and share-pointer buttons for people and agents, terminal input that stays private (passwords), and herdr as an optional agent runtime. From Daniel, 2026-10-29. Display tools, private input and opt-in position sharing are built; keyboard grants and herdr remain planned."
 tags: [architecture, agents, collaboration, security, requirements, planned]
 ---
 **From Daniel (2026-10-29):**
@@ -12,16 +12,16 @@ tags: [architecture, agents, collaboration, security, requirements, planned]
 
 This page extends [[Shared Work]] (SW-01 to SW-08 for participants and tasks, SW-40 to SW-45 for tools) and [[Collaboration]] (presence). Its rules are added to [[Security]].
 
-## Implementation status (2026-10-29)
+## Implementation status (2026-10-30)
 
 WP-71 and WP-70 are built on the codex contributor branch. All AGENTS gates and
 the requested smoke/structural/Sophia/default graph browser matrix pass.
 AU-20–23 cover both terminal views
 with Unix PTY mode detection, private tails, paste confirmation and Pause sharing.
 AU-24 has no current handover path; terminal exclusion remains mandatory when
-WP-72 adds grants.
+AU-12 adds grants after accounts (SW-02), outside WP-72’s position-sharing slice.
 AU-01–07 add typed display tools, marked groups, bounded per-conversation display
-budgets and the user/session view-opening setting. AU-10–14, AG-01–05 and
+budgets and the user/session view-opening setting. AU-10, AU-11, AU-13 and AU-14 are built and validated (WP-72, 2026-10-30; see Status). AU-12, AG-01–05 and
 AU-30–32 remain planned. The shared multi-agent task/token budget (SW-08) remains
 WP-48; today’s display budget is its bounded local precursor.
 
@@ -32,7 +32,7 @@ WP-48; today’s display budget is its bounded local precursor.
   - `editor.replace`, `file.create` and `file.save` write, through the policy gate (`services/llm/src/policy.rs`);
   - `editor.open` opens a node; `ui.reveal`, `ui.select`, `ui.show_result` and `ui.canvas` show bounded typed content in the conversation’s own marked group.
 - **Agent messages** render as safe Markdown: raw HTML is shown as text, and images are never loaded ([[Shared Work]] §2).
-- **Presence** shows other people's initials on tabs and files ([[Collaboration]]). It has no cursors across machines yet, and no agents.
+- **Presence** shows other people's initials on tabs and files ([[Collaboration]]). Opt-in carets/selections and 2D graph pointers travel through the server hub or the local session bus; an independently enabled agent reveal target demonstrates agent presence.
 - **Not built:** tasks, approvals, attribution and budgets ([[Shared Work]] SW-01 to SW-08, WP-48, which needs server accounts first).
 
 ## 1. What an agent may show (display tools)
@@ -95,19 +95,19 @@ The graph adds:
 
 Two buttons, both off by default, per session and per participant (a person or an agent):
 
-- **AU-10 Share my cursor:**
+- **AU-10 Share my cursor (built, WP-72):**
   - others see your caret and selection in the documents you have open (presence, [[Collaboration]]);
-  - they can **follow** you: their view goes to wherever you go.
+  - they can **follow** you through sources they already have open; their own navigation or Escape ends follow.
 
   You can stop sharing at any time. Agents can share their cursor too (SW-03), which is how "watch the agent work" looks.
-- **AU-11 Share my pointer:** others see your mouse pointer over the same view, as a labelled arrow, on graphs and canvases where position means something. This is for explaining ("this node here").
-- **AU-12 Hand over the keyboard:** a separate, explicit grant: "let X type in this document". It is time-limited and revocable. Every keystroke is attributed to whoever typed it (SW-06).
+- **AU-11 Share my pointer (built for 2D graphs, WP-72):** others see your mouse pointer over the same view, as a labelled arrow, on graphs and canvases where position means something. This is for explaining ("this node here").
+- **AU-12 Hand over the keyboard (later, needs accounts SW-02):** a separate, explicit grant: "let X type in this document". It is time-limited and revocable. Every keystroke is attributed to whoever typed it (SW-06).
   - **Agents never get live keystrokes** (decided, Daniel, 2026-10-29). Their edits are proposals (SW-05). Their text can stream into their own canvas or scratch document (AU-03), which is showing, not typing. A demonstration replays a proposal step by step, with its cursor moving through the edit, and is then accepted or rejected as a whole.
-- **AU-13 Visible state:**
+- **AU-13 Visible state (built, WP-72):**
   - a small indicator shows when you are sharing your cursor or pointer, or have handed over the keyboard;
   - one command stops all of it ("Stop sharing", with a shortcut);
   - nothing is shared without that indicator.
-- **AU-14 Phones and screen readers:**
+- **AU-14 Phones and screen readers (built, WP-72):**
   - the pointer is never required, and sharing works by cursor alone;
   - another participant's cursor is announced on request, not continuously.
 

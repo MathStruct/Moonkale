@@ -39,6 +39,13 @@ pub enum SessionMessage {
         /// Existing window protocol.
         message: Box<SessionMessage>,
     },
+    /// Ephemeral opt-in presence over the local desktop bus.
+    Presence {
+        /// Sending window.
+        from: WindowId,
+        /// Metadata only.
+        member: crate::presence::Member,
+    },
     /// A window came up and wants to know the session state.
     Hello {
         /// The window that sent it.
@@ -89,6 +96,7 @@ impl SessionMessage {
         match self {
             SessionMessage::Scoped { message, .. } => message.sender(),
             SessionMessage::Hello { from }
+            | SessionMessage::Presence { from, .. }
             | SessionMessage::Welcome { from }
             | SessionMessage::SourceOpened { from, .. }
             | SessionMessage::DragStarted { from, .. }

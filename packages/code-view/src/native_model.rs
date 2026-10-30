@@ -528,6 +528,30 @@ impl NativeModel {
         }
         self.engine.replace_folding_regions(folds, false);
     }
+    /// Translate canonical UTF-16 metadata using the retained per-line index.
+    pub(crate) fn shared_offset(&self, offset: u32) -> Option<usize> {
+        let line = self.lines.get(
+            self.lines
+                .partition_point(|line| line.utf16 <= offset)
+                .saturating_sub(1),
+        )?;
+        let mut units = line.utf16;
+        let text = self
+            .engine
+            .editor()
+            .text_range(line.normalized_start, line.normalized_start + line.chars);
+        for (i, ch) in text.chars().enumerate() {
+            if units == offset {
+                return Some(line.normalized_start + i);
+            }
+            units += ch.len_utf16() as u32;
+            if units > offset {
+                return None;
+            }
+        }
+        (units == offset).then_some(line.normalized_start + line.chars)
+    }
+
     pub fn selection(&self, canonical: &str) -> Utf16Selection {
         let cursor = self.engine.get_cursor_state();
         let (anchor, head) = cursor
@@ -1055,6 +1079,19 @@ mod tests {
             assert!(delta_batch(&base, &delta, Utf16Selection { anchor: 0, head: 0 }).is_err());
         }
     }
+    #[test]
+    fn remote_offsets_respect_utf16_crlf_and_scalar_boundaries() {
+        let base = snapshot("a😀\r\nz");
+        let model = NativeModel::new(&base, None);
+        assert_eq!(model.shared_offset(0), Some(0));
+        assert_eq!(model.shared_offset(1), Some(1));
+        assert_eq!(model.shared_offset(2), None);
+        assert_eq!(model.shared_offset(3), Some(2));
+        assert_eq!(model.shared_offset(5), Some(3));
+        assert_eq!(model.shared_offset(6), Some(4));
+        assert_eq!(model.shared_offset(7), None);
+    }
+
     #[test]
     fn folds_are_view_state_and_reveal_expands_nested_ancestors() {
         let base = snapshot("fn main() {\r\n    if true {\r\n        work();\r\n    }\r\n}\r\n");
